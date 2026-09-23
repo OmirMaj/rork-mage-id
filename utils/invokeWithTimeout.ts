@@ -30,7 +30,16 @@ const DEFAULT_VISION_TIMEOUT_MS = 90_000; // 90 s — generous for large photo b
 
 export type InvokeResult<T> = {
   data: T | null;
-  error: { message: string } | null;
+  /**
+   * `context` is the supabase-js FunctionsHttpError's Response on a non-2xx
+   * (CONTRACT 10). It always passed through at runtime; typing it lets a
+   * caller hand the error to utils/edgeError (edgeFunctionError reads the
+   * function's own `{ error, code }` from it — audit #124) and read the status
+   * with edgeErrorStatus, instead of the collapsed "Edge Function returned a
+   * non-2xx status code". Absent on the timeout and on a thrown failure: those
+   * never reached a function that could answer.
+   */
+  error: { message: string; context?: unknown } | null;
 };
 
 /**

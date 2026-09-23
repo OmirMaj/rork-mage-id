@@ -51,6 +51,7 @@ import {
   escHtml, fmtMoney, PDF_PALETTE,
 } from './pdfDesign';
 import { formatCalendarDay } from './calendarDate';
+import { openPrintWindowOrThrow, PRINT_WINDOW_BLOCKED_MESSAGE } from './platformFile';
 import { commitmentValue } from './jobCostEngine';
 import type { Commitment, CompanyBranding, Project, Subcontractor } from '@/types';
 import type { Delivery } from './deliverySchedule';
@@ -338,6 +339,14 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
   });
 }
 
+/** Web pop-up blocked. Job Costing shows the thrown sentence as-is, and the
+ *  control is the PO row's download icon, not a Share button, so the generic
+ *  "tap Share again" would send him looking for a button that isn't there. It
+ *  starts with the same sentence as PRINT_WINDOW_BLOCKED_MESSAGE so
+ *  pdfFailureMessage still passes it through. */
+export const PO_PDF_WINDOW_BLOCKED_MESSAGE =
+  "Your browser blocked the PDF window. Allow pop-ups for app.mageid.app and tap the purchase order's download icon again.";
+
 /** Share the PO as a PDF. Mirrors generateFieldTicketPDF's platform handling. */
 export async function sharePurchaseOrderPDF(
   commitment: Commitment,
@@ -350,12 +359,19 @@ export async function sharePurchaseOrderPDF(
   const html = buildPurchaseOrderHtml(doc, branding);
   const title = `Purchase Order ${doc.poNumber} — ${doc.projectName}`;
 
+  // Web (audit 2026-09-23 #147): a blocked pop-up used to return normally,
+  // so Issue PO did nothing and said nothing, and print() ran before the logo
+  // loaded. openPrintWindowOrThrow throws the "allow pop-ups" sentence the
+  // screen shows, and prints once images settle. Nothing above is awaited, so
+  // the window still opens inside the tap.
   if (Platform.OS === 'web') {
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      win.print();
+    try {
+      openPrintWindowOrThrow(html);
+    } catch (err) {
+      if (err instanceof Error && err.message === PRINT_WINDOW_BLOCKED_MESSAGE) {
+        throw new Error(PO_PDF_WINDOW_BLOCKED_MESSAGE);
+      }
+      throw err;
     }
     return;
   }

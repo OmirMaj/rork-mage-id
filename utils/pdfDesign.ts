@@ -43,13 +43,33 @@ export function escHtml(text: string | number | null | undefined): string {
   }[c] as string));
 }
 
-export function fmtMoney(n: number | null | undefined, opts?: { decimals?: number }): string {
+/**
+ * Money on a PDF. THE SIGN GOES OUTSIDE THE DOLLAR SIGN (#106, audit
+ * 2026-09-22): this was `'$' + n.toLocaleString()`, so a losing job's projected
+ * profit printed "$-250,000" on the WIP and Profit PDFs a GC hands his bank.
+ *
+ * Rounded to the printed precision FIRST, then signed — so -0.4 at 0 decimals
+ * prints "$0", never "-$0" or "$-0" (a sign on a zero asserts a loss nobody
+ * has). `{ negative: 'paren' }` prints the accounting form "($250,000)", which
+ * is what the WIP schedule's over/(under) column already uses, so a report can
+ * keep one negative style per page. The signature only GAINS an optional key:
+ * utils/pdfGenerator.ts and utils/lienWaiverEngine.ts import this too.
+ */
+export function fmtMoney(
+  n: number | null | undefined,
+  opts?: { decimals?: number; negative?: 'minus' | 'paren' },
+): string {
   if (n == null || isNaN(n)) return '—';
   const d = opts?.decimals ?? 0;
-  return '$' + Number(n).toLocaleString(undefined, {
+  const factor = 10 ** d;
+  const rounded = Math.round(Math.abs(Number(n)) * factor) / factor;
+  const negative = Number(n) < 0 && rounded > 0;
+  const body = '$' + rounded.toLocaleString(undefined, {
     minimumFractionDigits: d,
     maximumFractionDigits: d,
   });
+  if (!negative) return body;
+  return opts?.negative === 'paren' ? `(${body})` : `-${body}`;
 }
 
 export function fmtDate(iso: string | null | undefined): string {

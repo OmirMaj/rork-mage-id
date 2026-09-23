@@ -30,6 +30,24 @@ function ok(n: string, cond: boolean, extra = '') {
   if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n, extra ? `\n   ${extra}` : ''); }
 }
 
+/** Parse one CSV line the way a reader would (quoted cells may hold commas). */
+const csvCells = (line: string): string[] => {
+  const out: string[] = [];
+  let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') q = false;
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+};
+
 const sub = (id: string, over: Partial<Subcontractor> = {}): Subcontractor => ({
   id, companyName: `Sub ${id}`, legalName: `Sub ${id} LLC`, contactName: 'Pat', taxIdLast4: '1234',
   address: '1 Main St', w9OnFile: true, ...over,
@@ -220,8 +238,10 @@ console.log('\ncoverage is stated, not implied (MONEY-1099-COV-1):');
   ok('…with the existing nine columns still in their original positions',
     header.split(',').slice(0, 4).join(',') === 'Sub ID,Recipient Name,TIN (last 4),Address'
     && header.split('","').length > 1 || header.startsWith('Sub ID,Recipient Name,TIN (last 4),Address,'), header);
+  // By POSITION, not "second from the end": #100 appended a card column after
+  // it, which is the contract working — positions are stable, the tail grows.
   ok('…and the value lands in that column',
-    csv.split('\n')[1].trimEnd().split(',').slice(-2)[0] === '12500.00', csv.split('\n')[1]);
+    csvCells(csv.split('\n')[1])[10] === '12500.00', csv.split('\n')[1]);
   ok('the coverage sentence reaches the CSV', csv.includes(COVERAGE_NOTE));
 }
 
@@ -271,8 +291,23 @@ console.log('\na sub paid by check (MONEY-1099-GC-1):');
   ok('…and the row says the tax year came from the DOCUMENT date',
     /DATE ON THE DOCUMENT/.test(after[0].notes), after[0].notes);
   ok('…and it reaches the CSV in its own column',
-    tax1099DatasetToCsv(after).split('\n')[1].trimEnd().endsWith('30000.00'),
+    csvCells(tax1099DatasetToCsv(after).split('\n')[1])[11] === '30000.00',
     tax1099DatasetToCsv(after).split('\n')[1]);
+
+  // #105 (audit 2026-09-22): the row's own coverage sentence matches the row.
+  // It was COVERAGE_NOTE on every row, so a row whose total INCLUDES recorded
+  // bills said, one note later, that anything recorded outside the portal is
+  // not in the figure.
+  ok('#105: a row that counts recorded bills carries the WIDE coverage sentence',
+    after[0].notes.split('; ').includes(COVERAGE_NOTE_WITH_RECORDED_BILLS), after[0].notes);
+  ok('…and NOT the narrow one',
+    !after[0].notes.split('; ').includes(COVERAGE_NOTE) && !tax1099DatasetToCsv(after).includes(COVERAGE_NOTE),
+    after[0].notes);
+  const mixed = build(2026, [], [sub('s1'), sub('s2')], [subcontract], bills);
+  ok('…while a row in the same run with no recorded bills keeps the narrow one, which is true of IT',
+    mixed.find(r => r.subcontractorId === 's2')!.notes.split('; ').includes(COVERAGE_NOTE)
+    && !mixed.find(r => r.subcontractorId === 's2')!.notes.includes(COVERAGE_NOTE_WITH_RECORDED_BILLS),
+    mixed.find(r => r.subcontractorId === 's2')!.notes);
 
   // Retention held on a GC-recorded bill is not money the sub received.
   const held = build(2026, [], [sub('s1')], [subcontract],

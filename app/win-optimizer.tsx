@@ -27,6 +27,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { computeWinOptimizer, type BidPoint } from '@/utils/winOptimizer';
 import { formatMoney } from '@/utils/formatters';
+import { parseDecimalInput } from '@/utils/estimateLanding';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -78,8 +79,11 @@ function WinOptimizerInner() {
   const [markupStr, setMarkupStr] = useState(String(prefillMarkupPct));
   const [competitorsStr, setCompetitorsStr] = useState('');
 
-  const cost = Math.max(0, parseFloat(costStr.replace(/[^0-9.]/g, '')) || 0);
-  const typicalMarkup = Math.max(0, (parseFloat(markupStr) || 0) / 100);
+  // Money and percent boxes take a decimal (#10): the keypad is decimal-pad,
+  // and parseDecimalInput reads '12,500' as grouping and '7,5' as a decimal
+  // comma (a comma-decimal region's keypad), never '7,5' as 75.
+  const cost = Math.max(0, parseDecimalInput(costStr) ?? 0);
+  const typicalMarkup = Math.max(0, (parseDecimalInput(markupStr) ?? 0) / 100);
   const competitorCount = Math.max(0, parseInt(competitorsStr, 10) || 0);
 
   const result = useMemo(() => {
@@ -139,8 +143,8 @@ function WinOptimizerInner() {
                 onChangeText={setCostStr}
                 placeholder="0"
                 placeholderTextColor={t.textMuted}
-                keyboardType="numeric"
-                inputMode="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 returnKeyType="done"
               />
             </View>
@@ -155,8 +159,8 @@ function WinOptimizerInner() {
                 onChangeText={setMarkupStr}
                 placeholder="18"
                 placeholderTextColor={t.textMuted}
-                keyboardType="numeric"
-                inputMode="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 returnKeyType="done"
               />
               <Text style={styles.inputSuffix}>%</Text>

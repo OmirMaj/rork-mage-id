@@ -38,6 +38,7 @@ import {
   type RetainageReadinessSignal,
 } from '@/utils/retainage';
 import { generateUUID } from '@/utils/generateId';
+import { parseMoneyInput, MONEY_FORMAT_HINT } from '@/utils/cashFlowEngine';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
@@ -206,14 +207,24 @@ export default function RetentionScreen() {
   const plan = useMemo<RetainageReleasePlan | null>(() => {
     if (!releaseRow) return null;
     if (releaseMode === 'amount') {
-      const amt = parseFloat(releaseAmountInput);
-      if (!Number.isFinite(amt) || amt <= 0) return null;
+      // parseMoneyInput, not parseFloat (#148): parseFloat('12,500') is 12, so
+      // a GC on a laptop typing a normal dollar figure previewed and released
+      // $12. It reads US grouping and refuses anything ambiguous ('3200,50'),
+      // and the box then says what shape to type (amountUnreadable below).
+      const amt = parseMoneyInput(releaseAmountInput);
+      if (amt === null || !Number.isFinite(amt) || amt <= 0) return null;
       return planRetainageRelease(releaseRow.summary, amt);
     }
     const pct = parseFloat(releasePercentInput);
     if (!Number.isFinite(pct) || pct < 0) return null;
     return planRetainageReduction(releaseRow.summary, pct);
   }, [releaseRow, releaseMode, releaseAmountInput, releasePercentInput]);
+
+  // Typed but not a dollar amount — the reason the Release button is dead,
+  // said under the box rather than left for the GC to guess (#148).
+  const amountUnreadable = releaseMode === 'amount'
+    && releaseAmountInput.trim().length > 0
+    && parseMoneyInput(releaseAmountInput) === null;
 
   const applyRelease = useCallback(() => {
     if (!releaseRow || !plan) return;
@@ -706,6 +717,11 @@ export default function RetentionScreen() {
                           <Text style={styles.fullBtnText}>All</Text>
                         </TouchableOpacity>
                       </View>
+                      {amountUnreadable && (
+                        <Text style={styles.previewWarn} testID="retention-amount-unreadable">
+                          {MONEY_FORMAT_HINT}
+                        </Text>
+                      )}
                       <Text style={styles.modalHint}>
                         Applied to the oldest invoice first, then the next, until the amount is used up.
                       </Text>

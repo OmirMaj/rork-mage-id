@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>The MAGE Price Index — What construction actually costs, from real jobs | MAGE ID</title>
 <link rel="canonical" href="https://mageid.app/costs/" />
-<meta name="description" content="Free construction cost data from real, completed jobs — not catalog averages. Median paid rates by trade, contributed anonymously by working contractors. No signup, no paywall." />
+<meta name="description" content="The MAGE Price Index: a free, public index of what contractors actually paid on completed jobs — not catalog averages. Not published yet: it opens once rates are computed on our servers from logged job costs, so no contractor's own price can be worked out from it." />
 <meta name="theme-color" content="#0B0D10" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="The MAGE Price Index — what construction actually costs" />
-<meta property="og:description" content="Real paid rates from completed jobs, published free. The cost data the industry sells for thousands." />
+<meta property="og:description" content="A free index of real paid rates from completed jobs — not published yet, and here is exactly why." />
 <meta property="og:url" content="https://mageid.app/costs/" />
 <meta property="og:site_name" content="MAGE ID" />
 <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
@@ -29,12 +29,12 @@
   "@context": "https://schema.org",
   "@type": "Dataset",
   "name": "MAGE Price Index",
-  "description": "Median unit costs actually paid by working construction contractors, by trade and unit, aggregated anonymously from completed jobs. Distinct from catalog cost books, which publish periodic regional averages that exclude contractor margin.",
+  "description": "A planned index of unit costs actually paid by working construction contractors, by trade and unit, from completed jobs. Not published yet: no figures are released until each contractor's rate is computed on MAGE ID's servers from logged job costs. Distinct from catalog cost books, which publish periodic regional averages that exclude contractor margin.",
   "url": "https://mageid.app/costs/",
   "license": "https://mageid.app/terms.html",
   "isAccessibleForFree": true,
   "creator": { "@type": "Organization", "name": "MAGE ID", "url": "https://mageid.app" },
-  "measurementTechnique": "Anonymized aggregation of contractor-reported paid unit rates from completed jobs. Contribution is opt-in. A trade/unit is published only once at least five independent contractors have contributed, and only median and interquartile values are released — never an individual contractor's price.",
+  "measurementTechnique": "Contribution is opt-in. Nothing is published yet: a market figure computed from rates contractors submit themselves can be worked back to one contractor's exact price by someone who moves their own submitted rate, so MAGE ID releases no figures until rates are computed on its servers from logged job costs.",
   "variableMeasured": [
     { "@type": "PropertyValue", "name": "median", "description": "Median paid unit cost across contributing contractors" },
     { "@type": "PropertyValue", "name": "p25", "description": "25th percentile paid unit cost" },
@@ -51,17 +51,17 @@
     {
       "@type": "Question",
       "name": "Where does the MAGE Price Index data come from?",
-      "acceptedAnswer": { "@type": "Answer", "text": "From completed jobs. Contractors using MAGE ID build a price book from what their work actually cost — real invoices, receipts, sub commitments and labor hours. Those learned rates are aggregated anonymously into the index. Contributing is opt-in and off by default." }
+      "acceptedAnswer": { "@type": "Answer", "text": "From completed jobs. Contractors using MAGE ID build a price book from what their work actually cost — real invoices, receipts, sub commitments and labor hours. Contributing to the index is opt-in and off by default. The index is not published yet: it opens only once each contractor's rate is computed on MAGE ID's servers from those logged job costs." }
     },
     {
       "@type": "Question",
       "name": "How is this different from RSMeans or other construction cost books?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Cost books publish periodic regional averages and generally exclude contractor margin, and they are sold by subscription — commonly thousands of dollars per user per year. The MAGE Price Index is built from prices contractors actually paid on real jobs, and it is free to read with no account." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Cost books publish periodic regional averages and generally exclude contractor margin, and they are sold by subscription — commonly thousands of dollars per user per year. The MAGE Price Index is built from prices contractors actually paid on real jobs and will be free to read with no account. It is not published yet." }
     },
     {
       "@type": "Question",
       "name": "Is an individual contractor's pricing ever exposed?",
-      "acceptedAnswer": { "@type": "Answer", "text": "No. Only medians and quartiles are published, and only once at least five independent contractors have contributed to that trade and unit. Below that threshold nothing is published at all. No contractor, company or job is ever identified." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Nothing is published today, so nothing is exposed. We found that medians and quartiles built from rates contractors submit themselves can be worked back to one contractor's exact price by someone who keeps changing their own submitted rate — even with a contributor minimum and rounding. So the index stays unpublished until rates are computed on our servers from logged job costs. No contractor, company or job is ever named." }
     },
     {
       "@type": "Question",
@@ -144,12 +144,12 @@
   <div class="eyebrow">The MAGE Price Index</div>
   <h1>What construction actually costs</h1>
   <p class="sub">
-    Real unit prices from completed jobs — contributed anonymously by working contractors,
-    published free. Not catalog averages. Not a national guess.
+    What contractors actually paid on completed jobs — not catalog averages, not a national
+    guess. Not published yet; below is why, and what has to be true first.
   </p>
 
   <div class="card">
-    <h2>Median paid rates</h2>
+    <h2>The index</h2>
     <div id="index-body">
       <div class="state" id="loading">Loading the index…</div>
     </div>
@@ -167,21 +167,24 @@
     <p>
       The only genuinely accurate cost data is what contractors actually paid on real jobs. Nobody
       published it, because nobody had it. MAGE ID's cost engine learns exactly that from every job
-      our contractors close — so we're giving the aggregate away.
+      our contractors close — and we mean to give the aggregate away, once it can be published
+      without exposing any one contractor's price.
     </p>
 
     <h3>How the numbers are made</h3>
     <p>
       Contractors build a private price book from their real invoices, receipts, sub commitments and
-      labor hours. If they choose to contribute — it's off by default — their learned rate joins the
-      index anonymously.
+      labor hours. Contributing is off by default; a contractor who turns it on is counted in the
+      index when it opens.
     </p>
-    <h3>What's protected</h3>
+    <h3>Why nothing is published yet</h3>
     <p>
-      A trade only appears once <strong>five or more independent contractors</strong> have
-      contributed, and only the median and quartiles are ever released. No individual price, no
-      contractor, no company, no job is identified — and below that threshold nothing is published
-      at all.
+      A market median built from rates contractors <em>type in</em> can be reverse-engineered:
+      someone who keeps changing their own submitted rate and re-reading the index can work out a
+      competitor's exact price — even with a minimum number of contributors and rounding. So
+      <strong>no figure is released</strong> until each rate is computed on our servers from the
+      job costs logged in MAGE ID, not from a number anyone submits. No contractor, company or job
+      is ever named.
     </p>
   </div>
 
@@ -202,8 +205,9 @@
   </p>
   <!-- Trust strip, same markup and same four destinations as the other 34
        public pages. This page had none, and it is a page that needs it: the
-       index it exists to show is EMPTY until five contributors opt in (the
-       live endpoint returns rows: []). A visitor who clicks "Price Index" out
+       index it exists to show is EMPTY — nothing is published until rates are
+       computed on the server from logged job costs (the live endpoint
+       returns rows: []). A visitor who clicks "Price Index" out
        of the homepage footer and lands on an empty table should not have to
        guess whether the whole product is that thin — the strip is where the
        site says out loud that it is new.
@@ -211,8 +215,8 @@
        said. marketing/index.html:543 is the whole nav — How it works /
        Features / Compare / Pricing / Demo / Support — and /costs/ appears on
        that page only in body prose (:576) and in the footer (:857), which is
-       the deliberate placement: an index that is honestly empty until five
-       contributors exist does not belong in a buyer's primary path.
+       the deliberate placement: an index that is honestly unpublished does
+       not belong in a buyer's primary path.
        No colour INSIDE the markup, on purpose — the guard bans a literal one
        here. The colour comes from the `.trust-strip a` rule next to `.foot a`
        above, because this <nav> is a SIBLING of <p class="foot"> and inherits
@@ -230,25 +234,42 @@
 </div>
 
 <script>
-  // Live read of the public index. The endpoint only ever returns
-  // k-anonymized medians of contractors who opted in.
+  // Live read of the public index. Today the endpoint returns rows: [] for
+  // every query — nothing is published until rates are server-derived
+  // (20260923180000, #84) — so the empty state below is the normal answer.
   var API = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/public-cost-index';
   var money = function (n) {
     if (n == null) return '—';
     return '$' + (n >= 100 ? Math.round(n).toLocaleString('en-US')
                            : n.toFixed(2).replace(/\.00$/, ''));
   };
+  // What the response means. Only a real 200 with a `rows` ARRAY and no
+  // `error` is the index; a 502, a malformed body or an error body is an
+  // outage and must say so — it used to fall through to "still building",
+  // so an outage read as a normal empty index (#174). Kept as one pure
+  // function so scripts/validate-w5-benchmark-financing-public.ts can run it.
+  function classifyIndexResponse(ok, d) {
+    if (!ok || !d || typeof d !== 'object' || d.error || !Array.isArray(d.rows)) return 'error';
+    return d.rows.length ? 'rows' : 'empty';
+  }
   fetch(API)
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      var rows = (d && d.rows) || [];
+    .then(function (r) {
+      return r.json().catch(function () { return null; })
+        .then(function (d) { return { ok: r.ok, d: d }; });
+    })
+    .then(function (res) {
+      var kind = classifyIndexResponse(res.ok, res.d);
+      if (kind === 'error') throw new Error('index unavailable');
+      var d = res.d;
+      var rows = d.rows;
       var host = document.getElementById('index-body');
-      if (!rows.length) {
-        // Honest cold start — we don't invent numbers to look populated.
+      if (kind === 'empty') {
+        // Honest: nothing is published, on purpose — not "almost there", and
+        // no invented numbers to look populated.
         host.innerHTML =
-          '<div class="state"><strong>The index is still building.</strong>' +
-          'Trades appear here once five or more contractors have contributed their real rates. ' +
-          'If you run jobs, you can be one of them — your price book is free either way.</div>';
+          '<div class="state"><strong>Not published yet.</strong>' +
+          'The index opens once contractor rates are computed on our servers from logged job costs ' +
+          '(see below for why). If you run jobs, your price book is free either way.</div>';
         return;
       }
       var html = '<table><thead><tr><th>Trade</th><th class="num">Low</th>' +
@@ -260,15 +281,18 @@
                 '<td class="num">' + money(r.p25) + '</td>' +
                 '<td class="num med">' + money(r.median) + '</td>' +
                 '<td class="num">' + money(r.p75) + '</td>' +
-                '<td class="num">' + r.n + '</td></tr>';
+                '<td class="num">' + (Number(r.n) || 0) + '</td></tr>';
       });
       html += '</tbody></table>';
       host.innerHTML = html;
       var meta = document.getElementById('meta');
-      if (meta && d.updated) {
+      // `updated` is the day the freshest contributing rate landed (a UTC
+      // day), not the request time — print it as that day, in UTC, so a
+      // visitor west of Greenwich doesn't see the day before.
+      if (meta && d.updated && !isNaN(new Date(d.updated).getTime())) {
         meta.textContent = 'Updated ' + new Date(d.updated).toLocaleDateString('en-US',
-          { month: 'long', day: 'numeric', year: 'numeric' }) +
-          ' · medians across contributing contractors, minimum ' + (d.minimumContributors || 5) + ' per trade.';
+          { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) +
+          ' · medians across contributing contractors.';
       }
     })
     .catch(function () {

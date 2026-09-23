@@ -15,6 +15,14 @@
 //   - 'rooms'   → AI reads a floor-plan sheet and returns every room
 //                 (name, type, sqft, bbox) for the Plan Intelligence
 //                 room-by-room estimating flow.
+//   - 'coi'     → AI reads a certificate of insurance (ACORD 25 photo or
+//                 PDF) for the COI Vault: insured, each coverage's carrier /
+//                 policy # / effective + expiry day / limits, and whether the
+//                 additional-insured and waiver-of-subrogation endorsements
+//                 show. Metered on 'analyze_photos' under the same Pro gate as
+//                 the vault screen (canAccess('rfis_submittals') = Pro). Until
+//                 this build is deployed the live function answers 400 for
+//                 'coi', and the client says reading isn't live (audit #23/#40).
 //
 // Modelled on the existing analyze-drawings function — same auth /
 // CORS / error shape, different prompt + schema per task.
@@ -24,7 +32,7 @@
 //
 // Request body:
 // {
-//   task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms';
+//   task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk' | 'coi';
 //   photoUrls: string[];        // 1..N publicly fetchable image URLs
 //   projectName?: string;
 //   projectType?: string;
@@ -57,7 +65,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface AnalyzePhotosRequest {
-  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk';
+  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk' | 'coi';
   /** EITHER photoUrls (server fetches) OR photos[].base64 inline.
    *  Client-side camera / library picks are file:// URIs that the
    *  server can't fetch — those callers send inline base64 instead. */
@@ -175,6 +183,71 @@ Rules:
 
 Return JSON only — no preamble.`;
 
+const COI_PROMPT = `You are reading a CERTIFICATE OF LIABILITY INSURANCE (usually an ACORD 25) that a subcontractor sent a general contractor. Extract exactly what is printed — never infer a policy that is not on the page.
+
+Return a single JSON object (NOT an array) with:
+  - insuredName: the INSURED named on the certificate (the subcontractor's business).
+  - certificateHolder: the CERTIFICATE HOLDER block, if printed.
+  - coverages: one entry per coverage line that has a policy printed, each with:
+      • type: one of "general_liability", "auto", "workers_comp", "umbrella", "professional", "pollution", "other".
+      • carrierName: the insurer for that line (match the INSURER letter A/B/C… to the insurers listed at the top).
+      • policyNumber: as printed.
+      • effectiveDate: POLICY EFF as a calendar day, YYYY-MM-DD.
+      • expiresAt: POLICY EXP as a calendar day, YYYY-MM-DD. US certificates print MM/DD/YYYY — convert carefully.
+      • eachOccurrence: the EACH OCCURRENCE limit as a plain number (general liability / umbrella), else omit.
+      • generalAggregate: the GENERAL AGGREGATE limit as a plain number, else omit.
+  - hasAdditionalInsured: true if the ADDL INSD column is marked for any line OR the description names the holder as additional insured; false if clearly absent; omit if you cannot tell.
+  - hasWaiverOfSubrogation: true if the SUBR WVD column is marked OR the description grants a waiver of subrogation; false if clearly absent; omit if you cannot tell.
+  - confidence: 0-100, how legible and complete the certificate is.
+
+Rules:
+  - Numbers are plain numbers — strip $ and thousands separators.
+  - A date you cannot read with certainty is omitted, never guessed.
+  - If the document is not a certificate of insurance, return { "coverages": [], "confidence": 0 }.
+
+Return JSON only — no preamble.`;
+
+interface CoiCoverageOut {
+  type: string;
+  carrierName: string;
+  policyNumber: string;
+  effectiveDate: string;
+  expiresAt: string;
+  eachOccurrence?: number;
+  generalAggregate?: number;
+}
+
+interface CoiOut {
+  insuredName: string;
+  certificateHolder: string;
+  coverages: CoiCoverageOut[];
+  hasAdditionalInsured?: boolean;
+  hasWaiverOfSubrogation?: boolean;
+  confidence: number;
+}
+
+const COI_TYPES = ['general_liability', 'auto', 'workers_comp', 'umbrella', 'professional', 'pollution', 'other'];
+
+/** A calendar day or '' — a date the model could not give as YYYY-MM-DD (or
+ *  as a US MM/DD/YYYY) is dropped, never stored as a guess. */
+function coiDay(v: unknown): string {
+  const s = String(v ?? '').trim();
+  let y: number, m: number, d: number;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3]; }
+  else if (us) { y = +us[3]; m = +us[1]; d = +us[2]; }
+  else return '';
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return '';
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function coiLimit(v: unknown): number | undefined {
+  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/[$,\s]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
 interface RoomOut {
   name: string;
   type: string;
@@ -278,8 +351,10 @@ serve(async (req) => {
   let body: AnalyzePhotosRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400); }
 
-  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk'].includes(body.task)) {
-    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", "rooms", or "conditionRisk"' }, 400);
+  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk', 'coi'].includes(body.task)) {
+    // `code` lets the COI vault tell "this server can't read that yet" from a
+    // failed read (the pre-'coi' build answered this 400 with no code).
+    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", "rooms", "conditionRisk", or "coi"', code: 'unknown_task' }, 400);
   }
 
   const usingInline = Array.isArray(body.photos) && body.photos.length > 0;
@@ -360,7 +435,7 @@ serve(async (req) => {
   // Monthly cap PRECHECK (audit AI-F8: the unit is charged after the model
   // answers, below). Meter only once at least one valid photo is in hand — a
   // missing/oversized/unfetchable input where no Gemini call runs must not
-  // consume a unit. punch/dfr/rfi/triage/receipt/rooms share one cap (same
+  // consume a unit. punch/dfr/rfi/triage/receipt/rooms/coi share one cap (same
   // spend); conditionRisk (Cost X-Ray) has its own. aiUsageGet fails CLOSED.
   // Accepted window: N requests racing at cap-1 all pass this read and each
   // charges after — one user's counter can overshoot by N-1, never more.
@@ -428,6 +503,7 @@ Return JSON only — no preamble.`;
     body.task === 'receipt' ? RECEIPT_PROMPT :
     body.task === 'rooms'   ? ROOMS_PROMPT :
     body.task === 'conditionRisk' ? CONDITION_RISK_PROMPT :
+    body.task === 'coi'     ? COI_PROMPT :
     TRIAGE_PROMPT;
   const prompt = ctxLine ? `${ctxLine}\n\n${basePrompt}` : basePrompt;
 
@@ -598,6 +674,35 @@ Return JSON only — no preamble.`;
       tax: Number(o.tax) || 0,
       total: Number(o.total) || 0,
       confidence: Number(o.confidence) || 0,
+    };
+    return jsonResponse({ success: true, data: out });
+  }
+
+  if (body.task === 'coi') {
+    // RawAIExtraction in utils/coiValidator.ts. Dates are calendar days or
+    // omitted; the client shows every AI-read row as unconfirmed until the GC
+    // checks it against the certificate.
+    const o = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
+    const rawCov = Array.isArray(o.coverages) ? o.coverages : [];
+    const out: CoiOut = {
+      insuredName: String(o.insuredName ?? '').slice(0, 200),
+      certificateHolder: String(o.certificateHolder ?? '').slice(0, 300),
+      coverages: rawCov.map((x): CoiCoverageOut => {
+        const c = (x ?? {}) as Record<string, unknown>;
+        const type = String(c.type ?? '').toLowerCase().trim();
+        return {
+          type: COI_TYPES.includes(type) ? type : 'other',
+          carrierName: String(c.carrierName ?? '').slice(0, 200),
+          policyNumber: String(c.policyNumber ?? '').slice(0, 100),
+          effectiveDate: coiDay(c.effectiveDate),
+          expiresAt: coiDay(c.expiresAt),
+          eachOccurrence: coiLimit(c.eachOccurrence),
+          generalAggregate: coiLimit(c.generalAggregate),
+        };
+      }).filter(c => c.policyNumber.length > 0 || c.expiresAt.length > 0),
+      hasAdditionalInsured: typeof o.hasAdditionalInsured === 'boolean' ? o.hasAdditionalInsured : undefined,
+      hasWaiverOfSubrogation: typeof o.hasWaiverOfSubrogation === 'boolean' ? o.hasWaiverOfSubrogation : undefined,
+      confidence: Math.max(0, Math.min(100, Number(o.confidence) || 0)),
     };
     return jsonResponse({ success: true, data: out });
   }

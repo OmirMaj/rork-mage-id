@@ -9,7 +9,7 @@
 //
 // Pure read over utils/estimateConfidence + utils/costDatabase. No network.
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
 } from 'react-native';
@@ -29,6 +29,8 @@ import { useEstimateCalibration } from '@/hooks/useEstimateCalibration';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
+import EstimateJobPicker from '@/components/estimate/EstimateJobPicker';
+import { estimateProjectCandidates, pickEstimateProject } from '@/utils/estimateLanding';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { applyCalibrationToEstimate } from '@/utils/applyCalibration';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
@@ -77,8 +79,25 @@ function EstimateConfidenceInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, commitments, updateProject } = useProjects();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { projects, commitments, updateProject, projectsLoaded } = useProjects();
+  // NO projectId IS NOT "PROJECT NOT FOUND" (#87). The Estimate hub, the
+  // Summary tools sheet and the web sidebar push this route bare. Default to
+  // the most recently updated job with estimate lines and put it in the URL
+  // (router.setParams) so Back and a shared link keep it; the picker below
+  // switches jobs. "Project not found" is kept for a STALE id only.
+  const candidates = useMemo(() => estimateProjectCandidates(projects), [projects]);
+  const fallback = useMemo(
+    () => (paramProjectId ? null : pickEstimateProject(projects, 'estimate')),
+    [paramProjectId, projects],
+  );
+  const projectId = paramProjectId ?? fallback?.id;
+  useEffect(() => {
+    if (!paramProjectId && fallback) router.setParams({ projectId: fallback.id });
+  }, [paramProjectId, fallback, router]);
+  // Until the list has hydrated, "no estimate anywhere" and "not found" are
+  // both unknown — say neither.
+  const noEstimateAnywhere = projectsLoaded && !paramProjectId && !fallback;
   const { receipts } = useMaterialReceipts();
   // Cold-start seeds. FIREWALL NOTE: these can move a line off 'no_history'
   // and let the underpriced warning fire, but they can NEVER raise the score —
@@ -173,20 +192,52 @@ function EstimateConfidenceInner() {
         <View style={styles.headerBtn} />
       </View>
 
-      {!project || !report || !report.hasEstimate ? (
+      {!projectsLoaded && !project ? (
+        <View style={{ flex: 1 }} testID="confidence-loading" />
+      ) : noEstimateAnywhere ? (
         <EmptyState
           icon={<ShieldCheck size={36} color={t.accent} strokeWidth={1.6} />}
-          title={!project ? 'Project not found' : 'No estimate to check'}
-          message={
-            !project
-              ? 'Open this from a project to price-check its estimate against your history.'
-              : 'Estimate Confidence checks each line against your cost database. Build an estimate with cost and markup to use it.'
-          }
-          actionLabel="Back"
-          onAction={() => router.back()}
+          title="No estimate yet"
+          message="Estimate Risk checks each line of a job's estimate against your cost history. None of your projects has an estimate with lines yet — build one, then come back."
+          actionLabel="Build an estimate"
+          onAction={() => router.push('/estimate-wizard' as never)}
         />
+      ) : !project || !report || !report.hasEstimate ? (
+        <View style={{ flex: 1 }}>
+          {candidates.length > 0 && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+              <EstimateJobPicker
+                label="Check another job"
+                jobs={candidates}
+                selectedId={projectId}
+                onPick={(id) => router.setParams({ projectId: id })}
+                testID="confidence-job-picker"
+              />
+            </View>
+          )}
+          <EmptyState
+            icon={<ShieldCheck size={36} color={t.accent} strokeWidth={1.6} />}
+            title={!project ? 'Project not found' : 'No estimate to check'}
+            message={
+              !project
+                ? 'This link points to a project that isn\u2019t on this device any more. Pick a job above, or go back.'
+                : 'Estimate Confidence checks each line against your cost database. Build an estimate with cost and markup to use it.'
+            }
+            actionLabel="Back"
+            onAction={() => router.back()}
+          />
+        </View>
       ) : (
         <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+          {candidates.length > 1 && (
+            <EstimateJobPicker
+              label="Job"
+              jobs={candidates}
+              selectedId={projectId}
+              onPick={(id) => router.setParams({ projectId: id })}
+              testID="confidence-job-picker"
+            />
+          )}
           {/* Score hero */}
           <View style={[styles.hero, { borderColor: scoreColor + '55' }]}>
             <View style={[styles.scoreCircle, { backgroundColor: scoreColor + '1A', borderColor: scoreColor }]}>

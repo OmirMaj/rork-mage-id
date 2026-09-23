@@ -25,6 +25,7 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding } from '@/types';
+import { openPrintWindowOrThrow } from '@/utils/platformFile';
 
 // ─── Shared HTML helpers ────────────────────────────────────────────
 
@@ -605,8 +606,14 @@ export async function generateG714PDF(data: G714Data, branding: CompanyBranding)
 // in the "Special Conditions" field.
 
 export interface A401Data {
-  /** Sequential subcontract number for the project. */
-  subcontractNumber: number;
+  /**
+   * The award commitment's own number ("BO-3", ProjectContext.awardBidPackage)
+   * — the number the sub portal, the commitment list and the lien waivers
+   * already use for this contract (#98). A string, because it is that record's
+   * label: a second, per-PDF count would print "#1" on every subcontract and
+   * change whenever another package was awarded or deleted.
+   */
+  subcontractNumber: string;
   agreementDate: string;       // ISO
 
   // Parties
@@ -627,7 +634,13 @@ export interface A401Data {
   scopeDescription: string;     // narrative scope
   csiDivision?: string;          // "03" / "23" / "26" etc.
   contractSum: number;
-  retainagePercent: number;     // typically 5-10
+  /**
+   * The rate the GC confirmed for THIS subcontract (resolveRetainagePercent's
+   * answer, shown with its source before rendering — #98). `null` = no rate on
+   * file and he chose to leave it to be agreed: the form prints a blank to
+   * fill, never an invented 10%.
+   */
+  retainagePercent: number | null;
   paymentTerms: string;          // e.g. "Net 30 from approved pay app"
 
   // Schedule
@@ -661,8 +674,8 @@ function bondsLabel(b?: A401Data['bondsRequired']): string {
 
 function buildA401Html(data: A401Data, branding: CompanyBranding): string {
   const exhibitsList = (data.exhibits ?? []).filter(Boolean);
-  return pageShell(`Subcontract #${data.subcontractNumber} — ${data.projectName}`, `
-    ${header(branding, 'Standard Subcontract Agreement', `Subcontract #${data.subcontractNumber}`, 'Document A401 — styled')}
+  return pageShell(`Subcontract ${data.subcontractNumber} — ${data.projectName}`, `
+    ${header(branding, 'Standard Subcontract Agreement', `Subcontract ${data.subcontractNumber}`, 'Document A401 — styled')}
 
     <h2>Parties</h2>
     <div class="row">
@@ -703,7 +716,9 @@ function buildA401Html(data: A401Data, branding: CompanyBranding): string {
       subject to additions and deductions for changes as set forth in the contract documents.
     </p>
     <div class="row">
-      ${field('Retainage', `${data.retainagePercent}% of each progress payment`)}
+      ${field('Retainage', data.retainagePercent == null
+        ? '____% of each progress payment (to be agreed)'
+        : `${data.retainagePercent}% of each progress payment`)}
       ${field('Payment terms', data.paymentTerms)}
     </div>
 
@@ -770,21 +785,18 @@ function buildA401Html(data: A401Data, branding: CompanyBranding): string {
 
 export async function generateA401PDF(data: A401Data, branding: CompanyBranding): Promise<void> {
   const html = buildA401Html(data, branding);
-  await renderAndShare(html, `Subcontract #${data.subcontractNumber} — ${data.projectName}`);
+  await renderAndShare(html, `Subcontract ${data.subcontractNumber} — ${data.projectName}`);
 }
 
 // ─── Render + share helper (shared across forms) ────────────────────
 
 async function renderAndShare(html: string, title: string): Promise<void> {
   if (Platform.OS === 'web') {
-    if (typeof window !== 'undefined') {
-      const w = window.open('', '_blank');
-      if (w) {
-        w.document.write(html);
-        w.document.close();
-        setTimeout(() => w.print(), 400);
-      }
-    }
+    // A blocked pop-up used to return here as if the PDF had opened: the
+    // caller buzzed success and nothing reached him (#147, CONTRACT 25). It
+    // now THROWS the one sentence the caller shows through pdfFailureMessage.
+    // The typeof guard stays: a server render has no window to print from.
+    if (typeof window !== 'undefined') openPrintWindowOrThrow(html);
     return;
   }
   const { uri } = await Print.printToFileAsync({ html, base64: false });

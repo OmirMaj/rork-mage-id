@@ -50,8 +50,10 @@ interface RfpRow {
   budget_max: number | null;
   desired_start: string | null;
   photo_urls: string[] | null;
-  latitude: number | null;
-  longitude: number | null;
+  // ~1 km (2-decimal) location. The exact pin is private to the poster and
+  // the awarded contractor since 20260923101000 (audit wave 5, #86).
+  lat_coarse: number | null;
+  lng_coarse: number | null;
   address_verified: boolean;
   posted_date: string;
   deadline: string;
@@ -87,7 +89,7 @@ export default function NearbyRfpsScreen() {
     queryFn: async (): Promise<RfpRow[]> => {
       const { data: rfps, error } = await supabase
         .from('public_bids')
-        .select('id,title,city,state,status,scope_description,budget_min,budget_max,desired_start,photo_urls,latitude,longitude,address_verified,posted_date,deadline')
+        .select('id,title,city,state,status,scope_description,budget_min,budget_max,desired_start,photo_urls,lat_coarse,lng_coarse,address_verified,posted_date,deadline')
         .eq('is_homeowner_rfp', true)
         .eq('status', 'open')
         .order('posted_date', { ascending: false })
@@ -106,8 +108,8 @@ export default function NearbyRfpsScreen() {
   const filtered = useMemo<RfpWithDistance[]>(() => {
     const rfps = data ?? [];
     const enriched = rfps.map(r => {
-      const distance = (location && r.latitude != null && r.longitude != null)
-        ? getDistanceMiles(location.latitude, location.longitude, Number(r.latitude), Number(r.longitude))
+      const distance = (location && r.lat_coarse != null && r.lng_coarse != null)
+        ? getDistanceMiles(location.latitude, location.longitude, Number(r.lat_coarse), Number(r.lng_coarse))
         : null;
       return { ...r, distance };
     });

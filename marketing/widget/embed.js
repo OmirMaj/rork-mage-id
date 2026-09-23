@@ -38,6 +38,13 @@
   // Captured at parse time — document.currentScript is only valid here.
   var SELF = document.currentScript || null;
 
+  // IDENTICAL to widget-estimate's EMAIL_RE (supabase/functions/widget-estimate
+  // /index.ts) — scripts/validate-w5-benchmark-financing-public.ts compares
+  // the two source strings, so the form can never pass an address the server
+  // then drops.
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  var INVALID_EMAIL_MSG = "That email doesn't look complete (like name@gmail.com). Fix it or add a phone number.";
+
   var DEFAULT_API = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/widget-estimate';
   var SITE = 'https://mageid.app';
   var ATTRIB = SITE + '/?utm_source=instant-estimate-widget&utm_medium=embed&utm_campaign=powered-by';
@@ -161,7 +168,7 @@
   // ── the widget ───────────────────────────────────────────────────────────
 
   function render(root, cfg) {
-    var state = { step: 1, busy: false, data: {}, result: null, error: null, sent: false };
+    var state = { step: 1, busy: false, data: {}, result: null, error: null, sent: false, leadError: null };
     var wrap = el('div', { class: 'mie-root' });
     wrap.style.setProperty('--mie-accent', cfg.accent);
     root.appendChild(wrap);
@@ -287,6 +294,13 @@
         state.data.company_website = pot.value;
         if (!state.data.name) { state.error = 'Add your name so ' + cfg.contractorName + ' knows who to reply to.'; return draw(); }
         if (!state.data.email && !state.data.phone) { state.error = 'Add an email or a phone number.'; return draw(); }
+        // Same test the server runs (widget-estimate EMAIL_RE). A mistyped
+        // email with no phone used to be dropped server-side while this
+        // screen blamed the contractor ("We could not reach …") — #173.
+        if (state.data.email && !EMAIL_RE.test(state.data.email) && !state.data.phone) {
+          state.error = INVALID_EMAIL_MSG;
+          return draw();
+        }
         state.error = null;
         submit();
       });
@@ -304,6 +318,26 @@
       ]);
     }
 
+    // Why the lead did NOT reach the contractor, in the visitor's terms. Only
+    // a failed save really is "could not reach" — a rate limit or a snippet
+    // that names no account is not a connection problem, and blaming one
+    // sent visitors away thinking the contractor's system was down (#173).
+    // (A network failure never gets here: submit() returns to the form.)
+    function notSentText(unpriced) {
+      var who = cfg.contractorName;
+      var tail = unpriced ? ' and they can price it properly.' : ' and bring this number with you.';
+      if (state.leadError === 'save_failed') {
+        return 'We could not reach ' + who + ' just now — get in touch with them directly' + tail;
+      }
+      if (state.leadError === 'rate_limited') {
+        return who + ' has had a lot of requests in the last hour, so your details were not passed on — get in touch with them directly' + tail;
+      }
+      if (state.leadError === 'unknown_contractor') {
+        return "This form isn't connected to " + who + "'s account yet, so your details were not passed on — get in touch with them directly" + tail;
+      }
+      return 'Your details were not passed on to ' + who + ' — get in touch with them directly' + tail;
+    }
+
     // Step 3 — the number.
     function stepResult() {
       var e = state.result || {};
@@ -315,7 +349,7 @@
             ? 'On your site, this visitor would still land in your pipeline — an unpriceable scope is often the most interesting lead you get all week.'
             : state.sent
               ? 'Your details went to ' + cfg.contractorName + ' — they will follow up with a real quote.'
-              : 'Reach out to ' + cfg.contractorName + ' directly and they can price it properly.' }),
+              : notSentText(true) }),
           el('button', { class: 'mie-btn mie-btn-ghost', type: 'button', text: 'Start over', id: 'mie-restart' }),
           footer()
         ]);
@@ -340,7 +374,7 @@
           ? 'This is the live engine — a real call to the real endpoint. On your own site, the visitor enters their name and email before this screen, and the lead is already in your pipeline by the time they read it.'
           : state.sent
             ? 'Sent to ' + cfg.contractorName + '. They will reach out with a real quote built around your actual scope.'
-            : 'We could not reach ' + cfg.contractorName + " just now — get in touch with them directly and bring this number with you." }),
+            : notSentText(false) }),
         el('button', { class: 'mie-btn mie-btn-ghost', type: 'button', text: 'Estimate another project', id: 'mie-restart' }),
         footer()
       ]);
@@ -371,10 +405,11 @@
         phone: state.data.phone,
         company_website: state.data.company_website || ''
       };
-      var done = function (result, sent, error) {
+      var done = function (result, sent, error, leadError) {
         state.busy = false;
         state.result = result;
         state.sent = !!sent;
+        state.leadError = leadError || null;
         state.error = error || null;
         draw();
       };
@@ -397,7 +432,19 @@
           if (res.body.leadError === 'unknown_contractor' && window.console && console.warn) {
             console.warn('[MAGE ID] Instant Estimate: data-mage-contractor="' + cfg.contractorId + '" does not match exactly one MAGE ID account, so this lead was not saved. Copy a fresh snippet from the app: Estimate widget.');
           }
-          done(res.body.estimate, res.body.leadCaptured, null);
+          // The server refused the email (the check above was bypassed, or
+          // the page raced it): go back to the contact step with the reason
+          // and everything typed kept — the lead is not saved until the
+          // address is fixed or a phone added. An OLDER cached copy of this
+          // file never reaches this branch: it shows its generic not-sent
+          // line for 'invalid_email' until the cache serves this version.
+          // The server change still matters for it — the lead now carries a
+          // reason instead of vanishing with leadError null.
+          if (res.body.leadError === 'invalid_email' && !res.body.leadCaptured) {
+            state.step = 2;
+            return done(null, false, INVALID_EMAIL_MSG, null);
+          }
+          done(res.body.estimate, res.body.leadCaptured, null, res.body.leadError);
         }).catch(function () {
           state.step = backStep;
           done(null, false, 'Could not reach the estimator. Check your connection and try again.');
@@ -418,7 +465,7 @@
       wrap.appendChild(view);
       var restart = q('#mie-restart');
       if (restart) restart.addEventListener('click', function () {
-        state.step = 1; state.result = null; state.error = null; state.sent = false; draw();
+        state.step = 1; state.result = null; state.error = null; state.sent = false; state.leadError = null; draw();
       });
       // Trigger the size-hint update for a pre-selected type.
       var typeSel = q('#mie-type');

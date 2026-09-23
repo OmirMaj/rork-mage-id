@@ -5,7 +5,11 @@ import { generateUUID } from '@/utils/generateId';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
-import type { ScanRecord, ScanDocType, ScanRecordKind } from '@/types';
+import type { ScanDocType } from '@/types';
+// W5 (#162): a scan can now create a permit or a warranty, so records carry
+// the widened kind. scan_records.record_kind is free text — no migration.
+// w5-join-core folds these into types/index.ts (CONTRACT 27).
+import type { ScanRecordW5 as ScanRecord, ScanRecordKindW5 as ScanRecordKind } from '@/utils/scanRouting';
 
 const SCAN_RECORDS_KEY = 'mageid_scan_records';
 

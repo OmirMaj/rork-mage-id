@@ -25,7 +25,13 @@ import { Platform, Share } from 'react-native';
 import { copyToClipboard } from '@/utils/clipboard';
 
 export type ShareOutcome =
-  /** The native/Web Share sheet completed. */
+  /** The share sheet closed without the user dismissing it. On iOS that means
+   *  he picked a target (Share.share resolved with sharedAction); on web the
+   *  Web Share promise resolved. On ANDROID it only means the chooser opened:
+   *  Android's Share.share always resolves with sharedAction, even when he
+   *  backs out of the chooser, so a cancel there cannot be detected and still
+   *  reads as 'shared'. That is platform behaviour, not something to paper
+   *  over with a guess. */
   | 'shared'
   /** The user dismissed the sheet. Not an error — do not toast. */
   | 'cancelled'
@@ -61,11 +67,18 @@ export async function shareText(opts: {
   }
 
   try {
-    await Share.share(
+    const r = await Share.share(
       Platform.OS === 'web' && url
         ? { message: `${message}\n\n${url}`, title }
         : { message, title, url },
     );
+    // iOS does NOT reject when he taps X on the share sheet — it RESOLVES with
+    // { action: dismissedAction } (audit 2026-09-23 #54). Returning 'shared'
+    // for that marked a Quick Quote / Smart Proposal "sent" and logged a
+    // Waiting On chase that never left the phone. Tested on the result, not
+    // the platform: web rejects on cancel (the catch below) and resolves
+    // sharedAction otherwise, and Android always resolves sharedAction.
+    if (r?.action === Share.dismissedAction) return 'cancelled';
     return 'shared';
   } catch (e) {
     // AbortError is the user closing the sheet. Treat it as the cancel it is —

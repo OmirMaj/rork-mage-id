@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { withLocalMonthlyReset } from '@/utils/aiRateLimiterCore';
 
 // AI endpoint URL — derived from the single-source-of-truth constants
 // in lib/supabase.ts. Critical: this used to read process.env directly
@@ -41,6 +42,14 @@ interface MageAIResult {
    *  - `monthly_cap`     → server-side cap exhausted (429); shown alongside
    *    a reset date in `error`. Distinct from the client-side daily cap. */
   errorKind?: 'timeout' | 'network' | 'http' | 'model' | 'validation' | 'unauthenticated' | 'monthly_cap' | 'unknown';
+  /** The relay's own machine code from the error body (`body.code`) —
+   *  'monthly_cap', 'hourly_limit', 'tier_required', 'upstream_timeout', ….
+   *  errorKind stays the coarse union (wave-4 screens switch on it, and every
+   *  429 is still 'monthly_cap' there); this is how a screen tells an HOURLY
+   *  limit — which waiting an hour fixes — from the monthly cap, which only a
+   *  bigger plan does, so it never sends a Business GC to the paywall for
+   *  asking too fast (audit #119, CONTRACT 9). */
+  errorCode?: string;
   /** Gemini finishReason — STOP / MAX_TOKENS / SAFETY / RECITATION / etc.
    *  Surfaced to the UI so a "Retry" button on truncated output makes sense
    *  vs. a "rephrase" hint on a SAFETY block. */
@@ -140,19 +149,33 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
       // 429 = monthly cap (server-side). Carries a body with `code:'monthly_cap'`
       // and a friendly `error` string. Surface it specifically so the UI can
       // distinguish "you ran out for the month" from "the server is broken."
+      let errBody: { error?: unknown; code?: unknown } | null = null;
+      try { errBody = await r.json(); } catch { /* non-JSON body */ }
+      const errorCode = typeof errBody?.code === 'string' ? errBody.code : undefined;
       if (r.status === 429) {
-        let capMsg = `Monthly AI limit reached. Resets the 1st of next month.`;
-        try { const body = await r.json(); if (body?.error) capMsg = body.error; } catch { /* ignore */ }
-        return { success: false, data: null, error: capMsg, errorKind: 'monthly_cap' };
+        // The relay's monthly counter rolls at 00:00 UTC, and its message says
+        // "Resets the 1st of next month" — the evening of the last day for a US
+        // reader. withLocalMonthlyReset rewrites that one sentence into the
+        // reader's clock and leaves the hourly limit's own wording alone.
+        const capMsg = typeof errBody?.error === 'string' && errBody.error
+          ? errBody.error
+          : 'Monthly AI limit reached. Resets the 1st of next month.';
+        return {
+          success: false, data: null,
+          error: withLocalMonthlyReset(capMsg),
+          errorKind: 'monthly_cap',
+          errorCode: errorCode ?? 'monthly_cap',
+        };
       }
       // 401 = expired session or rejected JWT. The user should re-auth.
       if (r.status === 401) {
-        return { success: false, data: null, error: 'Session expired. Sign in again.', errorKind: 'unauthenticated' };
+        return { success: false, data: null, error: 'Session expired. Sign in again.', errorKind: 'unauthenticated', errorCode };
       }
       return {
         success: false, data: null,
         error: `AI server returned ${r.status}. Try again in a moment.`,
         errorKind: 'http',
+        errorCode,
       };
     }
     const j = await r.json();

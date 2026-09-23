@@ -141,17 +141,33 @@ export interface BuildPlanShareOpts {
   /** Project photos, for resolving `pin.linkedPhotoId`. */
   photos: ProjectPhoto[];
   maxPhotos?: number;
+  /**
+   * Freshly signed URLs by photo id, for photos whose `uri` on this device is
+   * not a URL (the phone that took them keeps file:// for good). The caller
+   * signs `photo.storagePath` (utils/storage resolvePhotoUrls) before
+   * building. Absent → only photos whose uri is already a URL can ship.
+   */
+  photoUrls?: Record<string, string>;
+  /** A freshly signed URL for the sheet image, when `sheet.imageUri` on this
+   *  device is not one (utils/planSheetUrls resolvePlanSheetUrls). */
+  sheetUrl?: string;
 }
 
 export interface BuildPlanShareResult {
   payload: PlanSharePayload;
-  /** Photos skipped because they haven't synced to the CDN yet. */
+  /** Photos skipped because they have no storage copy yet — really unsynced. */
   droppedLocal: number;
+  /** Photos that ARE stored (a storagePath) but had no signed URL to embed —
+   *  the caller passed no `photoUrls` for them. Not "unsynced"; say so. */
+  droppedUnsigned: number;
   /** Photos trimmed by the cap (oldest first). */
   droppedExcess: number;
-  /** True when the plan image itself is still local — the link would render
-   *  a blank plan, so callers should refuse to share. */
+  /** True when there is no URL for the plan image — the link would render a
+   *  blank plan, so callers should refuse to share. */
   planNotSynced: boolean;
+  /** Of those: the sheet IS stored (a storagePath) and only needs signing
+   *  (`sheetUrl`) — the refusal copy must not call it unsynced. */
+  planUnsigned: boolean;
 }
 
 /**
@@ -191,15 +207,28 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
     t: z.linkedTaskIds.filter((id) => shippedTaskIds.has(id)),
   }));
 
-  // Photos: pinned on this sheet, resolvable, and already on the CDN.
+  // Photos: pinned on this sheet and resolvable. Chosen by STORAGE copy, not
+  // by the uri's scheme (wave 5, #62): the phone that took a photo keeps a
+  // file:// uri for good, so the old `isRemote(uri)` test dropped every one
+  // of his own photos as "not yet synced" forever. A stored photo ships with
+  // the caller-signed URL (`photoUrls`), else its uri when that is a URL.
   const photoById = new Map(photos.map((p) => [p.id, p]));
   const pinned = pins
     .filter((p) => p.planSheetId === sheet.id && !!p.linkedPhotoId)
     .map((p) => ({ pin: p, photo: photoById.get(p.linkedPhotoId as string) }))
     .filter((x): x is { pin: DrawingPin; photo: ProjectPhoto } => !!x.photo);
 
-  const remote = pinned.filter((x) => isRemote(x.photo.uri));
-  const droppedLocal = pinned.length - remote.length;
+  const urlFor = (photo: ProjectPhoto): string => {
+    const signed = opts.photoUrls?.[photo.id];
+    if (signed && isRemote(signed)) return signed;
+    return isRemote(photo.uri) ? photo.uri : '';
+  };
+  const stored = pinned.filter((x) => !!x.photo.storagePath || isRemote(x.photo.uri));
+  const droppedLocal = pinned.length - stored.length;
+  const remote = stored
+    .map((x) => ({ ...x, url: urlFor(x.photo) }))
+    .filter((x) => !!x.url);
+  const droppedUnsigned = stored.length - remote.length;
 
   // Newest first so the cap keeps the most recent slice.
   const sorted = [...remote].sort((a, b) =>
@@ -208,13 +237,19 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
   const capped = sorted.slice(0, maxPhotos);
   const droppedExcess = sorted.length - capped.length;
 
-  const safePhotos: PlanSharePayload['photos'] = capped.map(({ pin, photo }) => ({
+  const safePhotos: PlanSharePayload['photos'] = capped.map(({ pin, photo, url }) => ({
     id: photo.id,
-    u: photo.uri,
+    u: url,
     ts: photo.timestamp ?? photo.createdAt,
     x: normalizeCoord(pin.x, sheet.width),
     y: normalizeCoord(pin.y, sheet.height),
   }));
+
+  // The sheet image by the same rule: the caller's signed URL, else the
+  // sheet's own uri when it is one.
+  const sheetImg = opts.sheetUrl && isRemote(opts.sheetUrl)
+    ? opts.sheetUrl
+    : (isRemote(sheet.imageUri) ? sheet.imageUri : '');
 
   const payload: PlanSharePayload = {
     v: 1,
@@ -234,7 +269,7 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
     // unrevocable bearer token embedded in a link sent over SMS. Revoking a
     // share means waiting out the TTL; there is no server-side revocation for
     // a signed storage url. That is the reason the TTL came down to 24h.
-    img: sheet.imageUri,
+    img: sheetImg,
     iw: sheet.width,
     ih: sheet.height,
     sn: sheet.sheetNumber ?? sheet.name,
@@ -243,7 +278,11 @@ export function buildPlanSharePayload(opts: BuildPlanShareOpts): BuildPlanShareR
     photos: safePhotos,
   };
 
-  return { payload, droppedLocal, droppedExcess, planNotSynced: !isRemote(sheet.imageUri) };
+  return {
+    payload, droppedLocal, droppedUnsigned, droppedExcess,
+    planNotSynced: !sheetImg,
+    planUnsigned: !sheetImg && !!sheet.storagePath,
+  };
 }
 
 export function encodePlanShareToken(payload: PlanSharePayload): string {

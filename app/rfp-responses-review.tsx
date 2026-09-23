@@ -26,7 +26,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Trophy, MessageSquare, Eye, ShieldCheck, Star,
-  Phone, Mail, Inbox, ChevronRight, AlertTriangle, Building2,
+  Phone, Mail, Inbox, ChevronRight, AlertTriangle, Building2, RefreshCw, FileText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -40,7 +40,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { awardCarriedItems, joinItems } from '@/supabase/functions/award-rfp/carried';
-import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+import { prePostReachNotice } from '@/supabase/functions/notify-nearby-contractors/reach';
+import { RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED } from '@/constants/featureFlags';
 import { useProperties } from '@/contexts/PropertyContext';
 import { workOrdersAssignedByAward } from '@/utils/propertyMirror';
 
@@ -67,7 +68,9 @@ interface RfpHeader {
   title: string;
   status: string;
   awarded_response_id: string | null;
-  // Read so the award alerts name only what award_rfp actually carries.
+  // Read so the award alerts name only what award_rfp actually carries. The
+  // street address is NOT a public_bids column other accounts may read
+  // (20260923101000); the poster gets it through get_rfp_private.
   address_line: string | null;
   photo_urls: unknown;
   drawing_urls: unknown;
@@ -82,6 +85,20 @@ function priceTextFor(amount: number | null | undefined): string | null {
   return typeof amount === 'number' && amount > 0 ? formatMoney(amount, 2) : null;
 }
 
+/**
+ * The poster's own street address, for the award alerts' "your street
+ * address" line. Since 20260923101000 address_line is not a column other
+ * accounts may read; get_rfp_private (20260923100000, applied before this
+ * build ships) returns it to the poster. Throws on any failure: the alerts
+ * must never guess "you gave no street address" off a read that didn't work.
+ */
+async function readOwnAddress(bidId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_rfp_private', { p_bid_id: bidId });
+  if (error) throw new Error(error.message || 'Could not load this RFP.');
+  const row = data as { address_line?: string | null } | null;
+  return row?.address_line ?? null;
+}
+
 export default function RfpResponsesReviewScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -92,7 +109,7 @@ export default function RfpResponsesReviewScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { workOrders, updateWorkOrder } = useProperties();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { bidId } = useLocalSearchParams<{ bidId: string }>();
 
   const [sort, setSort] = useState<SortMode>('recent');
@@ -101,20 +118,34 @@ export default function RfpResponsesReviewScreen() {
 
   const enabled = !!bidId && !!user?.id && isSupabaseConfigured;
 
-  const { data: rfp } = useQuery({
+  // Audit wave 5, #97. This read used to swallow every failure into
+  // `undefined`, and `isOwner` was false for undefined — so a homeowner on a
+  // weak signal was told "Not your project" about her own post. The query now
+  // THROWS on a real failure (react-query keeps it retryable and never caches
+  // it as a success), and a genuine no-row comes back as null. The screen
+  // below tells the four cases apart: loading, couldn't load, gone, not yours.
+  const {
+    data: rfp, isError: headerFailed, fetchStatus: headerFetch, refetch: refetchHeader, isFetching: headerFetching,
+  } = useQuery({
     queryKey: ['rfp-header', bidId],
     enabled,
     queryFn: async (): Promise<RfpHeader | null> => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('public_bids')
-        .select('id,user_id,title,status,awarded_response_id,address_line,photo_urls,drawing_urls')
+        .select('id,user_id,title,status,awarded_response_id,photo_urls,drawing_urls')
         .eq('id', bidId)
-        .single();
-      return data;
+        .maybeSingle();
+      if (error) throw new Error(error.message || 'Could not load this RFP.');
+      if (!data) return null;
+      // Not hers: nothing private to read, and the screen says so below.
+      if (data.user_id !== user?.id) return { ...data, address_line: null };
+      return { ...data, address_line: await readOwnAddress(bidId ?? '') };
     },
   });
 
-  const { data: responses, isLoading, refetch, isRefetching } = useQuery({
+  const {
+    data: responses, isLoading, refetch, isRefetching, isError: responsesFailed, isFetching: responsesFetching,
+  } = useQuery({
     queryKey: ['rfp-responses', bidId],
     enabled,
     queryFn: async (): Promise<ResponseRow[]> => {
@@ -123,14 +154,17 @@ export default function RfpResponsesReviewScreen() {
         .select('id,bid_id,user_id,proposer_company_id,company_name,proposer_email,proposer_phone,bid_amount,estimate_summary,scope_description,view_site_requested,status,created_at,responded_at')
         .eq('bid_id', bidId)
         .order('created_at', { ascending: false });
-      if (error) {
-        console.warn('[rfp-responses-review] fetch error', error);
-        return [];
-      }
+      // Throw, never `return []`: an empty array is "No bids yet", which is a
+      // claim about her post, not about the network (#97). A failed 30-second
+      // poll keeps the bids already on screen — react-query holds the last
+      // good data through an error — so the error card shows only when there
+      // is nothing to show.
+      if (error) throw new Error(error.message || 'Could not load the bids.');
       return (data ?? []) as ResponseRow[];
     },
     refetchInterval: 30_000,
   });
+  const responsesLoadFailed = responses === undefined && responsesFailed;
 
   const sortedResponses = useMemo(() => {
     let list = responses ?? [];
@@ -142,7 +176,6 @@ export default function RfpResponsesReviewScreen() {
     return list.sort((a, b) => (a.status === 'awarded' ? -1 : 0) - (b.status === 'awarded' ? -1 : 0));
   }, [responses, sort, filter]);
 
-  const isOwner = !!rfp && !!user?.id && rfp.user_id === user.id;
   const isAwarded = !!rfp?.awarded_response_id;
 
   const updateStatus = useCallback(async (responseId: string, nextStatus: ResponseRow['status']) => {
@@ -252,18 +285,75 @@ export default function RfpResponsesReviewScreen() {
     );
   }, [runAward, rfp]);
 
-  if (!isOwner) {
+  // ── Non-success states (#97) ──────────────────────────────────────────────
+  // react-query runs networkMode 'offlineFirst' (app/_layout.tsx), so a read
+  // with no network sits at fetchStatus 'paused' with no error: that is a
+  // stalled read, not a loading one. `!rfp` is load-bearing (the
+  // rfp-detail.tsx pattern): a failed background refetch must never replace a
+  // post she is reading.
+  const renderState = (title: string, body: string, opts: { retry?: boolean; tone?: 'warn' | 'muted' } = {}) => (
+    <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      {opts.tone === 'muted'
+        ? <FileText size={28} color={themeColors.textMuted} strokeWidth={1.75} />
+        : <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />}
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyBody}>{body}</Text>
+      {opts.retry && (
+        <TouchableOpacity
+          style={[styles.retryCta, headerFetching && { opacity: 0.5 }]}
+          onPress={() => { void refetchHeader(); void refetch(); }}
+          disabled={headerFetching}
+          accessibilityRole="button"
+          testID="rfp-review-retry"
+        >
+          {headerFetching
+            ? <ActivityIndicator size="small" color={themeColors.accent} />
+            : (<><RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.retryCtaText}>Retry</Text></>)}
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity style={styles.backCta} onPress={() => router.back()} accessibilityRole="button">
+        <Text style={styles.backCtaText}>Go back</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (!bidId) {
+    return renderState('We could not open that link', 'It is missing a project reference. Open the post again from My RFPs.');
+  }
+  if (!isSupabaseConfigured) {
+    return renderState('Couldn\'t load this RFP', 'MAGE ID can\'t reach its server from this build, so the bids can\'t be loaded.');
+  }
+  if (!user?.id) {
+    // Auth still restoring: wait. Signed out: say what's needed, not "not yours".
+    if (authLoading) {
+      return (
+        <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
+        </View>
+      );
+    }
+    return renderState('Sign in to review bids', 'Only the homeowner who posted this RFP can review its bids. Sign in with that account.');
+  }
+  if (!rfp && (headerFailed || headerFetch === 'paused')) {
+    return renderState('Couldn\'t load this RFP — check your connection', 'Nothing was lost. Try again when you have signal.', { retry: true });
+  }
+  if (rfp === undefined) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.emptyTitle}>Not your project</Text>
-        <Text style={styles.emptyBody}>Only the homeowner who posted this RFP can review bids.</Text>
-        <TouchableOpacity style={styles.backCta} onPress={() => router.back()}>
-          <Text style={styles.backCtaText}>Go back</Text>
-        </TouchableOpacity>
+        <ActivityIndicator size="small" color={themeColors.accent} />
+        <Text style={styles.emptyBody}>Loading your post…</Text>
       </View>
     );
+  }
+  if (rfp === null) {
+    return renderState('This RFP no longer exists', 'It may have been taken down. My RFPs lists every post you still have.', { tone: 'muted' });
+  }
+  // Only a LOADED row with another poster's id is "not yours".
+  if (rfp.user_id !== user.id) {
+    return renderState('Not your project', 'Only the homeowner who posted this RFP can review bids.');
   }
 
   return (
@@ -316,7 +406,25 @@ export default function RfpResponsesReviewScreen() {
           </View>
         )}
 
-        {!isLoading && sortedResponses.length === 0 && (
+        {responsesLoadFailed && (
+          <View style={styles.emptyCard} testID="rfp-review-bids-error">
+            <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.emptyTitle}>Couldn&apos;t load the bids</Text>
+            <Text style={styles.emptyBody}>Check your connection. Nothing was lost — any bid on this post is still here.</Text>
+            <TouchableOpacity
+              style={[styles.retryCta, responsesFetching && { opacity: 0.5 }]}
+              onPress={() => { void refetch(); }}
+              disabled={responsesFetching}
+              accessibilityRole="button"
+            >
+              {responsesFetching
+                ? <ActivityIndicator size="small" color={themeColors.accent} />
+                : (<><RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.retryCtaText}>Retry</Text></>)}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!isLoading && !responsesLoadFailed && responses !== undefined && sortedResponses.length === 0 && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No bids yet</Text>
@@ -325,7 +433,9 @@ export default function RfpResponsesReviewScreen() {
                   submitting bids" — with browsing off and no contractor
                   service areas that could not happen (audit round 2, #8).
                   My RFPs shows how many were actually alerted. */}
-              {RFP_BROWSE_ENABLED
+              {!SERVICE_AREA_SETUP_ENABLED
+                ? `${prePostReachNotice(RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED) ?? ''} New bids show up here automatically.`
+                : RFP_BROWSE_ENABLED
                 ? 'We alerted MAGE ID contractors who cover your area, and your post is listed for contractors browsing nearby jobs. My RFPs shows how many were alerted. New bids show up here automatically.'
                 : 'Only MAGE ID contractors who cover your area are alerted — browsing posted projects isn\'t open yet. My RFPs shows how many were alerted, including if that is none. New bids show up here automatically.'}
             </Text>
@@ -336,6 +446,9 @@ export default function RfpResponsesReviewScreen() {
           const isAwardedRow = r.status === 'awarded';
           const isShortlist  = r.status === 'shortlisted';
           const isDeclined   = r.status === 'declined';
+          // A withdrawn bid can't be shortlisted, declined or awarded (the
+          // server refuses all three since 20260923100000).
+          const isWithdrawn  = r.status === 'withdrawn';
           const isBusy       = busyId === r.id;
           return (
             <View
@@ -413,7 +526,7 @@ export default function RfpResponsesReviewScreen() {
                 )}
               </View>
 
-              {!isAwarded && !isDeclined && !isAwardedRow && (
+              {!isAwarded && !isDeclined && !isAwardedRow && !isWithdrawn && (
                 <View style={styles.actionRow}>
                   {!isShortlist && (
                     <TouchableOpacity
@@ -453,7 +566,11 @@ export default function RfpResponsesReviewScreen() {
                 </View>
               )}
 
-              {isDeclined && (
+              {isWithdrawn && (
+                <Text style={styles.withdrawnText}>The contractor withdrew this bid.</Text>
+              )}
+
+              {isDeclined && !isAwarded && (
                 <TouchableOpacity style={styles.undeclineRow} onPress={() => updateStatus(r.id, 'submitted')}>
                   <Text style={styles.undeclineText}>Restore this bid</Text>
                 </TouchableOpacity>
@@ -546,6 +663,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   undeclineRow: { paddingTop: 6, alignSelf: 'flex-start' },
   undeclineText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' },
 
+  retryCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.accent, marginTop: 12 },
+  retryCtaText: { color: t.accent, fontWeight: '700' },
+  withdrawnText: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' },
   backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: t.accentFill, marginTop: 12 },
   backCtaText: { color: '#FFF', fontWeight: '700' },
 });

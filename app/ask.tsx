@@ -10,6 +10,13 @@
 //
 // This screen is just the chat shell: bundle assembly, metering (askMage —
 // the established AIFeature pattern), and the citation-chip UI.
+//
+// Opened from a job's own screen, the Brain FAB forwards that job
+// (?projectId=) and the conversation is ANCHORED to it: the header says
+// "Answering for <job>" (tap to clear), the starters name the job, and a
+// question that names no project is answered for it — see applyAnchorScope
+// (audit #36). A blocked answer (monthly / hourly cap, signed out) carries
+// the one action that fixes it (audit #119).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -22,7 +29,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, ArrowUp, AlertTriangle, Search, X, Clock, DollarSign, CalendarClock,
-  Mic, Gauge, Users, Wallet, TrendingUp, Sparkles, Mail, type LucideIcon,
+  Mic, Gauge, Users, Wallet, TrendingUp, Sparkles, Mail, Briefcase, LogIn, type LucideIcon,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
@@ -38,7 +45,7 @@ import { useBidResponsesPortfolio } from '@/hooks/useBidResponsesPortfolio';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples, useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import type { JobCostActualSources } from '@/utils/jobCostEngine';
-import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { askOneMind, type OneMindCitation } from '@/utils/oneMind/answer';
 import { type OneMindBundle, isColdStart } from '@/utils/oneMind/factBlocks';
@@ -58,6 +65,26 @@ interface Turn {
   text: string;
   error?: boolean;
   citations?: OneMindCitation[];
+  /** Why the answer failed (OneMindAnswer.errorKind / errorCode) — drives the
+   *  See plans / Sign in action under a blocked turn. */
+  errorKind?: string;
+  errorCode?: string;
+}
+
+/**
+ * The one action that fixes a blocked answer, or null.
+ *
+ *   monthly cap on Free / Pro → 'plans'  (a bigger plan lifts it)
+ *   hourly limit             → null     (waiting an hour does; the relay's own
+ *                                        sentence says so — never a paywall)
+ *   signed out / expired     → 'signin'
+ */
+function blockedAction(t: Turn, tier: string): 'plans' | 'signin' | null {
+  if (t.errorKind === 'unauthenticated') return 'signin';
+  if (t.errorKind === 'monthly_cap' && t.errorCode !== 'hourly_limit' && (tier === 'free' || tier === 'pro')) {
+    return 'plans';
+  }
+  return null;
 }
 
 // Starter icon KEY -> Lucide component. Keys come from utils/resolveStarters so
@@ -73,7 +100,8 @@ export default function AskMageScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { openSearch } = useSearch();
-  const { seed, screen } = useLocalSearchParams<{ seed?: string; screen?: string }>();
+  const { seed, screen, projectId: anchorParam } =
+    useLocalSearchParams<{ seed?: string; screen?: string; projectId?: string }>();
 
   // Gentle breathing on the empty-state mark — the same "alive assistant"
   // language as the Brain FAB. Native driver, subtle.
@@ -144,6 +172,18 @@ export default function AskMageScreen() {
     allConstraints,
   ]);
 
+  // The anchored job (from the Brain FAB on a job screen). Resolved against the
+  // user's own projects, so a stale or foreign id anchors nothing. Clearing it
+  // turns the rest of the conversation business-wide.
+  const [anchorCleared, setAnchorCleared] = useState(false);
+  const anchorProject = useMemo(
+    () => (!anchorCleared && typeof anchorParam === 'string' && anchorParam
+      ? projects.find(p => p.id === anchorParam) ?? null
+      : null),
+    [anchorCleared, anchorParam, projects],
+  );
+  const anchorProjectId = anchorProject?.id ?? null;
+
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -190,7 +230,8 @@ export default function AskMageScreen() {
           role: 'assistant',
           text: limit.message ?? (canUpgrade
             ? "You've hit today's advanced AI limit. Upgrade to keep asking MAGE — opening your plan options now."
-            : "You've used today's advanced AI calls. Try again tomorrow."),
+            // The allowance rolls at 00:00 UTC — often later TODAY (audit #123).
+            : `You've used today's advanced AI calls. ${nextAiResetLabel().daily}.`),
           error: true,
         }]);
         // Convert at the moment of intent instead of dead-ending: send
@@ -198,7 +239,7 @@ export default function AskMageScreen() {
         if (canUpgrade) router.push('/paywall');
         return;
       }
-      const res = await askOneMind(q, prior, bundle);
+      const res = await askOneMind(q, prior, bundle, { anchorProjectId });
       // Count only answers that actually hit the model — cold-start and
       // verbatim-fallback answers report usedAI: false and cost nothing.
       if (res.usedAI) {
@@ -209,12 +250,14 @@ export default function AskMageScreen() {
         text: res.answer,
         error: !!res.errorKind,
         citations: res.citations,
+        errorKind: res.errorKind,
+        errorCode: res.errorCode,
       }]);
     } finally {
       setBusy(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
-  }, [busy, bundle, tier, router]);
+  }, [busy, bundle, tier, router, anchorProjectId]);
 
   // Load saved threads for the Recent strip on mount.
   useEffect(() => { void loadAskThreads().then(setRecentThreads); }, []);
@@ -269,8 +312,8 @@ export default function AskMageScreen() {
   // Starters adapt to context: onboarding demos when there's no data yet,
   // otherwise the set tuned to the screen the user opened Ask from.
   const starters = useMemo<Starter[]>(
-    () => (cold ? ONBOARDING_STARTERS : resolveStarters(screen)),
-    [cold, screen],
+    () => (cold ? ONBOARDING_STARTERS : resolveStarters(screen, anchorProject?.name)),
+    [cold, screen, anchorProject?.name],
   );
 
   return (
@@ -296,6 +339,25 @@ export default function AskMageScreen() {
         </View>
       </View>
 
+      {/* Grounding chip: which job this conversation answers for. */}
+      {anchorProject && (
+        <View style={styles.anchorRow} testID="ask-anchor">
+          <Briefcase size={14} color={themeColors.accent} strokeWidth={2} />
+          <Text style={styles.anchorText} numberOfLines={1}>
+            Answering for {anchorProject.name}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setAnchorCleared(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all jobs`}
+            testID="ask-anchor-clear"
+          >
+            <Text style={styles.anchorClear}>All jobs</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -316,8 +378,9 @@ export default function AskMageScreen() {
               </Animated.View>
               <Text style={styles.emptyTitle}>What can I help with?</Text>
               <Text style={styles.emptyBody}>
-                Ask about your money, schedules, leads — anything across your jobs.
-                Every answer cites where it came from.
+                {anchorProject
+                  ? `Ask about ${anchorProject.name} — its money, schedule, RFIs. Say "all jobs" to ask across the business. Every answer cites where it came from.`
+                  : 'Ask about your money, schedules, leads — anything across your jobs. Every answer cites where it came from.'}
               </Text>
               <View style={styles.suggestions}>
                 {starters.map(({ q, icon }) => {
@@ -385,6 +448,24 @@ export default function AskMageScreen() {
                     <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>
                   </View>
                 </View>
+                {t.role === 'assistant' && (() => {
+                  const action = blockedAction(t, tier);
+                  if (!action) return null;
+                  return (
+                    <TouchableOpacity
+                      style={styles.blockedAction}
+                      onPress={() => router.push(action === 'plans' ? '/paywall' : '/login')}
+                      activeOpacity={0.85}
+                      testID={action === 'plans' ? 'ask-see-plans' : 'ask-sign-in'}
+                    >
+                      {action === 'plans'
+                        ? <Sparkles size={14} color={themeColors.accent} strokeWidth={2} />
+                        : <LogIn size={14} color={themeColors.accent} strokeWidth={2} />}
+                      <Text style={styles.blockedActionText}>{action === 'plans' ? 'See plans' : 'Sign in'}</Text>
+                      <ChevronRight size={13} color={themeColors.accent} strokeWidth={2} />
+                    </TouchableOpacity>
+                  );
+                })()}
                 {t.role === 'assistant' && !!t.citations?.length && (
                   <View style={styles.citationRow}>
                     {t.citations.map(c => (
@@ -500,6 +581,22 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center',
   },
+
+  anchorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderBottomWidth: 1, borderBottomColor: t.line, backgroundColor: t.surface,
+  },
+  anchorText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  anchorClear: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
+
+  blockedAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: -4, marginBottom: 14,
+    borderWidth: 1, borderColor: t.accent + '2E', backgroundColor: t.accent + '10',
+    borderRadius: Tokens.radius.full, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  blockedActionText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   emptyWrap: { alignItems: 'flex-start', paddingTop: 28, paddingHorizontal: 8 },
   halo: {

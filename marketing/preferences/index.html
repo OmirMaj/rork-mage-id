@@ -159,38 +159,20 @@
     (function () {
       var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
       var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
-      // Categories grouped for legibility. These match the eventKey
-      // strings the notify edge function uses when writing to
-      // email_unsubscribes.
-      // Daily digest opt-in lives in the GC app (Settings → Notifications)
-      // because it's GC-only AND its truth is in profiles.notification_preferences,
-      // not the public email_unsubscribes table. Excluding it here keeps
-      // the prefs page coherent for homeowners + subs.
-      var GROUPS = [
-        { label: 'Project activity', items: [
-          { key: 'portal_message', label: 'Portal messages', desc: 'When your client or contractor sends a message.' },
-          { key: 'budget_proposal', label: 'Budget proposals', desc: 'When a target budget is proposed.' },
-          { key: 'co_approval', label: 'Change orders', desc: 'When a CO is approved or declined.' },
-          { key: 'contract_signed', label: 'Contract signed', desc: 'When a contract is counter-signed.' },
-          { key: 'selection_chosen', label: 'Selections', desc: 'When the homeowner picks a fixture or finish.' },
-          { key: 'closeout_binder', label: 'Closeout', desc: 'When the closeout binder is delivered.' },
-        ]},
-        { label: 'Subs & invoicing', items: [
-          { key: 'sub_invoice', label: 'Sub invoices', desc: 'When a sub submits or you act on an invoice.' },
-        ]},
-        { label: 'Website leads', items: [
-          { key: 'lead_received', label: 'Website leads', desc: 'When someone asks for a price on your website.' },
-        ]},
-        { label: 'Marketplace & RFPs', items: [
-          { key: 'nearby_rfp_posted', label: 'New nearby RFPs', desc: 'When a homeowner posts a project in your area.' },
-          { key: 'rfp_awarded', label: 'Bid awarded', desc: 'When a homeowner picks your bid.' },
-          { key: 'bid_question_asked', label: 'Bid Q&A · asked', desc: 'When a contractor asks about your RFP.' },
-          { key: 'bid_question_answered', label: 'Bid Q&A · answered', desc: 'When the homeowner answers a question.' },
-        ]},
-        { label: 'Onboarding', items: [
-          { key: 'portal_invite', label: 'Portal invitations', desc: 'When you\'re invited to a project portal.' },
-        ]},
-      ];
+      // The categories come from ONE shared list, /email-event-keys.json, which
+      // the unsubscribe page reads too (audit 2026-09-23 #172). This page used
+      // to carry its own GROUPS literal and the unsubscribe page its own
+      // EVENT_LABELS; seven keys the senders really use (client payments, punch
+      // ready, field reports, pro responses, payment reminders, the weekly
+      // recap, bid invitations) were on neither, so an unsubscribe from them
+      // could never be turned back on. scripts/validate-w5-push-unsub-keys.ts
+      // fails when a sender uses a key that isn't in the list.
+      //
+      // Daily digest opt-in lives in the GC app (Settings → Push & email
+      // preferences) because it's GC-only AND its truth is in
+      // profiles.notification_preferences, not the public email_unsubscribes
+      // table. It is left out of the list for that reason.
+      var KEYS_URL = '/email-event-keys.json';
 
       // All categories on this page default ON; "no row in suppressions
       // table" = ON, "row exists" = OFF.
@@ -264,46 +246,165 @@
       var rowsEl = document.getElementById('rows');
       var allCheckboxes = [];
 
-      GROUPS.forEach(function (group) {
-        var label = document.createElement('div');
-        label.className = 'group-label';
-        label.textContent = group.label;
-        rowsEl.appendChild(label);
-        group.items.forEach(function (e) {
-          var row = document.createElement('div');
-          row.className = 'row';
-          row.innerHTML = '<div><div class="label">' + e.label + '</div><div class="desc">' + e.desc + '</div></div>' +
-            '<label class="toggle"><input type="checkbox" data-key="' + e.key + '" aria-label="' + e.label + ' emails"' + (readOnly ? ' disabled' : '') + ' /><span class="slider"></span></label>';
-          rowsEl.appendChild(row);
-          var checkbox = row.querySelector('input');
-          allCheckboxes.push(checkbox);
+      // One row. Built with textContent, never innerHTML: an "Other" row's key
+      // comes back from the server, not from our list.
+      function addRow(parent, item) {
+        var row = document.createElement('div');
+        row.className = 'row';
+        var text = document.createElement('div');
+        var labelEl = document.createElement('div');
+        labelEl.className = 'label';
+        labelEl.textContent = item.label;
+        var descEl = document.createElement('div');
+        descEl.className = 'desc';
+        descEl.textContent = item.desc;
+        text.appendChild(labelEl);
+        text.appendChild(descEl);
+        var toggle = document.createElement('label');
+        toggle.className = 'toggle';
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.setAttribute('data-key', item.key);
+        checkbox.setAttribute('aria-label', item.label + ' emails');
+        if (readOnly) checkbox.disabled = true;
+        var slider = document.createElement('span');
+        slider.className = 'slider';
+        toggle.appendChild(checkbox);
+        toggle.appendChild(slider);
+        row.appendChild(text);
+        row.appendChild(toggle);
+        parent.appendChild(row);
+        allCheckboxes.push(checkbox);
 
+        if (typeof item.suppressed === 'boolean') {
+          checkbox.checked = !item.suppressed;
+        } else {
           // Initial state: query the suppression API.
-          fetchSuppressed(e.key).then(function (suppressed) {
+          fetchSuppressed(item.key).then(function (suppressed) {
             checkbox.checked = !suppressed;
           });
+        }
 
-          if (readOnly) return;
+        if (readOnly) return;
 
-          checkbox.addEventListener('change', function () {
-            var on = checkbox.checked;
-            var action = on ? 'resubscribe' : 'unsubscribe';
-            callApi(action, e.key).then(function (res) {
-              if (res.ok && res.data && res.data.ok) {
-                showToast(on ? 'Subscribed' : 'Unsubscribed');
-              } else {
-                checkbox.checked = !on; // revert
-                var msg = res.data && res.data.error === 'token_invalid'
-                  ? 'Open this page from a recent MAGE ID email to make changes.'
-                  : 'Could not save — try again.';
-                showToast(msg, true);
-              }
-            }).catch(function () {
-              checkbox.checked = !on;
-              showToast('Network error', true);
-            });
+        checkbox.addEventListener('change', function () {
+          var on = checkbox.checked;
+          var action = on ? 'resubscribe' : 'unsubscribe';
+          callApi(action, item.key).then(function (res) {
+            if (res.ok && res.data && res.data.ok) {
+              showToast(on ? 'Subscribed' : 'Unsubscribed');
+            } else {
+              checkbox.checked = !on; // revert
+              var msg = res.data && res.data.error === 'token_invalid'
+                ? 'Open this page from a recent MAGE ID email to make changes.'
+                : 'Could not save — try again.';
+              showToast(msg, true);
+            }
+          }).catch(function () {
+            checkbox.checked = !on;
+            showToast('Network error', true);
           });
         });
+      }
+
+      function addGroupLabel(text) {
+        var label = document.createElement('div');
+        label.className = 'group-label';
+        label.textContent = text;
+        rowsEl.appendChild(label);
+      }
+
+      // Every event_key this address has turned off, straight from the table.
+      // Needs the signed token; without one (read-only mode) there is no list.
+      function fetchSuppressionList() {
+        if (!qs.token) return Promise.resolve(null);
+        var url = SUPABASE_URL + '/functions/v1/unsubscribe?e=' + encodeURIComponent(qs.email) +
+          '&t=' + encodeURIComponent(qs.token) + '&list=1';
+        return fetch(url, {
+          method: 'GET',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+        }).then(function (r) { return r.json(); })
+          .then(function (d) { return d && d.ok && Array.isArray(d.suppressed) ? d.suppressed : null; })
+          .catch(function () { return null; });
+      }
+
+      function loadKeys() {
+        return fetch(KEYS_URL, { cache: 'no-cache' })
+          .then(function (r) { if (!r.ok) throw new Error('http_' + r.status); return r.json(); })
+          .then(function (d) { return d && Array.isArray(d.groups) ? d : null; })
+          .catch(function () { return null; });
+      }
+
+      // A document the contractor sends directly (an invoice, an estimate…).
+      // No switch: nothing checks an unsubscribe before sending these, so a
+      // toggle — or "Turned off for this address" — would promise what the
+      // sender never does. Built with textContent like every other row.
+      function addDocumentNote(parent, item, note) {
+        var row = document.createElement('div');
+        row.className = 'row';
+        row.setAttribute('data-document-key', item.key);
+        var text = document.createElement('div');
+        var labelEl = document.createElement('div');
+        labelEl.className = 'label';
+        labelEl.textContent = item.label;
+        var descEl = document.createElement('div');
+        descEl.className = 'desc';
+        descEl.textContent = 'You unsubscribed from these earlier. ' + note;
+        text.appendChild(labelEl);
+        text.appendChild(descEl);
+        row.appendChild(text);
+        parent.appendChild(row);
+      }
+
+      Promise.all([loadKeys(), fetchSuppressionList()]).then(function (res) {
+        var keysDoc = res[0];
+        var groups = keysDoc ? keysDoc.groups : null;
+        var documents = keysDoc && keysDoc.documents && Array.isArray(keysDoc.documents.items) ? keysDoc.documents : null;
+        var suppressedList = res[1];
+        var known = {};
+        var docByKey = {};
+        if (documents) documents.items.forEach(function (d) { docByKey[d.key] = d; });
+        if (groups) {
+          groups.forEach(function (group) {
+            addGroupLabel(group.label);
+            group.items.forEach(function (e) {
+              known[e.key] = true;
+              addRow(rowsEl, e);
+            });
+          });
+        } else {
+          var note = document.createElement('p');
+          note.className = 'no-token-note';
+          note.textContent = 'We could not load the list of email categories. Reload the page to try again. Anything you have turned off is listed below.';
+          rowsEl.appendChild(note);
+        }
+        // A document key this address "unsubscribed" from (before one-click
+        // was withheld from them) gets a note, not a switch. The catch-all: a
+        // key this address turned off that the list doesn't name — a sender
+        // added after this page — still gets a row, so no unsubscribe is ever
+        // one-way again. null = the
+        // global row, which the "turn email back on" control below handles.
+        var suppressedDocs = (suppressedList || []).filter(function (k) {
+          return typeof k === 'string' && !!docByKey[k];
+        });
+        if (suppressedDocs.length > 0) {
+          addGroupLabel(documents.label);
+          suppressedDocs.forEach(function (k) { addDocumentNote(rowsEl, docByKey[k], documents.note); });
+        }
+        var others = (suppressedList || []).filter(function (k) {
+          return typeof k === 'string' && k && !known[k] && !docByKey[k] && k !== 'daily_digest';
+        });
+        if (others.length > 0) {
+          addGroupLabel('Other');
+          others.forEach(function (k) {
+            addRow(rowsEl, {
+              key: k,
+              label: 'Other',
+              desc: 'Emails of type "' + k + '". Turned off for this address.',
+              suppressed: true,
+            });
+          });
+        }
       });
 
       // A global unsubscribe used to be one-way: nothing on this page (or in

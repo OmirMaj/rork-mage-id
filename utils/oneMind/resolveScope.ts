@@ -149,3 +149,46 @@ export function isQuestionShaped(text: string): boolean {
   if (/\?\s*$/.test(t)) return true;
   return /^(who|what|when|where|why|how|which|is|are|do|does|can|should|will)\b/i.test(t);
 }
+
+// ─── Anchored conversations (audit #36) ─────────────────────────────────────
+//
+// Opened from a project's own screen, "Is this project over budget?" names no
+// project — so resolveScope correctly answers "business", and the GC standing
+// on Henderson's page got a whole-business reply with no margin in it, and
+// "Which invoices here are still unpaid?" listed every job's invoices. The
+// Brain FAB now forwards the job the user was looking at as the conversation's
+// ANCHOR (app/ask.tsx), and this decides when the anchor applies:
+//
+//   - a question that names a project (or compares two) keeps what the name
+//     resolved to — an explicit name always beats the anchor;
+//   - a question that says it's about the whole business ("across all jobs",
+//     "every job", "my business", "portfolio") stays business-wide;
+//   - anything else inside an anchored conversation is about the anchor.
+//
+// Pure, like resolveScope; the caller passes the anchor only when it is one of
+// the user's projects (an unknown id is ignored here too).
+
+/** Words that say "all of my jobs", so an anchored conversation can still
+ *  ask a business-wide question. Matched on whole words. Bare "overall",
+ *  "company" and "business" are NOT here: "Is this job over budget overall?"
+ *  and "Who is the company on the electrical?" are about the anchored job,
+ *  and dropping the anchor for them is the #36 bug again. */
+const BUSINESS_WIDE = /\b(all (?:(?:of )?my |the |our )?(?:jobs|projects)|every (?:job|project)|across|(?:my|our) (?:whole |entire )?(?:business|company)|the (?:whole |entire )?business|company-wide|business-wide|portfolio|each (?:job|project)|all jobs|which (?:job|project)|what (?:jobs|projects))\b/i;
+
+export function isBusinessWideQuestion(question: string): boolean {
+  return BUSINESS_WIDE.test(question);
+}
+
+export function applyAnchorScope(
+  resolved: OneMindScope,
+  question: string,
+  anchorProjectId: string | null | undefined,
+  projects: ScopeProjectRef[],
+): OneMindScope {
+  if (!anchorProjectId || !projects.some(p => p.id === anchorProjectId)) return resolved;
+  // A named project (or a cross-project compare) wins over the anchor.
+  if (resolved.scope === 'project') return resolved;
+  if (resolved.matchedProjectIds && resolved.matchedProjectIds.length > 0) return resolved;
+  if (isBusinessWideQuestion(question)) return resolved;
+  return { scope: 'project', projectId: anchorProjectId };
+}

@@ -11,11 +11,22 @@ import { INTENTS, normalizeSplitActions, type SplitAction } from './intentTable'
 
 export type { SplitAction };
 
+/** What the router got back. `actions` is empty both when nothing matched and
+ *  when the call failed — `errorKind` says which (#118: a dropped signal, a
+ *  spent allowance and an expired session all used to read as "Not sure which
+ *  one that is"). */
+export interface SplitResult {
+  actions: SplitAction[];
+  errorKind?: Awaited<ReturnType<typeof mageAI>>['errorKind'];
+  error?: string;
+}
+
 /** Split one utterance into 1+ actions. One action → route straight through;
- *  several → the hub shows them as a queue to handle. Empty → nothing matched. */
-export async function splitIntents(utterance: string): Promise<SplitAction[]> {
+ *  several → the hub shows them as a queue to handle. Empty with no errorKind
+ *  → the call worked and nothing matched. */
+export async function splitIntents(utterance: string): Promise<SplitResult> {
   const text = (utterance ?? '').trim();
-  if (!text) return [];
+  if (!text) return { actions: [] };
 
   const res = await mageAI({
     prompt: [
@@ -34,6 +45,6 @@ export async function splitIntents(utterance: string): Promise<SplitAction[]> {
     feature: 'voiceCapture',
   });
 
-  if (!res.success) return [];
-  return normalizeSplitActions((res.data as { actions?: unknown })?.actions);
+  if (!res.success) return { actions: [], errorKind: res.errorKind ?? 'unknown', error: res.error };
+  return { actions: normalizeSplitActions((res.data as { actions?: unknown })?.actions) };
 }

@@ -5,8 +5,17 @@
 // task 'conditionRisk') → price each tell as a probability-weighted allowance
 // on the contractor's learned costs (utils/costXray.priceTell over the
 // buildCostDatabase engine) → per-tell Accept / Edit / Reject review → on
-// "Add to estimate" inject GC-only "Hidden Conditions" contingency lines
+// "Add to estimate" inject "Hidden Conditions" contingency lines
 // (commitEstimatePatch) plus a field-verify PunchItem per accepted tell.
+//
+// NOT GC-ONLY (audit #9). The lines are written as allowances
+// (`isAllowance: true`), and utils/clientEstimateView lists every allowance
+// on the client proposal and portal by name — the tell text and its price.
+// `xray.clientVisible: false` is written but nothing reads it yet; hiding the
+// lines is the client view's job (handed to wave 5's join lane). Until then
+// this screen says the lines reach the client, rather than promising
+// otherwise. isAllowance is deliberately NOT flipped here: it would change
+// allowance semantics everywhere and leave every line already saved exposed.
 //
 // Pure pricing lives in utils/costXray; detection is server-side. Business
 // tier; OTA-safe (no new native modules).
@@ -42,6 +51,7 @@ import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
+import { edgeFunctionError, edgeErrorCode } from '@/utils/edgeError';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { priceTell, routeByConfidence, verifyOnlyReason, normalizeTells } from '@/utils/costXray';
 import type { ConditionTell, PricedTell } from '@/utils/costXray';
@@ -118,6 +128,27 @@ function effectiveBand(r: ReviewTell): Band {
   if (r.origBand.expected <= 0) return { low: 0, expected, high: expected };
   const f = expected / r.origBand.expected;
   return { low: Math.round(r.origBand.low * f), expected, high: Math.round(r.origBand.high * f) };
+}
+
+/**
+ * The ONE alert after Apply (#88), built from what was actually written.
+ * Every accepted tell becomes a field-verify task (priced ones included), so
+ * the task count is accepted.length — not the verify-only subset it used to
+ * count. Lines are reported as added only when the estimate patch ran.
+ */
+function xrayApplySummary(r: {
+  verifyTasks: number; linesAdded: number; dollarsAdded: number;
+  pricedNotAdded: number; dollarsNotAdded: number;
+}): string {
+  const parts: string[] = [];
+  if (r.linesAdded > 0) {
+    parts.push(`${r.linesAdded} hidden-condition line${r.linesAdded === 1 ? '' : 's'} (+${formatMoney(r.dollarsAdded)}) added to your estimate as allowances — they show on the client's proposal.`);
+  }
+  if (r.pricedNotAdded > 0) {
+    parts.push(`${formatMoney(r.dollarsNotAdded)} of hidden-condition contingency was NOT added — this project has no estimate yet. Build one, then re-run the scan.`);
+  }
+  parts.push(`${r.verifyTasks} field-verify task${r.verifyTasks === 1 ? '' : 's'} created.`);
+  return parts.join(' ');
 }
 
 export default function CostXrayScreen() {
@@ -269,7 +300,9 @@ export default function CostXrayScreen() {
         // Sending the type was the one line missing; photo-triage has always
         // sent it (app/photo-triage.tsx:209) and this screen never did.
       }>('analyze-photos', { body: { task: 'conditionRisk', photos: inline, projectName: project?.name, projectType: project?.type } });
-      if (fnErr) throw new Error(fnErr.message);
+      // The function's own sentence and code, not supabase-js's collapsed
+      // "non-2xx" (#124, CONTRACT 26) — the catch below branches on the code.
+      if (fnErr) throw await edgeFunctionError(fnErr, 'Cost X-Ray failed');
       if (!res?.success) throw new Error(res?.error ?? 'The scan came back empty.');
 
       const tells = normalizeTells(res.data?.items);
@@ -302,14 +335,35 @@ export default function CostXrayScreen() {
       } else if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-    } catch {
-      // Photos are already saved to the project — surface a retryable pending state.
-      setPending(true);
-      setError("Scan couldn't finish — you may be offline or over your monthly limit. Your photos are saved; run the scan again when you're back online.");
+    } catch (e) {
+      const code = edgeErrorCode(e);
+      // A cap or a plan refusal is not a connectivity blip: running the scan
+      // again gets the same answer, so it is neither the "pending / retry"
+      // state nor "you may be offline". Say what the server said and offer the
+      // one action that helps.
+      if (code === 'monthly_cap_reached' || code === 'tier_required') {
+        const message = String((e as Error)?.message ?? '') || 'Cost X-Ray is not available on your plan right now.';
+        setError(`${message} Your photos are saved to the project.`);
+        showAlert(
+          code === 'tier_required' ? 'Not included in your plan' : "You've hit this month's limit",
+          message,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+          ],
+        );
+      } else if (code === 'hourly_limit') {
+        // The server's own sentence says when; no "try again" button here.
+        setError(`${String((e as Error)?.message ?? '')} Your photos are saved to the project.`);
+      } else {
+        // Photos are already saved to the project — surface a retryable pending state.
+        setPending(true);
+        setError("Scan couldn't finish — you may be offline. Your photos are saved; run the scan again when you're back online.");
+      }
     } finally {
       setBusy(false);
     }
-  }, [busy, photos, project?.name, db]);
+  }, [busy, photos, project?.name, project?.type, db, router]);
 
   // ── Review actions ───────────────────────────────────────────────────
   const patchReview = useCallback((id: string, updates: Partial<ReviewTell>) => {
@@ -323,57 +377,67 @@ export default function CostXrayScreen() {
   );
 
   // ── Apply ────────────────────────────────────────────────────────────
+  // Whether the priced tells CAN land anywhere, decided once (#88). With no
+  // estimate on the project there is nothing to add a line to: the verify
+  // tasks are still created, and the one summary says the dollars were NOT
+  // added. It used to show "No estimate yet" and then, a beat later,
+  // "+$3.6K added to your estimate" — for a write that never happened.
+  const canPrice = !!project?.linkedEstimate;
+
   const applyToEstimate = useCallback(() => {
     if (accepted.length === 0 || !project) return;
     const now = new Date().toISOString();
+    const estimate = project.linkedEstimate;
 
-    // Priced tells → GC-only "Hidden Conditions" contingency lines on the estimate.
+    // Priced tells → "Hidden Conditions" contingency allowance lines. They
+    // print on the client proposal as allowances (see the header), so the
+    // copy on this screen says so.
     const pricedAccepted = accepted.filter(r => r.route === 'price');
-    if (pricedAccepted.length > 0) {
-      if (!project.linkedEstimate) {
-        showAlert(
-          'No estimate yet',
-          "This project has no linked estimate to add lines to. The field-verify tasks will still be created.",
-        );
-      } else {
-        const est = project.linkedEstimate;
-        const newItems: LinkedEstimateItem[] = pricedAccepted.map((r) => {
-          const band = effectiveBand(r);
-          const meta: CostXrayMeta = {
-            sourcePhotoId: r.sourcePhotoId, bbox: r.tell.bbox, tell: r.tell.tell,
-            category: r.category, confidence: r.tell.confidence, band, clientVisible: false,
-          };
-          return {
-            materialId: createId('xray'),
-            name: r.tell.tell,
-            category: 'Hidden Conditions',
-            unit: 'ea',
-            quantity: 1,
-            unitPrice: band.expected,
-            bulkPrice: band.expected,
-            markup: 0,
-            usesBulk: false,
-            lineTotal: band.expected,
-            supplier: '',
-            isAllowance: true,
-            xray: meta,
-          };
-        });
-        // Contingency lines carry no markup (they're already probability-weighted
-        // expected values), so they add to base + grand equally and leave the
-        // markup subtotal untouched. Incremental — preserves any markup earlier
-        // takeoff/plan flows already baked into the stored totals.
-        const added = newItems.reduce((s, i) => s + i.lineTotal, 0);
-        const nextEstimate: LinkedEstimate = {
-          ...est,
-          items: [...est.items, ...newItems],
-          baseTotal: est.baseTotal + added,
-          grandTotal: est.grandTotal + added,
+    const pricedDollars = pricedAccepted.reduce((s, r) => s + effectiveBand(r).expected, 0);
+    let linesAdded = 0;
+    let dollarsAdded = 0;
+    if (pricedAccepted.length > 0 && estimate) {
+      const est = estimate;
+      const newItems: LinkedEstimateItem[] = pricedAccepted.map((r) => {
+        const band = effectiveBand(r);
+        const meta: CostXrayMeta = {
+          sourcePhotoId: r.sourcePhotoId, bbox: r.tell.bbox, tell: r.tell.tell,
+          category: r.category, confidence: r.tell.confidence, band, clientVisible: false,
         };
-        updateProject(project.id, commitEstimatePatch(project, nextEstimate, {
-          reason: 'xray', note: 'Cost X-Ray hidden-condition scan',
-        }));
-      }
+        return {
+          materialId: createId('xray'),
+          name: r.tell.tell,
+          category: 'Hidden Conditions',
+          unit: 'ea',
+          quantity: 1,
+          unitPrice: band.expected,
+          bulkPrice: band.expected,
+          markup: 0,
+          usesBulk: false,
+          lineTotal: band.expected,
+          supplier: '',
+          isAllowance: true,
+          xray: meta,
+        };
+      });
+      // Contingency lines carry no markup (they're already probability-weighted
+      // expected values), so they add to base + grand equally and leave the
+      // markup subtotal untouched. Incremental — preserves any markup earlier
+      // takeoff/plan flows already baked into the stored totals.
+      const added = newItems.reduce((s, i) => s + i.lineTotal, 0);
+      const nextEstimate: LinkedEstimate = {
+        ...est,
+        items: [...est.items, ...newItems],
+        baseTotal: est.baseTotal + added,
+        grandTotal: est.grandTotal + added,
+      };
+      updateProject(project.id, commitEstimatePatch(project, nextEstimate, {
+        reason: 'xray', note: 'Cost X-Ray hidden-condition scan',
+      }));
+      // Counted HERE, inside the branch that wrote, so the summary below can
+      // only report what the patch actually carried.
+      linesAdded = newItems.length;
+      dollarsAdded = added;
     }
 
     // Every accepted tell (priced + verify-only) → a field-verify task.
@@ -400,16 +464,15 @@ export default function CostXrayScreen() {
     }
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Confirm what landed before dismissing — mirrors the pattern in takeoff-estimate.tsx.
-    const pricedCount = pricedAccepted.length;
-    const totalAdded = pricedAccepted.reduce((s, r) => s + effectiveBand(r).expected, 0);
-    const verifyOnlyCount = accepted.filter(r => r.route === 'verify-only').length;
-    const parts: string[] = [];
-    if (pricedCount > 0) parts.push(`${pricedCount} hidden-condition line${pricedCount === 1 ? '' : 's'} (+${formatMoney(totalAdded)}) added to your estimate.`);
-    if (verifyOnlyCount > 0) parts.push(`${verifyOnlyCount} field-verify task${verifyOnlyCount === 1 ? '' : 's'} created.`);
     showAlert(
       `${accepted.length} condition${accepted.length === 1 ? '' : 's'} applied`,
-      parts.join(' '),
+      xrayApplySummary({
+        verifyTasks: accepted.length,
+        linesAdded,
+        dollarsAdded,
+        pricedNotAdded: estimate ? 0 : pricedAccepted.length,
+        dollarsNotAdded: estimate ? 0 : pricedDollars,
+      }),
       [{ text: 'Done', onPress: () => router.back() }],
     );
   }, [accepted, project, updateProject, addPunchItem, router]);
@@ -599,7 +662,11 @@ export default function CostXrayScreen() {
         {hasReviews && (
           <View style={{ marginTop: 4 }}>
             <Text style={styles.sectionTitle}>{reviews.length} tell{reviews.length === 1 ? '' : 's'} found</Text>
-            <Text style={styles.sectionSub}>Accept the ones worth carrying. Priced tells become GC-only contingency lines; every accepted tell also spawns a field-verify task.</Text>
+            <Text style={styles.sectionSub}>
+              {canPrice
+                ? 'Accept the ones worth carrying. Priced tells become contingency allowance lines on the estimate — named on the client\u2019s proposal, so edit the wording before you send it. Every accepted tell also spawns a field-verify task.'
+                : 'Accept the ones worth carrying. Every accepted tell spawns a field-verify task. This project has no estimate yet, so priced tells can\u2019t be added as lines — build one first.'}
+            </Text>
 
             {reviews.map((r) => {
               const Icon = CAT_ICON[r.category];
@@ -727,7 +794,9 @@ export default function CostXrayScreen() {
         <View style={[styles.applyBar, { paddingBottom: 12 + insets.bottom }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.applyCount}>{accepted.length} accepted</Text>
-            {acceptedContingency > 0 && <Text style={styles.applySub}>{formatMoney(acceptedContingency)} contingency</Text>}
+            {acceptedContingency > 0 && (canPrice
+              ? <Text style={styles.applySub}>{formatMoney(acceptedContingency)} contingency</Text>
+              : <Text style={styles.applySub} testID="xray-no-estimate">No estimate on this project — contingency won&apos;t be added</Text>)}
           </View>
           <TouchableOpacity
             style={[styles.applyBtn, accepted.length === 0 && styles.applyBtnDisabled]}
@@ -737,7 +806,11 @@ export default function CostXrayScreen() {
             testID="xray-apply"
           >
             <Check size={16} color={Colors.textOnAccent} strokeWidth={2} />
-            <Text style={styles.applyBtnText}>Add {accepted.length} to estimate</Text>
+            <Text style={styles.applyBtnText}>
+              {canPrice
+                ? `Add ${accepted.length} to estimate`
+                : `Create ${accepted.length} verify task${accepted.length === 1 ? '' : 's'}`}
+            </Text>
           </TouchableOpacity>
         </View>
       )}

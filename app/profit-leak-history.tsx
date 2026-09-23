@@ -1,10 +1,16 @@
 // app/profit-leak-history.tsx — Profit Leak History
 //
 // Lists every leak_flag prediction from the brain's prediction ledger,
-// grouped into three buckets:
-//   OPEN       — flagged extra work that never became a change order
-//   CONVERTED  — leak flags that resolved to a CO being raised
-//   EATEN      — resolved as "not billed" (owner declined / eaten by GC)
+// grouped by what the grader (utils/brain/gradePredictions.gradeLeak) found:
+//   OPEN          — not graded yet: the 60-day window is still running
+//   CONVERTED     — every flagged item matched an approved change order
+//   PARTLY BILLED — some items matched an approved CO, some did not
+//   EATEN         — no matching approved CO was found within 60 days of the
+//                   scan (or before the job closed). The grader cannot know
+//                   WHY — it never says the owner declined anything.
+// The filing rules and the totals are pure functions in
+// utils/brain/predictionLedger.ts (classifyLeakOutcome / summarizeLeakHistory),
+// held equal to the brain's own recovery rate by validate-w5-brain-money-leak.
 //
 // Business+ gated (brain_accuracy proxy, same as /business and /brief).
 // Desktop: content column capped at 760 and centered.
@@ -13,14 +19,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Platform,
+  Platform, RefreshControl,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ChevronRight, TrendingDown, CheckCircle2, XCircle, Clock,
+  ChevronLeft, ChevronRight, TrendingDown, CheckCircle2, XCircle, Clock, CircleDashed,
+  CloudOff, RotateCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -28,7 +35,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
-import { fetchOpenPredictionsDeduped, fetchResolvedPredictions } from '@/utils/brain/predictionLedger';
+import {
+  fetchOpenPredictionsDedupedResult, fetchResolvedPredictionsResult, invalidatePredictionCache,
+  classifyLeakOutcome, leakEstTotal, leakDollarsBilled, summarizeLeakHistory,
+  type LeakBucket, type LeakHistorySummary,
+} from '@/utils/brain/predictionLedger';
 import type { BrainPredictionReadRow } from '@/utils/brain/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -76,14 +87,12 @@ interface LeakRow {
   outcome: Record<string, unknown> | null;
   items: { category: string; description: string; estPrice?: number | null }[];
   estTotal: number;
-  bucket: 'open' | 'converted' | 'eaten';
-}
-
-function classifyOutcome(row: BrainPredictionReadRow): 'open' | 'converted' | 'eaten' {
-  if (!row.resolved_at) return 'open';
-  const outcome = row.outcome ?? {};
-  if (outcome.resolution === 'co_raised' || outcome.coId) return 'converted';
-  return 'eaten';
+  /** Dollars of this scan that became an approved CO (0 while open). */
+  dollarsBilled: number;
+  /** Items the grader matched / graded — for the "N of M items billed" line. */
+  itemsBilled: number;
+  itemsGraded: number;
+  bucket: LeakBucket;
 }
 
 function buildLeakRow(row: BrainPredictionReadRow): LeakRow {
@@ -92,7 +101,8 @@ function buildLeakRow(row: BrainPredictionReadRow): LeakRow {
     items?: { category: string; description: string; estPrice?: number | null }[];
   };
   const items = payload.items ?? [];
-  const estTotal = items.reduce((s, i) => s + (i.estPrice ?? 0), 0);
+  const o = (row.outcome ?? {}) as { itemsBilled?: number; itemsEaten?: number };
+  const itemsBilled = o.itemsBilled ?? 0;
   return {
     id: row.id,
     reportId: payload.reportId ?? row.subject_id,
@@ -101,10 +111,15 @@ function buildLeakRow(row: BrainPredictionReadRow): LeakRow {
     resolvedAt: row.resolved_at,
     outcome: row.outcome,
     items,
-    estTotal,
-    bucket: classifyOutcome(row),
+    estTotal: leakEstTotal(row),
+    dollarsBilled: leakDollarsBilled(row),
+    itemsBilled,
+    itemsGraded: itemsBilled + (o.itemsEaten ?? 0),
+    bucket: classifyLeakOutcome(row),
   };
 }
+
+const BUCKET_ORDER: Record<LeakBucket, number> = { open: 0, converted: 1, partial: 2, eaten: 3 };
 
 // ─── Inner screen ───────────────────────────────────────────────────────────
 
@@ -119,44 +134,61 @@ function ProfitLeakHistoryInner() {
   const { isDesktop } = useResponsiveLayout();
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<LeakRow[]>([]);
+  const [summary, setSummary] = useState<LeakHistorySummary | null>(null);
+  // A FAILED READ IS NOT "NO SCANS" (#104 / #122). Offline, both ledger reads
+  // used to come back as [] and this screen told a GC with a year of scans
+  // "No profit leak scans yet" over three zero chips. Now a failure is its own
+  // state: the rows already on screen stay (a pull-to-refresh with no signal
+  // must not wipe what he was reading), and with none to show he is told the
+  // read failed, with a Retry.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [open, resolved] = await Promise.all([
-        fetchOpenPredictionsDeduped(['leak_flag']),
-        fetchResolvedPredictions(['leak_flag']),
-      ]);
-      const all = [...open, ...resolved].map(buildLeakRow);
-      // Sort: open first, then by predictedAt desc within each bucket
-      all.sort((a, b) => {
-        const bucketOrder = { open: 0, converted: 1, eaten: 2 };
-        const bDiff = bucketOrder[a.bucket] - bucketOrder[b.bucket];
-        if (bDiff !== 0) return bDiff;
-        return new Date(b.predictedAt).getTime() - new Date(a.predictedAt).getTime();
-      });
-      setRows(all);
-    } finally {
-      setLoading(false);
+    const [open, resolved] = await Promise.all([
+      fetchOpenPredictionsDedupedResult(['leak_flag']),
+      fetchResolvedPredictionsResult(['leak_flag']),
+    ]);
+    if (!open.ok || !resolved.ok) {
+      // Keep the previous rows. Half a ledger is not shown as the whole of it.
+      setLoadError(!open.ok ? open.error : !resolved.ok ? resolved.error : 'read failed');
+      return;
     }
+    const raw = [...open.rows, ...resolved.rows];
+    const all = raw.map(buildLeakRow);
+    // Sort: open first, then by predictedAt desc within each bucket
+    all.sort((a, b) => {
+      const bDiff = BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket];
+      if (bDiff !== 0) return bDiff;
+      return new Date(b.predictedAt).getTime() - new Date(a.predictedAt).getTime();
+    });
+    setRows(all);
+    setSummary(summarizeLeakHistory(raw));
+    setLoadError(null);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load().finally(() => setLoading(false));
+  }, [load]);
 
-  const { openRows, convertedRows, eatenRows, openTotal, convertedTotal, eatenTotal } = useMemo(() => {
-    const openRows = rows.filter(r => r.bucket === 'open');
-    const convertedRows = rows.filter(r => r.bucket === 'converted');
-    const eatenRows = rows.filter(r => r.bucket === 'eaten');
-    return {
-      openRows,
-      convertedRows,
-      eatenRows,
-      openTotal: openRows.reduce((s, r) => s + r.estTotal, 0),
-      convertedTotal: convertedRows.reduce((s, r) => s + r.estTotal, 0),
-      eatenTotal: eatenRows.reduce((s, r) => s + r.estTotal, 0),
-    };
-  }, [rows]);
+  // Retry and pull-to-refresh drop the 30 s read cache first, so a pull never
+  // serves the snapshot it is meant to replace.
+  const reload = useCallback(async () => {
+    setRefreshing(true);
+    invalidatePredictionCache();
+    try { await load(); } finally { setRefreshing(false); }
+  }, [load]);
+
+  const { openRows, convertedRows, partialRows, eatenRows } = useMemo(() => ({
+    openRows: rows.filter(r => r.bucket === 'open'),
+    convertedRows: rows.filter(r => r.bucket === 'converted'),
+    partialRows: rows.filter(r => r.bucket === 'partial'),
+    eatenRows: rows.filter(r => r.bucket === 'eaten'),
+  }), [rows]);
+
+  // No figures to stand behind → dashes, never 0 / $0 stated as fact.
+  const noData = summary === null;
 
   const handleRowPress = useCallback((row: LeakRow) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -204,13 +236,24 @@ function ProfitLeakHistoryInner() {
           {...fabScroll}
           style={styles.scroll}
           contentContainerStyle={[contentStyle, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={t.accent} />}
         >
-          {/* Summary row */}
+          {loadError && rows.length > 0 ? (
+            // Stale rows stay readable; the banner says they may be out of date.
+            <View style={styles.errorBanner} testID="leak-history-stale">
+              <CloudOff size={14} color={t.textMuted} strokeWidth={1.75} />
+              <Text style={styles.errorBannerText}>
+                {"Couldn't refresh — no signal or the server didn't answer. Showing what was loaded before."}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Summary row — a partly billed scan counts under both Converted and Eaten. */}
           <View style={styles.summaryRow}>
             <SummaryChip
               label="Open"
-              count={openRows.length}
-              total={openTotal}
+              count={noData ? null : summary.openCount}
+              total={noData ? null : summary.openTotal}
               color={Colors.warningLabel}
               bg={Colors.warning + '14'}
               styles={styles}
@@ -218,8 +261,8 @@ function ProfitLeakHistoryInner() {
             />
             <SummaryChip
               label="Converted"
-              count={convertedRows.length}
-              total={convertedTotal}
+              count={noData ? null : summary.billedScanCount}
+              total={noData ? null : summary.convertedTotal}
               color={t.success}
               bg={Colors.successLight}
               styles={styles}
@@ -227,16 +270,48 @@ function ProfitLeakHistoryInner() {
             />
             <SummaryChip
               label="Eaten"
-              count={eatenRows.length}
-              total={eatenTotal}
+              count={noData ? null : summary.unbilledScanCount}
+              total={noData ? null : summary.eatenTotal}
               color={t.danger}
               bg={t.danger + '14'}
               styles={styles}
               t={t}
             />
           </View>
+          {!noData && summary.itemRecoveryRate !== null ? (
+            // The brain's own recovery line, on the same rows — so this page and
+            // the accuracy report can no longer disagree.
+            <Text style={styles.recoveryLine} testID="leak-history-recovery">
+              {`${summary.itemsBilled} of ${summary.itemsGraded} graded item${summary.itemsGraded === 1 ? '' : 's'} `
+                + `became an approved change order (${Math.round(summary.itemRecoveryRate * 100)}%).`
+                + (summary.partialCount > 0
+                  ? ` ${summary.partialCount} partly billed scan${summary.partialCount === 1 ? ' counts' : 's count'} under both Converted and Eaten.`
+                  : '')}
+            </Text>
+          ) : null}
 
-          {rows.length === 0 && (
+          {loadError && rows.length === 0 ? (
+            <View style={styles.emptyWrap} testID="leak-history-error">
+              <CloudOff size={32} color={t.textMuted} strokeWidth={1.5} />
+              <Text style={styles.emptyTitle}>{"Couldn't load your profit leak scans"}</Text>
+              <Text style={styles.emptyBody}>
+                {"No signal or the server didn't answer. Your scans are still on your account."}
+              </Text>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={() => { void reload(); }}
+                disabled={refreshing}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading profit leak scans"
+                testID="leak-history-retry"
+              >
+                <RotateCw size={14} color={t.accent} strokeWidth={2} />
+                <Text style={styles.retryText}>{refreshing ? 'Retrying…' : 'Retry'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {!loadError && rows.length === 0 && (
             <View style={styles.emptyWrap}>
               <TrendingDown size={32} color={t.textMuted} strokeWidth={1.5} />
               <Text style={styles.emptyTitle}>No profit leak scans yet</Text>
@@ -272,10 +347,23 @@ function ProfitLeakHistoryInner() {
             />
           )}
 
+          {partialRows.length > 0 && (
+            <BucketSection
+              label="Partly billed"
+              subtitle="Some flagged items matched an approved change order; the rest found no match within 60 days"
+              icon={<CircleDashed size={15} color={t.success} strokeWidth={1.75} />}
+              tint={t.success}
+              rows={partialRows}
+              styles={styles}
+              t={t}
+              onPress={handleRowPress}
+            />
+          )}
+
           {eatenRows.length > 0 && (
             <BucketSection
               label="Eaten"
-              subtitle="Flagged work resolved as not billed"
+              subtitle="No matching approved change order found within 60 days of the scan (or before the job closed)"
               icon={<XCircle size={15} color={t.danger} strokeWidth={1.75} />}
               tint={t.danger}
               rows={eatenRows}
@@ -296,8 +384,9 @@ function SummaryChip({
   label, count, total, color, bg, styles, t,
 }: {
   label: string;
-  count: number;
-  total: number;
+  /** null = the ledger could not be read — shown as a dash, never as 0. */
+  count: number | null;
+  total: number | null;
   color: string;
   bg: string;
   styles: ReturnType<typeof makeStyles>;
@@ -305,9 +394,9 @@ function SummaryChip({
 }) {
   return (
     <View style={[styles.summaryChip, { backgroundColor: bg, borderColor: color + '30' }]}>
-      <Text style={[styles.summaryCount, { color }]}>{count}</Text>
+      <Text style={[styles.summaryCount, { color }]}>{count === null ? '—' : count}</Text>
       <Text style={styles.summaryLabel}>{label}</Text>
-      {total > 0 && (
+      {total !== null && total > 0 && (
         <Text style={[styles.summaryMoney, { color }]}>{fmtMoney(total)}</Text>
       )}
     </View>
@@ -378,6 +467,12 @@ function LeakRowCard({
           <ChevronRight size={14} color={t.textMuted} strokeWidth={1.75} />
         )}
       </View>
+      {row.bucket === 'partial' ? (
+        <Text style={styles.partialLine}>
+          {`${row.itemsBilled} of ${row.itemsGraded} items billed as a change order · `
+            + `${fmtMoney(row.dollarsBilled)} billed, ${fmtMoney(Math.max(0, row.estTotal - row.dollarsBilled))} not`}
+        </Text>
+      ) : null}
       {row.items.slice(0, 3).map((item, idx) => (
         <View key={idx} style={styles.itemRow}>
           <Text style={styles.itemCategory}>{item.category}</Text>
@@ -421,6 +516,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, textAlign: 'center' },
   emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 20 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 8, paddingHorizontal: 14, marginTop: 4,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
+  },
+  retryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 10, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line, backgroundColor: t.surface,
+  },
+  errorBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  recoveryLine: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 18 },
+  partialLine: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textSecondary },
 
   section: { gap: 8 },
   sectionHead: { gap: 2, paddingHorizontal: 2 },

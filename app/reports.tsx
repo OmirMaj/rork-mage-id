@@ -42,9 +42,10 @@ import {
   shareWIPReport, shareProfitReport, shareARAgingReport, shareReportCsv,
 } from '@/utils/financialReportPdf';
 import {
-  describePortfolioCostBasis, isWipBilling, normalizeWipEtcMap, wipEtcStorageKey, wipEtcValueMap,
+  describePortfolioCostBasis, isWipBilling, isOwnCompanyProject, normalizeWipEtcMap, wipEtcStorageKey, wipEtcValueMap,
   type WipEstimatedCost,
 } from '@/utils/wip';
+import { pdfFailureMessage } from '@/utils/platformFile';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatMoney } from '@/utils/formatters';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -65,7 +66,7 @@ export default function ReportsScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
   const {
-    projects, invoices, changeOrders, commitments, settings,
+    projects, invoices: allInvoices, changeOrders, commitments, settings,
     // THE COST SOURCES THIS SCREEN ALWAYS HELD AND NEVER PASSED (audit
     // 2026-09-11). computeWIPReport / computeProfitReport take a
     // JobCostActualSources and their own doc says, in these words, that an
@@ -150,12 +151,40 @@ export default function ReportsScreen() {
   }, [loadEtc]);
   useFocusEffect(loadEtc);
 
+  // THIS COMPANY'S BOOK, NOT EVERY JOB IT CAN SEE (#18, audit 2026-09-22).
+  // `projects` is every project RLS lets this account read — including a
+  // partner GC's job he was invited onto as an editor or viewer, estimate and
+  // all. All three tabs used to loop over that whole list, so the partner's
+  // $900,000 contract and its profit landed in this GC's WIP totals, his
+  // portfolio margin and (through its invoices) his A/R aging — on the PDF he
+  // hands his bank. Narrowed ONCE, here, with the shared utils/wip rule, and
+  // the same two lists feed all three reports so the tabs cannot disagree
+  // about whose book they describe. The shared jobs are counted, not hidden:
+  // the WIP and Profit tabs say how many were left out.
+  const ownProjects = useMemo(
+    () => projects.filter(p => isOwnCompanyProject(p, userId)),
+    [projects, userId],
+  );
+  // `invoices` below IS the narrowed list — the unfiltered one is `allInvoices`,
+  // so nothing further down this screen can reach another company's receivables.
+  const invoices = useMemo(() => {
+    // By exclusion rather than inclusion: an invoice whose project is not on
+    // this device at all (a deleted job) is still this account's receivable,
+    // exactly as it was before; only a KNOWN other-company job's invoices go.
+    const theirs = new Set(projects.filter(p => !isOwnCompanyProject(p, userId)).map(p => p.id));
+    return allInvoices.filter(inv => !theirs.has(inv.projectId));
+  }, [projects, allInvoices, userId]);
+  const sharedJobCount = useMemo(
+    () => projects.filter(p => p.status !== 'closed' && !isOwnCompanyProject(p, userId)).length,
+    [projects, userId],
+  );
+
   // AIA pay applications: the contract chain and billed-to-date both read them
   // (axes 5 and 6). Without them a GC billing through G702/G703 read $0 billed
   // on this tab while /wip-report read the real figure.
-  const wip    = useMemo(() => computeWIPReport(projects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries), [projects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries]);
-  const profit = useMemo(() => computeProfitReport(projects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries), [projects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries]);
-  const aging  = useMemo(() => computeARAgingReport(invoices, projects), [invoices, projects]);
+  const wip    = useMemo(() => computeWIPReport(ownProjects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries), [ownProjects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries]);
+  const profit = useMemo(() => computeProfitReport(ownProjects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries), [ownProjects, invoices, changeOrders, commitments, costSources, aiaPayApps, etcEntries]);
+  const aging  = useMemo(() => computeARAgingReport(invoices, ownProjects), [invoices, ownProjects]);
 
   const branding = useMemo<CompanyBranding>(() => ({
     companyName:   settings?.branding?.companyName ?? 'MAGE ID',
@@ -211,7 +240,12 @@ export default function ReportsScreen() {
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      showAlert('PDF failed', err instanceof Error ? err.message : 'Could not generate PDF.');
+      // The success haptic above is only reached when the share RESOLVED. On
+      // the web a blocked pop-up now throws (utils/platformFile.openPrint-
+      // WindowOrThrow, #147) instead of doing nothing and buzzing "done", and
+      // pdfFailureMessage lets that one sentence — "allow pop-ups" — through
+      // while any other failure keeps this screen's own wording.
+      showAlert('PDF failed', pdfFailureMessage(err, 'Could not generate the PDF.'));
     } finally {
       setGenerating(false);
     }
@@ -300,8 +334,8 @@ export default function ReportsScreen() {
           </Text>
         </View>
 
-        {tab === 'wip' && !wipLocked && <WIPView    report={wip} />}
-        {tab === 'profit'               && <ProfitView profit={profit} />}
+        {tab === 'wip' && !wipLocked && <WIPView    report={wip} sharedJobCount={sharedJobCount} />}
+        {tab === 'profit'               && <ProfitView profit={profit} sharedJobCount={sharedJobCount} />}
         {tab === 'aging'                && (
           <AgingView
             report={aging}
@@ -399,11 +433,43 @@ function TabBtn({ label, icon: Icon, active, onPress }: { label: string; icon: t
 
 // ─── WIP view ────────────────────────────────────────────────────────
 
-function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
+/**
+ * What a report LEFT OUT, in one sentence (#18 / #19, audit 2026-09-22). The
+ * population rule now drops another company's shared jobs and unsigned bids,
+ * and a job must never vanish from a bank document without a word — the totals
+ * got smaller, and this is the line that says why. '' when nothing was left out.
+ */
+function reportExclusionLine(
+  shared: number,
+  unsigned: number,
+  unsignedContract: number,
+): string {
+  const parts: string[] = [];
+  if (shared > 0) {
+    parts.push(`${shared} job${shared === 1 ? '' : 's'} shared with you by another company `
+      + `(${shared === 1 ? 'its' : 'their'} contract, not yours)`);
+  }
+  if (unsigned > 0) {
+    parts.push(`${unsigned} unsigned bid${unsigned === 1 ? '' : 's'} (${formatMoney(unsignedContract, 2)}) — `
+      + 'pipeline, not backlog. A bid joins once it is invoiced, billed on a pay app, has an approved '
+      + 'change order or a signed subcontract, or has cost recorded against it');
+  }
+  return parts.length ? `Not on this report: ${parts.join('; ')}.` : '';
+}
+
+function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof computeWIPReport>; sharedJobCount: number }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const exclusion = reportExclusionLine(
+    sharedJobCount, report.excluded?.unsigned ?? 0, report.excluded?.unsignedContract ?? 0,
+  );
   if (report.rows.length === 0) {
-    return <EmptyState icon={ClipboardList} title="No active projects" body="WIP reports compile across active projects. Add or activate a project to populate this report." />;
+    return (
+      <>
+        <EmptyState icon={ClipboardList} title="No active projects" body="WIP reports compile across your own signed, active projects. Add or activate a project to populate this report." />
+        {exclusion ? <Text style={styles.basisLine} testID="wip-excluded">{exclusion}</Text> : null}
+      </>
+    );
   }
   return (
     <>
@@ -449,6 +515,7 @@ function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
             arrive here with no explanation of why it sat $42,200 above the
             estimate the other WIP schedule struck its margin against. */}
         <CostBasisLine rows={report.rows} />
+        {exclusion ? <Text style={styles.basisLine} testID="wip-excluded">{exclusion}</Text> : null}
       </View>
 
       {report.rows.map(r => (
@@ -524,11 +591,17 @@ function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
 
 // ─── Profit view ─────────────────────────────────────────────────────
 
-function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport> }) {
+function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof computeProfitReport>; sharedJobCount: number }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const exclusion = reportExclusionLine(sharedJobCount, profit.excluded.unsigned, profit.excluded.unsignedContract);
   if (profit.rows.length === 0) {
-    return <EmptyState icon={TrendingUp} title="No projects yet" body="Profit dashboard pulls live margins across every project. Add one to get started." />;
+    return (
+      <>
+        <EmptyState icon={TrendingUp} title="No projects yet" body="Profit dashboard pulls live margins across your own signed projects. Add one to get started." />
+        {exclusion ? <Text style={styles.basisLine} testID="profit-excluded">{exclusion}</Text> : null}
+      </>
+    );
   }
   return (
     <>
@@ -552,6 +625,7 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
             tab a sub-Business user lands on, so it is the one that most needs
             to say what it measured against. */}
         <CostBasisLine rows={profit.rows} />
+        {exclusion ? <Text style={styles.basisLine} testID="profit-excluded">{exclusion}</Text> : null}
       </View>
 
       <View style={styles.bandRow}>
@@ -627,11 +701,30 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
       tone={collected ? 'good' : undefined}
     />;
   }
+  // RETAINAGE IS A RECEIVABLE, AND IT WAS NOWHERE ON THIS TAB (#102, audit
+  // 2026-09-22). The engine keeps a settled invoice that still HOLDS retention
+  // on the list on purpose ("disclosed under Retainage Held"), carries the
+  // figure per row and in the totals — and this view printed neither. A
+  // $110,000 invoice with 10% held and $99,000 paid read "Outstanding $0" in
+  // danger red, "Current", counted as an outstanding invoice, with no mention
+  // of the $11,000 the owner still owes at closeout. The same $0.50 floor
+  // computeARAgingReport applies decides "collectible" here, so the screen,
+  // the PDF and the CSV agree on which rows are retainage-only.
+  const collectible = report.rows.filter(r => r.outstanding > 0.5).length;
+  const retainageOnly = report.rows.length - collectible;
   return (
     <>
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryEyebrow}>OUTSTANDING — {report.rows.length} invoice{report.rows.length === 1 ? '' : 's'}</Text>
+        <Text style={styles.summaryEyebrow}>
+          OUTSTANDING — {collectible} invoice{collectible === 1 ? '' : 's'}
+          {retainageOnly > 0 ? ` · ${retainageOnly} retainage-only` : ''}
+        </Text>
         <Text style={styles.agingHeroAmount}>{formatMoney(report.totals.totalOutstanding)}</Text>
+        {report.totals.retainageHeld > 0.5 ? (
+          <Text style={styles.agingHeroSub} testID="aging-retainage-held">
+            {`Plus ${formatMoney(report.totals.retainageHeld)} retainage held until closeout — a receivable, not aged.`}
+          </Text>
+        ) : null}
         <View style={styles.bucketRow}>
           <Bucket label="Current" value={report.totals.current}     tone="muted" />
           <Bucket label="0–30"    value={report.totals['0-30']}      tone="warn" />
@@ -642,11 +735,19 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
       </View>
 
       {report.rows.map(r => {
+        const isRetainageOnly = r.outstanding <= 0.5;
+        // Danger ink only for money that is actually LATE. A current balance is
+        // not in danger, and a retainage-only row owes nothing collectible.
+        const outstandingLate = r.outstanding > 0.5 && r.bucket !== 'current';
         const bucketStyle =
-          r.bucket === 'current' ? styles.bucketPillMuted :
-          r.bucket === '0-30'    ? styles.bucketPillWarn :
-          r.bucket === '31-60'   ? styles.bucketPillWarn :
-                                   styles.bucketPillBad;
+          isRetainageOnly           ? styles.bucketPillMuted :
+          r.bucket === 'current'    ? styles.bucketPillMuted :
+          r.bucket === '0-30'       ? styles.bucketPillWarn :
+          r.bucket === '31-60'      ? styles.bucketPillWarn :
+                                      styles.bucketPillBad;
+        const heldSpoken = r.retainageHeld > 0.5
+          ? `, ${formatMoney(r.retainageHeld, 2)} retainage held to closeout`
+          : '';
         return (
           // A worklist, not a printout: the row opens the invoice, where Mark
           // Paid, the pay link and Send already live. No inline duplicates of
@@ -657,14 +758,14 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
             onPress={() => onOpenInvoice(r)}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`Open invoice ${r.invoiceNumber} for ${r.projectName}, ${formatMoney(r.outstanding)} outstanding`}
+            accessibilityLabel={`Open invoice ${r.invoiceNumber} for ${r.projectName}, ${formatMoney(r.outstanding, 2)} outstanding${heldSpoken}`}
             testID={`aging-row-${r.invoiceId}`}
           >
             <View style={styles.rowHead}>
               <Text style={styles.rowTitle}>#{r.invoiceNumber} · {r.projectName}</Text>
               <View style={[styles.bucketPill, bucketStyle]}>
                 <Text style={styles.bucketPillText}>
-                  {r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}
+                  {isRetainageOnly ? 'Retainage only' : r.bucket === 'current' ? 'Current' : `${r.daysPastDue}d past due`}
                 </Text>
               </View>
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -674,7 +775,11 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
               <KV k="Due"          v={new Date(r.dueDate).toLocaleDateString()} />
               <KV k="Total due"    v={formatMoney(r.totalDue)} />
               <KV k="Paid"         v={formatMoney(r.amountPaid)} />
-              <KV k="Outstanding"  v={formatMoney(r.outstanding)} bold tone="bad" />
+              {/* Total − Paid − Retainage held = Outstanding: the row foots, the
+                  way the CSV and the PDF foot. */}
+              <KV k="Retainage held" v={formatMoney(r.retainageHeld)} muted={r.retainageHeld <= 0.5} />
+              <KV k="Outstanding"  v={formatMoney(r.outstanding)} bold
+                  tone={outstandingLate ? 'bad' : undefined} muted={isRetainageOnly} />
             </View>
           </TouchableOpacity>
         );
@@ -859,6 +964,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bandText:{ fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
 
   agingHeroAmount: { fontSize: 26, fontWeight: '800', color: t.danger, letterSpacing: -0.6, marginTop: 4 },
+  agingHeroSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 17 },
   bucketRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
   bucket:    { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
   bucketLabel: { fontSize: 9, fontWeight: '800', color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },

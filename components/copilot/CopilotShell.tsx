@@ -10,7 +10,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays } from 'lucide-react-native';
+import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays, ArrowLeft, Briefcase, Receipt } from 'lucide-react-native';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import DatePickerModal from '@/components/DatePickerModal';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -20,6 +20,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useCopilotConversation } from '@/hooks/useCopilotConversation';
 import { optionsForGap } from '@/utils/copilot/gapOptions';
+import { isLimitErrorKind } from '@/utils/copilot/turnMeter';
 import type { CopilotCapabilityId, CopilotContext } from '@/utils/copilot/types';
 
 interface Props {
@@ -29,14 +30,19 @@ interface Props {
   /** Pre-fill the compose box (e.g. the utterance the universal router classified),
    *  so the user just reviews + taps Continue instead of re-typing. */
   seed?: string;
+  /** The host's job picker, opened over the mounted shell so the draft
+   *  survives (#34: a Build that failed for want of a job). */
+  onPickProject?: () => void;
+  /** Open the estimate Copilot for this job (#34: schedule / billing need one). */
+  onBuildEstimate?: () => void;
 }
 
-export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props) {
+export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickProject, onBuildEstimate }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const convo = useCopilotConversation(capabilityId, ctx);
-  const { state, cap, start, utterance, answer, skip, confirm, cancel } = convo;
+  const { state, cap, start, utterance, answer, skip, confirm, cancel, patchDraft, backToReview } = convo;
   const [micOpen, setMicOpen] = useState(false);
   const [compose, setCompose] = useState(seed ?? '');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -52,6 +58,14 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
 
   const gapField = state.currentGap?.field;
   useEffect(() => { setEntry(''); }, [gapField]);
+
+  // A Build that failed for want of a job returns to review on its own once
+  // he has picked one — the draft he built is still in the reducer.
+  const projectId = ctx.projectId;
+  useEffect(() => {
+    if (state.phase === 'error' && state.errorKind === 'no_project' && ctx.project) backToReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, state.phase, state.errorKind]);
 
   const onTranscript = useCallback((t: string) => { setMicOpen(false); utterance(t); }, [utterance]);
   const submitCompose = useCallback(() => {
@@ -81,6 +95,17 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
   const close = useCallback(() => { cancel(); onDone(); }, [cancel, onDone]);
 
   const thinking = state.phase === 'thinking';
+  const buildAndLeave = useCallback(async () => {
+    const a = await confirm();
+    if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); }
+  }, [confirm, onDone, router]);
+  // Shown-not-asked defaults, split by where they came from (#7): a default
+  // from his own records is "SET FROM YOUR HISTORY"; anything else is an
+  // assumption and says so.
+  const fromHistory = state.resolved.filter(r => r.source === 'history');
+  const assumed = state.resolved.filter(r => r.source !== 'history');
+  const limitError = isLimitErrorKind(state.errorKind);
+  const applyError = state.errorKind === 'no_project' || state.errorKind === 'no_estimate' || state.errorKind === 'apply_failed';
 
   return (
     <View style={styles.root}>
@@ -123,20 +148,23 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         {/* resolved defaults — shown, not asked */}
-        {state.resolved.length > 0 && (
-          <View style={styles.resolvedGroup}>
-            <Text style={styles.resHead}>SET FROM YOUR HISTORY — NOTHING TO ASK</Text>
-            {state.resolved.map(r => (
-              <View key={r.field} style={styles.resRow}>
-                <View style={styles.tick}><Check size={11} color={colors.success} strokeWidth={3} /></View>
-                <View style={styles.resText}>
-                  <Text style={styles.resLabel} numberOfLines={2}>{r.label}</Text>
-                  <Text style={styles.basis} numberOfLines={2}>{r.basis}</Text>
+        {[{ key: 'history', head: 'SET FROM YOUR HISTORY — NOTHING TO ASK', rows: fromHistory },
+          { key: 'assumed', head: 'ASSUMED — CHANGE ON THE GRID', rows: assumed }]
+          .filter(g => g.rows.length > 0)
+          .map(g => (
+            <View key={g.key} style={styles.resolvedGroup}>
+              <Text style={styles.resHead}>{g.head}</Text>
+              {g.rows.map(r => (
+                <View key={r.field} style={styles.resRow}>
+                  <View style={styles.tick}><Check size={11} color={colors.success} strokeWidth={3} /></View>
+                  <View style={styles.resText}>
+                    <Text style={styles.resLabel} numberOfLines={2}>{r.label}</Text>
+                    <Text style={styles.basis} numberOfLines={2}>{r.basis}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </View>
-        )}
+              ))}
+            </View>
+          ))}
 
         {(state.phase === 'listening' || state.phase === 'idle') && (
           <View style={styles.ask}>
@@ -253,16 +281,19 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
               {cap.renderReview({
                 draft: state.draft,
                 ctx,
-                confirm: async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } else { onDone(); } },
+                confirm: async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } else if (a) { onDone(); } },
                 cancel: () => { cancel(); onDone(); },
+                patchDraft,
+                note: state.reviewNote,
               })}
             </View>
           ) : (
             <View style={styles.ask}>
               <Text style={styles.askEyebrow}>READY TO BUILD</Text>
               <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
+              {!!state.reviewNote && <Text style={styles.grounding} testID="copilot-review-note">{state.reviewNote}</Text>}
               <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
-              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } }}>
+              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={buildAndLeave}>
                 <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Build it</Text>
               </TouchableOpacity>
@@ -276,12 +307,47 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
 
         {state.phase === 'error' && (
           <View style={styles.ask}>
-            <Text style={styles.askEyebrow}>SOMETHING WENT WRONG</Text>
+            {/* The error names what happened and offers the fix that works
+                for it (#34/#35). Re-opening the mic is only offered where a
+                new turn can help: a Build failure re-dictated costs another
+                AI turn and throws the same error; a limit needs a plan. */}
+            <Text style={styles.askEyebrow}>
+              {limitError ? 'AI LIMIT REACHED'
+                : state.errorKind === 'no_project' ? 'WHICH JOB IS THIS FOR?'
+                : state.errorKind === 'no_estimate' ? 'THIS JOB NEEDS AN ESTIMATE'
+                : applyError ? 'COULDN’T BUILD IT'
+                : 'SOMETHING WENT WRONG'}
+            </Text>
             <Text style={styles.question}>{state.errorMessage ?? 'Try again.'}</Text>
-            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={() => setMicOpen(true)}>
-              <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
-              <Text style={styles.buildBtnText}>Try again</Text>
-            </TouchableOpacity>
+            {limitError && (
+              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={() => { onDone(); router.push('/paywall' as never); }} testID="copilot-see-plans">
+                <Text style={styles.buildBtnText}>See plans</Text>
+              </TouchableOpacity>
+            )}
+            {state.errorKind === 'no_project' && onPickProject && (
+              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={onPickProject} testID="copilot-pick-job">
+                <Briefcase size={18} color={Colors.textOnAccent} strokeWidth={2} />
+                <Text style={styles.buildBtnText}>Pick a job</Text>
+              </TouchableOpacity>
+            )}
+            {state.errorKind === 'no_estimate' && onBuildEstimate && (
+              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={onBuildEstimate} testID="copilot-build-estimate">
+                <Receipt size={18} color={Colors.textOnAccent} strokeWidth={2} />
+                <Text style={styles.buildBtnText}>Build the estimate first</Text>
+              </TouchableOpacity>
+            )}
+            {applyError && (
+              <TouchableOpacity style={styles.ghostBtn} activeOpacity={0.8} onPress={backToReview} testID="copilot-back-to-review">
+                <ArrowLeft size={16} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={styles.ghostBtnText}>Back to review</Text>
+              </TouchableOpacity>
+            )}
+            {!limitError && !applyError && (
+              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={() => setMicOpen(true)}>
+                <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
+                <Text style={styles.buildBtnText}>Try again</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </ScrollView>
@@ -354,6 +420,8 @@ function makeStyles(colors: ThemeColors) {
 
     buildBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, backgroundColor: colors.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: Tokens.spacing.md, marginTop: Tokens.spacing.sm },
     buildBtnText: { ...Type.bodyEmphasized, color: Colors.textOnAccent },
+    ghostBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, paddingVertical: Tokens.spacing.md },
+    ghostBtnText: { ...Type.bodyEmphasized, color: colors.textSecondary },
 
     actionbar: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
     mic: { width: 52, height: 52, borderRadius: Tokens.radius.full, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },

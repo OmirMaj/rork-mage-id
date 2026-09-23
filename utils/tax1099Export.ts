@@ -66,7 +66,7 @@ export const THRESHOLD_PROVISIONAL_NOTE =
  * print the same sentence the CSV does.
  */
 export const COVERAGE_NOTE =
-  'Counts sub-portal invoices marked paid — checks, ACH, cash and anything else recorded outside the portal are not in this figure';
+  'Counts sub-portal invoices marked paid — except those paid by card, which the card processor reports on Form 1099-K and are shown separately. Checks, ACH, cash and anything else recorded outside the portal are not in this figure';
 
 /**
  * The same sentence for a caller that PASSES `gcRecordedPayments` to
@@ -87,7 +87,26 @@ export const COVERAGE_NOTE =
  * itself so a future caller cannot get the pairing wrong.
  */
 export const COVERAGE_NOTE_WITH_RECORDED_BILLS =
-  'Counts sub-portal invoices marked paid plus bills you recorded against a subcontract — a check, ACH or cash payment with no record in MAGE is not in this figure';
+  'Counts sub-portal invoices marked paid plus bills you recorded against a subcontract — card-paid portal invoices are shown separately (the card processor reports them on Form 1099-K), and a check, ACH or cash payment with no record in MAGE is not in this figure';
+
+/**
+ * CARD PAYMENTS ARE NOT 1099-NEC MONEY (#100, audit 2026-09-22).
+ *
+ * IRS 1099-NEC instructions: payments made with a credit card or a payment
+ * card are reported by the card processor on Form 1099-K and are NOT reported
+ * on a 1099-NEC. The export counted every paid portal invoice regardless of how
+ * it was paid, so a $3,000 sub invoice marked paid by Card read "1099 Required:
+ * Yes" and handed the CPA a figure that would double-report the sub's income.
+ *
+ * Card-paid invoices are therefore kept OUT of Total Paid, the payment count
+ * and the Y/N, and disclosed beside them (`cardPaid`, its own CSV column), the
+ * same way undated commitment money is. `'other'` STAYS COUNTED — it may be a
+ * Zelle or a check the GC filed loosely, and dropping it would under-report —
+ * with a note telling the CPA that a PayPal / Venmo business payment also goes
+ * on a 1099-K. A null or legacy method stays counted exactly as before: an
+ * unreconciled row is not evidence of a card.
+ */
+export const CARD_PAYMENT_METHOD = 'card';
 
 /**
  * The coverage sentence that is TRUE of a given dataset. Derived from the rows
@@ -150,6 +169,12 @@ export interface Tax1099Row {
    * figure. Zero on an account that bills entirely through the sub portal.
    */
   gcRecordedPaid: number;
+  /**
+   * Portal invoices this sub was paid BY CARD in the year, net of retention
+   * (#100). NOT in `totalPaid`, `paymentCount` or `required1099` — the card
+   * processor reports that money on Form 1099-K. Disclosed so the CPA sees it.
+   */
+  cardPaid: number;
 }
 
 /**
@@ -210,6 +235,10 @@ export function cashPaidOf(inv: Pick<SubSubmittedInvoice, 'amount' | 'retentionA
 // "No" on a form the GC is legally required to file: over-disclosing sends the
 // CPA to reconcile one number, under-disclosing sends the GC a penalty.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** The note an orphan row (#17) leads with — exported for the screen and the guard. */
+export const DELETED_SUB_NOTE =
+  'Deleted from your Subs list; legal name, TIN and address are no longer on file. Re-add the sub or collect a W-9 before filing';
 
 /** One GC-recorded payment to a sub: dated, attributable, countable. */
 export interface GcRecordedSubPayment {
@@ -308,19 +337,40 @@ export function buildTax1099Dataset(opts: {
 
   // Map of subcontractorId → totals. `gc` is the slice that came from
   // GC-recorded bills, tracked separately so each row can disclose its basis.
-  const totals = new Map<string, { paid: number; count: number; gc: number }>();
+  // `card` is money paid by card — reported on a 1099-K, never counted here
+  // (#100); `other` counts invoices recorded with the method 'other'.
+  type Totals = { paid: number; count: number; gc: number; card: number; cardCount: number; other: number };
+  const totals = new Map<string, Totals>();
   const bump = (subId: string) => {
-    const t = totals.get(subId) ?? { paid: 0, count: 0, gc: 0 };
+    const t = totals.get(subId) ?? { paid: 0, count: 0, gc: 0, card: 0, cardCount: 0, other: 0 };
     totals.set(subId, t);
     return t;
   };
+  // The newest PAID portal invoice per sub (any year) — the only name the app
+  // still holds for a sub the GC has since deleted from his roster (#17).
+  const newestSubmitter = new Map<string, { at: string; name: string }>();
 
   for (const inv of opts.subSubmittedInvoices) {
     if (inv.status !== 'paid') continue;
-    if (!inYear(paymentDateOf(inv))) continue;
     const subId = inv.subcontractorId;
     if (!subId) continue;
+    const at = paymentDateOf(inv) ?? '';
+    const name = inv.submittedByName?.trim();
+    if (name) {
+      const prev = newestSubmitter.get(subId);
+      if (!prev || at > prev.at) newestSubmitter.set(subId, { at, name });
+    }
+    if (!inYear(at)) continue;
     const t = bump(subId);
+    const method = (inv.paymentMethod ?? '').trim().toLowerCase();
+    if (method === CARD_PAYMENT_METHOD) {
+      // Same net-of-retention rule as a counted invoice; kept out of paid,
+      // count and the Y/N.
+      t.card += cashPaidOf(inv);
+      t.cardCount += 1;
+      continue;
+    }
+    if (method === 'other') t.other += 1;
     t.paid += cashPaidOf(inv);
     t.count += 1;
   }
@@ -353,19 +403,26 @@ export function buildTax1099Dataset(opts: {
 
   const fmt = (n: number) => `$${n.toLocaleString('en-US')}`;
 
-  // Build the row set, including subs with $0 in this year so the CPA
-  // sees the full roster (helpful for year-over-year comparisons).
-  const rows: Tax1099Row[] = [];
-  for (const sub of opts.subcontractors) {
-    const t = totals.get(sub.id) ?? { paid: 0, count: 0, gc: 0 };
+  /**
+   * ONE ROW BUILDER for the roster and for the orphans below, so a deleted
+   * sub's row applies exactly the threshold, rounding and disclosures a
+   * rostered sub's does.
+   */
+  const buildRow = (
+    subId: string,
+    identity: { recipientName: string; tinLast4: string; address: string; w9OnFile: boolean },
+    leadingNotes: string[],
+  ): Tax1099Row => {
+    const t = totals.get(subId) ?? { paid: 0, count: 0, gc: 0, card: 0, cardCount: 0, other: 0 };
     const paid = Math.round(t.paid * 100) / 100;
     const gcRecordedPaid = Math.round(t.gc * 100) / 100;
+    const cardPaid = Math.round(t.card * 100) / 100;
     const required = paid >= threshold;
-    const uncountedCommitmentPaid = Math.round((undated.get(sub.id) ?? 0) * 100) / 100;
-    const notes: string[] = [];
-    if (required && !sub.taxIdLast4) notes.push('TIN missing — collect from W-9');
-    if (required && !sub.address) notes.push('Address missing — required on 1099');
-    if (!sub.w9OnFile) notes.push('W-9 not on file');
+    const uncountedCommitmentPaid = Math.round((undated.get(subId) ?? 0) * 100) / 100;
+    const notes: string[] = [...leadingNotes];
+    if (required && !identity.tinLast4) notes.push('TIN missing — collect from W-9');
+    if (required && !identity.address) notes.push('Address missing — required on 1099');
+    if (!identity.w9OnFile) notes.push('W-9 not on file');
     if (!required && paid > 0) notes.push(`Below ${fmt(threshold)} (${opts.year} threshold, ${THRESHOLD_CITATION}) — 1099 not required but disclosed`);
     // "No payments this year" was the line eleven subs got while the GC paid
     // every one of them by check. It now names the source it is speaking for.
@@ -383,25 +440,77 @@ export function buildTax1099Dataset(opts: {
         `${fmt(gcRecordedPaid)} of this total is bills you recorded against a subcontract; the tax year comes from the DATE ON THE DOCUMENT, not from when the check cleared — confirm any bill near a year end`,
       );
     }
+    if (cardPaid > 0) {
+      notes.push(`${fmt(cardPaid)} paid by card — reported by the card processor on Form 1099-K, excluded from this 1099-NEC total`);
+    }
+    if (t.other > 0) {
+      notes.push(`${t.other} invoice${t.other === 1 ? '' : 's'} recorded as "other" — counted above. If paid through PayPal, Venmo or another payment app, the processor reports ${t.other === 1 ? 'it' : 'them'} on Form 1099-K, so confirm with your CPA`);
+    }
     if (uncountedCommitmentPaid > 0) {
       notes.push(`Commitments record ${fmt(uncountedCommitmentPaid)} paid to date with no payment dates — not counted above; confirm the year against your books`);
     }
-    notes.push(COVERAGE_NOTE);
-    rows.push({
-      subcontractorId: sub.id,
-      recipientName: sub.legalName || sub.companyName || sub.contactName || 'UNKNOWN',
-      tinLast4: sub.taxIdLast4 || '',
-      address: sub.address ?? '',
+    // THE COVERAGE SENTENCE DESCRIBES THIS ROW (#105, audit 2026-09-22). It was
+    // COVERAGE_NOTE unconditionally, so a row whose total includes bills the GC
+    // recorded said, in the very next note, that anything recorded outside the
+    // portal is not in the figure. Decided from the row's own data — the same
+    // test coverageNoteFor applies to the whole dataset — so a row with no
+    // recorded bills keeps the narrow sentence, which is true of it.
+    notes.push(gcRecordedPaid > 0 ? COVERAGE_NOTE_WITH_RECORDED_BILLS : COVERAGE_NOTE);
+    return {
+      subcontractorId: subId,
+      recipientName: identity.recipientName,
+      tinLast4: identity.tinLast4,
+      address: identity.address,
       totalPaid: paid,
       paymentCount: t.count,
       threshold,
       thresholdProvisional,
       required1099: required,
-      w9OnFile: !!sub.w9OnFile,
+      w9OnFile: identity.w9OnFile,
       notes: notes.join('; '),
       uncountedCommitmentPaid,
       gcRecordedPaid,
-    });
+      cardPaid,
+    };
+  };
+
+  // Build the row set, including subs with $0 in this year so the CPA
+  // sees the full roster (helpful for year-over-year comparisons).
+  const rows: Tax1099Row[] = [];
+  const rostered = new Set<string>();
+  for (const sub of opts.subcontractors) {
+    rostered.add(sub.id);
+    rows.push(buildRow(sub.id, {
+      recipientName: sub.legalName || sub.companyName || sub.contactName || 'UNKNOWN',
+      tinLast4: sub.taxIdLast4 || '',
+      address: sub.address ?? '',
+      w9OnFile: !!sub.w9OnFile,
+    }, []));
+  }
+
+  // A SUB DELETED FROM THE ROSTER IS STILL A 1099 RECIPIENT (#17, audit
+  // 2026-09-22). Deleting a sub hard-deletes the subcontractors row, and no
+  // foreign key points at it, so his paid portal invoices (and any commitment
+  // naming him) keep the dead id. Rows used to be built from the roster ONLY,
+  // so a framer paid $15,000 and deleted in December had no row in January:
+  // the Required count dropped by one and the CSV left him out. Every id that
+  // carries money this year (counted, card-paid or undated) and has no roster
+  // entry gets a row now, built by the same builder — same threshold, same Y/N.
+  // His name comes from the newest invoice he submitted; the TIN and address
+  // are gone with the roster row, and the note says so.
+  const orphanIds = new Set<string>();
+  for (const id of totals.keys()) if (!rostered.has(id)) orphanIds.add(id);
+  for (const id of undated.keys()) if (!rostered.has(id)) orphanIds.add(id);
+  for (const id of orphanIds) {
+    const submitter = newestSubmitter.get(id)?.name;
+    rows.push(buildRow(id, {
+      recipientName: submitter
+        ? `${submitter} (deleted from your Subs list)`
+        : `Deleted sub (${id.slice(0, 8)})`,
+      tinLast4: '',
+      address: '',
+      w9OnFile: false,
+    }, [DELETED_SUB_NOTE]));
   }
   // Sort by total paid descending so the highest-volume subs sit at top.
   rows.sort((a, b) => b.totalPaid - a.totalPaid);
@@ -443,6 +552,8 @@ export function tax1099DatasetToCsv(rows: Tax1099Row[]): string {
     // APPENDED, like the column before it — every existing position is
     // untouched, because column ORDER is the contract with the CPA's importer.
     'Of which: bills you recorded (document date basis)',
+    // #100 — appended last for the same reason. NOT part of Total Paid.
+    'Paid by card (Form 1099-K, NOT counted)',
   ];
   const lines: string[] = [header.map(csvCell).join(',')];
   for (const r of rows) {
@@ -457,6 +568,7 @@ export function tax1099DatasetToCsv(rows: Tax1099Row[]): string {
       r.w9OnFile ? 'Yes' : 'No', r.notes,
       r.uncountedCommitmentPaid > 0 ? r.uncountedCommitmentPaid.toFixed(2) : '',
       r.gcRecordedPaid > 0 ? r.gcRecordedPaid.toFixed(2) : '',
+      r.cardPaid > 0 ? r.cardPaid.toFixed(2) : '',
     ].map(csvCell).join(','));
   }
   return lines.join('\n');

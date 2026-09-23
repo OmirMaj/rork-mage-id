@@ -8,18 +8,18 @@
 // W-9-not-on-file warnings inline so the GC can chase the data BEFORE
 // year-end instead of in February.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
-  ChevronLeft, FileSpreadsheet, Calendar, AlertTriangle, CheckCircle2, Share2,
+  ChevronLeft, FileSpreadsheet, Calendar, AlertTriangle, CheckCircle2, Share2, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -63,12 +63,21 @@ import { showAlert } from '@/utils/alert';
  */
 const COMMITMENT_NOTE_PREFIX = 'Commitments record ';
 const COMMITMENT_NOTE_TAIL = 'confirm the year against your books';
-function notesForScreen(notes: string): string {
+/** The engine's "nothing this year" sentence — a claim the screen cannot make
+ *  when the portal read failed (#101), so it is dropped from the row then. */
+const NO_PORTAL_PAYMENTS_LEAD = 'No sub-portal payments recorded in ';
+function notesForScreen(notes: string, portalLoaded = true): string {
   return notes
     .split('; ')
     .filter(n => n !== COVERAGE_NOTE && n !== COVERAGE_NOTE_WITH_RECORDED_BILLS
-      && !n.startsWith(COMMITMENT_NOTE_PREFIX) && n !== COMMITMENT_NOTE_TAIL)
+      && !n.startsWith(COMMITMENT_NOTE_PREFIX) && n !== COMMITMENT_NOTE_TAIL
+      && (portalLoaded || !n.startsWith(NO_PORTAL_PAYMENTS_LEAD)))
     .join('; ');
+}
+
+/** Money on this screen is to the cent — it is a tax figure a CPA files from. */
+function cents(n: number): string {
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function Tax1099ExportScreen() {
@@ -104,18 +113,35 @@ export default function Tax1099ExportScreen() {
   const [subInvoices, setSubInvoices] = useState<SubSubmittedInvoice[] | null>(null);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // A FAILED READ IS NOT AN EMPTY YEAR (#101, audit 2026-09-22). The catch
+  // below used to set the list to [] and say nothing, so in airplane mode or on
+  // a bad signal every sub read "No sub-portal payments this year", 'Subs
+  // needing 1099' read 0, and Export CSV wrote that file for the CPA — an
+  // under-filing built out of a network error. The roster is still shown (the
+  // bills the GC recorded are local and real), but the screen says the portal
+  // half is missing, drops the "nothing this year" claim from every row, and
+  // will not export until a read succeeds.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadErrorRef = useRef<string | null>(null);
 
   const loadSubInvoices = useCallback(async () => {
     if (!isSupabaseConfigured) {
+      // Dev builds with no backend: there is no portal to read, so there is
+      // nothing missing either.
       setSubInvoices([]);
       return;
     }
     setLoadingInvoices(true);
+    setLoadError(null);
+    loadErrorRef.current = null;
     try {
       const { data, error } = await supabase
         .from('sub_submitted_invoices')
         // MONEY-F4: paid_on (the day money left the account) decides the tax year.
-        .select('id,sub_portal_id,project_id,subcontractor_id,commitment_id,invoice_number,amount,retention_amount,status,created_at,reviewed_at,paid_at,paid_on')
+        // payment_method: a card payment goes on the processor's 1099-K, not
+        // this 1099-NEC (#100). submitted_by_name / _email: the only name left
+        // for a sub the GC has since deleted from his roster (#17).
+        .select('id,sub_portal_id,project_id,subcontractor_id,commitment_id,invoice_number,amount,retention_amount,status,created_at,reviewed_at,paid_at,paid_on,payment_method,submitted_by_name,submitted_by_email')
         .eq('status', 'paid');
       if (error) throw error;
       const mapped = (data ?? []).map((r: Record<string, unknown>) => ({
@@ -133,10 +159,18 @@ export default function Tax1099ExportScreen() {
         reviewedAt: (r.reviewed_at as string | null) ?? undefined,
         paidAt: (r.paid_at as string | null) ?? undefined,
         paidOn: (r.paid_on as string | null) ?? undefined,
+        paymentMethod: (r.payment_method as string | null) ?? undefined,
+        submittedByName: (r.submitted_by_name as string | null) ?? undefined,
+        submittedByEmail: (r.submitted_by_email as string | null) ?? undefined,
       })) as SubSubmittedInvoice[];
       setSubInvoices(mapped);
     } catch (err) {
       console.warn('[1099 export] sub invoice fetch failed', err);
+      // The roster still renders (from an empty portal list), but loadError
+      // gates Export and replaces every "nothing this year" claim.
+      const message = "Couldn't load sub-portal payments. Totals below would leave out anything subs submitted through the portal.";
+      setLoadError(message);
+      loadErrorRef.current = message;
       setSubInvoices([]);
     } finally {
       setLoadingInvoices(false);
@@ -147,6 +181,12 @@ export default function Tax1099ExportScreen() {
   React.useEffect(() => {
     void loadSubInvoices();
   }, [loadSubInvoices]);
+  // …and try again whenever the screen comes back into focus after a failed
+  // read (there is no network listener in this app) — the GC who walks back
+  // into signal and reopens the screen should not have to find the button.
+  useFocusEffect(useCallback(() => {
+    if (loadErrorRef.current) void loadSubInvoices();
+  }, [loadSubInvoices]));
 
   const rows: Tax1099Row[] = useMemo(() => {
     if (!subInvoices) return [];
@@ -189,7 +229,16 @@ export default function Tax1099ExportScreen() {
   const thresholdInfo = thresholdInfoForYear(year);
   const thresholdLabel = `$${thresholdInfo.amount.toLocaleString('en-US')}`;
 
+  // Export needs a successful portal read: without it the file under-reports
+  // every sub who invoiced through the portal. A blocked control says why.
+  const exportBlockedReason = loadError
+    ? 'Export needs the sub-portal payments. Reconnect and tap Retry — without them the file would under-report.'
+    : subInvoices === null
+      ? 'Loading sub-portal payments…'
+      : rows.length === 0 ? 'Add a sub to your Subs list to build the export.' : null;
+
   const handleExport = useCallback(async () => {
+    if (exportBlockedReason) { showAlert('Export not ready', exportBlockedReason); return; }
     setGenerating(true);
     try {
       const csv = tax1099DatasetToCsv(rows);
@@ -217,7 +266,7 @@ export default function Tax1099ExportScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [rows, year]);
+  }, [rows, year, exportBlockedReason]);
 
   return (
     <>
@@ -269,16 +318,39 @@ export default function Tax1099ExportScreen() {
           </View>
         ) : (
           <>
+            {loadError ? (
+              // IN PLACE OF the summary tiles: a count of subs needing a 1099
+              // and a year total built without the portal would be two wrong
+              // numbers stated as facts.
+              <View style={styles.errorCard} testID="tax-1099-load-error">
+                <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.errorTitle}>Sub-portal payments not loaded</Text>
+                  <Text style={styles.errorBody}>{loadError}</Text>
+                  <TouchableOpacity
+                    onPress={() => { void loadSubInvoices(); }}
+                    style={styles.retryBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading sub-portal payments"
+                    testID="tax-1099-retry"
+                  >
+                    <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.retryText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
             <View style={styles.summaryGrid}>
               <View style={styles.summaryCell}>
                 <Text style={styles.summaryValue}>{totals.required1099Count}</Text>
                 <Text style={styles.summaryLabel}>Subs needing 1099</Text>
               </View>
               <View style={styles.summaryCell}>
-                <Text style={styles.summaryValue}>${totals.totalPaid.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{cents(totals.totalPaid)}</Text>
                 <Text style={styles.summaryLabel}>Total paid {year}</Text>
               </View>
             </View>
+            )}
 
             {/* MONEY-1099-COV-1: what "Total paid" actually counts, stated
                 directly under the figure it qualifies. The constant was
@@ -322,16 +394,24 @@ export default function Tax1099ExportScreen() {
               // dimming it to half opacity was hiding the one figure that
               // tells the GC his $0 is a coverage gap and not a fact.
               rows.map(r => {
-                const screenNotes = notesForScreen(r.notes);
+                const screenNotes = notesForScreen(r.notes, !loadError);
                 return (
-                <View key={r.subcontractorId} style={[styles.row, !r.required1099 && r.totalPaid <= 0 && r.uncountedCommitmentPaid <= 0 && { opacity: 0.5 }]}>
+                <View key={r.subcontractorId} style={[styles.row, !loadError && !r.required1099 && r.totalPaid <= 0 && r.uncountedCommitmentPaid <= 0 && r.cardPaid <= 0 && { opacity: 0.5 }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowName}>{r.recipientName}</Text>
                     <Text style={styles.rowMeta}>
                       {r.totalPaid > 0
-                        ? `$${r.totalPaid.toLocaleString(undefined, { maximumFractionDigits: 2 })} · ${r.paymentCount} payment${r.paymentCount === 1 ? '' : 's'}`
-                        : 'No sub-portal payments this year'}
+                        ? `${cents(r.totalPaid)} · ${r.paymentCount} payment${r.paymentCount === 1 ? '' : 's'}`
+                          + (loadError ? ' · sub-portal payments not loaded' : '')
+                        : loadError ? 'Sub-portal payments not loaded' : 'No sub-portal payments this year'}
                     </Text>
+                    {/* Card money is disclosed, never counted: the processor
+                        reports it on a 1099-K (#100). */}
+                    {r.cardPaid > 0 ? (
+                      <Text style={styles.rowUncounted} testID={`card-paid-${r.subcontractorId}`}>
+                        {`+ ${cents(r.cardPaid)} paid by card — the card processor reports it on Form 1099-K, so it is not in this 1099-NEC total.`}
+                      </Text>
+                    ) : null}
                     {/* Money the app KNOWS was paid to this sub and cannot put
                         in a tax year — the figure that explains a $0 row to the
                         GC who paid by check. It reached the CSV as its own
@@ -355,7 +435,9 @@ export default function Tax1099ExportScreen() {
                       <Text style={[styles.flagText, { color: Colors.warningLabel }]}>1099</Text>
                     </View>
                   )}
-                  {!r.required1099 && r.totalPaid > 0 && (
+                  {/* "Below the threshold" is a verdict the screen cannot give
+                      while the portal half of the total is missing. */}
+                  {!loadError && !r.required1099 && r.totalPaid > 0 && (
                     <View style={[styles.flag, { backgroundColor: themeColors.success + '14', borderColor: themeColors.success }]}>
                       <CheckCircle2 size={11} color={themeColors.success} strokeWidth={1.75} />
                     </View>
@@ -367,9 +449,13 @@ export default function Tax1099ExportScreen() {
 
             <TouchableOpacity
               onPress={handleExport}
-              disabled={generating || rows.length === 0}
+              disabled={generating || !!exportBlockedReason}
               activeOpacity={0.85}
-              style={[styles.exportBtn, (generating || rows.length === 0) && { opacity: 0.6 }]}
+              style={[styles.exportBtn, (generating || !!exportBlockedReason) && { opacity: 0.6 }]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: generating || !!exportBlockedReason }}
+              accessibilityHint={exportBlockedReason ?? undefined}
+              testID="tax-1099-export"
             >
               {generating
                 ? <ActivityIndicator color="#FFF" />
@@ -380,6 +466,10 @@ export default function Tax1099ExportScreen() {
                   </>
                 )}
             </TouchableOpacity>
+
+            {exportBlockedReason && rows.length > 0 ? (
+              <Text style={styles.blockedNote} testID="tax-1099-export-blocked">{exportBlockedReason}</Text>
+            ) : null}
 
             <Text style={styles.disclaimerText}>
               MAGE ID isn&apos;t a tax-prep tool. We don&apos;t file 1099s for you, don&apos;t verify TIN matches, and don&apos;t compute backup withholding. Hand this CSV to your CPA — they map the columns into the IRS form (paper) or e-file via their service.
@@ -489,6 +579,24 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accentFill,
   },
   exportBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
+  errorCard: {
+    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
+    marginHorizontal: 16, marginBottom: 12, padding: 12,
+    borderRadius: Tokens.radius.md, backgroundColor: t.dangerSoft,
+    borderWidth: 1, borderColor: t.danger + '40',
+  },
+  errorTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.dangerLabel, marginBottom: 2 },
+  errorBody: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.accent,
+  },
+  retryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
+  blockedNote: {
+    marginHorizontal: 16, marginTop: 8,
+    fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17,
+  },
   disclaimerText: {
     marginHorizontal: 16, marginTop: 12,
     fontSize: 11, color: t.textMuted, lineHeight: 16, fontStyle: 'italic',

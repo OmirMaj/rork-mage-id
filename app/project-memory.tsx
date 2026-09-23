@@ -28,7 +28,7 @@ import {
   PROJECT_MEMORY_SYNC_SCOPE, type MemorySyncStatus,
 } from '@/utils/projectMemory';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -124,7 +124,8 @@ function ProjectMemoryInner() {
       if (!limit.allowed) {
         setTurns(prev => [...prev, {
           role: 'assistant',
-          text: limit.message ?? "You've used today's advanced AI calls. Try again tomorrow.",
+          // The allowance rolls at 00:00 UTC — often later TODAY (audit #123).
+          text: limit.message ?? `You've used today's advanced AI calls. ${nextAiResetLabel().daily}.`,
           error: true,
         }]);
         return;

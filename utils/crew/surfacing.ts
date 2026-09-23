@@ -1,4 +1,5 @@
 import type { CrewMember, TradeCategory, WorkerProfile } from '@/types';
+import { verifiedBadge } from './verifiedBadge';
 
 // Marketplace surfacing guard. A CrewMember surfaces as a Hire WorkerProfile
 // ONLY when it is public, claimed by a worker, AND the launch flag is on.
@@ -31,7 +32,10 @@ export function crewMemberToWorkerProfile(cm: CrewMember): WorkerProfile {
     name: cm.fullName,
     tradeCategory: mapTradeToCategory(cm.trades[0] ?? ''),
     yearsExperience: 0,
-    licenses: cm.idVerified ? ['ID Verified'] : [],
+    // The badge, not the raw flag (#165/#166): a record flagged verified with
+    // no masked number (a scan that read nothing), or whose ID has since
+    // expired, must never be published as "ID Verified" on the marketplace.
+    licenses: verifiedBadge(cm) === 'id_verified' ? ['ID Verified'] : [],
     city: '',
     state: '',
     availability: 'available',

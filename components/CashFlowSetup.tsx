@@ -10,6 +10,9 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { CashFlowExpense, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
+// The parse rules live beside parseMoneyInput so the validator can run them
+// without React Native (#148).
+import { MONEY_FORMAT_HINT, setupBalanceFromInput, setupExpenseFromInput } from '@/utils/cashFlowEngine';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -44,7 +47,24 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const [step, setStep] = useState(0);
   const [startingBalance, setStartingBalance] = useState('');
   const [expenses, setExpenses] = useState<CashFlowExpense[]>([]);
+  // The raw text of each expense box, by row id (#148). The amount used to be
+  // parsed on every keystroke with `parseFloat(v) || 0` and the box re-drawn
+  // from the number, so a pasted '12,500' became $12 before the GC could see
+  // it. The text is kept as typed and parsed once, the same way, for the
+  // summary and the save.
+  const [amountText, setAmountText] = useState<Record<string, string>>({});
   const [defaultTerms, setDefaultTerms] = useState('net_30');
+
+  const parsedBalance = setupBalanceFromInput(startingBalance);
+  const amountOf = (id: string): number | null => setupExpenseFromInput(amountText[id] ?? '');
+  const unreadableExpenseIds = expenses.filter(e => amountOf(e.id) === null).map(e => e.id);
+  // What the save will record: every row carrying the amount its box parses to.
+  const pricedExpenses = expenses.map(e => ({ ...e, amount: amountOf(e.id) ?? 0 }));
+  // A step with an unreadable box does not advance, and says which box.
+  const stepBlocked =
+    (step === 0 && parsedBalance === null) ||
+    (step === 1 && unreadableExpenseIds.length > 0) ||
+    (step === 3 && (parsedBalance === null || unreadableExpenseIds.length > 0));
 
   const handleAddSuggestion = useCallback((suggestion: typeof EXPENSE_SUGGESTIONS[0]) => {
     const exists = expenses.some(e => e.name === suggestion.name);
@@ -62,28 +82,40 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   }, [expenses]);
 
   const handleUpdateExpenseAmount = useCallback((id: string, amount: string) => {
-    setExpenses(prev => prev.map(e => e.id === id ? { ...e, amount: parseFloat(amount) || 0 } : e));
+    setAmountText(prev => ({ ...prev, [id]: amount }));
   }, []);
 
   const handleRemoveExpense = useCallback((id: string) => {
     setExpenses(prev => prev.filter(e => e.id !== id));
+    setAmountText(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }, []);
 
   const handleNext = useCallback(() => {
+    if (stepBlocked) return;
     if (step < 3) {
       setStep(step + 1);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }, [step]);
+  }, [step, stepBlocked]);
 
   const handleBack = useCallback(() => {
     if (step > 0) setStep(step - 1);
   }, [step]);
 
   const handleFinish = useCallback(() => {
+    // Refused, not guessed (#148): `parseFloat('48,250') || 0` saved $48 as
+    // the balance every week of the forecast is built up from. The button is
+    // disabled with the reason on screen; this is the belt to that brace.
+    const balance = setupBalanceFromInput(startingBalance);
+    const priced = expenses.map(e => ({ ...e, amount: setupExpenseFromInput(amountText[e.id] ?? '') }));
+    if (balance === null || priced.some(e => e.amount === null)) return;
     const data: CashFlowData = {
-      startingBalance: parseFloat(startingBalance) || 0,
-      expenses: expenses.filter(e => e.amount > 0),
+      startingBalance: balance,
+      expenses: priced.filter((e): e is CashFlowExpense => (e.amount ?? 0) > 0),
       expectedPayments: [],
       defaultPaymentTerms: defaultTerms,
       dailyOverheadCost: 350,
@@ -94,8 +126,9 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
     setStep(0);
     setStartingBalance('');
     setExpenses([]);
+    setAmountText({});
     setDefaultTerms('net_30');
-  }, [startingBalance, expenses, defaultTerms, onComplete]);
+  }, [startingBalance, expenses, amountText, defaultTerms, onComplete]);
 
   const freqLabel = (f: ExpenseFrequency) => {
     switch (f) {
@@ -127,6 +160,9 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
           testID="starting-balance-input"
         />
       </View>
+      {parsedBalance === null && (
+        <Text style={styles.fieldError} testID="starting-balance-error">{MONEY_FORMAT_HINT}</Text>
+      )}
     </View>
   );
 
@@ -169,11 +205,12 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
               <Text style={styles.expenseDollar}>$</Text>
               <TextInput
                 style={styles.expenseAmountInput}
-                value={exp.amount > 0 ? exp.amount.toString() : ''}
+                value={amountText[exp.id] ?? ''}
                 onChangeText={(v) => handleUpdateExpenseAmount(exp.id, v)}
                 keyboardType="numeric"
                 placeholder="0"
                 placeholderTextColor={themeColors.textMuted}
+                testID={`setup-expense-amount-${exp.name}`}
               />
             </View>
             <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel="Delete">
@@ -181,6 +218,11 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
             </TouchableOpacity>
           </View>
         ))}
+        {unreadableExpenseIds.length > 0 && (
+          <Text style={styles.fieldError} testID="setup-expense-error">
+            {expenses.filter(e => unreadableExpenseIds.includes(e.id)).map(e => e.name).join(', ')}: {MONEY_FORMAT_HINT}
+          </Text>
+        )}
         {expenses.length === 0 && (
           <Text style={styles.emptyText}>Tap suggestions above to add expenses</Text>
         )}
@@ -216,7 +258,8 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   );
 
   const renderStep3 = () => {
-    const totalMonthly = expenses.reduce((sum, e) => {
+    // The same parse the save uses, so the preview is what gets recorded.
+    const totalMonthly = pricedExpenses.reduce((sum, e) => {
       switch (e.frequency) {
         case 'weekly': return sum + e.amount * 4.33;
         case 'biweekly': return sum + e.amount * 2.17;
@@ -239,12 +282,14 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Starting Balance</Text>
-            <Text style={styles.summaryValue}>${(parseFloat(startingBalance) || 0).toLocaleString()}</Text>
+            <Text style={styles.summaryValue} testID="setup-summary-balance">
+              {parsedBalance === null ? MONEY_FORMAT_HINT : `${parsedBalance < 0 ? '-' : ''}$${Math.abs(parsedBalance).toLocaleString('en-US', { maximumFractionDigits: 2 })}`}
+            </Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Recurring Expenses</Text>
-            <Text style={styles.summaryValue}>{expenses.filter(e => e.amount > 0).length} items</Text>
+            <Text style={styles.summaryValue}>{pricedExpenses.filter(e => e.amount > 0).length} items</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
@@ -299,9 +344,12 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[styles.nextButton, step === 0 && { flex: 1 }]}
+              style={[styles.nextButton, step === 0 && { flex: 1 }, stepBlocked && styles.nextButtonOff]}
               onPress={isLast ? handleFinish : handleNext}
+              disabled={stepBlocked}
+              accessibilityState={{ disabled: stepBlocked }}
               activeOpacity={0.85}
+              testID="cash-flow-setup-next"
             >
               <Text style={styles.nextButtonText}>{isLast ? 'Start Forecasting' : 'Continue'}</Text>
               {!isLast && <ChevronRight size={18} color={'#FFFFFF'} strokeWidth={1.75} />}
@@ -357,5 +405,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backButton: { flex: 1, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   backButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
   nextButton: { flex: 2, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: t.accentFill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextButtonOff: { opacity: 0.45 },
+  fieldError: { fontSize: Type.footnote.fontSize, color: t.dangerLabel, textAlign: 'center', marginTop: 10, paddingHorizontal: 8 },
   nextButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
 });

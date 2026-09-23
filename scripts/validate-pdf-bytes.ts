@@ -60,14 +60,54 @@ ok('shared reader uses expo-file-system, not fetch().blob()',
 // production Storage held 0-byte objects and pdf-uploads had never received a
 // single file, because six call sites in storage.ts plus projectDocuments and
 // pdfRenderClient all did fetch(uri).blob().
-for (const f of ['utils/storage.ts', 'utils/projectDocuments.ts', 'utils/pdfRenderClient.ts']) {
-  const body = readFileSync(f, 'utf8');
-  const stripped = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const stripComments = (body: string) => body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+for (const f of [
+  'utils/storage.ts', 'utils/projectDocuments.ts', 'utils/pdfRenderClient.ts',
+  // Wave 5 (#5): Project Files and Scan Anything still did fetch(uri).blob()
+  // — every iPhone upload through them landed at 0 bytes while the app said
+  // "Filed", and Scan then cleared the only copy of the capture.
+  'app/scan.tsx', 'components/ProjectFilesBrowser.tsx',
+]) {
+  const stripped = stripComments(readFileSync(f, 'utf8'));
   ok(`${f} reads bytes through the shared reader`,
     stripped.includes('readFileBytes'), 'must use utils/fileBytes.readFileBytes');
   ok(`${f} has no raw .blob() upload`,
     !/\.blob\(\)/.test(stripped),
     'a Blob from fetch(file://) uploads as ZERO BYTES on React Native');
+}
+
+// The shared upload helper must not ACCEPT a Blob at all — then no caller can
+// hand it a fetch().blob() again, and the compiler says so.
+{
+  const pf = stripComments(readFileSync('utils/projectFiles.ts', 'utf8'));
+  const argsBlock = /export interface UploadFileArgs \{([\s\S]*?)\n\}/.exec(pf)?.[1] ?? '';
+  ok('utils/projectFiles.ts UploadFileArgs takes bytes: Uint8Array', /\bbytes:\s*Uint8Array\b/.test(argsBlock), argsBlock);
+  ok('utils/projectFiles.ts UploadFileArgs has no Blob field', !/\bBlob\b/.test(argsBlock), argsBlock);
+  ok('utils/projectFiles.ts has no raw .blob()', !/\.blob\(\)/.test(pf));
+  ok('uploadProjectFile checks byteLength, not Blob.size', /byteLength/.test(pf) && !/blob\.size/.test(pf));
+  ok('uploadProjectFile reads the object back and refuses a 0-byte one',
+    /statProjectFile\(path\)/.test(pf) && /state === 'empty'/.test(pf));
+}
+
+// Repo-wide: any source file that both calls .blob() and uploads to Storage is
+// this bug again, wherever it lands next. Web-only readers that never upload
+// (utils/photoAnalyzer, utils/platformFile) do not trip it.
+{
+  const { readdirSync, statSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (name === 'node_modules' || name.startsWith('.') || name === '__tests__') continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) { walk(full); continue; }
+      if (!/\.(ts|tsx)$/.test(name)) continue;
+      const code = stripComments(readFileSync(full, 'utf8'));
+      if (/\.blob\(\)/.test(code) && /\.upload\(/.test(code)) offenders.push(full);
+    }
+  };
+  for (const root of ['app', 'components', 'utils', 'hooks', 'contexts']) walk(root);
+  ok('no app source both calls .blob() and uploads to Storage', offenders.length === 0, offenders.join(', '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -59,6 +59,12 @@
   .hero h1 { font-family: var(--ff-serif); font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
   .hero h1 em { font-style: italic; color: var(--amber); }
   .hero-meta { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .hero-due {
+    margin-top: 16px; display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 999px; background: var(--amber); color: #fff;
+    font-weight: 700; font-size: 15px; letter-spacing: -0.005em;
+  }
+  .hero-due.past { background: var(--error-tint); color: var(--error); }
   .chip {
     background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.16);
     border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600;
@@ -257,9 +263,37 @@
   var SCOPE = null;
   var TOKEN = getToken();
 
+  // Cents, always, and en-US pinned (#178): the confirmation used to print a
+  // $12,345.50 bid as "$12,346" — not the number he filed — and `undefined`
+  // switched the grouping to the viewer's locale ("$12.345,5") under a
+  // hard-coded "$". Same format the lien-waiver page uses.
+  function cents(n) { return Math.round(Number(n) * 100) / 100; }
   function money(n) {
-    if (n == null || isNaN(n)) return '$0';
-    return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    if (n == null || isNaN(n)) return '$0.00';
+    return '$' + cents(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // The day bids are due (#99), from bid_invite_get's `bids_due_on` — a plain
+  // 'YYYY-MM-DD' the RPC already cut to the calendar day the contractor picked.
+  // Built with Date.UTC and printed with timeZone 'UTC' (the same logic as the
+  // email's bidDueDayLabel in supabase/functions/notify), so it names that day
+  // and never shifts it into the sub's own time zone. Null or unreadable → no
+  // row at all; the link's 30-day expiry is not a deadline and is never shown
+  // in its place.
+  function dueDay(v) {
+    if (typeof v !== 'string') return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
+    if (!m) return null;
+    var y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+    var day = new Date(Date.UTC(y, mo - 1, d));
+    // Date.UTC rolls over (Feb 31 -> Mar 3); a rolled day is not the one set.
+    if (day.getUTCFullYear() !== y || day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
+    var now = new Date();
+    var opts = { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' };
+    if (y !== now.getFullYear()) opts.year = 'numeric';
+    // Past due against the SUB's own today — the day on his calendar.
+    var today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    return { label: day.toLocaleDateString('en-US', opts), past: day.getTime() < today };
   }
 
   function parseAmount(el) {
@@ -276,6 +310,16 @@
     if (SCOPE.csi_division) chips.push('CSI ' + SCOPE.csi_division);
     if (SCOPE.phase) chips.push(SCOPE.phase);
     if (SCOPE.project_name) chips.push(SCOPE.project_name);
+    // Prominent, in the hero — a sub opening this from a text has no email
+    // telling him when the number is wanted.
+    var due = dueDay(SCOPE.bids_due_on);
+    var dueHtml = due
+      ? '<div class="hero-due' + (due.past ? ' past' : '') + '">' +
+          (due.past
+            ? 'Bids were due ' + esc(due.label) + ' — check with the contractor it is still open'
+            : 'Bids due ' + esc(due.label)) +
+        '</div>'
+      : '';
 
     root.innerHTML =
       '<header class="hero"><div class="hero-inner">' +
@@ -283,6 +327,7 @@
         '<div class="hero-eyebrow">Invitation to bid</div>' +
         '<h1>' + esc(greeting) + ' on <em>' + esc(SCOPE.package_name || 'this package') + '</em></h1>' +
         '<div class="hero-meta">' + chips.map(function (c) { return '<span class="chip">' + esc(c) + '</span>'; }).join('') + '</div>' +
+        dueHtml +
       '</div></header>' +
 
       '<main class="container">' +
@@ -359,7 +404,9 @@
     var statusEl = document.getElementById('form-status');
     var btn = document.getElementById('submit-btn');
     var vendor = (document.getElementById('f-vendor').value || '').trim();
-    var amount = parseAmount(document.getElementById('f-amount'));
+    // To the cent, once: the same figure goes to the RPC and into the
+    // confirmation, so what he reads back is exactly what was filed (#178).
+    var amount = cents(parseAmount(document.getElementById('f-amount')));
 
     if (!vendor) {
       statusEl.textContent = 'Put your company name on it so the contractor knows whose bid this is.';

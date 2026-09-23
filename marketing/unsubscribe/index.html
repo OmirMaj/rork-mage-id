@@ -124,7 +124,11 @@
       <div id="successBlock" class="hidden">
         <p class="ok">You're unsubscribed.</p>
         <p>Your <span id="successCategory">notifications</span> have been turned off for <span class="target" id="successEmail">your address</span>. You'll still receive critical account or contract emails — anything time-sensitive that we wouldn't suppress for legal reasons.</p>
-        <p>Changed your mind? Reply to any past email and we'll restore your subscription, or write <a href="mailto:help@mageid.app">help@mageid.app</a>.</p>
+        <div class="actions">
+          <button class="btn-secondary" id="undoBtn" type="button">Undo — keep sending these</button>
+        </div>
+        <p id="undoStatus" class="hidden"></p>
+        <p>You can also turn any category back on from the <a id="prefsLink" href="#">email preferences page</a>.</p>
       </div>
 
       <div id="errorBlock" class="hidden">
@@ -145,20 +149,11 @@
     (function () {
       var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
       var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
-      var EVENT_LABELS = {
-        portal_message: 'message notifications',
-        budget_proposal: 'budget proposal alerts',
-        co_approval: 'change-order approval alerts',
-        sub_invoice: 'sub-invoice alerts',
-        nearby_rfp_posted: 'new-project nearby alerts',
-        rfp_awarded: 'bid-awarded alerts',
-        contract_signed: 'contract-signed alerts',
-        selection_chosen: 'selection alerts',
-        bid_question_asked: 'bid Q&A alerts',
-        bid_question_answered: 'bid Q&A alerts',
-        closeout_binder: 'closeout binder alerts',
-        portal_invite: 'portal invitation emails',
-      };
+      // The category wording comes from the ONE shared list the preferences
+      // page reads too, /email-event-keys.json (audit 2026-09-23 #172) — this
+      // page used to keep its own EVENT_LABELS copy, which had drifted from
+      // the senders. A key the list doesn't know reads "these notifications".
+      var KEYS_URL = '/email-event-keys.json';
 
       function readQuery() {
         var p = new URLSearchParams(window.location.search);
@@ -196,10 +191,80 @@
       }
 
       $emailLabel.textContent = qs.email;
-      var label = (qs.key && EVENT_LABELS[qs.key]) ? EVENT_LABELS[qs.key] : 'these notifications';
-      $categoryLabel.textContent = label;
-      $successCategory.textContent = label;
+      $categoryLabel.textContent = 'these notifications';
+      $successCategory.textContent = 'these notifications';
       $successEmail.textContent = qs.email;
+      if (qs.key) {
+        // Confirm waits for the list: the key may be a document the contractor
+        // sends directly (an invoice, an estimate…), which no sender checks an
+        // unsubscribe for — confirming would say "You're unsubscribed" and the
+        // invoices would keep coming. If the list can't load, Confirm comes
+        // back on with the generic wording.
+        $confirmBtn.disabled = true;
+        var documentKey = false;
+        fetch(KEYS_URL, { cache: 'no-cache' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) {
+            var docs = d && d.documents && Array.isArray(d.documents.items) ? d.documents : null;
+            var doc = docs ? docs.items.filter(function (it) { return it.key === qs.key; })[0] : null;
+            if (doc) {
+              documentKey = true;
+              $eyebrow.textContent = 'From your contractor';
+              $title.textContent = 'These emails come from your contractor directly';
+              $lede.textContent = 'The ' + doc.noun + ' sent to ' + qs.email + ' are part of your job, not notifications. ' + docs.note;
+              $actionsBlock.classList.add('hidden');
+              return;
+            }
+            var groups = d && Array.isArray(d.groups) ? d.groups : [];
+            groups.forEach(function (g) {
+              (g.items || []).forEach(function (it) {
+                if (it.key === qs.key && it.noun) {
+                  $categoryLabel.textContent = it.noun;
+                  $successCategory.textContent = it.noun;
+                }
+              });
+            });
+          })
+          .catch(function () {})
+          .then(function () { if (!documentKey) $confirmBtn.disabled = false; });
+      }
+      document.getElementById('prefsLink').href = '/preferences?e=' + encodeURIComponent(qs.email) + '&t=' + encodeURIComponent(qs.token);
+
+      // Undo (audit 2026-09-23 #172): "reply to any past email and we'll
+      // restore it" was the only way back, and nothing reads replies. The
+      // function has always accepted resubscribe with the same signed token.
+      var $undoBtn = document.getElementById('undoBtn');
+      var $undoStatus = document.getElementById('undoStatus');
+      $undoBtn.addEventListener('click', function () {
+        $undoBtn.disabled = true;
+        $undoBtn.textContent = 'Turning it back on…';
+        fetch(SUPABASE_URL + '/functions/v1/unsubscribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ email: qs.email, action: 'resubscribe', event_key: qs.key || null, token: qs.token }),
+        }).then(function (r) {
+          return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+        }).then(function (res) {
+          if (res.ok && res.data && res.data.ok) {
+            $eyebrow.textContent = 'Undone';
+            $title.textContent = "You're subscribed again.";
+            $undoBtn.classList.add('hidden');
+            $undoStatus.className = 'ok';
+            $undoStatus.textContent = 'We will keep sending ' + $successCategory.textContent + ' to ' + qs.email + '.';
+          } else {
+            throw new Error(res.data && res.data.error || 'unknown');
+          }
+        }).catch(function () {
+          $undoBtn.disabled = false;
+          $undoBtn.textContent = 'Try undo again';
+          $undoStatus.className = 'err';
+          $undoStatus.textContent = 'Could not turn it back on. Try again, or use the email preferences page.';
+        });
+      });
 
       $cancelBtn.addEventListener('click', function () {
         window.location.href = 'https://mageid.app';

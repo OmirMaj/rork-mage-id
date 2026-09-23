@@ -37,6 +37,7 @@ import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { showAiRefusal } from '@/utils/quotaPrecheck';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 // Project-scoped gate: an invited collaborator may do the work they were
@@ -353,8 +354,12 @@ function AiPunchScreenInner() {
       setReviewItems(reviewable);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      const msg = (err as Error)?.message || String(err);
-      setError(msg);
+      // #124: a monthly cap / plan refusal gets its own dialog with See plans,
+      // the hourly limit its own sentence — the server's words, not
+      // "Photo analyzer call failed: Edge Function returned a non-2xx status
+      // code", and no suggestion that the same batch will pass on a retry.
+      const refusal = showAiRefusal(err, router);
+      setError(refusal ?? ((err as Error)?.message || String(err)));
     } finally {
       setBusy(false);
     }

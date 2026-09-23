@@ -12,7 +12,22 @@
 //
 // Dedup: each subcontractor row carries `coi_last_warned_at` +
 // `coi_last_warned_threshold` so a 30-day warning fires once at the
-// 30-day mark, not every day until the COI's renewed.
+// 30-day mark, not every day until the COI's renewed — and
+// `coi_last_warned_for`, the coi_expiry those markers were written for.
+//
+// AUDIT #28: nothing ever cleared the markers, so once a sub's COI had hit the
+// 7-day warning and been renewed, the next cycle's 30 / 14 / 7-day emails were
+// all suppressed (`30 < 7` is false) and the GC's first word was "COI
+// expired". A changed coi_expiry is now a FRESH cycle: the markers only count
+// when coi_last_warned_for equals the expiry on the row today. Comparing the
+// stored value (rather than a trigger that resets on UPDATE OF coi_expiry)
+// matters because updateSubcontractor re-sends coi_expiry on every save, and
+// the COI vault's syncSubCoiExpiry moves it without a Subs-form edit.
+// Also: the rows are no longer filtered by a TEXT `coi_expiry <= cutoff`
+// (which dropped a free-typed '9/30/2026' before it was ever parsed); every
+// row with an expiry is read and parsed as a calendar day here, and one that
+// won't parse is counted in the response as `unreadableDates` — no reminder
+// can fire for it, and the vault / Subs tab say so on the sub.
 //
 // Trigger:
 //   POST { all: true }      cron, runs daily at 13:00 UTC
@@ -76,6 +91,7 @@ interface SubRow {
   coi_expiry: string | null;
   coi_last_warned_at: string | null;
   coi_last_warned_threshold: number | null;
+  coi_last_warned_for: string | null;
 }
 
 interface ProfileRow {
@@ -86,8 +102,35 @@ interface ProfileRow {
   contact_name: string | null;
 }
 
+// ── pure: begin (extracted and run by scripts/validate-w5-coi-subs-expiry.ts) ──
 const THRESHOLDS = [30, 14, 7, 0] as const;
 type Threshold = typeof THRESHOLDS[number];
+
+/**
+ * The calendar day a stored coi_expiry names, or null. Accepts 'YYYY-MM-DD'
+ * (optionally followed by a time) and the US 'M/D/YYYY' a GC types by hand.
+ * Never Date.parse: a bare 'YYYY-MM-DD' is UTC midnight there, and a slash
+ * date is implementation-defined.
+ */
+function parseExpiryDay(raw: string | null | undefined): string | null {
+  const s = String(raw ?? '').trim();
+  let y: number, m: number, d: number;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:$|[T ])/.exec(s);
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3]; }
+  else if (us) { y = +us[3]; m = +us[1]; d = +us[2]; }
+  else return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** Whole days from `todayDay` to `day` (both 'YYYY-MM-DD'); negative = past. */
+function daysBetweenDays(todayDay: string, day: string): number {
+  const a = Date.UTC(+todayDay.slice(0, 4), +todayDay.slice(5, 7) - 1, +todayDay.slice(8, 10));
+  const b = Date.UTC(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10));
+  return Math.round((b - a) / 86_400_000);
+}
 
 function pickThreshold(daysUntilExpiry: number): Threshold | null {
   if (daysUntilExpiry <= 0) return 0;
@@ -97,20 +140,36 @@ function pickThreshold(daysUntilExpiry: number): Threshold | null {
   return null;
 }
 
-function shouldWarn(t: Threshold, sub: SubRow): boolean {
+function shouldWarn(
+  t: Threshold,
+  sub: Pick<SubRow, 'coi_expiry' | 'coi_last_warned_at' | 'coi_last_warned_threshold' | 'coi_last_warned_for'>,
+  nowMs: number = Date.now(),
+): boolean {
   // Fire when crossing into a tighter bucket. The threshold value is
   // smaller for tighter (7 < 14 < 30; 0 = overdue is tightest). If we
   // already warned at this threshold OR a tighter one, skip.
-  const last = sub.coi_last_warned_threshold;
+  //
+  // …but only for THIS expiry (audit #28). Markers written for a different
+  // coi_expiry — the certificate before the renewal, or none recorded — are a
+  // previous cycle and do not suppress this one.
+  //
+  // Compared as CALENDAR DAYS, not raw strings (review round 1): the Subs form
+  // accepts '9/30/2026' and the vault's syncSubCoiExpiry writes '2026-09-30'
+  // for the same day, and a format flip must not re-send 30 / 14 / 7 for an
+  // expiry he was already warned about.
+  const warnedFor = parseExpiryDay(sub.coi_last_warned_for);
+  const sameCycle = warnedFor != null && warnedFor === parseExpiryDay(sub.coi_expiry);
+  const last = sameCycle ? sub.coi_last_warned_threshold : null;
   if (last == null) return true;
   // Overdue (0) always re-warns weekly so the GC doesn't forget.
   if (t === 0) {
     if (!sub.coi_last_warned_at) return true;
-    const ageDays = (Date.now() - Date.parse(sub.coi_last_warned_at)) / (24 * 60 * 60 * 1000);
+    const ageDays = (nowMs - Date.parse(sub.coi_last_warned_at)) / (24 * 60 * 60 * 1000);
     return Number.isFinite(ageDays) && ageDays >= 7;
   }
   return t < last;
 }
+// ── pure: end ──
 
 function buildEmailHtml(opts: {
   companyName: string;
@@ -122,9 +181,14 @@ function buildEmailHtml(opts: {
   daysUntilExpiry: number;
   threshold: Threshold;
 }): string {
-  const expiryLabel = new Date(opts.expiryIso).toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-  });
+  // Formatted from the calendar day in UTC, so the day printed is the day on
+  // the certificate (a bare date parsed as local would print the day before).
+  const day = parseExpiryDay(opts.expiryIso);
+  const expiryLabel = day
+    ? new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+    })
+    : opts.expiryIso;
   const headline =
     opts.threshold === 0
       ? `${opts.subCompanyName}'s COI expired ${Math.abs(opts.daysUntilExpiry)} day${Math.abs(opts.daysUntilExpiry) === 1 ? '' : 's'} ago`
@@ -150,7 +214,7 @@ function buildEmailHtml(opts: {
       ${contactLines.map(l => `<tr><td style="padding:4px 0;">${l}</td></tr>`).join('')}
     </table>` : ''}
     <p style="margin:16px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#9AA3AD;line-height:19px;">
-      You can update the expiry date in MAGE ID once the new COI is in hand — Subs → ${escapeHtml(opts.subCompanyName)} → Edit. We'll stop reminding once the date passes the 30-day threshold.
+      Once the renewed COI is in hand, enter its expiry in MAGE ID — the COI vault (tap the certificate, Coverages) or Subs → ${escapeHtml(opts.subCompanyName)} → Edit — and reminders start over for the new date.
     </p>
   `;
 
@@ -182,35 +246,38 @@ async function sendEmail(opts: { to: string; subject: string; html: string; from
   return { ok: true };
 }
 
-async function processForUser(client: SupabaseClient, userId: string, profile: ProfileRow): Promise<{ warnedCount: number }> {
-  // Pull every sub for this GC that has a coi_expiry set and is within
-  // 30 days of expiry (or already past). Skip subs without an expiry on
-  // file — the GC hasn't entered one, so we can't reason about it.
-  const cutoff = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+async function processForUser(client: SupabaseClient, userId: string, profile: ProfileRow): Promise<{ warnedCount: number; unreadableDates: number }> {
+  // Pull every sub for this GC with a coi_expiry and decide in code, from the
+  // parsed calendar day (audit #28: the text `.lte('coi_expiry', cutoff)` this
+  // used to filter with dropped '9/30/2026' before it was parsed). Subs with no
+  // expiry are skipped — the GC hasn't entered one, so we can't reason about it.
   const subsRes = await client
     .from('subcontractors')
-    .select('id,user_id,company_name,contact_name,email,phone,coi_expiry,coi_last_warned_at,coi_last_warned_threshold')
+    .select('id,user_id,company_name,contact_name,email,phone,coi_expiry,coi_last_warned_at,coi_last_warned_threshold,coi_last_warned_for')
     .eq('user_id', userId)
-    .not('coi_expiry', 'is', null)
-    .lte('coi_expiry', cutoff);
+    .not('coi_expiry', 'is', null);
   if (subsRes.error) {
     console.warn('[coi-expiry-watch] subs query failed', userId, subsRes.error);
-    return { warnedCount: 0 };
+    return { warnedCount: 0, unreadableDates: 0 };
   }
   const subs = (subsRes.data ?? []) as SubRow[];
-  if (subs.length === 0) return { warnedCount: 0 };
+  if (subs.length === 0) return { warnedCount: 0, unreadableDates: 0 };
 
   // GC's email — required to send the warning. Fall back to profile.email.
   const gcEmail = profile.email;
-  if (!gcEmail) return { warnedCount: 0 };
+  if (!gcEmail) return { warnedCount: 0, unreadableDates: 0 };
   const gcCompanyName = profile.company_name || profile.contact_name || profile.name || 'MAGE ID';
 
   let warned = 0;
+  let unreadableDates = 0;
+  // The cron runs at 13:00 UTC — morning across the US — so today's UTC day is
+  // the GC's day too.
+  const todayDay = new Date().toISOString().slice(0, 10);
   for (const sub of subs) {
-    if (!sub.coi_expiry) continue;
-    const expiryMs = Date.parse(sub.coi_expiry);
-    if (!Number.isFinite(expiryMs)) continue;
-    const daysUntil = Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000));
+    if (!sub.coi_expiry || !sub.coi_expiry.trim()) continue;
+    const expiryDay = parseExpiryDay(sub.coi_expiry);
+    if (!expiryDay) { unreadableDates += 1; continue; }
+    const daysUntil = daysBetweenDays(todayDay, expiryDay);
     const threshold = pickThreshold(daysUntil);
     if (threshold == null) continue;
     if (!shouldWarn(threshold, sub)) continue;
@@ -242,13 +309,16 @@ async function processForUser(client: SupabaseClient, userId: string, profile: P
         .update({
           coi_last_warned_at: new Date().toISOString(),
           coi_last_warned_threshold: threshold,
+          // The expiry this warning was for, stored as the normalized
+          // calendar day — a renewal (a different day) starts a new cycle.
+          coi_last_warned_for: expiryDay,
         })
         .eq('id', sub.id);
     } else {
       console.warn('[coi-expiry-watch] send failed', sub.id, result.error);
     }
   }
-  return { warnedCount: warned };
+  return { warnedCount: warned, unreadableDates };
 }
 
 Deno.serve(async (req: Request) => {
@@ -281,13 +351,15 @@ Deno.serve(async (req: Request) => {
       .select('id,email,name,company_name,contact_name');
     if (error) return jsonResponse({ success: false, error: error.message }, 500);
     let totalWarned = 0;
+    let unreadableDates = 0;
     let userCount = 0;
     for (const p of (profiles ?? []) as ProfileRow[]) {
       const r = await processForUser(client, p.id, p);
       totalWarned += r.warnedCount;
+      unreadableDates += r.unreadableDates;
       userCount += 1;
     }
-    return jsonResponse({ success: true, mode: 'cron', users: userCount, totalWarned });
+    return jsonResponse({ success: true, mode: 'cron', users: userCount, totalWarned, unreadableDates });
   }
 
   return jsonResponse({ success: false, error: 'must include all:true or userId' }, 400);

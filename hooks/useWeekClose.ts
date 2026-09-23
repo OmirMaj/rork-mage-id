@@ -6,7 +6,9 @@
 // rather than blanking the close.
 //
 // Sync inputs come from ProjectContext. Async inputs:
-//   - payment predictions (predictInvoicePayments)
+//   - payment predictions (predictInvoicePaymentsCached) — a react-query query
+//     keyed on the unpaid-invoice fingerprint, NOT part of the effect below
+//     (#116; see the query for why)
 //   - WWP commitments + PPC (the Last Planner store, via hooks/useLastPlanner's
 //     shared loader so it refills from the cloud on a fresh device)
 //   - lookahead constraint-clear count (totalTasks − constrainedCount)
@@ -14,10 +16,11 @@
 // F3: autoDraftedCOs are filtered from changeOrders by the auditTrail
 // marker inside the useMemo that feeds composeWeekClose.
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import {
   composeWeekClose,
   type ComposeWeekCloseInput,
@@ -27,14 +30,19 @@ import {
   computeWipRow, deriveOriginalContract, deriveEstimatedCost,
   suggestBilledToDate, suggestCostToDate, sumApprovedChangeOrders,
   normalizeWipEtcMap, wipEtcStorageKey, wipEtcValueMap,
+  isWipReportableProject, wipEvidenceFor,
+  wipCostOverridesKey, normalizeWipCostOverrides, wipCostOverrideInForce, type WipCostOverride,
 } from '@/utils/wip';
+import {
+  paymentForecastFingerprint, hasOverdueUnpaidInvoice, type PaymentPredictionResult,
+} from '@/utils/paymentPrediction';
+import { todayCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchLastPlannerStore } from '@/hooks/useLastPlanner';
 import type { WeekClose } from '@/utils/weekClose/types';
 
 interface AsyncInputs {
-  paymentPredictions: ComposeWeekCloseInput['paymentPredictions'];
   wwp: ComposeWeekCloseInput['wwp'];
   lookaheadReadyCount: number | undefined;
   unsentClientItemCount: number | undefined;
@@ -42,7 +50,6 @@ interface AsyncInputs {
 }
 
 const EMPTY_ASYNC: AsyncInputs = {
-  paymentPredictions: null,
   wwp: null,
   lookaheadReadyCount: undefined,
   unsentClientItemCount: undefined,
@@ -57,8 +64,13 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
   const enabled = opts.enabled !== false;
   const {
     projects, invoices, changeOrders, dailyReports, commitments, aiaPayApps,
+    // The self-perform cost sources (#37) — the same ones /wip-report and
+    // /reports price into cost to date. See the WIP rows below.
+    equipment, permits,
   } = useProjects();
   const { receipts } = useMaterialReceipts();
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? null;
@@ -80,6 +92,26 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     return () => { cancelled = true; };
   }, [user?.id]);
 
+  // THE COST-TO-DATE OVERRIDE (#37), from the same device cache /wip-report
+  // keeps in front of public.wip_cost_overrides — same key builder, same
+  // parser, same tombstone rule, all out of utils/wip. A GC who typed his
+  // $340,000 of self-performed labour over the automatic figure on the WIP
+  // screen was otherwise told a smaller "unbilled" here. Read-only: the WIP
+  // screen owns the server read-through and every write.
+  const [costOverrides, setCostOverrides] = useState<Record<string, WipCostOverride>>({});
+  useEffect(() => {
+    let cancelled = false;
+    setCostOverrides({});
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(wipCostOverridesKey(user?.id));
+        if (cancelled) return;
+        setCostOverrides(raw ? normalizeWipCostOverrides(JSON.parse(raw)) : {});
+      } catch { /* no cache → the automatic figure stands */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   const [asyncInputs, setAsyncInputs] = useState<AsyncInputs>(EMPTY_ASYNC);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -90,14 +122,6 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     let cancelled = false;
     (async () => {
       const next: AsyncInputs = { ...EMPTY_ASYNC };
-
-      // Payment predictions — for the chase leg's landing-date lines.
-      try {
-        const { predictInvoicePayments } = await import('@/utils/paymentPrediction');
-        const projectsById: Record<string, typeof projects[number]> = {};
-        for (const p of projects) projectsById[p.id] = p;
-        next.paymentPredictions = await predictInvoicePayments(invoices, projectsById);
-      } catch { /* additive */ }
 
       // QBO staged-cost count — leg 1's "N QBO costs need review" line (F6).
       // fetchQboPendingCount fails soft to 0, so no try/catch dance needed,
@@ -150,7 +174,77 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
       }
     })();
     return () => { cancelled = true; };
-  }, [enabled, invoices, changeOrders, projects, refreshKey, queryClient, userId]);
+    // `projects` feeds the lookahead count. Invoices and change orders no
+    // longer trigger this effect: nothing in it reads them since the payment
+    // forecast moved to its own query below.
+  }, [enabled, projects, refreshKey, queryClient, userId]);
+
+  // ── Payment predictions — the chase leg's landing-date lines (#116) ────────
+  //
+  // This was a smart-tier AI call INSIDE the effect above, re-run on every new
+  // invoices / changeOrders / projects array identity — a sync tick, a tab
+  // switch back to Home, a pull-to-refresh — each charged to his monthly AI
+  // allowance on the server, none counted by the app's own meter, and each
+  // free to return a different forecast for the same invoices. Now:
+  //  - ONE query per A/R state: keyed on the fingerprint of exactly what the
+  //    prompt would say (utils/paymentPrediction.paymentForecastFingerprint —
+  //    the unpaid set, the day, the account), shared by the Home card and
+  //    /week-close, fresh for 12 h;
+  //  - the same fingerprint is mageAI's cacheKey, so a cold start later that
+  //    day is answered from the stored forecast, not a new call;
+  //  - no call at all unless some invoice is PAST DUE — the chase leg prints a
+  //    landing date on overdue invoices only, so any other forecast decorates
+  //    nothing;
+  //  - a fresh (uncached) call is recorded on the app's AI meter.
+  // The Home card additionally enables this hook only while the card is
+  // actually on screen (components/home/WeekCloseCard.tsx).
+  const forecastDay = todayCalendarDay();
+  const projectsById = useMemo(() => {
+    const out: Record<string, typeof projects[number]> = {};
+    for (const p of projects) out[p.id] = p;
+    return out;
+  }, [projects]);
+  // Both are computed AS OF the local day, so a new day is a new question even
+  // when nothing else changed (local midnight of that day reads back as it).
+  const forecastKey = useMemo(
+    () => paymentForecastFingerprint(invoices, projectsById, userId, parseCalendarDay(forecastDay) ?? new Date()),
+    [invoices, projectsById, userId, forecastDay],
+  );
+  const hasOverdue = useMemo(
+    () => hasOverdueUnpaidInvoice(invoices, parseCalendarDay(forecastDay) ?? new Date()),
+    [invoices, forecastDay],
+  );
+  // The query function reads the inputs the key was computed from through a
+  // ref, so a new array identity with the same content is not a new call.
+  const forecastInputsRef = useRef({ invoices, projectsById });
+  forecastInputsRef.current = { invoices, projectsById };
+  const forecastQuery = useQuery<PaymentPredictionResult>({
+    queryKey: ['weekClosePaymentForecast', userId, forecastKey],
+    queryFn: async () => {
+      const [{ predictInvoicePaymentsCached }, { recordAIUsage }] = await Promise.all([
+        import('@/utils/paymentPrediction'),
+        import('@/utils/aiRateLimiter'),
+      ]);
+      const { invoices: inv, projectsById: byId } = forecastInputsRef.current;
+      const run = await predictInvoicePaymentsCached(inv, byId, {
+        cacheKey: `week_close_forecast_${forecastKey}`,
+        cacheHours: 12,
+      });
+      if (run.freshAiCall) {
+        try { await recordAIUsage('smart', 'invoicePrediction'); } catch { /* meter is advisory */ }
+      }
+      return run.result;
+    },
+    enabled: enabled && forecastKey !== null && hasOverdue,
+    staleTime: 12 * 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+    // A retried AI call is another charge; the close renders without dates.
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  const paymentPredictions: ComposeWeekCloseInput['paymentPredictions'] =
+    enabled && hasOverdue ? (forecastQuery.data ?? null) : null;
 
   // Auto-drafted leak COs: COs with status 'draft' that carry the
   // auto_drafted_from_leak auditTrail marker (written by F3's sweep).
@@ -175,15 +269,47 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
   const wipRows = useMemo<WeekCloseWipRow[]>(() => {
     try {
       return projects
-        .filter(p => p.status === 'in_progress')
         .map(p => {
           const projectCOs = changeOrders.filter(co => co.projectId === p.id);
           const projectPayApps = aiaPayApps.filter(a => a.projectId === p.id);
           const projectCommitments = commitments.filter(c => c.projectId === p.id);
-          const costToDate = suggestCostToDate(
+          const projectInvoices = invoices.filter(i => i.projectId === p.id);
+          // EVERY COST SOURCE THE WIP SCHEDULES PRICE (#37, audit 2026-09-22).
+          // This was subs + receipts only, so on a self-perform job — $0 of
+          // sub payments, some receipts, 400 clocked crew hours — the percent
+          // complete here was a fraction of the WIP screen's and "$X unbilled"
+          // fell toward $0: the bill leg read clean and he did not invoice
+          // earned work. Same third argument app/wip-report.tsx passes;
+          // `projectId` is required because the equipment and permit lists are
+          // account-wide.
+          const auto = suggestCostToDate(
             projectCommitments,
             receipts.filter(r => r.projectId === p.id),
+            { projectId: p.id, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits },
           );
+          // …and his typed override, when one is in force — never a tombstone.
+          const override = wipCostOverrideInForce(costOverrides, p.id);
+          const costToDate = override ? override.value : auto;
+          return { p, projectCOs, projectPayApps, projectCommitments, projectInvoices, auto, costToDate };
+        })
+        // THE SAME POPULATION AS /wip-report (#37): open, own-company, signed
+        // work — not `status === 'in_progress'`, which dropped a completed job
+        // still carrying unbilled revenue and a live job still reading
+        // `estimated` because it was billed by pay app. Evidence is built from
+        // the AUTOMATIC cost to date, exactly as the WIP screen builds it, so
+        // a typed override cannot put a job on one list and not the other.
+        .filter(({ p, projectCOs, projectPayApps, projectCommitments, projectInvoices, auto }) =>
+          isWipReportableProject(p, {
+            userId,
+            evidence: wipEvidenceFor(p, {
+              invoices: projectInvoices,
+              payApps: projectPayApps,
+              changeOrders: projectCOs,
+              commitments: projectCommitments,
+              costToDate: auto,
+            }),
+          }))
+        .map(({ p, projectCOs, projectPayApps, projectCommitments, projectInvoices, costToDate }) => {
           const out = computeWipRow({
             originalContract: deriveOriginalContract(p, projectCOs, projectPayApps),
             approvedChangeOrders: sumApprovedChangeOrders(projectCOs),
@@ -208,10 +334,7 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
               estimatedCostToComplete: etcByProject[p.id],
             }),
             costToDate,
-            billedToDate: suggestBilledToDate(
-              invoices.filter(i => i.projectId === p.id),
-              projectPayApps,
-            ),
+            billedToDate: suggestBilledToDate(projectInvoices, projectPayApps),
             // computeWipRow applies the SAME entry a second time (it is the row
             // engine's own parameter), which is not a double count — both
             // resolve to costToDate + ETC — but passing it here is what makes
@@ -228,7 +351,11 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     } catch {
       return [];
     }
-  }, [projects, invoices, changeOrders, commitments, aiaPayApps, receipts, etcByProject]);
+  }, [
+    projects, invoices, changeOrders, commitments, aiaPayApps, receipts, etcByProject,
+    timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits,
+    costOverrides, userId,
+  ]);
 
   const close = useMemo<WeekClose | null>(() => {
     if (!enabled) return null;
@@ -238,7 +365,7 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
       changeOrders,
       dailyReports,
       wipRows,
-      paymentPredictions: asyncInputs.paymentPredictions,
+      paymentPredictions,
       wwp: asyncInputs.wwp,
       lookaheadReadyCount: asyncInputs.lookaheadReadyCount,
       unsentClientItemCount: asyncInputs.unsentClientItemCount,
@@ -247,7 +374,7 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     });
   }, [
     enabled, projects, invoices, changeOrders, dailyReports, wipRows,
-    asyncInputs, autoDraftedCOs,
+    asyncInputs, paymentPredictions, autoDraftedCOs,
   ]);
 
   return { close, loading, refresh };

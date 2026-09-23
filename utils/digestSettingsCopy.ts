@@ -54,13 +54,34 @@ export type DigestPreviewReason =
   | 'no_email'
   | 'nothing_to_report'
   | 'suppressed_unsubscribed'
-  | 'send_failed';
+  | 'send_failed'
+  /** Wave 5 (#130): the digest now goes to the sign-in address, and the
+   *  function could not read it this time. Not the same as no address. */
+  | 'recipient_unknown';
 
-export function morningPreviewCopy(data: { sent?: unknown; reason?: unknown } | null | undefined): { title: string; message: string } {
+/**
+ * Where both GC digests go (audit 2026-09-23 #130): his SIGN-IN address, the
+ * one this screen's suppression check and resume path key on — no longer the
+ * Company Profile email. Said on the screen because the two can differ, and a
+ * GC who set office@… as his company email would otherwise look for the brief
+ * there. null when the account has no sign-in address (nothing true to say).
+ */
+export function digestRecipientLine(signInEmail: string | null | undefined): string | null {
+  const email = typeof signInEmail === 'string' ? signInEmail.trim() : '';
+  return email ? `Sent to your sign-in address, ${email}.` : null;
+}
+
+export function morningPreviewCopy(
+  data: { sent?: unknown; reason?: unknown } | null | undefined,
+  /** The signed-in user's auth email (useAuth().user.email). Optional so an
+   *  older caller keeps working; when given, a sent preview names the inbox. */
+  signInEmail?: string | null,
+): { title: string; message: string } {
   if (data?.sent === true) {
+    const where = digestRecipientLine(signInEmail);
     return {
       title: 'Preview sent',
-      message: 'Check your inbox in a few seconds. The digest reads what you have right now — set up a project with a location to see weather and tasks.',
+      message: `${where ? `${where} ` : ''}Check your inbox in a few seconds. The digest reads what you have right now — set up a project with a location to see weather and tasks.`,
     };
   }
   switch (data?.reason) {
@@ -75,9 +96,17 @@ export function morningPreviewCopy(data: { sent?: unknown; reason?: unknown } | 
         message: 'The morning digest\'s Email switch is off, so no preview was emailed. Turn it on above, then preview again.',
       };
     case 'no_email':
+      // The digest goes to the sign-in address; this is an account signed in
+      // without one (the Company Profile email is used only then, and it is
+      // empty too).
       return {
         title: 'No email address',
-        message: 'Your account has no email address to send the preview to.',
+        message: 'You are signed in without an email address, so there is nowhere to send the preview.',
+      };
+    case 'recipient_unknown':
+      return {
+        title: 'Preview not sent',
+        message: 'We could not look up your sign-in email address just now, so no preview was sent. Try again in a few minutes.',
       };
     case 'send_failed':
       return {

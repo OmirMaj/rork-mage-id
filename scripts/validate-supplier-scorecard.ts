@@ -200,6 +200,38 @@ const cardFor = (cards: ReturnType<typeof computeSupplierScorecards>, name: stri
   check('…scoring 2/3 clean', Math.abs(dmg.score - 2 / 3) < 0.001);
 }
 
+// ── audit #112: the screen feeds its delivery receipts in ───────────────────
+// The scorecard screen used to call computeSupplierScorecards({ deliveries })
+// with no receipts, so every supplier read "0 inspected loads — need 3 to
+// judge" even after damaged loads were logged at receiving. Behaviour first
+// (4 receipts, 2 damaged), then the screen's own call, so the fix can't be
+// undone by dropping the argument or the memo dependency.
+{
+  const cards = computeSupplierScorecards({
+    deliveries: [0, 1, 2, 3].map(i => del('Acme Glass', `2026-04-0${i + 1}`, 0)),
+    receipts: [
+      { supplier: 'Acme Glass', hasDamage: true }, { supplier: 'Acme Glass', hasDamage: false },
+      { supplier: 'acme glass', hasDamage: true }, { supplier: 'Acme Glass', hasDamage: false },
+    ],
+  });
+  const dmg = cardFor(cards, 'Acme Glass')!.factors.find(f => f.key === 'damage_free')!;
+  check('#112: 4 receipts, 2 damaged → damage factor applies', dmg.applicable === true);
+  check('#112: …scoring 0.5', Math.abs(dmg.score - 0.5) < 0.001);
+  check('#112: …saying "2 of 4 inspected loads arrived damaged"',
+    dmg.detail === '2 of 4 inspected loads arrived damaged');
+
+  const screen = (await import('node:fs')).readFileSync(
+    new URL('../app/sub-scorecard.tsx', import.meta.url), 'utf8',
+  ).replace(/\/\/[^\n]*/g, '');
+  const call = screen.match(/computeSupplierScorecards\(([\s\S]*?)\),\s*\[([^\]]*)\]/);
+  check('#112: sub-scorecard passes its delivery receipts to computeSupplierScorecards',
+    !!call && /receipts\s*:\s*deliveryReceipts\b/.test(call[1]));
+  check('#112: …with deliveryReceipts in the memo deps, so a new receipt re-grades',
+    !!call && /\bdeliveryReceipts\b/.test(call[2]));
+  check('#112: no call to computeSupplierScorecards without receipts',
+    (screen.match(/computeSupplierScorecards\(/g) ?? []).length === 1);
+}
+
 // ── confidence ladder + summary ─────────────────────────────────────────────
 {
   const many = computeSupplierScorecards({

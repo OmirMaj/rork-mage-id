@@ -49,8 +49,13 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useClientPaywall } from '@/hooks/useClientPaywall';
 import { showAlert } from '@/utils/alert';
-import { postedAlertBody } from '@/supabase/functions/notify-nearby-contractors/reach';
-import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+import { postedAlertBody, prePostReachNotice } from '@/supabase/functions/notify-nearby-contractors/reach';
+import { RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED } from '@/constants/featureFlags';
+
+// Audit wave 5, #96: while no contractor can set a service area, no post can
+// reach anyone. The homeowner reads that BEFORE she posts (hero + review step),
+// not only afterwards in My RFPs. null once matching is live.
+const PRE_POST_NOTICE = prePostReachNotice(RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED);
 
 interface PickedAttachment {
   uri: string;
@@ -435,7 +440,7 @@ export default function PostRfpScreen() {
       // matches with (audit round 2, #8).
       showAlert(
         'Posted!',
-        postedAlertBody(cityState.city, verifiedOnly, RFP_BROWSE_ENABLED),
+        postedAlertBody(cityState.city, verifiedOnly, RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED),
         [{ text: 'See my RFPs', onPress: () => router.replace('/my-rfps' as never) }],
       );
     } catch (e) {
@@ -492,7 +497,12 @@ export default function PostRfpScreen() {
             <Text style={styles.heroTitle}>Get quality bids.</Text>
             <Text style={[styles.heroTitle, { color: themeColors.accent }]}>Done right.</Text>
             <Text style={styles.heroSubtitle}>
-              Tell us about your project and local contractors will send you competitive bids.
+              {/* Was "local contractors will send you competitive bids" — with
+                  no contractor able to set a service area, nobody could
+                  (audit wave 5, #96). */}
+              {SERVICE_AREA_SETUP_ENABLED
+                ? 'Tell us about your project and contractors who cover your area are alerted to bid.'
+                : 'Tell us about your project. Heads up: contractor matching by service area isn\'t live in MAGE ID yet, so no contractor will see this post.'}
             </Text>
           </View>
 
@@ -674,7 +684,7 @@ function DetailsStep({
       {/* Address */}
       <FadeRise delay={60}>
         <View style={styles.card}>
-          <CardHead icon={MapPin} title="Project address" subtitle="We use it to alert contractors who work in your area." styles={styles} themeColors={themeColors} />
+          <CardHead icon={MapPin} title="Project address" subtitle={SERVICE_AREA_SETUP_ENABLED ? 'We use it to alert contractors who work in your area.' : 'Kept with your post and handed to the contractor you award.'} styles={styles} themeColors={themeColors} />
           <View style={styles.inputRow}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
@@ -954,6 +964,11 @@ function BudgetStep({
             <Text style={styles.verifyToggleSub}>
               If no contractor with a license on file covers your area, nobody is alerted. My RFPs shows the real count.
             </Text>
+            {!SERVICE_AREA_SETUP_ENABLED && (
+              <Text style={styles.verifyToggleSub}>
+                Contractor matching isn&apos;t live yet, so today this changes nothing.
+              </Text>
+            )}
           </View>
           <View style={[styles.verifyCheckbox, verifiedOnly && styles.verifyCheckboxOn]}>
             {verifiedOnly && <Check size={14} color="#FFF" strokeWidth={1.75} />}
@@ -1007,6 +1022,15 @@ function ReviewStep({
           <ReviewRow label="Deadline" value={deadline || '14 days from today'}   onEdit={() => jumpTo('budget')} styles={styles} />
         </View>
       </FadeRise>
+
+      {PRE_POST_NOTICE && (
+        <FadeRise delay={220}>
+          <View style={styles.reachNoticeCard} testID="post-rfp-reach-notice">
+            <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.reachNoticeText}>{PRE_POST_NOTICE}</Text>
+          </View>
+        </FadeRise>
+      )}
 
       <FadeRise delay={240}>
         <View style={styles.disclaimerCard}>
@@ -1305,6 +1329,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 12, marginTop: 4,
   },
   disclaimerText: { flex: 1, fontSize: 11.5, color: t.textSecondary, lineHeight: 16, fontWeight: '500' },
+  reachNoticeCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, marginBottom: 12,
+    borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '12', borderWidth: 1, borderColor: Colors.warning + '40',
+  },
+  reachNoticeText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17, fontWeight: '600' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,

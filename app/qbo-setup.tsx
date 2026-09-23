@@ -251,6 +251,13 @@ async function registerQboConnection(): Promise<{ sweepFloor: string | null }> {
   return { sweepFloor: typeof data.sweepFloor === 'string' ? data.sweepFloor : null };
 }
 
+/** Why the status check failed, in his words (#103). Never "not connected". */
+function qboUnknownReasonText(reason: QboStatus['reason']): string {
+  if (reason === 'offline') return 'MAGE couldn\u2019t reach the server \u2014 check your signal and try again. Your QuickBooks connection is not affected.';
+  if (reason === 'tier') return 'MAGE\u2019s server doesn\u2019t show a Business plan on your account, so it can\u2019t read the QuickBooks connection. If you just upgraded, try again in a minute; otherwise email help@mageid.app.';
+  return 'The server couldn\u2019t answer just now. Try again in a minute \u2014 your QuickBooks connection is not affected.';
+}
+
 export default function QboSetupScreen() {
   // Client-side tier gate BEFORE the OAuth browser can open. The server
   // (qbo-connect-start) already requires Business/Enterprise via
@@ -343,18 +350,38 @@ function QboSetupScreenInner() {
   const [celebrate, setCelebrate] = useState(false);
   const prevStatusRef = useRef<string | null>(null);
 
+  // Audit #103: a failed status check ('unknown') is not an answer about the
+  // connection. Within this visit the last GOOD answer stays on screen (so a
+  // connected GC keeps his payment-gap cards when one refresh drops) and the
+  // failure is shown beside it; with no good answer yet the screen shows the
+  // failure card — never the Connect pitch, which would start a second OAuth
+  // over a live connection.
+  const [checkFailed, setCheckFailed] = useState<QboStatus | null>(null);
+  const applyStatus = useCallback((s: QboStatus) => {
+    if (s.status === 'unknown') {
+      setCheckFailed(s);
+      setStatus((prev) => (prev && prev.status !== 'unknown' ? prev : s));
+      return;
+    }
+    setCheckFailed(null);
+    setStatus(s);
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoading(true);
-    setStatus(await fetchQboStatus());
+    applyStatus(await fetchQboStatus());
     setLoading(false);
     void refetchLedger();
-  }, [refetchLedger]);
+  }, [refetchLedger, applyStatus]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
   // Detect "just connected" moment from polling.
   useEffect(() => {
     const cur = status?.status ?? null;
+    // An 'unknown' check leaves the ref alone: unknown -> connected is the
+    // same connection read again, not a new one, and must not celebrate.
+    if (cur === 'unknown') return;
     if (cur === 'connected' && prevStatusRef.current && prevStatusRef.current !== 'connected') {
       setCelebrate(true);
       const t = setTimeout(() => setCelebrate(false), 2800);
@@ -377,13 +404,15 @@ function QboSetupScreenInner() {
     for (let i = 0; i < 5; i++) {
       await new Promise(res => setTimeout(res, 1000));
       const s = await fetchQboStatus();
+      // A failed check mid-poll says nothing — keep polling (#103).
+      if (s.status === 'unknown') continue;
       if (s.status === 'connected' || s.status === 'reauth_required' || s.status === 'error') {
-        setStatus(s);
+        applyStatus(s);
         return;
       }
     }
     await refresh();
-  }, [busy, refresh]);
+  }, [busy, refresh, applyStatus]);
 
   const onRefreshStatus = useCallback(async () => {
     if (busy) return;
@@ -401,7 +430,36 @@ function QboSetupScreenInner() {
         <View style={{ width: 22 }} />
       </View>
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
+        {checkFailed && status && status.status !== 'unknown' && !loading ? (
+          // A later check failed; the card below is the last good answer.
+          <View style={[styles.card, styles.cardWarn, { marginBottom: 12 }]} testID="qbo-status-stale">
+            <AlertTriangle size={18} color={colors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.cardSub}>{qboUnknownReasonText(checkFailed.reason)} Showing what MAGE last read on this screen.</Text>
+            <Button
+              label={busy ? 'Checking…' : 'Retry'}
+              onPress={() => { void onRefreshStatus(); }}
+              variant="secondary"
+              size="sm"
+              disabled={busy}
+              style={{ marginTop: 6, alignSelf: 'flex-start' }}
+              testID="qbo-status-stale-retry"
+            />
+          </View>
+        ) : null}
         {loading ? <ActivityIndicator color={colors.accent} /> :
+          status?.status === 'unknown' ? (
+            // #103: the check failed and there is no good answer yet. Say so,
+            // offer Retry, and do NOT offer Connect — he may well be connected.
+            <View style={[styles.card, styles.cardWarn]} testID="qbo-status-unknown">
+              <AlertTriangle size={20} color={colors.warningLabel} strokeWidth={1.75} />
+              <Text style={styles.cardTitle}>Couldn&apos;t check your QuickBooks connection</Text>
+              <Text style={styles.cardSub}>{qboUnknownReasonText(status.reason)}</Text>
+              <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onRefreshStatus} testID="qbo-status-retry" accessibilityRole="button">
+                <RefreshCw size={16} color="#FFFFFF" strokeWidth={1.75} />
+                <Text style={styles.primaryText}>{busy ? 'Checking…' : 'Retry'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) :
           (!status || status.status === 'disconnected') ? (
             <>
               {/* Hero */}

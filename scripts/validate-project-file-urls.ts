@@ -150,7 +150,7 @@ ok('listProjectFiles signs in ONE batched call', calls.filter(c => c === 'create
 calls.length = 0;
 const uploaded = await uploadProjectFile({
   projectId: 'proj-1', folderKey: 'permits', fileName: 'coi.pdf',
-  blob: { size: 10 } as unknown as Blob, contentType: 'application/pdf',
+  bytes: new Uint8Array(10), contentType: 'application/pdf',
 });
 eq('uploadProjectFile returns the storage path', uploaded.path, 'proj-1/permits/coi.pdf');
 eq('uploadProjectFile url is signed', uploaded.publicUrl, SIGNED('proj-1/permits/coi.pdf'));
@@ -163,7 +163,7 @@ calls.length = 0;
 signOk = false;
 const degraded = await uploadProjectFile({
   projectId: 'proj-1', folderKey: 'permits', fileName: 'coi.pdf',
-  blob: { size: 10 } as unknown as Blob, contentType: 'application/pdf',
+  bytes: new Uint8Array(10), contentType: 'application/pdf',
 });
 eq('upload survives a signing failure and returns the path', degraded.publicUrl, 'proj-1/permits/coi.pdf');
 

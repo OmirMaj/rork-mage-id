@@ -15,6 +15,7 @@
 // what's necessary and keeping count moderate.
 
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
+import { edgeFunctionError, edgeErrorStatus } from '@/utils/edgeError';
 // expo-file-system/legacy, NOT the root entry. In SDK 54 the root's
 // readAsStringAsync is a deprecation stub — src/index.ts re-exports
 // ./legacyWarnings, where it is `throw errorOnLegacyMethodUse(...)`, and its own
@@ -217,15 +218,22 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | '
     { body: payload as Record<string, unknown> },
   );
 
-  // Detect transient 5xx via the wrapper's error.message convention
-  // ("Edge function returned non-2xx response: 502" etc).
-  const transient = error && /5\d\d/.test(error.message ?? '');
-  if (transient && attempt === 0) {
+  // A 5xx (a Gemini 502/504 behind the function) is worth one quiet retry.
+  // Decided from the Response STATUS, before anything reads its body (audit
+  // #68/#124): supabase-js collapses every non-2xx into "Edge Function
+  // returned a non-2xx status code", which carries no digits, so the old
+  // /5\d\d/ test on the message never fired. The 'Took too long' timeout has
+  // no context, so it is not retried — that would double a 90 s wait.
+  const status = error ? edgeErrorStatus(error) : null;
+  if (status !== null && status >= 500 && attempt === 0) {
     await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
     return callAnalyzePhotos<T>(opts, attempt + 1);
   }
 
-  if (error) throw new Error(`Photo analyzer call failed: ${error.message}`);
+  // The function's own sentence ("Monthly photo-analysis limit reached (50 on
+  // pro). Resets on the 1st.") and its code, read once here, so a screen can
+  // tell a cap (offer the upgrade) from a blip (try again).
+  if (error) throw await edgeFunctionError(error, 'Photo analysis failed');
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Photo analyzer returned an empty result.');
   }

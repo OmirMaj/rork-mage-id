@@ -102,11 +102,20 @@ export interface PipelineHorizonInput {
    * invoices-only billings.
    */
   aiaPayApps?: SavedAIAPayApp[];
+  /**
+   * The signed-in account (#18, audit 2026-09-22). When given, a job another
+   * company owns — one this account was only invited onto — is not counted as
+   * THIS company's backlog (utils/wip.isOwnCompanyProject, the rule both WIP
+   * schedules use). Optional so the validators' fixtures still compile; a
+   * caller that omits it gets the unsigned-bid rule (#19) but not the
+   * ownership one.
+   */
+  userId?: string | null;
   now: Date;
 }
 
 export function buildPipelineHorizon(input: PipelineHorizonInput): PipelineHorizonResult {
-  const { leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, now } = input;
+  const { leads, projects, invoices, changeOrders, commitments, bidResponses, aiaPayApps, userId, now } = input;
 
   // ── CRM pipeline leads ────────────────────────────────────────────────────
   const pipelineStages = new Set<string>(['new', 'qualified', 'proposal']);
@@ -151,19 +160,29 @@ export function buildPipelineHorizon(input: PipelineHorizonInput): PipelineHoriz
   if (outboundWinRate !== null) expectedInflow$ += pendingBids$ * outboundWinRate;
 
   // ── Backlog ────────────────────────────────────────────────────────────────
-  const wipReport = computeWIPReport(projects, invoices, changeOrders, commitments, {}, aiaPayApps ?? []);
-  const activeWipRows = wipReport.rows.filter(
-    r => r.status !== 'completed' && r.status !== 'closed' && r.status !== 'draft',
-  );
+  // THE WIP SCHEDULE'S OWN POPULATION (#19, audit 2026-09-22). This used to
+  // re-filter the report by status — dropping 'draft' and keeping 'estimated'
+  // — so an unsigned $400,000 bid counted as $400,000 of backlog here while
+  // a draft job the GC had already invoiced did not. computeWIPReport now
+  // applies the shared signed-work rule (utils/wip.isWipReportableProject), so
+  // this only removes what a backlog cannot hold: a completed job has nothing
+  // left to build. An unsigned bid is pipeline, and it is already counted
+  // above, as a lead or a pending bid, at its win rate.
+  const wipReport = computeWIPReport(projects, invoices, changeOrders, commitments, {}, aiaPayApps ?? [], {},
+    userId !== undefined ? { userId } : {});
+  const activeWipRows = wipReport.rows.filter(r => r.status !== 'completed');
   const remainingToBill$ = activeWipRows.reduce(
     (s, r) => s + Math.max(0, r.revisedContract - r.billedToDate),
     0,
   );
 
-  // Horizon = latest schedule end date across active projects
+  // Horizon = latest schedule end date across the SAME active projects the
+  // backlog sums — one population, so the date and the dollars describe the
+  // same jobs.
+  const activeIds = new Set(activeWipRows.map(r => r.projectId));
   let horizonDate: string | null = null;
   for (const p of projects) {
-    if (p.status === 'completed' || p.status === 'closed' || p.status === 'draft') continue;
+    if (!activeIds.has(p.id)) continue;
     const sched = p.schedule;
     if (!sched?.startDate || !sched.tasks?.length) continue;
     const start = new Date(sched.startDate + 'T00:00:00Z');

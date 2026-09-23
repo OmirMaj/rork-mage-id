@@ -14,7 +14,10 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import { IconWrapper } from '@/components/ui/IconWrapper';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useSubscription, restoreOutcome } from '@/contexts/SubscriptionContext';
+import { listPriceLabel } from '@/constants/pricing';
+import type { PaidTier } from '@/constants/pricing';
+import { planFeatureBlurb } from '@/utils/planFeatureCopy';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
@@ -84,7 +87,7 @@ function toFeatureRow(spec: FeatureRowSpec): FeatureRow {
 // and QuickBooks sync rows were removed entirely — those features aren't
 // built. See utils/owner.ts comment for the gating rules.
 const FEATURE_SPECS: FeatureRowSpec[] = [
-  // Free is capped at ONE active project. This row said `free: true` — i.e.
+  // Free is capped at ONE project of his own. This row said `free: true` — i.e.
   // "Unlimited Projects, included on Free" — while hooks/useTierAccess.ts
   // maxProjects.free = 1 blocks the second one, and the block is headed with
   // the literal string from this table. So the pricing screen made the promise
@@ -92,7 +95,11 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
   // is the published product (marketing/pricing.html "1 active project";
   // Settings' own FAQ says the same), so the table is what was wrong.
   // freeNote prints the number rather than an X, because "no projects on Free"
-  // would be the opposite lie.
+  // would be the opposite lie. What the "1" counts (the live server rule,
+  // enforce_free_tier_project_cap): every non-sample project he OWNS, finished
+  // or not — jobs other contractors share with him don't count, and a job won
+  // through an RFP does once it exists (only the award's own insert is
+  // exempt). Never describe awarded jobs as free.
   // NOTE the label is load-bearing: scripts/validate-paywall-feature-matrix.ts
   // allow-lists hand-typed rows BY LABEL, so renaming this row without editing
   // that allowlist fails ship-check.
@@ -107,11 +114,16 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
   // from, so these two stay literal on purpose.
   { label: 'AI Takeoff (PDF → LF/SF)', free: false, pro: true, business: true },
   { label: 'AI Schedule Builder (Gantt)', key: 'schedule_gantt_pdf' },
-  { label: 'Voice-to-Report (Android: beta)', free: false, pro: true, business: true },
-  // Spans two gates: Photo Triage is photo_documentation (Pro), AI Punch from
-  // Photos is punch_list_closeout (Business). Left literal at the Pro reading
-  // rather than derived, because no single key describes the row.
-  { label: 'AI Photo Triage / Punch', free: false, pro: true, business: true },
+  // freeNote, not an X: FEATURE_CONFIG.voiceCapture.freeLifetimeCap = 3, so a
+  // bare X denied a trial that exists (and marketing/pricing.html says the
+  // same "3 free tries"). The label is unchanged — the matrix validator's
+  // allowlist matches it by name.
+  { label: 'Voice-to-Report (Android: beta)', free: false, pro: true, business: true, freeNote: '3 tries' },
+  // Was ONE literal row, 'AI Photo Triage / Punch', ticked at Pro — so a Pro
+  // buyer was sold AI punch items and then paywalled from the punch list they
+  // landed in (#41). Two gates, two rows, both derived.
+  { label: 'AI Photo Triage', key: 'photo_documentation' },
+  { label: 'AI Punch from Photos', key: 'punch_list_closeout' },
   { label: 'Cash Flow + EVM (CPI/SPI)', key: 'cash_flow_forecaster' },
   { label: 'AIA G702/G703 Pay Apps', key: 'aia_pay_app' },
   { label: 'Change Orders + Invoicing', key: 'change_orders_invoicing' },
@@ -158,7 +170,10 @@ interface AILimitRow { label: string; free: string; pro: string; business: strin
 const AI_LIMITS: AILimitRow[] = [
   { label: 'Daily AI requests',    free: '5',   pro: '30',  business: '80',  enterprise: '150' },
   { label: 'Advanced AI / day',    free: '—',   pro: '6',   business: '18',  enterprise: '40'  },
-  { label: 'Drawing analyses /mo', free: '—',   pro: '15',  business: '50',  enterprise: '100' },
+  // #39: takeoff runs, spec-book imports and Compare Drawings all draw on this
+  // one monthly allowance; the bare label let a Pro user spend it on takeoffs
+  // without knowing the drawing analyzer shared it.
+  { label: 'Drawing analyses /mo (takeoff runs, spec books, Compare Drawings)', free: '—', pro: '15', business: '50', enterprise: '100' },
   { label: 'Photo analyses /mo',   free: '—',   pro: '50',  business: '150', enterprise: '200' },
   { label: 'PDF takeoff pages /mo',free: '—',   pro: '30',  business: '100', enterprise: '300' },
   { label: 'Cost X-Ray analyses /mo', free: '—', pro: '—', business: '50', enterprise: '150' },
@@ -207,13 +222,29 @@ export default function PaywallScreen() {
   const packagesLoaded = !!proPackage || !!businessPackage || !!enterprisePackage;
   const packagesStillLoading = isLoading && !packagesLoaded;
 
-  // Fallback prices match the published list rate. RC's `priceString` wins
-  // when offerings are loaded — this is just for the offline / pre-load /
-  // unconfigured-RC case so the screen still renders the published price.
-  const proPrice = proPackage?.product?.priceString ?? (packagesStillLoading ? null : '$29/mo');
-  const businessPrice = businessPackage?.product?.priceString ?? (packagesStillLoading ? null : '$79/mo');
-  const enterprisePrice = enterprisePackage?.product?.priceString ?? (packagesStillLoading ? null : '$150/mo');
+  // Fallback prices are the published list rate from constants/pricing.ts —
+  // the ONE fallback table (#42; this screen, components/Paywall.tsx and the
+  // onboarding paywall used to carry three that disagreed). RC's
+  // `priceString` wins when offerings are loaded — this is just for the
+  // offline / pre-load / unconfigured-RC case so the screen still renders the
+  // published price.
+  const proPrice = proPackage?.product?.priceString ?? (packagesStillLoading ? null : listPriceLabel('pro'));
+  const businessPrice = businessPackage?.product?.priceString ?? (packagesStillLoading ? null : listPriceLabel('business'));
+  const enterprisePrice = enterprisePackage?.product?.priceString ?? (packagesStillLoading ? null : listPriceLabel('enterprise'));
   const isFallbackPricing = !packagesLoaded && !packagesStillLoading;
+
+  // #129: gate each card on ITS OWN package. The offering loading at all used
+  // to enable every Subscribe button, so with no Enterprise product configured
+  // the card showed $150/mo, a live Subscribe, and — on tap — a developer
+  // setup instruction. A plan the store cannot sell leads to an email instead.
+  const unavailable: Record<PaidTier, boolean> = {
+    pro: packagesLoaded && !proPackage,
+    business: packagesLoaded && !businessPackage,
+    enterprise: packagesLoaded && !enterprisePackage,
+  };
+  const contactForPlan = useCallback((plan: 'Pro' | 'Business' | 'Enterprise') => {
+    void Linking.openURL(`mailto:support@mageid.app?subject=${encodeURIComponent(`MAGE ID ${plan}`)}`);
+  }, []);
 
   const handlePurchasePro = useCallback(async () => {
     try {
@@ -261,13 +292,16 @@ export default function PaywallScreen() {
         console.log('[Paywall] User cancelled Enterprise purchase');
         return;
       }
-      // Most likely cause: the RC product hasn't been configured yet. Surface
-      // a help-friendly message rather than the generic "purchase failed."
-      const msg = err instanceof Error ? err.message : 'Could not complete the purchase. Please try again.';
+      // #129: never hand err.message to the customer — it was a developer
+      // setup instruction. Raw text stays in the console.
       console.log('[Paywall] Purchase Enterprise failed:', err);
-      showAlert('Enterprise unavailable', msg);
+      if (!enterprisePackage) {
+        showAlert('Enterprise unavailable', "Enterprise isn't available in the app yet. Email support@mageid.app and we'll set it up.");
+      } else {
+        showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+      }
     }
-  }, [purchaseEnterprise, router]);
+  }, [purchaseEnterprise, router, enterprisePackage]);
 
   // When RC offerings failed to load (isFallbackPricing), purchase CTAs
   // can't process IAP — Alert the notice instead of silently dead-ending.
@@ -283,14 +317,20 @@ export default function PaywallScreen() {
     // Restore must ALWAYS work — it only needs RC configured, not offerings
     // loaded. A reinstalling subscriber with a transient offerings failure
     // would lose access if we blocked Restore on isFallbackPricing.
+    // #126: it used to say "Your purchases have been restored" whenever the
+    // call returned — including when the store found nothing. restoreOutcome
+    // says what actually happened.
+    const store = Platform.OS === 'android' ? 'Google Play' : 'App Store';
+    let result: unknown;
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await restorePurchases();
-      showAlert('Restored', 'Your purchases have been restored.');
+      result = await restorePurchases();
     } catch (err) {
       console.log('[Paywall] Restore failed:', err);
-      showAlert('Restore Failed', 'Could not restore purchases. Please try again.');
+      result = err;
     }
+    const outcome = restoreOutcome(result, store);
+    showAlert(outcome.title, outcome.body);
   }, [restorePurchases]);
 
   const openLegal = useCallback((kind: 'privacy' | 'terms') => {
@@ -341,9 +381,9 @@ export default function PaywallScreen() {
           proAvailable: !!proPackage,
           businessAvailable: !!businessPackage,
           enterpriseAvailable: !!enterprisePackage,
-          proPrice: proPrice ?? '$29/mo',
-          businessPrice: businessPrice ?? '$79/mo',
-          enterprisePrice: enterprisePrice ?? '$150/mo',
+          proPrice: proPrice ?? listPriceLabel('pro'),
+          businessPrice: businessPrice ?? listPriceLabel('business'),
+          enterprisePrice: enterprisePrice ?? listPriceLabel('enterprise'),
         }}
       />
     );
@@ -420,18 +460,32 @@ export default function PaywallScreen() {
                     <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
                   </View>
                 )}
-                <Button
-                  label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
-                  onPress={() => {
-                    if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                    void handlePurchasePro();
-                  }}
-                  disabled={isPurchasing || isFallbackPricing}
-                  loading={isPurchasing || packagesStillLoading}
-                  size="sm"
-                  fullWidth
-                  testID="buy-pro"
-                />
+                {unavailable.pro ? (
+                  <>
+                    <Button
+                      label="Contact us for Pro"
+                      onPress={() => contactForPlan('Pro')}
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
+                      testID="buy-pro-contact"
+                    />
+                    <Text style={styles.planUnavailableNote}>{`Not in the ${storeName} yet — we set it up by email.`}</Text>
+                  </>
+                ) : (
+                  <Button
+                    label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
+                    onPress={() => {
+                      if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                      void handlePurchasePro();
+                    }}
+                    disabled={isPurchasing || isFallbackPricing}
+                    loading={isPurchasing || packagesStillLoading}
+                    size="sm"
+                    fullWidth
+                    testID="buy-pro"
+                  />
+                )}
               </>
             )}
           </View>
@@ -458,18 +512,32 @@ export default function PaywallScreen() {
                     <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
                   </View>
                 )}
-                <Button
-                  label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
-                  onPress={() => {
-                    if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                    void handlePurchaseBusiness();
-                  }}
-                  disabled={isPurchasing || isFallbackPricing}
-                  loading={isPurchasing || packagesStillLoading}
-                  size="sm"
-                  fullWidth
-                  testID="buy-business"
-                />
+                {unavailable.business ? (
+                  <>
+                    <Button
+                      label="Contact us for Business"
+                      onPress={() => contactForPlan('Business')}
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
+                      testID="buy-business-contact"
+                    />
+                    <Text style={styles.planUnavailableNote}>{`Not in the ${storeName} yet — we set it up by email.`}</Text>
+                  </>
+                ) : (
+                  <Button
+                    label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
+                    onPress={() => {
+                      if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                      void handlePurchaseBusiness();
+                    }}
+                    disabled={isPurchasing || isFallbackPricing}
+                    loading={isPurchasing || packagesStillLoading}
+                    size="sm"
+                    fullWidth
+                    testID="buy-business"
+                  />
+                )}
               </>
             )}
           </View>
@@ -496,18 +564,32 @@ export default function PaywallScreen() {
                     <Text style={styles.trialBadgeText}>{intentTrialDays}-day free trial</Text>
                   </View>
                 )}
-                <Button
-                  label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
-                  onPress={() => {
-                    if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
-                    void handlePurchaseEnterprise();
-                  }}
-                  disabled={isPurchasing || isFallbackPricing}
-                  loading={isPurchasing || packagesStillLoading}
-                  size="sm"
-                  fullWidth
-                  testID="buy-enterprise"
-                />
+                {unavailable.enterprise ? (
+                  <>
+                    <Button
+                      label="Contact us for Enterprise"
+                      onPress={() => contactForPlan('Enterprise')}
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
+                      testID="buy-enterprise-contact"
+                    />
+                    <Text style={styles.planUnavailableNote}>{`Not in the ${storeName} yet — we set it up by email.`}</Text>
+                  </>
+                ) : (
+                  <Button
+                    label={isFallbackPricing ? `Can't reach the ${storeName}` : 'Subscribe'}
+                    onPress={() => {
+                      if (isFallbackPricing) { showAlert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                      void handlePurchaseEnterprise();
+                    }}
+                    disabled={isPurchasing || isFallbackPricing}
+                    loading={isPurchasing || packagesStillLoading}
+                    size="sm"
+                    fullWidth
+                    testID="buy-enterprise"
+                  />
+                )}
               </>
             )}
           </View>
@@ -769,8 +851,10 @@ function WebPaywallView({
         {/* Plan tiles — read-only on web */}
         <View style={{ gap: 14, marginBottom: 28 }}>
           {([
-            { name: 'Pro',        price: wp.proPrice,        blurb: 'AI estimates, cash flow, AIA G702/G703, change orders + invoicing.', icon: MageAIMark, active: currentTier === 'pro',        onSubscribe: wp.onPro,        buyable: wp.proAvailable },
-            { name: 'Business',   price: wp.businessPrice,   blurb: 'Everything in Pro + subs, RFIs, submittals, punch + closeout, plans.', icon: Building2, active: currentTier === 'business',   onSubscribe: wp.onBusiness,   buyable: wp.businessAvailable },
+            // Blurbs derived from REQUIRED_TIER via utils/planFeatureCopy (#125/#171):
+            // the Business tile used to sell RFIs, submittals and plans — all Pro.
+            { name: 'Pro',        price: wp.proPrice,        blurb: `${planFeatureBlurb('pro')}.`, icon: MageAIMark, active: currentTier === 'pro',        onSubscribe: wp.onPro,        buyable: wp.proAvailable },
+            { name: 'Business',   price: wp.businessPrice,   blurb: `Everything in Pro + ${planFeatureBlurb('business')}.`, icon: Building2, active: currentTier === 'business',   onSubscribe: wp.onBusiness,   buyable: wp.businessAvailable },
             { name: 'Enterprise', price: wp.enterprisePrice, blurb: 'Same features as Business with the highest AI usage caps.',           icon: Rocket,    active: currentTier === 'enterprise', onSubscribe: wp.onEnterprise, buyable: wp.enterpriseAvailable },
           ]).map(plan => (
             <View key={plan.name} style={{
@@ -799,6 +883,18 @@ function WebPaywallView({
                     fullWidth
                   />
                 </View>
+              ) : wp.available ? (
+                // Checkout is live but this plan has no package (#129): say so
+                // and where to go, instead of a tile with no way forward.
+                <TouchableOpacity
+                  onPress={() => { void Linking.openURL(`mailto:support@mageid.app?subject=${encodeURIComponent(`MAGE ID ${plan.name}`)}`); }}
+                  accessibilityRole="link"
+                  style={{ marginTop: 10 }}
+                >
+                  <Text style={{ color: themeColors.accent, fontSize: Type.footnote.fontSize, fontWeight: '600' }}>
+                    {`Not available for checkout yet — contact us for ${plan.name}`}
+                  </Text>
+                </TouchableOpacity>
               ) : null}
             </View>
           ))}
@@ -1013,6 +1109,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: t.textSecondary,
     marginBottom: 6,
+  },
+  planUnavailableNote: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
+    textAlign: 'center' as const,
+    marginTop: 6,
   },
   currentBadge: {
     paddingHorizontal: 10,

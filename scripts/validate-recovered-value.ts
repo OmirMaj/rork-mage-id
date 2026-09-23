@@ -8,8 +8,17 @@
 // contractor's trust in every other number in the app goes with it.
 //
 // Run: bun run scripts/validate-recovered-value.ts
-import { computeRecoveredValue, recoveredHeadline, recoveredPendingLine } from '../utils/recoveredValue';
-import type { ChangeOrder, ChangeOrderStatus, Project } from '../types';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  computeRecoveredValue, recoveredHeadline, recoveredPendingLine, recoveredProofLine,
+  formatRecoveredMoney, isClientSigned, CLIENT_SIGNED_ACTION,
+} from '../utils/recoveredValue';
+import { changeOrderBillKey } from '../utils/changeOrderBilling';
+import type { ChangeOrder, ChangeOrderStatus, Invoice, Project } from '../types';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, detail?: string) {
@@ -145,7 +154,11 @@ console.log('\nrecovered value:');
   ], { nowISO: NOW });
   const h = recoveredHeadline(v, 'this quarter') ?? '';
   ok('headline states the money and the window', h.includes('$12,400') && h.includes('this quarter'), h);
-  ok('headline says BILLED, not "found" alone — the claim is an outcome', h.includes('you billed'), h);
+  // #152: 'approved' is a status the GC can set himself ("Mark approved") with
+  // no invoice behind it. The headline used to say "you billed"; it may claim
+  // only what the status proves.
+  ok('headline says APPROVED — the status is all it knows', h.includes('approved'), h);
+  ok('headline never says billed or signed', !/billed|signed/i.test(h), h);
   ok('headline has no hype punctuation', !h.includes('!'), h);
   const p = recoveredPendingLine(v) ?? '';
   ok('pending line names the amount still with the client', p.includes('$3,000'), p);
@@ -153,6 +166,120 @@ console.log('\nrecovered value:');
   const one = computeRecoveredValue(projects, [auto({ id: '1', status: 'approved', changeAmount: 500 })], { nowISO: NOW });
   ok('singular grammar for one CO', (recoveredHeadline(one) ?? '').includes('1 change order —') ||
     (recoveredHeadline(one) ?? '').includes('1 change order'), recoveredHeadline(one) ?? '');
+}
+
+// ── #152: "signed" and "billed" only where the record proves them ───────────
+console.log('\nproof of signature / billing (#152):');
+{
+  const signed = auto({
+    id: 's', status: 'approved', changeAmount: 1000,
+    auditTrail: [{ id: 'x', action: CLIENT_SIGNED_ACTION, actor: 'Pat Smith', timestamp: NOW, detail: 'E-SIGN' }],
+  } as Partial<ChangeOrder> & { id: string; status: ChangeOrderStatus });
+  const marked = auto({ id: 'm', status: 'approved', changeAmount: 500 });
+  ok('a portal e-signature marks the CO clientSigned', isClientSigned(signed));
+  ok('a GC "Mark approved" with no signature is NOT clientSigned', !isClientSigned(marked));
+  ok('an approver row the GC set is not a signature either',
+    !isClientSigned({ auditTrail: [{ id: 'y', action: 'approved', actor: 'GC', timestamp: NOW }] }));
+  // A signature vouches only for what it signed: re-decided afterwards, it no
+  // longer proves the amount that is approved now (review of #152).
+  const sig = (ts: string) => ({ id: 'sg', action: CLIENT_SIGNED_ACTION, actor: 'Pat Smith', timestamp: ts });
+  const T1 = '2026-09-01T12:00:00.000Z', T2 = '2026-09-02T12:00:00.000Z', T3 = '2026-09-03T12:00:00.000Z';
+  ok('signed, then revised, then GC-approved → NOT clientSigned',
+    !isClientSigned({ auditTrail: [sig(T1), { id: 'r', action: 'marked_approved', actor: 'GC', timestamp: T3 }] }));
+  ok('signed, then declined → NOT clientSigned',
+    !isClientSigned({ auditTrail: [sig(T1), { id: 'd', action: 'client_declined_via_portal', actor: 'Pat', timestamp: T2 }] }));
+  ok('a later unsigned portal approval or a decision conflict also voids it',
+    !isClientSigned({ auditTrail: [sig(T1), { id: 'a', action: 'approved_via_portal', actor: 'Pat', timestamp: T2 }] })
+    && !isClientSigned({ auditTrail: [sig(T1), { id: 'c', action: 'portal_decision_conflict', actor: 'MAGE ID', timestamp: T2 }] }));
+  ok('a superseding entry with no readable time counts as later (under-claim)',
+    !isClientSigned({ auditTrail: [sig(T2), { id: 'r', action: 'marked_approved', actor: 'GC', timestamp: '' }] }));
+  ok('GC approval BEFORE the signature, re-signed after → clientSigned',
+    isClientSigned({ auditTrail: [{ id: 'r', action: 'marked_approved', actor: 'GC', timestamp: T1 }, sig(T3)] }));
+  ok('neutral entries after the signature do not void it',
+    isClientSigned({ auditTrail: [
+      { id: 'l', action: 'auto_drafted_from_leak', actor: 'MAGE', timestamp: T1 }, sig(T2),
+      { id: 'p', action: 'portal_decision_applied', actor: 'MAGE ID', timestamp: T3 },
+      { id: 'n', action: 'schedule_reflow_no_anchor', actor: 'MAGE ID', timestamp: T3 },
+    ] }));
+  ok('declined earlier, signed later → clientSigned',
+    isClientSigned({ auditTrail: [{ id: 'd', action: 'client_declined_via_portal', actor: 'Pat', timestamp: T1 }, sig(T2)] }));
+
+  const inv = (over: Partial<Invoice>): Invoice => ({
+    id: 'i', number: 7, projectId: 'p1', type: 'progress', issueDate: NOW, dueDate: NOW,
+    paymentTerms: 'net_30', notes: '', subtotal: 0, taxRate: 0, taxAmount: 0, totalDue: 0,
+    amountPaid: 0, status: 'sent', payments: [], createdAt: NOW, updatedAt: NOW,
+    lineItems: [],
+    ...over,
+  } as Invoice);
+  const line = (coId: string, total: number) => ({
+    id: `l-${coId}`, name: 'CO', description: '', quantity: 1, unit: 'lump', unitPrice: total, total,
+    sourceEstimateItemId: changeOrderBillKey(coId),
+  });
+
+  // Nothing signed, nothing billed: the card claims "approved" and nothing more.
+  const bare = computeRecoveredValue(projects, [marked], { nowISO: NOW, invoices: [] });
+  const bareLine = recoveredProofLine(bare);
+  ok('unsigned + unbilled: the subline says approved', /^approved on 1 change order MAGE drafted off your job-site notes\.$/.test(bareLine), bareLine);
+  ok('unsigned + unbilled: no "billed", no "signed"', !/billed|signed/i.test(bareLine), bareLine);
+
+  // A DRAFT invoice carrying the CO is not billing: nobody was sent it.
+  const drafted = computeRecoveredValue(projects, [marked], {
+    nowISO: NOW, invoices: [inv({ status: 'draft', lineItems: [line('m', 500)] })],
+  });
+  ok('a draft invoice line does not make the CO billed', drafted.billedTotal === 0 && !/billed/.test(recoveredProofLine(drafted)),
+    recoveredProofLine(drafted));
+
+  // A sent invoice on ANOTHER project with the same key must not count.
+  const elsewhere = computeRecoveredValue(projects, [marked], {
+    nowISO: NOW, invoices: [inv({ projectId: 'p2', lineItems: [line('m', 500)] })],
+  });
+  ok('an invoice on another project does not bill this CO', elsewhere.billedTotal === 0, `got ${elsewhere.billedTotal}`);
+
+  // Part-billed and one of two signed: both stated as far as proven, to the cent.
+  const mixed = computeRecoveredValue(projects, [signed, marked], {
+    nowISO: NOW, invoices: [inv({ lineItems: [line('s', 250.5)] })],
+  });
+  const mixedLine = recoveredProofLine(mixed);
+  ok('signedCount counts only the e-signed row', mixed.signedCount === 1, `got ${mixed.signedCount}`);
+  ok('billedTotal is the sent-invoice dollars, to the cent', mixed.billedTotal === 250.5, `got ${mixed.billedTotal}`);
+  ok('the subline says 1 of them signed and $250.50 billed so far',
+    mixedLine.includes('signed 1 of them in the portal') && mixedLine.includes('$250.50 of it is billed so far'), mixedLine);
+
+  // Over-billing one CO cannot claim billing on another.
+  const capped = computeRecoveredValue(projects, [signed, marked], {
+    nowISO: NOW, invoices: [inv({ lineItems: [line('s', 5000)] })],
+  });
+  ok('a row\'s billed dollars are capped at its own amount', capped.billedTotal === 1000, `got ${capped.billedTotal}`);
+  ok('…so "All of it is billed" is not claimed while another CO is unbilled', !/All of it is billed/.test(recoveredProofLine(capped)),
+    recoveredProofLine(capped));
+
+  // Everything signed and billed: the strong words are earned.
+  const full = computeRecoveredValue(projects, [signed], {
+    nowISO: NOW, invoices: [inv({ lineItems: [line('s', 1000)] })],
+  });
+  const fullLine = recoveredProofLine(full);
+  ok('fully signed + billed says so', fullLine.includes('Your client signed it in the portal.') && fullLine.includes('All of it is billed.'), fullLine);
+
+  // No invoice list at all = billing unknown, never "billed".
+  const unknown = computeRecoveredValue(projects, [signed], { nowISO: NOW });
+  ok('no invoices passed → billingKnown false and nothing called billed',
+    unknown.billingKnown === false && !/billed/.test(recoveredProofLine(unknown)), recoveredProofLine(unknown));
+
+  ok('money keeps its cents', formatRecoveredMoney(1234.5) === '$1,234.50' && formatRecoveredMoney(12400) === '$12,400',
+    `${formatRecoveredMoney(1234.5)} / ${formatRecoveredMoney(12400)}`);
+  const pend = computeRecoveredValue(projects, [auto({ id: 'p', status: 'submitted', changeAmount: 999.99 })], { nowISO: NOW });
+  ok('pending line is cent-exact (no Math.round)', (recoveredPendingLine(pend) ?? '').includes('$999.99'), recoveredPendingLine(pend) ?? '');
+}
+
+// ── The card reads the proof line, not its own copy ─────────────────────────
+{
+  const card = readFileSync(join(ROOT, 'components/home/RecoveredCard.tsx'), 'utf8');
+  const code = card.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  ok('RecoveredCard renders recoveredProofLine', /recoveredProofLine\(recovered\)/.test(code));
+  ok('RecoveredCard passes the invoice list (proof of billing)', /invoices,\s*\n\s*\}\),/.test(code) && /const \{ changeOrders, projects, invoices \} = useProjects\(\);/.test(code));
+  ok('RecoveredCard carries no unconditional "billed" / "signed by your client" copy',
+    !/billed from|approved and signed by your client/.test(code));
+  ok('RecoveredCard header no longer claims every dollar was signed', !/every dollar shown was signed/.test(card));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

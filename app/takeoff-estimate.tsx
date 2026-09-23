@@ -29,7 +29,9 @@
 // per line. The grand total updates live. Delete a row to skip it from
 // the saved estimate. Add a row to fill in something the AI missed.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform,
   type LayoutChangeEvent,
@@ -62,6 +64,10 @@ import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import {
   MARKUP_CHOICES, isMarkupSet, marginOf, type MarkupPct,
 } from '@/utils/estimateMarkup';
+import {
+  appendAtEstimateRatio, buildNewEstimate, parseDecimalInput, takeoffCostItems,
+} from '@/utils/estimateLanding';
+import { parseMoneyInput } from '@/utils/cashFlowEngine';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -233,6 +239,57 @@ const SCHEMA_HINT = {
   ],
 };
 
+// ─── The priced draft (#89) ──────────────────────────────────────────────
+// Twenty minutes of price edits used to live only in component state: leave
+// to check the takeoff, come back, and a NEW metered AI call re-priced every
+// line with new numbers. The priced lines are now kept on the device, per
+// project, next to the takeoff they priced.
+//
+// Deliberately NOT under `mageid_takeoff::` — utils/takeoffStorage
+// listTakeoffKeys matches that prefix and would read a draft as a takeoff.
+// `mageid_` keeps it inside the tenant-switch sweep (utils/localCacheKeys).
+const DRAFT_PREFIX = 'mageid_takeoff_estimate_draft::';
+const draftKeyFor = (projectId?: string) => `${DRAFT_PREFIX}${projectId || 'standalone'}`;
+
+interface PricedDraft {
+  /** The takeoff's savedAt when these lines were priced. A different value
+   *  means the takeoff was re-run or edited since, and the draft is stale. */
+  takeoffSavedAt: string;
+  lines: PricedLine[];
+}
+
+async function readDraft(key: string): Promise<PricedDraft | null> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Partial<PricedDraft>;
+    if (typeof d?.takeoffSavedAt !== 'string' || !Array.isArray(d.lines)) return null;
+    const lines = d.lines.filter((l): l is PricedLine =>
+      !!l && typeof l.id === 'string' && typeof l.description === 'string'
+      && typeof l.quantity === 'number' && typeof l.unitPrice === 'number');
+    return lines.length > 0 ? { takeoffSavedAt: d.takeoffSavedAt, lines } : null;
+  } catch (e) {
+    console.warn('[takeoff-estimate] draft read failed:', rawErrorMessage(e));
+    return null;
+  }
+}
+
+async function writeDraft(key: string, draft: PricedDraft): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(draft));
+  } catch (e) {
+    console.warn('[takeoff-estimate] draft write failed:', rawErrorMessage(e));
+  }
+}
+
+async function clearDraft(key: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch (e) {
+    console.warn('[takeoff-estimate] draft clear failed:', rawErrorMessage(e));
+  }
+}
+
 export default function TakeoffEstimateScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -309,6 +366,18 @@ function TakeoffEstimateInner() {
   const [pricing, setPricing] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [lines, setLines] = useState<PricedLine[]>([]);
+  // #89: the saved draft is read before the auto-price effect may run.
+  // `draftChecked` gates it; `staleDraft` holds a draft priced against an
+  // older version of the takeoff, which he decides about (banner below).
+  const draftKey = draftKeyFor(projectId);
+  const [draftChecked, setDraftChecked] = useState(false);
+  const [staleDraft, setStaleDraft] = useState<PricedDraft | null>(null);
+  // Edits he made since the last save — what the leave guard protects.
+  const [dirty, setDirty] = useState(false);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set once the estimate is written, so a pending debounce can't re-create
+  // the draft the save just cleared.
+  const savedRef = useRef(false);
   useBrainFabLift(!pricing && lines.length > 0 ? bottomBarH : 0);
 
   // ── WHAT HE CHARGES IS NOT THIS SCREEN'S TO GUESS ───────────────────────
@@ -357,12 +426,96 @@ function TakeoffEstimateInner() {
     return () => { cancelled = true; };
   }, [projectId]);
 
-  // Once the takeoff loads, kick off the AI pricing call.
+  // Once the takeoff loads, restore his priced draft for THIS takeoff before
+  // anything re-prices it (#89).
   useEffect(() => {
-    if (!takeoff || pricing || lines.length > 0) return;
+    if (!takeoff) return;
+    let cancelled = false;
+    (async () => {
+      const draft = await readDraft(draftKey);
+      if (cancelled) return;
+      if (draft && draft.takeoffSavedAt === takeoff.savedAt) {
+        setLines(draft.lines);
+      } else if (draft) {
+        // The takeoff changed since he priced it. Neither reuse the old
+        // prices silently nor throw them away silently — ask.
+        setStaleDraft(draft);
+      }
+      setDraftChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [takeoff, draftKey]);
+
+  // Then, with no draft to restore, kick off the AI pricing call.
+  useEffect(() => {
+    if (!takeoff || !draftChecked || staleDraft || pricing || lines.length > 0) return;
     void runPricing(takeoff);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [takeoff]);
+  }, [takeoff, draftChecked, staleDraft]);
+
+  // Keep the priced lines on the device (debounced) — AI output and his edits
+  // alike, so coming back is not a second metered pricing call.
+  useEffect(() => {
+    if (!takeoff || !draftChecked || staleDraft || lines.length === 0 || savedRef.current) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const draft: PricedDraft = { takeoffSavedAt: takeoff.savedAt, lines };
+    draftTimerRef.current = setTimeout(() => {
+      draftTimerRef.current = null;
+      if (!savedRef.current) void writeDraft(draftKey, draft);
+    }, 400);
+    return () => {
+      if (draftTimerRef.current) { clearTimeout(draftTimerRef.current); draftTimerRef.current = null; }
+    };
+  }, [lines, takeoff, draftChecked, staleDraft, draftKey]);
+
+  /** The estimate is written: drop the draft and the unsaved-edits flag. */
+  const markSaved = useCallback(() => {
+    savedRef.current = true;
+    if (draftTimerRef.current) { clearTimeout(draftTimerRef.current); draftTimerRef.current = null; }
+    void clearDraft(draftKey);
+    setDirty(false);
+  }, [draftKey]);
+
+  // Leaving with unsaved edits asks first (#89). The header back, the iOS
+  // swipe-back and Android back all REMOVE the screen, so one hook covers them.
+  // The draft makes "Keep for later" honest: the lines come back next time.
+  const navigation = useNavigation();
+  usePreventRemove(dirty && !saving, ({ data }) => {
+    showAlert(
+      'Discard your price edits?',
+      'Keep them for later and they\u2019re restored next time you open this takeoff\u2019s estimate. Discard drops them, and coming back re-prices the takeoff with a new AI call.',
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Keep for later', onPress: () => { setDirty(false); navigation.dispatch(data.action); } },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            savedRef.current = true;
+            if (draftTimerRef.current) { clearTimeout(draftTimerRef.current); draftTimerRef.current = null; }
+            void clearDraft(draftKey);
+            navigation.dispatch(data.action);
+          },
+        },
+      ],
+    );
+  });
+
+  const repriceStale = useCallback(() => {
+    void clearDraft(draftKey);
+    setStaleDraft(null);
+    setLines([]);
+    setDirty(false);
+  }, [draftKey]);
+
+  const keepStale = useCallback(() => {
+    if (!staleDraft) return;
+    setLines(staleDraft.lines);
+    setStaleDraft(null);
+    // Kept against a changed takeoff: his to review and save, so it counts
+    // as unsaved work.
+    setDirty(true);
+  }, [staleDraft]);
 
   const runPricing = useCallback(async (t: PersistedTakeoff) => {
     setPricing(true);
@@ -460,16 +613,18 @@ function TakeoffEstimateInner() {
   );
 
   const totals = useMemo(() => {
-    const subtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+    // The SAME estimate doReplace writes (#91): each line round2(cost × (1+m)),
+    // baseTotal Σ cost, grandTotal Σ of the rounded lines — so the totals bar,
+    // the alert and the stored contract value are one number on the cent grid.
     // An unanswered markup adds NOTHING, rather than the 15% this screen used
     // to invent. The grand total then equals the subtotal, which is the truth:
     // it is his cost. The at-cost band in the totals bar names that out loud —
     // a cost total with nothing saying so is the defect, not the zero.
-    const markup = isMarkupSet(markupPct) ? subtotal * (markupPct / 100) : 0;
+    const est = buildNewEstimate(takeoffCostItems(lines), isMarkupSet(markupPct) ? markupPct : null, 'preview', '');
     return {
-      subtotal,
-      markup,
-      grandTotal: subtotal + markup,
+      subtotal: est.baseTotal,
+      markup: est.markupTotal,
+      grandTotal: est.grandTotal,
     };
   }, [lines, markupPct]);
 
@@ -510,10 +665,14 @@ function TakeoffEstimateInner() {
 
   const updateLine = useCallback((id: string, patch: Partial<PricedLine>) => {
     setLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+    setDirty(true);
+    savedRef.current = false;
   }, []);
 
   const removeLine = useCallback((id: string) => {
     setLines(prev => prev.filter(l => l.id !== id));
+    setDirty(true);
+    savedRef.current = false;
   }, []);
 
   // Snap a line's active unit price to one of its sources.
@@ -527,6 +686,8 @@ function TakeoffEstimateInner() {
         : l.aiUnitPrice;
       return { ...l, unitPrice: price, priceSource: source };
     }));
+    setDirty(true);
+    savedRef.current = false;
   }, []);
 
   const addLine = useCallback(() => {
@@ -543,6 +704,8 @@ function TakeoffEstimateInner() {
     };
     setLines(prev => [...prev, newLine]);
     setEditingLineId(newLine.id);
+    setDirty(true);
+    savedRef.current = false;
   }, []);
 
   const handleRegenerate = useCallback(() => {
@@ -556,6 +719,10 @@ function TakeoffEstimateInner() {
           text: 'Regenerate',
           style: 'destructive',
           onPress: () => {
+            // Regenerate is his explicit "throw these away": the draft goes
+            // with them, and the fresh pricing is saved as the new draft.
+            void clearDraft(draftKey);
+            setDirty(false);
             setLines([]);
             setPricingError(null);
             void runPricing(takeoff);
@@ -563,28 +730,13 @@ function TakeoffEstimateInner() {
         },
       ],
     );
-  }, [takeoff, runPricing]);
+  }, [takeoff, runPricing, draftKey]);
 
-  // Build the per-line estimate items at a given markup %. Shared by the
-  // Replace path (uses the screen's globalMarkup) and the Append path (uses
-  // the existing estimate's effective markup ratio so permits / contingency
-  // baked into that estimate are preserved).
-  const buildItems = useCallback((markupPct: number): LinkedEstimateItem[] =>
-    lines.map(l => ({
-      materialId: l.id,
-      name: l.description,
-      category: l.csiDivision,
-      unit: l.unit,
-      quantity: l.quantity,
-      unitPrice: l.unitPrice,
-      bulkPrice: l.unitPrice,
-      markup: markupPct,
-      usesBulk: false,
-      lineTotal: l.quantity * l.unitPrice * (1 + markupPct / 100),
-      supplier: 'AI Takeoff',
-      csiDivision: l.csiDivision.split(' ')[0],
-    })),
-  [lines]);
+  // The takeoff lines at COST on the cent grid (#91). The markup is applied
+  // by the writer: buildNewEstimate for Replace (his markup), and
+  // appendAtEstimateRatio for Append (the existing estimate's own ratio, so
+  // permits / contingency baked into it carry over). Both round every line.
+  const costItems = useCallback((): LinkedEstimateItem[] => takeoffCostItems(lines), [lines]);
 
   // Replace: wholesale-swap the project estimate with the takeoff lines.
   // commitEstimatePatch snapshots the outgoing estimate as a revision, so
@@ -612,21 +764,18 @@ function TakeoffEstimateInner() {
     }
     setSaving(true);
     try {
-      const items = buildItems(markupPct);
-      const linkedEstimate: LinkedEstimate = {
-        id: generateUUID(),
-        items,
-        globalMarkup: markupPct,
-        baseTotal: totals.subtotal,
-        markupTotal: totals.markup,
-        grandTotal: totals.grandTotal,
-        createdAt: new Date().toISOString(),
-      };
+      // Footed by withMarkup (#91): every lineTotal round2(cost × (1+m)),
+      // grandTotal Σ of those rounded lines. His answered markup is stamped
+      // on the estimate explicitly — it is what every downstream reader takes
+      // as his price.
+      const footed = buildNewEstimate(costItems(), markupPct, generateUUID(), new Date().toISOString());
+      const linkedEstimate: LinkedEstimate = { ...footed, globalMarkup: markupPct };
       updateProject(project.id, commitEstimatePatch(project, linkedEstimate, { reason: 'pre_overwrite' }));
+      markSaved();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
         'Estimate saved',
-        `${lines.length} priced lines saved to ${project.name}. Grand total: ${formatMoney(totals.grandTotal)}.`,
+        `${lines.length} priced lines saved to ${project.name}. Grand total: ${formatMoney(linkedEstimate.grandTotal, 2)}.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
@@ -640,7 +789,7 @@ function TakeoffEstimateInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, buildItems, markupPct, totals, updateProject, router, lines.length]);
+  }, [project, costItems, markupPct, updateProject, router, lines.length, markSaved]);
 
   // Append: add the takeoff lines onto the existing estimate, preserving its
   // items and applying its effective markup ratio to the new base (matches
@@ -650,35 +799,21 @@ function TakeoffEstimateInner() {
     setSaving(true);
     try {
       const est = project.linkedEstimate;
-      // Reuse the estimate's effective markup ratio so permits/contingency
-      // and current markup carry over instead of being recomputed.
       // Unchanged semantics: the existing estimate's own ratio wins, so the
       // permits/contingency and markup already in it carry over. The fallback
       // only fires on a degenerate estimate with no cost base at all, and it
-      // now falls back to NOTHING rather than to a guessed 15% — appending to
-      // an empty base must not invent a markup either.
-      const ratio = est.baseTotal > 0
-        ? est.markupTotal / est.baseTotal
-        : (isMarkupSet(markupPct) ? markupPct / 100 : 0);
-      // Named apart from the screen's `markupPct`: this one is the EXISTING
-      // estimate's realized rate, not his stated markup, and shadowing the
-      // outer name here is how the fallback above would silently read itself.
-      const inheritedMarkupPct = ratio * 100;
-      const newItems = buildItems(inheritedMarkupPct);
-      const addedBase = totals.subtotal;
-      const addedMarkup = addedBase * ratio;
-      const next: LinkedEstimate = {
-        ...est,
-        items: [...est.items, ...newItems],
-        baseTotal: est.baseTotal + addedBase,
-        markupTotal: est.markupTotal + addedMarkup,
-        grandTotal: est.grandTotal + addedBase + addedMarkup,
-      };
+      // falls back to his answered markup or NOTHING — never a guessed 15%.
+      // What changed (#91): each new line is rounded to the cent, and the
+      // totals move by the rounded sums — the existing estimate is NOT
+      // retotalled, which would wipe permits / contingency that sit outside
+      // its items (utils/estimateLanding.appendAtEstimateRatio).
+      const { next } = appendAtEstimateRatio(est, costItems(), markupPct);
       updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Appended from AI takeoff' }));
+      markSaved();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
         'Lines appended',
-        `${lines.length} priced lines added to ${project.name}. New grand total: ${formatMoney(next.grandTotal)}.`,
+        `${lines.length} priced lines added to ${project.name}. New grand total: ${formatMoney(next.grandTotal, 2)}.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
@@ -690,7 +825,7 @@ function TakeoffEstimateInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, buildItems, totals.subtotal, markupPct, updateProject, router, lines.length]);
+  }, [project, costItems, markupPct, updateProject, router, lines.length, markSaved]);
 
   const handleSave = useCallback(() => {
     if (!project) {
@@ -830,6 +965,26 @@ function TakeoffEstimateInner() {
           </View>
         )}
 
+        {/* #89: a draft priced against an older version of this takeoff. */}
+        {staleDraft && !pricing && (
+          <View style={[styles.banner, { backgroundColor: Colors.warningLight }]} testID="takeoff-stale-draft">
+            <AlertTriangle size={16} color={Colors.warningLabel} strokeWidth={1.75} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.bannerText, { color: Colors.warningLabel }]}>
+                Takeoff changed since you priced it — re-price? Your {staleDraft.lines.length} saved priced line{staleDraft.lines.length === 1 ? '' : 's'} came from the earlier takeoff, so their quantities may be out of date.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 16, marginTop: 6 }}>
+                <TouchableOpacity onPress={repriceStale} accessibilityRole="button" testID="takeoff-stale-reprice">
+                  <Text style={[styles.bannerLink, { color: Colors.warningLabel }]}>Re-price with AI</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={keepStale} accessibilityRole="button" testID="takeoff-stale-keep">
+                  <Text style={[styles.bannerLink, { color: Colors.warningLabel }]}>Keep my priced lines</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Source summary */}
         {!pricing && lines.length > 0 && (
           <View style={styles.sourceCard}>
@@ -888,7 +1043,7 @@ function TakeoffEstimateInner() {
           )}
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Subtotal</Text>
-            <Text style={styles.totalsValue}>{formatMoney(totals.subtotal)}</Text>
+            <Text style={styles.totalsValue}>{formatMoney(totals.subtotal, 2)}</Text>
           </View>
           {/* The honesty band. With no answer on file this estimate carries
               nothing on top, and the number under it is his cost — said in as
@@ -914,7 +1069,7 @@ function TakeoffEstimateInner() {
                   : 'Markup — not set'}
               </Text>
             </View>
-            <Text style={styles.totalsValue}>{formatMoney(totals.markup)}</Text>
+            <Text style={styles.totalsValue}>{formatMoney(totals.markup, 2)}</Text>
           </View>
           {/* The ladder, plus his own number, plus free entry. 22% used to be
               unreachable on this screen; every change here routes through
@@ -943,8 +1098,10 @@ function TakeoffEstimateInner() {
                 value={markupInput}
                 onChangeText={(v) => {
                   setMarkupInput(v);
-                  const n = parseFloat(v);
-                  if (Number.isFinite(n) && n >= 0 && n <= 200) chooseMarkup(n);
+                  // parseDecimalInput, not parseFloat: '7,5' from a
+                  // comma-decimal keypad is 7.5%, not 7% (#10).
+                  const n = parseDecimalInput(v);
+                  if (n != null && n >= 0 && n <= 200) chooseMarkup(n);
                 }}
                 keyboardType="decimal-pad"
                 placeholder="Custom"
@@ -956,7 +1113,7 @@ function TakeoffEstimateInner() {
           </ScrollView>
           <View style={[styles.totalsRow, styles.totalsRowGrand]}>
             <Text style={styles.totalsGrandLabel}>Grand Total</Text>
-            <Text style={styles.totalsGrandValue}>{formatMoney(totals.grandTotal)}</Text>
+            <Text style={styles.totalsGrandValue}>{formatMoney(totals.grandTotal, 2)}</Text>
           </View>
           <TouchableOpacity
             style={[styles.saveBtn, (saving || saveBlocked) && styles.saveBtnOff]}
@@ -1022,7 +1179,18 @@ function LineRow({
     setUnit(line.unit);
   }, [line]);
 
-  const lineTotal = (parseFloat(qty) || 0) * (parseFloat(price) || 0);
+  // #148: parseMoneyInput, not parseFloat — '12,500' is twelve thousand five
+  // hundred, not 12, and '1,200' SF is not 1. A box it can't read keeps the
+  // line's current value, and the row says so before he taps Done.
+  const qtyIn = parseMoneyInput(qty);
+  const priceIn = parseMoneyInput(price);
+  const nextQty = qtyIn == null ? line.quantity : Math.max(0, qtyIn);
+  const nextPrice = priceIn == null ? line.unitPrice : Math.max(0, priceIn);
+  const unreadable = [
+    qtyIn == null ? `quantity "${qty}"` : null,
+    priceIn == null ? `unit price "${price}"` : null,
+  ].filter(Boolean) as string[];
+  const lineTotal = nextQty * nextPrice;
 
   if (!editing) {
     return (
@@ -1106,7 +1274,8 @@ function LineRow({
             style={styles.editInputSmall}
             value={qty}
             onChangeText={setQty}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
+            inputMode="decimal"
             placeholder="0"
             placeholderTextColor={themeColors.textMuted}
           />
@@ -1129,15 +1298,21 @@ function LineRow({
             value={price}
             onChangeText={setPrice}
             keyboardType="decimal-pad"
+            inputMode="decimal"
             placeholder="0.00"
             placeholderTextColor={themeColors.textMuted}
           />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.editLabel}>Line Total</Text>
-          <Text style={styles.editLineTotal}>{formatMoney(lineTotal)}</Text>
+          <Text style={styles.editLineTotal}>{formatMoney(lineTotal, 2)}</Text>
         </View>
       </View>
+      {unreadable.length > 0 && (
+        <Text style={styles.editUnreadable} testID={`takeoff-line-unreadable-${line.id}`}>
+          Can&apos;t read the {unreadable.join(' or the ')} — type it like 1200 or 12.50. Done keeps the current {unreadable.length > 1 ? 'values' : 'value'}.
+        </Text>
+      )}
       <View style={styles.editActionsRow}>
         <TouchableOpacity onPress={onRemove} style={styles.deleteBtn}>
           <Trash2 size={14} color={Colors.errorDark} strokeWidth={1.75} />
@@ -1149,15 +1324,16 @@ function LineRow({
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
-            const nextPrice = Math.max(0, parseFloat(price) || 0);
             onCommit({
               description: desc.trim() || line.description,
-              quantity: Math.max(0, parseFloat(qty) || 0),
+              quantity: nextQty,
               unit: unit.trim() || 'EA',
               unitPrice: nextPrice,
               // A hand-typed price is a manual override unless it exactly equals
               // one of the known sources (then keep that source's label).
-              priceSource: nextPrice === line.engineRate?.rate ? 'engine'
+              // An unchanged (or unreadable, so kept) price keeps its source.
+              priceSource: nextPrice === line.unitPrice ? line.priceSource
+                : nextPrice === line.engineRate?.rate ? 'engine'
                 : nextPrice === line.aiUnitPrice ? 'ai' : 'manual',
             });
           }}
@@ -1383,6 +1559,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 6,
     fontSize: Type.bodyCompact.fontSize, color: t.text,
     backgroundColor: Colors.fillSecondary,
+  },
+  editUnreadable: {
+    fontSize: Type.caption1.fontSize,
+    color: t.dangerLabel,
+    marginTop: 6,
+    lineHeight: 17,
   },
   editLineTotal: {
     paddingVertical: 7, paddingHorizontal: 8,

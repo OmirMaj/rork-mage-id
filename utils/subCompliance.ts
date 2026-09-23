@@ -1,6 +1,7 @@
 // utils/subCompliance.ts — what the app is allowed to say about a sub's paperwork.
 //
-// Pure: types-only imports, no React, so bun can run it under a validator.
+// Pure: types-only imports plus utils/calendarDate (itself pure), no React, so
+// bun can run it under a validator.
 //
 // NAV-05 (runtime audit 2026-09-06). This logic used to live module-private in
 // app/(tabs)/subs/index.tsx, where nothing in the ship-check chain could reach
@@ -27,6 +28,8 @@
 // telling a GC that an uninsured sub is cleared to work.
 
 import type { ComplianceStatus, Subcontractor } from '@/types';
+import { calendarDayOf, daysUntilCalendarDay } from '@/utils/calendarDate';
+import type { SubScorecard } from '@/utils/subScorecard';
 
 /**
  * The four things the app can say about a sub's paperwork.
@@ -207,7 +210,7 @@ export function reviewAwardCompliance(
   if (coiMs === null) {
     coi = 'none';
     blockers.push(certs > 0
-      ? `${who} has ${certs === 1 ? 'a certificate' : `${certs} certificates`} in the COI vault but none with a readable expiry date, so the app cannot tell you his insurance is in force. Open the COI vault and add the coverage dates.`
+      ? `${who} has ${certs === 1 ? 'a certificate' : `${certs} certificates`} in the COI vault but none with a readable expiry date, so the app cannot tell you his insurance is in force. Open the COI vault, tap his certificate and type the expiry under Coverages — or enter his COI Expiry on his record in the Subs tab.`
       : `No COI on file for ${who} — nothing in the COI vault and no expiry on his record, so the app cannot tell you he is insured.`);
   } else if (coiMs < nowMs) {
     coi = 'expired';
@@ -232,4 +235,172 @@ export function reviewAwardCompliance(
   }
 
   return { coi, coiExpiryMs: coiMs, blockers, notes };
+}
+
+// ─── COI vault expiry (audit #23 / #40) ─────────────────────────────────────
+//
+// The vault's compliance banner and each sub's row read the expiry ONLY from
+// the latest certificate's coverages, and `continue`d past a certificate with
+// none — which, with the AI read never live, was every certificate. A sub whose
+// expiry the GC had typed on his Subs record was never counted as expired or
+// expiring. Now the certificate's own dates win; with none, the date on the
+// sub's record is used and the row says so; a record date that won't parse is
+// reported as such (no reminders fire for it) rather than skipped silently.
+// Days are CALENDAR days (utils/calendarDate), never Date.parse — a bare
+// 'YYYY-MM-DD' parsed that way is UTC midnight, the previous evening on every
+// US jobsite.
+
+export type VaultCoiSource = 'certificate' | 'record' | 'none';
+
+export interface VaultCoiExpiry {
+  /** The calendar day that decides the status, or null. */
+  day: string | null;
+  source: VaultCoiSource;
+  /** The record holds text that is not a date — say so, don't skip it. */
+  recordUnreadable: boolean;
+}
+
+/** Earliest parseable coverage expiry on one certificate, as a calendar day. */
+export function certificateExpiryDay(coi: { coverages?: { expiresAt?: string }[] } | null | undefined): string | null {
+  let best: string | null = null;
+  for (const c of coi?.coverages ?? []) {
+    const day = calendarDayOf(typeof c?.expiresAt === 'string' ? c.expiresAt.trim() : null);
+    if (day && (!best || day < best)) best = day;
+  }
+  return best;
+}
+
+/**
+ * The expiry the vault shows for a sub: the latest certificate's earliest
+ * coverage expiry, else the COI Expiry typed on the sub's record.
+ */
+export function vaultCoiExpiry(
+  latest: { coverages?: { expiresAt?: string }[] } | null | undefined,
+  sub: Pick<Subcontractor, 'coiExpiry'>,
+): VaultCoiExpiry {
+  const certDay = certificateExpiryDay(latest);
+  if (certDay) return { day: certDay, source: 'certificate', recordUnreadable: false };
+  const raw = (sub.coiExpiry ?? '').trim();
+  const recordDay = raw ? calendarDayOf(raw) : null;
+  if (recordDay) return { day: recordDay, source: 'record', recordUnreadable: false };
+  return { day: null, source: 'none', recordUnreadable: raw.length > 0 };
+}
+
+export interface VaultCoiStatus {
+  key: 'unknown' | 'expired' | 'expiring' | 'active';
+  label: string;
+  tone: 'neutral' | 'bad' | 'warn' | 'good';
+}
+
+/**
+ * Status for a vault expiry. Expired once the expiry day is behind today;
+ * "expiring" inside COMPLIANCE_WARN_DAYS. A date from the sub's record (not a
+ * certificate) says so in the label, so a typed date is never passed off as a
+ * checked one.
+ */
+export function vaultCoiStatus(e: VaultCoiExpiry, now: Date = new Date()): VaultCoiStatus {
+  if (!e.day) {
+    return {
+      key: 'unknown',
+      label: e.recordUnreadable ? 'COI expiry not a date — no reminders' : 'No expiry on file',
+      tone: 'neutral',
+    };
+  }
+  const days = daysUntilCalendarDay(e.day, now);
+  const suffix = e.source === 'record' ? ' (typed on his record)' : '';
+  if (days === null) return { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
+  if (days < 0) return { key: 'expired', label: `Expired${suffix}`, tone: 'bad' };
+  if (days <= COMPLIANCE_WARN_DAYS) {
+    return { key: 'expiring', label: `${days === 0 ? 'Expires today' : `Expires in ${days}d`}${suffix}`, tone: 'warn' };
+  }
+  return { key: 'active', label: `Active${suffix}`, tone: 'good' };
+}
+
+// ─── AI sub evaluation grounding (audit #115) ───────────────────────────────
+//
+// 'AI Evaluate Sub' was told every sub had "0 bids (0 won)" and "Assigned
+// projects: 0" — fields nothing in the app ever fills — and never the signed
+// commitments, CO growth, punch rework or schedule record the scorecard grades
+// him on. A sub the GC had used for years read as unknown, the result could
+// sit beside a green check as a "track record", and it was cached for 24 hours
+// under the sub's id alone. The panel is now grounded in the SAME card the
+// Subs sheet shows above it, says what it read, and re-asks when that changes.
+
+export interface SubEvaluationGrounding {
+  /** The context block sent with the evaluation. */
+  context: string;
+  /** The chip under the panel title: what the model was given to read. */
+  readChip: string;
+  /** True only with a signed commitment on record — gates the track-record line. */
+  hasHistory: boolean;
+  /** Hash of the scorecard inputs, part of the cache key. */
+  inputsHash: string;
+}
+
+function moneyExact(n: number): string {
+  return `$${(Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** djb2 over the string — a cache key, not security. */
+export function hashText(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+/** Short name for a factor in the read chip. */
+function chipName(label: string): string {
+  const l = label.toLowerCase();
+  if (l.includes('change-order')) return 'CO growth';
+  if (l.includes('punch')) return 'punch';
+  if (l.includes('schedule')) return 'schedule';
+  if (l.includes('rfi')) return 'RFIs';
+  if (l.includes('cost')) return 'cost';
+  return l;
+}
+
+/**
+ * The grounding for one sub, from the scorecard card computed on the Subs
+ * sheet plus the jobs his signed commitments are on. Every number is what the
+ * card says; nothing is inferred.
+ */
+export function buildSubEvaluationGrounding(opts: {
+  card: SubScorecard | null;
+  /** Names of the jobs his non-draft commitments are on (deduped by caller or here). */
+  awardedJobNames: string[];
+  /** Every project on the GC's books, ANY status (closed and completed jobs
+   *  included) — labelled that way to the model, never as "active". */
+  projectsOnFileCount: number;
+}): SubEvaluationGrounding {
+  const { card } = opts;
+  const jobs = [...new Set(opts.awardedJobNames.map(n => n.trim()).filter(Boolean))];
+  const lines: string[] = [];
+  const notTracked = 'Not tracked in MAGE ID: bid history and assigned-project lists. Their empty values are NOT evidence of a missing track record — do not read them as one.';
+  if (!card) {
+    lines.push('No scorecard could be computed for this sub.', notTracked);
+    const context = lines.join('\n');
+    return { context, readChip: 'Read: paperwork only', hasHistory: false, inputsHash: hashText(context) };
+  }
+  const hasHistory = !card.noHistory && card.commitmentCount > 0;
+  lines.push(`Scorecard computed by MAGE ID from the contractor's own records: grade ${card.grade}, ${card.score}/100, ${card.confidence} confidence.`);
+  if (hasHistory) {
+    lines.push(`Signed commitments on record in MAGE ID: ${card.commitmentCount} (${card.closedCommitmentCount} closed), totalling ${moneyExact(card.totalVolume)}.`);
+    if (jobs.length > 0) lines.push(`Jobs awarded to this sub: ${jobs.join(', ')}.`);
+  } else {
+    lines.push('No signed commitments on record in MAGE ID — there is no track record here yet. The score grades compliance paperwork only; say so rather than calling it good or bad.');
+  }
+  const applicable = card.factors.filter(f => f.applicable);
+  for (const f of card.factors) {
+    lines.push(`- ${f.label}: ${f.applicable ? `${Math.round(f.score * 100)}/100 — ${f.detail}` : `not measured (${f.detail})`}`);
+  }
+  lines.push(notTracked);
+  // Review round 1: this said "Active projects" but was fed projects.length,
+  // which counts closed and completed jobs too — a wrong number stated as fact.
+  lines.push(`Projects on file for this contractor (every status, closed jobs included): ${opts.projectsOnFileCount}.`);
+  const context = lines.join('\n');
+  const measured = [...new Set(applicable.map(f => chipName(f.label)))];
+  const readChip = hasHistory
+    ? `Read: ${card.commitmentCount} commitment${card.commitmentCount === 1 ? '' : 's'}${measured.length ? `, ${measured.join(', ')}` : ''}`
+    : 'Read: no commitments on record, paperwork only';
+  return { context, readChip, hasHistory, inputsHash: hashText(context) };
 }

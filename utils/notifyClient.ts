@@ -48,9 +48,27 @@ export interface NotifyPayload {
 }
 
 /**
- * Fire a notification event. Resolves to true only when the dispatcher actually
- * accepted and handled the event; false otherwise. Never throws — by design,
- * notify failures should never crash the user's flow.
+ * What happened to one notify call. `handled` is true only when the dispatcher
+ * said it handled the event; `reason` names why not:
+ *   - a dispatcher refusal, read from the 200 envelope's `result.reason`
+ *     (`unknown_event`, `no_gc_resolved`, and — once w5-join-server lands it —
+ *     `suppressed_unsubscribed` / `email_send_failed` / `no_recipient` from
+ *     the bid_invite_sent branch);
+ *   - or a transport failure: `not_configured`, `http_<status>`, `unreachable`.
+ * A screen that must say WHY an email did not go ("<email> unsubscribed from
+ * invitation emails — text them the link") needs the reason, not a boolean
+ * (#94): a generic "could not hand the email off" sends the GC to re-send a
+ * mail that can never arrive. Which reasons are worth retrying is
+ * utils/bidInvitePending.isRetryableNotifyReason's call.
+ */
+export interface NotifyOutcome {
+  handled: boolean;
+  reason?: string;
+}
+
+/**
+ * Fire a notification event and report exactly what the dispatcher said. Never
+ * throws — by design, notify failures should never crash the user's flow.
  *
  * A 2xx is NOT enough. `notify` answers an event its switch does not know with
  * `{ok:false, reason:'unknown_event'}` and no `httpStatus`, which the serve
@@ -61,11 +79,11 @@ export interface NotifyPayload {
  * when nothing left the building. The envelope is the answer; the status code
  * is only the transport.
  */
-export async function notifyEvent(event: NotifyEventType, payload: NotifyPayload): Promise<boolean> {
-  if (!isSupabaseConfigured) return false;
+export async function notifyEventDetailed(event: NotifyEventType, payload: NotifyPayload): Promise<NotifyOutcome> {
+  if (!isSupabaseConfigured) return { handled: false, reason: 'not_configured' };
   if (!SUPABASE_ANON_KEY) {
     console.warn('[notifyClient] no anon key; skipping');
-    return false;
+    return { handled: false, reason: 'not_configured' };
   }
   try {
     const session = await supabase.auth.getSession();
@@ -85,22 +103,34 @@ export async function notifyEvent(event: NotifyEventType, payload: NotifyPayload
     const text = await r.text().catch(() => '');
     if (!r.ok) {
       console.warn('[notifyClient]', event, 'failed', r.status, text.slice(0, 160));
-      return false;
+      return { handled: false, reason: `http_${r.status}` };
     }
     // Unreadable body on a 2xx: the request landed, and we have nothing that
     // says the dispatcher refused it. Treat that as sent rather than inventing
     // a failure the user would act on.
     let envelope: { success?: unknown; error?: unknown; result?: { ok?: unknown; reason?: unknown } } | null = null;
     try { envelope = text ? JSON.parse(text) : null; } catch { envelope = null; }
-    if (!envelope || typeof envelope !== 'object') return true;
+    if (!envelope || typeof envelope !== 'object') return { handled: true };
     const handled = envelope.success !== false && envelope.result?.ok !== false;
     if (!handled) {
-      console.warn('[notifyClient]', event, 'not handled', envelope.result?.reason ?? envelope.error ?? 'unknown');
-      return false;
+      const why = envelope.result?.reason ?? envelope.error ?? 'refused';
+      console.warn('[notifyClient]', event, 'not handled', why);
+      return { handled: false, reason: typeof why === 'string' ? why : 'refused' };
     }
-    return true;
+    return { handled: true };
   } catch (e) {
     console.warn('[notifyClient]', event, 'threw', e);
-    return false;
+    return { handled: false, reason: 'unreachable' };
   }
+}
+
+/**
+ * Fire a notification event. Resolves to true only when the dispatcher actually
+ * accepted and handled the event; false otherwise. The boolean wrapper every
+ * existing caller uses — see notifyEventDetailed for the reason.
+ */
+export async function notifyEvent(event: NotifyEventType, payload: NotifyPayload): Promise<boolean> {
+  const outcome = await notifyEventDetailed(event, payload);
+  if (!outcome.handled) return false;
+  return true;
 }

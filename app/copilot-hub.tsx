@@ -24,6 +24,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { INTENTS } from '@/utils/copilot/intentTable';
 import { splitIntents, type SplitAction } from '@/utils/copilot/splitIntents';
+import { hubOutcome, showAskMage, tileSeed, NO_MATCH_COPY, type HubOutcome } from '@/utils/copilot/hubRouting';
+import { useProjects } from '@/contexts/ProjectContext';
 import { isQuestionShaped } from '@/utils/oneMind/resolveScope';
 import { MageAIMark } from '@/components/icons';
 import * as Clipboard from 'expo-clipboard';
@@ -61,8 +63,13 @@ export default function CopilotHubScreen() {
   const [text, setText] = useState('');
   const [pasting, setPasting] = useState(false);
   const [thinking, setThinking] = useState(false);
-  const [noMatch, setNoMatch] = useState(false);
+  // The last router outcome: no_match / failed show a line under Continue.
+  const [outcome, setOutcome] = useState<HubOutcome | null>(null);
   const [queue, setQueue] = useState<SplitAction[]>([]);
+  // The hub passes projectId straight through to /copilot (which picks a job
+  // itself when there is none, #34); it just names the job it was opened on.
+  const { projects } = useProjects();
+  const forJob = projectId ? projects.find((p) => p.id === projectId)?.name : undefined;
 
   const open = useCallback((capabilityId: CopilotCapabilityId, seed?: string) => {
     router.push({
@@ -93,7 +100,7 @@ export default function CopilotHubScreen() {
         return;
       }
       setText(clip);
-      setNoMatch(false);
+      setOutcome(null);
       setQueue([]);
     } catch {
       showAlert('Could not read the clipboard', 'Paste the text into the box instead.');
@@ -106,13 +113,14 @@ export default function CopilotHubScreen() {
     const utterance = text.trim();
     if (!utterance || thinking) return;
     setThinking(true);
-    setNoMatch(false);
+    setOutcome(null);
     setQueue([]);
-    const found = await splitIntents(utterance);
+    const res = await splitIntents(utterance);
     setThinking(false);
-    if (found.length === 1) router.replace({ pathname: '/copilot', params: { capabilityId: found[0].capabilityId, projectId: projectId ?? '', seed: found[0].text } } as never);
-    else if (found.length > 1) setQueue(found);
-    else setNoMatch(true);
+    const o = hubOutcome(res);
+    if (o.kind === 'route') router.replace({ pathname: '/copilot', params: { capabilityId: o.action.capabilityId, projectId: projectId ?? '', seed: o.action.text } } as never);
+    else if (o.kind === 'queue') setQueue(o.actions);
+    else setOutcome(o);
   }, [text, thinking, projectId, router]);
 
   return (
@@ -129,6 +137,7 @@ export default function CopilotHubScreen() {
         <Text style={styles.eyebrow}>JUST TELL ME WHAT YOU NEED</Text>
         <Text style={styles.question}>What are we doing?</Text>
         <Text style={styles.hint}>“LOG TODAY’S REPORT”  ·  “OWNER WANTS A HEAT PUMP”  ·  “RFI ON THE BEAM SIZE”</Text>
+        {!!forJob && <Text style={styles.forJob} numberOfLines={1} testID="copilot-hub-job">For {forJob}</Text>}
 
         {/* An inbound email is the single biggest source of unlogged work for a
             PM. splitIntents already turns one input into several filed
@@ -150,7 +159,7 @@ export default function CopilotHubScreen() {
         <TextInput
           style={styles.input}
           value={text}
-          onChangeText={(t) => { setText(t); setNoMatch(false); }}
+          onChangeText={(t) => { setText(t); setOutcome(null); }}
           placeholder="Say it in your own words…"
           placeholderTextColor={colors.textMuted}
           multiline
@@ -167,10 +176,13 @@ export default function CopilotHubScreen() {
             ? <ActivityIndicator color={Colors.textOnAccent} />
             : <Text style={styles.goBtnText}>Continue</Text>}
         </TouchableOpacity>
-        {noMatch && (
-          <Text style={styles.noMatch}>Not sure which one that is — pick below.</Text>
+        {outcome?.kind === 'no_match' && (
+          <Text style={styles.noMatch}>{NO_MATCH_COPY}</Text>
         )}
-        {noMatch && isQuestionShaped(text) && (
+        {outcome?.kind === 'failed' && (
+          <Text style={styles.noMatch} testID="copilot-hub-failed">{outcome.message}</Text>
+        )}
+        {showAskMage(outcome, isQuestionShaped(text)) && (
           // Question-shaped utterance with no capability match → hand off to
           // Ask MAGE (One Mind). The hub stays the universal front door:
           // Copilot DOES things, Ask KNOWS things.
@@ -222,7 +234,9 @@ export default function CopilotHubScreen() {
               <TouchableOpacity
                 key={i.id}
                 style={styles.card}
-                onPress={() => open(i.id)}
+                // Whatever is in the box comes along (#118) — picking a tile
+                // after a failed or unmatched route never means retyping.
+                onPress={() => open(i.id, tileSeed(text))}
                 activeOpacity={0.85}
                 testID={`copilot-hub-${i.id}`}
               >
@@ -278,6 +292,7 @@ function makeStyles(colors: ThemeColors) {
     goBtnDisabled: { opacity: 0.4 },
     goBtnText: { ...Type.subheadEmphasized, color: Colors.textOnAccent },
     noMatch: { ...Type.footnote, color: colors.textMuted, textAlign: 'center', marginTop: Tokens.spacing.xs },
+    forJob: { ...Type.monoLabel, color: colors.textSecondary, marginTop: -Tokens.spacing.xs, marginBottom: Tokens.spacing.xs },
     queueWrap: { gap: Tokens.spacing.xs, marginTop: Tokens.spacing.md },
     queueLabel: { ...Type.monoLabel, color: colors.accent, marginBottom: Tokens.spacing.xxs },
     queueSub: { ...Type.footnote, color: colors.textMuted, marginTop: 1 },

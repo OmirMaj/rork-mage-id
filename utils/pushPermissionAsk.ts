@@ -2,8 +2,9 @@
 // dialog, and when it must stay silent forever.
 //
 // WHY THIS EXISTS. The entire outbound stack addresses a device by the token on
-// profiles.push_token: the notify edge function, notification_outbox,
-// morning-digest, invoice-dunning. utils/notifications.ts only returns a token
+// profiles.push_token: the notify edge function (and the notification_outbox
+// rows it writes), morning-digest and bidQuestionsEngine. (invoice-dunning
+// sends no pushes — it emails the CLIENT.) utils/notifications.ts only returns a token
 // when permission is ALREADY granted unless the caller passes `prompt: true`,
 // and for a long time the only caller that did was the toggle buried in
 // app/notifications-settings.tsx. A user who never went looking for that toggle
@@ -94,12 +95,52 @@ export function decidePushAsk(input: PushAskInput): PushAskDecision {
   return { ask: true, because: 'first ask, at a moment the value is on screen' };
 }
 
+/**
+ * What "Notify me" actually turns on, one entry per notification the ask
+ * names. Tapping it calls NotificationContext.enablePush() and NOTHING else —
+ * it registers the device token; it switches no sender on. So a claim is
+ * allowed here only if its push is ON BY DEFAULT once a token exists: each is a
+ * notify edge-function event pushed to the GC through dispatchOne('gc', …),
+ * gated by prefAllows(), which is true until he mutes that prefKey.
+ *
+ * Two claims were removed for being untrue (audit 2026-09-23 #132):
+ *   • "plus a short brief each morning" — the brief is morning-digest, which
+ *     only runs for profiles.digest_enabled = true, and that column defaults
+ *     to false. Nothing in this flow sets it, so the promised brief never came.
+ *   • "or lets an invoice go past due" — invoice-dunning emails the CLIENT;
+ *     no sender pushes the GC when an invoice goes past due. It is replaced by
+ *     the payment push that does exist (client_invoice_paid → prefKey
+ *     invoice_paid).
+ *
+ * scripts/validate-w5-push-unsub-copy.ts builds every body's claim clause from
+ * this list and checks each entry against notify's source, so a new claim
+ * cannot ship without a sender that sends it by default.
+ */
+export const PUSH_ASK_CLAIMS = [
+  { phrase: 'approves a change order', event: 'co_approval', prefKey: 'co_approval' },
+  { phrase: 'sends a message from the portal', event: 'portal_message', prefKey: 'portal_message' },
+  { phrase: 'pays an invoice', event: 'client_invoice_paid', prefKey: 'invoice_paid' },
+] as const;
+
+/** The three claims are examples, not the whole list: notify also pushes the
+ *  GC by default for a signed contract, a sub's invoice, a selection, a punch
+ *  item marked ready, a filed field report, bid questions, website leads and
+ *  more (every dispatchOne('gc', …) gated only by prefAllows). The body used to
+ *  say "Nothing else." after the three — as false as the brief it replaced
+ *  (review of #132). This says what is true and where each one is muted. */
+export const PUSH_ASK_OTHERS_NOTE = 'It also alerts you to other job events; you can mute any of them in Settings → Push & email preferences.';
+
+/** The honest pointer to the brief: it exists, it is off, and this is where
+ *  it is turned on (Settings → "Push & email preferences" → AI morning digest). */
+export const PUSH_ASK_BRIEF_NOTE = 'A morning brief is off unless you turn it on in Settings → Push & email preferences.';
+
 export interface PushAskCopy {
   title: string;
-  /** What we would actually send. Every claim below maps to a sender that
-   *  exists: co_approval and portal_message come from the notify edge
-   *  function, the past-due nudge from invoice-dunning, the morning brief from
-   *  morning-digest. Nothing here promises a notification the app cannot
+  /** What we would actually send — the PUSH_ASK_CLAIMS (examples, each a push
+   *  that is on by default once the token is registered), the note that other
+   *  job alerts come too and can be muted, and the brief note. The
+   *  morning brief is NOT promised: "Notify me" doesn't turn it on (see
+   *  PUSH_ASK_CLAIMS). Nothing here promises a notification the app will not
    *  produce. */
   body: string;
   /** The affirmative button. The soft ask is a real question, so the decline is
@@ -112,13 +153,13 @@ export interface PushAskCopy {
 export const PUSH_ASK_COPY: Record<PushAskMoment, PushAskCopy> = {
   estimate_shared: {
     title: 'Want to know when they respond?',
-    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or lets an invoice go past due — plus a short brief each morning. Nothing else.',
+    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings → Push & email preferences. A morning brief is off unless you turn it on in Settings → Push & email preferences.',
     confirm: 'Notify me',
     decline: 'Not now',
   },
   project_created: {
     title: 'Want this job to reach you?',
-    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or lets an invoice go past due — plus a short brief each morning. Nothing else.',
+    body: 'MAGE can notify you when a client approves a change order, sends a message from the portal, or pays an invoice. It also alerts you to other job events; you can mute any of them in Settings → Push & email preferences. A morning brief is off unless you turn it on in Settings → Push & email preferences.',
     confirm: 'Notify me',
     decline: 'Not now',
   },

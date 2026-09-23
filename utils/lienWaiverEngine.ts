@@ -22,6 +22,7 @@
 // subcontractor's signature.
 
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -34,6 +35,7 @@ import { formatCalendarDay } from './calendarDate';
 import { generateUUID } from './generateId';
 import { sendEmail } from './emailService';
 import { wrapEmailHtml, emailDivider } from './emailLayout';
+import { openPrintWindowOrThrow } from './platformFile';
 import type {
   LienWaiver, LienWaiverType, LienWaiverStatus,
   CompanyBranding, ContractSignature,
@@ -152,10 +154,256 @@ export async function saveLienWaiver(w: Partial<LienWaiver> & { id?: string; pro
   return rowToWaiver(data as LienWaiverRow);
 }
 
+/**
+ * True only when a row was actually deleted.
+ *
+ * `.select('id')` is what makes this checked (#30): a PostgREST delete that
+ * RLS filters down to nothing answers 204 with `error: null`, byte-identical to
+ * a real delete — so the screen dropped the card, the row stayed on the server,
+ * and it came back on the next load with nothing said in between.
+ */
 export async function deleteLienWaiver(id: string): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
-  const { error } = await supabase.from('lien_waivers').delete().eq('id', id);
-  return !error;
+  const { data, error } = await supabase.from('lien_waivers').delete().eq('id', id).select('id');
+  return !error && Array.isArray(data) && data.length > 0;
+}
+
+// ─── Checked reads + narrow writes (#30, #31) ───────────────────────
+//
+// fetchLienWaiversForProject answers `[]` for "no waivers" AND for "the read
+// failed", and the screen rendered both as "No waivers yet" — at a jobsite with
+// no bars, on a job whose subs had signed their releases. Its signature stays
+// (closeout binder, handover, project detail and the sub portal import it);
+// the checked variant below is what a screen that must tell the two apart uses.
+
+/** Per-project cache of the last list this phone read successfully. Under the
+ *  `mageid_` prefix, so the tenant-switch sweep in AuthContext removes it. */
+export const LIEN_WAIVER_CACHE_PREFIX = 'mageid_lien_waivers_';
+
+export interface LienWaiverCache {
+  waivers: LienWaiver[];
+  /** ISO instant of the read this list came from. */
+  savedAt: string;
+}
+
+export async function readLienWaiverCache(projectId: string): Promise<LienWaiverCache | null> {
+  try {
+    const raw = await AsyncStorage.getItem(LIEN_WAIVER_CACHE_PREFIX + projectId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LienWaiverCache>;
+    if (!Array.isArray(parsed.waivers) || typeof parsed.savedAt !== 'string') return null;
+    return { waivers: parsed.waivers, savedAt: parsed.savedAt };
+  } catch {
+    // A cache is a convenience. Unreadable storage means "nothing cached",
+    // never a crash on the screen that asked.
+    return null;
+  }
+}
+
+async function writeLienWaiverCache(projectId: string, waivers: LienWaiver[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(LIEN_WAIVER_CACHE_PREFIX + projectId, JSON.stringify({ waivers, savedAt: new Date().toISOString() }));
+  } catch { /* the list on screen is still right; only the offline copy is stale */ }
+}
+
+/**
+ * The waivers on a job, with a failed read reported as a failure (CONTRACT 6).
+ * A successful read also becomes this phone's offline copy of the list.
+ */
+export async function loadLienWaiversChecked(
+  projectId: string,
+): Promise<{ ok: true; waivers: LienWaiver[] } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  try {
+    const { data, error } = await supabase
+      .from('lien_waivers')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+    if (error) return { ok: false, error: error.message || 'The waiver list could not be read.' };
+    const waivers = (data ?? []).map(r => rowToWaiver(r as LienWaiverRow));
+    await writeLienWaiverCache(projectId, waivers);
+    return { ok: true, waivers };
+  } catch (e) {
+    // supabase-js rejects (rather than answering { error }) on a dropped
+    // connection in some runtimes; that is the offline case, not a crash.
+    return { ok: false, error: e instanceof Error ? e.message : 'The waiver list could not be read.' };
+  }
+}
+
+/** One waiver, re-read from the server — `waiver: null` when it is gone. */
+export async function fetchLienWaiverChecked(
+  id: string,
+): Promise<{ ok: true; waiver: LienWaiver | null } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  try {
+    const { data, error } = await supabase.from('lien_waivers').select('*').eq('id', id).maybeSingle();
+    if (error) return { ok: false, error: error.message || 'The waiver could not be read.' };
+    return { ok: true, waiver: data ? rowToWaiver(data as LienWaiverRow) : null };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'The waiver could not be read.' };
+  }
+}
+
+/**
+ * Create a waiver and say WHY when it fails — saveLienWaiver answers a bare
+ * null, and "Save failed" read the same for no signal, a signed-out session and
+ * a job the account cannot write to.
+ */
+export async function createLienWaiverChecked(
+  w: Parameters<typeof saveLienWaiver>[0],
+): Promise<{ ok: true; waiver: LienWaiver } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  try {
+    const session = await supabase.auth.getSession();
+    const userId = session.data.session?.user?.id;
+    if (!userId) return { ok: false, error: 'You are signed out. Sign in again and retry.' };
+    const { data, error } = await supabase
+      .from('lien_waivers')
+      .insert({
+        ...(w.id ? { id: w.id } : {}),
+        project_id: w.projectId,
+        user_id: userId,
+        commitment_id: w.commitmentId ?? null,
+        invoice_id: w.invoiceId ?? null,
+        waiver_type: w.waiverType,
+        sub_company_id: w.subCompanyId ?? null,
+        sub_name: w.subName,
+        sub_email: w.subEmail ?? null,
+        through_date: w.throughDate,
+        paid_amount: w.paidAmount,
+        status: w.status ?? 'requested',
+        notes: w.notes ?? '',
+      })
+      .select('*')
+      .maybeSingle();
+    if (error || !data) return { ok: false, error: error?.message || 'The waiver was not saved.' };
+    return { ok: true, waiver: rowToWaiver(data as LienWaiverRow) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'The waiver was not saved.' };
+  }
+}
+
+/**
+ * Change ONLY the status (#31). handleStatusChange used to upsert the whole
+ * card it was pressed on, so a stale copy rewrote the sub's email, the notes
+ * and the amount with whatever this phone last saw. The server's BEFORE UPDATE
+ * guard (20260923130000) clears the signing token when this voids a waiver.
+ *
+ * `waiver: null` = the update matched no row (deleted on another device, or not
+ * this account's to change).
+ */
+export async function updateLienWaiverStatus(
+  id: string,
+  status: LienWaiverStatus,
+): Promise<{ ok: true; waiver: LienWaiver | null } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  try {
+    const { data, error } = await supabase
+      .from('lien_waivers')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message || 'The waiver was not changed.' };
+    return { ok: true, waiver: data ? rowToWaiver(data as LienWaiverRow) : null };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'The waiver was not changed.' };
+  }
+}
+
+export type RecordPaperResult =
+  | { ok: true; waiver: LienWaiver }
+  /** The row was signed before this write landed — the sub e-signed, or
+   *  another device recorded paper. `waiver` is the row as it now stands. */
+  | { ok: false; reason: 'already_signed'; waiver: LienWaiver | null }
+  | { ok: false; reason: 'failed'; error: string };
+
+/**
+ * Record a paper original the GC holds — ONLY while the row is unsigned.
+ *
+ * It used to be an unconditional upsert of the card the GC was looking at,
+ * which on a card still reading REQUESTED replaced the sub's electronic
+ * signature, consent record and user agent with `{ role: 'gc' }` (#31). The
+ * `.is('signed_at', null)` filter asks the row itself, inside the statement.
+ *
+ * The signing token is deliberately LEFT on the row. lien_waiver_submit_signature
+ * never overwrites a signed row (it answers already_signed), so a live token on
+ * a signed waiver can only show the sub "This waiver is already signed" — which
+ * is true. Nulling it would instead tell him "This link no longer works… open
+ * the most recent email", sending him to look for an email that was never sent.
+ */
+export async function recordPaperLienWaiver(id: string, name: string): Promise<RecordPaperResult> {
+  if (!isSupabaseConfigured) return { ok: false, reason: 'failed', error: 'No backend configured.' };
+  const now = new Date().toISOString();
+  try {
+    const { data, error } = await supabase
+      .from('lien_waivers')
+      .update({
+        status: 'signed',
+        signed_at: now,
+        // role 'gc': the contractor attesting to a paper original. Never
+        // 'sub' — only the token-gated signing page writes that.
+        sub_signature: { name, role: 'gc', signedAt: now },
+        updated_at: now,
+      })
+      .eq('id', id)
+      .is('signed_at', null)
+      .select('*')
+      .maybeSingle();
+    if (error) return { ok: false, reason: 'failed', error: error.message || 'The waiver was not changed.' };
+    if (data) return { ok: true, waiver: rowToWaiver(data as LienWaiverRow) };
+    // No row matched: signed underneath us, or gone. Ask the row which.
+    const live = await fetchLienWaiverChecked(id);
+    if (live.ok && live.waiver?.signedAt) return { ok: false, reason: 'already_signed', waiver: live.waiver };
+    return { ok: false, reason: 'failed', error: live.ok ? 'This waiver is no longer on the job.' : live.error };
+  } catch (e) {
+    return { ok: false, reason: 'failed', error: e instanceof Error ? e.message : 'The waiver was not changed.' };
+  }
+}
+
+// ─── Who may work this screen (#29 interim, productDecision #29) ────
+//
+// Lien waivers are owner-only until the founder decides otherwise. An invited
+// PM or viewer used to open the screen, read "No waivers yet" (RLS shows each
+// account only its own rows), create waivers under HIS account that the GC
+// never saw, and email subs signing links naming HIS company. The server now
+// refuses that insert (lw_gc_insert checks project ownership, 20260923130000);
+// this is the sentence the screen says instead of offering it.
+
+export const LIEN_WAIVER_OWNER_ONLY_MESSAGE =
+  'Lien waivers are issued by the job\'s owner. Ask them to request this release.';
+
+export type LienWaiverAccessGate =
+  | { kind: 'allow' }
+  | { kind: 'loading' }
+  | { kind: 'error' }
+  | { kind: 'blocked'; message: string };
+
+/**
+ * The gate, pure so a validator can run it. `ownerCompany` is named only when
+ * the caller actually knows it — a guessed company on a legal-document screen
+ * is worse than none.
+ */
+export function lienWaiverAccessGate(
+  s: { role: 'owner' | 'editor' | 'viewer' | 'field' | null; isLoading: boolean; isError: boolean; isPaused?: boolean; reason?: string },
+  ownerCompany?: string | null,
+): LienWaiverAccessGate {
+  if (s.role === 'owner') return { kind: 'allow' };
+  if (s.role === null) {
+    // Still resolving is a wait, never the paywall and never a refusal.
+    if (s.isLoading) return { kind: 'loading' };
+    if (s.isError) return { kind: 'error' };
+    if (s.isPaused && s.reason) return { kind: 'blocked', message: s.reason };
+    return { kind: 'blocked', message: 'You are not on this job, so its lien waivers are not shown here. Ask the project owner to invite you.' };
+  }
+  const company = (ownerCompany ?? '').trim();
+  return {
+    kind: 'blocked',
+    message: company
+      ? `Lien waivers are issued by the job's owner (${company}). Ask them to request this release.`
+      : LIEN_WAIVER_OWNER_ONLY_MESSAGE,
+  };
 }
 
 // ─── Display helpers + the printable document ───────────────────────
@@ -181,12 +429,10 @@ export async function shareLienWaiverPDF(
   const projectName = ctx.projectName;
   const title = `${WAIVER_LABELS[waiver.waiverType].short} Lien Waiver — ${projectName}`;
   if (Platform.OS === 'web') {
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-      newWindow.print();
-    }
+    // CONTRACT 25 (#147): a blocked pop-up THROWS, so the screen says so
+    // through pdfFailureMessage instead of a success haptic over nothing.
+    // Reached before any await, so the window still opens inside the tap.
+    openPrintWindowOrThrow(html);
     return;
   }
   const { uri } = await Print.printToFileAsync({ html, base64: false });

@@ -23,6 +23,11 @@ import {
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
+import { SAMPLE_PROJECT_PREFIX } from '@/utils/projectCap';
+import { todayCalendarDay } from '@/utils/calendarDate';
+
+/** The example schedule's project — a sample, so the free cap never counts it. */
+const EXAMPLE_SCHEDULE_PROJECT_NAME = `${SAMPLE_PROJECT_PREFIX}Residential Build`;
 
 export default function DiscoverScheduleTool() {
   const insets = useSafeAreaInsets();
@@ -87,13 +92,28 @@ export default function DiscoverScheduleTool() {
         // Seed the real 35-task residential demo schedule — NOT a free-form AI
         // modal. Creates a new project (same pattern as the former AI generate
         // path) so the user has something concrete to explore immediately.
+        //
+        // It is DEMO data, so it carries the exact 'Sample — ' prefix (audit
+        // wave 5, #59). Named 'Example: …' it counted as a real project on the
+        // client AND in the server's cap trigger, so one tap quietly used up a
+        // free user's only project and his real first job was paywalled. Repeat
+        // taps open the example already made instead of stacking copies.
+        const existing = projects.find(
+          p => p.name === EXAMPLE_SCHEDULE_PROJECT_NAME && (p.schedule?.tasks?.length ?? 0) > 0,
+        );
+        if (existing) {
+          openSchedule(existing.id);
+          break;
+        }
         const demoTasks = seedDemoSchedule();
         const now = new Date().toISOString();
         const newProject: Project = {
           id: createId('project'),
-          name: 'Example: Residential Build',
+          name: EXAMPLE_SCHEDULE_PROJECT_NAME,
           type: 'new_build',
-          location: 'United States',
+          // No location: 'United States' geocoded to the country centroid and
+          // put a fake pin (and fake weather) on a demo job.
+          location: '',
           squareFootage: 2200,
           quality: 'standard',
           description: 'Demo schedule — 35 tasks, 6 phases, realistic dependencies.',
@@ -107,7 +127,9 @@ export default function DiscoverScheduleTool() {
           newProject.id,
           demoTasks,
           undefined,
-          { startDate: now.slice(0, 10) },
+          // His local calendar day — the UTC slice read as tomorrow on a US
+          // evening.
+          { startDate: todayCalendarDay() },
         );
         newProject.schedule = { ...demoSchedule, projectId: newProject.id, updatedAt: now };
         addProject(newProject);
@@ -122,7 +144,7 @@ export default function DiscoverScheduleTool() {
         router.push('/schedule-wizard?scratch=1' as any);
         break;
     }
-  }, [addProject, openSchedule, router]);
+  }, [addProject, openSchedule, projects, router]);
 
   return (
     <View style={s.container}>

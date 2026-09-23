@@ -24,7 +24,7 @@ export function copilotReducer<Draft = any>(s: CopilotState<Draft>, a: CopilotAc
     case 'AI_DRAFT': {
       const resolvedFields = new Set(s.resolved.map(r => r.field));
       const resolved = [...s.resolved, ...a.resolved.filter(r => !resolvedFields.has(r.field))];
-      if (a.ready) return { ...s, phase: 'review', draft: a.draft, resolved, currentGap: null };
+      if (a.ready) return { ...s, phase: 'review', draft: a.draft, resolved, currentGap: null, ...(a.note ? { reviewNote: a.note } : {}) };
       if (a.nextGap) return { ...s, phase: 'asking', draft: a.draft, resolved, currentGap: a.nextGap };
       return { ...s, phase: 'confirming', draft: a.draft, resolved, currentGap: null };
     }
@@ -50,6 +50,16 @@ export function copilotReducer<Draft = any>(s: CopilotState<Draft>, a: CopilotAc
         questionCount: s.questionCount + 1,
         currentGap: null,
       };
+    case 'PATCH_DRAFT':
+      // Review-phase writes (the priced estimate, a picked markup). Phase is
+      // untouched: patching is not a turn and costs no AI call.
+      return { ...s, draft: { ...s.draft, ...a.patch } };
+    case 'BACK_TO_REVIEW':
+      // From a Build (apply) error back to the review card with the draft he
+      // already built — never a re-dictation, which would cost another AI
+      // turn and hit the same failure (#34). Only when there is a draft.
+      if (s.phase !== 'error') return s;
+      return { ...s, phase: 'review', errorKind: undefined, errorMessage: undefined };
     case 'CONFIRM':
       return { ...s, phase: 'applying' };
     case 'APPLY_OK':

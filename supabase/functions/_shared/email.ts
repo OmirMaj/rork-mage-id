@@ -9,8 +9,9 @@
 //
 // Deno-friendly (no Node-specific APIs, no relative-path imports past
 // .. once). The HTML/template helpers are pure and return strings; the
-// two network helpers — resendSend (Resend) and isEmailUnsubscribed
-// (the is_email_unsubscribed RPC) — are the file's only I/O.
+// three network helpers — resendSend (Resend), isEmailUnsubscribed
+// (the is_email_unsubscribed RPC) and fetchSignInEmail (the auth admin
+// API, for self-addressed digests) — are the file's only I/O.
 //
 // Design language matches the marketing site + portal:
 //   ink         #0B0D10   — header, primary buttons, body text
@@ -441,18 +442,106 @@ export function legacyFnvUnsubscribeToken(email: string): string {
   return h.toString(36).padStart(12, '0').slice(0, 12);
 }
 
-export function buildUnsubscribeUrl(opts: UnsubscribeOpts): string | null {
+// The e / k / t query both unsubscribe URLs carry. The signed token gates BOTH
+// directions in unsubscribe/index.ts (suppress AND re-subscribe): the one-click
+// POST reads it from the header URL's query and the static marketing/unsubscribe
+// page forwards it as `token` (review B2, 2026-09-04). Without it anyone could
+// globally suppress any address. null = this email is not unsubscribable.
+function unsubscribeParams(opts: UnsubscribeOpts): URLSearchParams | null {
   if (opts.enabled === false) return null;
   if (!opts.recipientEmail) return null;
   const params = new URLSearchParams();
   params.set('e', opts.recipientEmail);
   if (opts.eventKey) params.set('k', opts.eventKey);
-  // The signed token gates BOTH directions in unsubscribe/index.ts (suppress
-  // AND re-subscribe): the Gmail one-click POST reads it from this URL's query
-  // and the static marketing/unsubscribe page forwards it as `token` (review
-  // B2, 2026-09-04). Without it anyone could globally suppress any address.
   params.set('t', buildUnsubscribeToken(opts.recipientEmail));
-  return `${PORTAL_BASE_URL}/unsubscribe?${params.toString()}`;
+  return params;
+}
+
+/** The static confirmation page (marketing/unsubscribe/index.html). The
+ *  unsubscribe function 303s a browser GET of the header URL here, so a reader
+ *  whose mail client opens the one-click URL instead of POSTing to it lands on
+ *  the page that can act on it rather than a JSON body (RFC 8058: a GET must
+ *  never unsubscribe by itself). */
+export const UNSUBSCRIBE_PAGE_URL = `${PORTAL_BASE_URL}/unsubscribe`;
+
+/** The FOOTER link: the mageid.app confirmation page a person clicks in a
+ *  browser ("Unsubscribe from these emails?" → Confirm). Never put this in the
+ *  List-Unsubscribe header — see buildOneClickUnsubscribeUrl. */
+export function buildUnsubscribeUrl(opts: UnsubscribeOpts): string | null {
+  const params = unsubscribeParams(opts);
+  return params ? `${UNSUBSCRIBE_PAGE_URL}?${params.toString()}` : null;
+}
+
+/**
+ * The document kinds a GC sends his own client or sub through send-email —
+ * estimates, invoices, daily reports, client updates, submittals and lien-waiver
+ * requests. They are transactional: the recipient is a party to the job, and
+ * send-email checks no suppression before sending them (whether a client may
+ * opt out of his contractor's invoices is not ours to decide). So nothing may
+ * OFFER an unsubscribe from them — a working one-click that records a row the
+ * sender ignores is the finding-45 harm in a new place: the mail app says
+ * "unsubscribed", the invoices keep coming, and the "Report spam" lands on the
+ * domain every GC's invoices send from (review of audit 2026-09-23 #45/#76).
+ *
+ * The one list: send-email reads it (no List-Unsubscribe header), the keys
+ * validator uses it as its exclusion source, and marketing/email-event-keys.json
+ * carries the same keys under "documents" so the preferences and unsubscribe
+ * pages can say these aren't affected instead of "turned off".
+ */
+export const TRANSACTIONAL_DOCUMENT_KEYS = ['estimate', 'invoice', 'daily_report', 'weekly_update', 'submittal', 'lien_waiver'] as const;
+
+export function isTransactionalDocumentKey(key: string | null | undefined): boolean {
+  return !!key && (TRANSACTIONAL_DOCUMENT_KEYS as readonly string[]).includes(key);
+}
+
+/**
+ * The List-Unsubscribe HEADER URL: the `unsubscribe` edge function itself.
+ *
+ * Why not the page (audit 2026-09-23, findings 45 / 76): RFC 8058 clients —
+ * Gmail's and Apple Mail's "Unsubscribe" next to the sender — POST
+ * `List-Unsubscribe=One-Click` straight to the header URL; no page renders and
+ * no script runs. mageid.app/unsubscribe is a static Netlify page (a GET-only
+ * 200 rewrite), so that POST answered 404, no email_unsubscribes row was
+ * written, the mail app told the reader he was unsubscribed and the digests,
+ * invoices and portal mail kept coming — the moment people reach for "Report
+ * spam" on the domain every GC's invoices send from. The function already takes
+ * e / k / t from the query on POST and ignores the form body, and runs with
+ * verify_jwt = false (config.toml), so the header points at it directly. A
+ * Netlify proxy can't do this: redirects can't match on method, so proxying
+ * /unsubscribe would also send the footer link's browser GET to a JSON endpoint.
+ *
+ * Same guards and params as buildUnsubscribeUrl (both go through
+ * unsubscribeParams), so the header and the footer can never disagree about
+ * who or what is being unsubscribed.
+ */
+export function buildOneClickUnsubscribeUrl(opts: UnsubscribeOpts): string | null {
+  const params = unsubscribeParams(opts);
+  if (!params) return null;
+  // `||`, not `??`: an empty SUPABASE_URL must not produce a relative
+  // "/functions/v1/…" header that no mail client can reach.
+  const base = (Deno.env.get('SUPABASE_URL') || 'https://nteoqhcswappxxjlpvap.supabase.co').replace(/\/+$/, '');
+  return `${base}/functions/v1/unsubscribe?${params.toString()}`;
+}
+
+/**
+ * The List-Unsubscribe + List-Unsubscribe-Post pair (RFC 2369 + RFC 8058,
+ * Gmail's Feb-2024 bulk-sender rule), or {} when the email is not
+ * unsubscribable. The ONE builder for both send paths — resendSend below and
+ * send-email's attachment path — which used to carry two hand-copied header
+ * strings that pointed at the static page together.
+ *
+ * No mailto: entry. It used to offer <mailto:unsubscribe@mageid.app>, and
+ * nothing reads that mailbox or writes email_unsubscribes from it: a second
+ * advertised opt-out that did nothing. One working https one-click URL is what
+ * RFC 8058 asks for.
+ */
+export function buildListUnsubscribeHeaders(u: UnsubscribeOpts | null | undefined): Record<string, string> {
+  const url = u ? buildOneClickUnsubscribeUrl(u) : null;
+  if (!url) return {};
+  return {
+    'List-Unsubscribe': `<${url}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
 }
 
 export function buildPreferencesUrl(email: string): string {
@@ -671,14 +760,9 @@ export async function resendSend(apiKey: string, opts: SendOpts): Promise<{ ok: 
   const text = opts.text ?? htmlToPlaintext(opts.html);
   const from = opts.fromOverride ?? buildFromAddress(opts.fromCompanyName);
 
-  const headers: Record<string, string> = {};
-  const unsubUrl = opts.unsubscribe ? buildUnsubscribeUrl(opts.unsubscribe) : null;
-  if (unsubUrl) {
-    // RFC 8058 + RFC 2369. Gmail also accepts a mailto: option as a
-    // fallback for clients that don't do POST one-click.
-    headers['List-Unsubscribe'] = `<${unsubUrl}>, <mailto:unsubscribe@mageid.app?subject=Unsubscribe%20${encodeURIComponent(opts.unsubscribe?.eventKey ?? '')}>`;
-    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-  }
+  // RFC 8058 one-click: the header points at the edge function, the footer
+  // link (wrapEmailHtml) at the confirmation page — see buildOneClickUnsubscribeUrl.
+  const headers: Record<string, string> = buildListUnsubscribeHeaders(opts.unsubscribe);
   // Help downstream filters group + categorize.
   headers['X-Entity-Ref-ID'] = `mageid-${Date.now()}`;
 
@@ -762,6 +846,90 @@ export async function isEmailUnsubscribed(
   } catch {
     return false;
   }
+}
+
+// ─── Self-addressed mail: the recipient is the SIGN-IN address ───────
+//
+// Audit 2026-09-23 #130. The morning and daily digests go to the GC himself,
+// and used to be addressed to profiles.email — the Company Profile address he
+// can type anything into (office@…, a bookkeeper's inbox). The in-app switch's
+// suppression check and its resume path (my_digest_email_suppression /
+// resume_my_digest_email, 20260918170000) key on auth.users.email. Once the two
+// differed, an unsubscribe tapped in the office inbox was recorded against
+// office@…: the switch showed Email on, "turn it off and on again" cleared a
+// row that did not exist, and the digest never sent again. The digests now
+// resolve the sign-in address and use that ONE address for the send, the
+// suppression check, the unsubscribe footer + header and the outbox row.
+// profiles.email stays what it is for: the company contact and reply-to on
+// client documents.
+
+/** What the auth admin API said about a user's sign-in address. */
+export type SignInEmailLookup =
+  | { ok: true; email: string | null }
+  | { ok: false };
+
+/**
+ * GET /auth/v1/admin/users/<id> with the service role (the REST form of
+ * supabase-js' auth.admin.getUserById, so daily-digest — which has no
+ * supabase-js client — and morning-digest resolve the address the same way).
+ * A 404 means the user is gone: { ok: true, email: null }. Anything else that
+ * isn't a 200 is { ok: false } — unknown, never "no address".
+ */
+export async function fetchSignInEmail(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  userId: string,
+): Promise<SignInEmailLookup> {
+  if (!userId) return { ok: true, email: null };
+  try {
+    const r = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+      headers: { 'apikey': serviceRoleKey, 'Authorization': `Bearer ${serviceRoleKey}` },
+    });
+    if (r.status === 404) return { ok: true, email: null };
+    if (!r.ok) return { ok: false };
+    const u = await r.json().catch(() => null) as { email?: unknown; user?: { email?: unknown } } | null;
+    const raw = u?.email ?? u?.user?.email;
+    const email = typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+    return { ok: true, email };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export type DigestRecipient =
+  | { email: string; source: 'sign_in' | 'company_profile' }
+  | { email: null; source: 'none' | 'lookup_failed' };
+
+/**
+ * Pure. The sign-in address wins; the Company Profile address is used only
+ * when auth has NONE for this user (an account created without an email).
+ * A failed lookup is 'lookup_failed' with no address: the digest skips its
+ * email for this run rather than falling back to the company address — that
+ * fallback is exactly the office inbox the unsubscribe can't be undone from.
+ */
+export function pickDigestRecipient(lookup: SignInEmailLookup, profileEmail: string | null | undefined): DigestRecipient {
+  if (!lookup.ok) return { email: null, source: 'lookup_failed' };
+  if (lookup.email) return { email: lookup.email, source: 'sign_in' };
+  const fallback = typeof profileEmail === 'string' ? profileEmail.trim() : '';
+  return fallback ? { email: fallback, source: 'company_profile' } : { email: null, source: 'none' };
+}
+
+/**
+ * Pure. The reason a digest PREVIEW reports when the sign-in lookup failed.
+ * A failed lookup leaves the address empty, and the gate then answers
+ * 'no_email' ("your account has no email address") — untrue, so that one
+ * reason becomes 'recipient_unknown' ("couldn't look it up — try again").
+ * Every other reason is truer and more useful than the lookup failure — the
+ * gate checks 'email_off' (the Email switch is off) before the address and
+ * 'nothing_to_report' after it — so it is left alone (review of #130: the
+ * first cut replaced every not-sent reason, telling a GC with Email off to
+ * "try again").
+ */
+export function digestPreviewReason<R extends string>(
+  reason: R | null | undefined,
+  recipientLookupFailed: boolean,
+): R | 'recipient_unknown' | null | undefined {
+  return recipientLookupFailed && reason === 'no_email' ? 'recipient_unknown' : reason;
 }
 
 // ─── Money formatter ─────────────────────────────────────────────────

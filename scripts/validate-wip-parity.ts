@@ -87,6 +87,7 @@
 import {
   isWipBilling,
   isWipReportableProject,
+  wipEvidenceFor,
   computeWipRow,
   deriveEstimatedCostWithSource as deriveEac,
   suggestBilledToDate,
@@ -104,6 +105,10 @@ import {
   wipCostToDateCaveat,
   WIP_COST_TO_DATE_CAVEAT,
   WIP_COST_TO_DATE_COMPLETE,
+  suggestBillingsWithSource,
+  sumApprovedChangeOrders,
+  wipCostOverrideInForce,
+  normalizeWipCostOverrides,
   type WipSource,
   type WipSnapshotRowWithSources,
 } from '../utils/wip';
@@ -221,6 +226,110 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
   ], [1]);
 }
 
+// ── AXIS 4, WIDENED: SIGNED, OWN WORK (#18 / #19, audit 2026-09-22) ─────────
+// Both engines admit the SAME jobs: /wip-report filters with
+// isWipReportableProject(p, { userId, evidence: wipEvidenceFor(p, …) }) and
+// computeWIPReport applies the same call to the arrays it receives. "Screen"
+// below is that exact expression, evaluated with the inputs the screen feeds
+// it (cost to date from the sourced derivation, as buildRow's `auto`).
+{
+  const ME = 'u-me', PARTNER = 'u-partner';
+  const screenAdmits = (
+    p: Project, invoices: Invoice[], commitments: Commitment[], cos: ChangeOrder[] = [], payApps: SavedAIAPayApp[] = [],
+  ) => isWipReportableProject(p, {
+    userId: ME,
+    evidence: wipEvidenceFor(p, {
+      invoices, payApps, changeOrders: cos, commitments,
+      costToDate: suggestCostToDateWithSource(commitments.filter(c => c.projectId === p.id), [], { projectId: p.id }).value,
+    }),
+  });
+  const reportAdmits = (
+    p: Project, invoices: Invoice[], commitments: Commitment[], cos: ChangeOrder[] = [], payApps: SavedAIAPayApp[] = [],
+  ) => computeWIPReport([p], invoices, cos, commitments, {}, payApps, {}, { userId: ME }).rows.length === 1;
+  const both = (p: Project, invoices: Invoice[], commitments: Commitment[], cos?: ChangeOrder[]) =>
+    [screenAdmits(p, invoices, commitments, cos), reportAdmits(p, invoices, commitments, cos)];
+
+  // #18: another company's job, shared with this account as an editor.
+  const shared = project({ ownerUserId: PARTNER, myRole: 'editor' } as Partial<Project>);
+  eq('a job another company owns (shared as editor) is off BOTH schedules',
+    both(shared, [SENT], [commitment(160_000)]), [false, false]);
+  eq('…and so is one where the collaborator holds the role "owner" — ownerUserId decides first',
+    both(project({ ownerUserId: PARTNER, myRole: 'owner' } as Partial<Project>), [SENT], [commitment(160_000)]),
+    [false, false]);
+  eq('this account\u2019s own job is on both',
+    both(project({ ownerUserId: ME } as Partial<Project>), [SENT], [commitment(160_000)]), [true, true]);
+  eq('a pre-field cache (no ownerUserId, no role) is read as own',
+    both(project(), [SENT], [commitment(160_000)]), [true, true]);
+
+  // #19: an unsigned bid.
+  const bid = project({ status: 'estimated', ownerUserId: ME } as Partial<Project>);
+  eq('an ESTIMATED job with no billing, no CO, no signed commitment and no cost is off both',
+    both(bid, [DRAFT], []), [false, false]);
+  eq('…a DRAFT invoice is not evidence (a document the client never saw)',
+    both(bid, [DRAFT], [{ ...commitment(0), status: 'draft' } as Commitment]), [false, false]);
+  eq('an ESTIMATED job with a SENT invoice is on both (GCs bill jobs still marked estimated)',
+    both(bid, [SENT], []), [true, true]);
+  eq('…as is one with a signed commitment, or an approved change order',
+    [both(bid, [], [commitment(0)]), both(bid, [], [], [{ id: 'co1', projectId: 'p1', status: 'approved', changeAmount: 5_000 } as unknown as ChangeOrder])],
+    [[true, true], [true, true]]);
+  // Cost to date: a material receipt on the job, fed to each engine the way it
+  // is in production (the screen's sourced derivation; the report's costSources).
+  {
+    const receipt = {
+      // WITH a line: the job-cost engine sums line totals while the sourced
+      // derivation reads `total`, so a line-less receipt is priced by one and
+      // not the other (a pre-existing axis-9 gap, reported, not this guard's).
+      id: 'r1', projectId: 'p1', vendor: 'Lumber Co',
+      lines: [{ id: 'l1', description: '2x4', quantity: 1, unit: 'ea', unitPrice: 4_000, lineTotal: 4_000, category: 'lumber' }],
+      subtotal: 4_000, total: 4_000,
+      status: 'reviewed', receiptDate: '2026-03-01', createdAt: '2026-03-01', updatedAt: '2026-03-01',
+    } as unknown as MaterialReceipt;
+    const screenWithCost = isWipReportableProject(bid, {
+      userId: ME,
+      evidence: wipEvidenceFor(bid, {
+        invoices: [], payApps: [], changeOrders: [], commitments: [],
+        costToDate: suggestCostToDateWithSource([], [receipt], { projectId: bid.id }).value,
+      }),
+    });
+    const reportWithCost = computeWIPReport([bid], [], [], [], { receipts: [receipt] }, [], {}, { userId: ME }).rows.length === 1;
+    eq('…or cost recorded against it (a $4,000 receipt), on both', [screenWithCost, reportWithCost], [true, true]);
+  }
+  eq('a DRAFT-status job with a sent invoice is signed work too',
+    both(project({ status: 'draft' } as Partial<Project>), [SENT], []), [true, true]);
+  eq('in_progress with no evidence at all stays on (status is enough)',
+    both(project(), [], []), [true, true]);
+
+  // The one-argument call keeps its old meaning; the evidence is what narrows.
+  eq('ONE-ARGUMENT CALL UNCHANGED: estimated stays on without evidence',
+    isWipReportableProject({ status: 'estimated' }), true);
+  eq('…and an array index passed as the second argument reads as no context',
+    ([{ status: 'estimated' }] as Project[]).filter(isWipReportableProject as (p: Project, i: number) => boolean).length, 1);
+
+  // What was left out is counted, not hidden.
+  const book = computeWIPReport(
+    [project({ id: 'mine', ownerUserId: ME } as Partial<Project>),
+      project({ id: 'theirs', ownerUserId: PARTNER, myRole: 'viewer' } as Partial<Project>),
+      project({ id: 'bid', status: 'estimated', ownerUserId: ME } as Partial<Project>),
+      project({ id: 'done', status: 'closed', ownerUserId: ME } as Partial<Project>)],
+    [], [], [], {}, [], {}, { userId: ME });
+  eq('the report names what it left out, by reason',
+    [book.rows.map(r => r.projectId), book.excluded?.closed, book.excluded?.shared, book.excluded?.unsigned],
+    [['mine'], 1, 1, 1]);
+  close('…and the unsigned bid\u2019s contract, so the screen can say what was held back as pipeline',
+    book.excluded?.unsignedContract ?? -1, 550_000);
+
+  // The Profit report takes the same rule and KEEPS closed jobs (realised margin).
+  const profit = computeProfitReport(
+    [project({ id: 'mine', ownerUserId: ME } as Partial<Project>),
+      project({ id: 'theirs', ownerUserId: PARTNER, myRole: 'viewer' } as Partial<Project>),
+      project({ id: 'bid', status: 'estimated', ownerUserId: ME } as Partial<Project>),
+      project({ id: 'done', status: 'closed', ownerUserId: ME } as Partial<Project>)],
+    [], [], [], {}, [], {}, { userId: ME });
+  eq('Profit drops the shared job and the unsigned bid, and keeps the closed job',
+    [profit.rows.map(r => r.projectId).sort(), profit.excluded.shared, profit.excluded.unsigned],
+    [['done', 'mine'], 1, 1]);
+}
+
 // ── The screen actually derives from the shared predicate ───────────────────
 // bun cannot import a .tsx screen, so this is source-level. It is still the
 // check that matters: the defect was one memo in app/wip-report.tsx returning
@@ -229,8 +338,15 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
   const screen = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
   eq('app/wip-report.tsx imports the shared population predicate',
     /import\s*\{[^}]*\bisWipReportableProject\b[^}]*\}\s*from\s*'@\/utils\/wip'/s.test(screen), true);
-  eq('…and filters the project list with it',
-    /activeProjects[\s\S]{0,200}?projects\.filter\(isWipReportableProject\)/.test(screen), true);
+  // #18 / #19 (audit 2026-09-22): the filter now passes the account and the
+  // signed-work evidence. NOT point-free — `projects.filter(isWipReportable-
+  // Project)` would hand the array index in as the context argument.
+  eq('…and filters the project list with it, passing the account and the evidence',
+    /const activeProjects: Project\[\] = useMemo\(\s*\(\) => projects\.filter\(p => isWipReportableProject\(p, \{ userId: userId \?\? null, evidence: wipEvidenceOf\(p\) \}\)\)/
+      .test(screen), true);
+  eq('…never the point-free form', /projects\.filter\(isWipReportableProject\)/.test(screen), false);
+  eq('…and the evidence comes from the ONE shared builder, fed buildRow\u2019s own cost to date',
+    /wipEvidenceFor\(project, \{[\s\S]{0,400}?costToDate: buildRow\(project\)\.auto\.value,/.test(screen), true);
   eq('…so the unfiltered `() => projects` memo is gone',
     /const activeProjects: Project\[\] = useMemo\(\s*\(\)\s*=>\s*projects,/.test(screen), false);
   // The legend is the other half of "Do next" #2's user-facing cost: two
@@ -1067,30 +1183,63 @@ console.log('\na contract with no cost basis is unmeasurable on both:');
       && /wipEtcValueMap\(normalizeWipEtcMap\(JSON\.parse\(raw\)\)\)/.test(WEEK_CLOSE), true);
   // A NEGATIVE-ONLY COUNT IS SATISFIED BY DELETION. This asserted that
   // `costToDate: suggestCostToDate(` occurs zero times — a string this file has
-  // never contained in either direction, because the real line is `const
-  // costToDate = suggestCostToDate(`. It was therefore satisfied by the wired
-  // file, by an unwired file and by an empty file alike, and could not have
-  // caught a wiring change in either direction (verifier, 2026-09-11).
+  // never contained in either direction. It was therefore satisfied by the
+  // wired file, by an unwired file and by an empty file alike (verifier,
+  // 2026-09-11).
   //
   // What it MEANS is that the row's `costToDate` field reuses the same const the
   // `costIncurred` floor above is computed from, rather than deriving the figure
   // a second time — two derivations is exactly how the floor and the row drift
   // apart on an overrun job. So both halves are asserted: the derivation exists,
   // exactly once, and the field is the shorthand that reuses it.
-  //
-  // (Still open and declared: that one call passes no direct cost sources, so
-  // the Friday Close's cost-to-date is the subs-and-materials lower bound while
-  // both bank schedules now carry crew, equipment and permits. hooks/ is not
-  // this wave's to change; this guard does not pretend otherwise.)
-  eq('…and costToDate is derived exactly once and reused, not derived twice',
+  eq('…and cost to date is derived exactly once and reused, not derived twice',
     (WEEK_CLOSE.match(/suggestCostToDate\(/g) ?? []).length === 1
-      && /const costToDate = suggestCostToDate\(/.test(WEEK_CLOSE)
+      && /const auto = suggestCostToDate\(/.test(WEEK_CLOSE)
+      && /const costToDate = override \? override\.value : auto;/.test(WEEK_CLOSE)
       && /^\s+costToDate,$/m.test(WEEK_CLOSE), true);
 
+  // #37 (audit 2026-09-22) — THE NOTE THAT STOOD HERE IS CLOSED. It read "that
+  // one call passes no direct cost sources, so the Friday Close's cost-to-date
+  // is the subs-and-materials lower bound". On a self-perform job the close
+  // then printed a fraction of the WIP screen's underbilling and the bill leg
+  // read clean. Pinned by SHAPE, like the flagship screen's call above:
+  // `{ projectId: p.id }` alone satisfies a presence test while changing
+  // nothing.
+  eq('the Friday Close hands suggestCostToDate the project plus all five direct cost sources',
+    /const auto = suggestCostToDate\(\s*projectCommitments,\s*receipts\.filter\(r => r\.projectId === p\.id\),\s*\{ projectId: p\.id, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits \},\s*\);/
+      .test(WEEK_CLOSE), true);
+  eq('…from the hooks that hold them, as /wip-report reads them',
+    /const timeEntries = useTimeEntriesMirror\(\);/.test(WEEK_CLOSE)
+      && /const \{ rates: laborRates, overtimeMultiplier, overtimeRule \} = useLaborRates\(\);/.test(WEEK_CLOSE)
+      && /^\s*equipment, permits,$/m.test(WEEK_CLOSE), true);
+  eq('…and applies his typed override through the shared tombstone rule',
+    /const override = wipCostOverrideInForce\(costOverrides, p\.id\);/.test(WEEK_CLOSE)
+      && !/costOverrides\[p\.id\]/.test(WEEK_CLOSE), true);
+  eq('…hydrated from the same key and parser /wip-report uses',
+    /AsyncStorage\.getItem\(wipCostOverridesKey\(user\?\.id\)\)/.test(WEEK_CLOSE)
+      && /normalizeWipCostOverrides\(JSON\.parse\(raw\)\)/.test(WEEK_CLOSE)
+      && !/'mageid_wip_cost_overrides/.test(WEEK_CLOSE), true);
+  const WIP_SCREEN = readFileSync(join(ROOT, 'app', 'wip-report.tsx'), 'utf8');
+  eq('…which /wip-report now reads from utils/wip too — no private copy of the key',
+    /AsyncStorage\.getItem\(wipCostOverridesKey\(userId\)\)/.test(WIP_SCREEN)
+      && /return wipCostOverrideInForce\(map, projectId\);/.test(WIP_SCREEN)
+      && !/'mageid_wip_cost_overrides'/.test(WIP_SCREEN), true);
+  eq('…and the population is the WIP schedule’s, not `status === \'in_progress\'`',
+    /isWipReportableProject\(p, \{\s*userId,\s*evidence: wipEvidenceFor\(p, \{[^}]*costToDate: auto,\s*\}\),\s*\}\)/.test(WEEK_CLOSE)
+      && !/\.filter\(p => p\.status === 'in_progress'\)\s*\.map/.test(WEEK_CLOSE), true);
+  const memoDeps = /\}, \[\s*projects, invoices, changeOrders, commitments, aiaPayApps, receipts, etcByProject,([^\]]*)\]\);/.exec(WEEK_CLOSE)?.[1] ?? '';
+  for (const dep of ['timeEntries', 'laborRates', 'overtimeMultiplier', 'overtimeRule', 'equipment', 'permits', 'costOverrides', 'userId']) {
+    eq(`…and the WIP rows re-run when ${dep} changes`, new RegExp(`\\b${dep}\\b`).test(memoDeps), true);
+  }
   const HORIZON = readFileSync(join(ROOT, 'utils', 'portfolio', 'pipelineHorizon.ts'), 'utf8');
   eq('the pipeline horizon passes the pay applications',
-    /computeWIPReport\(projects, invoices, changeOrders, commitments, \{\}, aiaPayApps \?\? \[\]\)/
+    /computeWIPReport\(projects, invoices, changeOrders, commitments, \{\}, aiaPayApps \?\? \[\], \{\},\s*userId !== undefined \? \{ userId \} : \{\}\)/
       .test(HORIZON), true);
+  // #19: the horizon no longer re-filters the report by status (it used to drop
+  // 'draft' and keep 'estimated' — an unsigned bid counted as backlog while an
+  // invoiced draft job did not). The report's own population decides.
+  eq('…and takes the report\u2019s population, dropping only completed jobs',
+    /const activeWipRows = wipReport\.rows\.filter\(r => r\.status !== 'completed'\);/.test(HORIZON), true);
   const BUSINESS = readFileSync(join(ROOT, 'app', 'business.tsx'), 'utf8');
   eq('…and its production caller supplies them',
     /buildPipelineHorizon\(\{[^}]*aiaPayApps[^}]*\}\)/.test(BUSINESS), true);
@@ -1126,6 +1275,102 @@ console.log('\na contract with no cost basis is unmeasurable on both:');
   eq('…and the pay apps come from the project context',
     /aiaPayApps,\s*\n\s*\} = useProjects\(\)/.test(REPORTS)
     || /\baiaPayApps\b[\s\S]{0,400}?= useProjects\(\)/.test(REPORTS), true);
+}
+
+// ── #37: THE FRIDAY CLOSE PRINTS THE WIP SCREEN'S UNDERBILLING ──────────────
+//
+// A self-perform job: $0 of subcontract payments, some material receipts,
+// rated crew hours. /wip-report priced the crew into cost to date, so its
+// percent complete and underbilling were real; the Friday Close priced subs and
+// receipts only, so its "$X unbilled" fell toward $0 and the bill leg read
+// clean. Both rows are built here the way each surface builds them — the close
+// through hooks/useWeekClose.ts's sequence (pinned by shape above), the WIP
+// screen through buildRow's sourced sequence — and the underbilling must agree
+// to the cent. bun cannot mount either (both live behind React context), so the
+// call SEQUENCES are what run; the source pins above hold each file to its own.
+{
+  const SELF = project({ id: 'p-self', name: 'Self-perform', status: 'in_progress' });
+  const commitmentsSelf = [
+    { ...commitment(0), id: 'c-self', projectId: 'p-self', amount: 120_000 },
+  ] as unknown as Commitment[];
+  const receiptsSelf = [
+    { id: 'r-self', projectId: 'p-self', total: 18_000, lines: [{ category: 'Lumber', lineTotal: 18_000 }] },
+  ] as unknown as MaterialReceipt[];
+  const timeEntriesSelf = [
+    { id: 'ts1', projectId: 'p-self', trade: 'carpenter', status: 'clocked_out', totalHours: 400, overtimeHours: 0 },
+  ] as never;
+  const laborRatesSelf = { carpenter: 65 };
+  const ruleSelf = { weeklyThreshold: null, dailyThreshold: null, weekStartsOn: 1 as const };
+  const invoicesSelf = [{ ...invoice('inv-self', 40_000, 'sent'), projectId: 'p-self' }] as Invoice[];
+  const direct = {
+    projectId: 'p-self', timeEntries: timeEntriesSelf, laborRates: laborRatesSelf,
+    overtimeMultiplier: 1.5, overtimeRule: ruleSelf, equipment: [] as never, permits: [] as never,
+  };
+
+  // hooks/useWeekClose.ts, per project.
+  const weekCloseUnbilled = (overrides: Record<string, unknown>, withDirect = true): number => {
+    const map = normalizeWipCostOverrides(overrides);
+    const auto = withDirect
+      ? suggestCostToDate(commitmentsSelf, receiptsSelf, direct)
+      : suggestCostToDate(commitmentsSelf, receiptsSelf);
+    const override = wipCostOverrideInForce(map, SELF.id);
+    const costToDate = override ? override.value : auto;
+    return computeWipRow({
+      originalContract: deriveOriginalContract(SELF, [], []),
+      approvedChangeOrders: sumApprovedChangeOrders([]),
+      totalEstimatedCost: deriveEstimatedCost(SELF, commitmentsSelf, {
+        approvedChangeOrders: sumApprovedChangeOrders([]),
+        originalContract: deriveOriginalContract(SELF, [], []),
+        costIncurred: costToDate,
+        estimatedCostToComplete: undefined,
+      }),
+      costToDate,
+      billedToDate: suggestBilledToDate(invoicesSelf, []),
+      estimatedCostToComplete: undefined,
+    }).underbilling;
+  };
+  // app/wip-report.tsx buildRow.
+  const wipScreenUnderbilling = (overrides: Record<string, unknown>): number => {
+    const map = normalizeWipCostOverrides(overrides);
+    const contract = deriveOriginalContractWithSource(SELF, [], []);
+    const auto = suggestCostToDateWithSource(commitmentsSelf, receiptsSelf, direct);
+    const override = wipCostOverrideInForce(map, SELF.id);
+    const costToDate = override ? override.value : auto.value;
+    const cost = deriveEstimatedCostWithSource(SELF, commitmentsSelf, {
+      approvedChangeOrders: 0, originalContract: contract.value, costIncurred: costToDate,
+    });
+    const billings = suggestBillingsWithSource(invoicesSelf, []);
+    return computeWipRow({
+      originalContract: contract.value, approvedChangeOrders: 0,
+      totalEstimatedCost: cost.value, costToDate,
+      billedToDate: billings.billedToDate, retainageHeld: billings.retainageHeld,
+      estimatedCostToComplete: undefined,
+    }).underbilling;
+  };
+
+  // 400 h × $65 = $26,000 crew + $18,000 receipts = $44,000 of cost on a
+  // $400,000-cost / $550,000 job → 11% complete, $60,500 earned, $40,000 billed.
+  close('#37: the week-close row and /wip-report agree on the underbilling (crew hours priced)',
+    weekCloseUnbilled({}), wipScreenUnderbilling({}), 0.005);
+  close('…and it is the real figure, crew hours included', weekCloseUnbilled({}), 20_500, 0.005);
+  close('…where the old subs-and-receipts call read $0 unbilled', weekCloseUnbilled({}, false), 0, 0.005);
+  // His typed cost to date wins on both, and a tombstone is never a figure.
+  const typed = { 'p-self': { value: 110_000, updatedAt: '2026-09-20T12:00:00.000Z', synced: true } };
+  close('…a typed override is used by both surfaces',
+    weekCloseUnbilled(typed), wipScreenUnderbilling(typed), 0.005);
+  close('…and moves the close\u2019s figure to the override\u2019s', weekCloseUnbilled(typed), 111_250, 0.005);
+  const cleared = { 'p-self': { value: 999_999, updatedAt: '2026-09-21T12:00:00.000Z', synced: true, cleared: true } };
+  close('…a cleared override (tombstone) is never read as a figure',
+    weekCloseUnbilled(cleared), weekCloseUnbilled({}), 0.005);
+  // Population parity: an `estimated` job with recorded crew cost is signed
+  // work on /wip-report, and was dropped by the close's old in_progress filter.
+  const EST = { ...SELF, status: 'estimated' } as Project;
+  const evidence = wipEvidenceFor(EST, {
+    invoices: [], payApps: [], changeOrders: [], commitments: [],
+    costToDate: suggestCostToDate(commitmentsSelf, receiptsSelf, direct),
+  });
+  eq('…and an estimated job with recorded cost is on both lists (old filter dropped it)',
+    [isWipReportableProject(EST, { evidence }), EST.status === 'in_progress'], [true, false]);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

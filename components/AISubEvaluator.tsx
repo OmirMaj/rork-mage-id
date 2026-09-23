@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { HelpCircle, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
+import { HelpCircle, DollarSign, AlertTriangle, CheckCircle2, FileText } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -28,11 +28,19 @@ interface Props {
   sub: Subcontractor;
   projectContext: string;
   subscriptionTier: SubscriptionTierKey;
+  /**
+   * What the evaluation is grounded in (utils/subCompliance
+   * buildSubEvaluationGrounding — the scorecard card the Subs sheet shows).
+   * Drives the "Read: …" chip, gates the track-record line to subs with a
+   * signed commitment on record, and keys the cache so an edit or a new award
+   * asks again instead of replaying a 24-hour-old verdict (audit #115).
+   */
+  grounding: { readChip: string; hasHistory: boolean; inputsHash: string };
 }
 
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
-export default React.memo(function AISubEvaluator({ sub, projectContext, subscriptionTier }: Props) {
+export default React.memo(function AISubEvaluator({ sub, projectContext, subscriptionTier, grounding }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<SubEvaluationResult | null>(null);
@@ -48,7 +56,10 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
   const handleEvaluate = useCallback(async () => {
     if (isLoading) return;
 
-    const cacheKey = `sub_eval_${sub.id}`;
+    // Keyed on the sub's last edit and the hash of what the model reads: the
+    // old `sub_eval_<id>` key replayed the same verdict for 24 hours after the
+    // GC edited the sub or awarded him a job.
+    const cacheKey = `sub_eval_${sub.id}_${sub.updatedAt ?? ''}_${grounding?.inputsHash ?? 'none'}`;
     const cached = await getCachedResult<SubEvaluationResult>(cacheKey, TWENTY_FOUR_HOURS);
     if (cached) {
       setResult(cached);
@@ -75,7 +86,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, sub, projectContext, subscriptionTier]);
+  }, [isLoading, sub, projectContext, subscriptionTier, grounding?.inputsHash]);
 
   if (!result) {
     return (
@@ -97,12 +108,25 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         <Text style={styles.headerTitle}>AI Sub Evaluation</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>
+      {grounding ? (
+        <View style={styles.readChip} testID="ai-sub-read-chip">
+          <Text style={styles.readChipText}>{grounding.readChip}</Text>
+        </View>
+      ) : null}
 
       <Text style={styles.recommendation}>{result.recommendation}</Text>
 
-      {result.trackRecord ? (
+      {/* The track record only when there IS one on record. Without a signed
+          commitment the model has nothing to summarize, and its sentence must
+          never sit beside a green check reading as a verified history. */}
+      {grounding && !grounding.hasHistory ? (
+        <View style={styles.noHistoryRow} testID="ai-sub-no-history">
+          <FileText size={12} color={themeColors.textMuted} strokeWidth={1.75} />
+          <Text style={styles.noHistoryText}>No signed commitments on record in MAGE ID — no track record to summarize yet.</Text>
+        </View>
+      ) : result.trackRecord && grounding?.hasHistory ? (
         <View style={styles.trackRow}>
-          <CheckCircle2 size={12} color={"#2E7D44"} strokeWidth={1.75} />
+          <CheckCircle2 size={12} color={themeColors.successLabel} strokeWidth={1.75} />
           <Text style={styles.trackText}>{result.trackRecord}</Text>
         </View>
       ) : null}
@@ -193,6 +217,35 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   aiTag: {
     fontSize: 10,
     color: t.textMuted,
+  },
+  readChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: -4,
+    marginBottom: 10,
+  },
+  readChipText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600' as const,
+    color: t.textSecondary,
+  },
+  noHistoryRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.sm,
+    padding: 10,
+    marginBottom: 12,
+  },
+  noHistoryText: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textSecondary,
+    flex: 1,
+    lineHeight: 18,
   },
   recommendation: {
     fontSize: Type.bodyCompact.fontSize,

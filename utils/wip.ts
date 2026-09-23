@@ -205,8 +205,154 @@ export function wipBillablePayApps(payApps: SavedAIAPayApp[]): SavedAIAPayApp[] 
  * job can be built out and still be carrying unbilled revenue or unreleased
  * retainage, which is precisely what the schedule exists to show.
  */
-export function isWipReportableProject(project: Pick<Project, 'status'>): boolean {
-  return project.status !== 'closed';
+export function isWipReportableProject(
+  project: Pick<Project, 'status'> & Partial<Pick<Project, 'ownerUserId' | 'myRole'>>,
+  ctx?: WipReportableContext,
+): boolean {
+  if (project.status === 'closed') return false;
+  // A POINT-FREE `projects.filter(isWipReportableProject)` hands the array
+  // INDEX in as the second argument. That must read as "no context" — today's
+  // one-argument rule — never as a context object with no evidence in it.
+  if (!ctx || typeof ctx !== 'object' || !ctx.evidence) return true;
+  return isSignedOwnWork(project, ctx);
+}
+
+/**
+ * The evidence that a project is SIGNED WORK rather than a bid — built by
+ * `wipEvidenceFor` below and nowhere else.
+ */
+export interface WipEvidence {
+  /** At least one invoice the client has actually been given (isWipBilling). */
+  issuedInvoice: boolean;
+  /** At least one pay application that counts as a billing (wipBillablePayApps). */
+  billablePayApp: boolean;
+  /** At least one APPROVED change order — an owner does not approve a CO on a bid. */
+  approvedChangeOrder: boolean;
+  /** At least one signed (non-draft) subcontract or PO (isSignedCommitment). */
+  signedCommitment: boolean;
+  /** Cost already recorded against the job (> 0). */
+  costToDate: boolean;
+}
+
+export interface WipReportableContext {
+  /**
+   * The signed-in account. When the key is GIVEN, a project another company
+   * owns is off the schedule (isOwnCompanyProject) — and an unknown user (null)
+   * owns nothing. When the key is absent, ownership is not tested at all: the
+   * caller has already narrowed the list (app/reports.tsx) or has no user to
+   * test against (a validator fixture).
+   */
+  userId?: string | null;
+  /** From `wipEvidenceFor`. Absent → the one-argument rule (every status but closed). */
+  evidence?: WipEvidence;
+}
+
+/**
+ * DEFINITION 6 — whose contract this is (#18, audit 2026-09-22).
+ *
+ * ProjectContext loads every project RLS lets this account see, and a GC who is
+ * invited as an editor or a viewer on a partner's job sees that job too — with
+ * its estimate, because `project_financials` is readable by any collaborator
+ * allowed to see money. Both WIP schedules and the Profit report looped over
+ * that whole list, so a partner's $900,000 contract and its projected profit
+ * were added into this GC's revised contract, backlog and margin on the PDF he
+ * hands his surety. A WIP schedule covers the company's OWN contracts.
+ *
+ *  - `ownerUserId` set → it is ours exactly when it is our id. This is checked
+ *    FIRST, because a collaborator can hold the role 'owner' on another
+ *    company's job, so `myRole` alone cannot decide it.
+ *  - `ownerUserId` unset (a cache written before the field existed, or a job
+ *    created offline and not yet synced — every creation path stamps it) → the
+ *    same fallback utils/projectContextPure uses: no collaborator role, or the
+ *    role 'owner'.
+ *  - unknown user → false. Showing every job to "nobody" is the leak, not the
+ *    safe default.
+ */
+export function isOwnCompanyProject(
+  project: Partial<Pick<Project, 'ownerUserId' | 'myRole'>>,
+  userId: string | null | undefined,
+): boolean {
+  if (!userId) return false;
+  if (project.ownerUserId) return project.ownerUserId === userId;
+  return !project.myRole || project.myRole === 'owner';
+}
+
+/**
+ * DEFINITION 7 — signed work, not a bid (#19, audit 2026-09-22), for the
+ * company's own jobs.
+ *
+ * `draft` and `estimated` both passed the old `status !== 'closed'` test, so an
+ * unsigned $400,000 kitchen bid sat on the bank-ready schedule as $400,000 of
+ * contract backlog at 0% complete — which a surety sizing a bond reads as
+ * signed work.
+ *
+ * STATUS ALONE IS NOT THE ANSWER. Only sending a contract (app/contract.tsx) or
+ * a manual stage chip ever moves a job to `in_progress`, so a GC who bills
+ * through pay apps or invoices can be running a live job that still reads
+ * `estimated`. Gating on status would drop his real billings, cost and
+ * underbilling off the schedule — a worse error in the same columns. So a
+ * draft or estimated job is on the schedule exactly when there is EVIDENCE it
+ * is signed work (see WipEvidence). `in_progress` and `completed` are on by
+ * status; an unrecognised or missing status is treated as live, as the
+ * one-argument rule always has (a hand-built row is not a bid).
+ *
+ * `closed` is NOT decided here: the WIP schedule drops it (isWipReportable-
+ * Project) and the Profit report keeps it, because a closed job's realised
+ * margin is exactly what a profit report is for.
+ */
+export function isSignedOwnWork(
+  project: Pick<Project, 'status'> & Partial<Pick<Project, 'ownerUserId' | 'myRole'>>,
+  ctx: WipReportableContext,
+): boolean {
+  if (ctx.userId !== undefined && !isOwnCompanyProject(project, ctx.userId)) return false;
+  if (project.status !== 'draft' && project.status !== 'estimated') return true;
+  const e = ctx.evidence;
+  if (!e) return true;
+  return e.issuedInvoice || e.billablePayApp || e.approvedChangeOrder || e.signedCommitment || e.costToDate;
+}
+
+/**
+ * THE ONE PLACE the signed-work evidence is built — both WIP engines call it
+ * with the same five inputs, so the two schedules cannot list different jobs.
+ * A signal only one engine can see (a signed contract document, a typed cost
+ * override on /wip-report) is deliberately NOT a sixth input: adding it at one
+ * call site re-opens axis 4 with a new population difference.
+ *
+ * Callers pass ALREADY-SCOPED arrays for one project, or the whole book —
+ * everything is filtered by `project.id` here, so either works.
+ */
+export function wipEvidenceFor(
+  project: Pick<Project, 'id'>,
+  sources: {
+    invoices: readonly Pick<Invoice, 'projectId' | 'status'>[];
+    payApps: readonly SavedAIAPayApp[];
+    changeOrders: readonly Pick<ChangeOrder, 'projectId' | 'status'>[];
+    commitments: readonly Pick<Commitment, 'projectId' | 'status'>[];
+    costToDate: number;
+  },
+): WipEvidence {
+  const mine = <T extends { projectId?: string }>(rows: readonly T[]) => rows.filter(r => r.projectId === project.id);
+  return {
+    issuedInvoice: mine(sources.invoices).some(isWipBilling),
+    billablePayApp: wipBillablePayApps(mine(sources.payApps)).length > 0,
+    approvedChangeOrder: mine(sources.changeOrders).some(co => co.status === 'approved'),
+    signedCommitment: mine(sources.commitments).some(isSignedCommitment),
+    costToDate: Number.isFinite(sources.costToDate) && sources.costToDate > 0,
+  };
+}
+
+/**
+ * Why a job is NOT on the schedule — for the line that discloses it (a job must
+ * never vanish from a bank document without a word). `null` when it is on.
+ * Same order of tests as isWipReportableProject.
+ */
+export function wipExclusionReason(
+  project: Pick<Project, 'status'> & Partial<Pick<Project, 'ownerUserId' | 'myRole'>>,
+  ctx: WipReportableContext,
+): 'closed' | 'shared' | 'unsigned' | null {
+  if (project.status === 'closed') return 'closed';
+  if (ctx.userId !== undefined && !isOwnCompanyProject(project, ctx.userId)) return 'shared';
+  return isWipReportableProject(project, ctx) ? null : 'unsigned';
 }
 
 /**
@@ -584,6 +730,94 @@ export function wipEtcValueMap(entries: Record<string, WipEtcEntry>): Record<str
   const out: Record<string, number> = {};
   for (const [projectId, e] of Object.entries(entries)) out[projectId] = e.value;
   return out;
+}
+
+// ── THE TYPED COST-TO-DATE OVERRIDE: key, entry, parser, tombstone rule ─────
+//
+// Moved here from app/wip-report.tsx (#37, audit 2026-09-22) for the same
+// reason the ETC map above was: hooks/useWeekClose.ts builds the Friday Close's
+// "$X unbilled" off the same WIP row and could not see the override the GC had
+// typed, because the key, the entry shape and the "a tombstone is not a figure"
+// rule were private to one screen. The WIP screen still owns the server
+// read-through (public.wip_cost_overrides) and every write; the week-close only
+// reads the device cache through these.
+
+/** AsyncStorage prefix — `mageid_`, so the tenant sweep covers it. */
+export const WIP_COST_OVERRIDES_STORAGE_PREFIX = 'mageid_wip_cost_overrides';
+
+/** Per-user key. Falls back to the bare prefix only when there is no user id. */
+export function wipCostOverridesKey(userId: string | undefined): string {
+  return userId ? `${WIP_COST_OVERRIDES_STORAGE_PREFIX}_${userId}` : WIP_COST_OVERRIDES_STORAGE_PREFIX;
+}
+
+/**
+ * One project's typed cost-to-date. `value` is COST incurred, not revenue.
+ * `updatedAt` is an INSTANT (not a calendar day) — it is what decides whose
+ * edit is newer when the phone and the laptop disagree. `synced` records
+ * whether the server has taken this value yet, so the screen can say "this
+ * device only" instead of letting the GC assume every device agrees.
+ */
+export interface WipCostOverride {
+  value: number;
+  updatedAt: string;
+  synced: boolean;
+  /**
+   * The GC took the override back off — he cleared the box, or typed the app's
+   * own figure back in. Kept as a dated entry rather than dropped from the map
+   * because the SERVER still holds the row: delete it locally and the next
+   * read-through hands the override straight back, so "clear" would not
+   * survive a reload. A tombstone wins the same updatedAt comparison a new
+   * figure would.
+   *
+   * `value` on a tombstone is inert. It carries the AUTOMATIC figure rather
+   * than the one that was taken off, so a reader that forgets to check this
+   * flag falls back to the app's own number instead of resurrecting the one
+   * the GC just rejected.
+   */
+  cleared?: boolean;
+}
+
+// Overrides written before the WIP screen learned to sync were bare numbers
+// with no timestamp. Stamping them at the epoch means a server row — which by
+// definition was typed after the sync shipped — wins, while an override that
+// exists on NO other device is still kept and backfilled up on the next load.
+export const WIP_COST_OVERRIDE_LEGACY_STAMP = '1970-01-01T00:00:00.000Z';
+
+/** Parse a stored override map, dropping anything that is not a usable figure. */
+export function normalizeWipCostOverrides(raw: unknown): Record<string, WipCostOverride> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, WipCostOverride> = {};
+  for (const [projectId, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof entry === 'number' && Number.isFinite(entry)) {
+      out[projectId] = { value: entry, updatedAt: WIP_COST_OVERRIDE_LEGACY_STAMP, synced: false };
+      continue;
+    }
+    if (entry && typeof entry === 'object') {
+      const e = entry as Partial<WipCostOverride>;
+      if (typeof e.value === 'number' && Number.isFinite(e.value)) {
+        out[projectId] = {
+          value: e.value,
+          updatedAt: typeof e.updatedAt === 'string' ? e.updatedAt : WIP_COST_OVERRIDE_LEGACY_STAMP,
+          synced: e.synced === true,
+          cleared: e.cleared === true,
+        };
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The override actually in force for a project, or undefined when there is
+ * none. A tombstone is a record of a removal, never a figure — reading one as
+ * a cost-to-date would put a stale number back on a bank-facing schedule.
+ */
+export function wipCostOverrideInForce(
+  map: Record<string, WipCostOverride>,
+  projectId: string,
+): WipCostOverride | undefined {
+  const entry = map[projectId];
+  return entry && !entry.cleared ? entry : undefined;
 }
 
 /**

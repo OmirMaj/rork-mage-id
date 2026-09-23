@@ -76,6 +76,7 @@ import {
 import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import { showAlert } from '@/utils/alert';
+import { buildEstimateEmailBody, type EmailEstimateRow } from '@/utils/estimateEmailBody';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { pdfFailureMessage } from '@/utils/platformFile';
 
@@ -1118,6 +1119,15 @@ export default function EstimateScreen() {
     }, 350);
   }, [selectedProjectId, projects]);
 
+  // Closing the confirm-link popup WITHOUT linking abandons the pick (#93).
+  // pendingLinkProject used to survive the X / backdrop / Android back, and it
+  // is what feeds the PDF's bulk-savings figure and its file name — so an
+  // estimate that was never linked printed another project's buyout savings.
+  const closeConfirmLink = useCallback(() => {
+    setShowConfirmLink(false);
+    setPendingLinkProject(null);
+  }, []);
+
   const handleConfirmLink = useCallback((mode: 'replace' | 'merge') => {
     if (!pendingLinkProject) return;
     const linkedEst = buildLinkedEstimate();
@@ -1163,6 +1173,17 @@ export default function EstimateScreen() {
     }
   }, [totalItemCount]);
 
+  // The bulk-savings row reaches the client's PDF only when he ticked it in the
+  // send sheet (#93). The toggle used to be ignored — unticking "Bulk Savings
+  // Breakdown" still printed "Bulk Savings −$X" — and it defaulted ON. The
+  // figure is budget minus his awarded buyout: his savings, not a discount in
+  // the client's price, so it is off unless he opts in (PDFPreSendSheet).
+  const bulkSavingsForPdf = useCallback((options: PDFSendOptions): number | undefined => {
+    if (!showBulkSavings) return undefined;
+    if (!options.sections.some(s => s.id === 'bulk_savings' && s.enabled)) return undefined;
+    return pendingProjectBulkSavings?.bulkSavings ?? undefined;
+  }, [showBulkSavings, pendingProjectBulkSavings]);
+
   const handlePDFSend = useCallback(async (options: PDFSendOptions) => {
     if (totalItemCount === 0) return;
     setShowPDFPreSend(false);
@@ -1186,7 +1207,7 @@ export default function EstimateScreen() {
           // Inject real buyout-derived savings so the printed PDF reflects the
           // actual awarded-commitment delta. undefined when no real savings →
           // generator already guards (bulkSavingsTotal ?? 0) > 0 before rendering.
-          bulkSavingsTotal: showBulkSavings ? (pendingProjectBulkSavings?.bulkSavings ?? undefined) : undefined,
+          bulkSavingsTotal: bulkSavingsForPdf(options),
         },
         status: 'estimated',
       };
@@ -1326,7 +1347,7 @@ export default function EstimateScreen() {
         // Inject real buyout-derived savings so the printed PDF reflects the
         // actual awarded-commitment delta. undefined when no real savings →
         // generator already guards (bulkSavingsTotal ?? 0) > 0 before rendering.
-        bulkSavingsTotal: showBulkSavings ? (pendingProjectBulkSavings?.bulkSavings ?? undefined) : undefined,
+        bulkSavingsTotal: bulkSavingsForPdf(options),
       },
       status: 'estimated',
     };
@@ -1338,41 +1359,44 @@ export default function EstimateScreen() {
       console.error('[Estimate] PDF share error:', e);
       showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));
     }
-  }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, showBulkSavings, pendingProjectBulkSavings]);
+  }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, bulkSavingsForPdf]);
 
   const handleShareEmail = useCallback(() => {
-    let text = '';
-    if (settings.branding?.companyName) {
-      text += `${settings.branding.companyName}\n`;
-      if (settings.branding.tagline) text += `${settings.branding.tagline}\n`;
-      text += '\n';
-    }
-    text += 'MAGE ID Estimate\n\n';
-    cart.forEach(item => {
-      const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-      const lineTotal = base * (1 + item.markup / 100) * item.quantity;
-      text += `${item.material.name}\n`;
-      text += `  Qty: ${item.quantity} | $${base.toFixed(2)}/${item.material.unit} | Markup: ${item.markup}% | Total: $${lineTotal.toFixed(2)}\n`;
+    // SELL BASIS ONLY (#55). This draft is addressed to the homeowner, and it
+    // used to print his material cost per unit, "Markup: 25%" on every line
+    // and his loaded labor cost rate. utils/estimateEmailBody prints each
+    // line's quantity and SELL total — no unit price at all, so nothing needs
+    // to multiply out — footed to the grand total the PDF carries. The line
+    // totals are the ones cartTotals() sums: materials at their own markup,
+    // labor and assemblies at the global markup.
+    const rows: EmailEstimateRow[] = [
+      ...cart.map(item => {
+        const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
+        return {
+          name: item.material.name,
+          qtyLabel: `Qty: ${item.quantity} ${item.material.unit}`,
+          lineTotal: base * (1 + item.markup / 100) * item.quantity,
+        };
+      }),
+      ...laborCart.map(item => ({
+        name: item.labor.trade,
+        qtyLabel: `${item.hours} hrs`,
+        lineTotal: item.adjustedRate * item.hours * (1 + globalMarkup / 100),
+      })),
+      ...assemblyCart.map(item => ({
+        name: item.assembly.name,
+        qtyLabel: `Qty: ${item.quantity} ${item.assembly.unit}`,
+        lineTotal: item.totalCost * (1 + globalMarkup / 100),
+      })),
+    ];
+    const text = buildEstimateEmailBody({
+      companyName: settings.branding?.companyName,
+      tagline: settings.branding?.tagline,
+      rows,
+      grandTotal,
+      contactName: settings.branding?.contactName,
+      phone: settings.branding?.phone,
     });
-    // Labor and assemblies, on the SELL basis, at the same markup cartTotals()
-    // applies. Without these the body listed materials rows and then printed a
-    // TOTAL that included labor and assemblies — a document handed to a client
-    // that does not add up.
-    laborCart.forEach(item => {
-      const cost = item.adjustedRate * item.hours;
-      text += `${item.labor.trade}\n`;
-      text += `  ${item.hours} hrs | $${item.adjustedRate.toFixed(2)}/hr | Total: $${(cost * (1 + globalMarkup / 100)).toFixed(2)}\n`;
-    });
-    assemblyCart.forEach(item => {
-      text += `${item.assembly.name}\n`;
-      text += `  Qty: ${item.quantity} ${item.assembly.unit} | Total: $${(item.totalCost * (1 + globalMarkup / 100)).toFixed(2)}\n`;
-    });
-    // The cost/markup split is the contractor's own business. utils/estimateMarkup.ts
-    // states the house position: what he makes is not the client's line item.
-    text += `\nTOTAL: $${grandTotal.toFixed(2)}\n`;
-    if (settings.branding?.contactName || settings.branding?.phone) {
-      text += `\nContact: ${settings.branding?.contactName ?? ''} ${settings.branding?.phone ?? ''}\n`;
-    }
     const subject = settings.branding?.companyName ? `${settings.branding.companyName} - Estimate` : 'MAGE ID Estimate';
     const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
     Linking.openURL(url).catch(() => {
@@ -3110,12 +3134,12 @@ export default function EstimateScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-        <Modal visible={showConfirmLink} transparent animationType="fade" onRequestClose={() => setShowConfirmLink(false)}>
-          <Pressable style={styles.popupOverlay} onPress={() => setShowConfirmLink(false)}>
+        <Modal visible={showConfirmLink} transparent animationType="fade" onRequestClose={closeConfirmLink}>
+          <Pressable style={styles.popupOverlay} onPress={closeConfirmLink}>
             <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
                 <Text style={styles.addToProjectTitle}>Confirm</Text>
-                <TouchableOpacity onPress={() => setShowConfirmLink(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
+                <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
               {pendingLinkProject && (
                 <TouchableOpacity accessibilityRole="button" style={styles.addToProjectConfirmBtn} onPress={() => handleConfirmLink('replace')} activeOpacity={0.85}>
@@ -3799,13 +3823,13 @@ export default function EstimateScreen() {
         visible={showConfirmLink}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowConfirmLink(false)}
+        onRequestClose={closeConfirmLink}
       >
-        <Pressable style={styles.popupOverlay} onPress={() => setShowConfirmLink(false)}>
+        <Pressable style={styles.popupOverlay} onPress={closeConfirmLink}>
           <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
               <Text style={styles.addToProjectTitle}>Confirm Estimate Link</Text>
-              <TouchableOpacity onPress={() => setShowConfirmLink(false)} accessibilityRole="button" accessibilityLabel="Close">
+              <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>

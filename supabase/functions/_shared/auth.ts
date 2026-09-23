@@ -83,7 +83,21 @@ async function lookupTier(userId: string): Promise<Tier> {
 /**
  * Master-account override list. These emails get Business tier no matter
  * what RevenueCat says — used for the team's own accounts, demo videos,
- * support troubleshooting. Keep in sync with `utils/owner.ts` in the app.
+ * support troubleshooting.
+ *
+ * Every copy of this list must stay IN SYNC (audit wave 5, #1):
+ *   - OWNER_EMAILS in `utils/owner.ts` (the app's client-side override),
+ *   - MASTER_EMAILS here (requireTier),
+ *   - public.is_master_account(uuid) in
+ *     supabase/migrations/20260922100000_master_account_project_cap.sql
+ *     (the free-plan project-cap trigger honours it),
+ *   - the private MASTER_EMAILS copies in functions that can't import this
+ *     one (mcp/index.ts, project-memory-embed/planScopeIo.ts today).
+ * The validator below lists every copy it checks and fails on one it doesn't
+ * know about.
+ * A drift means "Business in the app, Free in the database" — the founder's
+ * new jobs were refused by the cap trigger that way.
+ * scripts/validate-w5-project-cap-master-lists.ts fails the build on drift.
  */
 const MASTER_EMAILS = new Set<string>([
   'omirmajeed2000@gmail.com',

@@ -11,11 +11,21 @@
 //   • "Upload" from any folder — opens the platform document picker,
 //     uploads via Supabase Storage, refreshes the list.
 //
-// The bucket is project-documents (public-read, auth-only-write — see
-// supabase/migrations/add_project_documents_bucket.sql). Same bucket
-// the Daily Report's "save to project files" toggle uploads to.
+// The bucket is project-documents: PRIVATE. Files here are visible to
+// people on this project (storage RLS), opened through short-lived signed
+// links minted on each read — not a public or "stable" URL anyone can open
+// (the old header said "public-read", which was never true; see
+// utils/projectFiles.ts). Same bucket the Daily Report's "save to project
+// files" toggle uploads to.
+//
+// Honesty rules this screen keeps (wave 5, #159/#160):
+//   • a folder read that FAILED says so (banner + Retry, "—" on the tile);
+//     "No files in this folder yet" only after a read that answered empty;
+//   • Delete below the editor role is disabled with the reason, and a delete
+//     the server refused says "Not removed" instead of silently reappearing;
+//   • Open re-signs the link on tap and says so when it still can't.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
@@ -23,6 +33,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft, FolderOpen, Upload, Layers, FileSignature, Camera,
   Shield, BookOpen, ClipboardList, FileText, Trash2, ExternalLink, Receipt,
+  WifiOff, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -32,15 +43,24 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import {
   DEFAULT_FOLDERS,
-  listProjectFiles,
+  listProjectFilesChecked,
   countProjectFilesByFolder,
   uploadProjectFile,
   deleteProjectFile,
+  resolveProjectFileUrl,
   formatBytes,
   type ProjectFile,
 } from '@/utils/projectFiles';
+import { readFileBytes } from '@/utils/fileBytes';
 import { openSavedDocument } from '@/utils/projectDocuments';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { showAlert } from '@/utils/alert';
+
+/** The read-failure sentence, shared by the grid banner and the folder view. */
+const LOAD_FAILED = "Couldn't load files — no signal or the server didn't answer.";
+/** Why Delete is disabled below the editor role (storage RLS
+ *  project_docs_delete requires 'editor'; the owner always passes). */
+const DELETE_NEEDS_EDITOR = 'Only the job owner or an editor can delete project files.';
 
 interface Props {
   projectId: string;
@@ -62,11 +82,22 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [loadingCounts, setLoadingCounts] = useState(true);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // True when the last grid / folder read did not answer. Drives the banner,
+  // the "—" tiles and the folder view's failure state (#159).
+  const [countsFailed, setCountsFailed] = useState(false);
+  const [filesFailed, setFilesFailed] = useState(false);
+  // Delete needs the editor role. A field or viewer seat's delete used to be
+  // matched by no RLS row and "succeed" silently (#160). While the role is
+  // still resolving, or the collaborator read failed, Delete stays available
+  // — the server is the authority and deleteProjectFile now reports a
+  // refusal. Only a KNOWN field / viewer seat is refused up front.
+  const { role, isLoading: roleLoading, isError: roleError } = useProjectRoleState(projectId);
+  const canDelete = roleLoading || roleError || (role !== 'viewer' && role !== 'field');
 
   // Reload folder counts on mount + whenever the active folder closes
   // (so the count reflects the latest upload/delete).
@@ -76,6 +107,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
     try {
       const c = await countProjectFilesByFolder(projectId);
       setCounts(c);
+      setCountsFailed(DEFAULT_FOLDERS.some(f => c[f.key] === null));
     } finally {
       setLoadingCounts(false);
     }
@@ -88,8 +120,9 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
     if (!projectId || !activeFolder) return;
     setLoadingFiles(true);
     try {
-      const list = await listProjectFiles(projectId, activeFolder);
-      setFiles(list);
+      const listing = await listProjectFilesChecked(projectId, activeFolder);
+      setFiles(listing.files);
+      setFilesFailed(listing.failed);
     } finally {
       setLoadingFiles(false);
     }
@@ -112,13 +145,15 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       const asset = picked.assets[0];
 
       setUploading(true);
-      const r = await fetch(asset.uri);
-      const blob = await r.blob();
+      // readFileBytes, never fetch(uri).blob(): on React Native that Blob
+      // uploads as a 0-byte object while the upload "succeeds" (#5). On web
+      // the picker's blob: URI goes through readFileBytes' fetch/arrayBuffer.
+      const bytes = await readFileBytes(asset.uri);
       await uploadProjectFile({
         projectId,
         folderKey: activeFolder,
         fileName: asset.name,
-        blob,
+        bytes,
         contentType: asset.mimeType ?? 'application/octet-stream',
       });
       await refreshFiles();
@@ -130,7 +165,23 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
     }
   }, [projectId, activeFolder, refreshFiles, refreshCounts]);
 
+  // Open re-signs on tap: the listing's signed URL is '' when signing failed
+  // (offline), and it expires. openSavedDocument throws with the reason when
+  // there is still no link, instead of opening nothing.
+  const handleOpen = useCallback(async (file: ProjectFile) => {
+    try {
+      const fresh = await resolveProjectFileUrl(file.path);
+      await openSavedDocument(/^https?:\/\//i.test(fresh) ? fresh : file.publicUrl);
+    } catch (err) {
+      showAlert("Couldn't open file", err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
   const handleDelete = useCallback((file: ProjectFile) => {
+    if (!canDelete) {
+      showAlert('Can\'t delete', DELETE_NEEDS_EDITOR);
+      return;
+    }
     showAlert(
       'Delete file?',
       `Permanently delete "${file.name}"? This can't be undone.`,
@@ -151,7 +202,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
         },
       ],
     );
-  }, [refreshFiles, refreshCounts]);
+  }, [refreshFiles, refreshCounts, canDelete]);
 
   // ─── File-list view ─────────────────────────────────────────────
   if (activeFolder) {
@@ -184,14 +235,29 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             <ActivityIndicator color={themeColors.accent} />
             <Text style={styles.muted}>Loading files…</Text>
           </View>
+        ) : filesFailed ? (
+          <View style={styles.emptyFolder} testID="project-files-folder-failed">
+            <WifiOff size={28} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.emptyFolderTitle}>Couldn&apos;t load this folder</Text>
+            <Text style={styles.emptyFolderBody}>{LOAD_FAILED} Files already uploaded are still on the server.</Text>
+            <TouchableOpacity
+              style={[styles.uploadBtn, { marginTop: 16, paddingHorizontal: 18, paddingVertical: 12 }]}
+              onPress={() => void refreshFiles()}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <RefreshCw size={14} color={themeColors.surface} strokeWidth={1.75} />
+              <Text style={styles.uploadBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : files.length === 0 ? (
           <View style={styles.emptyFolder}>
             <FolderOpen size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyFolderTitle}>No files in this folder yet</Text>
             <Text style={styles.emptyFolderBody}>
               Upload contracts, signed PDFs, photos, or anything else you want stored
-              alongside this project. Files live at a stable URL you can share with the
-              homeowner or subs.
+              alongside this project. Files here are private to people on this project —
+              to get one to the homeowner or a sub, open it and send it to them.
             </Text>
             <TouchableOpacity
               style={[styles.uploadBtn, { marginTop: 16, paddingHorizontal: 18, paddingVertical: 12 }]}
@@ -219,7 +285,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
                   </Text>
                 </View>
                 <TouchableOpacity
-                  onPress={() => void openSavedDocument(f.publicUrl)}
+                  onPress={() => void handleOpen(f)}
                   style={styles.fileAction}
                   hitSlop={8}
                   accessibilityRole="button"
@@ -229,15 +295,19 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDelete(f)}
-                  style={styles.fileAction}
+                  style={[styles.fileAction, !canDelete && { opacity: 0.35 }]}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel="Delete"
+                  accessibilityLabel={canDelete ? 'Delete' : `Delete unavailable. ${DELETE_NEEDS_EDITOR}`}
+                  accessibilityState={{ disabled: !canDelete }}
                 >
                   <Trash2 size={15} color={Colors.errorDark} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             ))}
+            {!canDelete && (
+              <Text style={styles.roleNote}>{DELETE_NEEDS_EDITOR}</Text>
+            )}
           </ScrollView>
         )}
       </View>
@@ -252,16 +322,27 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       )}
       <Text style={styles.gridTitle}>Project Files</Text>
       <Text style={styles.gridSub}>
-        Shared drive for this project. Auto-saved daily reports land here, plus
-        anything you upload — contracts, signed PDFs, inspection photos, permits.
+        Files for this project, private to the people on it. Auto-saved daily
+        reports land here, plus anything you upload — contracts, signed PDFs,
+        inspection photos, permits.
       </Text>
+      {countsFailed && !loadingCounts && (
+        <View style={styles.failBanner} testID="project-files-load-failed">
+          <WifiOff size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+          <Text style={styles.failBannerText}>{LOAD_FAILED}</Text>
+          <TouchableOpacity onPress={() => void refreshCounts()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retry loading files">
+            <Text style={styles.failBannerRetry}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {loadingCounts && Object.keys(counts).length === 0 ? (
         <ActivityIndicator color={themeColors.accent} style={{ marginVertical: 32 }} />
       ) : (
         <View style={styles.grid}>
           {DEFAULT_FOLDERS.map(f => {
             const Icon = FOLDER_ICONS[f.key] ?? FolderOpen;
-            const count = counts[f.key] ?? 0;
+            // null = this folder's read failed: "—", never a false "0 files".
+            const count = counts[f.key];
             return (
               <TouchableOpacity
                 key={f.key}
@@ -274,7 +355,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
                 </View>
                 <Text style={styles.folderLabel}>{f.label}</Text>
                 <Text style={styles.folderCount}>
-                  {count} {count === 1 ? 'file' : 'files'}
+                  {count == null ? '—' : `${count} ${count === 1 ? 'file' : 'files'}`}
                 </Text>
               </TouchableOpacity>
             );
@@ -354,4 +435,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fileName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
   fileMeta: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   fileAction: { padding: 6 },
+  roleNote: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 6 },
+
+  failBanner: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, marginBottom: 4,
+  },
+  failBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  failBannerRetry: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.accent },
 });

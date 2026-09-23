@@ -1,35 +1,46 @@
 // utils/copilot/estimate/estimateCapability.ts — the Estimate Copilot capability.
 //
 // Voice a rough scope → the interview grounds pricing in the contractor's own
-// learned costs (estimateGrounding), asks only what history can't resolve
-// (finish level / size), then GENERATES a line-itemed estimate priced from
-// those learned rates, commits it undo-safely, and drops the user on the
-// project where the estimate now lives. Mirrors the Schedule capability's
-// shape; the moat is the cost-book grounding fed into generation.
+// costs (estimateGrounding, narrowed to the scope's trades), asks only what
+// neither the job nor his settings resolve (finish level / size / markup),
+// then PRICES the estimate on the review card (estimatePrice.ts — one metered
+// quickEstimate call) so he sees the total, the base/markup split and which
+// lines are his costs before anything is written. Build commits that priced
+// preview undo-safely (the old version is saved) and drops him on the project.
+//
+// #7/#38: pricing used to happen inside Build, behind a review card that said
+// "priced from your jobs — review the total" with no total on it; the markup
+// was a hard-coded 18% stored outside lineTotal (the next edit erased it).
+import { createElement } from 'react';
 import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
-import { estimateGaps, type EstimateDraft } from './estimateGaps';
+import { estimateGaps, ESTIMATE_ASK_THRESHOLD, type EstimateDraft } from './estimateGaps';
 import { buildEstimateGrounding } from './estimateGrounding';
-import { mageAI } from '@/utils/mageAI';
+import { buildCopilotLinkedEstimate, copilotEstimateMarkup, type PricedEstimate } from './estimatePricing';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { createId } from '@/utils/scheduleEngine';
-import type { QualityTier, LinkedEstimate, LinkedEstimateItem } from '@/types';
+import EstimateCopilotReview from '@/components/copilot/EstimateCopilotReview';
+import type { QualityTier, LinkedEstimate, Project } from '@/types';
 
 export interface EstimateApplied { route: '/project-detail'; projectId: string }
 
 const QUALITIES: QualityTier[] = ['economy', 'standard', 'premium', 'luxury'];
 const isQuality = (v: unknown): v is QualityTier => typeof v === 'string' && (QUALITIES as string[]).includes(v);
 
-interface GenLine {
-  category?: string; name?: string; unit?: string; quantity?: number;
-  unitPrice?: number; csiDivision?: string; isAllowance?: boolean;
+/** Commit a priced estimate — the only write. Pure apart from updateProject. */
+export function commitCopilotEstimate(project: Project, linked: LinkedEstimate, ctx: CopilotContext): void {
+  const patch = commitEstimatePatch(project, linked, { reason: 'pre_overwrite', note: 'Built by MAGE Copilot' });
+  ctx.ctx?.updateProject?.(ctx.projectId, patch);
 }
 
 export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplied> = {
   id: 'estimate',
   label: 'Build an estimate',
   aiFeature: 'quickEstimate',
+  // The interview turns are field extraction; the one quickEstimate trial is
+  // charged on the pricing call (#35/#38: an estimate used to cost two).
+  turnMeterFeature: 'copilot',
   maxQuestions: 3,
-  askThreshold: 0.4,
+  askThreshold: ESTIMATE_ASK_THRESHOLD,
   suggestions: [
     'Kitchen gut — demo, 200 SF tile, new cabinets, rewire, repaint',
     'Full bath remodel, standard finishes, move the plumbing',
@@ -43,13 +54,15 @@ export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplie
     voiceTitle: 'Build an estimate',
     composeEyebrow: 'TELL ME ABOUT THE SCOPE',
     composeQuestion: 'What are we pricing?',
-    composeHint: 'Rooms, trades, finishes — I’ll price it from your jobs.',
-    reviewHeadline: 'Here’s your estimate, priced from your jobs.',
-    reviewSub: 'Review the total, then build. You can fine-tune every line on the estimate grid.',
-    buildingLabel: 'Pricing your estimate…',
+    composeHint: 'Rooms, trades, finishes — I’ll price it from your costs where you have them.',
+    // Not rendered (renderReview below owns the review card); kept honest in
+    // case a caller reads it.
+    reviewHeadline: 'Here’s your estimate.',
+    reviewSub: 'Check the total and the lines, then build. You can fine-tune every line on the estimate grid.',
+    buildingLabel: 'Saving your estimate…',
     webRoute: '/(tabs)/estimate',
   },
-  buildGrounding: buildEstimateGrounding,
+  buildGrounding: (ctx: CopilotContext) => buildEstimateGrounding(ctx),
   gaps: (draft: EstimateDraft, grounding: Grounding): Gap[] => estimateGaps(draft, grounding),
 
   buildTurnPrompt: ({ transcript, draft, grounding, asking }) => ({
@@ -64,7 +77,7 @@ export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplie
       '',
       'THEIR HISTORY:', ...grounding.facts,
       '',
-      'DRAFT SO FAR: ' + JSON.stringify(draft),
+      'DRAFT SO FAR: ' + JSON.stringify({ scope: draft.scope ?? null, quality: draft.quality ?? null, sizeSqft: draft.sizeSqft ?? null, markupPct: draft.markupPct ?? null }),
       asking ? `THEY ARE ANSWERING: "${asking.question}"` : '',
       'WHAT THEY SAID: ' + transcript,
       'Return ONLY the updated draft JSON.',
@@ -73,7 +86,8 @@ export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplie
   }),
 
   mergeDraft: (draft, aiJson, meta): EstimateDraft => ({
-    // The transcript IS the scope — keep the latest so apply() can price it.
+    // The transcript IS the scope — keep the latest so pricing uses it. A new
+    // turn drops any earlier price: the scope it priced may have changed.
     scope: meta?.transcript ?? draft.scope ?? null,
     quality: isQuality(aiJson?.quality) ? aiJson.quality : draft.quality ?? null,
     sizeSqft: typeof aiJson?.sizeSqft === 'number' ? aiJson.sizeSqft : draft.sizeSqft ?? null,
@@ -83,87 +97,26 @@ export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplie
   apply: async (draft: EstimateDraft, ctx: CopilotContext): Promise<EstimateApplied> => {
     const project = ctx.project;
     if (!project) throw new Error('No project to attach the estimate to.');
-
-    // Resolve the pricing parameters: interview answer → project metadata → default.
-    const grounding = await buildEstimateGrounding(ctx);
-    const g = grounding.data as { projectQuality?: QualityTier; projectSqft?: number; defaultMarkupPct?: number };
-    const quality: QualityTier = draft.quality ?? g.projectQuality ?? 'standard';
-    const sizeSqft = draft.sizeSqft ?? g.projectSqft ?? 200;
-    const markupPct = draft.markupPct ?? g.defaultMarkupPct ?? 18;
-    const scope = (draft.scope ?? '').trim();
-    if (!scope) throw new Error('Tell me the scope first, then I can price it.');
-
-    const gen = await mageAI({
-      prompt: [
-        'You are MAGE Copilot pricing a construction estimate for a contractor.',
-        `SCOPE: ${scope}`,
-        `FINISH LEVEL: ${quality}`,
-        `WORK AREA: ~${sizeSqft} SF`,
-        project.location ? `LOCATION: ${project.location}` : '',
-        '',
-        'Price from the contractor\'s OWN learned unit costs where the trade appears',
-        'below; for trades with no history use realistic standard regional rates for',
-        `the ${quality} finish level. THEIR LEARNED COSTS:`,
-        ...grounding.facts,
-        '',
-        'Return itemized line items grouped by trade/category. Each line: category,',
-        'name, unit (ea/sf/ls/lf), quantity, unitPrice (the contractor cost BEFORE',
-        'markup), csiDivision (2-digit CSI), isAllowance (true only for not-yet-',
-        'selected tile / fixtures / appliances). Do NOT apply markup. Be complete',
-        'but never padded.',
-      ].filter(Boolean).join('\n'),
-      schemaHint: {
-        lineItems: [{ category: 'Demolition', name: 'Kitchen demo', unit: 'ls', quantity: 1, unitPrice: 2500, csiDivision: '02', isAllowance: false }],
-        notes: ['assumptions worth flagging'],
-      },
-      tier: 'smart',
-      maxTokens: 4000,
-      feature: 'quickEstimate',
-    });
-    if (!gen.success || !gen.data) {
-      throw new Error(gen.error ?? 'Could not price the estimate. Try again.');
+    const priced: PricedEstimate | null | undefined = draft.priced;
+    // Build commits what the review showed. It never prices: a second model
+    // call would write numbers he never saw.
+    if (!priced || !Array.isArray(priced.costItems) || priced.costItems.length === 0) {
+      throw new Error('Price the estimate on the review card first — nothing was saved.');
     }
-
-    const rawLines: GenLine[] = Array.isArray((gen.data as { lineItems?: GenLine[] }).lineItems)
-      ? (gen.data as { lineItems: GenLine[] }).lineItems
-      : [];
-    const items: LinkedEstimateItem[] = rawLines
-      .filter((l) => (l.name || l.category) && typeof l.unitPrice === 'number')
-      .map((l) => {
-        const quantity = typeof l.quantity === 'number' && l.quantity > 0 ? l.quantity : 1;
-        const unitPrice = Math.max(0, Number(l.unitPrice) || 0);
-        return {
-          materialId: createId('mat'),
-          name: l.name ?? l.category ?? 'Line item',
-          category: l.category ?? 'General',
-          unit: l.unit ?? 'ea',
-          quantity,
-          unitPrice,
-          bulkPrice: unitPrice,
-          markup: 0,
-          usesBulk: false,
-          lineTotal: Math.round(quantity * unitPrice * 100) / 100,
-          supplier: '',
-          csiDivision: l.csiDivision,
-          isAllowance: !!l.isAllowance,
-        };
-      });
-    if (items.length === 0) throw new Error('The estimate came back empty — try describing the scope in more detail.');
-
-    const baseTotal = Math.round(items.reduce((s, i) => s + i.lineTotal, 0) * 100) / 100;
-    const markupTotal = Math.round(baseTotal * (markupPct / 100) * 100) / 100;
-    const linked: LinkedEstimate = {
-      id: createId('est'),
-      items,
-      globalMarkup: markupPct,
-      baseTotal,
-      markupTotal,
-      grandTotal: Math.round((baseTotal + markupTotal) * 100) / 100,
-      createdAt: new Date().toISOString(),
-    };
-
-    const patch = commitEstimatePatch(project, linked, { reason: 'pre_overwrite', note: 'Built by MAGE Copilot' });
-    ctx.ctx?.updateProject?.(ctx.projectId, patch);
+    const markup = copilotEstimateMarkup(draft, ctx);
+    if (!markup) throw new Error('Pick a markup first — MAGE won’t guess what you charge.');
+    const linked = buildCopilotLinkedEstimate(priced.costItems, markup.pct, createId('est'), new Date().toISOString());
+    commitCopilotEstimate(project, linked, ctx);
     return { route: '/project-detail', projectId: ctx.projectId };
   },
+
+  renderReview: ({ draft, ctx, confirm, cancel, patchDraft, note }) =>
+    createElement(EstimateCopilotReview, {
+      draft: draft as EstimateDraft,
+      ctx,
+      onBuild: confirm,
+      onDiscard: cancel,
+      patchDraft: patchDraft as ((p: Partial<EstimateDraft>) => void) | undefined,
+      note,
+    }),
 };

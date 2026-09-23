@@ -106,20 +106,20 @@ function getDefaultFileName(type: PDFDocumentType, projectName: string, docNumbe
 function getDefaultSections(type: PDFDocumentType, hasBulkSavings = false): PDFSection[] {
   switch (type) {
     case 'estimate': {
-      const sections: PDFSection[] = [
-        { id: 'line_items', label: 'Line Items', enabled: true },
-        { id: 'cost_summary', label: 'Cost Summary', enabled: true },
-      ];
-      // Only show the Bulk Savings Breakdown toggle when there is real
-      // buyout-measured data — never offer a fabricated section.
-      if (hasBulkSavings) {
-        sections.push({ id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: true });
-      }
-      sections.push(
-        { id: 'schedule_summary', label: 'Schedule Summary', enabled: false },
-        { id: 'branding', label: 'Company Branding', enabled: true },
-      );
-      return sections;
+      // ONLY TOGGLES THE ESTIMATE PDF HONOURS (#93). Line Items, Cost Summary,
+      // Schedule Summary and Company Branding were offered here and read by
+      // nothing — the estimate generator prints its one layout whatever they
+      // say — so "2 of 5 sections selected" was a control that did nothing.
+      // They are gone until the generator takes them.
+      //
+      // Bulk Savings is the one it honours (app/(tabs)/estimate/full.tsx
+      // bulkSavingsForPdf). It is offered only with real buyout-measured data
+      // — never a fabricated section — and it is OFF by default: the figure is
+      // budget minus his awarded buyout, his savings rather than a discount in
+      // the client's price, so it reaches a client document only if he opts in.
+      return hasBulkSavings
+        ? [{ id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: false }]
+        : [];
     }
     case 'invoice':
       return [
@@ -267,34 +267,43 @@ export default function PDFPreSendSheet({
                 <Text style={styles.pdfExt}>.pdf</Text>
               </View>
 
-              <Text style={styles.fieldLabel}>INCLUDE IN PDF</Text>
-              <TouchableOpacity
-                style={styles.sectionsToggle}
-                onPress={() => setShowSections(!showSections)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sectionsToggleText}>
-                  {sections.filter(s => s.enabled).length} of {sections.length} sections selected
-                </Text>
-                {showSections
-                  ? <ChevronUp size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
-                  : <ChevronDown size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
-                }
-              </TouchableOpacity>
-              {showSections && (
-                <View style={styles.sectionsList}>
-                  {sections.map(section => (
-                    <View key={section.id} style={styles.sectionRow}>
-                      <Text style={styles.sectionLabel}>{section.label}</Text>
-                      <Switch
-                        value={section.enabled}
-                        onValueChange={() => toggleSection(section.id)}
-                        trackColor={{ false: themeColors.surfaceAlt, true: themeColors.accent + '50' }}
-                        thumbColor={section.enabled ? themeColors.accent : themeColors.textMuted}
-                      />
-                    </View>
-                  ))}
-                </View>
+              {sections.length > 0 && (
+                <>
+                <Text style={styles.fieldLabel}>INCLUDE IN PDF</Text>
+                <TouchableOpacity
+                  style={styles.sectionsToggle}
+                  onPress={() => setShowSections(!showSections)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.sectionsToggleText}>
+                    {sections.filter(s => s.enabled).length} of {sections.length} sections selected
+                  </Text>
+                  {showSections
+                    ? <ChevronUp size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+                    : <ChevronDown size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+                  }
+                </TouchableOpacity>
+                {showSections && (
+                  <View style={styles.sectionsList}>
+                    {sections.map(section => (
+                      <View key={section.id} style={styles.sectionRow}>
+                        <Text style={styles.sectionLabel}>{section.label}</Text>
+                        <Switch
+                          value={section.enabled}
+                          onValueChange={() => toggleSection(section.id)}
+                          trackColor={{ false: themeColors.surfaceAlt, true: themeColors.accent + '50' }}
+                          thumbColor={section.enabled ? themeColors.accent : themeColors.textMuted}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
+                  {sections.some(sec => sec.id === 'bulk_savings') && (
+                    <Text style={styles.sectionsNote} testID="pdf-bulk-savings-note">
+                      Bulk Savings is your budget minus your awarded buyout — your savings, not a discount in the client&apos;s price. It prints on the client&apos;s PDF only if you switch it on.
+                    </Text>
+                  )}
+                </>
               )}
 
               <Text style={styles.fieldLabel}>RECIPIENT</Text>
@@ -520,6 +529,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     color: t.text,
     fontWeight: '500' as const,
+  },
+  sectionsNote: {
+    fontSize: Type.caption1.fontSize,
+    color: t.textSecondary,
+    lineHeight: 17,
+    marginTop: 6,
   },
   recipientRow: {
     flexDirection: 'row',

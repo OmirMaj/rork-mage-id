@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image, TextInput,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,8 +25,13 @@ import { uploadAndRenderPdf, type RenderedPlanPage } from '@/utils/pdfRenderClie
 import { analyzeDrawings, type DrawingAnalysisResult, type AnalyzerModel, MODEL_DISPLAY } from '@/utils/drawingAnalyzer';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
-import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
+import { MARKUP_CHOICES, isMarkupSet, type MarkupPct } from '@/utils/estimateMarkup';
+import {
+  analyzerCostItems, appendAtEstimateRatio, buildNewEstimate, parseDecimalInput,
+} from '@/utils/estimateLanding';
+import { edgeErrorCode } from '@/utils/edgeError';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -176,10 +181,30 @@ function DrawingAnalyzerInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[DrawingAnalyzer] failed', e);
-      setError(String((e as Error).message ?? e));
       setStep('idle');
+      // A cap or a plan refusal is not a "try again" failure (#124, CONTRACT
+      // 26). utils/drawingAnalyzer reads the function's own body through
+      // edgeFunctionError, so the error carries the server's code and its
+      // sentence ("Monthly drawing-analysis limit reached (…). Resets …").
+      // The collapsed "Edge Function returned a non-2xx status code" told him
+      // nothing, and nothing here offered the one action that helps.
+      const message = String((e as Error)?.message ?? e);
+      const code = edgeErrorCode(e);
+      setError(message);
+      if (code === 'monthly_cap_reached' || code === 'tier_required') {
+        showAlert(
+          code === 'tier_required' ? 'Not included in your plan' : "You've hit this month's limit",
+          message,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+          ],
+        );
+      }
+      // 'hourly_limit' and everything else: the sentence in the error card
+      // (its only action is Dismiss — nothing here promises a retry).
     }
-  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, tier, settings?.contingencyRate]);
+  }, [pickedProjectId, uploadBlockedReason, project, pickedModel, tier, settings?.contingencyRate, router]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
@@ -190,54 +215,115 @@ function DrawingAnalyzerInner() {
     setUploadedFileName(null);
   }, []);
 
+  // ── HIS MARKUP, NOT ZERO (#8) ────────────────────────────────────────────
+  //
+  // "Use as starting point" used to write every line at cost with
+  // `globalMarkup: 0` — the contract value, the proposal and every margin
+  // figure downstream then read an at-cost estimate as his price. Same source
+  // and same rule as app/takeoff-estimate.tsx: MaterialCartContext holds the
+  // markup he told the wizard / estimator / Quick Quote, and `markupDecided`
+  // tells "never asked" (null) from "asked, and it's 0" — an unanswered
+  // markup is never written as an asserted one.
+  const { globalMarkup: savedMarkup, markupDecided, recordMarkupDecision } = useMaterialCart();
+  const markupPct: MarkupPct = markupDecided === true ? savedMarkup : null;
+
   const handleUseAsEstimate = useCallback(() => {
     if (!result) return;
     if (!pickedProjectId) {
       showAlert('Pick a project', 'Choose which project to drop these line items into first.');
       return;
     }
+    const target = getProject(pickedProjectId);
+    if (!target) {
+      showAlert('Project not found', 'That project is no longer on this device. Pick another project and run the analyzer again.');
+      return;
+    }
+    // The line items AND the contingency row the result card showed, at cost
+    // on the cent grid (utils/estimateLanding.analyzerCostItems).
+    const costItems = analyzerCostItems(result.lineItems ?? [], result.totals, generateUUID);
+    if (costItems.length === 0) {
+      showAlert('Nothing to add', 'The analyzer returned no priced line items for this set.');
+      return;
+    }
+    const n = costItems.length;
+    const lineWord = `line${n === 1 ? '' : 's'}`;
+    const openProject = () => router.push({ pathname: '/project-detail', params: { id: target.id } } as never);
+
+    // Replace — and a first estimate — is the path that stamps a markup onto
+    // the project, so it refuses an unanswered one and points at the row above
+    // the button, like takeoff-estimate's doReplace. The replaced estimate is
+    // snapshotted as 'manual', a reason the revision cap never drops.
+    const doReplace = () => {
+      if (!isMarkupSet(markupPct)) {
+        showAlert(
+          'Set your markup first',
+          `These ${n} ${lineWord} are priced at your COST. Saving now would put an at-cost number on ${target.name} — and the proposal, the contract value and every margin figure MAGE reports read it. Pick your markup on the "Your markup" row above the button; the estimate wizard, Quick Quote and the takeoff use the same answer.`,
+        );
+        return;
+      }
+      const linked = buildNewEstimate(costItems, markupPct, generateUUID(), new Date().toISOString());
+      updateProject(target.id, commitEstimatePatch(target, linked, {
+        reason: 'manual', note: 'Replaced from the AI Drawing Analyzer',
+      }));
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAlert(
+        'Estimate saved',
+        `${n} ${lineWord} saved to ${target.name} at your ${markupPct}% markup: ${formatMoney(linked.baseTotal, 2)} cost, ${formatMoney(linked.grandTotal, 2)} estimate. Review every line before you send it.`,
+        [{ text: 'Open project', onPress: openProject }],
+      );
+    };
+
+    // Append — keeps his lines, and carries the EXISTING estimate's realized
+    // markup ratio onto the new ones (the area-takeoff rule), so it is honest
+    // with no markup on file.
+    const doAppend = (existing: NonNullable<typeof target.linkedEstimate>) => {
+      const { next, addedSell } = appendAtEstimateRatio(existing, costItems, markupPct);
+      updateProject(target.id, commitEstimatePatch(target, next, {
+        reason: 'manual', note: 'Appended from the AI Drawing Analyzer',
+      }));
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAlert(
+        'Lines appended',
+        `${n} ${lineWord} (${formatMoney(addedSell, 2)}) added to ${target.name}. New estimate total: ${formatMoney(next.grandTotal, 2)}.`,
+        [{ text: 'Open project', onPress: openProject }],
+      );
+    };
+
+    // Never silently replace a real estimate: name it, and offer both.
+    const existing = target.linkedEstimate;
+    if (existing && existing.items.length > 0) {
+      const blocked = !isMarkupSet(markupPct);
+      showAlert(
+        'This project already has an estimate',
+        `${target.name} has a ${formatMoney(existing.grandTotal ?? 0, 2)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). ${blocked
+          ? `Appending these ${n} ${lineWord} carries that estimate's own markup across. Replacing it needs your markup first — set it on the "Your markup" row above the button.`
+          : `Replace it (it stays in the estimate history), or append these ${n} ${lineWord} to it?`}`,
+        blocked
+          ? [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Append these lines', onPress: () => doAppend(existing) },
+          ]
+          : [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Append these lines', onPress: () => doAppend(existing) },
+            { text: 'Replace', style: 'destructive', onPress: doReplace },
+          ],
+      );
+      return;
+    }
+    if (!isMarkupSet(markupPct)) {
+      doReplace();
+      return;
+    }
     showAlert(
       'Use as starting point?',
-      'This hydrates the project\'s estimate with the AI-found line items so you can edit before sending. You\'ll review every line item before it\'s final.',
+      `This saves the ${n} AI-found ${lineWord} as ${target.name}'s estimate at your ${markupPct}% markup, so you can edit before sending. You'll review every line item before it's final.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          onPress: () => {
-            // AUD-002 fix: actually hydrate the project's linkedEstimate
-            // from the AI line items. Previous behavior dropped the user
-            // on /estimate with no data; now they land with the analyzer
-            // output already populated.
-            const items: LinkedEstimateItem[] = (result.lineItems ?? []).map(li => ({
-              materialId: generateUUID(),
-              name: li.name,
-              category: li.category,
-              unit: li.unit,
-              quantity: li.quantity,
-              unitPrice: li.unitPrice,
-              bulkPrice: li.unitPrice,
-              markup: 0,
-              usesBulk: false,
-              lineTotal: li.total,
-              supplier: '',
-            }));
-            const baseTotal = items.reduce((s, i) => s + i.lineTotal, 0);
-            const linked: LinkedEstimate = {
-              id: generateUUID(),
-              items,
-              globalMarkup: 0,
-              baseTotal,
-              markupTotal: 0,
-              grandTotal: baseTotal,
-              createdAt: new Date().toISOString(),
-            };
-            updateProject(pickedProjectId, commitEstimatePatch(getProject(pickedProjectId), linked, { reason: 'pre_overwrite' }));
-            router.push({ pathname: '/project-detail', params: { id: pickedProjectId } } as never);
-          },
-        },
+        { text: 'Continue', onPress: doReplace },
       ],
     );
-  }, [result, router, pickedProjectId, updateProject]);
+  }, [result, router, pickedProjectId, getProject, updateProject, markupPct]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -420,6 +506,8 @@ function DrawingAnalyzerInner() {
             contingencyRateUsed={contingencyRateUsed}
             onReset={handleReset}
             onUse={handleUseAsEstimate}
+            markupPct={markupPct}
+            onChooseMarkup={recordMarkupDecision}
             showProTeaser={!isBusinessTier && modelUsed === 'gemini-2.5-flash'}
             onUpgrade={() => router.push('/paywall' as never)}
           />
@@ -468,18 +556,36 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
   );
 }
 
-function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, onUse, showProTeaser, onUpgrade }: {
+function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, onUse, markupPct, onChooseMarkup, showProTeaser, onUpgrade }: {
   result: DrawingAnalysisResult;
   pages: RenderedPlanPage[];
   modelUsed: AnalyzerModel | null;
   contingencyRateUsed: number | null;
   onReset: () => void;
   onUse: () => void;
+  /** His answered markup, or null when he has never been asked (#8). */
+  markupPct: MarkupPct;
+  onChooseMarkup: (pct: number) => void;
   showProTeaser: boolean;
   onUpgrade: () => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // The shared ladder plus HIS number when it is not on it — a GC who told the
+  // wizard 22% sees 22% lit, not an unselected row (takeoff-estimate's rule).
+  const markupOptions = useMemo(() => {
+    const base: number[] = [...MARKUP_CHOICES];
+    return isMarkupSet(markupPct) && !base.includes(markupPct)
+      ? [...base, markupPct].sort((a, b) => a - b)
+      : base;
+  }, [markupPct]);
+  const [markupInput, setMarkupInput] = useState('');
+  const commitCustomMarkup = useCallback(() => {
+    const pct = parseDecimalInput(markupInput);
+    if (pct == null || pct < 0 || pct > 200) return;
+    onChooseMarkup(pct);
+    setMarkupInput('');
+  }, [markupInput, onChooseMarkup]);
   const modelMeta = modelUsed ? MODEL_DISPLAY[modelUsed] : null;
   const lineItemsByCategory = useMemo(() => {
     const map = new Map<string, typeof result.lineItems>();
@@ -755,6 +861,45 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
         ))}
       </View>
 
+      {/* Your markup — what "Use as starting point" prices the lines at (#8).
+          The figures above are COST; the estimate is saved at cost + this. */}
+      <View style={styles.card} testID="analyzer-markup-row">
+        <Text style={styles.cardLabel}>Your markup</Text>
+        <Text style={styles.cardHelper}>
+          {isMarkupSet(markupPct)
+            ? `The figures above are cost. The estimate is saved at cost + ${markupPct}% — contingency included, so a contingency you spend keeps its margin.`
+            : 'Not set yet. The figures above are your cost, and the estimate is not saved at a markup you never chose — pick yours here.'}
+        </Text>
+        <View style={styles.chipRow}>
+          {markupOptions.map(pct => (
+            <TouchableOpacity
+              key={pct}
+              style={[styles.chip, markupPct === pct && styles.chipActive]}
+              onPress={() => onChooseMarkup(pct)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: markupPct === pct }}
+              testID={`analyzer-markup-${pct}`}
+            >
+              <Text style={[styles.chipText, markupPct === pct && styles.chipTextActive]}>{pct}%</Text>
+            </TouchableOpacity>
+          ))}
+          <TextInput
+            style={[styles.chip, styles.markupInput]}
+            value={markupInput}
+            onChangeText={setMarkupInput}
+            onSubmitEditing={commitCustomMarkup}
+            onBlur={commitCustomMarkup}
+            placeholder="Other %"
+            placeholderTextColor={themeColors.textMuted}
+            keyboardType="decimal-pad"
+            inputMode="decimal"
+            returnKeyType="done"
+            accessibilityLabel="Other markup percent"
+            testID="analyzer-markup-custom"
+          />
+        </View>
+      </View>
+
       {/* CTA bar */}
       <View style={styles.ctaBar}>
         <TouchableOpacity style={styles.ctaSecondary} onPress={onReset}>
@@ -840,6 +985,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   chipActive: { backgroundColor: t.text, borderColor: t.text },
   chipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.text },
   chipTextActive: { color: '#FFF' },
+  markupInput: { minWidth: 76, fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.text },
 
   uploadCard: {
     backgroundColor: t.accent + '0D',

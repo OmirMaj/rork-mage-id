@@ -11,9 +11,23 @@
 //
 // Pure: no React/network/clock (caller passes nowMs). The cost basis carries a
 // `basis` label so the UI can be honest about where the number came from.
+//
+// ── Audit wave 5, #16 ───────────────────────────────────────────────────────
+// The screen said "Priced in your numbers" but history could never match:
+// history was keyed on Project.type ('renovation', 'new_build'…) and
+// opportunities on public_bids.category ('residential', 'construction'…), two
+// vocabularies with no word in common, so every card was priced off the posted
+// budget at a hard-coded 18%. And had they matched, the "cost" was the job's
+// SELL price (effectiveEstimateTotal = grandTotal), marked up again. Now:
+//   * PROJECT_TYPE_TO_BID_CATEGORY maps his job types onto the bid categories;
+//   * historyFromProjects prices each closed job at what it COST — recorded
+//     job-costing actuals when they plausibly cover the job, else the
+//     estimate's pre-markup baseTotal — never grandTotal;
+//   * the markup is his saved one, or an 18% the rows and drivers call
+//     "assumed" (markupAssumed), never "your usual".
 
 import { computeWinOptimizer } from '@/utils/winOptimizer';
-import type { Lead } from '@/types';
+import type { Lead, Project, BidCategory, ProjectType } from '@/types';
 
 /** Minimal shape of an opportunity (a PublicBid row, incl. homeowner RFPs). */
 export interface BidOpportunity {
@@ -32,9 +46,110 @@ export interface BidOpportunity {
 
 /** One completed job of the contractor's, for the cost anchor. */
 export interface JobHistoryPoint {
+  /** A BidCategory (mapped from the job's ProjectType), so it can meet an
+   *  opportunity's category. */
   category: string;
-  /** Actual cost (not price) of that job. */
+  /** What the job COST him (never its sell price). */
   cost: number;
+  /** Where `cost` came from — recorded actuals, or the estimate before markup. */
+  costSource?: 'recorded_actuals' | 'estimate_before_markup';
+}
+
+/** The contractor's job types, in the vocabulary public_bids uses. Every
+ *  residential scope — including the trade types, which on this app are
+ *  overwhelmingly homeowner work — is 'residential'; commercial is
+ *  'construction'. Projects created by an RFP award carry type 'awarded_rfp'
+ *  (award_rfp) and are homeowner jobs, so 'residential' too. */
+export const PROJECT_TYPE_TO_BID_CATEGORY: Record<ProjectType | 'awarded_rfp', BidCategory> = {
+  new_build: 'residential',
+  renovation: 'residential',
+  addition: 'residential',
+  remodel: 'residential',
+  landscape: 'residential',
+  roofing: 'residential',
+  flooring: 'residential',
+  painting: 'residential',
+  plumbing: 'residential',
+  electrical: 'residential',
+  concrete: 'residential',
+  awarded_rfp: 'residential',
+  commercial: 'construction',
+};
+
+export function bidCategoryForProjectType(type: string | null | undefined): BidCategory | null {
+  const key = String(type ?? '').trim().toLowerCase();
+  return (PROJECT_TYPE_TO_BID_CATEGORY as Record<string, BidCategory>)[key] ?? null;
+}
+
+/**
+ * Recorded actuals below this share of the job's own pre-markup estimate are
+ * treated as INCOMPLETE capture, not as a cheap job: on a closed job that is
+ * nearly always cost that was never logged (a crew trade with no rate, receipts
+ * never snapped, subs paid outside MAGE), and bidding off it would under-price
+ * the next job. The estimate's baseTotal is used instead and the row says so.
+ */
+export const ACTUALS_MIN_COVERAGE = 0.5;
+
+/** What one closed job cost him, and from which record. null when neither
+ *  recorded actuals nor an estimate says. */
+export function historyCostFor(input: {
+  /** Recorded job-costing actual cost (utils/wip suggestCostToDateWithSource). */
+  actualCost?: number | null;
+  /** True only when every direct-cost source was handed over (crew time,
+   *  equipment, permits) — otherwise the actual is a lower bound by design. */
+  actualComplete?: boolean;
+  /** linkedEstimate.baseTotal — the estimate BEFORE markup. */
+  estimateBaseTotal?: number | null;
+}): { cost: number; costSource: NonNullable<JobHistoryPoint['costSource']> } | null {
+  const actual = Number(input.actualCost);
+  const base = Number(input.estimateBaseTotal);
+  const hasActual = input.actualComplete === true && Number.isFinite(actual) && actual > 0;
+  const hasBase = Number.isFinite(base) && base > 0;
+  if (hasActual && (!hasBase || actual >= base * ACTUALS_MIN_COVERAGE)) {
+    return { cost: actual, costSource: 'recorded_actuals' };
+  }
+  if (hasBase) return { cost: base, costSource: 'estimate_before_markup' };
+  return null;
+}
+
+/**
+ * The cost anchor: every completed / closed job, in bid categories, at cost.
+ * `actualFor` returns the job's recorded actual cost (and whether the sources
+ * were complete); omit it to price from the estimates alone.
+ */
+export function historyFromProjects(
+  projects: Pick<Project, 'id' | 'type' | 'status' | 'linkedEstimate'>[],
+  actualFor?: (projectId: string) => { value: number; complete: boolean } | null,
+): JobHistoryPoint[] {
+  const out: JobHistoryPoint[] = [];
+  for (const p of projects) {
+    if (p.status !== 'completed' && p.status !== 'closed') continue;
+    const category = bidCategoryForProjectType(p.type as string);
+    if (!category) continue;
+    const actual = actualFor?.(p.id) ?? null;
+    const resolved = historyCostFor({
+      actualCost: actual?.value ?? null,
+      actualComplete: actual?.complete ?? false,
+      estimateBaseTotal: p.linkedEstimate?.baseTotal ?? null,
+    });
+    if (!resolved) continue;
+    out.push({ category, cost: resolved.cost, costSource: resolved.costSource });
+  }
+  return out;
+}
+
+/** The 18% the screen falls back to when he has never set a markup. Always
+ *  labelled "assumed" on screen — it is not his. */
+export const ASSUMED_MARKUP = 0.18;
+
+/** Win-optimizer driver lines speak of "your usual X%". When the markup is the
+ *  assumed default that is not his usual anything: say "the assumed X%", and
+ *  drop the line that praises his instincts for it. */
+export function driversForMarkup(drivers: string[], markupAssumed: boolean): string[] {
+  if (!markupAssumed) return drivers;
+  return drivers
+    .filter((d) => !/nice instincts/i.test(d))
+    .map((d) => d.replace(/\bYour usual\b/g, 'The assumed').replace(/\byour usual\b/g, 'the assumed'));
 }
 
 export type CostBasis = 'your_history' | 'their_budget' | 'none';
@@ -62,6 +177,10 @@ export interface PricedBid {
   score: number;
   /** Plain-English "why this price" lines from the Win Optimizer. */
   drivers: string[];
+  /** The markup this row was priced at (fraction), and whether it is the
+   *  assumed default rather than his saved markup. */
+  markup: number;
+  markupAssumed: boolean;
 }
 
 const DAY_MS = 86400000;
@@ -131,13 +250,17 @@ export function buildPricedBids(opts: {
   opportunities: BidOpportunity[];
   history: JobHistoryPoint[];
   leads: Pick<Lead, 'stage' | 'lostReason'>[];
+  /** His saved markup as a fraction. Omit (or pass markupAssumed) to price at
+   *  ASSUMED_MARKUP, which every row then labels as assumed. */
   typicalMarkup?: number;
+  markupAssumed?: boolean;
   nowMs: number;
   /** Drop opportunities already past their deadline. Default true. */
   excludePastDue?: boolean;
 }): PricedBid[] {
   const { opportunities, history, leads, nowMs } = opts;
-  const typicalMarkup = opts.typicalMarkup ?? 0.18;
+  const markupAssumed = opts.markupAssumed === true || opts.typicalMarkup == null || !Number.isFinite(opts.typicalMarkup);
+  const typicalMarkup = markupAssumed ? ASSUMED_MARKUP : (opts.typicalMarkup as number);
   const excludePastDue = opts.excludePastDue ?? true;
 
   const out: PricedBid[] = [];
@@ -173,7 +296,9 @@ export function buildPricedBids(opts: {
       overBudget: cap > 0 && rec.price > cap,
       fit,
       score: Math.round(rec.expectedProfit * fit),
-      drivers: wo.drivers,
+      drivers: driversForMarkup(wo.drivers, markupAssumed),
+      markup: typicalMarkup,
+      markupAssumed,
     });
   }
 

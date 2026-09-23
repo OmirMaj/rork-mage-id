@@ -43,7 +43,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
@@ -67,7 +67,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { copyToClipboard } from '@/utils/clipboard';
+import { canShare, shareText } from '@/utils/shareText';
 import { calendarDayOf, daysUntilCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
 import type { FollowUp, FollowUpChase, FollowUpHold } from '@/types';
 
@@ -510,39 +510,37 @@ export default function WaitingOnScreen() {
     // and cannot be selected. Clipboard is the honest fallback: same outcome,
     // one paste away. (app/sub-portal-setup.tsx solved this same problem once
     // already, with a send modal.)
-    const canWebShare = Platform.OS !== 'web'
-      || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
-
-    if (!canWebShare) {
-      const ok = await copyToClipboard(message);
-      if (ok) recordChase(holdId, projectId, 'clipboard', message);
+    //
+    // Routed through utils/shareText so this screen reads the share RESULT the
+    // same way Quick Quote and Smart Proposal do. It used to call Share.share
+    // directly and log the chase as soon as the promise resolved — but iOS
+    // resolves (with dismissedAction) when he taps X on the sheet, so a chase
+    // that never left the phone reset the reminder clock and went into the
+    // delay-evidence log (audit 2026-09-23 #54). A cancel records nothing:
+    // nothing left the app.
+    const couldOpenSheet = canShare();
+    const outcome = await shareText({ message });
+    if (outcome === 'cancelled') return;
+    if (outcome === 'shared') {
+      recordChase(holdId, projectId, 'share', message);
+      return;
+    }
+    // 'copied' — the text IS on his clipboard (no share sheet here, or the
+    // sheet failed), which is exactly the claim a clipboard chase records.
+    if (outcome === 'copied') recordChase(holdId, projectId, 'clipboard', message);
+    if (!couldOpenSheet) {
       showAlert(
-        ok ? 'Follow-up copied' : 'Could not copy',
-        ok ? 'Paste it into your email or text to send it.'
-           : 'Select the follow-up text and copy it manually.',
+        outcome === 'copied' ? 'Follow-up copied' : 'Could not copy',
+        outcome === 'copied' ? 'Paste it into your email or text to send it.'
+          : 'Select the follow-up text and copy it manually.',
       );
       return;
     }
-
-    try {
-      await Share.share({ message });
-      recordChase(holdId, projectId, 'share', message);
-    } catch (e) {
-      // A user dismissing the native/Web Share sheet rejects with AbortError.
-      // That is a cancel, not a failure — reporting it as one taught people the
-      // button was broken. It is also not a chase: nothing left the app.
-      if (e instanceof Error && e.name === 'AbortError') return;
-      const ok = await copyToClipboard(message);
-      // The share failed but the text IS on his clipboard, which is exactly the
-      // claim the !canWebShare branch above records. Not recording it here left
-      // a real chase off the log purely because the share sheet misbehaved.
-      if (ok) recordChase(holdId, projectId, 'clipboard', message);
-      showAlert(
-        ok ? 'Follow-up copied instead' : 'Could not open share',
-        ok ? 'Sharing was unavailable, so the follow-up is on your clipboard.'
-           : 'Copy the follow-up from the item instead.',
-      );
-    }
+    showAlert(
+      outcome === 'copied' ? 'Follow-up copied instead' : 'Could not open share',
+      outcome === 'copied' ? 'Sharing was unavailable, so the follow-up is on your clipboard.'
+        : 'Copy the follow-up from the item instead.',
+    );
   };
 
   const severityColor = (s: ChaseItem['severity']) =>

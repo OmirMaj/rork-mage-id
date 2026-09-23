@@ -2,10 +2,12 @@
 //
 // One capture (or a few) → the scan-anything edge function classifies the
 // document (Gemini), extracts a flat `fields` object, and suggests where it
-// files. The GC reviews/edits, then Save uploads the image to the project's
-// document folder AND creates the matching domain record (invoice → cost /
-// material receipt; business card → Contact; COI → sub compliance record;
-// everything else → file-only), then logs a ScanRecord for the audit trail.
+// files. The GC reviews/edits, then Save uploads EVERY page to the project's
+// document folder AND creates the matching domain record (invoice → material
+// receipt linked to the commitment it pays down; business card → Contact;
+// COI → the sub's compliance record with its expiry; permit → a Permit;
+// warranty → a Warranty; everything else → file-only), then logs a ScanRecord
+// for the audit trail.
 //
 // PII BOUNDARY: if the edge fn classifies the capture as a government ID it
 // returns `redirect: 'crew-id-scan'` and extracts NOTHING. This screen then
@@ -14,9 +16,12 @@
 //
 // Capture uses the existing expo-image-picker (base64:true) — no new native
 // deps. All writes go through the existing create paths (addReceipt / addContact
-// / addCOI) + uploadProjectFile + the ScanContext audit log.
+// / addCOI / addPermit / addWarranty) + uploadProjectFile + the ScanContext
+// audit log. The pure halves (routing, page names, the COI coverage, the
+// permit / warranty builders, the receipt) live in utils/scanRouting and
+// utils/commitmentLinking, pinned by scripts/validate-w5-scan-files-*.ts.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform,
 } from 'react-native';
@@ -42,13 +47,23 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
-import { resolveDestination, defaultTitleFor } from '@/utils/scanRouting';
-import { normalizeExtraction } from '@/utils/materialReceipt';
-import { uploadProjectFile } from '@/utils/projectFiles';
-import { supabase } from '@/lib/supabase';
+import {
+  resolveDestination, defaultTitleFor, recordKindPhrase, scanFolderLabel, scanFiledMessage,
+  scanPageFileName, scanPayloadTooLarge, coiPickerSubs, scanCoiCoverages, scanCalendarDay,
+  buildScanPermit, buildScanWarranty, buildScanReceipt, scanInvoiceLines, scanOwnerOnlyGate,
+  type ScanRecordKindW5,
+} from '@/utils/scanRouting';
+import { linkableCommitments, autoLinkCommitment, commitmentChipLabel } from '@/utils/commitmentLinking';
+import { uploadProjectFile, ProjectFileEmptyError } from '@/utils/projectFiles';
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { readFileBytes } from '@/utils/fileBytes';
+import { base64ToBytes } from '@/utils/base64Bytes';
+import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
+import { edgeFunctionError, edgeErrorCode } from '@/utils/edgeError';
 import { generateUUID } from '@/utils/generateId';
+import { formatMoney } from '@/utils/formatters';
 import type {
-  ScanDocType, ScanRecordKind, Contact, CertificateOfInsurance,
+  ScanDocType, Contact, CertificateOfInsurance,
 } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -69,6 +84,9 @@ interface ScanResponse {
   error?: string;
 }
 
+/** A page that reached the server with bytes (index = capture order). */
+interface LandedPage { path: string; name: string }
+
 const MAX_CAPTURES = 6;
 
 // ── Helpers (pure) ───────────────────────────────────────────────
@@ -83,21 +101,6 @@ function humanizeKey(k: string): string {
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/\b\w/g, c => c.toUpperCase())
     .trim();
-}
-
-/** Storage-folder key → readable folder name. */
-function folderLabel(key: string): string {
-  return key.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
-
-/** What the destination line says the auto-file will DO, per record kind. */
-function recordKindPhrase(kind: ScanRecordKind): string {
-  switch (kind) {
-    case 'cost': return 'logs a cost entry';
-    case 'contact': return 'creates a contact';
-    case 'sub_compliance': return 'files sub compliance';
-    case 'file_only': return 'files the document';
-  }
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' : String(v));
@@ -117,23 +120,45 @@ function ScanInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, getProject, subcontractors, addContact, addCOI } = useProjects();
+  const {
+    projects, getProject, subcontractors, addContact, addCOI, addPermit, addWarranty,
+    getCommitmentsForProject,
+  } = useProjects();
   const { addReceipt } = useMaterialReceipts();
   const { addScan } = useScans();
   const { tier } = useSubscription();
 
   const initialProjectId = params.projectId ?? projects[0]?.id ?? '';
   const [projectId, setProjectId] = useState(initialProjectId);
+  // #163: the state above is seeded ONCE, at mount. Cold-starting (or
+  // refreshing on web) into /scan before the projects load left it '' for
+  // good, and with one job there was no picker to fix it: "Pick a project"
+  // with nothing to pick. Work the project out at USE time instead — his
+  // pick, else the route's, else the only job he has. With several jobs and
+  // no pick, nothing is guessed: the picker shows.
+  const effectiveProjectId = projectId || params.projectId || (projects.length === 1 ? projects[0].id : '');
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResponse | null>(null);
   const [editedFields, setEditedFields] = useState<Record<string, unknown>>({});
-  const [subId, setSubId] = useState<string>('');
+  // null = follow the auto-pick (the insured-name match / the vendor match);
+  // a string = his explicit choice ('' = None).
+  const [subPick, setSubPick] = useState<string | null>(null);
+  const [commitmentPick, setCommitmentPick] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<{ kind: ScanRecordKindW5; folder: string; pages: number } | null>(null);
+  // #64: pages already on the server for THIS scan, so a retry after a
+  // partial failure files only the rest (never a duplicate). The stamp and
+  // title are frozen at the first attempt so a retry re-targets the same names.
+  const [landed, setLanded] = useState<Record<number, LandedPage>>({});
+  const fileStemRef = useRef<{ stamp: number; title: string } | null>(null);
+  // Per page: how many times its upload landed as an undeletable 0-byte
+  // object. Each one moves that page to a new name (`-pN-rA`) — the old name
+  // is held by the empty copy a field seat can't remove.
+  const pageAttemptRef = useRef<Record<number, number>>({});
 
-  const project = projectId ? getProject(projectId) : null;
+  const project = effectiveProjectId ? getProject(effectiveProjectId) : null;
 
   // resolveDestination is the pure, validator-tested source of truth for
   // routing — we never trust the server's suggestedDestination for the save.
@@ -144,11 +169,73 @@ function ScanInner() {
   // card and never upload / never log a ScanRecord for it.
   const isRedirect = result?.redirect === 'crew-id-scan' || result?.docType === 'government_id';
 
+  // #33: the picker used to require the project id in `assignedProjects`,
+  // which no screen writes — the list was empty for every real sub, so every
+  // scanned COI filed as a loose document. buyout-package's rule instead
+  // (empty = available everywhere), this job's subs first, and the sub whose
+  // name matches the certificate's insured pre-selected.
+  const coiSubs = useMemo(
+    () => coiPickerSubs(subcontractors, effectiveProjectId, editedFields.insured),
+    [subcontractors, effectiveProjectId, editedFields.insured],
+  );
+  // An explicit pick counts only while that sub is still in THIS job's list —
+  // switching project must never carry a sub the new job doesn't offer.
+  const effectiveSubId = subPick === null
+    ? coiSubs.matchId
+    : (subPick && coiSubs.subs.some(s => s.id === subPick) ? subPick : '');
+
+  // #63: a scanned bill books against the commitment it pays down — the same
+  // candidates and counterparty rule as material-receipt (utils/
+  // commitmentLinking), defaulted by the exact vendor match and overridable
+  // on the "Pays against" chips.
+  const linkable = useMemo(
+    () => linkableCommitments(effectiveProjectId ? getCommitmentsForProject(effectiveProjectId) : [], effectiveProjectId),
+    [effectiveProjectId, getCommitmentsForProject],
+  );
+  const autoCommitmentId = useMemo(
+    () => autoLinkCommitment(str(editedFields.vendor), linkable, subcontractors),
+    [editedFields.vendor, linkable, subcontractors],
+  );
+  // An explicit pick counts only while it is one of THIS job's commitments: a
+  // chip tapped on job A must never book a bill on job B against A's
+  // subcontract (job costing on B can't resolve it and books direct cost —
+  // the opposite of what the card said).
+  const effectiveCommitmentId = commitmentPick === null
+    ? autoCommitmentId
+    : (commitmentPick && linkable.some(c => c.id === commitmentPick) ? commitmentPick : undefined);
+  const invoiceLines = useMemo(() => scanInvoiceLines(editedFields), [editedFields]);
+
+  // #162: a warranty row needs readable dates; say which are missing instead
+  // of creating a record with invented ones.
+  const warrantyCheck = useMemo(
+    () => (destination?.recordKind === 'warranty'
+      ? buildScanWarranty(editedFields, { projectId: effectiveProjectId, projectName: project?.name ?? '', fileName: '' })
+      : null),
+    [destination?.recordKind, editedFields, effectiveProjectId, project?.name],
+  );
+
+  // Product decision #53 (owner-only interim): a permit or warranty is
+  // created only by the job's OWNER. An invited PM's warranty would land on
+  // HIS account (warranties RLS is auth.uid() = user_id) — the GC's list,
+  // handover, binder and portal would never see it while the banner said
+  // "added the warranty". Unknown role = not the owner.
+  const roleState = useProjectRoleState(effectiveProjectId || undefined);
+  // Loading and a failed read are both handled in the gate: loading decides
+  // nothing (Save waits), an error / unknown role is not ownership.
+  const ownerGate = scanOwnerOnlyGate(destination?.recordKind, {
+    role: roleState.role, isLoading: roleState.isLoading, isError: roleState.isError,
+  });
+
   // A COI with no linked subcontractor is invisible in every compliance surface
   // (all filter strictly by subcontractorId). Rather than persist an orphaned,
   // unfindable compliance record, an unlinked COI files as a plain document.
-  const effectiveRecordKind: ScanRecordKind | null = destination
-    ? (destination.recordKind === 'sub_compliance' && !subId ? 'file_only' : destination.recordKind)
+  // Likewise a warranty whose dates didn't read, and a permit / warranty on a
+  // job he doesn't own.
+  const effectiveRecordKind: ScanRecordKindW5 | null = destination
+    ? (destination.recordKind === 'sub_compliance' && !effectiveSubId ? 'file_only'
+      : ownerGate.state === 'blocked' ? 'file_only'
+      : destination.recordKind === 'warranty' && warrantyCheck && !warrantyCheck.ok ? 'file_only'
+      : destination.recordKind)
     : null;
 
   const scalarKeys = useMemo(
@@ -178,7 +265,7 @@ function ScanInner() {
       setCaptures(prev => [...prev, { uri: a.uri, base64: a.base64 ?? '', mimeType: a.mimeType ?? 'image/jpeg' }]);
       setResult(null);
       setError(null);
-      setSaved(false);
+      setSaved(null);
     } catch (e) {
       setError(`Couldn't open the ${source}: ${String((e as Error).message ?? e)}`);
     }
@@ -192,11 +279,16 @@ function ScanInner() {
   // ── Scan (edge fn) ───────────────────────────────────────────
   const runScan = useCallback(async () => {
     if (busy || captures.length === 0) return;
-    if (!projectId) { showAlert('Pick a project', 'Choose which project this document belongs to.'); return; }
+    if (!effectiveProjectId) { showAlert('Pick a project', 'Choose which project this document belongs to.'); return; }
+    // #68 (carried for photo-ai): the server refuses over 6 MB for one image
+    // or 8 MB for the scan. Say so BEFORE the call, with what to do about it,
+    // instead of "Edge Function returned a non-2xx status code".
+    const tooLarge = scanPayloadTooLarge(captures);
+    if (tooLarge) { setError(tooLarge); return; }
     // Meter the vision call against the same monthly photoAnalysis budget every
     // other vision surface uses (material-receipt / photo-triage). The server is
-    // still the authority (see FLAG below) — this is the client pre-check so the
-    // user sees the cap before we burn an uncapped Gemini call.
+    // still the authority — this is the client pre-check so the user sees the
+    // cap before we burn an uncapped Gemini call.
     const limit = await checkAILimit(tier, 'smart', 'photoAnalysis');
     if (!limit.allowed) { showAILimitAlert({ limit, router, monthly: true }); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -204,26 +296,49 @@ function ScanInner() {
     setError(null);
     setResult(null);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke<ScanResponse>('scan-anything', {
+      // invokeWithTimeout: a Gemini stall no longer spins forever.
+      const { data, error: fnError } = await invokeWithTimeout<ScanResponse>('scan-anything', {
         body: {
-          projectId,
+          projectId: effectiveProjectId,
           images: captures.map(c => ({ base64: c.base64, mimeType: c.mimeType })),
         },
       });
-      if (fnError) throw new Error(fnError.message || 'Scan failed');
+      // #124: read the function's own sentence and code off the response.
+      if (fnError) throw await edgeFunctionError(fnError, 'Scan failed');
       if (!data?.success) throw new Error(data?.error || 'Scan failed');
       await recordAIUsage('smart', 'photoAnalysis');
       setResult(data);
       // The redirect (gov-ID) path returns empty fields — nothing to edit.
       setEditedFields(data.redirect ? {} : { ...(data.fields ?? {}) });
-      setSubId('');
+      setSubPick(null);
+      setCommitmentPick(null);
+      setLanded({});
+      fileStemRef.current = null;
+      pageAttemptRef.current = {};
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      setError(`Scan failed: ${String((e as Error).message ?? e)}`);
+      const msg = String((e as Error).message ?? e);
+      const code = edgeErrorCode(e);
+      if (code === 'monthly_cap_reached' || code === 'tier_required') {
+        // A cap or a plan gate: "try again" would be a lie. Offer the plans.
+        setError(msg);
+        showAlert(
+          code === 'tier_required' ? 'Not on your plan' : 'Monthly scan limit reached',
+          msg,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+          ],
+        );
+      } else if (code === 'hourly_limit') {
+        setError(msg); // the server's sentence already says when to retry
+      } else {
+        setError(`Scan failed: ${msg}`);
+      }
     } finally {
       setBusy(false);
     }
-  }, [busy, captures, projectId, tier, router]);
+  }, [busy, captures, effectiveProjectId, tier, router]);
 
   // ── Field edits ──────────────────────────────────────────────
   const patchField = useCallback((key: string, value: string) => {
@@ -232,39 +347,28 @@ function ScanInner() {
 
   // ── Domain-record creation (reuses the existing create paths) ─
   // Returns the created record id (linkedRecordId) or undefined. Only ever
-  // called AFTER a successful upload, so a COI's fileUri points at a real file.
+  // called AFTER every page landed. `pages` are bare project-documents paths
+  // (CONTRACT 7): a record stores the PATH, never the 7-day signed URL that
+  // went blank a week later (#66).
   const createDomainRecord = useCallback((
-    kind: ScanRecordKind,
-    docType: ScanDocType,
+    kind: ScanRecordKindW5,
     fields: Record<string, unknown>,
-    publicUrl: string,
+    pages: LandedPage[],
   ): string | undefined => {
     const now = new Date().toISOString();
+    const first = pages[0];
+    const projectName = project?.name ?? '';
     if (kind === 'cost') {
-      // invoice → material receipt → feeds the Cost Database (same path as
-      // material-receipt.tsx). Map the scan's invoice schema onto the receipt
-      // extraction shape (qty → quantity, date → receiptDate, docNumber → documentNumber).
-      const rawLines = Array.isArray(fields.lines) ? (fields.lines as Record<string, unknown>[]) : [];
-      const receipt = normalizeExtraction(
-        {
-          vendor: str(fields.vendor),
-          receiptDate: str(fields.date),
-          documentNumber: str(fields.docNumber),
-          subtotal: str(fields.subtotal),
-          tax: str(fields.tax),
-          total: str(fields.total),
-          lines: rawLines.map(l => ({
-            description: str(l.description),
-            category: str(l.category) || undefined,
-            quantity: str(l.qty),
-            unit: str(l.unit),
-            unitPrice: str(l.unitPrice),
-            lineTotal: str(l.lineTotal),
-          })),
-        },
-        { projectId, imageUri: publicUrl || undefined, now },
-      );
-      receipt.status = 'reviewed';
+      // invoice → material receipt → feeds the Cost Database, booked against
+      // the commitment it pays down (#63). The line items were shown on the
+      // card, so 'reviewed' is true when there are any.
+      const receipt = buildScanReceipt(fields, {
+        projectId: effectiveProjectId,
+        commitmentId: effectiveCommitmentId,
+        imagePath: first?.path,
+        now,
+        linesShown: true,
+      });
       addReceipt(receipt);
       return receipt.id;
     }
@@ -282,7 +386,7 @@ function ScanInner() {
         phone: str(fields.phone).trim(),
         address: str(fields.address).trim(),
         notes: website ? `Website: ${website}` : '',
-        linkedProjectIds: projectId ? [projectId] : [],
+        linkedProjectIds: effectiveProjectId ? [effectiveProjectId] : [],
         createdAt: now,
         updatedAt: now,
       };
@@ -290,108 +394,167 @@ function ScanInner() {
       return contact.id;
     }
     if (kind === 'sub_compliance') {
-      // COI → sub compliance record. fileUri is the uploaded file's public URL.
-      // subcontractorId is optional here (blanket COI) until the GC links it.
+      // COI → the sub's compliance record. #33: the expiry it read becomes a
+      // coverage (only when it is a real calendar day), so addCOI's
+      // syncSubCoiExpiry moves the sub's coi_expiry. fileUri = page 1's path;
+      // the other pages are named in the notes.
+      const morePages = pages.length > 1 ? `${pages.length} pages: ${pages.map(p => p.name).join(', ')}` : '';
       const coi: CertificateOfInsurance = {
         id: generateUUID(),
-        subcontractorId: subId,
-        projectId,
-        fileUri: publicUrl,
+        subcontractorId: effectiveSubId,
+        projectId: effectiveProjectId,
+        fileUri: first?.path ?? '',
         uploadedAt: now,
-        notes: [str(fields.insured), str(fields.carrier), str(fields.policyNumber)]
+        coverages: scanCoiCoverages(fields),
+        notes: [str(fields.insured), str(fields.carrier), str(fields.policyNumber), morePages]
           .filter(Boolean).join(' · '),
       };
       addCOI(coi);
       return coi.id;
     }
+    if (kind === 'permit') {
+      // #162: the permit the card read becomes a row on the Permits list.
+      const permit = addPermit(buildScanPermit(fields, { projectId: effectiveProjectId, projectName, fileName: first?.name ?? '' }));
+      return permit.id;
+    }
+    if (kind === 'warranty') {
+      const built = buildScanWarranty(fields, { projectId: effectiveProjectId, projectName, fileName: first?.name ?? '' });
+      if (!built.ok) return undefined;
+      return addWarranty(built.warranty).id;
+    }
     return undefined; // file_only
-  }, [projectId, addReceipt, addContact, addCOI, subId]);
+  }, [effectiveProjectId, project?.name, effectiveCommitmentId, effectiveSubId, addReceipt, addContact, addCOI, addPermit, addWarranty]);
 
   // ── Save ─────────────────────────────────────────────────────
   const onSave = useCallback(async () => {
-    if (!result || !destination || !effectiveRecordKind || !projectId || saving) return;
+    if (!result || !destination || !effectiveRecordKind || !effectiveProjectId || saving) return;
+    // The owner check hasn't answered yet: decide nothing (the button is
+    // disabled too, with the reason on the card).
+    if (ownerGate.state === 'checking') return;
     // Hard PII boundary: a government-ID capture must NEVER be uploaded or logged
     // as a ScanRecord here, regardless of any other response field. It goes
     // through the consented crew ID-scan flow instead.
     if (result.docType === 'government_id' || result.redirect === 'crew-id-scan') return;
+    if (captures.length === 0) return;
     setSaving(true);
     setError(null);
 
-    const title = result.suggestedTitle?.trim() || defaultTitleFor(result.docType, editedFields);
-    const first = captures[0];
-    const fileName = `${title}-${Date.now()}.jpg`;
-
-    let filePath = '';
-    let publicUrl = '';
-    let uploadOk = false;
-    try {
-      if (first) {
-        const r = await fetch(first.uri);
-        const blob = await r.blob();
-        const uploaded = await uploadProjectFile({
-          projectId,
-          folderKey: destination.folder,
-          fileName,
-          blob,
-          contentType: first.mimeType || 'image/jpeg',
-        });
-        filePath = uploaded.path;
-        publicUrl = uploaded.publicUrl;
-        uploadOk = true;
-      }
-    } catch (e) {
-      // Upload failed — leave everything intact (capture + confirm card) so the
-      // user can retry. We do NOT log a scan or create a record for a file that
-      // never landed, so there's no orphan pointing at nothing.
-      setError(`Filing failed: ${String((e as Error).message ?? e)}. Nothing was saved — tap "Confirm & file" to retry.`);
+    if (!fileStemRef.current) {
+      fileStemRef.current = {
+        stamp: Date.now(),
+        title: result.suggestedTitle?.trim() || defaultTitleFor(result.docType, editedFields),
+      };
     }
+    const { stamp, title } = fileStemRef.current;
 
-    // Upload failed → keep the capture + confirm card on screen so the user can
-    // retry 'Confirm & file' (offline / transient Storage 5xx / name collision
-    // are all recoverable). Do NOT create a domain record, do NOT log a scan
-    // pointing at a file that never landed, and do NOT show the success banner.
-    if (!uploadOk) {
+    // #64: EVERY page, in order, under one stem. It used to upload captures[0]
+    // only and then clear the rest — pages 2..N of a contract or COI existed
+    // nowhere. #5: the bytes come from the capture's own base64 (or
+    // readFileBytes), never fetch(uri).blob(), which lands 0 bytes on iOS.
+    const next: Record<number, LandedPage> = { ...landed };
+    let firstError = '';
+    for (let i = 0; i < captures.length; i++) {
+      if (next[i]) continue; // landed on an earlier attempt — never re-filed
+      const c = captures[i];
+      try {
+        const bytes = c.base64 ? base64ToBytes(c.base64) : await readFileBytes(c.uri);
+        const uploaded = await uploadProjectFile({
+          projectId: effectiveProjectId,
+          folderKey: destination.folder,
+          fileName: scanPageFileName(title, stamp, i, c.mimeType, pageAttemptRef.current[i] ?? 0),
+          bytes,
+          contentType: c.mimeType || 'image/jpeg',
+        });
+        next[i] = { path: uploaded.path, name: uploaded.name };
+      } catch (e) {
+        // A 0-byte copy nobody could remove holds this page's name for good —
+        // the retry files it under the next name instead of colliding forever.
+        if (e instanceof ProjectFileEmptyError && !e.removed) {
+          pageAttemptRef.current[i] = (pageAttemptRef.current[i] ?? 0) + 1;
+        }
+        if (!firstError) firstError = String((e as Error).message ?? e);
+      }
+    }
+    setLanded(next);
+
+    const total = captures.length;
+    const done = Object.keys(next).length;
+    // Anything short of every page: keep the captures and the confirm card on
+    // screen, create no record and log no scan, and say exactly what landed.
+    if (done < total) {
+      setError(done === 0
+        ? `Filing failed: ${firstError}. Nothing was saved — tap "Confirm & file" to retry.`
+        : `Filed ${done} of ${total} pages — tap Confirm & file to retry the rest. (${firstError})`);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setSaving(false);
       return;
     }
 
+    const pages = captures.map((_, i) => next[i]);
     let linkedRecordId: string | undefined;
     try {
-      linkedRecordId = createDomainRecord(effectiveRecordKind, result.docType, editedFields, publicUrl);
+      linkedRecordId = createDomainRecord(effectiveRecordKind, editedFields, pages);
     } catch {
-      // Domain-record creation is best-effort — the scan + file are already
-      // saved; don't fail the whole flow over the linked record.
+      // Domain-record creation is best-effort — the files are already saved;
+      // the banner below then says no record was made rather than claiming one.
     }
+    const madeKind: ScanRecordKindW5 = effectiveRecordKind === 'file_only' || linkedRecordId
+      ? effectiveRecordKind
+      : 'file_only';
 
     addScan({
-      projectId,
+      projectId: effectiveProjectId,
       docType: result.docType,
       title,
-      fields: editedFields,
-      filePath,
-      recordKind: effectiveRecordKind,
+      // Page 1 stays in filePath for older readers; every page is listed here
+      // (scan_records.fields is jsonb — no column change).
+      fields: pages.length > 1 ? { ...editedFields, _pages: pages.map(p => p.path) } : editedFields,
+      filePath: pages[0].path,
+      recordKind: madeKind,
       linkedRecordId,
     });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);
-    setSaved(true);
+    setSaved({ kind: madeKind, folder: destination.folder, pages: pages.length });
     setResult(null);
     setCaptures([]);
-  }, [result, destination, effectiveRecordKind, projectId, saving, editedFields, captures, createDomainRecord, addScan]);
+    setLanded({});
+    fileStemRef.current = null;
+    pageAttemptRef.current = {};
+  }, [result, destination, effectiveRecordKind, ownerGate.state, effectiveProjectId, saving, editedFields, captures, landed, createDomainRecord, addScan]);
 
   const scanAnother = useCallback(() => {
-    setSaved(false);
+    setSaved(null);
     setResult(null);
     setCaptures([]);
+    setLanded({});
+    fileStemRef.current = null;
+    pageAttemptRef.current = {};
     setError(null);
   }, []);
 
-  const projectSubs = useMemo(
-    () => (projectId ? subcontractors.filter(s => s.assignedProjects?.includes(projectId)) : subcontractors),
-    [subcontractors, projectId],
-  );
+  // Pages already on the server live in THIS job's folder; switching now
+  // would file page 1 (in the old job) as the record of the new one and split
+  // the rest across two jobs. Refuse with the reason. Otherwise switch and
+  // drop the explicit sub / commitment picks — they belonged to the old job.
+  const landedCount = Object.keys(landed).length;
+  const pickProject = useCallback((id: string) => {
+    if (id === effectiveProjectId) return;
+    if (landedCount > 0) {
+      showAlert(
+        'Pages already filed',
+        `${landedCount} page${landedCount === 1 ? ' is' : 's are'} already in ${project?.name ?? 'this job'}'s files. Finish filing here, or tap Scan another to start over.`,
+      );
+      return;
+    }
+    setProjectId(id);
+    setSubPick(null);
+    setCommitmentPick(null);
+  }, [effectiveProjectId, landedCount, project?.name]);
+
+  const showProjectPicker = projects.length > 1 || (!effectiveProjectId && projects.length > 0);
+  const expiryRead = scanCalendarDay(editedFields.expiresDate);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -427,14 +590,15 @@ function ScanInner() {
           </View>
         )}
 
-        {/* Project picker */}
-        {projects.length > 1 && (
+        {/* Project picker — also whenever no project is selected, so the
+            screen never asks him to pick with nothing to pick from (#163). */}
+        {showProjectPicker && (
           <View style={styles.pickerWrap}>
             <Text style={styles.pickerLabel}>Project</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {projects.map(p => (
-                <TouchableOpacity key={p.id} onPress={() => setProjectId(p.id)} style={[styles.chip, projectId === p.id && styles.chipOn]}>
-                  <Text style={[styles.chipText, projectId === p.id && styles.chipTextOn]} numberOfLines={1}>{p.name}</Text>
+                <TouchableOpacity key={p.id} onPress={() => pickProject(p.id)} style={[styles.chip, effectiveProjectId === p.id && styles.chipOn]}>
+                  <Text style={[styles.chipText, effectiveProjectId === p.id && styles.chipTextOn]} numberOfLines={1}>{p.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -447,9 +611,15 @@ function ScanInner() {
             {captures.map((c, i) => (
               <View key={c.uri + i} style={styles.thumbWrap}>
                 <Image source={{ uri: c.uri }} style={styles.thumb} resizeMode="cover" />
-                <TouchableOpacity style={styles.thumbDel} onPress={() => removeCapture(i)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove capture">
-                  <X size={13} color={Colors.textOnAccent} strokeWidth={2.25} />
-                </TouchableOpacity>
+                {landed[i] ? (
+                  <View style={[styles.thumbDel, { backgroundColor: t.success }]} accessibilityLabel={`Page ${i + 1} filed`}>
+                    <Check size={13} color={Colors.textOnAccent} strokeWidth={2.25} />
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.thumbDel} onPress={() => removeCapture(i)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove capture">
+                    <X size={13} color={Colors.textOnAccent} strokeWidth={2.25} />
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
           </View>
@@ -464,7 +634,7 @@ function ScanInner() {
           <EmptyState
             icon={<ScanLine size={36} color={t.accent} strokeWidth={1.6} />}
             title="No projects yet"
-            message="Scan Anything reads a document and files it into a job — the invoice onto its cost, the COI onto the sub, the permit onto the project. Create a project first so Scan Anything has somewhere to land."
+            message="Scan Anything reads a document and files it into a job — a bill as a cost entry, a COI on the sub, a permit on the Permits list. Create a project first so Scan Anything has somewhere to land."
             actionLabel="Create a project"
             onAction={() => router.push({ pathname: '/' as never, params: { openCreate: '1' } as never })}
           />
@@ -501,7 +671,7 @@ function ScanInner() {
         {saved && (
           <View style={[styles.warn, { backgroundColor: t.success + '14' }]}>
             <Check size={15} color={t.success} strokeWidth={1.75} />
-            <Text style={[styles.warnText, { color: t.text }]}>Filed. The document is in its folder and the record is logged.</Text>
+            <Text style={[styles.warnText, { color: t.text }]} testID="scan-filed-message">{scanFiledMessage(saved.kind, saved.folder, saved.pages)}</Text>
           </View>
         )}
         {saved && (
@@ -543,33 +713,95 @@ function ScanInner() {
             {/* Destination */}
             <View style={styles.destCard}>
               <Folder size={15} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.destText}>
-                Files to <Text style={styles.destStrong}>{folderLabel(destination.folder)}</Text>
+              <Text style={styles.destText} testID="scan-destination">
+                Files {captures.length > 1 ? `all ${captures.length} pages ` : ''}to <Text style={styles.destStrong}>{scanFolderLabel(destination.folder)}</Text>
                 {' · '}{recordKindPhrase(effectiveRecordKind ?? destination.recordKind)}
               </Text>
             </View>
 
-            {/* Sub picker (COI only) */}
-            {destination.recordKind === 'sub_compliance' && projectSubs.length > 0 && (
-              <View style={styles.pickerWrap}>
+            {/* Owner-only (#53 interim): say why a permit / warranty files as
+                an image only, or that the role check is still answering. */}
+            {ownerGate.state !== 'open' && (
+              <Text style={styles.helpText} testID="scan-owner-only">{ownerGate.reason}</Text>
+            )}
+
+            {/* Sub picker (COI only). Always shown for a COI — an empty list
+                says why it will file as a plain document and where to fix it. */}
+            {destination.recordKind === 'sub_compliance' && (
+              <View style={styles.pickerWrap} testID="scan-coi-sub-picker">
                 <Text style={styles.pickerLabel}>Link to subcontractor (needed to file as compliance)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                  <TouchableOpacity onPress={() => setSubId('')} style={[styles.chip, !subId && styles.chipOn]}>
-                    <Text style={[styles.chipText, !subId && styles.chipTextOn]}>None</Text>
-                  </TouchableOpacity>
-                  {projectSubs.map(s => (
-                    <TouchableOpacity key={s.id} onPress={() => setSubId(s.id)} style={[styles.chip, subId === s.id && styles.chipOn]}>
-                      <Text style={[styles.chipText, subId === s.id && styles.chipTextOn]} numberOfLines={1}>{s.companyName}</Text>
+                {coiSubs.subs.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    <TouchableOpacity onPress={() => setSubPick('')} style={[styles.chip, !effectiveSubId && styles.chipOn]}>
+                      <Text style={[styles.chipText, !effectiveSubId && styles.chipTextOn]}>None</Text>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                    {coiSubs.subs.map(s => (
+                      <TouchableOpacity key={s.id} onPress={() => setSubPick(s.id)} style={[styles.chip, effectiveSubId === s.id && styles.chipOn]}>
+                        <Text style={[styles.chipText, effectiveSubId === s.id && styles.chipTextOn]} numberOfLines={1}>
+                          {s.companyName}{subPick === null && coiSubs.matchId === s.id ? ' · matched by insured name' : ''}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={styles.helpRow}>
+                    <Text style={styles.helpText}>No subs yet — add one in Subs to file this as compliance. Until then it files as a plain document.</Text>
+                    <TouchableOpacity onPress={() => router.push('/(tabs)/subs' as never)} hitSlop={8} accessibilityRole="link" testID="scan-add-sub">
+                      <Text style={styles.helpLink}>Open Subs</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {effectiveSubId && !expiryRead && (
+                  <Text style={styles.helpText}>
+                    No expiry date read as YYYY-MM-DD — the COI files on the sub, but his insurance expiry won&apos;t update until you fix Expires Date below.
+                  </Text>
+                )}
               </View>
+            )}
+
+            {/* Pays against (invoice only) — #63. */}
+            {destination.recordKind === 'cost' && (
+              <View style={styles.pickerWrap} testID="scan-commitment-picker">
+                <Text style={styles.pickerLabel}>Pays against</Text>
+                {linkable.length > 0 ? (
+                  <>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      <TouchableOpacity onPress={() => setCommitmentPick('')} style={[styles.chip, !effectiveCommitmentId && styles.chipOn]}>
+                        <Text style={[styles.chipText, !effectiveCommitmentId && styles.chipTextOn]}>None — direct cost</Text>
+                      </TouchableOpacity>
+                      {linkable.map(c => (
+                        <TouchableOpacity key={c.id} onPress={() => setCommitmentPick(c.id)} style={[styles.chip, effectiveCommitmentId === c.id && styles.chipOn]} testID={`scan-commitment-${c.id}`}>
+                          <Text style={[styles.chipText, effectiveCommitmentId === c.id && styles.chipTextOn]} numberOfLines={1}>
+                            {commitmentChipLabel(c, subcontractors)}
+                            {commitmentPick === null && autoCommitmentId === c.id ? ' · matched by vendor name' : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <Text style={styles.helpText}>
+                      {effectiveCommitmentId
+                        ? 'Counts against that PO or subcontract in job costing, so the same dollars are not counted twice.'
+                        : 'Unlinked, this counts as direct cost — if the vendor already has a PO or subcontract on this job, the same dollars are then counted twice.'}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.helpText}>No open POs or subcontracts on this job — the bill books as direct cost.</Text>
+                )}
+              </View>
+            )}
+
+            {/* Warranty needs readable dates — say which. */}
+            {ownerGate.state === 'open' && warrantyCheck && !warrantyCheck.ok && (
+              <Text style={styles.helpText} testID="scan-warranty-reason">{warrantyCheck.reason}</Text>
             )}
 
             {/* Editable fields */}
             {scalarKeys.length > 0 ? (
               <View style={{ marginTop: 6 }}>
                 <Text style={styles.sectionTitle}>Details</Text>
+                {effectiveRecordKind === 'file_only' && (
+                  <Text style={styles.helpText}>These are kept with the scan log only — no record is created from them.</Text>
+                )}
                 {scalarKeys.map(key => (
                   <View key={key} style={styles.fieldBlock}>
                     <Text style={styles.fieldLabel}>{humanizeKey(key)}</Text>
@@ -586,9 +818,32 @@ function ScanInner() {
               <Text style={styles.emptyFields}>No fields extracted — the document will be filed as-is.</Text>
             )}
 
-            <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={onSave} disabled={saving} activeOpacity={0.85} testID="scan-save">
+            {/* Line items, read-only — the receipt is only marked reviewed
+                because he saw them here (#63). */}
+            {destination.recordKind === 'cost' && invoiceLines.length > 0 && (
+              <View style={{ marginTop: 4 }} testID="scan-invoice-lines">
+                <Text style={styles.sectionTitle}>Line items ({invoiceLines.length})</Text>
+                {invoiceLines.map((l, i) => (
+                  <View key={i} style={styles.lineRow}>
+                    <Text style={styles.lineDesc} numberOfLines={2}>{l.description || 'Item'}{l.qty ? ` · ${l.qty}${l.unit ? ` ${l.unit}` : ''}` : ''}</Text>
+                    <Text style={styles.lineTotal}>{Number.isFinite(Number(l.lineTotal)) && l.lineTotal !== '' ? formatMoney(Number(l.lineTotal), 2) : l.lineTotal}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.saveBtn, (saving || ownerGate.state === 'checking') && { opacity: 0.7 }]}
+              onPress={onSave}
+              disabled={saving || ownerGate.state === 'checking'}
+              accessibilityState={{ disabled: saving || ownerGate.state === 'checking' }}
+              activeOpacity={0.85}
+              testID="scan-save"
+            >
               {saving ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />}
-              <Text style={styles.saveBtnText}>{saving ? 'Filing…' : 'Confirm & file'}</Text>
+              <Text style={styles.saveBtnText}>
+                {saving ? 'Filing…' : 'Confirm & file'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -675,6 +930,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 9, fontSize: Type.subhead.fontSize, color: t.text,
   },
   emptyFields: { fontSize: Type.footnote.fontSize, color: t.textMuted, lineHeight: 18, marginVertical: 8 },
+  helpRow: { gap: 6 },
+  helpText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17, marginTop: 6 },
+  helpLink: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' as const },
+  lineRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, gap: 10, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line },
+  lineDesc: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text },
+  lineTotal: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontVariant: ['tabular-nums' as const] },
 
   saveBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,

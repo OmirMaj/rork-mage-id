@@ -39,7 +39,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // Shared email helpers — same shell every transactional email uses so
 // the morning digest matches sub-portal invites, contract sends, payment
 // receipts, COI warnings, and the homeowner weekly digest.
-import { wrapEmailHtml, resendSend, isEmailUnsubscribed } from '../_shared/email.ts';
+import { wrapEmailHtml, resendSend, isEmailUnsubscribed, fetchSignInEmail, pickDigestRecipient, digestPreviewReason } from '../_shared/email.ts';
 import { isValidCron } from '../_shared/cronAuth.ts';
 import { verifyUser } from '../_shared/verifyUser.ts';
 // Today's tasks by the app's own working-day rules (audit 2026-09-18 #14) and
@@ -123,7 +123,17 @@ interface ProjectRow {
 }
 interface ProfileRow {
   id: string;
+  /** The digest's ONE recipient address — after withDigestRecipient, the
+   *  SIGN-IN address (auth.users.email), not the Company Profile email the
+   *  row was read with. The send, the unsubscribe check, the footer + header
+   *  link and the outbox row all read this field, so they can't disagree
+   *  (audit 2026-09-23 #130). '' = no address to send to. */
   email: string;
+  /** True when the sign-in address could not be read this run: the email is
+   *  skipped (not sent to the company address instead), recorded as
+   *  'failed_recipient_lookup', and the preview answers 'recipient_unknown'
+   *  ("try again") rather than "no email address". */
+  recipient_lookup_failed?: boolean;
   name?: string;
   digest_enabled?: boolean;
   digest_hour?: number | null;
@@ -352,7 +362,38 @@ async function sendDigestEmail(to: string, html: string, subject: string): Promi
   return result.ok;
 }
 
-async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow): Promise<{ ok: boolean; sent: boolean; pushed?: boolean; reason?: string }> {
+/**
+ * The profile row with `email` replaced by the digest recipient: the sign-in
+ * address, or the Company Profile address only when the account has no sign-in
+ * address at all (see pickDigestRecipient in _shared/email.ts for why a failed
+ * lookup never falls back to it). profiles.email was the company contact; the
+ * in-app switch's suppression and resume paths key on the sign-in address, so
+ * an unsubscribe from an office inbox could never be undone in the app.
+ */
+async function withDigestRecipient(profile: ProfileRow): Promise<ProfileRow> {
+  const lookup = await fetchSignInEmail(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, profile.id);
+  const recipient = pickDigestRecipient(lookup, profile.email);
+  if (recipient.source === 'lookup_failed') {
+    console.log('[morning-digest] sign-in address lookup failed — email skipped this run', profile.id);
+  }
+  return {
+    ...profile,
+    email: recipient.email ?? '',
+    recipient_lookup_failed: recipient.source === 'lookup_failed',
+  };
+}
+
+async function buildDigestForUser(
+  supabase: SupabaseClient,
+  profile: ProfileRow,
+  /** Push tokens already sent a brief in THIS run (cron fan-out). One phone
+   *  gets one brief even if two profiles still hold its token — the
+   *  profiles_claim_push_token trigger (20260923240000) makes that impossible
+   *  from now on; this covers rows written before it, and a cron run racing
+   *  the migration. Claimed synchronously (no await between has() and add()),
+   *  so the parallel Promise.all fan-out can't double-send. */
+  pushedTokens?: Set<string>,
+): Promise<{ ok: boolean; sent: boolean; pushed?: boolean; reason?: string }> {
   const userId = profile.id;
   const channels = profile.digest_channels ?? { email: true, in_app: true };
 
@@ -466,6 +507,8 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
     sent = emailStatus === 'sent';
   } else if (hasNothingToSay) {
     emailStatus = 'skipped_nothing_to_report';
+  } else if (channels.email !== false && profile.recipient_lookup_failed) {
+    emailStatus = 'failed_recipient_lookup';
   }
 
   // Push: the phone-side doorbell. data.kind === 'morning_brief' lands the
@@ -473,7 +516,14 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
   // channel (it's the device surface — email is the durable copy).
   let pushStatus: string | null = null;
   let pushResp: unknown = null;
-  if (channels.in_app !== false && profile.push_token && !hasNothingToSay) {
+  // A token this run already briefed belongs to a phone that has had its brief.
+  const tokenAlreadyBriefed = !!profile.push_token && !!pushedTokens?.has(profile.push_token);
+  if (tokenAlreadyBriefed) {
+    console.log('[morning-digest] push skipped — this device token was already briefed this run', userId);
+    pushStatus = 'skipped_duplicate_token';
+  }
+  if (channels.in_app !== false && profile.push_token && !hasNothingToSay && !tokenAlreadyBriefed) {
+    pushedTokens?.add(profile.push_token);
     // Unread inbox rows (the same set NotificationContext.syncBadge counts)
     // plus the morning_brief row written just below.
     const { count: unread, error: unreadErr } = await supabase
@@ -499,7 +549,7 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
       event_type: 'morning_brief',
       recipient_kind: 'gc',
       recipient_user_id: userId,
-      recipient_email: profile.email ?? null,
+      recipient_email: profile.email || null,
       push_token: profile.push_token ?? null,
       push_status: pushStatus,
       push_response: pushResp,
@@ -561,8 +611,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .eq('id', body.userId)
       .single();
     if (error || !profile) return jsonResponse({ error: 'User not found.' }, 404);
-    const result = await buildDigestForUser(admin, profile as ProfileRow);
-    return jsonResponse(result);
+    // The preview goes where the scheduled brief goes: the sign-in address.
+    const resolved = await withDigestRecipient(profile as ProfileRow);
+    const result = await buildDigestForUser(admin, resolved);
+    // A lookup that failed is not "you have no email address" — say so, so
+    // the preview alert reads "try again" (digestSettingsCopy 'recipient_unknown').
+    // Only that one reason: 'email_off' / 'nothing_to_report' stay as they are.
+    return jsonResponse({ ...result, reason: digestPreviewReason(result.reason, !!resolved.recipient_lookup_failed) });
   }
 
   if (body.all) {
@@ -593,7 +648,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }) as ProfileRow[];
 
-    const results = await Promise.all(eligible.map(p => buildDigestForUser(admin, p).catch(e => ({ ok: false, sent: false, reason: String(e) }))));
+    const pushedTokens = new Set<string>();
+    const results = await Promise.all(eligible.map(async p =>
+      buildDigestForUser(admin, await withDigestRecipient(p), pushedTokens)
+        .catch(e => ({ ok: false, sent: false, reason: String(e) }))));
     return jsonResponse({ ok: true, fired: results.length, results });
   }
 

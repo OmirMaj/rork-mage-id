@@ -55,29 +55,48 @@ interface Props {
   onLongPress?: () => void;
   /** When true, draws the bottom divider line — false for the last row in the group. */
   showDivider?: boolean;
+  /**
+   * Billed to date on this job — non-draft invoice totals
+   * (utils/projectFinancials getInvoicedToDate). `undefined` = the invoices
+   * have not been read yet, and the Burn column says '—' rather than a 0%
+   * with no source behind it (audit wave 5, #151).
+   */
+  invoicedToDate?: number;
+  /** The Burn denominator: the REVISED contract — estimate + approved change
+   *  orders (utils/projectFinancials getContractValue). `undefined` while the
+   *  change orders have not been read. */
+  revisedContract?: number;
 }
 
-const ProjectRow = React.memo(function ProjectRow({ project, onPress, onLongPress, showDivider = true }: Props) {
+const ProjectRow = React.memo(function ProjectRow({
+  project, onPress, onLongPress, showDivider = true, invoicedToDate, revisedContract,
+}: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const Icon = ICON_MAP[TYPE_ICON_MAP[project.type]] ?? Building2;
   const statusLabel = STATUS_LABEL[project.status] ?? 'Draft';
   const statusTone: BadgeTone = STATUS_TONE[project.status] ?? 'neutral';
 
-  const { hasEstimate, estimateTotal, burnRatio } = useMemo(() => {
+  const { hasEstimate, estimateTotal } = useMemo(() => {
     const linked = project.linkedEstimate;
     const legacy = project.estimate;
     const hasIt = !!(linked && Array.isArray(linked.items) && linked.items.length > 0) || !!legacy;
     const total = linked && Array.isArray(linked.items) && linked.items.length > 0
       ? (linked.grandTotal ?? 0)
       : (legacy?.grandTotal ?? 0);
-    const invoiced = (project as { invoicedTotal?: number }).invoicedTotal ?? 0;
-    const burn = hasIt && total > 0 ? Math.min(1, invoiced / total) : 0;
-    return { hasEstimate: hasIt, estimateTotal: total, burnRatio: burn };
+    return { hasEstimate: hasIt, estimateTotal: total };
   }, [project]);
 
-  const burnIsHigh = burnRatio >= 0.9;
-  const burnPct = Math.round(burnRatio * 100);
+  // Burn = billed ÷ revised contract. It used to read `project.invoicedTotal`,
+  // a field nothing ever wrote, so every job printed "Burn 0%" however much
+  // had been invoiced (#151). Now both sides come from the caller, and the
+  // column is '—' whenever either is unknown or there is no contract to burn
+  // against — never a computed 0% with no source.
+  const burnRatio = invoicedToDate != null && revisedContract != null && revisedContract > 0
+    ? Math.min(1, Math.max(0, invoicedToDate / revisedContract))
+    : null;
+  const burnIsHigh = burnRatio != null && burnRatio >= 0.9;
+  const burnPct = burnRatio != null ? Math.round(burnRatio * 100) : 0;
 
   return (
     <TouchableOpacity
@@ -121,7 +140,7 @@ const ProjectRow = React.memo(function ProjectRow({ project, onPress, onLongPres
         <View style={styles.burnHeaderRow}>
           <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Burn</Text>
           <Text style={[styles.burnPctText, { color: burnIsHigh ? colors.danger : colors.text }]}>
-            {hasEstimate ? `${burnPct}%` : '—'}
+            {burnRatio != null ? `${burnPct}%` : '—'}
           </Text>
         </View>
         <View style={styles.burnTrack}>

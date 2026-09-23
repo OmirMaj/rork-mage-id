@@ -1,4 +1,54 @@
 -- ============================================================================
+-- 20260923181000_plan_sheets_private.sql — moved out of held/ by wave 5
+-- (lane benchmark-financing, #83; productDecision #83). The body below is
+-- held/20260904101100_plan_sheets_private.sql BYTE-FOR-BYTE; only this header
+-- is new.
+--
+-- ██ DO NOT APPLY until ALL of these are true — it is here, not in held/, so
+-- ██ the repo names the file production will record, but it is applied ONLY
+-- ██ on the founder's explicit OK, by hand, through the Supabase MCP
+-- ██ apply_migration (never `supabase db push`):
+--   1. THE FOUNDER SAYS YES (productDecision #83: permanently delete the 7
+--      orphaned tmp/ objects and make the bucket private).
+--   2. The 7 orphaned objects under plan-sheets/tmp/ (created 2026-05-07,
+--      owner NULL, referenced by 0 plan_sheets rows) are DELETED THROUGH THE
+--      STORAGE API — not `delete from storage.objects`, which leaves the bytes
+--      in the backing store. Verify: select count(*) from storage.objects
+--      where bucket_id='plan-sheets' and name like 'tmp/%'  →  0.
+--   3. Wave 4's signed-media-urls work and the architect page (the RFI /
+--      submittal share page that renders pinned sheets) are LIVE, so no
+--      reader still depends on an unsigned public URL.
+--   4. The OTA carrying utils/planSheetUrls (signs at read time) has REACHED
+--      devices — an older build resolving a public URL blanks its takeoff and
+--      plan-viewer screens the moment the bucket flips.
+--
+-- ALREADY MET (read-only, production, 2026-09-23):
+--   (b) the only storage.objects policies naming plan-sheets are
+--       plan_sheets_member_select (SELECT) and plan_sheets_member_insert
+--       (INSERT), both TO authenticated — no public/anon read survives (the
+--       do-block below raises if one appears before this runs);
+--   (d) all 3 plan_sheets rows store bare '<uuid>/…' paths — 0 rows hold an
+--       http URL, 0 reference tmp/ — so the flip blanks no live sheet.
+--   bucket plan-sheets: public = true, 10 objects, 7 of them under tmp/.
+--
+-- VERIFY AFTER: select public from storage.buckets where id='plan-sheets'
+-- → false; an unauthenticated GET of
+-- /storage/v1/object/public/plan-sheets/<a live path> → 400/404, not 200.
+--
+-- WHAT IT STILL DOESN'T CLOSE (tell the founder, don't call it closed):
+--   • URLs already SIGNED stay valid until they expire — 24 h for the
+--     client's links, up to 7 DAYS for the legacy publicUrl field that
+--     convert-pdf-to-images mints (_shared/planSheetBytes.mintLegacyViewUrl).
+--     A path learned before the flip reads through the public endpoint right
+--     up to the flip.
+--   • rfp-attachments is a second PUBLIC bucket serving drawings, readable
+--     off public_bids.drawing_urls (DB-F11b) — untouched here.
+--   • get_rfi_by_token still returns the sheet's storage key to anon
+--     (wave 4 owns that function — not touched); once private, a key alone
+--     reads nothing.
+-- ============================================================================
+
+-- ============================================================================
 -- HELD — do not apply until the client resolves plan-sheet images through
 -- signed URLs and writes under real project ids. See held/README.md.
 --

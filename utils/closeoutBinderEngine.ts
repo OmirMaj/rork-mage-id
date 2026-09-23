@@ -9,7 +9,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
-  pdfShell, pdfHeader, pdfTitle, pdfFooter, escHtml, fmtMoney, fmtDate, PDF_PALETTE,
+  pdfShell, pdfHeader, pdfTitle, pdfFooter, escHtml, fmtMoney, PDF_PALETTE,
 } from './pdfDesign';
 import type {
   CompanyBranding, Project, Commitment, ProjectPhoto, RFI,
@@ -19,6 +19,7 @@ import type {
 import { WAIVER_LABELS } from './lienWaiverEngine';
 import { calendarDayStart } from './calendarDate';
 import { resolveTradeContacts } from './tradeContacts';
+import { openPrintWindowOrThrow } from './platformFile';
 
 export interface MaintenanceItem {
   id: string;
@@ -101,6 +102,33 @@ export async function fetchCloseoutBinder(projectId: string): Promise<CloseoutBi
   return rowToBinder(data as CloseoutBinderRow);
 }
 
+/**
+ * The binder read, failure-aware (wave 5, #52). fetchCloseoutBinder answers
+ * null for BOTH "no binder yet" and "the read failed" — so offline, a binder
+ * delivered last week read "Compile and deliver the binder" on the handover
+ * checklist. Its return type is pinned by other screens, so this is separate:
+ * `{ ok: true, value: null }` is a real "none yet", `{ ok: false }` is a
+ * failed read the screen must not turn into an instruction.
+ */
+export async function loadCloseoutBinderChecked(
+  projectId: string,
+): Promise<{ ok: true; value: CloseoutBinder | null } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  try {
+    const { data, error } = await supabase
+      .from('closeout_binders')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message || 'The closeout binder could not be read.' };
+    return { ok: true, value: data ? rowToBinder(data as CloseoutBinderRow) : null };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'The closeout binder could not be read.' };
+  }
+}
+
 export async function saveCloseoutBinder(b: Partial<CloseoutBinder> & { id?: string; projectId: string }): Promise<CloseoutBinder | null> {
   if (!isSupabaseConfigured) return null;
   const session = await supabase.auth.getSession();
@@ -179,6 +207,20 @@ function fmtCellDay(value: string | null | undefined, empty: string): string {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+/**
+ * The cover's Completion value, UNESCAPED (pdfTitle escapes meta values itself,
+ * so fmtCellDay's escaped fallback would print '&amp;'). Parsed as a calendar
+ * day like fmtCellDay — not pdfDesign's fmtDate — because
+ * substantial_completion_date can come back as a bare 'YYYY-MM-DD', which
+ * fmtDate reads as UTC midnight: the day before, west of Greenwich. No date is
+ * 'Not yet certified', never a stand-in date.
+ */
+function completionLabel(value: string | null | undefined): string {
+  if (!value) return 'Not yet certified';
+  const d = calendarDayStart(value);
+  return d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : value;
+}
+
 // Exported for scripts/validate-closeout-binder.ts, which renders it with the
 // native modules stubbed. The screen reaches it only through
 // shareCloseoutBinderPDF.
@@ -192,7 +234,13 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     // over, and the GC was re-assembling them by hand from two other screens.
     rfis, submittals, subcontractors,
   } = input;
-  const completionDate = project.closedAt ?? project.updatedAt;
+  // The certified completion day (#141): the substantial-completion date the GC
+  // issued (the G704 date), else the day the job was closed — never updatedAt.
+  // The binder is usually built BEFORE the job is closed (the close prompt only
+  // appears after delivery), so the old `closedAt ?? updatedAt` printed the day
+  // the project row was last touched — a schedule edit, a portal toggle — as
+  // "Completion" in a document the owner keeps for the life of the house.
+  const completionDate = project.substantialCompletionDate ?? project.closedAt ?? null;
 
   // Hero photo — most recent project photo if available.
   const heroPhoto = (photos ?? [])
@@ -354,7 +402,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
       subtitle: `Everything you need to maintain, troubleshoot, and improve this build.`,
       meta: [
         { label: 'Address',     value: project.location ?? '—' },
-        { label: 'Completion',  value: fmtDate(completionDate) },
+        { label: 'Completion',  value: completionLabel(completionDate) },
         { label: 'Built by',    value: branding.companyName ?? 'MAGE ID' },
       ],
     })}
@@ -430,12 +478,11 @@ export async function shareCloseoutBinderPDF(input: BuildBinderInput): Promise<v
   const html = buildBinderHtml(input);
   const title = `Closeout Binder — ${input.project.name}`;
   if (Platform.OS === 'web') {
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-      newWindow.print();
-    }
+    // A blocked pop-up used to return here as if the binder had been shared
+    // (#147): the caller played its success haptic over nothing. Now the
+    // blocked window THROWS PRINT_WINDOW_BLOCKED_MESSAGE; callers pass it
+    // through pdfFailureMessage (CONTRACT 25).
+    openPrintWindowOrThrow(html);
     return;
   }
   const { uri } = await Print.printToFileAsync({ html, base64: false });

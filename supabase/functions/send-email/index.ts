@@ -11,7 +11,16 @@
 // every email gets:
 //   - Personalized FROM ("{Company} via MAGE ID <noreply@mageid.app>")
 //   - List-Unsubscribe + List-Unsubscribe-Post headers (Gmail bulk-sender
-//     compliance, Feb 2024)
+//     compliance, Feb 2024) — EXCEPT on the GC's own documents
+//     (TRANSACTIONAL_DOCUMENT_KEYS: estimate, invoice, daily_report,
+//     weekly_update, submittal, lien_waiver). This function checks no
+//     suppression before it sends, so a one-click there would be recorded and
+//     then ignored: the mail app says "unsubscribed" and the invoices keep
+//     coming (review of audit 2026-09-23 #45/#76). Transactional mail is
+//     exempt from the bulk-sender rule. Likewise a send that names NO event
+//     key (contracts, RFIs, meeting minutes, crew dispatch, portal links):
+//     a keyless one-click writes a GLOBAL suppression row that this function
+//     never reads but notify and the digests do.
 //   - Auto-generated plaintext fallback (deliverability + a11y)
 //   - Reply-to defaulting to the GC's email when client provides it
 //
@@ -53,7 +62,7 @@
 //   { success: false, error: "<reason>" }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { resendSend, htmlToPlaintext, buildFromAddress, buildUnsubscribeUrl, type UnsubscribeOpts } from "../_shared/email.ts";
+import { resendSend, htmlToPlaintext, buildFromAddress, buildListUnsubscribeHeaders, isTransactionalDocumentKey, type UnsubscribeOpts } from "../_shared/email.ts";
 import { requireTier, rateLimitCount } from "../_shared/auth.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
@@ -314,21 +323,33 @@ serve(async (req) => {
   // that exposes each recipient's address to the others — never what we
   // want. Loop instead.
   const results: { to: string; ok: boolean; id?: string; error?: string }[] = [];
+  // A GC's own document (invoice, estimate, …) goes out with no one-click
+  // unsubscribe: nothing here would honour it (see the header comment).
+  // Nor does a send that names no event key (contracts, RFIs, meeting
+  // minutes, crew dispatch, portal links, …): a keyless one-click writes a
+  // GLOBAL suppression row (event_key NULL), which send-email never reads —
+  // so those emails keep coming — while it silently stops every notify email
+  // to that address and, for a GC's sign-in address, switches his digests
+  // off. One-click is offered only for a named, non-document key.
+  const oneClickKey = body.unsubscribe?.eventKey;
+  const oneClickOffered = body.unsubscribe?.enabled !== false
+    && typeof oneClickKey === 'string' && oneClickKey.trim().length > 0
+    && !isTransactionalDocumentKey(oneClickKey);
   for (const to of recipients) {
     if (body.attachments && body.attachments.length > 0) {
       // Build unsubscribe headers for this recipient.
       const unsubHeaders: Record<string, string> = {};
-      if (body.unsubscribe?.enabled !== false) {
+      if (oneClickOffered) {
         // B1 (review 2026-09-04): the unsubscribe recipient is ALWAYS `to`.
         // Honouring a caller-supplied recipientEmail let any signed-in account
         // mint HMAC(UNSUB_SECRET, victim) by mailing itself and reading the
         // List-Unsubscribe header. Only eventKey is taken from the body.
         const u = { eventKey: body.unsubscribe?.eventKey, recipientEmail: to };
-        const url = buildUnsubscribeUrl(u);
-        if (url) {
-          unsubHeaders['List-Unsubscribe'] = `<${url}>, <mailto:unsubscribe@mageid.app?subject=Unsubscribe%20${encodeURIComponent(u.eventKey ?? '')}>`;
-          unsubHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-        }
+        // The same builder resendSend uses, so the two send paths can't drift
+        // apart again: the header points at the unsubscribe edge function (RFC
+        // 8058 one-click), not the static mageid.app page that 404'd the POST
+        // (audit 2026-09-23 #76).
+        Object.assign(unsubHeaders, buildListUnsubscribeHeaders(u));
       }
       const r = await sendWithAttachments({
         to,
@@ -358,7 +379,7 @@ serve(async (req) => {
         fromCompanyName: body.fromCompanyName,
         fromOverride: body.from,
         // B1: recipientEmail is `to`, never the body value (see above).
-        unsubscribe: body.unsubscribe?.enabled === false ? undefined : { eventKey: body.unsubscribe?.eventKey, recipientEmail: to },
+        unsubscribe: !oneClickOffered ? undefined : { eventKey: body.unsubscribe?.eventKey, recipientEmail: to },
       });
       const id = (r.resp as { id?: string } | null)?.id;
       const error = (r.resp as { message?: string; error?: string } | null);

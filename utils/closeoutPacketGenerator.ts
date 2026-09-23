@@ -6,7 +6,24 @@ import type {
 } from '@/types';
 import { punchListTypeOf } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { effectiveRetentionHeld } from '@/utils/invoiceBilling';
+import { effectiveRetentionHeld, roundCents } from '@/utils/invoiceBilling';
+import { formatMoney as formatMoneyDecimals } from '@/utils/formatters';
+import { calendarDayOf, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { openPrintWindowOrThrow } from '@/utils/platformFile';
+
+// Wave 5, #140. This packet is HANDED to the client at closeout, so every figure
+// in it is read as a statement of account. It used to:
+//   - round every amount to whole dollars ($12,480.37 printed as $12,480);
+//   - count unsent DRAFT invoices as invoiced (and list them in the register);
+//   - print bare 'YYYY-MM-DD' warranty and change-order days through
+//     `new Date(day)` — UTC midnight, so the day BEFORE anywhere west of UTC;
+//   - list only warranties whose STORED status was 'active' / 'expiring_soon'.
+//     addWarrantyClaim sets 'claimed', and nothing re-derives the stored status
+//     over time, so a roof warranty with one claim vanished from "Active
+//     Warranties" while an expired one could stay.
+// Now: cents throughout (totals summed in integer cents, negatives as -$x),
+// billed = non-draft invoices for every total and the register, calendar days
+// through utils/calendarDate, and "in force" from the dates plus the void flag.
 
 function escapeHtml(raw: string | number | undefined | null): string {
   if (raw === undefined || raw === null) return '';
@@ -18,18 +35,45 @@ function escapeHtml(raw: string | number | undefined | null): string {
     .replace(/'/g, '&#39;');
 }
 
+/** Money to the cent; a negative prints as -$x (a deductive change order). */
 function formatMoney(n: number): string {
-  return '$' + Math.round(n).toLocaleString('en-US');
+  return formatMoneyDecimals(roundCents(n), 2);
 }
 
-function formatDate(iso: string): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch { return '—'; }
+/** Sum in integer cents so a column of cents-exact figures foots exactly. */
+function sumCents(values: readonly number[]): number {
+  return values.reduce((s, v) => s + Math.round((Number.isFinite(v) ? v : 0) * 100), 0) / 100;
 }
 
-interface CloseoutPacketData {
+/**
+ * The DAY a stored value names. A bare 'YYYY-MM-DD' is that day (never
+ * `new Date(day)`, which is UTC midnight — the previous evening west of
+ * Greenwich); a full instant is the local day it fell on. Unreadable input is
+ * returned as-is (escaped) rather than hidden behind a dash.
+ */
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const day = calendarDayOf(value);
+  if (!day) return escapeHtml(value);
+  return formatCalendarDay(day, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * A warranty in force on `today`: not void, and its end day is today or later
+ * — whatever its stored status says. A claim does not end coverage (the
+ * stored 'claimed' status used to drop the warranty from the packet), and a
+ * stored 'active' on a warranty whose end day has passed does not keep it in.
+ * utils/workflowPipelines' warrantyStatus is not used on purpose: it ranks
+ * claims ahead of the dates and parses a bare endDate with Date.parse (UTC).
+ * A warranty with no readable end day is not claimed as in force.
+ */
+export function warrantyInForce(w: Pick<Warranty, 'status' | 'endDate'>, today: string): boolean {
+  if (w.status === 'void') return false;
+  const end = calendarDayOf(w.endDate);
+  return !!end && end >= today;
+}
+
+export interface CloseoutPacketData {
   project: Project;
   branding: CompanyBranding;
   changeOrders: ChangeOrder[];
@@ -81,7 +125,9 @@ function selectBeforeAfterPhotos(photos: ProjectPhoto[]): { before: ProjectPhoto
   };
 }
 
-function buildCloseoutHtml(data: CloseoutPacketData): string {
+// Exported for scripts/validate-w5-closeout-packet.ts, which renders it with the
+// native modules stubbed; the app reaches it through the two functions below.
+export function buildCloseoutHtml(data: CloseoutPacketData): string {
   const { project, branding, changeOrders, invoices, dailyReports, warranties } = data;
   // Formal punch only. The closeout packet is the document handed to the client
   // at handover, so an internal crew-list item must not appear in its punch
@@ -90,25 +136,30 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
   const punchItems = data.punchItems.filter(p => punchListTypeOf(p) === 'punch');
 
   const approvedCOs = changeOrders.filter(co => co.status === 'approved');
-  const totalCOValue = approvedCOs.reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
+  const totalCOValue = sumCents(approvedCOs.map(co => co.changeAmount ?? 0));
 
-  const totalInvoiced = invoices.reduce((s, i) => s + (i.totalDue ?? 0), 0);
-  const totalPaid = invoices.reduce((s, i) => s + (i.amountPaid ?? 0), 0);
+  // Billed = what actually went to the client. A draft never left the GC's
+  // desk, so it is not "invoiced", not in the register and not in the count —
+  // the same filter ProjectContext's outstanding rollup uses.
+  const billed = invoices.filter(i => i.status !== 'draft');
+  const totalInvoiced = sumCents(billed.map(i => i.totalDue ?? 0));
+  const totalPaid = sumCents(billed.map(i => i.amountPaid ?? 0));
   // MONEY-05: the withholding on the work basis, per invoice, so the closeout
   // packet's retention line agrees with the Retention screen the GC releases
   // from — a packet that overstates the withholding overstates the final check.
-  const totalRetentionHeld = invoices.reduce((s, i) => s + effectiveRetentionHeld(i), 0);
-  const totalRetentionReleased = invoices.reduce((s, i) => s + (i.retentionReleased ?? 0), 0);
-  const retentionPending = Math.max(0, totalRetentionHeld - totalRetentionReleased);
+  const totalRetentionHeld = sumCents(billed.map(i => effectiveRetentionHeld(i)));
+  const totalRetentionReleased = sumCents(billed.map(i => i.retentionReleased ?? 0));
+  const retentionPending = Math.max(0, roundCents(totalRetentionHeld - totalRetentionReleased));
 
   const openPunch = punchItems.filter(p => p.status !== 'closed');
   const closedPunch = punchItems.filter(p => p.status === 'closed');
   const punchCompletion = punchItems.length > 0 ? Math.round((closedPunch.length / punchItems.length) * 100) : 100;
 
-  const activeWarranties = warranties.filter(w => w.status === 'active' || w.status === 'expiring_soon');
+  const today = todayCalendarDay();
+  const activeWarranties = warranties.filter(w => warrantyInForce(w, today));
 
   const baseEstimate = effectiveEstimateTotal(project);
-  const finalContractValue = baseEstimate + totalCOValue;
+  const finalContractValue = sumCents([baseEstimate, totalCOValue]);
 
   const company = branding.companyName || 'Contractor';
   const logoHtml = branding.logoUri ? `<img src="${escapeHtml(branding.logoUri)}" style="max-height: 60px; margin-bottom: 8px;" />` : '';
@@ -134,9 +185,9 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
       <h3>Financial Summary</h3>
       <table class="summary">
         <tr><td>Original Contract</td><td class="num">${formatMoney(baseEstimate)}</td></tr>
-        <tr><td>Approved Change Orders (${approvedCOs.length})</td><td class="num">${totalCOValue >= 0 ? '+' : ''}${formatMoney(totalCOValue)}</td></tr>
+        <tr><td>Approved Change Orders (${approvedCOs.length})</td><td class="num">${totalCOValue > 0 ? '+' : ''}${formatMoney(totalCOValue)}</td></tr>
         <tr class="total"><td>Final Contract Value</td><td class="num">${formatMoney(finalContractValue)}</td></tr>
-        <tr><td>Total Invoiced (${invoices.length})</td><td class="num">${formatMoney(totalInvoiced)}</td></tr>
+        <tr><td>Total Invoiced (${billed.length})</td><td class="num">${formatMoney(totalInvoiced)}</td></tr>
         <tr><td>Total Paid</td><td class="num">${formatMoney(totalPaid)}</td></tr>
         ${totalRetentionHeld > 0 ? `
           <tr><td>Retention Held</td><td class="num warn">${formatMoney(totalRetentionHeld)}</td></tr>
@@ -166,13 +217,13 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
     </section>
   ` : '';
 
-  const invoicesSectionHtml = invoices.length > 0 ? `
+  const invoicesSectionHtml = billed.length > 0 ? `
     <section>
       <h3>Invoice Register</h3>
       <table class="list">
         <thead><tr><th>#</th><th>Issued</th><th>Type</th><th>Status</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Retention</th></tr></thead>
         <tbody>
-          ${invoices.map(inv => `
+          ${billed.map(inv => `
             <tr>
               <td>${inv.number}</td>
               <td>${formatDate(inv.issueDate)}</td>
@@ -223,7 +274,7 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
               <td>${escapeHtml(w.provider)}</td>
               <td>${formatDate(w.startDate)}</td>
               <td>${formatDate(w.endDate)}</td>
-              <td>${escapeHtml(w.coverageDetails || '—')}</td>
+              <td>${escapeHtml(w.coverageDetails || '—')}${(w.claims ?? []).some(c => !c.resolvedAt) ? '<br/><span class="note">Claim open</span>' : ''}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -392,12 +443,11 @@ export async function generateAndShareCloseoutPacket(data: CloseoutPacketData): 
   const html = buildCloseoutHtml(data);
 
   if (Platform.OS === 'web') {
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-      newWindow.print();
-    }
+    // #147 (CONTRACT 25): a blocked pop-up used to return TRUE here, so the
+    // screen announced "Closeout packet built and shared" over nothing. The
+    // blocked window now THROWS PRINT_WINDOW_BLOCKED_MESSAGE to the caller,
+    // which shows it through pdfFailureMessage.
+    openPrintWindowOrThrow(html);
     return true;
   }
 

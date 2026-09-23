@@ -15,7 +15,7 @@
 // Built on the app's proven stack: normalized 0–1 coords, react-native-svg
 // overlay, GestureResponder taps, expo-image-picker. No new native deps.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal,
   TextInput, Platform, type GestureResponderEvent, type LayoutChangeEvent,
@@ -49,12 +49,11 @@ import {
   type NormPoint,
 } from '@/utils/takeoffGeometry';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
-// The canonical at-cost rule (labor / assemblies carry no markup), shared with
-// the estimator and the voice-edit recompute rather than restated here.
-import { isAtCostLine } from '@/utils/copilot/estimateEdit/estimateOps';
 import { roundCents } from '@/utils/invoiceBilling';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
+import EstimateJobPicker from '@/components/estimate/EstimateJobPicker';
+import { estimateProjectCandidates, pickEstimateProject } from '@/utils/estimateLanding';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -143,11 +142,28 @@ function AreaTakeoffInner() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const {
     projects, commitments, getProject, updateProject, settings,
     getPlanSheetsForProject, getCalibrationForPlan, upsertPlanCalibration,
   } = useProjects();
+  // A MEASUREMENT IS NEVER STRANDED (#87). Pushed bare from the Estimate hub,
+  // Tools or the web sidebar, this screen used to let him calibrate and trace
+  // a whole floor and then say only "Open this from a project…". It now
+  // defaults to the most recently updated job with estimate lines (its plan
+  // sheets load below), puts it in the URL, and the result card lets him
+  // switch jobs — a param change, so the canvas, the scale and the traced
+  // shapes are all kept.
+  const estimateJobs = useMemo(() => estimateProjectCandidates(projects), [projects]);
+  const fallback = useMemo(
+    () => (paramProjectId ? null : pickEstimateProject(projects, 'estimate')),
+    [paramProjectId, projects],
+  );
+  const projectId = paramProjectId ?? fallback?.id;
+  useEffect(() => {
+    if (!paramProjectId && fallback) router.setParams({ projectId: fallback.id });
+  }, [paramProjectId, fallback, router]);
+  const pickProject = useCallback((id: string) => router.setParams({ projectId: id }), [router]);
   const { receipts } = useMaterialReceipts();
   const { seeds } = useCostSeeds();
 
@@ -161,6 +177,10 @@ function AreaTakeoffInner() {
 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [sheetId, setSheetId] = useState<string | null>(null);
+  // The project the loaded plan sheet BELONGS to. A scale is saved to the
+  // sheet, and the sheet stays on the canvas when he switches the job he is
+  // adding to — so its scale must not be written under the new job's id.
+  const [sheetProjectId, setSheetProjectId] = useState<string | null>(null);
   // THE FRAME (audit round 2, #4; utils/planScale). The 3:4 canvas is only
   // the box; taps, overlays and every measurement are normalised to the rect
   // the contain-fitted IMAGE occupies inside it — the frame Plan Viewer uses —
@@ -268,6 +288,7 @@ function AreaTakeoffInner() {
   ) => {
     setImageUri(uri);
     setSheetId(sId);
+    setSheetProjectId(sId ? (projectId ?? null) : null);
     setImgRatio(null);
     setSheetDims(dims);
     setScaleRecheck(recheck);
@@ -276,7 +297,7 @@ function AreaTakeoffInner() {
     setDrawPoints([]);
     setLastAdded(null);
     setMode(cal || !needsScale ? 'draw' : 'calibrate');
-  }, [needsScale]);
+  }, [needsScale, projectId]);
 
   const pickImage = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -373,13 +394,16 @@ function AreaTakeoffInner() {
       // Persist scale back to the plan sheet so it's reused next time —
       // stamped as image-frame so Plan Viewer (and this screen on any
       // device) trusts it (utils/planScale).
-      if (sheetId && projectId) {
-        upsertPlanCalibration({ planSheetId: sheetId, projectId, p1: stampImageFrame(cal.p1), p2: stampImageFrame(cal.p2), realDistanceFt: ft });
+      // Saved under the SHEET's project, not whichever job is picked now. A
+      // library photo has no plan sheet, so its scale has nowhere to live
+      // beyond this screen — that is the one case nothing is saved.
+      if (sheetId && sheetProjectId) {
+        upsertPlanCalibration({ planSheetId: sheetId, projectId: sheetProjectId, p1: stampImageFrame(cal.p1), p2: stampImageFrame(cal.p2), realDistanceFt: ft });
       }
     }
     setDistanceModal(false);
     setDistanceInput('');
-  }, [distanceInput, calPoints, sheetId, projectId, upsertPlanCalibration]);
+  }, [distanceInput, calPoints, sheetId, sheetProjectId, upsertPlanCalibration]);
 
   const undoPoint = useCallback(() => {
     if (mode === 'calibrate') setCalPoints(prev => prev.slice(0, -1));
@@ -448,8 +472,10 @@ function AreaTakeoffInner() {
     // Lifted and EXECUTED by scripts/validate-invoice-billing.ts. Keep the
     // sentinels: the validator exits 1 if they go missing rather than quietly
     // stopping checking that this screen's lines foot to the contract.
-    const atCost = isAtCostLine({ category });
-    const ratio = !atCost && est.baseTotal > 0 ? est.markupTotal / est.baseTotal : 0;
+    // Every category takes the estimate's ratio, labor included (#6): the
+    // estimator marks labor up, and recomputeEstimate keeps each line's own
+    // markup, so the old at-cost carve-out only gave margin away.
+    const ratio = est.baseTotal > 0 ? est.markupTotal / est.baseTotal : 0;
     const markupPct = ratio * 100;
     // Rounded the way recomputeEstimate rounds, so a later edit is a no-op
     // rather than a cent of drift on the contract value.
@@ -766,8 +792,41 @@ function AreaTakeoffInner() {
                     <Text style={styles.addBtnText}>Add to {project?.name ? 'this estimate' : 'estimate'}</Text>
                   </TouchableOpacity>
                 )}
+                {/* Which job's estimate the line goes on — switchable without
+                    losing the trace (#87). */}
+                {effectiveRate != null && estimateJobs.length > 0 && (!canAddToEstimate || estimateJobs.length > 1) && (
+                  <View style={{ marginTop: 10 }}>
+                    <EstimateJobPicker
+                      label={canAddToEstimate ? 'Adding to' : 'Add to the estimate on…'}
+                      jobs={estimateJobs}
+                      selectedId={canAddToEstimate ? projectId : undefined}
+                      onPick={pickProject}
+                      testID="takeoff-job-picker"
+                    />
+                  </View>
+                )}
                 {!canAddToEstimate && effectiveRate != null && (
-                  <Text style={styles.resultHintSmall}>Open this from a project (with a cost-and-markup estimate) to add the line directly.</Text>
+                  estimateJobs.length > 0 ? (
+                    <Text style={styles.resultHintSmall}>
+                      {project ? `${project.name} has no estimate yet. ` : ''}Pick a job above to add this line to its estimate — your scale and trace stay put.
+                    </Text>
+                  ) : (
+                    <View style={{ gap: 8 }}>
+                      <Text style={styles.resultHintSmall}>
+                        No project has an estimate yet, so there is nowhere to add this line. Build one first — this measurement stays here while you do.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.crossLink}
+                        onPress={() => router.push('/estimate-wizard' as never)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        testID="takeoff-build-estimate"
+                      >
+                        <Calculator size={16} color={t.accent} strokeWidth={1.75} />
+                        <Text style={styles.crossLinkText}>Build an estimate</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )
                 )}
               </>
             )}

@@ -169,6 +169,27 @@ export function foldCurrentInspection(args: {
 
   const notes = (inspectionNotes ?? '').trim() || undefined;
   const name = (phase ?? '').trim() || 'Inspection';
+
+  // A head that is only BOOKED ('scheduled') never lands on a same-day row
+  // that has already been called (#145). Two ways it used to go wrong:
+  //   - he logs "Rough electrical — Failed" in the history editor for the day
+  //     the permit says is booked, keeps the status as scheduled, and saves:
+  //     the fold filed a second, 'scheduled' row for that day, so one visit
+  //     read as both Failed and Scheduled;
+  //   - a head whose name matches a called row (same phase) re-saved as
+  //     'scheduled' matched that row below and REPLACED its verdict with
+  //     'scheduled' — the failed footing and its notes, gone.
+  // The called row already is that visit. It stands in for the head when the
+  // names agree, or when the head has no name of its own (no phase set, so it
+  // cannot claim to be a different inspection). A differently-named booking on
+  // the same day is still its own inspection and still gets its own row.
+  if (result === 'scheduled') {
+    const calledSameVisit = inspections.some(i =>
+      i.scheduledFor.slice(0, 10) === day
+      && (i.result === 'passed' || i.result === 'failed')
+      && (name === 'Inspection' || (i.name || 'Inspection').trim().toLowerCase() === name.toLowerCase()));
+    if (calledSameVisit) return inspections;
+  }
   // Which row, if any, this head actually describes.
   //
   // Matching on the DAY alone was the finding's own bug narrowed to a day
@@ -235,4 +256,47 @@ export function inspectionHistorySummary(rows: PermitInspection[]): string | nul
   const called = passed + failed;
   if (called === 0) return `${rows.length} inspection${rows.length === 1 ? '' : 's'} scheduled`;
   return `${called} inspection${called === 1 ? '' : 's'} called — ${parts.join(', ')}`;
+}
+
+/** Newest-first rows (sortPermitInspections order); a CALLED row is one with a
+ *  verdict — passed or failed. */
+function isCalled(r: PermitInspection): boolean {
+  return r.result === 'passed' || r.result === 'failed';
+}
+
+/** The most recent inspection that was actually called (passed or failed), or
+ *  null. Rows are re-sorted here so a caller cannot hand in an unsorted list. */
+export function latestCalledInspection(rows: PermitInspection[]): PermitInspection | null {
+  return sortPermitInspections(rows).find(isCalled) ?? null;
+}
+
+/**
+ * The failed inspection that is still OPEN according to the history, or null
+ * (#145). A permit's status comes from the form's drop-down, so a failure he
+ * logged only in the history editor never reached the blockers, the Failed
+ * count or the card — the permit kept its countdown while work was blocked.
+ *
+ * Open means: the newest called row failed, and nothing was booked or passed
+ * after it — no later row in the history, and no head inspection (the
+ * permit's own inspectionDate while it is scheduled or passed) on a later day.
+ * A re-inspection that is already booked is the GC handling it, not a
+ * forgotten failure.
+ */
+export function openFailedInspection(
+  rows: PermitInspection[],
+  head?: { status: PermitStatus; inspectionDate?: string | null },
+): PermitInspection | null {
+  const sorted = sortPermitInspections(rows);
+  const idx = sorted.findIndex(isCalled);
+  if (idx < 0) return null;
+  const latest = sorted[idx];
+  if (latest.result !== 'failed') return null;
+  const failedDay = latest.scheduledFor.slice(0, 10);
+  // Anything newer than it in the list is either a later day or the same day
+  // recorded later — a booking or a pass made after the failure.
+  if (sorted.slice(0, idx).some(r => r.result === 'scheduled' || r.result === 'passed')) return null;
+  const headDay = (head?.inspectionDate ?? '').slice(0, 10);
+  if (headDay && headDay > failedDay
+    && (head?.status === 'inspection_scheduled' || head?.status === 'inspection_passed')) return null;
+  return latest;
 }

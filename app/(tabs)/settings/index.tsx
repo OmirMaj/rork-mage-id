@@ -27,6 +27,10 @@ import { isOwner } from '@/utils/owner';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel } from '@/utils/platformFees';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
+import { nextAiResetLabel } from '@/utils/aiRateLimiterCore';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { listPriceLabel, type PaidTier } from '@/constants/pricing';
+import { planFeatureLines, planFeatureBlurb, lineTier, type PlanFeatureLine } from '@/utils/planFeatureCopy';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
 import { THEME_PRESETS } from '@/types';
 import type { AppSettings, PDFNamingSettings } from '@/types';
@@ -91,6 +95,48 @@ function countNoun(n: number, noun: string): string {
 const ACCOUNT_DELETE_HANDOVER_NOTE =
   'Work you logged on other contractors\u2019 jobs is not deleted: daily reports, photos, punch items, RFIs, submittals, permits, plan sheets and markups, time entries (with their GPS location and notes), signed T&M tickets, and delivery and site-access bookings stay with those jobs, and the job\u2019s owner keeps them.';
 
+// ── Plan copy, derived from the gates (audit #134) ──────────────────────────
+// The plan cards used to be typed lists that had drifted from the gates: Free
+// was shown "No cloud sync" (sync has no tier — ProjectContext canSync is just
+// signed-in), "No PDF export" and "No schedule maker" (neither is gated), Pro
+// was sold "Cloud sync", "Daily field reports" and "Material price alerts"
+// (all open on Free), and the FAQ put RFIs/submittals and the plan viewer on
+// Business (both Pro). Every tier line is now READ from REQUIRED_TIER through
+// utils/planFeatureCopy, plus the few Settings-only lines below, each naming
+// the gate it describes. scripts/validate-w5-settings-plans.ts fails a line
+// shown under a tier its gate does not require.
+//
+// QuickBooks has no FeatureKey (removed with the old placeholder); its gate is
+// the server's requireTier(['business','enterprise']) on every qbo-* function
+// and the Business-bucket check in app/qbo-setup.tsx, so it is listed apart.
+const SETTINGS_EXTRA_PLAN_LINES: PlanFeatureLine[] = [
+  { label: 'Bid Advisor (take / hold / walk)', keys: ['bid_scoring'] },
+  { label: 'Track Record \u2014 it grades its own calls', keys: ['brain_accuracy'] },
+];
+const QUICKBOOKS_PLAN_LINE = 'QuickBooks 2-way sync';
+
+/** #46: the Security row's honest state until an app lock exists. */
+const APP_LOCK_NOT_BUILT = 'App lock isn\u2019t built yet. Face ID sign-in is on the login screen.';
+
+/** The bullets a plan card lists for the tier that first unlocks them. */
+function planCardLines(tier: 'pro' | 'business'): string[] {
+  return [
+    ...planFeatureLines(tier),
+    ...SETTINGS_EXTRA_PLAN_LINES.filter((l) => lineTier(l) === tier).map((l) => l.label),
+    ...(tier === 'business' ? [QUICKBOOKS_PLAN_LINE] : []),
+  ];
+}
+
+// #127: the live cap (enforce_free_tier_project_cap) counts every non-sample
+// job he OWNS, finished or not — an awarded marketplace job he owns included.
+// Jobs other contractors share with him never count. Never claim awarded jobs
+// are free (productDecision #127 is open).
+const FREE_PROJECT_LINE = '1 project of your own (finished jobs still count)';
+const FREE_TIER_FAQ =
+  'Free includes 1 project of your own \u2014 a finished job still counts, and jobs other contractors share with you don\u2019t \u2014 plus the estimate wizard, the basic schedule maker, daily field reports and sync across your devices (every plan syncs). '
+  + `Pro (${listPriceLabel('pro')} list) unlocks unlimited projects, ${planFeatureBlurb('pro')}. `
+  + `Business (${listPriceLabel('business')} list) adds ${planFeatureBlurb('business')}, and QuickBooks sync.`;
+
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: 'How do I create my first project?',
@@ -98,7 +144,11 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'What\u2019s the difference between Free, Pro and Business?',
-    a: 'Free includes 1 active project and basic estimating. Pro unlocks unlimited projects, cash flow forecasting, Gantt PDF exports, AI code checks and proposal templates. Business adds time tracking, QuickBooks sync, plan viewer, subcontractor management and RFIs/submittals.',
+    // #134 / #127: built from the gate table (utils/planFeatureCopy reads
+    // REQUIRED_TIER), so a re-tier moves this sentence with it. Sync is on
+    // every plan, and RFIs/submittals and the plan viewer are Pro — the old
+    // answer sold all three as upgrades.
+    a: FREE_TIER_FAQ,
   },
   {
     q: 'How does the AI estimate work?',
@@ -122,7 +172,9 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'How do I cancel or change my subscription?',
-    a: 'Subscriptions are billed through Apple or Google. Manage them in your device\u2019s Subscriptions settings. If you run into issues, email support@mageid.app and we\u2019ll sort it out.',
+    // #176: every paid plan today is turned on by hand, and there is nothing
+    // in the App Store to cancel for it. Same two routes as support.html.
+    a: 'It depends on how your plan started. If you subscribed in the iPhone or Android app, use Settings \u2192 Manage Subscription, which opens the App Store or Google Play. If MAGE ID turned your plan on for you \u2014 how every paid plan starts today \u2014 email help@mageid.app to change or cancel it. Nothing is deleted when a plan ends.',
   },
   {
     q: 'Does MAGE ID replace a lawyer or licensed inspector?',
@@ -140,7 +192,7 @@ export default function SettingsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { settings, settingsLoaded, settingsLoadFailed, retryRemoteReads, updateSettings, projects, deleteProject, userRole } = useCoreData();
+  const { settings, settingsLoaded, settingsLoadFailed, retryRemoteReads, updateSettings, userRole } = useCoreData();
   // "How you get paid" shortcut. The answer lives on Company Profile and is
   // asked the first time a document prints it; this row only exists because a
   // GC hunting for "deposit" looks in Settings first. It opens the same ask
@@ -172,6 +224,55 @@ export default function SettingsScreen() {
   const { user, logout, deleteAccount, isAuthenticated, signingOut } = useAuth();
   const queryClient = useQueryClient();
   const { tier } = useTierAccess();
+  // CONTRACT 1 (#176): whether a store subscription backs the tier. A plan
+  // MAGE ID turned on by hand has nothing in the App Store to cancel.
+  const { planSource, proPackage, businessPackage, enterprisePackage } = useSubscription();
+  // Plan-card price: the store's own monthly price once RevenueCat has it,
+  // else the one published list rate (constants/pricing) labelled as such.
+  const planPriceLabel = useCallback((t: PaidTier): string => {
+    const pkg = t === 'pro' ? proPackage : t === 'business' ? businessPackage : enterprisePackage;
+    const store = pkg?.product?.priceString;
+    return store ? `${store}/mo` : `${listPriceLabel(t)} list`;
+  }, [proPackage, businessPackage, enterprisePackage]);
+  // #176: where a plan change or cancel really goes. 'store' only when an
+  // App Store / Google Play entitlement backs the tier AND this is that phone
+  // — never an apps.apple.com link on the web. Everything else (a plan turned
+  // on by hand, a promotional grant, the web) is an email; never "no support
+  // call needed" when support is the only route.
+  const planChangeRoute = useMemo(() => {
+    const mailto = 'mailto:help@mageid.app?subject=Change%20my%20MAGE%20ID%20plan';
+    if (planSource === 'store' && (Platform.OS === 'ios' || Platform.OS === 'android')) {
+      const store = Platform.OS === 'ios' ? 'App Store' : 'Play Store';
+      return {
+        url: Platform.OS === 'ios'
+          ? 'itms-apps://apps.apple.com/account/subscriptions'
+          : 'https://play.google.com/store/account/subscriptions',
+        label: 'Manage Subscription',
+        subtitle: `Cancel or change anytime in the ${store}`,
+        fallback: Platform.OS === 'ios'
+          ? 'Open Settings \u2192 Apple ID \u2192 Subscriptions to manage your MAGE ID plan.'
+          : 'Open Play Store \u2192 Subscriptions to manage your MAGE ID plan.',
+        downgradeMessage: `To switch to Free, cancel your subscription in the ${store} (${Platform.OS === 'ios' ? 'Settings \u2192 Apple ID \u2192 Subscriptions' : 'Play Store \u2192 Subscriptions'}). Nothing is deleted.`,
+      };
+    }
+    if (planSource === 'store') {
+      // A store subscription viewed on the web: the store page is on his phone.
+      return {
+        url: mailto,
+        label: 'Manage Subscription',
+        subtitle: 'Billed through the App Store or Google Play \u2014 change or cancel it on your phone, or email help@mageid.app',
+        fallback: 'Change or cancel it in your phone\u2019s App Store or Google Play subscriptions, or email help@mageid.app.',
+        downgradeMessage: 'Your plan is billed through the App Store or Google Play. Cancel it in your phone\u2019s subscription settings to switch to Free, or email help@mageid.app. Nothing is deleted.',
+      };
+    }
+    return {
+      url: mailto,
+      label: 'Your plan was turned on by MAGE ID',
+      subtitle: 'Email help@mageid.app to change or cancel \u2014 nothing is deleted',
+      fallback: 'Email help@mageid.app to change or cancel your plan \u2014 nothing is deleted.',
+      downgradeMessage: 'Your plan was turned on by MAGE ID, so there is nothing to cancel in the App Store. Email help@mageid.app to switch to Free \u2014 nothing is deleted.',
+    };
+  }, [planSource]);
   const { colors: themeColors, resolved: resolvedTheme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -179,6 +280,12 @@ export default function SettingsScreen() {
   const [aiLimit, setAiLimit] = useState(10);
   const [aiSmartUsed, setAiSmartUsed] = useState(0);
   const [aiSmartLimit, setAiSmartLimit] = useState(3);
+  // #123 / #128: the daily and monthly AI counters roll over at 00:00 UTC —
+  // 8:00 PM the evening before for an east-coast contractor — so this line
+  // says the real local moment instead of "midnight" / "the 1st". Computed
+  // each render (cheap) so it never shows a time that has already passed.
+  const aiResetLabels = nextAiResetLabel();
+  const aiResetLine = `Daily AI ${aiResetLabels.daily.replace(/^Resets/, 'resets')} \u00b7 Takeoff pages ${aiResetLabels.monthly.replace(/^Resets/, 'reset')}`;
 
   // QuickBooks connection state — surfaced as a live "Connected · Company"
   // pill on the Integrations row so the user doesn't have to drill in to
@@ -241,6 +348,11 @@ export default function SettingsScreen() {
   );
   const qboConnected = qboStatus?.status === 'connected';
   const qboReauth = qboStatus?.status === 'reauth_required' || qboStatus?.status === 'error';
+  // #103: a failed status check is not "not connected". A plan the server
+  // refuses (reason 'tier') on a plan below Business keeps "Requires
+  // Business"; every other failure reads "Status unavailable".
+  const qboUnknown = qboStatus?.status === 'unknown'
+    && !(qboStatus.reason === 'tier' && tier !== 'business' && tier !== 'enterprise');
   // Monthly takeoff page quota (separate from the daily AI request
   // counter above — takeoffs are page-metered server-side; the daily
   // counter only tracks text AI requests).
@@ -583,78 +695,78 @@ export default function SettingsScreen() {
     return () => clearTimeout(t);
   }, [pdfNaming, pdfNamingSaved]);
 
-  const handleClearAll = useCallback(() => {
-    showAlert('Clear All Data', 'This permanently deletes every project, estimate, and cached record this app stored on this device — change orders, invoices, daily reports, photos, bids, and the rest — INCLUDING any changes not yet synced and jobsite photos not yet uploaded, which cannot be recovered. Your appearance/theme setting is kept. This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete Everything', style: 'destructive',
-        onPress: async () => {
-          // Clear in ONE shot. The old loop called deleteProject(id) per
-          // project — but deleteProject is a useCallback closed over a
-          // single `projects` snapshot, so every call re-filtered that
-          // SAME full array (dropping only one id) and the last write
-          // persisted an array still holding all-but-one project, racing
-          // the AsyncStorage.removeItem below. Instead we: (1) snapshot
-          // the ids once, (2) fire each project's Supabase delete through
-          // the existing per-project delete path (the sync debounce map
-          // keys on project.id, so all N deletes are enqueued, not
-          // collapsed), (3) wipe every namespaced local key in a single
-          // multiRemove, and (4) empty the in-memory react-query caches
-          // to [] via setQueryData — which fires ProjectContext's
-          // data→setProjects effect WITHOUT a refetch, so a server-first
-          // reload can't race projects back in before the queued deletes
-          // flush.
-          const ids = projects.map(p => p.id);
-          for (const id of ids) deleteProject(id);
+  // "Reset this device" (audit #3 / #4, blockers). This row used to be "Clear
+  // All Projects & Data": its dialog said it removed what was stored on THIS
+  // device, and then it ran deleteProject() for every job he owned — a server
+  // DELETE per project, and production cascades 38 child tables off projects
+  // (invoices, change orders, pay apps, contracts, the homeowner portal,
+  // collaborators, safety records). One tap "to fix a stuck sync" erased his
+  // business on every device and every portal. It is now what it says: a
+  // device reset. Nothing is written to the server; his jobs reload from his
+  // account. A server-wide "delete all my jobs" is deliberately not offered
+  // here — Delete Account below is the one server-side erase, with its own
+  // typed confirmation. scripts/validate-w5-settings-reset.ts fails if this
+  // callback ever calls deleteProject or a projects delete again.
+  const resetThisDevice = useCallback(async () => {
+    const userId = user?.id ?? null;
+    // Wipe EVERY app-owned key, not a hand-maintained list. Reuse the
+    // tenant-wipe sweep — the single source of truth in
+    // utils/localCacheKeys.ts — which selects app-owned keys by PREFIX over
+    // the actual getAllKeys(), so a new key is covered the moment it is
+    // written. It deliberately KEEPS the device-scoped survivors (mageid_theme
+    // and the rotating analytics id). It is NOT AsyncStorage.clear() — on web
+    // AsyncStorage IS window.localStorage, so clear() would take out
+    // Supabase's own sb-*-auth-token session plus Stripe/RevenueCat/Sentry
+    // state (see CLAUDE.md). The sweep includes the offline queues, which is
+    // why the dialog counted them first.
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const keysToWipe = selectTenantKeysToWipe(allKeys);
+      if (keysToWipe.length > 0) await AsyncStorage.multiRemove(keysToWipe);
+    } catch (e) {
+      showAlert('Reset didn’t finish', `MAGE couldn’t clear this device’s saved copy (${e instanceof Error ? e.message : 'storage error'}). Nothing on your account was changed. Try again.`);
+      return;
+    }
+    // Reload instead of zeroing. The old code emptied the caches with
+    // setQueryData([]) on purpose, so a refetch could not race its queued
+    // server deletes back in; with no deletes, a re-read of his account is
+    // exactly what a reset should do. retryRemoteReads invalidates every
+    // [table, userId] query this app keeps (projects, the child lists,
+    // settings, role, onboarding) and reloads warranties, so each list is
+    // replaced by the server's copy as it lands — the same path as the
+    // "couldn't reach MAGE" Retry.
+    if (userId) {
+      await Promise.all(
+        ['projects', 'changeOrders', 'invoices', 'dailyReports', 'punchItems', 'projectPhotos', 'rfis', 'submittals']
+          .map((name) => queryClient.invalidateQueries({ queryKey: [name, userId] })),
+      ).catch(() => { /* retryRemoteReads below re-asks all of them */ });
+    }
+    retryRemoteReads();
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showAlert('Done', 'This device was reset. Your jobs are reloading from your account.');
+  }, [user?.id, queryClient, retryRemoteReads]);
 
-          const userId = user?.id ?? null;
-          // Wipe EVERY app-owned key, not a hand-maintained list. The old
-          // list named ~10 keys while the app writes ~125 (mageid_* core +
-          // sub-collections, mage_* cashflow/bids/voice/ai, and the
-          // un-namespaced bids_*/post-rfp:draft:* strays), so "Clear All
-          // Data" left the majority of cached records behind. Reuse the
-          // tenant-wipe sweep — the single source of truth in
-          // utils/localCacheKeys.ts — which selects app-owned keys by
-          // PREFIX over the actual getAllKeys(), so a new key is covered
-          // the moment it is written. It deliberately KEEPS the two
-          // device-scoped survivors (mageid_theme and the rotating
-          // mage_analytics_distinct_id): a user clearing their data is not
-          // asking to reset their appearance. It is NOT AsyncStorage.clear()
-          // — on web AsyncStorage IS window.localStorage, so clear() would
-          // take out Supabase's own sb-*-auth-token session plus
-          // Stripe/RevenueCat/Sentry state (see CLAUDE.md).
-          const allKeys = await AsyncStorage.getAllKeys();
-          const keysToWipe = selectTenantKeysToWipe(allKeys);
-          if (keysToWipe.length > 0) await AsyncStorage.multiRemove(keysToWipe);
-
-          // Empty the in-memory lists now. setQueryData (not invalidate)
-          // updates the cached data reference so ProjectContext's
-          // `if (query.data) setProjects(query.data)` effects run and
-          // zero out state, with no network refetch to re-populate from
-          // a server that hasn't processed the queued deletes yet.
-          const emptyQueryKeys = [
-            'projects', 'changeOrders', 'invoices', 'dailyReports',
-            'punchItems', 'projectPhotos', 'rfis', 'submittals',
-          ];
-          for (const name of emptyQueryKeys) {
-            queryClient.setQueryData([name, userId], []);
-          }
-          // The widened sweep also removed the config keys (mageid_settings,
-          // mageid_user_role, mageid_onboarding_complete). Drop their query
-          // caches too, so a surviving in-memory cache cannot immediately
-          // re-persist its pre-wipe value — the same re-persist race the list
-          // caches above are emptied to avoid. (Account-level settings on the
-          // server are untouched; a device clear is not an account delete.)
-          for (const key of [['settings', userId], ['user_role', userId], ['onboarding', userId]] as const) {
-            queryClient.removeQueries({ queryKey: key });
-          }
-
-          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          showAlert('Done', 'All data has been cleared.');
-        },
-      },
+  const handleClearAll = useCallback(async () => {
+    // Count what the sweep will lose BEFORE asking: the offline queue and the
+    // photo upload queue are local keys, so changes and photos that have not
+    // reached MAGE yet are gone once he confirms. Read-only helpers, scoped to
+    // this session's account.
+    const [queued, photos] = await Promise.all([
+      getOwnOfflineQueue().then((q) => q.length).catch(() => 0),
+      getOwnPhotoUploadQueue().then((q) => q.length).catch(() => 0),
     ]);
-  }, [projects, deleteProject, user?.id, queryClient]);
+    const pendingLine = queued + photos > 0
+      ? `\n\n${[queued > 0 ? countNoun(queued, 'change') : '', photos > 0 ? countNoun(photos, 'photo') : ''].filter(Boolean).join(' and ')} on this phone ${queued + photos === 1 ? "hasn't" : "haven't"} reached MAGE and will be lost. Cancel and let ${queued + photos === 1 ? 'it' : 'them'} sync first if you need ${queued + photos === 1 ? 'it' : 'them'}.`
+      : '';
+    showAlert(
+      'Reset this device?',
+      `Removes MAGE ID’s saved copy from this device. Your jobs stay on your account and reload — nothing on your account, your other devices, your clients’ portals or your team’s access is deleted. Your appearance setting is kept.${pendingLine}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset this device', style: 'destructive', onPress: () => { void resetThisDevice(); } },
+      ],
+    );
+  }, [resetThisDevice]);
 
   // Apple Guideline 5.1.1(v) requires every app with sign-in to offer
   // an in-app account deletion path. Two-step confirmation:
@@ -957,7 +1069,9 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <View style={[styles.row, { paddingVertical: 10 }]}>
             <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, flex: 1 }}>
-              Daily AI resets at midnight · Takeoff resets the 1st · Plan: {tier === 'enterprise' ? 'Enterprise'
+              {/* #123 / #128: the counters roll over at 00:00 UTC — the evening
+                  for a US reader — so the time is the real local one. */}
+              {aiResetLine} · Plan: {tier === 'enterprise' ? 'Enterprise'
                 : tier === 'business' ? 'Business'
                 : tier === 'pro' ? 'Pro'
                 : 'Free'}
@@ -1363,24 +1477,36 @@ export default function SettingsScreen() {
         {Platform.OS !== 'web' && (
           <>
             <Text style={styles.sectionHeader}>SECURITY</Text>
+            {/* #46 (interim, productDecision #46 open): this switch saved a
+                flag nothing read — no gate locks the app on reopen, and the
+                login screen's Face ID sign-in never looked at it — so "on"
+                promised protection that did not exist. Until an app lock is
+                built, the row is shown OFF and disabled and says so;
+                setBiometrics stays wired for when it is. */}
             <View style={styles.group}>
-              <TouchableOpacity
+              <View
                 style={styles.row}
-                onPress={() => setBiometrics(!biometricsEnabled)}
-                activeOpacity={0.6}
+                accessible
+                accessibilityRole="switch"
+                accessibilityState={{ disabled: true, checked: false }}
+                accessibilityLabel={`App lock. ${APP_LOCK_NOT_BUILT}`}
+                testID="app-lock-row"
               >
                 <View style={styles.iconWrap}>
                   <ScanFace size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
-                <Text style={styles.rowLabel}>Face ID / Touch ID</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>App lock (Face ID / Touch ID)</Text>
+                  <Text style={[styles.aboutDesc, { color: themeColors.textMuted }]}>{APP_LOCK_NOT_BUILT}</Text>
+                </View>
                 <Switch
-                  value={biometricsEnabled}
-                  onValueChange={setBiometrics}
+                  value={false}
+                  disabled
                   trackColor={{ false: themeColors.line, true: themeColors.accent }}
                   thumbColor={themeColors.surface}
                   ios_backgroundColor={themeColors.line}
                 />
-              </TouchableOpacity>
+              </View>
             </View>
           </>
         )}
@@ -1459,7 +1585,7 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
-                {qboConnected ? 'QuickBooks Online' : qboReauth ? 'Reconnect QuickBooks' : 'Connect QuickBooks'}
+                {qboConnected || qboUnknown ? 'QuickBooks Online' : qboReauth ? 'Reconnect QuickBooks' : 'Connect QuickBooks'}
               </Text>
               {qboConnected ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -1471,6 +1597,10 @@ export default function SettingsScreen() {
               ) : qboReauth ? (
                 <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.danger, marginTop: 2 }}>
                   Reconnect required
+                </Text>
+              ) : qboUnknown ? (
+                <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 }} testID="qbo-status-unavailable">
+                  {qboStatus?.reason === 'offline' ? 'Status unavailable \u2014 no connection' : 'Status unavailable \u2014 tap to retry'}
                 </Text>
               ) : (tier !== 'business' && tier !== 'enterprise') ? (
                 // QuickBooks sync is a Business feature — signal it before the
@@ -1580,7 +1710,7 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHeader}>YOUR DATA</Text>
         <Text style={styles.sectionSubtext}>
-          Your data is yours. Export every project, invoice, RFI, and photo to JSON or CSV — no lock-in, ever.
+          Your data is yours. Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV — no lock-in, ever.
         </Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1732,35 +1862,37 @@ export default function SettingsScreen() {
                 price: '$0/mo',
                 color: themeColors.textMuted,
                 icon: Star,
-                features: ['1 active project', 'Basic estimate wizard', 'Materials browser (view only)'],
-                disabled: ['No PDF export', 'No schedule maker', 'No cloud sync'],
+                // #134: only what Free really has (none of these is gated) —
+                // sync included, it has no tier. What Free lacks is read from
+                // the Pro gates, not typed.
+                features: [FREE_PROJECT_LINE, 'Estimate wizard', 'Basic schedule maker', 'Daily field reports', 'Syncs across your devices'],
+                disabled: [`Not on Free: ${planFeatureBlurb('pro')}`],
               },
               {
                 id: 'pro' as const,
                 label: 'Pro',
-                price: '$29/mo',
+                price: planPriceLabel('pro'),
                 color: themeColors.accent,
                 icon: MageAIMark,
-                features: ['Unlimited projects', 'Full estimate + markup', 'Schedule maker (all views)', 'Branded PDF export', 'Change orders & invoicing', 'Daily field reports', 'Material price alerts', 'Cloud sync'],
+                features: ['Unlimited projects', ...planCardLines('pro')],
                 disabled: [],
               },
               {
                 id: 'business' as const,
                 label: 'Business',
-                price: '$79/mo',
+                price: planPriceLabel('business'),
                 color: themeColors.info,
                 icon: Crown,
-                // Client portal and project collaborators are BOTH Pro gates
-                // (featureTiers: client_portal='pro', schedule_collaboration='pro').
-                // Listing them here implied you had to buy Business to get them.
-                // Replaced with what Business actually unlocks — the brain.
-                features: ['Everything in Pro', 'Cost X-Ray — price what you cannot see', 'Track Record — it grades its own calls', 'Bid Advisor + Ask Your Plans', 'Subcontractor management', 'Punch list & closeout', 'QuickBooks 2-way sync', 'Priority support'],
+                // What REQUIRED_TIER gates at 'business' (plus QuickBooks,
+                // server-gated) — never a Pro gate: listing client portal or
+                // collaborators here once implied Business was needed for them.
+                features: ['Everything in Pro', ...planCardLines('business')],
                 disabled: [],
               },
               {
                 id: 'enterprise' as const,
                 label: 'Enterprise',
-                price: '$150/mo',
+                price: planPriceLabel('enterprise'),
                 color: themeColors.info,
                 icon: Crown,
                 features: ['Everything in Business', 'Highest AI usage caps', '100 drawing analyses/mo', '200 photo analyses/mo', '4500 text-AI calls/mo', 'Priority queue on heavy AI', 'Concierge onboarding'],
@@ -1779,10 +1911,10 @@ export default function SettingsScreen() {
                   onPress={() => {
                     if (isActive) return;
                     if (plan.id === 'free') {
-                      showAlert(
-                        'Contact Support',
-                        'To downgrade to Free, manage your subscription in the App Store (Settings → Apple ID → Subscriptions) or contact support@mageid.app.',
-                      );
+                      // #176: the same store-or-by-hand branch as Manage
+                      // Subscription below — a hand-granted plan has nothing
+                      // in the App Store to cancel.
+                      showAlert('Switch to Free', planChangeRoute.downgradeMessage);
                       return;
                     }
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -1824,48 +1956,36 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Manage Subscription deep-link — opens the native iOS/Android
-            subscription management UI directly. The voice-of-customer
-            audit (2026-05-14) flagged the "couldn't cancel" trap as the
-            single most exploitable competitor weakness (Houzz Pro,
-            Contractor Foreman). One-tap cancellation is how we advertise
-            the safety, not just describe it in an FAQ. */}
+        {/* Manage Subscription — one tap to where the plan can actually be
+            changed. The voice-of-customer audit (2026-05-14) flagged the
+            "couldn't cancel" trap as the single most exploitable competitor
+            weakness (Houzz Pro, Contractor Foreman). #176: that only works if
+            the route is real — a store subscriber goes to the store page, a
+            plan MAGE ID turned on by hand goes to help@mageid.app (the store
+            page lists nothing for him). See planChangeRoute. */}
         {tier !== 'free' && (
           <View style={styles.group}>
             <TouchableOpacity
               style={styles.row}
               onPress={() => {
-                // Apple's documented universal link to the user's subscription
-                // management screen. itms-apps:// opens straight into Settings →
-                // Apple ID → Subscriptions on iOS; Play handles the equivalent
-                // via the play.google.com URL.
-                const url = Platform.OS === 'ios'
-                  ? 'itms-apps://apps.apple.com/account/subscriptions'
-                  : Platform.OS === 'android'
-                    ? 'https://play.google.com/store/account/subscriptions'
-                    : 'https://apps.apple.com/account/subscriptions';
                 if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                const url = planChangeRoute.url;
                 Linking.openURL(url).catch(() => {
-                  showAlert(
-                    'Manage Subscription',
-                    Platform.OS === 'ios'
-                      ? 'Open Settings → Apple ID → Subscriptions to manage your MAGE ID plan.'
-                      : 'Open Play Store → Subscriptions to manage your MAGE ID plan.',
-                  );
+                  showAlert(planChangeRoute.label, planChangeRoute.fallback);
                 });
               }}
               activeOpacity={0.6}
               testID="manage-subscription-link"
               accessibilityRole="button"
-              accessibilityLabel="Manage subscription in app store"
+              accessibilityLabel={planChangeRoute.label}
             >
               <View style={styles.iconWrap}>
                 <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>Manage Subscription</Text>
+                <Text style={styles.rowLabel}>{planChangeRoute.label}</Text>
                 <Text style={[styles.rowLabel, { fontSize: 11, color: themeColors.textMuted, fontWeight: '400' as const, marginTop: 2 }]}>
-                  Cancel anytime in the {Platform.OS === 'android' ? 'Play Store' : 'App Store'} — no support call needed
+                  {planChangeRoute.subtitle}
                 </Text>
               </View>
               <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -2049,11 +2169,16 @@ export default function SettingsScreen() {
 
         <Text style={[styles.sectionHeader, { color: themeColors.danger }]}>DANGER ZONE</Text>
         <View style={styles.group}>
-          <TouchableOpacity style={styles.row} onPress={handleClearAll} activeOpacity={0.6} testID="clear-all">
+          <TouchableOpacity style={styles.row} onPress={() => { void handleClearAll(); }} activeOpacity={0.6} testID="clear-all" accessibilityRole="button">
             <View style={styles.iconWrap}>
               <Trash2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Clear All Projects & Data</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Reset this device</Text>
+              <Text style={[styles.aboutDesc, { color: themeColors.textMuted }]}>
+                Clears MAGE ID&apos;s saved copy on this device. Your jobs stay on your account and reload.
+              </Text>
+            </View>
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleDeleteAccount} activeOpacity={0.6} testID="delete-account">

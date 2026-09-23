@@ -22,12 +22,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, X, Save, Trophy, AlertTriangle, CheckCircle2,
   Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown, Scale,
-  Mail, Copy, FileText, Users, Link2, Clock, Send,
+  Mail, Copy, FileText, Users, Link2, Clock, Send, Pencil,
 } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { MageAIMark } from '@/components/icons';
@@ -57,7 +57,18 @@ import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { copyToClipboard } from '@/utils/clipboard';
-import { fetchBidInvites, remindBidInvites, sendBidInvites } from '@/utils/bidInvites';
+import {
+  deliverPendingBidInvites, fetchBidInvites, loadPendingBidInvites, remindBidInvites, sendBidInvites,
+} from '@/utils/bidInvites';
+import {
+  NOT_EMAILED_ROW, mergeInvitesWithPending, notEmailedSentence, type PendingBidInvite,
+} from '@/utils/bidInvitePending';
+import { onQueueFlushed } from '@/utils/offlineQueue';
+import { pdfFailureMessage } from '@/utils/platformFile';
+import { resolveRetainagePercent } from '@/utils/retainageSource';
+import {
+  bidAmountOf, compareBidsForMatrix, isSellBasisBudget, packageCostBudget, parseBidAmountInput,
+} from '@/utils/bulkSavings';
 import {
   attachRosterIds, bidDueLabel, bidDueState, bidInviteUrl, inviteCoverage, inviteState, inviteStateLabel,
   parseInviteEmails, remindableInvites, resolveBidSubcontractor, splitAlreadyInvited,
@@ -100,7 +111,7 @@ export default function BuyoutPackageScreen() {
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
     awardBidPackage, getProject, prequalPackets, getSubcontractor, subcontractors,
-    getCOIsForSub,
+    getCOIsForSub, getInvoicesForProject, getAIAPayAppsForProject,
     settings,
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
@@ -117,6 +128,17 @@ export default function BuyoutPackageScreen() {
   // showed — and the excluded scope he still has to place (audit round 2, #5).
   const heroSavings = pkg ? packageBuyoutSavings(pkg, bids, commitments) : null;
   // Minus what an edited-up commitment already absorbed (openExcludedScope).
+  // A budget stored at SELL by the old auto-fill (#11): savings against it
+  // are his own markup, so every savings figure on this screen is withheld
+  // and the budget is flagged for review, with a one-tap fix to its cost.
+  const sellBasis = useMemo(
+    () => (pkg ? isSellBasisBudget(pkg, project?.linkedEstimate?.items) : false),
+    [pkg, project],
+  );
+  const costBudget = useMemo(
+    () => (pkg ? packageCostBudget(pkg, project?.linkedEstimate?.items) : null),
+    [pkg, project],
+  );
   const heroUncovered = pkg?.status === 'awarded'
     ? openExcludedScope(bids.find(b => b.id === pkg.awardedBidId), awardedCommitmentOf(pkg, commitments)?.amount)
     : 0;
@@ -156,6 +178,12 @@ export default function BuyoutPackageScreen() {
   const [newIncludes, setNewIncludes] = useState('');
   const [newExcludes, setNewExcludes] = useState('');
   const [newTerms, setNewTerms] = useState('');
+  // Why the Add-bid sheet opened itself (#95): a voice bid with no dollar
+  // amount lands here to be finished instead of being saved at $0.
+  const [addBidNote, setAddBidNote] = useState<string | null>(null);
+  // The bid whose amount is being fixed on its card (#95), and the draft.
+  const [amountEditBidId, setAmountEditBidId] = useState<string | null>(null);
+  const [amountDraft, setAmountDraft] = useState('');
 
   const [leveling, setLeveling] = useState(false);
   const [levelingResult, setLevelingResult] = useState<LevelingResult | null>(null);
@@ -165,8 +193,18 @@ export default function BuyoutPackageScreen() {
   // bid_package_bids is owner-scoped, so a sub — who has no account — could
   // never write one. An invite is a random token on an owner-owned row that
   // buys exactly one insert through a SECURITY DEFINER RPC.
-  const [invites, setInvites] = useState<BidInviteRecord[]>([]);
+  // What the server last returned, and the invites filed on this phone that
+  // have not uploaded (or not been emailed) yet (#14). The list is the merge:
+  // a pending invite shows as "On this phone" and counts for
+  // splitAlreadyInvited, so a second offline send cannot mint a second token.
+  const [serverInvites, setServerInvites] = useState<BidInviteRecord[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingBidInvite[]>([]);
   const [invitesFailed, setInvitesFailed] = useState(false);
+  // Why an invite's email did not go this session (#94), keyed by invite id —
+  // "unsubscribed" and "could not hand off" need different next steps.
+  const [notEmailed, setNotEmailed] = useState<Record<string, string>>({});
+  // One line after offline invites were emailed on upload.
+  const [deliveredNote, setDeliveredNote] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmails, setInviteEmails] = useState('');
   const [inviteSending, setInviteSending] = useState(false);
@@ -193,12 +231,42 @@ export default function BuyoutPackageScreen() {
     // A read that failed is not an empty list. Keep whatever we last had and
     // say so — "Nobody invited yet" over a dropped read sends the GC to invite
     // subs who are already holding a live link.
-    if (rows === null) { setInvitesFailed(true); return; }
+    if (rows === null) {
+      setInvitesFailed(true);
+      setPendingInvites(await loadPendingBidInvites());
+      return;
+    }
     setInvitesFailed(false);
-    setInvites(rows);
+    setServerInvites(rows);
+    // Invites filed offline that are now on the server get their email — the
+    // same token, through remindBidInvites (#14). Cleared only when notify
+    // handled it; a refusal keeps the row's "Not emailed" marker.
+    const delivered = await deliverPendingBidInvites(rows, new Set([packageId]));
+    const sent = delivered.filter(r => r.emailed);
+    if (sent.length > 0) {
+      setDeliveredNote(`Emailed ${sent.map(r => r.email).join(', ')} — ${sent.length === 1 ? 'that invite was' : 'those invites were'} saved offline and ${sent.length === 1 ? 'has' : 'have'} now uploaded.`);
+    }
+    const refused = delivered.filter(r => !r.emailed && r.reason);
+    if (refused.length > 0) {
+      setNotEmailed(prev => ({ ...prev, ...Object.fromEntries(refused.map(r => [r.inviteId, r.reason as string])) }));
+    }
+    setPendingInvites(await loadPendingBidInvites());
   }, [packageId]);
 
-  useEffect(() => { void loadInvites(); }, [loadInvites]);
+  // On FOCUS, not on mount (#15): a sub files his number through the link
+  // while the GC is on another screen, and coming back must show it without
+  // leaving the package and re-entering.
+  useFocusEffect(useCallback(() => { void loadInvites(); }, [loadInvites]));
+
+  // The queue uploading an offline invite is the moment its email can go.
+  useEffect(() => onQueueFlushed(tables => {
+    if (tables.has('bid_package_invites')) void loadInvites();
+  }), [loadInvites]);
+
+  const invites = useMemo(
+    () => mergeInvitesWithPending(serverInvites, pendingInvites, packageId ?? '', Date.now()),
+    [serverInvites, pendingInvites, packageId],
+  );
 
   // A bid filed through an invite is written by the RPC, server-side. This
   // device's bid cache was populated before that row existed, so without a
@@ -344,7 +412,9 @@ export default function BuyoutPackageScreen() {
     }
     // Anyone already holding a live link is skipped rather than given a second
     // token; expired and already-answered invites go through, because sending
-    // those again is a deliberate re-invitation.
+    // those again is a deliberate re-invitation. `invites` includes the ones
+    // still on this phone (#14): an offline re-send must not mint a second
+    // token for a sub whose first one simply has not uploaded yet.
     const { fresh, alreadyLive } = splitAlreadyInvited(recipients, invites, Date.now());
     if (fresh.length === 0) {
       showAlert(
@@ -398,15 +468,26 @@ export default function BuyoutPackageScreen() {
         );
       }
       if (queued.length > 0) {
-        lines.push(`${queued.length} invite${queued.length === 1 ? '' : 's'} saved on this phone only — you're offline. The link won't open until it uploads.`);
+        // Honest about WHEN (#14): the email goes once the row uploads, and
+        // only while this package or the Buyout list is open to send it.
+        lines.push(`${queued.length} invite${queued.length === 1 ? '' : 's'} saved on this phone — you're offline, so nothing has gone to ${queued.length === 1 ? 'that sub' : 'those subs'} yet. The email goes out once ${queued.length === 1 ? 'it uploads' : 'they upload'} (with this package or the Buyout list open); until then ${queued.length === 1 ? 'it shows' : 'they show'} below as "On this phone" and the link won't open.`);
       }
       if (failed.length > 0) {
         lines.push(`${failed.length} couldn't be filed: ${failed.map(f => f.email).join(', ')}. Try again in a minute.`);
       }
+      const unmailed = synced.filter(r => !r.emailed);
       if (synced.length > 0 && mailed.length === 0) {
         lines.push('We could not hand the email off, so nothing has reached them yet — copy each link from the list below and text or email it over.');
       } else if (synced.length > mailed.length) {
         lines.push(`${synced.length - mailed.length} of those emails did not hand off — copy those links from the list below and send them yourself.`);
+      }
+      // Name the ones notify refused for a reason he must act on differently
+      // (#94): re-sending to an unsubscribed sub mails nobody.
+      for (const r of unmailed) {
+        if (r.reason === 'suppressed_unsubscribed' || r.reason === 'no_recipient') lines.push(notEmailedSentence(r.email, r.reason));
+      }
+      if (unmailed.length > 0) {
+        setNotEmailed(prev => ({ ...prev, ...Object.fromEntries(unmailed.map(r => [r.inviteId, r.reason ?? 'refused'])) }));
       }
       if (copied) lines.push('The link is on your clipboard.');
       if (alreadyLive.length > 0) {
@@ -449,7 +530,8 @@ export default function BuyoutPackageScreen() {
       showAlert('Sign in first', 'Reminders go out against your account, so they need a signed-in session.');
       return;
     }
-    const awaiting = remindableInvites(invites, Date.now());
+    // A pending invite has no live link to chase until it uploads.
+    const awaiting = remindableInvites(invites.filter(i => !i.localOnly), Date.now());
     if (awaiting.length === 0) return;
     remindingRef.current = true;
     setReminding(true);
@@ -477,9 +559,21 @@ export default function BuyoutPackageScreen() {
       }
       const missed = results.filter(r => !r.emailed);
       if (missed.length > 0) {
-        // The link is live either way; he just has to be the one carrying it.
-        lines.push(`We could not hand the email off for ${missed.map(r => r.email).join(', ')}. Their link still works — copy it from the list and text it over.`);
+        // The link is live either way; he just has to be the one carrying it —
+        // and an unsubscribed sub is named, because chasing him again by email
+        // can never arrive (#94).
+        for (const r of missed) lines.push(notEmailedSentence(r.email, r.reason));
+        lines.push('Their link still works — copy it from the list and text it over.');
       }
+      setNotEmailed(prev => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r.emailed) delete next[r.inviteId];
+          else next[r.inviteId] = r.reason ?? 'refused';
+        }
+        return next;
+      });
+      setPendingInvites(await loadPendingBidInvites());
       if (Platform.OS !== 'web' && sent.length > 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(sent.length > 0 ? 'Chased' : 'Nothing was emailed', lines.join('\n\n'));
     } finally {
@@ -499,13 +593,33 @@ export default function BuyoutPackageScreen() {
   }, []);
 
   // ── Add bid by voice ─────────────────────────────────────────
+  // A bid with no dollar amount is not a bid (#95). It used to be saved at $0,
+  // sort first with a LOWEST badge and offer "Award · $0" — an award
+  // ProjectContext refuses without a word. When the parser catches no amount
+  // the Add-bid sheet opens with what it did catch, to be finished by hand; a
+  // parse that caught nothing keeps the raw dictation in Includes so the
+  // words are not lost.
   const handleVoiceBid = useCallback(async (transcript: string) => {
     if (!pkg) return;
     const partial = await parseBidFromTranscript(transcript);
+    const amount = partial.amount ? parseBidAmountInput(String(partial.amount)) : null;
+    if (amount == null) {
+      const caughtNothing = !partial.vendorName && !partial.includes && !partial.excludes && !partial.terms;
+      setNewVendor(partial.vendorName || '');
+      setNewAmount('');
+      setNewIncludes(caughtNothing ? transcript.trim() : (partial.includes || ''));
+      setNewExcludes(partial.excludes || '');
+      setNewTerms(partial.terms || '');
+      setAddBidNote(caughtNothing
+        ? "We couldn't read that bid — your words are in Includes. Fill in the vendor and the amount."
+        : "We didn't catch a dollar amount — type it in.");
+      setShowAddBid(true);
+      return;
+    }
     addBidPackageBid({
       packageId: pkg.id,
       vendorName: partial.vendorName || 'Voice-captured bid',
-      amount: partial.amount || 0,
+      amount,
       includes: partial.includes || undefined,
       excludes: partial.excludes || undefined,
       terms: partial.terms || undefined,
@@ -518,14 +632,23 @@ export default function BuyoutPackageScreen() {
   // ── Add bid manually ────────────────────────────────────────
   const handleAddBid = useCallback(() => {
     if (!pkg) return;
-    if (!newVendor.trim() || !newAmount) {
-      showAlert('Missing info', 'Vendor name and amount are both required.');
+    if (!newVendor.trim()) {
+      showAlert('Missing info', 'Who is the bid from? Put the vendor name on it.');
+      return;
+    }
+    // Separators and "$" stripped before Number() — "4,800" used to store NaN,
+    // which the server's NOT NULL amount then refused in the queue (#95).
+    const amount = parseBidAmountInput(newAmount);
+    if (amount == null) {
+      showAlert('Needs an amount', newAmount.trim()
+        ? `Couldn't read "${newAmount.trim()}" as a dollar amount. Type the total, like 4800 or 4,800.50.`
+        : "Type the bid's total in dollars — a bid without one can't be compared or awarded.");
       return;
     }
     addBidPackageBid({
       packageId: pkg.id,
       vendorName: newVendor.trim(),
-      amount: Number(newAmount),
+      amount,
       includes: newIncludes.trim() || undefined,
       excludes: newExcludes.trim() || undefined,
       terms: newTerms.trim() || undefined,
@@ -533,9 +656,49 @@ export default function BuyoutPackageScreen() {
       status: 'received',
     });
     setShowAddBid(false);
+    setAddBidNote(null);
     setNewVendor(''); setNewAmount(''); setNewIncludes(''); setNewExcludes(''); setNewTerms('');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [pkg, newVendor, newAmount, newIncludes, newExcludes, newTerms, addBidPackageBid]);
+
+  // ── Fix a bid's amount on its card (#95) ─────────────────────
+  const handleSaveAmount = useCallback(() => {
+    if (!amountEditBidId) return;
+    const amount = parseBidAmountInput(amountDraft);
+    if (amount == null) {
+      showAlert('Needs an amount', "Type the bid's total in dollars, like 4800 or 4,800.50.");
+      return;
+    }
+    updateBidPackageBid(amountEditBidId, { amount });
+    setAmountEditBidId(null);
+    setAmountDraft('');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [amountEditBidId, amountDraft, updateBidPackageBid]);
+
+  // ── Delete a bid — behind a confirm (#92) ────────────────────
+  // One brush of a small trash icon used to delete a bid outright, including
+  // the number a sub filed himself through his link — which is then closed
+  // for good (bid_invite_submit takes one bid per invite).
+  const handleDeleteBid = useCallback((bid: BidPackageBid, filedBySub: boolean) => {
+    if (!pkg) return;
+    const who = bid.vendorName || 'this sub';
+    if (bid.status === 'awarded' || pkg.awardedBidId === bid.id) {
+      showAlert(
+        "Can't delete the awarded bid",
+        `${who}'s bid is the one this package was awarded on — the commitment and the buyout savings are built from it. It stays.`,
+      );
+      return;
+    }
+    const amount = bidAmountOf(bid);
+    const lines = [`Delete ${who}'s bid${amount != null ? ` of ${formatMoney(amount)}` : ''}? This can't be undone.`];
+    if (filedBySub) {
+      lines.push(`This is the number ${who} filed through their own link. That link is closed now, so to get a number from them again you'll need to re-invite them.`);
+    }
+    showAlert('Delete this bid?', lines.join('\n\n'), [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete bid', style: 'destructive', onPress: () => deleteBidPackageBid(bid.id) },
+    ]);
+  }, [pkg, deleteBidPackageBid]);
 
   // ── AI leveling ─────────────────────────────────────────────
   const handleLevel = useCallback(async () => {
@@ -603,6 +766,12 @@ export default function BuyoutPackageScreen() {
   // pinned by scripts/validate-sub-network.ts.
   const handleAward = useCallback((bid: BidPackageBid) => {
     if (!pkg) return;
+    // An award ProjectContext is certain to refuse must not walk him through
+    // the compliance and risk-override dialogs first (#95).
+    if (bidAmountOf(bid) == null) {
+      showAlert('Needs an amount', `${bid.vendorName || 'This bid'} has no dollar amount, so it can't be awarded. Tap the amount on the card to add it first.`);
+      return;
+    }
     // One savings figure everywhere: the leveled one (the awarded sub does not
     // cover excluded scope, so it is not saved money). The package hero and
     // buyout.tsx read the same helper off the awarded bid (audit round 2, #5).
@@ -650,7 +819,12 @@ export default function BuyoutPackageScreen() {
     const lines: string[] = [];
     lines.push(`Vendor: ${sub?.companyName ?? bid.vendorName ?? 'Subcontractor'}`);
     lines.push(`Leveled total: ${formatMoney(total)}`);
-    lines.push(`Buyout ${savings >= 0 ? 'savings' : 'overrun'}: ${formatMoney(Math.abs(savings))}`);
+    if (sellBasis) {
+      // A budget stored at SELL makes his own markup read as savings (#11).
+      lines.push('Buyout savings: not shown — this package\'s budget includes your markup. Review the budget on this screen.');
+    } else {
+      lines.push(`Buyout ${savings >= 0 ? 'savings' : 'overrun'} vs. budget at cost: ${formatMoney(Math.abs(savings))}`);
+    }
     if (uncovered > 0) {
       // Say what the leveling took out of the savings and that it is still
       // his to buy — the commitment is the sub's bid, not the leveled total.
@@ -678,7 +852,13 @@ export default function BuyoutPackageScreen() {
         ? `[risk-override ${new Date().toISOString().slice(0, 10)}] Awarded despite: ${blockers.join('; ')}. Acknowledged by GC.`
         : undefined;
       const commitmentId = awardBidPackage(pkg.id, bid.id, { overrideNote });
-      if (commitmentId && Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (!commitmentId) {
+        // awardBidPackage refuses a bid with no amount or from another package
+        // and used to do so in silence — the dialog closed and nothing happened.
+        showAlert('Not awarded', `${bid.vendorName || 'This bid'} could not be awarded — it has no dollar amount on this device. Fix the amount on the card and award again.`);
+        return;
+      }
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
 
     if (!isRisky) {
@@ -714,8 +894,9 @@ export default function BuyoutPackageScreen() {
           // blocker that is really a missing join.
           ...(!sub ? [{ text: 'Pick the sub', style: 'default' as const, onPress: () => setLinkTargetBidId(bid.id) }] : []),
           // Same for a missing or lapsed COI: the vault is where the fix lives.
-          ...(award && (award.coi === 'none' || award.coi === 'expired')
-            ? [{ text: 'Open COI vault', style: 'default' as const, onPress: () => router.push('/coi-vault' as never) }]
+          // Opens on THIS sub's certificates (#23), not the whole vault.
+          ...(sub && award && (award.coi === 'none' || award.coi === 'expired')
+            ? [{ text: 'Open COI vault', style: 'default' as const, onPress: () => router.push({ pathname: '/coi-vault', params: { subId: sub.id } } as never) }]
             : []),
           {
             text: 'Review override',
@@ -732,64 +913,107 @@ export default function BuyoutPackageScreen() {
         ],
       );
     }
-  }, [pkg, awardBidPackage, getSubcontractor, getCOIsForSub, prequalPackets, allowanceItems, router]);
+  }, [pkg, awardBidPackage, getSubcontractor, getCOIsForSub, prequalPackets, allowanceItems, router, sellBasis]);
 
-  // Generate A401-styled subcontract PDF for the awarded sub. Pulls
-  // scope, contract sum, and CSI division from the bid package; pulls
-  // sub info from the awarded bid; pulls GC info from settings.branding.
-  // The GC fills in any missing pieces (start date, retainage % override,
-  // insurance reqs) by editing the form on the GC's letterhead.
-  const handleGenerateSubcontract = useCallback(async () => {
+  // Generate the A401-styled subcontract PDF for the awarded sub: scope and
+  // CSI division from the package, the parties from the awarded bid and the
+  // GC's branding. The PDF is printed as generated — nothing on it is editable
+  // after the fact — so every term it carries has to be a fact or a blank:
+  //   - the NUMBER is the award commitment's own ("BO-3", #98), the one the
+  //     sub portal and lien waivers already use; no commitment, no number;
+  //   - the SUM is the commitment's amount, so a commitment edited after award
+  //     and its subcontract say the same thing;
+  //   - RETAINAGE comes from resolveRetainagePercent with its source, confirmed
+  //     here before rendering; with no rate on file he picks a blank "to be
+  //     agreed" line or goes and records one — never a silent 10%.
+  const handleGenerateSubcontract = useCallback(() => {
     if (!pkg || !pkg.awardedBidId || !project) return;
     const winningBid = bids.find(b => b.id === pkg.awardedBidId);
     if (!winningBid) {
       showAlert('No awarded bid', 'Award a bid before generating the subcontract.');
       return;
     }
+    const commitment = awardedCommitmentOf(pkg, commitments);
+    if (!commitment || !commitment.number) {
+      showAlert(
+        'No subcontract number yet',
+        'Subcontract number assigned on award — the award\'s commitment isn\'t on this device yet, so there is no number to print. Open the project once it has synced and try again.',
+      );
+      return;
+    }
     const branding = settings?.branding ?? { companyName: 'MAGE ID', address: '', phone: '', email: '', licenseNumber: '', tagline: '', contactName: '' };
     const ownerName = (project.clientPortal?.invites?.[0]?.name) ?? (project as { owner?: string }).owner ?? 'Owner';
-    try {
-      const data: A401Data = {
-        subcontractNumber: 1, // future: track subcontracts per package; sequential per project
-        agreementDate: new Date().toISOString(),
-        contractorName: branding.companyName,
-        contractorAddress: branding.address,
-        subcontractorName: winningBid.vendorName ?? 'Subcontractor',
-        subcontractorAddress: undefined,
-        subcontractorLicense: undefined,
-        ownerName,
-        architectName: undefined,
-        projectName: project.name,
-        projectAddress: (project as { location?: string }).location ?? '',
-        primeContractDate: undefined,
-        scopeDescription: pkg.scopeDescription || pkg.name || 'Per attached scope',
-        csiDivision: pkg.csiDivision,
-        contractSum: winningBid.amount ?? 0,
-        retainagePercent: 10,
-        paymentTerms: 'Net 30 from approved monthly pay application',
-        startDate: undefined,
-        substantialCompletionDate: undefined,
-        liquidatedDamagesPerDay: undefined,
-        insuranceRequirements: 'GL $1M / $2M agg, Auto $1M, WC statutory, Umbrella $2M; Owner + Contractor named additional insured w/ waiver of subrogation',
-        bondsRequired: 'none',
-        lienWaiverRequired: true,
-        exhibits: [
-          'Exhibit A — Scope of work + drawings list',
-          'Exhibit B — Schedule of values',
-          'Exhibit C — Project schedule (current baseline)',
-          'Exhibit D — Insurance requirements (signed COI)',
-          'Exhibit E — Lien waiver templates (conditional/unconditional)',
-          'Exhibit F — Safety plan acknowledgment',
+    const render = async (retainagePercent: number | null) => {
+      try {
+        const data: A401Data = {
+          subcontractNumber: commitment.number,
+          agreementDate: new Date().toISOString(),
+          contractorName: branding.companyName,
+          contractorAddress: branding.address,
+          subcontractorName: winningBid.vendorName ?? 'Subcontractor',
+          subcontractorAddress: undefined,
+          subcontractorLicense: undefined,
+          ownerName,
+          architectName: undefined,
+          projectName: project.name,
+          projectAddress: (project as { location?: string }).location ?? '',
+          primeContractDate: undefined,
+          scopeDescription: pkg.scopeDescription || pkg.name || 'Per attached scope',
+          csiDivision: pkg.csiDivision,
+          contractSum: commitment.amount,
+          retainagePercent,
+          paymentTerms: 'Net 30 from approved monthly pay application',
+          startDate: undefined,
+          substantialCompletionDate: undefined,
+          liquidatedDamagesPerDay: undefined,
+          insuranceRequirements: 'GL $1M / $2M agg, Auto $1M, WC statutory, Umbrella $2M; Owner + Contractor named additional insured w/ waiver of subrogation',
+          bondsRequired: 'none',
+          lienWaiverRequired: true,
+          exhibits: [
+            'Exhibit A — Scope of work + drawings list',
+            'Exhibit B — Schedule of values',
+            'Exhibit C — Project schedule (current baseline)',
+            'Exhibit D — Insurance requirements (signed COI)',
+            'Exhibit E — Lien waiver templates (conditional/unconditional)',
+            'Exhibit F — Safety plan acknowledgment',
+          ],
+          specialConditions: undefined,
+        };
+        await generateA401PDF(data, branding);
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (err) {
+        console.error('[Buyout] A401 generate failed:', err);
+        // A blocked PDF window on web says so (CONTRACT 25); no success haptic.
+        showAlert('Could not generate subcontract', pdfFailureMessage(err, err instanceof Error ? err.message : 'Try again.'));
+      }
+    };
+    const retainage = resolveRetainagePercent({
+      project,
+      priorInvoices: getInvoicesForProject(project.id),
+      payApps: getAIAPayAppsForProject(project.id),
+    });
+    if (retainage.needsAsk) {
+      showAlert(
+        'Retainage on this subcontract',
+        `No retainage rate is on file for ${project.name} — not on its contract terms, an invoice or a pay application. The subcontract can print the retainage line blank ("____% — to be agreed") for you and ${winningBid.vendorName ?? 'the sub'} to fill in, or you can record the job's rate on the project first.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Set it on the project', style: 'default', onPress: () => router.push({ pathname: '/project-detail' as never, params: { id: project.id } as never }) },
+          { text: 'Print it blank', style: 'default', onPress: () => { void render(null); } },
         ],
-        specialConditions: undefined,
-      };
-      await generateA401PDF(data, branding);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err) {
-      console.error('[Buyout] A401 generate failed:', err);
-      showAlert('Could not generate subcontract', err instanceof Error ? err.message : 'Try again.');
+      );
+      return;
     }
-  }, [pkg, bids, project, settings]);
+    showAlert(
+      'Retainage on this subcontract',
+      `${retainage.percent}% — ${retainage.label}. A sub's rate can be lower than the job's; if yours for ${winningBid.vendorName ?? 'this sub'} differs, print it blank and write it in.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Print it blank', style: 'default', onPress: () => { void render(null); } },
+        { text: `Use ${retainage.percent}%`, style: 'default', onPress: () => { void render(retainage.percent); } },
+      ],
+    );
+  }, [pkg, bids, project, settings, commitments, getInvoicesForProject, getAIAPayAppsForProject, router]);
 
   const handleDeletePackage = useCallback(() => {
     if (!pkg) return;
@@ -817,10 +1041,11 @@ export default function BuyoutPackageScreen() {
     );
   }
 
-  // Sort bids by leveled total ascending — winning bid floats up.
-  const sortedBids = [...bids].sort((a, b) =>
-    (a.amount + (a.normalizedAdjustment ?? 0)) - (b.amount + (b.normalizedAdjustment ?? 0))
-  );
+  // Sort bids by leveled total ascending — winning bid floats up. A bid with
+  // no usable amount sorts LAST (#95): at $0 it used to float to the top and
+  // wear the LOWEST badge.
+  const sortedBids = [...bids].sort(compareBidsForMatrix);
+  const pricedBids = sortedBids.filter(b => bidAmountOf(b) != null);
   const winningBidId = levelingResult?.recommendedWinnerBidId;
 
   // ── Outlier detection (industry standard: >15% from median = review).
@@ -829,13 +1054,15 @@ export default function BuyoutPackageScreen() {
   // sub priced in protection / unfamiliarity. Either way, the GC needs to
   // pause before awarding. We compute against the leveled total so the
   // AI's adjustments are already factored in.
-  const leveledTotals = sortedBids.map(b => b.amount + (b.normalizedAdjustment ?? 0));
+  // Priced bids only — a $0 or unreadable bid would drag the median down and
+  // mark every real bid HIGH.
+  const leveledTotals = pricedBids.map(b => b.amount + (b.normalizedAdjustment ?? 0));
   const median = leveledTotals.length === 0 ? 0
     : leveledTotals.length % 2 === 1
       ? leveledTotals[Math.floor(leveledTotals.length / 2)]
       : (leveledTotals[leveledTotals.length / 2 - 1] + leveledTotals[leveledTotals.length / 2]) / 2;
   const isOutlier = (bid: BidPackageBid): { kind: 'low' | 'high'; pct: number } | null => {
-    if (median === 0 || sortedBids.length < 2) return null;
+    if (median === 0 || pricedBids.length < 2 || bidAmountOf(bid) == null) return null;
     const total = bid.amount + (bid.normalizedAdjustment ?? 0);
     const deltaPct = ((total - median) / median) * 100;
     if (deltaPct < -15) return { kind: 'low', pct: Math.abs(deltaPct) };
@@ -854,7 +1081,7 @@ export default function BuyoutPackageScreen() {
   // owes one. `dueDate` is the field the create sheet writes — `requiredByDate`
   // has no writer anywhere in the repo and must not be read as a fact.
   const dueState = bidDueState(pkg.dueDate, Date.now());
-  const remindable = remindableInvites(invites, Date.now());
+  const remindable = remindableInvites(invites.filter(i => !i.localOnly), Date.now());
 
   // Which rows in the matrix the sub typed himself. Read from the invite that
   // produced the bid rather than from bid.source, so a later edit to the bid
@@ -889,10 +1116,15 @@ export default function BuyoutPackageScreen() {
             <Text style={styles.heroName}>{pkg.name}</Text>
             <View style={styles.heroBudgetRow}>
               <View style={styles.heroBudgetCell}>
-                <Text style={styles.heroBudgetLabel}>Estimate budget</Text>
+                <Text style={styles.heroBudgetLabel}>{sellBasis ? 'Budget (includes markup)' : 'Budget at cost'}</Text>
                 <Text style={styles.heroBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
               </View>
-              {heroSavings != null ? (
+              {sellBasis ? (
+                <View style={styles.heroBudgetCell}>
+                  <Text style={styles.heroBudgetLabel}>Buyout savings</Text>
+                  <Text style={[styles.heroBudgetValue, { color: Colors.warningLabel }]}>Review</Text>
+                </View>
+              ) : heroSavings != null ? (
                 <View style={styles.heroBudgetCell}>
                   <Text style={styles.heroBudgetLabel}>Buyout {heroSavings >= 0 ? 'savings' : 'overrun'}</Text>
                   <Text style={[styles.heroBudgetValue, { color: heroSavings >= 0 ? themeColors.success : themeColors.danger }]}>
@@ -910,6 +1142,40 @@ export default function BuyoutPackageScreen() {
               )}
             </View>
           </View>
+
+          {/* #11: a budget stored at SELL makes his own markup read as buyout
+              savings (and, on the client PDF, as "Bulk Savings"). Withheld
+              everywhere until he fixes it — one tap to the cost figure. */}
+          {sellBasis && (
+            <View style={styles.section}>
+              <View style={styles.warningCard}>
+                <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.warningTitle}>Budget includes markup — review</Text>
+                  <Text style={styles.warningBody}>
+                    This package was budgeted at the estimate&apos;s sell price ({formatMoney(pkg.estimateBudget)}), so a sub who bids your cost would show your own markup as buyout savings — and that figure would print on the client&apos;s estimate as Bulk Savings. Savings are hidden until the budget is at cost{costBudget != null ? ` (${formatMoney(costBudget)} for its linked lines)` : ''}.
+                  </Text>
+                  {costBudget != null && (
+                    <TouchableOpacity
+                      style={styles.warningActionBtn}
+                      onPress={() => showAlert(
+                        'Set the budget to cost?',
+                        `${formatMoney(pkg.estimateBudget)} → ${formatMoney(costBudget)}, the cost of the ${pkg.linkedEstimateItemIds.length} estimate line${pkg.linkedEstimateItemIds.length === 1 ? '' : 's'} this package covers, before your markup. Buyout savings are then measured against what the work costs you.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Set to cost', style: 'default', onPress: () => updateBidPackage(pkg.id, { estimateBudget: costBudget }) },
+                        ],
+                      )}
+                      activeOpacity={0.85}
+                      testID="budget-to-cost"
+                    >
+                      <Text style={styles.warningActionText}>Set the budget to cost · {formatMoney(costBudget)}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Industry-standard warning band (allowance + coverage + stale) */}
           {(allowanceItems.length > 0 || lowCoverage || stale) && (
@@ -1108,8 +1374,8 @@ export default function BuyoutPackageScreen() {
               )}
 
               {/* When the number is wanted. Shown here because this is the
-                  section he chases from; the invite email cannot carry it yet
-                  (see the handoff note above the send button). */}
+                  section he chases from; the invite email and the sub's bid
+                  page print the same day (#99). */}
               <View style={styles.dueRow}>
                 <Clock
                   size={Type.caption1.fontSize}
@@ -1122,6 +1388,13 @@ export default function BuyoutPackageScreen() {
                     : 'No bid date on this package — nothing here can tell you it is late.'}
                 </Text>
               </View>
+
+              {!!deliveredNote && (
+                <View style={[styles.warningCard, { marginBottom: 8, backgroundColor: themeColors.success + '14', borderLeftColor: themeColors.success }]}>
+                  <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
+                  <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>{deliveredNote}</Text>
+                </View>
+              )}
 
               {invites.length === 0 ? (
                 !invitesFailed && (
@@ -1145,16 +1418,35 @@ export default function BuyoutPackageScreen() {
                   const pillInk = state === 'expired' ? themeColors.textMuted : tone;
                   const sentDay = fmtInviteDay(inv.createdAt);
                   const expiryDay = fmtInviteDay(inv.expiresAt);
+                  // The bid this invite produced was deleted (trigger
+                  // trg_bid_package_bids_clear_invite, #92): the link stays
+                  // closed, so the way back is a fresh invite.
+                  const bidGone = state === 'responded' && (inv.status === 'bid_deleted' || !inv.bidId);
+                  const unmailedWhy = !inv.localOnly && state === 'awaiting'
+                    ? (notEmailed[inv.id] ?? inv.notEmailedReason)
+                    : undefined;
                   return (
                     <View key={inv.id} style={styles.inviteCard}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.inviteWho} numberOfLines={1}>{inv.subName || inv.subEmail}</Text>
-                        <Text style={styles.inviteMeta} numberOfLines={1}>
-                          {sentDay ? `Sent ${sentDay}` : 'Sent'}
-                          {remindedIds.includes(inv.id) ? ' · re-sent just now' : ''}
-                          {state === 'awaiting' && expiryDay ? ` · link good through ${expiryDay}` : ''}
-                          {state === 'responded' ? ' · their number is in the matrix below' : ''}
+                        <Text style={styles.inviteMeta} numberOfLines={2}>
+                          {inv.localOnly
+                            ? 'On this phone — will email when it uploads'
+                            : <>
+                                {sentDay ? `Sent ${sentDay}` : 'Sent'}
+                                {remindedIds.includes(inv.id) ? ' · re-sent just now' : ''}
+                                {state === 'awaiting' && expiryDay ? ` · link good through ${expiryDay}` : ''}
+                                {state === 'responded' && !bidGone ? ' · their number is in the matrix below' : ''}
+                                {bidGone ? ' · their bid was deleted — re-invite them for a new number' : ''}
+                              </>}
                         </Text>
+                        {!!unmailedWhy && (
+                          <Text style={[styles.inviteMeta, { color: Colors.warningLabel, fontWeight: '700' }]} numberOfLines={2}>
+                            {unmailedWhy === 'suppressed_unsubscribed'
+                              ? 'Not emailed — they unsubscribed from invitation emails. Copy the link and text it.'
+                              : NOT_EMAILED_ROW}
+                          </Text>
+                        )}
                         {/* An invite filed against a roster sub is what gives
                             the resulting bid a scorecard, a commitment that
                             knows who it is with, and a sub portal. Saying which
@@ -1164,9 +1456,11 @@ export default function BuyoutPackageScreen() {
                         )}
                       </View>
                       <View style={[styles.invitePill, pillStyle]}>
-                        <Text style={[styles.invitePillText, { color: pillInk }]}>{inviteStateLabel(state)}</Text>
+                        <Text style={[styles.invitePillText, { color: pillInk }]}>{inv.localOnly ? 'Not uploaded' : inviteStateLabel(state)}</Text>
                       </View>
-                      {state !== 'responded' && (
+                      {/* A pending invite's link answers bid_invite_denied until
+                          it uploads — no copy button to hand out a dead link. */}
+                      {state !== 'responded' && !inv.localOnly && (
                         <TouchableOpacity
                           onPress={() => { void handleCopyInviteLink(inv); }}
                           hitSlop={10}
@@ -1246,11 +1540,18 @@ export default function BuyoutPackageScreen() {
               </View>
             ) : (
               sortedBids.map((bid, i) => {
+                const priced = bidAmountOf(bid) != null;
                 const total = bid.amount + (bid.normalizedAdjustment ?? 0);
                 const vsBudget = pkg.estimateBudget - total;
                 const isWinner = winningBidId === bid.id;
-                const isLowest = i === 0 && sortedBids.length > 1;
+                // Never a bid with no amount, and only when two PRICED bids compete.
+                const isLowest = priced && i === 0 && pricedBids.length > 1;
                 const outlier = isOutlier(bid);
+                const filedBySub = invitedBidIds.has(bid.id);
+                const isAwardedBid = bid.status === 'awarded' || pkg.awardedBidId === bid.id;
+                // The sub's own number is his to change (call him); an awarded
+                // bid's amount is the commitment's now.
+                const canEditAmount = !filedBySub && !isAwardedBid;
                 return (
                   <View key={bid.id} style={[styles.bidCard, isWinner && styles.bidCardWinner, bid.status === 'awarded' && styles.bidCardAwarded, outlier && styles.bidCardOutlier]}>
                     <View style={styles.bidHead}>
@@ -1300,16 +1601,29 @@ export default function BuyoutPackageScreen() {
                         )}
                         {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
                       </View>
-                      <TouchableOpacity onPress={() => deleteBidPackageBid(bid.id)} hitSlop={10} style={styles.bidDelete} accessibilityRole="button" accessibilityLabel="Delete">
+                      <TouchableOpacity onPress={() => handleDeleteBid(bid, filedBySub)} hitSlop={10} style={styles.bidDelete} accessibilityRole="button" accessibilityLabel={`Delete ${bid.vendorName ?? 'this'} bid`} testID={`delete-bid-${bid.id}`}>
                         <Trash2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
 
                     <View style={styles.bidAmountsRow}>
-                      <View style={styles.bidAmountCell}>
-                        <Text style={styles.bidAmountLabel}>Bid</Text>
-                        <Text style={styles.bidAmountValue}>{formatMoney(bid.amount)}</Text>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.bidAmountCell}
+                        onPress={() => { if (canEditAmount) { setAmountDraft(priced ? String(bid.amount) : ''); setAmountEditBidId(bid.id); } }}
+                        disabled={!canEditAmount}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={canEditAmount ? `Edit the amount of ${bid.vendorName ?? 'this'} bid` : undefined}
+                        testID={`bid-amount-${bid.id}`}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={styles.bidAmountLabel}>Bid</Text>
+                          {canEditAmount && <Pencil size={10} color={themeColors.textMuted} strokeWidth={2} />}
+                        </View>
+                        <Text style={[styles.bidAmountValue, !priced && { color: themeColors.danger }]}>
+                          {priced ? formatMoney(bid.amount) : 'No amount'}
+                        </Text>
+                      </TouchableOpacity>
                       {bid.normalizedAdjustment != null && bid.normalizedAdjustment !== 0 && (
                         <View style={styles.bidAmountCell}>
                           <Text style={styles.bidAmountLabel}>Adj.</Text>
@@ -1320,8 +1634,8 @@ export default function BuyoutPackageScreen() {
                       )}
                       <View style={styles.bidAmountCell}>
                         <Text style={[styles.bidAmountLabel, { color: themeColors.text, fontWeight: '700' }]}>Leveled total</Text>
-                        <Text style={[styles.bidAmountValueTotal, { color: vsBudget >= 0 ? themeColors.success : themeColors.danger }]}>
-                          {formatMoney(total)}
+                        <Text style={[styles.bidAmountValueTotal, { color: !priced ? themeColors.textMuted : vsBudget >= 0 ? themeColors.success : themeColors.danger }]}>
+                          {priced ? formatMoney(total) : '—'}
                         </Text>
                       </View>
                     </View>
@@ -1345,13 +1659,25 @@ export default function BuyoutPackageScreen() {
                       </View>
                     )}
 
-                    {pkg.status !== 'awarded' && (
+                    {pkg.status !== 'awarded' && (priced ? (
                       <TouchableOpacity style={styles.awardBtn} onPress={() => handleAward(bid)} activeOpacity={0.85}>
                         <Trophy size={14} color="#FFF" strokeWidth={1.75} />
                         <Text style={styles.awardBtnText}>Award · {formatMoney(total)}</Text>
                         <ArrowRight size={14} color="#FFF" strokeWidth={1.75} />
                       </TouchableOpacity>
-                    )}
+                    ) : (
+                      // No Award on a bid that can't be awarded — the reason
+                      // and the fix instead (#95).
+                      <TouchableOpacity
+                        style={styles.needsAmountBtn}
+                        onPress={() => { setAmountDraft(''); setAmountEditBidId(bid.id); }}
+                        activeOpacity={0.85}
+                        testID={`needs-amount-${bid.id}`}
+                      >
+                        <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
+                        <Text style={[styles.needsAmountText, { color: themeColors.danger }]}>Needs an amount — tap to add it</Text>
+                      </TouchableOpacity>
+                    ))}
                     {/* Who this bid is actually FROM, as a record rather than a
                         name. Without the link the award creates a commitment
                         that names a company and references nobody: no
@@ -1463,19 +1789,25 @@ export default function BuyoutPackageScreen() {
         />
 
         {/* Add-bid modal */}
-        <Modal visible={showAddBid} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAddBid(false)}>
+        <Modal visible={showAddBid} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setShowAddBid(false); setAddBidNote(null); }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Log a bid</Text>
-              <TouchableOpacity onPress={() => setShowAddBid(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <TouchableOpacity onPress={() => { setShowAddBid(false); setAddBidNote(null); }} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
+              {!!addBidNote && (
+                <View style={styles.warningCard} testID="add-bid-note">
+                  <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+                  <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>{addBidNote}</Text>
+                </View>
+              )}
               <Text style={styles.fieldLabel}>Vendor *</Text>
               <TextInput style={styles.input} value={newVendor} onChangeText={setNewVendor} placeholder="e.g. Joe's Plumbing" placeholderTextColor={themeColors.textMuted} autoFocus />
               <Text style={styles.fieldLabel}>Amount *</Text>
-              <TextInput style={styles.input} value={newAmount} onChangeText={setNewAmount} placeholder="Total dollar bid" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
+              <TextInput style={styles.input} value={newAmount} onChangeText={setNewAmount} placeholder="Total dollar bid, e.g. 4,800.50" placeholderTextColor={themeColors.textMuted} keyboardType="decimal-pad" autoFocus={!!addBidNote && !!newVendor} testID="add-bid-amount" />
               <Text style={styles.fieldLabel}>Includes</Text>
               <TextInput style={[styles.input, styles.multilineInput]} value={newIncludes} onChangeText={setNewIncludes} placeholder="What's covered (drives leveling)" placeholderTextColor={themeColors.textMuted} multiline />
               <Text style={styles.fieldLabel}>Excludes</Text>
@@ -1487,6 +1819,40 @@ export default function BuyoutPackageScreen() {
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddBid} activeOpacity={0.85}>
                 <Save size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.saveBtnText}>Save bid</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Fix a bid's amount (#95) — the card's only edit. The sub's own
+            number is not editable here; a GC-keyed or voice bid is. */}
+        <Modal visible={!!amountEditBidId} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAmountEditBidId(null)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>
+                {`Amount · ${bids.find(b => b.id === amountEditBidId)?.vendorName ?? 'this bid'}`}
+              </Text>
+              <TouchableOpacity onPress={() => setAmountEditBidId(null)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={22} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 20 }}>
+              <Text style={styles.fieldLabel}>Bid total *</Text>
+              <TextInput
+                style={styles.input}
+                value={amountDraft}
+                onChangeText={setAmountDraft}
+                placeholder="e.g. 4,800.50"
+                placeholderTextColor={themeColors.textMuted}
+                keyboardType="decimal-pad"
+                autoFocus
+                testID="bid-amount-input"
+              />
+            </ScrollView>
+            <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAmount} activeOpacity={0.85} testID="bid-amount-save">
+                <Save size={16} color="#FFF" strokeWidth={1.75} />
+                <Text style={styles.saveBtnText}>Save amount</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -1584,12 +1950,12 @@ export default function BuyoutPackageScreen() {
                 testID="invite-emails-input"
               />
               <Text style={styles.inviteHint}>One per line, or separated by commas — a pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. An address that matches a sub on your roster is linked to them automatically. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days — the same window material pricing holds for.</Text>
-              {/* What the sub is actually told, stated plainly. The due date is
-                  tracked and chased HERE; it is not in his email yet, and this
-                  sheet will not imply that it is. */}
+              {/* What the sub is actually told, stated plainly: the email's
+                  "Bids due" row and the bid page's banner (#99) both read
+                  this package's date. */}
               {!!pkg.dueDate && (
                 <Text style={styles.inviteHint}>
-                  You have this package down for {formatCalendarDay(pkg.dueDate, { weekday: 'long', month: 'short', day: 'numeric' })}. Their email carries the scope and the link; say the date in your own words if it is tight, and chase from this screen.
+                  Bids due {formatCalendarDay(pkg.dueDate, { weekday: 'long', month: 'short', day: 'numeric' })} — their email and the bid page both show this date. Chase from this screen if it gets close.
                 </Text>
               )}
             </ScrollView>
@@ -1887,6 +2253,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   adjReason: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, backgroundColor: t.accent + '08', borderRadius: Tokens.radius.sm },
   adjReasonText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17, fontStyle: 'italic' },
 
+  needsAmountBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.danger + '55', backgroundColor: t.danger + '0F' },
+  needsAmountText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
   awardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.success, paddingVertical: 12, borderRadius: Tokens.radius.card },
   awardBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 

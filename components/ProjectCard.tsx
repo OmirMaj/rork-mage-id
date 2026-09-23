@@ -51,9 +51,15 @@ interface ProjectCardProps {
   /** Index in the parent list — used to stagger the mount-fade so cards
    *  cascade in (40ms apart) instead of all appearing at once. */
   index?: number;
+  /** Billed to date on this job (non-draft invoices). `undefined` until the
+   *  invoices have been read — no bar is drawn from a number with no source
+   *  (audit wave 5, #151). */
+  invoicedToDate?: number;
+  /** Estimate + approved change orders — the burn denominator. */
+  revisedContract?: number;
 }
 
-function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardProps) {
+function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate, revisedContract }: ProjectCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -91,12 +97,14 @@ function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardPr
     : marginPct >= 10 ? 'warn'
     : 'danger';
 
-  // Budget burn — invoiced ÷ estimate.
-  const invoicedTotal = (project as { invoicedTotal?: number }).invoicedTotal ?? 0;
-  const burnRatio = hasEstimate && estimateTotal > 0
-    ? Math.min(1, invoicedTotal / estimateTotal)
+  // Budget burn — billed ÷ revised contract (estimate + approved COs). This
+  // read `project.invoicedTotal`, a field nothing ever wrote, so the bar never
+  // drew (#151). Both numbers now come from the caller; unknown either side =
+  // no bar.
+  const burnRatio = invoicedToDate != null && revisedContract != null && revisedContract > 0
+    ? Math.min(1, Math.max(0, invoicedToDate / revisedContract))
     : 0;
-  const showBurnBar = hasEstimate && burnRatio > 0;
+  const showBurnBar = burnRatio > 0;
   const burnIsHigh = burnRatio >= 0.9;
 
   useEffect(() => {

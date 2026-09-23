@@ -577,10 +577,14 @@ serve(async (req: Request) => {
   const name = clip(body.name, 120);
   const email = clip(body.email, 200);
   const phone = clip(body.phone, 40);
+  // Only an address that passes EMAIL_RE is stored as the lead's email — a
+  // bounced reply-to is worse than none. A malformed one that came WITH a
+  // phone is kept as text in `scope` so the GC still sees what was typed.
+  const validEmail = email && EMAIL_RE.test(email) ? email : null;
   let leadCaptured = false;
   let leadError: string | null = null;
 
-  if (name && ((email && EMAIL_RE.test(email)) || phone)) {
+  if (name && (validEmail || phone)) {
     try {
       const userId = await resolveContractor(contractorId);
       // Second bucket on the RESOLVED account: a legacy slug and the uuid both
@@ -604,6 +608,7 @@ serve(async (req: Request) => {
             ? `Instant Estimate shown: $${Math.round(estimate.range.low).toLocaleString("en-US")}–$${Math.round(estimate.range.high).toLocaleString("en-US")}`
             : "Instant Estimate could not price this scope",
           clip(body.notes, 1000),
+          email && !validEmail ? `email as typed (did not look valid): ${email}` : null,
           origin ? `(from widget on ${origin})` : null,
         ].filter(Boolean).join(" · ");
 
@@ -612,7 +617,7 @@ serve(async (req: Request) => {
           id: crypto.randomUUID(),
           user_id: userId,
           name,
-          email,
+          email: validEmail,
           phone,
           address: zip,
           project_type: estimate.projectLabel ?? clip(body.projectType, 80),
@@ -641,6 +646,16 @@ serve(async (req: Request) => {
       console.error("[widget-estimate] lead capture failed:", String(e));
       leadError = "save_failed";
     }
+  } else if (name && email && !validEmail && !phone) {
+    // #173: the ONLY contact detail is an email that doesn't parse. The lead
+    // can't be saved (nobody could reply), and it used to be dropped with
+    // leadError null — the widget then told the homeowner it "could not
+    // reach" the contractor. Say what is actually wrong, so the current
+    // widget sends them back to fix it; an older cached embed.js has no
+    // invalid_email branch and still shows its generic not-sent line until its
+    // cache refreshes, but the lead now carries a reason instead of
+    // leadError null.
+    leadError = "invalid_email";
   }
 
   return jsonResponse({

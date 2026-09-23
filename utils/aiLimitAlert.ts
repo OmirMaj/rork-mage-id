@@ -5,7 +5,10 @@
 //      countdown to reset, same upgrade buttons).
 //   2. The tier-aware upgrade ladder lives in one place — free → pro →
 //      business → enterprise. Enterprise users see no upgrade CTA, just
-//      a reset countdown ("Resets at midnight" or "Resets {Month} 1").
+//      a reset countdown in their own clock ("Resets at 8:00 PM (in 5h)" or
+//      "Resets Sep 30, 8:00 PM"). The counters are dated in UTC on the
+//      server, so "midnight" / "the 1st" were wrong by hours for every US
+//      user (audit #123/#128) — see nextAiResetLabel in aiRateLimiterCore.
 //   3. Adding a new tier or changing prices is a one-file change.
 //
 // Pre-fix every component called `showAlert('AI Limit Reached', ...)`
@@ -23,6 +26,7 @@ import { Platform } from 'react-native';
 import { showAlert } from '@/utils/alert';
 import type { Router } from 'expo-router';
 import type { LimitCheck } from '@/utils/aiRateLimiter';
+import { nextAiResetLabel, timeUntilAiDailyReset } from '@/utils/aiRateLimiterCore';
 
 const TIER_LABEL: Record<string, string> = {
   pro: 'Pro',
@@ -36,33 +40,11 @@ const TIER_PRICE: Record<string, string> = {
   enterprise: '$150/mo',
 };
 
-/**
- * Time until midnight local — used for daily-cap reset countdowns.
- * Returns a human-friendly string like "7h 23m" or "12m" for short waits.
- */
-function timeUntilMidnight(): string {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0); // next midnight
-  const diffMs = midnight.getTime() - now.getTime();
-  const totalMinutes = Math.max(1, Math.round(diffMs / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
-}
-
-/**
- * Time until first of next month — used for monthly-cap reset countdowns
- * (vision features). Returns "Resets {Month} 1" for clarity since the
- * remaining duration is usually too long for "Xh Ym" to feel useful.
- */
-function nextMonthLabel(): string {
-  const now = new Date();
-  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  return next.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-}
+// Reset copy comes from the pure core: nextAiResetLabel() names the next
+// 00:00 UTC boundary (the moment the server's counters actually roll) in the
+// device's clock, and timeUntilAiDailyReset() counts down to that same instant.
+// The old timeUntilMidnight() counted to LOCAL midnight — nine hours for a New
+// Yorker at 3 PM whose allowance came back at 8 PM.
 
 interface ShowAILimitOpts {
   /** Result from checkAILimit. */
@@ -70,7 +52,7 @@ interface ShowAILimitOpts {
   /** Router to deep-link the upgrade CTA into the paywall. */
   router: Router;
   /** When true, the limit applies to a monthly-cap feature (vision/PDF)
-   *  and the modal shows "Resets {Month} 1" instead of midnight. */
+   *  and the modal shows the monthly reset ("Resets Sep 30, 8:00 PM"). */
   monthly?: boolean;
 }
 
@@ -108,16 +90,24 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
     return;
   }
 
-  // Daily / smart cap path — show countdown + upgrade CTA.
+  // Daily / smart cap path — show the real reset + upgrade CTA.
+  const labels = nextAiResetLabel();
   const resetText = monthly
-    ? `Resets ${nextMonthLabel()}.`
-    : `Resets at midnight (in ${timeUntilMidnight()}).`;
+    ? `${labels.monthly}.`
+    : `${labels.daily} (in ${timeUntilAiDailyReset()}).`;
+  const title = monthly ? "You've hit this month's AI limit" : "You've hit today's AI limit";
+  // evaluateLimit already names the reset in some messages (Enterprise has no
+  // upgrade to offer, so the reset IS the message) — don't say it twice.
+  const said = !!message && /\bResets\b/.test(message);
+  const tail = said
+    ? (monthly ? '' : `\n\nThat's in ${timeUntilAiDailyReset()}.`)
+    : `\n\n${resetText}`;
 
-  // Enterprise users have no upgrade — just the countdown.
-  if (!upgradeTo || upgradeTo === undefined) {
+  // Enterprise users have no upgrade — just the reset.
+  if (!upgradeTo) {
     showAlert(
-      "You've hit today's AI limit",
-      `${message ?? "Daily limit reached."}\n\n${resetText}`,
+      title,
+      `${message ?? (monthly ? 'Monthly limit reached.' : 'Daily limit reached.')}${tail}`,
       [{ text: 'OK', style: 'default' }],
     );
     return;
@@ -128,11 +118,11 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
   const buttonLabel = upgradePrice
     ? `Upgrade to ${upgradeLabel} (${upgradePrice})`
     : `Upgrade to ${upgradeLabel}`;
-  const title = "You've hit today's AI limit";
-  const body = `${message ?? `You've used today's allowance.`}\n\n${resetText}`;
+  const body = `${message ?? (monthly ? `You've used this month's allowance.` : `You've used today's allowance.`)}${tail}`;
 
   showAlert(title, body, [
-    { text: 'Wait until tomorrow', style: 'cancel' },
+    // Not "Wait until tomorrow": the reset is often later TODAY (8 PM in New York).
+    { text: 'Wait for the reset', style: 'cancel' },
     { text: buttonLabel, onPress: () => router.push('/paywall' as never) },
   ]);
   // Lightweight haptic so the user feels the limit kick rather than just

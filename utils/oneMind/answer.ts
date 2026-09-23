@@ -8,15 +8,23 @@
 //
 // Failure never leaves the user empty-handed: when the model is unreachable
 // the answer degrades to the top fact lines of the highest-priority blocks
-// verbatim (narrateVerdict.ts fallback pattern) — the data still speaks.
+// verbatim (narrateVerdict.ts fallback pattern) — the data still speaks, and
+// says up front that it is not an answer. When the user is BLOCKED (monthly
+// or hourly cap, signed out) the reply is the reason instead, with no facts —
+// see failureAnswer.ts (audit #119).
+//
+// Scope: a conversation opened from a job's own screen carries that job as
+// its ANCHOR (opts.anchorProjectId), so "is this project over budget?" is
+// answered for that job — applyAnchorScope in resolveScope.ts (audit #36).
 //
 // This module is impure by design (mageAI). Everything testable lives in
 // resolveScope / factBlocks / composePrompt.
 
 import { mageAI } from '@/utils/mageAI';
-import { resolveScope, type OneMindScope } from './resolveScope';
+import { resolveScope, applyAnchorScope, type OneMindScope } from './resolveScope';
 import { assembleFactBlocks, isColdStart, type FactBlock, type FactBlockDrillIn, type OneMindBundle } from './factBlocks';
 import { composeOneMindPrompt, parseCitations, stripCitations } from './composePrompt';
+import { oneMindFailureReply } from './failureAnswer';
 
 export interface OneMindTurn {
   role: 'user' | 'assistant';
@@ -39,6 +47,9 @@ export interface OneMindAnswer {
    *  daily call or a free-tier trial. */
   usedAI: boolean;
   errorKind?: string;
+  /** The relay's machine code (mageAI errorCode) — 'hourly_limit' vs
+   *  'monthly_cap' decide whether the screen offers the paywall. */
+  errorCode?: string;
   fromCache?: boolean;
   /** The model hit its output ceiling and stopped mid-thought rather than
    *  finishing. The answer text already carries a plain-English note saying so
@@ -58,19 +69,6 @@ function toCitations(blocks: FactBlock[], refs: string[]): OneMindCitation[] {
     .map(b => ({ ref: b.ref, domain: b.domain, drillIn: b.drillIn }));
 }
 
-/** Verbatim-facts fallback when the AI is unreachable: the first two blocks
- *  with facts (assembly order = priority), skipping the RECORDS dump. */
-function fallbackAnswer(blocks: FactBlock[]): { text: string; used: FactBlock[] } {
-  const preferred = blocks.filter(b => b.ref !== 'RECORDS' && b.facts.length > 0).slice(0, 2);
-  const used = preferred.length > 0 ? preferred : blocks.filter(b => b.facts.length > 0).slice(0, 1);
-  if (used.length === 0) return { text: '', used: [] };
-  const lines = used.flatMap(b => b.facts.slice(0, 3).map(f => `• ${f}`));
-  return {
-    text: `I couldn't reach the AI right now — but here's what your data shows:\n\n${lines.join('\n')}`,
-    used,
-  };
-}
-
 /**
  * Answer a question against everything the app knows. Never throws.
  */
@@ -78,8 +76,12 @@ export async function askOneMind(
   question: string,
   turns: OneMindTurn[],
   bundle: OneMindBundle,
+  opts: { anchorProjectId?: string | null } = {},
 ): Promise<OneMindAnswer> {
-  const scope = resolveScope(question, bundle.projects);
+  // A named project wins; otherwise an anchored conversation is about its job.
+  const scope = applyAnchorScope(
+    resolveScope(question, bundle.projects), question, opts.anchorProjectId, bundle.projects,
+  );
 
   // Cold-start honesty: no data → no AI call, just the truth.
   if (isColdStart(bundle)) {
@@ -136,21 +138,29 @@ export async function askOneMind(
         fromCache: res.fromCache,
       };
     }
-    // Model unreachable / empty → verbatim facts.
-    const fb = fallbackAnswer(blocks);
+    // Blocked (cap / session) → the reason, no facts. Unreachable / empty →
+    // verbatim facts, labelled as not answering the question.
+    const reply = oneMindFailureReply(
+      { error: res.error, errorKind: res.errorKind, errorCode: res.errorCode },
+      blocks,
+    );
     return {
-      answer: fb.text || (res.error ? `MAGE couldn't answer that: ${res.error}` : "MAGE couldn't answer that right now. Try again in a moment."),
-      citations: fb.used.map(b => ({ ref: b.ref, domain: b.domain, drillIn: b.drillIn })),
+      answer: reply.answer,
+      citations: reply.used.map(b => ({ ref: b.ref, domain: b.domain, drillIn: b.drillIn })),
       scope,
       usedAI: false,
-      errorKind: res.errorKind ?? 'model',
+      errorKind: reply.errorKind,
+      errorCode: reply.errorCode,
       fromCache: res.fromCache,
     };
   } catch (e) {
-    const fb = fallbackAnswer(blocks);
+    const reply = oneMindFailureReply(
+      { error: String((e as Error).message ?? e), errorKind: 'unknown' },
+      blocks,
+    );
     return {
-      answer: fb.text || `MAGE hit an error: ${String((e as Error).message ?? e)}`,
-      citations: fb.used.map(b => ({ ref: b.ref, domain: b.domain, drillIn: b.drillIn })),
+      answer: reply.answer,
+      citations: reply.used.map(b => ({ ref: b.ref, domain: b.domain, drillIn: b.drillIn })),
       scope,
       usedAI: false,
       errorKind: 'unknown',

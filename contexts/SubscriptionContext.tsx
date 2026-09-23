@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'expo-router';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import Purchases, {
@@ -180,6 +180,143 @@ function tierFromCustomerInfo(info: CustomerInfo): SubscriptionTier {
   return 'free';
 }
 
+// --- BEGIN subscriptionResolve (pure; scripts/validate-w5-paywall-tiers.ts executes this block) ---
+/**
+ * Where the tier comes from, for the one screen that has to route a cancel or
+ * a plan change somewhere that works (Settings → Manage Subscription, #176):
+ *   'store'  — an active App Store / Google Play entitlement backs the tier,
+ *              so the store's subscription page can cancel or change it;
+ *   'manual' — the tier above free comes from the server row (a plan MAGE ID
+ *              turned on by hand), a promotional/web entitlement, or the
+ *              master-account override: no store page has anything to cancel;
+ *   'none'   — free.
+ */
+export type PlanSource = 'store' | 'manual' | 'none';
+
+const TIER_RANK: Record<SubscriptionTier, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+
+/** The higher-ranked of the known tiers; null when none is known. */
+export function maxTier(...tiers: (SubscriptionTier | null | undefined)[]): SubscriptionTier | null {
+  let best: SubscriptionTier | null = null;
+  for (const t of tiers) {
+    if (!t || !(t in TIER_RANK)) continue;
+    if (best === null || TIER_RANK[t] > TIER_RANK[best]) best = t;
+  }
+  return best;
+}
+
+/**
+ * The tier the app runs on.
+ *
+ * #2 (blocker): this used to be "RevenueCat wins" — when CustomerInfo loaded,
+ * its entitlements decided, and a server tier that disagreed was logged as a
+ * "mismatch" and ignored. But every paid plan today is turned on BY HAND (the
+ * founder sets subscriptions.tier with the service key; pricing.html says so),
+ * and a hand-granted customer has no RevenueCat entitlement. So on the iPhone —
+ * where RevenueCat is configured — he resolved to Free and hit a paywall on
+ * every paid screen while every edge function served him as Pro.
+ *
+ * subscriptions.tier is server-authoritative (migration 20260608120000: a
+ * trigger pins it for every client write), so it is safe to trust. Neither
+ * source may LOWER the other: the tier is the higher rank of the two.
+ *   rcTier     — tierFromCustomerInfo, or null when RevenueCat has no answer;
+ *   serverTier — subscriptions.tier (end_date honoured), null for "no row"
+ *                or signed out, undefined when the server has not answered
+ *                (loading/offline);
+ *   localTier  — the last resolved tier, from AsyncStorage.
+ * The local cache stands in for the server ONLY while the server has not
+ * answered — so a hand-granted Pro opening the app offline stays Pro. A server
+ * answer of "no row" is a definitive Free, never a reason to fall back to the
+ * cache: on web RevenueCat has no answer at all, and the cache there may hold
+ * the plan of the account that last signed out of this browser (a shared
+ * office machine), or a grant the founder ended by deleting the row. The
+ * master-account override is applied last, as before.
+ */
+export function resolveTier(o: {
+  rcTier: SubscriptionTier | null;
+  serverTier: SubscriptionTier | null | undefined;
+  localTier: SubscriptionTier | null | undefined;
+  isOwner: boolean;
+}): SubscriptionTier {
+  const server = o.serverTier === undefined ? (o.localTier ?? null) : (o.serverTier ?? 'free');
+  let resolved: SubscriptionTier = maxTier(o.rcTier, server) ?? 'free';
+  if (o.isOwner) resolved = 'business';
+  return resolved;
+}
+
+/** The store an ACTIVE entitlement for `tier` was bought through, if any. */
+export function storeOfActiveEntitlement(
+  info: { entitlements: { active: Record<string, { isActive?: boolean; store?: string } | undefined> } } | null | undefined,
+  tier: SubscriptionTier,
+): string | null {
+  const e = info?.entitlements?.active?.[tier];
+  return e && e.isActive !== false ? (e.store ?? null) : null;
+}
+
+/** CONTRACT 1 — see PlanSource. `store` is storeOfActiveEntitlement(info, tier). */
+export function planSourceFor(tier: SubscriptionTier, store: string | null | undefined): PlanSource {
+  if (tier === 'free') return 'none';
+  if (store === 'APP_STORE' || store === 'PLAY_STORE') return 'store';
+  return 'manual';
+}
+
+/**
+ * Thrown by restorePurchases() where there is no store to ask (web, or a build
+ * with no RevenueCat key). #126: this path used to return the LOCAL CACHE of
+ * the tier as if it were the store's answer, so Restore "succeeded" on web.
+ */
+export class RestoreUnavailableError extends Error {
+  constructor() {
+    super('Restore is done in the MAGE ID iPhone or Android app.');
+    this.name = 'RestoreUnavailableError';
+  }
+}
+
+const TIER_LABEL: Record<SubscriptionTier, string> = {
+  free: 'Free', pro: 'Pro', business: 'Business', enterprise: 'Enterprise',
+};
+
+/**
+ * What a Restore tap tells the contractor (#126). Restore used to say "Your
+ * purchases have been restored" whenever the call did not throw — including
+ * the common case where the store found nothing — and the first-run paywall
+ * then closed itself as if he had paid. Only a tier above free is a restore.
+ *   tier above free          → "Restored — you're on {Tier}", leave: true
+ *   'free'                   → nothing found for this store account, stay
+ *   RestoreUnavailableError  → restore is done in the phone app, stay
+ *   anything else            → the store could not be reached, try again, stay
+ */
+export function restoreOutcome(
+  result: unknown,
+  storeName: 'App Store' | 'Google Play',
+): { title: string; body: string; leave: boolean } {
+  if (result instanceof RestoreUnavailableError
+    || (result instanceof Error && result.name === 'RestoreUnavailableError')) {
+    return {
+      title: 'Restore is in the mobile app',
+      body: 'Purchases are restored in the MAGE ID iPhone or Android app. Open it, sign in with this account, and tap Restore on the plans screen.',
+      leave: false,
+    };
+  }
+  if (typeof result === 'string' && result in TIER_RANK) {
+    const t = result as SubscriptionTier;
+    if (TIER_RANK[t] > 0) {
+      return { title: `Restored — you're on ${TIER_LABEL[t]}`, body: 'Your plan is active on this account.', leave: true };
+    }
+    return {
+      title: 'Nothing to restore',
+      body: `No active subscription found for this ${storeName} account.`,
+      leave: false,
+    };
+  }
+  return {
+    title: 'Restore failed',
+    body: `Could not reach the ${storeName} to restore your purchases. Check your connection and try again.`,
+    leave: false,
+  };
+}
+// --- END subscriptionResolve ---
+
 // NOTE: as of migration 20260608120000 the `subscriptions.tier` column is
 // server-authoritative — a DB trigger pins tier for non-service-role writers, so
 // the `tier` we send here is IGNORED by the server (it can't grant or downgrade).
@@ -198,6 +335,12 @@ async function syncTierToSupabase(userId: string, newTier: SubscriptionTier, rcC
   } catch (err) {
     console.log('[Subscription] Failed to sync tier to Supabase:', err);
   }
+}
+
+/** subscriptions row as the client needs it — see supabaseTierQuery. */
+interface ServerTierRow {
+  tier: SubscriptionTier;
+  tierSource: 'revenuecat' | 'manual';
 }
 
 export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
@@ -234,24 +377,81 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     },
   });
 
-  const supabaseTierQuery = useQuery({
+  // The server-authoritative tier (subscriptions.tier — pinned for client
+  // writes by migration 20260608120000; hand grants are floored by
+  // manual_tier, 20260923010000). Three answers, kept distinct because the
+  // resolver treats them differently:
+  //   ServerTierRow — the row, with end_date honoured the way the edge
+  //                   functions' lookupTier (_shared/auth.ts) honours it;
+  //   null          — the server answered: there is no row (free);
+  //   thrown        — the server did not answer. The query then has no data
+  //                   and resolveTier keeps the cached tier instead of
+  //                   dropping a hand-granted Pro to Free on a flaky signal.
+  const supabaseTierQuery = useQuery<ServerTierRow | null>({
     queryKey: ['subscription-supabase', userId],
     queryFn: async () => {
       if (!userId || !isSupabaseConfigured) return null;
-      try {
-        const { data, error } = await supabase
-          .from('subscriptions')
-          .select('tier, revenuecat_customer_id')
-          .eq('user_id', userId)
-          .single();
-        if (!error && data) {
-          return data.tier as SubscriptionTier;
-        }
-      } catch { /* ok */ }
-      return null;
+      // select('*') rather than a column list: tier_source only exists once
+      // migration 20260923010000 is applied, and naming a missing column
+      // would fail the whole read — i.e. put every hand-granted customer
+      // back on Free.
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      const row = data as { tier?: string | null; end_date?: string | null; tier_source?: string | null };
+      const ended = !!row.end_date && Date.parse(row.end_date) < Date.now();
+      const tier: SubscriptionTier =
+        !ended && (row.tier === 'pro' || row.tier === 'business' || row.tier === 'enterprise') ? row.tier : 'free';
+      return { tier, tierSource: row.tier_source === 'manual' ? 'manual' : 'revenuecat' };
     },
     enabled: !!userId,
+    retry: 1,
   });
+
+  // A plan turned on (or changed) server-side while the app is open reached
+  // the phone only after a reinstall: nothing re-read the row. Re-read it
+  // whenever the app comes back to the foreground.
+  useEffect(() => {
+    if (!userId) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void queryClient.invalidateQueries({ queryKey: ['subscription-supabase', userId] });
+      }
+    });
+    return () => sub.remove();
+  }, [userId, queryClient]);
+
+  const tierRef = useRef<SubscriptionTier>('free');
+  /**
+   * resolveTier fed from what the query cache knows RIGHT NOW. Used by the
+   * RevenueCat listener and the purchase/restore callbacks, which fire outside
+   * a render and must not undo a hand grant (#2: the first RevenueCat push
+   * used to drop a manual customer straight back to Free).
+   */
+  const resolveNow = useCallback((info: CustomerInfo | null): SubscriptionTier => {
+    const server = userId
+      ? queryClient.getQueryData<ServerTierRow | null>(['subscription-supabase', userId])
+      : null; // signed out: there is no server plan, definitively
+    return resolveTier({
+      rcTier: info ? tierFromCustomerInfo(info) : null,
+      serverTier: server === undefined ? undefined : (server?.tier ?? null),
+      // The tier the app is on right now is the freshest "last resolved" value.
+      localTier: tierRef.current,
+      isOwner: isOwner(user?.email),
+    });
+  }, [queryClient, userId, user?.email]);
+
+  const persistTier = useCallback((t: SubscriptionTier) => {
+    tierRef.current = t;
+    setTier(t);
+    AsyncStorage.setItem(SUBSCRIPTION_KEY, t).catch((err) => {
+      console.log('[Subscription] Failed to cache tier:', err);
+    });
+  }, []);
 
   // Identify the RevenueCat user AS our Supabase user, so RC's app_user_id is
   // the Supabase user uuid. This is what lets the server-side revenuecat-webhook
@@ -292,8 +492,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
         if (typeof Purchases.isAnonymous === 'function' && (await Purchases.isAnonymous())) return;
         const info = await Purchases.logOut();
         if (cancelled) return;
-        setTier('free');
-        void AsyncStorage.setItem(SUBSCRIPTION_KEY, 'free');
+        persistTier('free');
         queryClient.setQueryData(['rc-customer-info'], info);
         console.log('[RC] Logged out of RevenueCat after sign-out');
       } catch (err) {
@@ -301,52 +500,48 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       }
     })();
     return () => { cancelled = true; };
-  }, [userId, queryClient]);
+  }, [userId, queryClient, persistTier]);
 
   useEffect(() => {
-    let resolved: SubscriptionTier = 'free';
-
-    if (customerInfoQuery.data) {
-      resolved = tierFromCustomerInfo(customerInfoQuery.data);
-      console.log('[RC] Resolved tier from entitlements:', resolved);
-
-      if (supabaseTierQuery.data && supabaseTierQuery.data !== resolved && userId) {
-        console.log('[Subscription] Supabase tier mismatch, trusting RevenueCat:', resolved, 'vs', supabaseTierQuery.data);
-        void syncTierToSupabase(userId, resolved);
-      }
-    } else if (supabaseTierQuery.data) {
-      resolved = supabaseTierQuery.data;
-    } else if (localTierQuery.data) {
-      resolved = localTierQuery.data;
-    }
-
+    // Wait for the cached tier to be READ before resolving: this effect runs
+    // on the first render, and persisting a tier then overwrote the cache with
+    // 'free' before localTierQuery had read it — so a hand-granted Pro who
+    // opened the app offline lost the only copy of his plan the phone had.
+    if (!localTierQuery.isFetched) return;
+    // The higher of RevenueCat's entitlement and the server row — see
+    // resolveTier (#2). The old "Supabase tier mismatch, trusting RevenueCat"
+    // branch also tried to write RevenueCat's tier back to the row; the tier
+    // trigger discards a client's tier, so that write never landed, and its
+    // log line described a decision that was the bug.
+    //
     // Master account override — emails in OWNER_EMAILS (utils/owner.ts)
     // resolve to Business tier regardless of what RevenueCat or Supabase
-    // think. Lets the platform owner test/demo every paywalled feature
-    // without burning real subscriptions or maintaining a sandbox account.
-    // Logged loudly so it's obvious in the console when this is active.
-    if (isOwner(user?.email)) {
-      if (resolved !== 'business') {
-        console.log('[Subscription] Master account override active — forcing tier to business');
-      }
-      resolved = 'business';
-    }
-
-    setTier(resolved);
-    void AsyncStorage.setItem(SUBSCRIPTION_KEY, resolved);
-  }, [customerInfoQuery.data, localTierQuery.data, supabaseTierQuery.data, userId, user?.email]);
+    // think (applied last inside resolveTier). Lets the platform owner
+    // test/demo every paywalled feature without burning real subscriptions.
+    const owner = isOwner(user?.email);
+    const resolved = resolveTier({
+      rcTier: customerInfoQuery.data ? tierFromCustomerInfo(customerInfoQuery.data) : null,
+      // null = no plan on the server (no row, or signed out); undefined = the
+      // server has not answered yet (loading, offline).
+      serverTier: !userId ? null
+        : supabaseTierQuery.data === undefined ? undefined : (supabaseTierQuery.data?.tier ?? null),
+      localTier: localTierQuery.data ?? null,
+      isOwner: owner,
+    });
+    if (owner) console.log('[Subscription] Master account override active — tier is business');
+    persistTier(resolved);
+  }, [customerInfoQuery.data, localTierQuery.data, localTierQuery.isFetched, supabaseTierQuery.data, userId, user?.email, persistTier]);
 
   useEffect(() => {
     if (!rcConfigured) return;
     const listener = (info: CustomerInfo) => {
       console.log('[RC] Customer info updated via listener');
-      let newTier = tierFromCustomerInfo(info);
-      // Honor the master-account override here too — without this, an
-      // RC entitlement push (e.g. trial expired) would knock the owner
-      // back down to Free until the next mount.
-      if (isOwner(user?.email)) newTier = 'business';
-      setTier(newTier);
-      void AsyncStorage.setItem(SUBSCRIPTION_KEY, newTier);
+      // Same max as the resolve effect, and the owner override with it —
+      // without this, an RC entitlement push (a trial expiring, or simply the
+      // first CustomerInfo on launch) knocked a hand-granted customer, or the
+      // owner, back down to Free until the next mount.
+      const newTier = resolveNow(info);
+      persistTier(newTier);
       queryClient.setQueryData(['rc-customer-info'], info);
       if (userId) {
         void syncTierToSupabase(userId, newTier, info.originalAppUserId);
@@ -356,7 +551,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     return () => {
       Purchases.removeCustomerInfoUpdateListener(listener);
     };
-  }, [queryClient, userId, user?.email]);
+  }, [queryClient, userId, resolveNow, persistTier]);
 
   const offeringsQuery = useQuery<PurchasesOfferings | null>({
     queryKey: ['rc-offerings'],
@@ -385,14 +580,16 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       return result;
     },
     onSuccess: async (data) => {
-      const newTier = tierFromCustomerInfo(data.customerInfo);
-      console.log('[RC] Purchase successful, new tier:', newTier);
+      const boughtTier = tierFromCustomerInfo(data.customerInfo);
+      console.log('[RC] Purchase successful, new tier:', boughtTier);
       // The conversion event. Previously only STARTED/FAILED were tracked, so
       // successful upgrades were invisible — the funnel dead-ended at intent.
-      track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: newTier });
+      track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: boughtTier });
       // Update UI state synchronously so any subscriber re-renders this frame.
-      setTier(newTier);
-      void AsyncStorage.setItem(SUBSCRIPTION_KEY, newTier);
+      // Resolved, not the bought tier alone: a hand-granted Business customer
+      // who buys Pro in the store stays on Business.
+      const newTier = resolveNow(data.customerInfo);
+      persistTier(newTier);
       // Prime the RC query cache with the fresh CustomerInfo, then invalidate so
       // any screen that reads from the query (Settings plan row, paywall, gated
       // features) refetches and stays in sync even if it mounted after purchase.
@@ -406,20 +603,25 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     },
   });
 
+  // #126: there is no store to ask on web or in a keyless build, so say so
+  // (RestoreUnavailableError) instead of echoing the local cache back as if it
+  // were the store's answer. The mutation's result is the tier the STORE
+  // restored — what "restored" means — while the app's own tier is resolved
+  // as everywhere else, so a Restore that finds nothing never lowers a plan
+  // MAGE ID turned on by hand.
   const restoreMutation = useMutation({
-    mutationFn: async () => {
-      if (!rcConfigured) {
-        const stored = await AsyncStorage.getItem(SUBSCRIPTION_KEY);
-        return stored as SubscriptionTier ?? 'free';
-      }
+    mutationFn: async (): Promise<{ info: CustomerInfo; restoredTier: SubscriptionTier }> => {
+      if (!rcConfigured) throw new RestoreUnavailableError();
       const info = await Purchases.restorePurchases();
       console.log('[RC] Purchases restored');
-      return tierFromCustomerInfo(info);
+      return { info, restoredTier: tierFromCustomerInfo(info) };
     },
-    onSuccess: (restoredTier: SubscriptionTier) => {
-      setTier(restoredTier);
-      void AsyncStorage.setItem(SUBSCRIPTION_KEY, restoredTier);
-      void queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
+    onSuccess: ({ info }) => {
+      queryClient.setQueryData(['rc-customer-info'], info);
+      persistTier(resolveNow(info));
+      // A restore onto this account makes RevenueCat send a TRANSFER; the
+      // webhook moves the tier server-side. Re-read the row so it shows here.
+      if (userId) void queryClient.invalidateQueries({ queryKey: ['subscription-supabase', userId] });
     },
   });
 
@@ -499,13 +701,27 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     if (pkg) {
       await purchaseMutation.mutateAsync(pkg);
     } else {
-      throw new Error('Enterprise package not configured. Set up the product in App Store Connect / Play Console / RevenueCat first.');
+      // Customer-safe on purpose (#129): this message used to be a setup
+      // instruction ("Set up the product in App Store Connect…") and a screen
+      // showed it to the customer verbatim. "not available" is also what
+      // components/Paywall.tsx matches to explain the plan honestly.
+      throw new Error('Enterprise is not available for purchase in the app yet.');
     }
   }, [enterprisePackage, enterpriseAnnualPackage, purchaseMutation]);
 
-  const restorePurchases = useCallback(async () => {
-    await restoreMutation.mutateAsync();
+  /** CONTRACT 2: the tier the store restored; throws RestoreUnavailableError where there is no store. */
+  const restorePurchases = useCallback(async (): Promise<SubscriptionTier> => {
+    const { restoredTier } = await restoreMutation.mutateAsync();
+    return restoredTier;
   }, [restoreMutation]);
+
+  // CONTRACT 1 (#176): whether a store subscription backs the tier. Settings
+  // uses it to send a store subscriber to the store and a hand-granted one to
+  // an email — the store page has nothing for him to cancel.
+  const planSource: PlanSource = useMemo(
+    () => planSourceFor(tier, storeOfActiveEntitlement(customerInfoQuery.data ?? null, tier)),
+    [tier, customerInfoQuery.data],
+  );
 
   // Tier helpers. `isProOrAbove` is the most common gate (paid users), so it
   // includes business + enterprise too. `isBusinessOrAbove` is for features
@@ -517,6 +733,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
 
   return useMemo(() => ({
     tier,
+    planSource,
     isProOrAbove,
     isBusinessTier,
     isEnterpriseTier,
@@ -536,16 +753,15 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     ...__DEV__ ? {
       setSubscriptionTier: (newTier: SubscriptionTier) => {
         console.log('[Subscription] DEV: Manually setting tier to:', newTier);
-        setTier(newTier);
-        void AsyncStorage.setItem(SUBSCRIPTION_KEY, newTier);
+        persistTier(newTier);
       },
     } : {},
   }), [
-    tier, isProOrAbove, isBusinessTier, isEnterpriseTier, isLoading,
+    tier, planSource, isProOrAbove, isBusinessTier, isEnterpriseTier, isLoading,
     purchasePro, purchaseBusiness, purchaseEnterprise, restorePurchases,
     proPackage, proAnnualPackage, businessPackage, businessAnnualPackage,
     enterprisePackage, enterpriseAnnualPackage,
-    offeringsQuery.data, purchaseMutation.isPending,
+    offeringsQuery.data, purchaseMutation.isPending, persistTier,
   ]);
 });
 

@@ -30,7 +30,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useMaterialReceipts, receiptSavedMessage, type MaterialReceiptSaveOutcome } from '@/hooks/useMaterialReceipts';
 import Paywall from '@/components/Paywall';
 import { analyzeReceipt } from '@/utils/photoAnalyzer';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -82,7 +82,10 @@ function MaterialReceiptInner() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<MaterialReceipt | null>(null);
-  const [saved, setSaved] = useState(false);
+  // Where the last save landed, so the confirmation can say it honestly
+  // (audit #25): on the account, waiting to upload, or on this phone only.
+  // 'saving' covers the round trip; null = nothing saved since the last snap.
+  const [saved, setSaved] = useState<null | 'saving' | MaterialReceiptSaveOutcome>(null);
 
   const project = projectId ? getProject(projectId) : null;
   // ───────────────────────────────────────────────────────────────────────────
@@ -151,7 +154,7 @@ function MaterialReceiptInner() {
       }
       setDraft(null);
       setError(null);
-      setSaved(false);
+      setSaved(null);
     } catch (e) {
       setError(`Couldn't open the ${source}: ${String((e as Error).message ?? e)}`);
     }
@@ -239,13 +242,16 @@ function MaterialReceiptInner() {
       status: 'reviewed',
       updatedAt: new Date().toISOString(),
     };
-    addReceipt(toSave);
+    setSaved('saving');
+    void addReceipt(toSave).then(
+      outcome => setSaved(outcome),
+      () => setSaved('failed'),
+    );
     track(AnalyticsEvents.MATERIAL_RECEIPT_SAVED, {
       item_count: draft.lines.length,
       source: 'material_receipt',
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setSaved(true);
     setDraft(null);
     setImageUri(null);
   }, [draft, projectId, commitmentId, addReceipt]);
@@ -318,9 +324,11 @@ function MaterialReceiptInner() {
         )}
 
         {saved && !draft && (
-          <View style={[styles.warn, { backgroundColor: t.success + '14' }]}>
-            <Check size={15} color={t.success} strokeWidth={1.75} />
-            <Text style={[styles.warnText, { color: t.text }]}>Saved. The prices fed your Cost Database — snap another or head back.</Text>
+          <View style={[styles.warn, { backgroundColor: saved === 'synced' ? t.success + '14' : t.warningSoft }]}>
+            {saved === 'synced'
+              ? <Check size={15} color={t.success} strokeWidth={1.75} />
+              : <AlertTriangle size={15} color={t.warningLabel} strokeWidth={1.75} />}
+            <Text style={[styles.warnText, { color: t.text }]} testID="material-receipt-saved">{receiptSavedMessage(saved)}</Text>
           </View>
         )}
 

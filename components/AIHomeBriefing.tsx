@@ -14,7 +14,7 @@ import {
   generateHomeBriefing, getCachedResult, setCachedResult,
   type HomeBriefingResult,
 } from '@/utils/aiService';
-import { checkAILimit, recordAIUsage, getAIUsageStats } from '@/utils/aiRateLimiter';
+import { checkAILimit, recordAIUsage, getAIUsageStats, nextAiResetLabel } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useRouter } from 'expo-router';
 import type { Project, Invoice } from '@/types';
@@ -99,7 +99,8 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
     const limit = await checkAILimit(subscriptionTier, 'fast', 'homeBriefing');
     if (!limit.allowed) {
       showAILimitAlert({ limit, router });
-      setError(limit.message ?? "You've used today's AI allowance — the briefing resets at midnight.");
+      // The allowance rolls at 00:00 UTC, not local midnight (audit #123).
+      setError(limit.message ?? `You've used today's AI allowance. ${nextAiResetLabel().daily}.`);
       return;
     }
 

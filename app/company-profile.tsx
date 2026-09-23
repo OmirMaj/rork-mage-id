@@ -11,12 +11,13 @@
 // so anywhere else in the app that reads settings.branding (PDF estimates,
 // portal-invite emails, etc.) keeps working with no other change.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal, Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect, useNavigation } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
@@ -46,6 +47,29 @@ import ProfileLoadNotice from '@/components/ProfileLoadNotice';
 import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel, warrantyShortLabel } from '@/utils/paymentTerms';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const LEAVE_TITLE = 'Company info not saved';
+const LEAVE_BODY = "You changed your company name, phone, email, address, licence number or tagline and haven't saved. Proposals, invoices and the portal keep the old details until you save.";
+
+/** The text fields that wait for Save. Logo, signature and licensing state save on their own. */
+export interface BrandingTextDraft {
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  licenseNumber: string;
+  tagline: string;
+}
+
+/**
+ * True when a typed field differs from what the screen opened with (or last
+ * saved). Trimmed, because Save trims and a trailing space isn't an edit (#133).
+ */
+export function brandingDraftDirty(draft: BrandingTextDraft, baseline: BrandingTextDraft): boolean {
+  return (Object.keys(baseline) as (keyof BrandingTextDraft)[])
+    .some(k => (draft[k] ?? '').trim() !== (baseline[k] ?? '').trim());
+}
 
 // The form renders only once THIS account's profile is in state (finding 14).
 // Its fields are seeded once, at mount; mounted over DEFAULT_SETTINGS they
@@ -121,6 +145,30 @@ function CompanyProfileForm() {
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
 
+  // ── LEAVE GUARD (#133) ───────────────────────────────────────────────────
+  // The text fields wait for Save, and leaving without it used to drop a typed
+  // licence number or phone with no word. The next proposal then printed the
+  // old phone, and a CA/FL/AZ bid was held for a licence he thought he'd
+  // entered. The baseline is what the fields were SEEDED with at mount. The
+  // email seed is `branding.email || user.email`, so an account whose saved
+  // email is blank isn't "dirty" just because the screen offered his login
+  // address. The baseline moves to what Save wrote.
+  const [baseline, setBaseline] = useState<BrandingTextDraft>(() => ({
+    companyName: branding.companyName ?? '',
+    contactName: branding.contactName ?? '',
+    email: branding.email || user?.email || '',
+    phone: branding.phone ?? '',
+    address: branding.address ?? '',
+    licenseNumber: branding.licenseNumber ?? '',
+    tagline: branding.tagline ?? '',
+  }));
+  const draft: BrandingTextDraft = {
+    companyName, contactName, email: brandingEmail, phone: brandingPhone,
+    address: brandingAddress, licenseNumber, tagline,
+  };
+  const dirty = brandingDraftDirty(draft, baseline);
+  const addressUnsaved = brandingAddress.trim() !== baseline.address.trim();
+
   // ── WHICH STATE LICENSES HIM ─────────────────────────────────────────────
   // The bid gate (utils/bidDocumentIdentity.ts) keeps a CA/FL/AZ contractor's
   // licence number on his proposal — the three states whose statutes put it on
@@ -153,30 +201,19 @@ function CompanyProfileForm() {
   }, [settings.branding, updateSettings]);
 
   // Logo + signature auto-save: when the user picks a logo or saves a
-  // signature, we don't want them to also tap Save afterward. Branding
-  // text fields still use the explicit Save button so a half-typed
-  // company name doesn't get persisted partway through.
+  // signature, we don't want them to also tap Save afterward. It merges ONLY
+  // the logo / signature onto the SAVED branding (as saveLicenceState does
+  // with the state). It used to write the whole screen, which committed
+  // half-typed text on a logo pick. The text fields save only through Save.
+  // `'logo' in overrides`, not `!== undefined`: Remove passes
+  // { logo: undefined }, which the old test read as "no change", so the logo
+  // was never actually removed.
   const autoSave = useCallback((overrides: Partial<{ logo: string | undefined; sig: string[] | undefined }>) => {
-    const newLogo = overrides.logo !== undefined ? overrides.logo : logoUri;
-    const newSig  = overrides.sig  !== undefined ? overrides.sig  : signatureData;
-    updateSettings({
-      branding: {
-        companyName: companyName.trim(),
-        contactName: contactName.trim(),
-        email:       brandingEmail.trim(),
-        phone:       brandingPhone.trim(),
-        address:     brandingAddress.trim(),
-        licenseNumber: licenseNumber.trim(),
-        // Not edited as text on this screen — carried from the saved branding,
-        // because this object replaces it and an absent state saves as NULL.
-        licenseState: settings.branding?.licenseState ?? '',
-        licenseExpiry: settings.branding?.licenseExpiry ?? '',
-        tagline:     tagline.trim(),
-        logoUri:     newLogo,
-        signatureData: newSig,
-      },
-    });
-  }, [companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, settings.branding, updateSettings]);
+    const saved = mergedBidBranding(settings.branding, {});
+    saved.logoUri = 'logo' in overrides ? overrides.logo : settings.branding?.logoUri;
+    saved.signatureData = 'sig' in overrides ? overrides.sig : settings.branding?.signatureData;
+    updateSettings({ branding: saved });
+  }, [settings.branding, updateSettings]);
 
   const handlePickLogo = useCallback(async () => {
     try {
@@ -184,7 +221,13 @@ function CompanyProfileForm() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [3, 1],
-        quality: 0.8,
+        // Kept small: this data: URI rides in settings, in every PDF and email
+        // template, and (before wave 5) in every portfolio link, where 0.8 of
+        // a phone photo made the link hundreds of KB. The portfolio page now
+        // gets a public copy instead (utils/portfolioPublish.ts). No resize
+        // without expo-image-manipulator, a native module that would need a
+        // new build.
+        quality: 0.4,
         base64: true,
       });
       if (!result.canceled && result.assets[0]) {
@@ -235,7 +278,8 @@ function CompanyProfileForm() {
         phone:       brandingPhone.trim(),
         address:     brandingAddress.trim(),
         licenseNumber: licenseNumber.trim(),
-        // Carried from the saved branding — see autoSave.
+        // Carried from the saved branding: this object replaces it and an
+        // absent state saves as NULL.
         licenseState: settings.branding?.licenseState ?? '',
         licenseExpiry: settings.branding?.licenseExpiry ?? '',
         tagline:     tagline.trim(),
@@ -243,9 +287,55 @@ function CompanyProfileForm() {
         signatureData,
       },
     });
+    setBaseline({
+      companyName: companyName.trim(), contactName: contactName.trim(), email: brandingEmail.trim(),
+      phone: brandingPhone.trim(), address: brandingAddress.trim(), licenseNumber: licenseNumber.trim(), tagline: tagline.trim(),
+    });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Saved', 'Your company info has been updated.');
   }, [updateSettings, companyName, contactName, brandingEmail, brandingPhone, brandingAddress, licenseNumber, tagline, logoUri, signatureData, settings.branding]);
+
+  const discardDrafts = useCallback(() => {
+    setCompanyName(baseline.companyName);
+    setContactName(baseline.contactName);
+    setBrandingEmail(baseline.email);
+    setBrandingPhone(baseline.phone);
+    setBrandingAddress(baseline.address);
+    setLicenseNumber(baseline.licenseNumber);
+    setTagline(baseline.tagline);
+  }, [baseline]);
+
+  // Header back, iOS swipe-back and Android back all REMOVE the screen: hold
+  // him on it and ask. Keep editing stays, Discard leaves, Save saves and leaves.
+  const navigation = useNavigation();
+  const leavingRef = useRef(false);
+  usePreventRemove(dirty, ({ data }) => {
+    showAlert(LEAVE_TITLE, LEAVE_BODY, [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: () => { leavingRef.current = true; navigation.dispatch(data.action); } },
+      { text: 'Save', onPress: () => { leavingRef.current = true; handleSave(); navigation.dispatch(data.action); } },
+    ]);
+  });
+
+  // Exits that don't remove the screen (a web sidebar link, another tab) only
+  // BLUR it, so beforeRemove never fires. Ask on the way out instead, the
+  // Settings estimate-defaults pattern. Refs, so the focus effect doesn't
+  // re-subscribe (and re-fire) on every keystroke.
+  const guardRef = useRef({ dirty, save: handleSave, discard: discardDrafts });
+  guardRef.current = { dirty, save: handleSave, discard: discardDrafts };
+  useFocusEffect(
+    useCallback(() => {
+      leavingRef.current = false;
+      return () => {
+        const guard = guardRef.current;
+        if (!guard.dirty || leavingRef.current) return;
+        showAlert(LEAVE_TITLE, LEAVE_BODY, [
+          { text: 'Discard', style: 'destructive', onPress: () => guard.discard() },
+          { text: 'Save', onPress: () => guard.save() },
+        ]);
+      };
+    }, []),
+  );
 
   const sigPadWidth = Math.min(SCREEN_WIDTH - 80, 340);
 
@@ -429,7 +519,9 @@ function CompanyProfileForm() {
                 {licenceWhere.source === 'licence'
                   ? 'Set by you'
                   : licenceWhere.source === 'address'
-                    ? 'Read from your company address \u2014 tap to set it'
+                    ? addressUnsaved
+                      ? 'Read from the address you typed, which isn\u2019t saved yet \u2014 tap Save, or tap here to set it'
+                      : 'Read from your company address \u2014 tap to set it'
                     : licenceWhere.source === 'market'
                       ? `Read from your pricing market (${settings.location}) \u2014 tap to set it`
                       : 'Not set \u2014 decides which state\u2019s licence rules your bids follow'}

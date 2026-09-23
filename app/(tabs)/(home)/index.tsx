@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useMemo, useEffect, useRef, useReducer } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, Pressable, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
@@ -40,12 +40,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
+import { capProjectCount, countsTowardFreeCap, isSampleProjectName } from '@/utils/projectCap';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import {
+  cloneProjectAsTemplate, voiceUnappliedNote, buildBurnByProject,
+  homeStatusFilterReducer, HOME_STATUS_FILTER_INITIAL, type HomeStatusFilter,
+} from '@/utils/projectClone';
+import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 import { scheduleDayOnCalendar, isTaskActiveOnScheduleDay } from '@/utils/scheduleOps';
 
 // Sticky-dismiss key for the proactive Stripe Connect home banner.
@@ -75,6 +81,31 @@ import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 import DailyLogCard from '@/components/home/DailyLogCard';
 import { showAlert } from '@/utils/alert';
+
+// The ProjectContext query prefixes pull-to-refresh re-reads (see
+// handleRefresh). Each one is the first element of a real `queryKey:
+// ['<name>', userId]` in contexts/ProjectContext.tsx.
+const HOME_REFRESH_QUERY_KEYS = [
+  'projects', 'invoices', 'dailyReports', 'changeOrders',
+  'rfis', 'submittals', 'punchItems', 'permits',
+] as const;
+
+// Status filter buckets. ONE label map for the dense table's section header,
+// the chips and the empty-bucket state, so "No closeout jobs" names the same
+// bucket the chip the GC just tapped does.
+type StatusFilter = HomeStatusFilter;
+const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
+  all: 'All projects',
+  active: 'Active',
+  precon: 'Pre-construction',
+  closeout: 'Closeout',
+  closed: 'Closed',
+};
+
+// "Today on site" shows this many jobs, then a "+N more on site today" row.
+const TODAY_ON_SITE_ROWS = 4;
+// …and this many task titles per job, then " · +N more".
+const TODAY_ON_SITE_TASKS = 3;
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8). Home renders a
 // dozen independent cards — Brain Watch, Ready to Bill, Morning Brief, Week
@@ -113,6 +144,7 @@ export default function HomeScreen() {
   const projectCtx = useProjects();
   const {
     projects, isLoading, addProject, getTotalOutstandingBalance, invoices, settings, userRole,
+    changeOrders, changeOrdersLoaded,
     // RT-R1: an empty `projects` is EITHER a brand-new account OR every read
     // 401'd and this device has a cold cache. The list's empty state answers
     // that question, so it has to know which (audit 2026-09-07).
@@ -128,18 +160,39 @@ export default function HomeScreen() {
   // "Sample — The Henderson Residence" and one tap in Settings → Reset
   // wipes it; risk of confusion is now lower than the cost of users
   // bouncing because the empty state taught them nothing.
-  void user; // user kept available for future per-tier gates
   const showDemoSeed = true;
 
   // Free tier is capped at 1 real project (Sample — … demo projects don't
   // count). A free user at the cap gets the upgrade Paywall instead of the
   // create modal. Paid tiers are unlimited (maxProjects: Infinity).
+  //
+  // The count is the SERVER's rule (utils/projectCap, audit wave 5 #58/#127):
+  // non-sample projects he OWNS. It used to count every project in the list,
+  // so a free foreman invited to one GC job was paywalled from his own first
+  // job — which the trigger would have accepted. An owned awarded-RFP job
+  // counts, as it does on the server.
   const { canCreateProject } = useTierAccess();
   const [projectCapPaywall, setProjectCapPaywall] = useState(false);
+  const userId = user?.id;
   const realProjectCount = useMemo(
-    () => projects.filter(p => !p.name.startsWith('Sample — ')).length,
-    [projects],
+    () => capProjectCount(projects, userId),
+    [projects, userId],
   );
+  // The onboarding checklist's "real work" (#155): estimates and invoices on
+  // demo projects are the seed's, not his. Seeding a sample used to tick
+  // "Send your first invoice" and "Try it" before he had done either. The set
+  // is the SAME one projectCount counts (owned, not a sample): work on a job
+  // another contractor shared with him is the GC's, and counting it would tick
+  // "Try it" off the GC's estimate and show "Send your first invoice" held
+  // ('after your first project') beside an invoice he can see.
+  const ownedRealProjects = useMemo(
+    () => projects.filter(p => countsTowardFreeCap(p, userId)),
+    [projects, userId],
+  );
+  const realInvoiceCount = useMemo(() => {
+    const realIds = new Set(ownedRealProjects.map(p => p.id));
+    return invoices.filter(i => realIds.has(i.projectId)).length;
+  }, [invoices, ownedRealProjects]);
   const handleCreatePress = useCallback(() => {
     if (!canCreateProject(realProjectCount)) {
       setProjectCapPaywall(true);
@@ -157,12 +210,12 @@ export default function HomeScreen() {
   // invoice, etc. Voice + takeoff milestones come from AsyncStorage flags.
   const milestones = useOnboardingMilestones(`${projects.length}-${invoices.length}`);
   const estimateCount = useMemo(
-    () => projects.filter(p =>
+    () => ownedRealProjects.filter(p =>
       (p.linkedEstimate?.items?.length ?? 0) > 0
       || (p.estimate?.materials?.length ?? 0) > 0
       || effectiveEstimateTotal(p) > 0,
     ).length,
-    [projects],
+    [ownedRealProjects],
   );
 
   // Company info checklist signal — "done" when the GC has at least
@@ -180,17 +233,34 @@ export default function HomeScreen() {
   // Stripe Connect status — feeds the checklist + the proactive home
   // banner. Polled lazily (10 min stale time) since the value rarely
   // changes; we don't need to hammer the connect-status edge function.
+  //
+  // A FAILED CHECK IS NOT AN ANSWER (audit wave 5, #153). This used to map
+  // `!r.success` to 'none' and cache it for ten minutes, so a GC who IS
+  // connected, opening the app on site with one bar, was told "Get paid in one
+  // tap — Connect Stripe" and saw the checklist un-tick the step. Now a failure
+  // throws: react-query retries, keeps the last real answer if it had one, and
+  // `data` stays undefined on a cold start — the banner (=== 'none') stays
+  // hidden and the checklist row reads "Checking…" until the server says.
+  // utils/stripeConnect keeps its no-throw contract for its other callers.
   const stripeStatusQ = useQuery({
     queryKey: ['stripeConnectStatus', user?.id],
     enabled: !!user?.id,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
-      if (!user?.id) return { status: 'none' as const };
+      if (!user?.id) throw new Error('connect-status: not signed in');
       const r = await fetchStripeConnectStatus(user.id);
-      return { status: (r.success && r.status) ? r.status : 'none' as const };
+      if (!r.success) throw new Error(r.error ?? 'connect-status failed');
+      return { status: r.status ?? ('none' as const) };
     },
   });
-  const stripeConnected = stripeStatusQ.data?.status === 'connected';
+  // undefined = not known yet (loading, or every read so far has failed).
+  const stripeConnected: boolean | undefined = stripeStatusQ.data
+    ? stripeStatusQ.data.status === 'connected'
+    : undefined;
+  // Every retry has failed and nothing is fetching now: "Checking…" would claim
+  // work that has stopped. Still never "not connected", never un-ticked.
+  const stripeCheckFailed = stripeStatusQ.data === undefined && stripeStatusQ.isError && !stripeStatusQ.isFetching;
+  const refetchStripe = stripeStatusQ.refetch;
 
   // The picker visibility — empty-state CTA toggles it open; user picks
   // small or large; we call the actual seed.
@@ -249,22 +319,42 @@ export default function HomeScreen() {
     setShowDemoPicker(true);
   }, []);
 
-  // Pull-to-refresh — premium SaaS bar. Invalidates projects + invoices
-  // + daily reports so the home tab pulls fresh data after a sync.
+  // Pull-to-refresh. Re-reads every list a card on this screen is drawn from:
+  // projects, invoices (Ready to Bill, burn), daily reports (Daily Log),
+  // change orders (Recovered, Ready to Bill), RFIs / submittals / punch items
+  // (Smart Inbox, Brain Watch) and permits (Brain Watch). The keys are the
+  // ProjectContext query PREFIXES — each query is ['<name>', userId], and a
+  // prefix invalidation matches it for whoever is signed in.
+  //
+  // Audit wave 5, #150: this used to invalidate ['daily-reports'], a key no
+  // query has, so after the foreman filed today's report a pull still left the
+  // Daily Log card asking for today — and COs, RFIs, submittals, punch items
+  // and permits were never re-read at all.
+  //
+  // TODO(w5-join-screens): replace this whole list with
+  // `await useProjects().refreshAll()` (CONTRACT 24, added by w5-join-core
+  // from ProjectContext's refetchAllOnForeground). That path bumps the portal
+  // read epoch first and skips the projects re-read while a project write is
+  // still queued; the raw ['projects'] / ['invoices'] invalidations below do
+  // neither, so a pull within a moment of an offline edit can briefly show the
+  // server's older row until the queue flushes.
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['projects'] }),
-        queryClient.invalidateQueries({ queryKey: ['invoices'] }),
-        queryClient.invalidateQueries({ queryKey: ['daily-reports'] }),
+        ...HOME_REFRESH_QUERY_KEYS.map(key =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+        // The checklist's "Couldn't check Stripe — pull down to refresh" row
+        // (#153) promises that this pull asks Stripe again.
+        user?.id ? refetchStripe() : Promise.resolve(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [queryClient]);
+  }, [queryClient, user?.id, refetchStripe]);
   const { tier } = useSubscription();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -298,10 +388,18 @@ export default function HomeScreen() {
   // hook, but stripped the visual tile (it duplicated Summary tab).
   void getTotalOutstandingBalance;
 
-  // Surface upcoming 11-month warranty walks. Hidden when none — keeps
-  // the home tab quiet during normal operation. Drives an inline banner
-  // below the nav bar.
-  const warrantyWalkAlerts = useMemo(() => getUpcomingWarrantyWalks(projects), [projects]);
+  // Surface upcoming warranty walks. Hidden when none — keeps the home tab
+  // quiet during normal operation. Drives an inline banner below the nav bar.
+  // The walk is timed off the GC's OWN warranty length from Settings (audit
+  // wave 5, #142 — it used to be hard-wired to 12 months, so a 24-month
+  // warranty was prompted at month 11 and never before its real expiry).
+  // resolveWarrantyMonths returns null when none is saved; the engine then
+  // assumes 12 and flags the alert as assumed.
+  const warrantyMonths = resolveWarrantyMonths(settings);
+  const warrantyWalkAlerts = useMemo(
+    () => getUpcomingWarrantyWalks(projects, warrantyMonths),
+    [projects, warrantyMonths],
+  );
 
   const [showWeeklySummary, setShowWeeklySummary] = useState(false);
   const [showAIBriefing, setShowAIBriefing] = useState(false);
@@ -312,8 +410,7 @@ export default function HomeScreen() {
   // Pre-construction / Closeout / Closed". Active is selected by default
   // when the user has any active projects so the list isn't cluttered
   // with closed jobs from years ago. Tapping a chip filters the list
-  // below.
-  type StatusFilter = 'all' | 'active' | 'precon' | 'closeout' | 'closed';
+  // below. (StatusFilter and its labels are module-level — STATUS_FILTER_LABEL.)
   const statusBuckets = useMemo(() => {
     const buckets: Record<StatusFilter, Project[]> = {
       all: projects,
@@ -325,22 +422,26 @@ export default function HomeScreen() {
     return buckets;
   }, [projects]);
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  // First-render correction: if the user has active projects, default to
-  // the Active bucket. If they don't (new account, all in pre-con), stay
-  // on All. Only fires once — afterwards the user's last choice sticks.
-  const [didAutoFilter, setDidAutoFilter] = useState(false);
+  // Status filter (audit wave 5, #154). On first load with ≥5 projects (the
+  // chips are shown — below that there'd be no chip to switch back) and at
+  // least one active, the app picks Active; his last choice sticks after that.
+  // The app owns what happens to a bucket IT picked: when the last active job
+  // closes, go back to All rather than leave him on an empty default view he
+  // never chose. A bucket HE tapped stays put — the empty-bucket state below
+  // says what it is and offers "Show all jobs".
+  //
+  // One reducer, not two effects and a ref: the ref version lost the "app
+  // picked it" flag in the same commit it was set (the reset effect's closure
+  // still read the old 'all'), so the reset never ran. See
+  // utils/projectClone homeStatusFilterReducer.
+  const [statusFilterState, dispatchStatusFilter] = useReducer(homeStatusFilterReducer, HOME_STATUS_FILTER_INITIAL);
+  const statusFilter = statusFilterState.filter;
   useEffect(() => {
-    if (didAutoFilter) return;
-    if (projects.length === 0) return;
-    // Only auto-select 'active' when the filter chips are actually
-    // rendered (projects.length >= 5, matching the chip render guard
-    // below). Otherwise a user with 1-4 projects — at least one
-    // in_progress — got silently pinned to 'active' with NO chip to
-    // switch back, hiding their completed/closed jobs with no way out.
-    if (projects.length >= 5 && statusBuckets.active.length > 0) setStatusFilter('active');
-    setDidAutoFilter(true);
-  }, [projects.length, statusBuckets.active.length, didAutoFilter]);
+    dispatchStatusFilter({ type: 'data', projectCount: projects.length, activeCount: statusBuckets.active.length });
+  }, [projects.length, statusBuckets.active.length]);
+  const pickStatusFilter = useCallback((next: StatusFilter) => {
+    dispatchStatusFilter({ type: 'pick', filter: next });
+  }, []);
 
   // FF1-A: /?openCreate=1 is pushed by the global "+" "Project" row,
   // the zero-project fallback, and the onboarding checklist's #1 row,
@@ -361,6 +462,30 @@ export default function HomeScreen() {
     [statusBuckets, statusFilter],
   );
 
+  // Billed-to-date per job for the Burn column / bar (audit wave 5, #151).
+  // ProjectRow and ProjectCard used to read `project.invoicedTotal` — a field
+  // Project does not have and nothing ever wrote — so every job on the web
+  // table said "Burn 0%" however much had been invoiced. The money is the
+  // shared definitions in utils/projectFinancials: invoiced = non-draft
+  // invoice totals (getInvoicedToDate), against the REVISED contract =
+  // estimate + approved change orders (getContractValue, the same basis
+  // client-view uses), so a job with approved add-ons doesn't read as over
+  // 100%.
+  //
+  // `undefined` until both lists have actually been read: before that the
+  // rows print '—', never a 0% computed from an empty list with no source.
+  // Invoices have no loaded flag on the context, so the query cache is asked
+  // directly; the context re-renders this screen when its invoices land. The
+  // second half covers the one render between the query answering and the
+  // context copying that answer into `invoices`.
+  const invoicesAnswer = queryClient.getQueryState(['invoices', userId])?.data as unknown[] | undefined;
+  const invoicesRead = invoicesAnswer !== undefined && (invoicesAnswer.length === 0 || invoices.length > 0);
+  // Jobs someone else owns, field roles and unread lists get no entry — see
+  // buildBurnByProject for why each would be a sourceless 0%.
+  const burnByProject = useMemo(() => buildBurnByProject({
+    projects, invoices, changeOrders, userId, invoicesRead, changeOrdersLoaded,
+  }), [invoicesRead, changeOrdersLoaded, invoices, changeOrders, projects, userId]);
+
   // ── Today on site ──────────────────────────────────────────────
   // Active projects whose schedule has at least one task running today.
   // Membership MUST match the Summary tab's "Today on site" exactly — both
@@ -379,7 +504,7 @@ export default function HomeScreen() {
   // the undated disclosure the Schedule tab has ("no start date — set one"),
   // not deleting the row silently.
   const todayOnSite = useMemo(() => {
-    const out: { project: Project; activeTaskTitles: string[] }[] = [];
+    const out: { project: Project; activeTaskTitles: string[]; activeTaskCount: number }[] = [];
     const now = new Date();
     for (const p of projects) {
       if (p.status !== 'in_progress') continue;
@@ -415,15 +540,25 @@ export default function HomeScreen() {
       if (liveTasks.length > 0) {
         out.push({
           project: p,
-          activeTaskTitles: liveTasks.slice(0, 3).map(t => t.title),
+          activeTaskTitles: liveTasks.slice(0, TODAY_ON_SITE_TASKS).map(t => t.title),
+          activeTaskCount: liveTasks.length,
         });
       }
     }
-    // Cap at 4 so the strip stays compact. Anyone running 5+ jobs at
-    // once is likely a small commercial GC who'll drill into Summary
-    // anyway for the full picture.
-    return out.slice(0, 4);
+    // THE WHOLE LIST, not the first four (audit wave 5, #158). This returned
+    // `out.slice(0, 4)` in project-list order, so on a busy day the 5th and
+    // 6th crews simply weren't on the strip and nothing said so. The render
+    // shows TODAY_ON_SITE_ROWS rows and then "+N more on site today"; sorting
+    // first makes the cut deliberate: most tasks running today first, then the
+    // most recently updated job, then the name (so ties are stable).
+    out.sort((a, b) =>
+      (b.activeTaskCount - a.activeTaskCount)
+      || ((Date.parse(b.project.updatedAt) || 0) - (Date.parse(a.project.updatedAt) || 0))
+      || a.project.name.localeCompare(b.project.name));
+    return out;
   }, [projects]);
+  const todayOnSiteShown = todayOnSite.slice(0, TODAY_ON_SITE_ROWS);
+  const todayOnSiteHidden = todayOnSite.length - todayOnSiteShown.length;
 
   const handleProjectPress = useCallback((project: Project) => {
     console.log('[Home] Opening project:', project.id);
@@ -514,13 +649,17 @@ export default function HomeScreen() {
     <ProjectCard
       project={item}
       index={index}
+      // Primitives, not the map entry: ProjectCard is memoized, and a number
+      // changing is what makes it re-render when an invoice lands (#151).
+      invoicedToDate={burnByProject.get(item.id)?.invoicedToDate}
+      revisedContract={burnByProject.get(item.id)?.revisedContract}
       onPress={() => handleProjectPress(item)}
       onLongPress={() => {
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setActionSheetRef({ kind: 'project', id: item.id, label: item.name });
       }}
     />
-  ), [handleProjectPress]);
+  ), [handleProjectPress, burnByProject]);
 
   // Dense-row variant: at tablet+ widths we render the projects as a single
   // bordered "table" with internal dividers (one wrapping View, one row per
@@ -532,11 +671,7 @@ export default function HomeScreen() {
       <View style={styles.denseListWrap}>
         <View style={styles.denseListSectionHeader}>
           <Text style={styles.denseListSectionTitle}>
-            {statusFilter === 'all' ? 'All projects'
-              : statusFilter === 'active' ? 'Active'
-              : statusFilter === 'precon' ? 'Pre-construction'
-              : statusFilter === 'closeout' ? 'Closeout'
-              : 'Closed'}
+            {STATUS_FILTER_LABEL[statusFilter]}
           </Text>
           <Text style={styles.denseListSectionCount}>{filteredProjects.length}</Text>
         </View>
@@ -545,6 +680,8 @@ export default function HomeScreen() {
             <ProjectRow
               key={p.id}
               project={p}
+              invoicedToDate={burnByProject.get(p.id)?.invoicedToDate}
+              revisedContract={burnByProject.get(p.id)?.revisedContract}
               showDivider={idx < filteredProjects.length - 1}
               onPress={() => handleProjectPress(p)}
               onLongPress={() => {
@@ -556,7 +693,7 @@ export default function HomeScreen() {
         </View>
       </View>
     );
-  }, [useDenseRows, filteredProjects, statusFilter, handleProjectPress]);
+  }, [useDenseRows, filteredProjects, statusFilter, handleProjectPress, burnByProject]);
 
   // Secondary widgets that used to live above the project list. Moved
   // BELOW the project list so the user's first scroll-target is the
@@ -856,23 +993,29 @@ export default function HomeScreen() {
             {(projects.length >= 5 || projects.some(p => p.status !== 'in_progress')) && (
               <View style={styles.filterChipsWrap}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
-                  {([
-                    { key: 'all',      label: 'All',             count: statusBuckets.all.length },
-                    { key: 'active',   label: 'Active',          count: statusBuckets.active.length },
-                    { key: 'precon',   label: 'Pre-construction',count: statusBuckets.precon.length },
-                    { key: 'closeout', label: 'Closeout',        count: statusBuckets.closeout.length },
-                    { key: 'closed',   label: 'Closed',          count: statusBuckets.closed.length },
-                  ] as { key: StatusFilter; label: string; count: number }[]).map(chip => {
+                  {(['all', 'active', 'precon', 'closeout', 'closed'] as StatusFilter[]).map(key => {
+                    const chip = {
+                      key,
+                      // The chip says "All"; the table header says "All projects".
+                      label: key === 'all' ? 'All' : STATUS_FILTER_LABEL[key],
+                      count: statusBuckets[key].length,
+                    };
                     const isActive = statusFilter === chip.key;
                     return (
                       <TouchableOpacity
                         key={chip.key}
                         onPress={() => {
                           if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                          setStatusFilter(chip.key);
+                          pickStatusFilter(chip.key);
                         }}
                         activeOpacity={0.85}
-                        style={[styles.filterChip, isActive && styles.filterChipActive]}
+                        // An empty bucket is dimmed but stays tappable — the
+                        // list then says "No closed jobs" instead of the day-one
+                        // card (#154).
+                        style={[styles.filterChip, isActive && styles.filterChipActive, chip.count === 0 && !isActive && styles.filterChipEmpty]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${chip.label}, ${chip.count} ${chip.count === 1 ? 'job' : 'jobs'}`}
+                        accessibilityState={{ selected: isActive }}
                         testID={`filter-chip-${chip.key}`}
                       >
                         <Text style={[styles.filterChipLabel, isActive && styles.filterChipLabelActive]}>
@@ -896,26 +1039,51 @@ export default function HomeScreen() {
                 phases) so the screen stays quiet. */}
             {todayOnSite.length > 0 && (
               <View style={styles.todaySection}>
-                <Text style={styles.sectionHeader}>TODAY ON SITE</Text>
+                <Text style={styles.sectionHeader}>
+                  TODAY ON SITE{todayOnSiteHidden > 0 ? ` · ${todayOnSite.length}` : ''}
+                </Text>
                 <View style={styles.todayCard}>
-                  {todayOnSite.map((entry, idx) => (
+                  {todayOnSiteShown.map((entry, idx) => {
+                    const moreTasks = entry.activeTaskCount - entry.activeTaskTitles.length;
+                    return (
+                      <TouchableOpacity
+                        key={entry.project.id}
+                        onPress={() => handleProjectPress(entry.project)}
+                        activeOpacity={0.7}
+                        // The last shown row still gets a divider when the
+                        // "+N more" row follows it.
+                        style={[styles.todayRow, (idx < todayOnSiteShown.length - 1 || todayOnSiteHidden > 0) && styles.todayRowDivider]}
+                        testID={`today-on-site-${entry.project.id}`}
+                      >
+                        <View style={styles.todayDot} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.todayProjectName} numberOfLines={1}>{entry.project.name}</Text>
+                          <Text style={styles.todayTasks} numberOfLines={1}>
+                            {/* Three titles are not all of them when there are five. */}
+                            {entry.activeTaskTitles.join(' · ')}{moreTasks > 0 ? ` · +${moreTasks} more` : ''}
+                          </Text>
+                        </View>
+                        <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {todayOnSiteHidden > 0 && (
+                    // The jobs past the first four are still on site. Summary's
+                    // Today on site lists every task on every job, uncapped.
                     <TouchableOpacity
-                      key={entry.project.id}
-                      onPress={() => handleProjectPress(entry.project)}
+                      onPress={() => router.push('/(tabs)/summary' as never)}
                       activeOpacity={0.7}
-                      style={[styles.todayRow, idx < todayOnSite.length - 1 && styles.todayRowDivider]}
-                      testID={`today-on-site-${entry.project.id}`}
+                      style={styles.todayRow}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${todayOnSiteHidden} more ${todayOnSiteHidden === 1 ? 'job' : 'jobs'} on site today. Opens Summary.`}
+                      testID="today-on-site-more"
                     >
-                      <View style={styles.todayDot} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.todayProjectName} numberOfLines={1}>{entry.project.name}</Text>
-                        <Text style={styles.todayTasks} numberOfLines={1}>
-                          {entry.activeTaskTitles.join(' · ')}
-                        </Text>
-                      </View>
+                      <Text style={styles.todayMoreText}>
+                        +{todayOnSiteHidden} more on site today
+                      </Text>
                       <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
-                  ))}
+                  )}
                 </View>
               </View>
             )}
@@ -981,10 +1149,15 @@ export default function HomeScreen() {
               // question for the free-tier cap. One definition of "a project", used
               // by both, or this card credits him with work the rest of the app
               // does not count.
+              // Owned, non-sample (utils/projectCap) — a job shared with him
+              // is the GC's, so it doesn't tick "Create your first project"
+              // either (#58).
               projectCount={realProjectCount}
               estimateCount={estimateCount}
               stripeConnected={stripeConnected}
-              invoiceCount={invoices.length}
+              stripeCheckFailed={stripeCheckFailed}
+              // Invoices on a demo project are the seed's (#155).
+              invoiceCount={realInvoiceCount}
               triedWowFeature={milestones.voiceUsed || milestones.takeoffRun || estimateCount > 0}
             />
 
@@ -994,7 +1167,7 @@ export default function HomeScreen() {
                 projects without scope/estimate/invoice) and renders it
                 as a single CTA. Hidden when there's nothing to suggest —
                 a calm view is the reward for being caught up. */}
-            {projects.length > 0 && projects.every(p => p.name.startsWith('Sample — ')) ? (
+            {projects.length > 0 && projects.every(p => isSampleProjectName(p.name)) ? (
               // Only the auto-seeded demo projects exist. NextStepHero is
               // sample-filtered (renders nothing here), so without this the
               // brand-new user has no spine. Tell them plainly these are
@@ -1078,6 +1251,20 @@ export default function HomeScreen() {
               onRetry={retryRemoteReads}
               testID="home-unreachable"
             />
+          ) : projects.length > 0 ? (
+            // He HAS jobs; the chip he tapped just has none in it (audit wave
+            // 5, #154). This used to fall through to the day-one card below —
+            // "Your first project is one tap away" plus a sample-project offer
+            // — for a GC with twelve active jobs who tapped "Closed 0". Name
+            // the bucket, say it's empty, and give the one way out. No create
+            // or sample CTAs: those are for an account with nothing.
+            <EmptyState
+              icon={<FolderOpen size={40} color={themeColors.textMuted} strokeWidth={1.6} />}
+              title={`No ${STATUS_FILTER_LABEL[statusFilter].toLowerCase()} jobs`}
+              message="Nothing in this stage right now."
+              actionLabel="Show all jobs"
+              onAction={() => pickStatusFilter('all')}
+            />
           ) : (
             <EmptyState
               icon={<HardHat size={40} color={themeColors.accent} strokeWidth={1.6} />}
@@ -1113,17 +1300,27 @@ export default function HomeScreen() {
                 <InlineVoiceFill
                   title="Dictate this project"
                   buttonLabel="Fill project by voice"
+                  // Only fields this form keeps: name, address, type and
+                  // description (audit wave 5, #157). The examples used to say
+                  // "budget eighty thousand" and "start date June 1st" — both
+                  // parsed and then thrown away without a word.
                   suggestions={[
-                    'Smith kitchen remodel at 123 Main Street San Diego, budget eighty thousand',
-                    'Bathroom renovation for the Patel residence, twenty-five thousand',
-                    'Two-story addition on the Garcia house, two hundred thousand budget',
-                    'New construction ADU at 456 Oak Avenue, one fifty start date June 1st',
+                    'Smith kitchen remodel at 123 Main Street San Diego',
+                    'Bathroom renovation for the Patel residence, full gut and new tile',
+                    'Two-story addition on the Garcia house at 88 Elm Street',
+                    'New construction ADU at 456 Oak Avenue',
                   ]}
                   onTranscript={async (transcript) => {
                     const partial = await parseProjectFromTranscript(transcript);
+                    // The parser returns an EMPTY result (type defaulted to
+                    // 'renovation') when the AI call fails, rather than
+                    // throwing — so "something was heard" is decided from the
+                    // fields a person actually says, and a failed parse does
+                    // not overwrite the type he already picked.
+                    const heardSomething = !!(partial.name || partial.notes || partial.location);
                     if (partial.name) setProjectName(prev => prev || partial.name);
                     if (partial.notes) setProjectDescription(prev => prev || partial.notes);
-                    if (partial.type) setProjectType(partial.type as ProjectType);
+                    if (partial.type && heardSomething) setProjectType(partial.type as ProjectType);
                     // The parser has always returned `location` — it is right
                     // there in the suggestion copy above ("at 123 Main Street
                     // San Diego") — and this handler dropped it on the floor
@@ -1136,6 +1333,20 @@ export default function HomeScreen() {
                     // one — it belongs on the screens that already own that
                     // field (estimate wizard, client-portal-setup). Left
                     // unapplied rather than half-applied behind the GC's back.
+                    //
+                    // …but never silently (#157): if he SAID a budget or a
+                    // start date, tell him it was heard and where it goes.
+                    // InlineVoiceFill shows the note as one muted line under
+                    // the fill; it lives in this modal, so it is gone when the
+                    // modal closes.
+                    const note = voiceUnappliedNote(partial.targetBudget, partial.startDate);
+                    if (!heardSomething) {
+                      return {
+                        filled: false,
+                        note: note ?? "Couldn't pick out a project name or address from that — type them below.",
+                      };
+                    }
+                    return note ? { filled: true, note } : undefined;
                   }}
                 />
 
@@ -1283,52 +1494,41 @@ export default function HomeScreen() {
           if (id !== 'duplicate' || ref.kind !== 'project') return;
           const source = projects.find(p => p.id === ref.id);
           if (!source) return;
-          // Scope-only clone: keep the inputs that took effort to set
-          // up (name, type, sf, quality, location, contract model,
-          // linked estimate). Drop the execution artifacts — they
-          // belong to the original job, not the template. Resetting
-          // status='draft' and createdAt=now lets the new project flow
-          // through the normal new-project setup (geocode, etc.).
-          const now = new Date().toISOString();
+          const cloneName = `${source.name} (copy)`;
+          // The same cap '+ Project' checks (audit wave 5, #57). Without it a
+          // free GC at the cap got a copy the server trigger refuses: he was
+          // taken into it, built on it, and it never synced. A copy of a
+          // sample keeps the 'Sample — ' prefix, which the server exempts, so
+          // it stays allowed.
+          if (!isSampleProjectName(cloneName) && !canCreateProject(realProjectCount)) {
+            setActionSheetRef(null);
+            setProjectCapPaywall(true);
+            return;
+          }
+          // Scope-only clone, built from a WHITELIST (utils/projectClone,
+          // audit wave 5 #60): name, type, sf, quality, location,
+          // description, scope, contract model, linked estimate, a GC-set
+          // target budget, and the schedule's plan with its progress,
+          // actuals, baselines and start date taken off. Everything else —
+          // the old client (primaryContact: the waivers named the previous
+          // homeowner), Handover ticks, estimate history, QuickBooks link,
+          // zoning-confirmed address, closeout / warranty dates,
+          // coordinates, photos, collaborators, public profile and the
+          // client portal and its credential — starts empty. Photos / DFRs /
+          // invoices / RFIs / COs live in their own contexts keyed by
+          // project_id and were never copied. status 'draft' + createdAt now
+          // lets the copy flow through the normal new-project setup.
           const clone: Project = {
-            ...source,
-            id: generateUUID(),
-            name: `${source.name} (copy)`,
-            status: 'draft',
-            createdAt: now,
-            updatedAt: now,
-            // Reset closeout / warranty state — those refer to the
-            // source project's lifecycle, not the clone's.
-            closedAt: undefined,
-            substantialCompletionDate: undefined,
-            warrantyWalkCompletedAt: undefined,
-            // Re-geocode after the user adjusts the address (if any).
-            locationLatitude: undefined,
-            locationLongitude: undefined,
-            locationGeocodedAt: undefined,
-            // Photos / DFRs / invoices / RFIs / change orders / contacts
-            // live in their own contexts keyed by project_id — we don't
-            // copy them here. The clone starts as a clean execution surface.
-            photoCount: 0,
-            // Strip collaborators + public portfolio — opt in per project.
-            collaborators: undefined,
-            publicProfile: undefined,
-            // Strip the client portal. Two reasons, and the second is fatal:
-            //   1. It is wrong on its own terms. clientPortal carries the
-            //      SOURCE project's portalId AND its accessToken — the secret
-            //      the homeowner's link authenticates with. A copy that
-            //      inherits it hands the source job's portal credential to a
-            //      different project; portal_project_for_token resolves the
-            //      duplicate id with `limit 1`, so the homeowner's link can
-            //      serve whichever row Postgres happens to return.
-            //   2. 20260904100950 adds a UNIQUE index on
-            //      client_portal->>'portalId'. With the blob copied, the
-            //      clone's very first sync fails 23505 — and offlineQueue
-            //      exempts a 23505 from "terminal" only when the constraint
-            //      name ends in `_pkey` (utils/offlineQueue.ts), which this
-            //      one does not. The write would be DISCARDED and the copy
-            //      would live on that one device forever, silently.
-            // A duplicate must mint its own portal when the user opens one.
+            ...cloneProjectAsTemplate(source, new Date().toISOString(), {
+              id: generateUUID(),
+              name: cloneName,
+              scheduleId: generateUUID(),
+            }),
+            // Already absent from the whitelist; stated here as well because
+            // it is the one field whose leak is silent AND fatal — the source
+            // portal's access token, and a unique portalId index that turns
+            // the copy's first sync into a discarded write (see the
+            // projectClone header; validate-portal-security pins this line).
             clientPortal: undefined,
           };
           addProject(clone);
@@ -1850,6 +2050,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   filterChipCountActive: {
     color: 'rgba(255,255,255,0.7)',
   },
+  filterChipEmpty: {
+    opacity: 0.55,
+  },
 
   // ── Today on site ──────────────────────────────────────────────
   todaySection: {
@@ -1890,5 +2093,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     color: t.textMuted,
     marginTop: 2,
+  },
+  todayMoreText: {
+    flex: 1,
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
+    color: t.accentLabel,
   },
 });

@@ -17,10 +17,11 @@
 // on bid_package_invites scopes it to the signed-in GC.
 
 import * as Crypto from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWriteDetailed, type WriteOutcome } from '@/utils/offlineQueue';
-import { notifyEvent } from '@/utils/notifyClient';
+import { notifyEventDetailed } from '@/utils/notifyClient';
 import { generateUUID } from '@/utils/generateId';
 import {
   BID_INVITE_TOKEN_BYTES,
@@ -30,6 +31,14 @@ import {
   type BidInviteRecord,
   type InviteRecipient,
 } from '@/utils/bidInviteCore';
+import {
+  PENDING_BID_INVITES_KEY,
+  applyPendingDelivery,
+  parsePendingBidInvites,
+  planPendingDelivery,
+  type PendingBidInvite,
+  type PendingNotifyBase,
+} from '@/utils/bidInvitePending';
 
 /** 24 bytes of CSPRNG, hex-encoded. `tokenFromBytes` throws rather than return
  *  anything the RPC's ≥16-char floor would refuse. */
@@ -56,11 +65,9 @@ export interface SendBidInviteArgs {
    * working 30 days from today", which is the link's expiry, not a deadline.
    * A sub who needs three days reads thirty and files it.
    *
-   * NOTE FOR WHOEVER DEPLOYS `notify` NEXT: this rides in the `bid_invite_sent`
-   * payload as `bids_due_at`, and the branch in supabase/functions/notify/index.ts
-   * does not render it yet, so it reaches the outbox row and not the sub. The
-   * screens therefore never claim the sub was told the date — they only chase
-   * from it. See the handoff note in the buyout screen.
+   * It rides in the `bid_invite_sent` payload as `bids_due_at`; notify's
+   * branch prints it as a "Bids due" row (bidDueDayLabel), and the sub's bid
+   * page reads the same day from `bid_invite_get`'s `bids_due_on` (#99).
    */
   bidsDueAt?: string;
   subEmail: string;
@@ -76,16 +83,69 @@ export interface SendBidInviteResult {
    *  the link works the moment the queue drains, and not one second before. */
   outcome: WriteOutcome;
   /**
-   * True only when the `notify` dispatcher reported that it actually handled
-   * the event. It answers an event its switch does not know with
-   * `{ok:false, reason:'unknown_event'}` inside a 200, so this stays false
-   * until supabase/functions/notify/index.ts grows a `bid_invite_sent` branch
-   * — which it does not have today. Every screen that shows an invite must
+   * True only when the `notify` dispatcher reported that it handled the event
+   * (notifyEventDetailed). A 200 carrying `{ok:false}` is not a send — notify
+   * answers an unsubscribed sub, a refused send or a missing address that way
+   * (#94; the bid_invite_sent not-delivered return is w5-join-server's). False
+   * for a QUEUED invite too: it is emailed later, once the row uploads
+   * (deliverPendingBidInvites). Every screen that shows an invite must
    * therefore offer the link itself; see app/buyout-package.tsx.
    */
   emailed: boolean;
+  /** Why it was not emailed — notify's reason or a transport failure. */
+  reason?: string;
   url: string;
   inviteId: string;
+}
+
+// ── Invites filed offline, still owing the sub an email (#14) ────────────────
+// The list lives under one mageid_ key (utils/bidInvitePending.ts has the
+// arithmetic and the why). Every read-modify-write runs through one promise
+// chain so the send path and a delivery pass can never clobber each other.
+let pendingLock: Promise<unknown> = Promise.resolve();
+function withPendingLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = pendingLock.then(fn, fn);
+  pendingLock = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+/** Every pending invite on this device. Empty — never a throw — when storage
+ *  is unavailable: a missing list costs a reminder, not the screen. */
+export async function loadPendingBidInvites(): Promise<PendingBidInvite[]> {
+  try {
+    return parsePendingBidInvites(await AsyncStorage.getItem(PENDING_BID_INVITES_KEY));
+  } catch (e) {
+    console.warn('[bidInvites] could not read pending invites', e);
+    return [];
+  }
+}
+
+async function updatePendingBidInvites(fn: (list: PendingBidInvite[]) => PendingBidInvite[]): Promise<PendingBidInvite[]> {
+  return withPendingLock(async () => {
+    const next = fn(await loadPendingBidInvites());
+    try {
+      if (next.length === 0) await AsyncStorage.removeItem(PENDING_BID_INVITES_KEY);
+      else await AsyncStorage.setItem(PENDING_BID_INVITES_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.warn('[bidInvites] could not save pending invites', e);
+    }
+    return next;
+  });
+}
+
+function baseOf(args: SendBidInviteArgs): PendingNotifyBase {
+  return {
+    userId: args.userId,
+    packageId: args.packageId,
+    projectId: args.projectId,
+    packageName: args.packageName,
+    projectName: args.projectName,
+    csiDivision: args.csiDivision,
+    phase: args.phase,
+    scopeDescription: args.scopeDescription,
+    bidsDueAt: args.bidsDueAt,
+    replyToEmail: args.replyToEmail,
+  };
 }
 
 /**
@@ -133,13 +193,37 @@ export async function sendBidInvite(args: SendBidInviteArgs): Promise<SendBidInv
   // render as "this invitation is no longer valid" — the sub reads that as
   // "they withdrew it" and does not bid.
   //
-  // `notify` has no `bid_invite_sent` branch yet, so this call currently comes
-  // back false and the caller has to hand the GC the link. That is a worse
-  // product than a mail merge and a far better one than telling him five subs
-  // were emailed when none were.
+  // `emailed` is what notify SAID, read through notifyEventDetailed (#94): a
+  // 200 whose envelope says it did not handle the event — or, once
+  // w5-join-server lands it, that the sub unsubscribed or the send failed — is
+  // not a send, and the reason rides back so the screen can say which.
+  //
+  // A QUEUED invite is remembered here (#14) and emailed by
+  // deliverPendingBidInvites once the queue uploads the row — through the SAME
+  // token, so the sub never holds two links.
   let emailed = false;
+  let reason: string | undefined;
+  const inviteRecord: BidInviteRecord = {
+    id: inviteId,
+    packageId: args.packageId,
+    projectId: args.projectId,
+    subName: args.subName?.trim() || null,
+    subEmail: args.subEmail.trim(),
+    subcontractorId: args.subcontractorId ?? null,
+    inviteToken: token,
+    status: 'sent',
+    expiresAt,
+    respondedAt: null,
+    bidId: null,
+    createdAt: nowIso,
+  };
+  if (outcome === 'queued') {
+    const entry: PendingBidInvite = { invite: inviteRecord, base: baseOf(args), queuedAt: nowIso, attempts: 0 };
+    await updatePendingBidInvites(list => [...list.filter(p => p.invite.id !== inviteId), entry]);
+    reason = 'queued';
+  }
   if (outcome === 'synced') {
-    emailed = await notifyEvent('bid_invite_sent', {
+    const sent = await notifyEventDetailed('bid_invite_sent', {
       project_id: args.projectId,
       project_name: args.projectName,
       gc_user_id: args.userId,
@@ -158,9 +242,11 @@ export async function sendBidInvite(args: SendBidInviteArgs): Promise<SendBidInv
       expires_at: expiresAt,
       reply_to: args.replyToEmail ?? '',
     });
+    emailed = sent.handled;
+    reason = sent.handled ? undefined : sent.reason;
   }
 
-  return { email: args.subEmail.trim(), outcome, emailed, url, inviteId };
+  return { email: args.subEmail.trim(), outcome, emailed, reason, url, inviteId };
 }
 
 /** Sequential on purpose: each invite is its own row, its own token and its own
@@ -196,6 +282,8 @@ export interface RemindInviteResult {
   inviteId: string;
   email: string;
   emailed: boolean;
+  /** Why it was not emailed (notifyEventDetailed's reason), when it was not. */
+  reason?: string;
   url: string;
 }
 
@@ -222,8 +310,9 @@ export async function remindBidInvites(
   for (const inv of invites) {
     const url = bidInviteUrl(inv.inviteToken);
     let emailed = false;
+    let reason: string | undefined;
     try {
-      emailed = await notifyEvent('bid_invite_sent', {
+      const sent = await notifyEventDetailed('bid_invite_sent', {
         project_id: base.projectId,
         project_name: base.projectName,
         gc_user_id: base.userId,
@@ -239,12 +328,67 @@ export async function remindBidInvites(
         expires_at: inv.expiresAt ?? '',
         reply_to: base.replyToEmail ?? '',
       });
+      emailed = sent.handled;
+      reason = sent.handled ? undefined : sent.reason;
     } catch (e) {
       console.warn('[bidInvites] reminder failed for', inv.subEmail, e);
+      reason = 'unreachable';
     }
-    out.push({ inviteId: inv.id, email: inv.subEmail, emailed, url });
+    out.push({ inviteId: inv.id, email: inv.subEmail, emailed, reason, url });
+  }
+  // A chase that got through also settles a pending offline invite for the
+  // same row (and one that did not keeps its "not emailed" reason current).
+  if (out.length > 0) {
+    await updatePendingBidInvites(list => out.reduce(
+      (acc, r) => acc.some(p => p.invite.id === r.inviteId) ? applyPendingDelivery(acc, r.inviteId, r) : acc,
+      list,
+    ));
   }
   return out;
+}
+
+// Invite ids being delivered right now, across every screen. The package
+// screen and the buyout list both run a delivery pass on focus; without this
+// the same sub could be mailed twice for one upload.
+const delivering = new Set<string>();
+
+/**
+ * Email the offline invites that have now reached the server (#14).
+ *
+ * `serverRows` is what a read just returned and `scopePackageIds` the packages
+ * that read covered — an entry for a package the read did not cover is left
+ * alone rather than judged against rows that were never fetched. Each invite
+ * is mailed through remindBidInvites, i.e. the `bid_invite_sent` event against
+ * its EXISTING token; the entry is cleared only when notify handled it.
+ */
+export async function deliverPendingBidInvites(
+  serverRows: readonly BidInviteRecord[],
+  scopePackageIds: ReadonlySet<string>,
+  nowMs: number = Date.now(),
+): Promise<RemindInviteResult[]> {
+  const pending = await loadPendingBidInvites();
+  if (pending.length === 0) return [];
+  const { deliver, drop } = planPendingDelivery(pending, serverRows, scopePackageIds, nowMs);
+  if (drop.length > 0) {
+    const gone = new Set(drop);
+    await updatePendingBidInvites(list => list.filter(p => !gone.has(p.invite.id)));
+  }
+  const results: RemindInviteResult[] = [];
+  for (const { pending: p, row } of deliver) {
+    if (delivering.has(row.id)) continue;
+    delivering.add(row.id);
+    try {
+      // Re-read under the latch: another pass may have mailed and cleared it
+      // between our read above and now.
+      const still = (await loadPendingBidInvites()).some(x => x.invite.id === row.id && !x.gaveUp);
+      if (!still) continue;
+      // remindBidInvites folds its own result back into the pending list.
+      results.push(...await remindBidInvites(p.base, [row]));
+    } finally {
+      delivering.delete(row.id);
+    }
+  }
+  return results;
 }
 
 interface InviteRow {

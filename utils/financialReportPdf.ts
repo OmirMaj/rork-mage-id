@@ -332,11 +332,30 @@ function buildProfitHtml(
 
 // ─── AR Aging PDF ────────────────────────────────────────────────────
 
-function buildARAgingHtml(report: ARAgingReport, branding: CompanyBranding): string {
+/**
+ * THE A/R AGING PDF CARRIES RETAINAGE (#102, audit 2026-09-22). The engine
+ * keeps a settled invoice that still holds retention on the list, and carries
+ * the figure per row and in the totals — the CSV printed it, this document did
+ * not. A $110,000 invoice with 10% held and $99,000 paid printed "Outstanding
+ * $0" with no Retainage figure anywhere, and the $11,000 the owner still owes
+ * at closeout — a receivable a lender counts — was simply missing from the bank
+ * copy. Now each row foots the way the CSV does (Total Due − Paid − Retainage
+ * Held = Outstanding), a TOTAL row sums the columns, and the held retainage is
+ * its own tile beside Total Outstanding, labelled as not aged. The same $0.50
+ * floor computeARAgingReport uses decides which rows are retainage-only.
+ *
+ * Exported for scripts/validate-w5-reports-*.ts — the share helpers below are
+ * the only production callers.
+ */
+export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBranding): string {
+  const collectible = report.rows.filter(r => r.outstanding > 0.5).length;
+  const retainageOnly = report.rows.length - collectible;
   const meta = [
     { label: 'Report type', value: 'A/R Aging' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
-    { label: 'Open invoices', value: String(report.rows.length) },
+    // Collectible rows only — a retainage-only row owes nothing today.
+    { label: 'Open invoices', value: String(collectible) },
+    ...(retainageOnly > 0 ? [{ label: 'Retainage only', value: String(retainageOnly) }] : []),
   ];
 
   const bucketSummary = `
@@ -354,40 +373,68 @@ function buildARAgingHtml(report: ARAgingReport, branding: CompanyBranding): str
         </div>
       `).join('')}
     </div>
-    <div style="padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.amber};margin-bottom:18px;display:flex;justify-content:space-between;align-items:baseline">
+    <div style="padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.amber};margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline">
       <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:${PDF_PALETTE.cream}">Total Outstanding</div>
-      <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:800">${fmtMoney(report.totals.totalOutstanding)}</div>
+      <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:800">${fmtMoney(report.totals.totalOutstanding, { decimals: 2 })}</div>
+    </div>
+    <div style="padding:12px 16px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};margin-bottom:18px;display:flex;justify-content:space-between;align-items:baseline">
+      <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:${PDF_PALETTE.text2}">Retainage held (not aged)</div>
+      <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:800;color:${PDF_PALETTE.text}">${fmtMoney(report.totals.retainageHeld, { decimals: 2 })}</div>
     </div>`;
 
+  // To the cent: this is a receivables ledger a lender ties to the books, and
+  // a row that foots only after rounding does not foot.
+  const money2 = (n: number) => fmtMoney(n, { decimals: 2 });
   const rows = report.rows.map(r => {
-    const bucketColor = r.bucket === 'current' ? PDF_PALETTE.text2
-                      : r.bucket === '0-30'   ? PDF_PALETTE.warning
-                      : r.bucket === '31-60'  ? PDF_PALETTE.warning
+    const isRetainageOnly = r.outstanding <= 0.5;
+    const bucketColor = isRetainageOnly        ? PDF_PALETTE.text2
+                      : r.bucket === 'current' ? PDF_PALETTE.text2
+                      : r.bucket === '0-30'    ? PDF_PALETTE.warning
+                      : r.bucket === '31-60'   ? PDF_PALETTE.warning
                       :                          PDF_PALETTE.error;
+    const bucketLabel = isRetainageOnly ? 'Retainage' : r.bucket === 'current' ? 'Current' : r.bucket;
     return [
       `<div style="font-weight:700">#${escHtml(String(r.invoiceNumber))}</div><div style="font-size:10px;color:${PDF_PALETTE.textMuted}">${escHtml(r.projectName)}</div>`,
       `<span class="num">${fmtDate(r.issueDate)}</span>`,
       `<span class="num">${fmtDate(r.dueDate)}</span>`,
-      `<span class="num">${fmtMoney(r.totalDue)}</span>`,
-      `<span class="num">${fmtMoney(r.amountPaid)}</span>`,
-      `<span class="num" style="font-weight:700">${fmtMoney(r.outstanding)}</span>`,
-      `<span class="num" style="color:${bucketColor};font-weight:800">${r.bucket === 'current' ? 'Current' : r.bucket}</span>`,
+      `<span class="num">${money2(r.totalDue)}</span>`,
+      `<span class="num">${money2(r.amountPaid)}</span>`,
+      `<span class="num">${money2(r.retainageHeld)}</span>`,
+      `<span class="num" style="font-weight:700">${money2(r.outstanding)}</span>`,
+      `<span class="num" style="color:${bucketColor};font-weight:800">${bucketLabel}</span>`,
     ];
   });
+  // Foots the same way the CSV's TOTAL line does.
+  const totalRow = [
+    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">TOTAL</div>`,
+    '',
+    '',
+    `<span class="num" style="font-weight:800">${money2(report.rows.reduce((s, r) => s + r.totalDue, 0))}</span>`,
+    `<span class="num" style="font-weight:800">${money2(report.rows.reduce((s, r) => s + r.amountPaid, 0))}</span>`,
+    `<span class="num" style="font-weight:800">${money2(report.totals.retainageHeld)}</span>`,
+    `<span class="num" style="font-weight:800">${money2(report.totals.totalOutstanding)}</span>`,
+    '',
+  ];
 
+  // THE EMPTY STATE MATCHES THE SCREEN. "No outstanding invoices. Nice work."
+  // is a success verdict, and the screen stopped printing it because an
+  // account with NO invoices got it too. The PDF is only offered when there is
+  // a row, so this is the belt to that brace — but it must not say more than
+  // the data does.
   const tableHtml = report.rows.length === 0
-    ? `<div style="padding:40px;text-align:center;color:${PDF_PALETTE.textMuted};font-style:italic">No outstanding invoices. Nice work.</div>`
+    ? `<div style="padding:40px;text-align:center;color:${PDF_PALETTE.textMuted};font-style:italic">Nothing is outstanding and no retainage is held on the invoices you have issued.</div>`
     : pdfTable(
         [
-          { header: 'Invoice', width: '20%' },
-          { header: 'Issued',     align: 'right', width: '12%' },
-          { header: 'Due',        align: 'right', width: '12%' },
-          { header: 'Total Due',  align: 'right', width: '13%' },
-          { header: 'Paid',       align: 'right', width: '13%' },
-          { header: 'Outstanding',align: 'right', width: '15%' },
-          { header: 'Bucket',     align: 'right', width: '15%' },
+          { header: 'Invoice', width: '17%' },
+          { header: 'Issued',         align: 'right', width: '11%' },
+          { header: 'Due',            align: 'right', width: '11%' },
+          { header: 'Total Due',      align: 'right', width: '13%' },
+          { header: 'Paid',           align: 'right', width: '12%' },
+          { header: 'Retainage Held', align: 'right', width: '12%' },
+          { header: 'Outstanding',    align: 'right', width: '13%' },
+          { header: 'Bucket',         align: 'right', width: '11%' },
         ],
-        rows,
+        [...rows, totalRow],
       );
 
   const bodyHtml = `
@@ -400,7 +447,7 @@ function buildARAgingHtml(report: ARAgingReport, branding: CompanyBranding): str
     })}
     ${bucketSummary}
     ${tableHtml}
-    ${pdfFooter(branding, undefined, 'Aged from the invoice due date to the report generation date. Status updates may take up to 24h to flow back from payment processors.')}
+    ${pdfFooter(branding, undefined, 'Aged from the invoice due date to the report generation date. Retainage is held by the owner until closeout; it is a receivable and is not aged. Total Due − Paid − Retainage Held = Outstanding. Status updates may take up to 24h to flow back from payment processors.')}
   `;
 
   return pdfShell({
@@ -413,12 +460,22 @@ function buildARAgingHtml(report: ARAgingReport, branding: CompanyBranding): str
 
 async function shareHtml(html: string, title: string): Promise<void> {
   if (Platform.OS === 'web') {
-    const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(html);
-      newWindow.document.close();
-      newWindow.print();
-    }
+    // THE WEB BRANCH NOW FAILS OUT LOUD (#147, CONTRACT 25). This was
+    // `window.open(...); if (newWindow) {…}; return;` — a blocked pop-up (Safari's
+    // default for a new site) did nothing, said nothing, and the screen fired
+    // its success haptic; an allowed one printed straight after close(), before
+    // the logo and web fonts had loaded (Chrome prints blank pages that way).
+    // openPrintWindowOrThrow throws PRINT_WINDOW_BLOCKED_MESSAGE on a null
+    // window and waits for the images before printing; the screen passes the
+    // error through pdfFailureMessage.
+    //
+    // Imported lazily, like `deliverTextFile` below and for the same reason
+    // (scripts/validate-wip.ts pins that this module has no static platformFile
+    // import). The HTML is built before this point and nothing else is awaited,
+    // so the open still runs inside the tap's transient user activation — a
+    // module that is already in the bundle resolves in a microtask.
+    const { openPrintWindowOrThrow } = await import('@/utils/platformFile');
+    openPrintWindowOrThrow(html);
     return;
   }
   const { uri } = await Print.printToFileAsync({ html, base64: false });

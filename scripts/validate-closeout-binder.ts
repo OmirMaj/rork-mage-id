@@ -341,6 +341,43 @@ ok('no RFI response or date-responded is printed',
 ok('no submittal reviewer or return date is printed',
   !full.includes('ZZ-REVIEWER-NEVER-PRINTED') && !/Reviewer|Returned/i.test(subLog));
 
+// ───────────────────────────────────────────────────────────────────────────
+// 8. The cover's Completion date is a CERTIFIED date (wave 5, #141).
+//
+// It printed `project.closedAt ?? project.updatedAt`. The binder is built
+// before the job is closed (the close prompt appears only after delivery), so
+// the cover carried the day the project row was last touched — a schedule
+// edit, a portal toggle — as "Completion", in the document the owner keeps.
+// ───────────────────────────────────────────────────────────────────────────
+console.log('\ncloseout binder — the Completion date is certified, never the last edit:');
+function completionOf(html: string): string {
+  const at = html.indexOf('>Completion</div>');
+  if (at < 0) return '';
+  const m = />([^<]*)<\/div><\/div>/.exec(html.slice(at + '>Completion</div>'.length));
+  return m ? m[1] : '';
+}
+const withProject = (p: Record<string, unknown>) => buildBinderHtml(binderInput({
+  project: { id: 'p1', name: 'Suite 400 Fit-out', location: '1 Main St', ...stamp, ...p } as unknown as BinderInput['project'],
+}));
+const onlyUpdated = completionOf(withProject({ updatedAt: '2026-04-09T15:00:00Z' }));
+ok('#141 updatedAt alone is NOT printed as completion — "Not yet certified"',
+  onlyUpdated === 'Not yet certified' && !/April 9, 2026/.test(onlyUpdated), `got "${onlyUpdated}"`);
+const scWins = completionOf(withProject({ substantialCompletionDate: '2026-05-01', closedAt: '2026-06-15T18:00:00Z' }));
+ok('#141 the substantial-completion date wins over a later closedAt',
+  scWins === 'May 1, 2026', `got "${scWins}" — a bare '2026-05-01' must print as May 1 in America/Los_Angeles, not April 30`);
+const closedOnly = completionOf(withProject({ closedAt: '2026-06-15T18:00:00Z' }));
+ok('#141 closedAt is used when no substantial-completion date was issued', closedOnly === 'June 15, 2026', `got "${closedOnly}"`);
+ok('#141 the engine never falls back to updatedAt for completion',
+  !/completionDate\s*=[^;]*updatedAt/.test(engineSrc));
+
+// #147 (CONTRACT 25): the web branch must THROW on a blocked pop-up window, not
+// return as if the binder had been shared.
+{
+  const share = engineSrc.slice(engineSrc.indexOf('export async function shareCloseoutBinderPDF'));
+  ok('#147 the web print goes through openPrintWindowOrThrow', /openPrintWindowOrThrow\(html\)/.test(share));
+  ok('#147 no bare window.open that swallows a blocked window', !/window\.open\(/.test(share));
+}
+
 // A blank contact cell must say WHY it is blank — the repo's honesty rule.
 ok('blank contact cells are explained, not left to be read as a bug',
   /missingContactCount/.test(engineSrc) && /no phone or email on file/.test(engineSrc),

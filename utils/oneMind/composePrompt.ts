@@ -20,6 +20,9 @@ export const ONE_MIND_TOTAL_CAP = 12_000;
 export const BLOCK_CHAR_CAPS: Record<string, number> = {
   RECORDS: 4_500,
   MEMORY: 2_200,
+  // Five jobs, each line carrying the subs-only caveat inline, plus the
+  // summary and no-basis lines — the default 1,400 would drop the tail jobs.
+  MARGINS: 2_400,
 };
 const DEFAULT_BLOCK_CAP = 1_400;
 
