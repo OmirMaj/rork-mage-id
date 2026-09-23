@@ -209,6 +209,33 @@ export const IconSize = {
   large:   { size: 24, strokeWidth: 2.0 },
 } as const;
 
+// Layout — desktop web only (wave 6b visual system). The web app was the phone
+// app stretched across a monitor: pages 1816 px wide, 1,360 px buttons, 1,000 px
+// number boxes. These are the widths a desktop layout snaps to. Every value is
+// read ONLY behind useResponsiveLayout().isDesktop (web >= 900 CSS px), so the
+// iPhone app never reads one. No colours here — they carry over to any rebrand.
+export const Layout = {
+  // Content-column maxWidth, centred. 'bleed' (no cap) is expressed by omission.
+  page:  { auth: 480, form: 760, reading: 760, dashboard: 1280, table: 1600 },
+  prose: 680, // any Text that can wrap past one line
+  gutter: 24, sectionGap: 24, groupGap: 16, cardPad: 16, rowGap: 8,
+  sheet: { dialog: 440, form: 560, wide: 720, panel: 880 },
+  menu:  { minWidth: 220, maxWidth: 280, offset: 4 },
+  control: { sm: 32, md: 40, lg: 48, input: 40, textAreaMin: 96, toolbar: 48, row: 40, tableHeader: 32 },
+  button:  { minWidth: { sm: 72, md: 96, lg: 120 }, maxWidth: 280, fullWidthMax: 400 },
+  segment: { height: 32, minWidth: 88, maxWidth: 200, controlMax: 640, numeric: 56 },
+  chip:    { height: 32, maxWidth: 240 },
+  field:   { xs: 120, sm: 200, md: 360, lg: 560, search: 480 },
+  tile: {
+    action:  { min: 200, maxCols: 6, gap: 10, minHeight: 56 },
+    kpi:     { min: 220, maxCols: 4, gap: 12 },
+    nav:     { min: 320, maxCols: 3, gap: 12 },
+    content: { min: 380, maxCols: 3, gap: 16 },
+  },
+} as const;
+
+export type LayoutPageType = keyof typeof Layout.page | 'bleed';
+
 // Tokens — a barrel export for callers who want one symbol.
 export const Tokens = {
   spacing: Spacing,
@@ -218,6 +245,7 @@ export const Tokens = {
   touchTarget: TouchTarget,
   iconSize: IconSize,
   continuousCorners,
+  layout: Layout,
 } as const;
 
 export default Tokens;
