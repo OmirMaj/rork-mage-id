@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>%WEB_TITLE%</title>
+    <!--
+      MAGE ID web document template (wave 6b).
+
+      The web app exports as a single-page app (app.json expo.web has no
+      `output`), and in that mode Expo serves THIS file as the template for
+      index.html (dev server and `expo export` alike) and ignores
+      app/+html.tsx. It is Expo SDK 54's default template
+      (@expo/cli/static/template/index.html) plus the two blocks marked
+      below. Those blocks are verbatim copies of THEME_BOOT_SCRIPT and
+      WEB_DOCUMENT_CSS in components/desktop/webDocument.ts; edit them there
+      and paste here — scripts/validate-desktop-page-map.ts fails on any drift.
+    -->
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+    <!-- mage:theme-boot (components/desktop/webDocument.ts THEME_BOOT_SCRIPT) -->
+    <script id="mage-theme-boot">
+(function () {
+  try {
+    var p = window.localStorage.getItem('mageid_theme');
+    var dark = p === 'dark' || (p !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  } catch (e) {}
+})();
+    </script>
+    <!-- mage:document-css (components/desktop/webDocument.ts WEB_DOCUMENT_CSS) -->
+    <style id="mage-document">
+body { background-color: #0B0D10; }
+@media (prefers-color-scheme: light) { body { background-color: #FBF8F2; } }
+html[data-theme='dark'] body { background-color: #0B0D10; }
+html[data-theme='light'] body { background-color: #FBF8F2; }
+@media print {
+  html, body, #root {
+    overflow: visible !important;
+  }
+  #root div {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  nav[aria-label='Primary navigation'],
+  #mage-shell-dock,
+  #mage-sync-pill,
+  [data-print='hide'] {
+    display: none !important;
+  }
+}
+    </style>
+  </head>
+
+  <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  </body>
+</html>

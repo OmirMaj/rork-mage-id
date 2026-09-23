@@ -29,6 +29,7 @@ import {
   type PlanSharePayload,
 } from '../utils/planShareToken';
 import { zoneStateAsOf } from '../utils/planZoneStatus';
+import { DESKTOP_SHELL_EXEMPT } from '../utils/desktopPage';
 import type { PlanSheet, PlanZone, ScheduleTask, DrawingPin, ProjectPhoto } from '../types';
 
 let pass = 0, fail = 0;
@@ -411,8 +412,14 @@ console.log('\nplan share — route wiring:');
   const layout = read('app/_layout.tsx');
   ok('/shared-plan is exempt from the auth wall (token IS the credential)',
     /inSharedView[\s\S]{0,300}'shared-plan'/.test(layout));
+  // The exempt set moved to utils/desktopPage.ts (wave 6b); a regex over
+  // _layout.tsx would now match only a comment, so assert the real set and
+  // that the layout still consults it.
   ok('/shared-plan is exempt from the desktop nav shell (no account, no nav)',
-    /DESKTOP_SHELL_EXEMPT[\s\S]{0,900}'shared-plan'/.test(layout));
+    DESKTOP_SHELL_EXEMPT.has('shared-plan'));
+  ok('app/_layout.tsx still gates the shell on DESKTOP_SHELL_EXEMPT',
+    /import\s*\{[^}]*\bDESKTOP_SHELL_EXEMPT\b[^}]*\}\s*from\s*'@\/utils\/desktopPage'/.test(layout)
+      && /DESKTOP_SHELL_EXEMPT\.has\(/.test(layout));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

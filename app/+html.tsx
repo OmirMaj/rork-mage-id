@@ -20,6 +20,11 @@
 
 import { ScrollViewStyleReset } from 'expo-router/html';
 import { type PropsWithChildren } from 'react';
+import {
+  THEME_BOOT_SCRIPT,
+  WEB_DOCUMENT_CSS,
+  WEB_DOCUMENT_STYLE_ID,
+} from '@/components/desktop/webDocument';
 
 const APP_NAME = 'MAGE ID';
 const APP_DESCRIPTION = 'The operating system for general contractors — plans, estimates, daily reports, pay applications, and a live client portal. One app for the jobsite.';
@@ -87,27 +92,19 @@ export default function Root({ children }: PropsWithChildren) {
             built-in Expo Router helper. */}
         <ScrollViewStyleReset />
 
-        {/* Inline style: prevent the dark splash flash on cold load.
-            React Native Web hydrates with the user's theme; before
-            that, the browser shows whatever's in <body>. Setting bg
-            here avoids a white-flash → dark-flash transition. */}
-        <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
+        {/* Before-hydration theme + page ground + print stylesheet (wave
+            6b). LIVE ONLY IF web.output becomes "static"/"server": the app
+            exports as a single-page app today, and Expo then serves
+            public/index.html and ignores this file. Both render the SAME
+            strings from components/desktop/webDocument.ts, and
+            validate-desktop-page-map pins public/index.html to them. */}
+        <script id="mage-theme-boot" dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <style id={WEB_DOCUMENT_STYLE_ID} dangerouslySetInnerHTML={{ __html: WEB_DOCUMENT_CSS }} />
       </head>
       <body>{children}</body>
     </html>
   );
 }
-
-const responsiveBackground = `
-body {
-  background-color: ${THEME_COLOR_INK};
-}
-@media (prefers-color-scheme: light) {
-  body {
-    background-color: #F4EFE6;
-  }
-}
-`;
 
 // Re-export the theme color so other places can reference it without
 // duplicating the constant. (e.g., a future deep-link landing page.)

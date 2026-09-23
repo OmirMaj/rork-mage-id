@@ -24,7 +24,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Layout } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import {
   INVITE_PARAM, postSignInHref, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
@@ -32,6 +33,7 @@ import {
 export default function SignupScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   // An invite opened before the account existed (utils/deepLinksInvite): an
@@ -274,7 +276,7 @@ export default function SignupScreen() {
         style={styles.formWrapper}
       >
         <ScrollView
-          contentContainerStyle={[styles.formContainer, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[styles.formContainer, { paddingBottom: insets.bottom + 24 }, isDesktop && authColumnDesktop]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -707,3 +709,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: Colors.textOnAccent,
   },
 });
+
+// Desktop web only (wave 6b): login's 480 auth column, from the one width
+// source (Layout.page.auth). Appended as `isDesktop && …`, so on a phone the
+// style array flattens to exactly what shipped.
+const authColumnDesktop = { width: '100%', maxWidth: Layout.page.auth, alignSelf: 'center' } as const;

@@ -45,7 +45,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Layout } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { MageAIMark } from '@/components/icons';
 import { loginHrefForInvite } from '@/utils/deepLinksInvite';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -66,6 +67,7 @@ function canRetryInvite(errCode: string | null): boolean {
 
 export default function AcceptInvite() {
   const { colors: t } = useTheme();
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { isAuthenticated, user, isLoading: authLoading, clearInviteToken } = useAuth();
@@ -208,7 +210,7 @@ export default function AcceptInvite() {
   return (
     <View style={[styles.root, { backgroundColor: t.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.center}>
+      <View style={[styles.center, isDesktop && authColumnDesktop]}>
         <View style={[styles.iconWrap, { backgroundColor: t.accentSoft }]}>
           <MageAIMark size={30} color={t.accent} />
         </View>
@@ -301,3 +303,8 @@ const styles = StyleSheet.create({
   btnText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: '#FFF' },
   btnRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });
+
+// Desktop web only (wave 6b): login's 480 auth column, from the one width
+// source (Layout.page.auth). Appended as `isDesktop && …`, so on a phone the
+// style array flattens to exactly what shipped.
+const authColumnDesktop = { width: '100%', maxWidth: Layout.page.auth, alignSelf: 'center' } as const;

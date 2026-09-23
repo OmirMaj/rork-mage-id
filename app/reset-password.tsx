@@ -12,12 +12,14 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Layout } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 
 export default function ResetPasswordScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -132,7 +134,7 @@ export default function ResetPasswordScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.inner}
       >
-        <View style={[styles.content, { paddingTop: insets.top + 60 }]}>
+        <View style={[styles.content, { paddingTop: insets.top + 60 }, isDesktop && authColumnDesktop]}>
           <View style={styles.iconWrap}>
             <Lock size={32} color={themeColors.accent} strokeWidth={1.5} />
           </View>
@@ -315,3 +317,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Desktop web only (wave 6b): login's 480 auth column, from the one width
+// source (Layout.page.auth). Appended as `isDesktop && …`, so on a phone the
+// style array flattens to exactly what shipped.
+const authColumnDesktop = { width: '100%', maxWidth: Layout.page.auth, alignSelf: 'center' } as const;

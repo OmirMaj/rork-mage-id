@@ -25,11 +25,29 @@
 // And a user with genuinely ZERO projects gets "Create a project" (which opens
 // the create sheet directly), never an empty picker.
 //
-// Pure presentation — selection state lives in the host screen.
+// Selection state lives in the host screen. What the picker adds on top of
+// the host's onPick (wave 6b) is MEMORY, in one place instead of twenty-seven:
+//
+//   • setActiveProject(id) — the pick becomes the active job, so the desktop
+//     sidebar's THIS JOB rows, the job switcher and Recent follow it, and the
+//     next project tool opens on the same job instead of asking again.
+//   • on the web, router.setParams({ projectId }) — the pick goes into the URL,
+//     so a refresh, Back or a copied link keeps the job. Twenty-one screens
+//     held the pick only in component state (`onPick={setPickedProjectId}`);
+//     centralising it here covers every one of them, and the screens that
+//     already wrote the URL themselves just write it twice. The param name is
+//     the one the screen reads (`id` on client-portal-setup — utils/
+//     activeProject projectParamFor). Native is untouched: a phone has no URL
+//     to keep, and some screens gate on the param, so writing it there would
+//     change what a phone does for nothing.
+//
+// The host's onPick still runs, and still wins: screens rank their local pick
+// over the param (`pickedProjectId ?? paramProjectId`), so the picked job
+// renders on this frame whether or not the URL has caught up.
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from 'react-native';
+import { usePathname, useRouter } from 'expo-router';
 import { FolderOpen, Plus, AlertTriangle } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -40,6 +58,8 @@ import EmptyState from '@/components/EmptyState';
 import type { Project } from '@/types';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { projectParamFor } from '@/utils/activeProject';
 
 // ─── ToolHeader ───────────────────────────────────────────────────────────────
 
@@ -96,6 +116,14 @@ export function ToolProjectPicker({
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const pathname = usePathname();
+  const { setActiveProject } = useActiveProject();
+
+  /** Remember the pick before the host acts on it — see the header note. */
+  const rememberPick = (projectId: string) => {
+    setActiveProject(projectId);
+    if (Platform.OS === 'web') router.setParams({ [projectParamFor(pathname)]: projectId });
+  };
 
   // A user with genuinely zero projects cannot pick one, so the honest next
   // action is to create one — /?openCreate=1 opens the create-project sheet on
@@ -140,7 +168,7 @@ export function ToolProjectPicker({
         <TouchableOpacity
           key={p.id}
           style={styles.pickRow}
-          onPress={() => onPick(p.id)}
+          onPress={() => { rememberPick(p.id); onPick(p.id); }}
           activeOpacity={0.8}
           testID={`tool-pick-project-${p.id}`}
         >
