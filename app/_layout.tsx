@@ -13,6 +13,7 @@ import DesktopSidebar from "@/components/DesktopSidebar";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects, useProjectActions } from "@/contexts/ProjectContext";
+import { ActiveProjectProvider } from "@/contexts/ActiveProjectContext";
 import { SafetyProvider } from "@/contexts/SafetyContext";
 import { CrewProvider } from "@/contexts/CrewContext";
 import { useClaimedCrewProfile } from "@/hooks/useClaimedCrewProfile";
@@ -27,7 +28,7 @@ import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { BrainSurface } from "@/components/brain/BrainSurface";
 import { useBrainFabPresentation } from "@/components/brain/brainFabState";
 import OfflineSyncPill from "@/components/OfflineSyncPill";
@@ -35,7 +36,7 @@ import { NailItToastHost } from "@/components/animations/NailItToast";
 import AlertHost from "@/components/AlertHost";
 import { useQuickActionRouting } from "expo-quick-actions/router";
 import { ConfettiHost } from "@/components/animations/Confetti";
-import { Colors, setCustomPrimary } from "@/constants/colors";
+import { Colors, setCustomPrimary, legacyChrome } from "@/constants/colors";
 import { THEME_PRESETS } from "@/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import MarginAlertManager from "@/components/MarginAlertManager";
@@ -56,7 +57,13 @@ import {
 } from '@/utils/deepLinksInvite';
 import { isTransportError } from '@/utils/networkErrors';
 import { parseSignupIntent, persistSignupIntent } from '@/utils/signupIntent';
-import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { NATIVE_HEADER_TITLE_FACE, nativeHeaderOptions } from '@/constants/navigation';
+import {
+  ThemeProvider as NavThemeProvider, DefaultTheme, DarkTheme, type Theme as NavTheme,
+} from '@react-navigation/native';
+import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';
+import { renderDesktopPageFrame } from '@/components/desktop/DesktopPageFrame';
+import { ShellDockProvider, ShellDockHost } from '@/components/desktop/ShellDock';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
 // goes through utils/alert.ts showAlert/showPrompt, which renders a real
@@ -86,66 +93,16 @@ if (__DEV__) {
 // and the home card stop reacting to each other.
 
 
-/**
- * Title style for the NATIVE stack header — the shared typeface plus a colour.
- *
- * The typeface itself now lives in constants/navigation.ts so the ~27 screens
- * that declare their OWN headerTitleStyle can spread it without importing this
- * route module. See that file for why they each need it (React Navigation
- * merges screen options shallowly, so an override replaces this wholesale).
- *
- * `Colors.text` is read at module-load and therefore frozen to the light
- * theme; that is pre-existing on the 41 routes that pass this object, and it is
- * why the Stack DEFAULT below uses the colourless face instead.
- */
-const NATIVE_HEADER_TITLE = {
-  ...NATIVE_HEADER_TITLE_FACE,
-  color: Colors.text,
-} as const;
-
-// ─── Desktop web shell — route denylist ────────────────────────────────────
-// Audit web#31: DesktopSidebar was mounted only inside app/(tabs)/_layout.tsx,
-// so navigating to ANY root-stack route on desktop web (invoice, change-order,
-// safety, job-costing, …) dropped the persistent sidebar and stranded the
-// user. The fix lifts the shell to RootLayoutNav so it wraps the whole Stack —
-// but that would also wrap login/onboarding/external viewers/modals, so the
-// shell is gated on auth + onboarding state (same conditions the redirect
-// effect enforces) AND the current top-level segment must not be listed here.
+// Native header chrome is built per render inside RootLayoutNav (wave 6b):
+// the old module-level NATIVE_HEADER_TITLE froze `Colors.text` to the light
+// theme's black at module load, so dark mode got a black title on a dark bar.
+// See constants/navigation.ts nativeHeaderOptions and constants/colors.ts
+// legacyChrome.
 //
-// Three exemption classes:
-//  1. Auth + first-run flows — the user isn't (fully) in the app yet; these
-//     screens are full-bleed brand moments.
-//  2. External / tokenized viewers — opened by homeowners & subs with no MAGE
-//     account (the URL token is the credential) or rendered mid-OAuth; they
-//     must never show the owner's workspace chrome.
-//  3. `presentation: 'modal'` routes — enumerated from the Stack.Screen
-//     declarations in RootLayoutNav below (keep in sync when adding modals).
-//     On web a "modal" is a full-page takeover with its own close affordance;
-//     wrapping it in the sidebar frame would break that presentation.
-//  4. Full-takeover editors — screens that render their own complete chrome
-//     (headerShown:false + custom Back header) AND size their layout off
-//     useWindowDimensions breakpoints tuned for a full-bleed viewport.
-//     schedule-pro's GRID_BREAKPOINT=900 / SPLIT_BREAKPOINT=1600 assume
-//     window width === content width; rendering it inside the 240px shell
-//     would pass the ≥900 gate while the grid actually gets window−240px —
-//     below its own usability floor. Keeping it exempt restores the pre-lift
-//     full-bleed behavior (and keeps schedule-review's window-width routing
-//     gate honest — see app/schedule-review.tsx wideEnoughForPro).
-const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
-  // 1 — auth + first-run
-  'login', 'signup', 'reset-password',
-  'onboarding', 'persona-select', 'onboarding-paywall',
-  // 2 — external / tokenized viewers
-  'client-view', 'prequal-form', 'claim-crew', 'shared-schedule', 'shared-photos', 'shared-estimate',
-  'shared-plan',
-  // 3 — presentation:'modal' routes
-  'ask', 'schedule-wizard', 'schedule-builder', 'copilot', 'copilot-hub',
-  'schedule-import', 'scan', 'paywall', 'cost-xray', 'import-pipeline',
-  'post-rfp', 'submit-bid-response', 'photo-annotator', 'estimate-wizard',
-  'judges', 'quick-quote', 'brief',
-  // 4 — full-takeover editors with window-width breakpoints
-  'schedule-pro',
-]);
+// DESKTOP_SHELL_EXEMPT (the routes that never show the desktop sidebar) moved
+// to utils/desktopPage.ts in wave 6b, next to the route → page-width map the
+// root Stack's DesktopPageFrame reads, so the shell, the sync pill and the
+// page frame agree on one list.
 
 Sentry.init({
   dsn: 'https://f1ef45279647b4001040c1e2f9407faa@o4511315578388480.ingest.us.sentry.io/4511315581075456',
@@ -353,6 +310,10 @@ function GlobalOfflineSyncPill() {
   return (
     <View
       pointerEvents="box-none"
+      // Hidden by the web print stylesheet (components/desktop/webDocument.ts):
+      // a floating pill has no place on paper. Spread on web only, so the
+      // native tree carries no new prop and stays identical to what ships.
+      {...(Platform.OS === 'web' ? { nativeID: 'mage-sync-pill' } : null)}
       style={{
         position: 'absolute',
         left: 20 + (railShowing ? layout.sidebarWidth : 0),
@@ -816,6 +777,48 @@ function RootLayoutNav() {
     && hasSeenOnboarding === true;
   const showDesktopShell = shellEligible && !isShellExempt;
 
+  // ── Native header + navigator theme, from the RESOLVED theme (wave 6b) ──
+  // Built at render so a theme switch repaints every header. Three rules:
+  //  - Light on a phone (and web below desktop) is byte-for-byte what shipped:
+  //    the legacy grey bar + black title on the 44 routes that set their own
+  //    header, and React Navigation's DefaultTheme on the rest.
+  //  - Dark is finally dark: the legacy dark ground IS t.bg, and the title
+  //    takes the light ink instead of the black frozen at module load.
+  //  - Desktop web takes t.bg / t.text in both themes, so the header, the
+  //    page and the DesktopPageFrame margins are one colour.
+  const { colors: t, resolved: resolvedTheme } = useTheme();
+  const legacy = legacyChrome(resolvedTheme);
+  const headerBg = layout.isDesktop ? t.bg : legacy.background;
+  const headerInk = layout.isDesktop ? t.text : legacy.text;
+  const headerTint = Colors.primary;
+  const headerTitled = React.useMemo(
+    () => nativeHeaderOptions({ background: headerBg, title: headerInk, tint: headerTint }),
+    [headerBg, headerInk, headerTint],
+  );
+  // Three routes set the bar and tint but never had a title colour — they
+  // keep the navigator theme's ink, exactly as before.
+  const headerChrome = React.useMemo(
+    () => ({ headerStyle: headerTitled.headerStyle, headerTintColor: headerTitled.headerTintColor }),
+    [headerTitled],
+  );
+  const navTheme = React.useMemo<NavTheme>(() => {
+    if (resolvedTheme !== 'dark' && !layout.isDesktop) return DefaultTheme;
+    const base = resolvedTheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: { ...base.colors, background: t.bg, card: t.bg, text: t.text, border: t.line },
+    };
+  }, [resolvedTheme, layout.isDesktop, t.bg, t.text, t.line]);
+
+  // public/index.html (the SPA template; +html is ignored in single output)
+  // paints <body> from a data-theme attribute its inline boot script sets
+  // before hydration, so a dark-mode user never gets a light flash. Keep it
+  // in step with in-app theme switches after hydration.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
+  }, [resolvedTheme]);
+
   // Cold-start gate: while the auth + project contexts are hydrating from
   // AsyncStorage/Supabase, render the branded construction loader instead
   // of a blank white screen. `hasSeenOnboarding === null` means the
@@ -858,8 +861,13 @@ function RootLayoutNav() {
       {/* Keyed by the account generation: a switch between two different
           accounts remounts the navigator fresh (the previous tenant's screens
           never survive in memory); a plain reload keeps it mounted. */}
+      {/* NavThemeProvider: the navigator's colours from the resolved theme.
+          screenLayout: every root route renders inside DesktopPageFrame,
+          which caps its column at Layout.page[kind] on desktop web and
+          returns the screen untouched everywhere else (utils/desktopPage). */}
+      <NavThemeProvider value={navTheme}>
       <View style={{ flex: 1 }} key={`stack-${navNext.generation}`}>
-        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE }}>
+        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE }} screenLayout={renderDesktopPageFrame}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
@@ -937,9 +945,7 @@ function RootLayoutNav() {
         name="project-detail"
         options={{
           title: "Project Details",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
@@ -956,18 +962,14 @@ function RootLayoutNav() {
         name="invoice"
         options={{
           title: "Invoice",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="bill-from-estimate"
         options={{
           title: "Bill from Estimate",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
@@ -978,18 +980,14 @@ function RootLayoutNav() {
         name="daily-report"
         options={{
           title: "Daily Report",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="punch-list"
         options={{
           title: "Punch List",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen name="safety" options={{ title: 'Safety' }} />
@@ -1010,45 +1008,35 @@ function RootLayoutNav() {
         name="warranties"
         options={{
           title: "Warranties",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="retention"
         options={{
           title: "Retention",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="payment-predictions"
         options={{
           title: "Payment Forecast",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="contacts"
         options={{
           title: "Contacts",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="crew"
         options={{
           title: "Crew",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
@@ -1071,45 +1059,35 @@ function RootLayoutNav() {
         name="rfi"
         options={{
           title: "RFI",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="submittal"
         options={{
           title: "Submittal",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="oac-meeting"
         options={{
           title: "OAC Meetings",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="coi-vault"
         options={{
           title: "COI Vault",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="budget-dashboard"
         options={{
           title: "Budget Dashboard",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen name="wip-report" options={{ title: 'WIP Report' }} />
@@ -1120,9 +1098,7 @@ function RootLayoutNav() {
         name="construction-news"
         options={{
           title: "Construction News",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
@@ -1235,8 +1211,7 @@ function RootLayoutNav() {
         name="sub-portal-setup"
         options={{
           title: "Sub Portal",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
+          ...headerChrome,
         }}
       />
       <Stack.Screen
@@ -1247,16 +1222,14 @@ function RootLayoutNav() {
         name="public-profile-setup"
         options={{
           title: "Public Profile",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
+          ...headerChrome,
         }}
       />
       <Stack.Screen
         name="notifications-settings"
         options={{
           title: "Notifications",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
+          ...headerChrome,
         }}
       />
       <Stack.Screen
@@ -1343,135 +1316,105 @@ function RootLayoutNav() {
         name="equipment-detail"
         options={{
           title: "Equipment",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="bid-detail"
         options={{
           title: "Bid Details",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="post-bid"
         options={{
           title: "Post a Bid",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="company-detail"
         options={{
           title: "Company",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="company-profile"
         options={{
           title: "Company Profile",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="job-detail"
         options={{
           title: "Job Details",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="worker-detail"
         options={{
           title: "Worker Profile",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="post-job"
         options={{
           title: "Post a Job",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="messages"
         options={{
           title: "Messages",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="cash-flow"
         options={{
           title: "Cash Flow",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="integrations"
         options={{
           title: "Integrations",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="time-tracking"
         options={{
           title: "Time Tracking",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="documents"
         options={{
           title: "Documents",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="permits"
         options={{
           title: "Permits",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="weekly-snapshot"
         options={{
           title: "This Week",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
@@ -1527,9 +1470,7 @@ function RootLayoutNav() {
         name="report-inbox"
         options={{
           title: "Report Inbox",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
@@ -1543,72 +1484,56 @@ function RootLayoutNav() {
         name="payments"
         options={{
           title: "Payments",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="aia-pay-app"
         options={{
           title: "AIA Pay Application",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="data-export"
         options={{
           title: "Export My Data",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="scope-sheet"
         options={{
           title: "Scope Sheet",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="connect-claude"
         options={{
           title: "Connect Claude",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="data-import"
         options={{
           title: "Import Data",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="client-update"
         options={{
           title: "Weekly Client Update",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       <Stack.Screen
         name="client-messages"
         options={{
           title: "Messages",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       {/* UX-F14: gestureEnabled:false on the three estimate modals — they hold
@@ -1622,9 +1547,7 @@ function RootLayoutNav() {
           title: "Quick Estimate",
           presentation: "modal",
           gestureEnabled: false,
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: NATIVE_HEADER_TITLE,
+          ...headerTitled,
         }}
       />
       {/* judges renders its own in-content header (eyebrow + "Should I bid
@@ -1636,6 +1559,10 @@ function RootLayoutNav() {
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
         </Stack>
       </View>
+      </NavThemeProvider>
+      {/* Right-hand dock slot: 0 px unless something is docked, desktop
+          shell only. Nothing opens it yet (wave 6c moves Ask into it). */}
+      {shellEligible && <ShellDockHost visible={showDesktopShell} />}
       {navMode === 'stack+overlay' ? (
         // Blocks input while the boot reads run, exactly as the full-screen
         // loader did, without unmounting what is underneath.
@@ -1645,6 +1572,18 @@ function RootLayoutNav() {
       ) : null}
     </View>
   );
+}
+
+/**
+ * The desktop shell's right-hand dock (components/desktop/ShellDock), scoped
+ * to the signed-in account: `resetKey` empties the dock whenever the user
+ * changes, so one tenant's docked panel never survives into the next account.
+ * Mounted around RootLayoutNav AND the global overlays (BrainSurface), so both
+ * a screen and the Ask FAB can open it in wave 6c.
+ */
+function ShellDockTenantScope({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return <ShellDockProvider resetKey={user?.id ?? null}>{children}</ShellDockProvider>;
 }
 
 function SearchHotkeyListener() {
@@ -1770,6 +1709,9 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  {/* The active job (wave 6b): reads the project list and the user,
+                      so it sits just inside ProjectProvider. */}
+                  <ActiveProjectProvider>
                   <ScanProvider>
                   <WipProvider>
                   <CrewProvider>
@@ -1800,6 +1742,7 @@ export default Sentry.wrap(function RootLayout() {
                                 the LOAD is deferred. */}
                             <AutonomyProvider>
                             <SearchProvider>
+                            <ShellDockTenantScope>
                               <MagicLinkHandler />
                               <AnalyticsManager />
                               <OfflineSyncManager />
@@ -1813,6 +1756,7 @@ export default Sentry.wrap(function RootLayout() {
                               <AlertHost />
                               <NailItToastHost />
                               <ConfettiHost />
+                            </ShellDockTenantScope>
                             </SearchProvider>
                             </AutonomyProvider>
                           </NotificationProvider>
@@ -1826,6 +1770,7 @@ export default Sentry.wrap(function RootLayout() {
                   </CrewProvider>
                   </WipProvider>
                   </ScanProvider>
+                  </ActiveProjectProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>

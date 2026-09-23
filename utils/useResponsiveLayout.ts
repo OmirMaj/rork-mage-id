@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Dimensions, Platform, type ScaledSize } from 'react-native';
+import { Layout } from '@/constants/designTokens';
 
 export type ScreenSize = 'phone' | 'tablet' | 'desktop';
 
@@ -10,22 +11,16 @@ export interface ResponsiveLayout {
   isDesktop: boolean;
   width: number;
   height: number;
+  /** Desktop: Layout.page.dashboard — the same token the page frame uses, so
+   *  a screen that caps itself with this agrees with every framed route. */
   contentMaxWidth: number;
   sidebarWidth: number;
   showSidebar: boolean;
   ganttRowHeight: number;
-  cardColumns: number;
-  fontSize: {
-    title: number;
-    heading: number;
-    body: number;
-    caption: number;
-  };
-  spacing: {
-    page: number;
-    section: number;
-    card: number;
-  };
+  // Wave 6b removed `cardColumns`, `fontSize` and `spacing`: grep found zero
+  // readers in app/, components/, hooks/, utils/ or __tests__, and they
+  // advertised a desktop type/spacing scale that nothing applied. Desktop
+  // widths and gaps live in constants/designTokens.ts Layout.
 }
 
 export function useResponsiveLayout(): ResponsiveLayout {
@@ -61,22 +56,10 @@ export function useResponsiveLayout(): ResponsiveLayout {
       isDesktop,
       width,
       height,
-      contentMaxWidth: isDesktop ? 1400 : isTablet ? 900 : width,
+      contentMaxWidth: isDesktop ? Layout.page.dashboard : isTablet ? 900 : width,
       sidebarWidth: isDesktop ? 240 : 0,
       showSidebar: isDesktop,
       ganttRowHeight: isDesktop ? 40 : isTablet ? 36 : 32,
-      cardColumns: isDesktop ? 3 : isTablet ? 2 : 1,
-      fontSize: {
-        title: isDesktop ? 32 : isTablet ? 28 : 24,
-        heading: isDesktop ? 20 : isTablet ? 18 : 16,
-        body: isDesktop ? 15 : 14,
-        caption: isDesktop ? 13 : 12,
-      },
-      spacing: {
-        page: isDesktop ? 32 : isTablet ? 24 : 16,
-        section: isDesktop ? 24 : isTablet ? 20 : 16,
-        card: isDesktop ? 16 : 12,
-      },
     };
   }, [width, height, isWeb]);
 }

@@ -25,3 +25,58 @@ export { ScreenHeader, type ScreenHeaderProps, type ScreenHeaderVariant } from '
 
 // Colour decisions a chip cannot get right by eye — see ./ink.ts.
 export { labelOn, neutralInk, taskStatusInk, INK_ON_LIGHT_FILL, CHIP_TINT_SUFFIX } from './ink';
+
+// ── Desktop-web primitives (wave 6b) ────────────────────────────────────────
+// Every one of these renders today's phone tree unchanged below the desktop
+// gate (useResponsiveLayout().isDesktop — web >= 900 CSS px). Widths come from
+// Layout in constants/designTokens.ts, the one source of desktop widths.
+export { SegmentedControl, segmentedDesktop, type SegmentedOption, type SegmentedControlProps } from './SegmentedControl';
+export {
+  Sheet,
+  useSheetFrame,
+  useSheetPrimaryHotkey,
+  desktopSheetFrame,
+  type SheetFrame,
+  type SheetProps,
+  type SheetAction,
+} from './Sheet';
+export {
+  ActionBar,
+  ActionBarReadout,
+  ActionBarContext,
+  useInActionBar,
+  actionBarChildDesktop,
+  type ActionBarProps,
+  type ActionBarWidth,
+} from './ActionBar';
+export { TileGrid, type TileGridProps } from './TileGrid';
+export { ChipRail, chipDesktop, chipRailDesktop, type ChipRailProps } from './ChipRail';
+export {
+  useIsDesktop,
+  useIsDesktopWeb,
+  desktopCta,
+  desktopAddRow,
+  desktopToggle,
+  desktopInlineEmpty,
+  DESKTOP_INLINE_EMPTY_ICON,
+  desktopProse,
+  desktopLauncher,
+  desktopField,
+  fieldSizeForKeyboard,
+  desktopLabelRow,
+  desktopLineItem,
+  tileGridColumns,
+  tileGridForPreset,
+  resolveSegmentedVariant,
+  segmentBox,
+  segmentedMaxWidth,
+  sheetCardWidth,
+  isPrimaryHotkey,
+  shellInsetFromRect,
+  useDesktopShellInset,
+  flattenElements,
+  type FieldSize,
+  type TilePreset,
+  type SheetSize,
+  type SegmentedVariant,
+} from './desktop';

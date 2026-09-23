@@ -9,6 +9,26 @@
 // Consumers must NOT pass `style` overrides for color/background; that's
 // the point of the primitive. Use a different variant if the existing
 // ones don't fit.
+//
+// LAYOUT: `style` lands on the inner Pressable (the painted pill), so a
+// layout key there — `flex: 1`, `alignSelf` — acts INSIDE the animated
+// wrapper, not in the caller's row. That is why `style={{ flex: 1 }}` never
+// split change-order's or contract's rows. Layout keys belong on
+// `containerStyle`, which is applied to the wrapper. (The existing flex:1 call
+// sites are left alone: on a phone they render the way they always have.)
+//
+// DESKTOP WEB (wave 6b). The wrapper had no width, so on web it stretched
+// with its column and `fullWidth={false}` still drew a 1,360 px button. Behind
+// useIsDesktopWeb() only:
+//   - the wrapper hugs its label (`width: fit-content`, a CSS value RN-web
+//     passes through untouched) without changing cross-axis alignment in rows;
+//   - fullWidth caps at Layout.button.fullWidthMax (400);
+//   - heights 32 / 40 / 48 and min widths 72 / 96 / 120 (Layout.control /
+//     Layout.button) replace the 36 / 48 / 56 touch sizes;
+//   - inside an <ActionBar>, fullWidth is ignored and the bar sizes the button.
+// On a phone and on native the wrapper stays exactly `{ transform: [{ scale }] }`
+// and SIZE_MAP is untouched — the phone render is byte-identical (proved by
+// __tests__/smoke/ui-desktop-primitives.test.tsx against a copy of the old one).
 
 import React, { useRef } from 'react';
 import {
@@ -23,10 +43,12 @@ import {
   type ViewStyle,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useInActionBar } from './ActionBar';
+import { useIsDesktopWeb } from './desktop';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -42,6 +64,10 @@ interface ButtonProps {
   iconRight?: React.ReactNode;
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Applied to the outer (animated) wrapper — the element that actually sits
+   *  in the caller's row/column. Use it for layout keys: flex, alignSelf,
+   *  margin, width. */
+  containerStyle?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
@@ -50,6 +76,17 @@ const SIZE_MAP: Record<ButtonSize, { height: number; px: number; fontSize: numbe
   md: { height: Tokens.touchTarget.comfortable, px: 24, fontSize: 14 },
   lg: { height: 56, px: 28, fontSize: 15 },
 };
+
+/** Desktop-web control sizes (Layout.control / Layout.button). A mouse does not
+ *  need a 48 pt touch target; a 48 pt button on a monitor reads as a banner. */
+const DESKTOP_SIZE_MAP: Record<ButtonSize, { height: number; px: number; minWidth: number }> = {
+  sm: { height: Layout.control.sm, px: 14, minWidth: Layout.button.minWidth.sm },
+  md: { height: Layout.control.md, px: 20, minWidth: Layout.button.minWidth.md },
+  lg: { height: Layout.control.lg, px: 24, minWidth: Layout.button.minWidth.lg },
+};
+
+/** Hug the label. 'fit-content' is CSS-only, hence web-only and the cast. */
+const DESKTOP_HUG = { width: 'fit-content', maxWidth: '100%' } as unknown as ViewStyle;
 
 export function Button({
   label,
@@ -62,8 +99,11 @@ export function Button({
   iconRight,
   fullWidth = false,
   style,
+  containerStyle,
   testID,
 }: ButtonProps) {
+  const desktop = useIsDesktopWeb();
+  const inBar = useInActionBar();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scale = useRef(new Animated.Value(1)).current;
@@ -92,14 +132,46 @@ export function Button({
     onPress();
   };
 
-  const containerStyle: StyleProp<ViewStyle> = [
-    styles.base,
-    styles[variant],
-    { height: sz.height, paddingHorizontal: sz.px },
-    fullWidth && styles.fullWidth,
-    isDisabled && styles.disabled,
-    style,
-  ];
+  // Phone / native: today's exact array. Desktop web: the desktop box, and
+  // fullWidth only outside an ActionBar (the bar owns the size there).
+  const dsz = DESKTOP_SIZE_MAP[inBar ? 'md' : size];
+  const stretch = fullWidth && !(desktop && inBar);
+  const pressableStyle: StyleProp<ViewStyle> = desktop
+    ? [
+        styles.base,
+        styles[variant],
+        { height: dsz.height, paddingHorizontal: dsz.px, minWidth: dsz.minWidth },
+        stretch && styles.fullWidth,
+        isDisabled && styles.disabled,
+        style,
+      ]
+    : [
+        styles.base,
+        styles[variant],
+        { height: sz.height, paddingHorizontal: sz.px },
+        fullWidth && styles.fullWidth,
+        isDisabled && styles.disabled,
+        style,
+      ];
+
+  // The wrapper is what sits in the caller's layout. On a phone it stays the
+  // bare transform object it has always been (unless the caller opts into
+  // containerStyle). On desktop web a fullWidth button fills its column up to
+  // 400 — flexShrink lets two of them share a row that is narrower than 800
+  // instead of overflowing it, and minHeight stops that shrink from ever
+  // eating the button's height in a height-capped column.
+  const scaleStyle = { transform: [{ scale }] };
+  const wrapperStyle: StyleProp<ViewStyle> = desktop
+    ? [
+        scaleStyle,
+        stretch
+          ? { width: '100%', maxWidth: Layout.button.fullWidthMax, flexShrink: 1, minHeight: dsz.height }
+          : DESKTOP_HUG,
+        containerStyle,
+      ]
+    : containerStyle
+      ? [scaleStyle, containerStyle]
+      : scaleStyle;
 
   const textColor =
     variant === 'primary' || variant === 'destructive'
@@ -107,13 +179,13 @@ export function Button({
       : colors.text;
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={wrapperStyle}>
       <Pressable
         onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         disabled={isDisabled}
-        style={containerStyle}
+        style={pressableStyle}
         testID={testID}
         accessibilityRole="button"
         accessibilityState={{ disabled: isDisabled }}

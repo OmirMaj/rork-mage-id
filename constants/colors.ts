@@ -135,6 +135,29 @@ export function getColorTheme(): 'light' | 'dark' {
   return _currentTheme;
 }
 
+/**
+ * The legacy page ground and ink that `Colors.background` / `Colors.text`
+ * resolve to, as a pure function of the theme.
+ *
+ * WHY (wave 6b, native header colour). ~44 root-Stack routes painted their
+ * native header with `Colors.background` and titled it with a
+ * `Colors.text` that app/_layout.tsx froze at MODULE LOAD — always the light
+ * theme's black — so a dark-mode user got a black title on a dark bar. And
+ * `_currentTheme` is flipped in an effect, so even a read at render time lags
+ * one render behind a theme switch. RootLayoutNav now builds the header from
+ * this function with the RESOLVED theme it gets from useTheme(): the light
+ * header is byte-for-byte what shipped (phone headers unchanged), the dark one
+ * is finally dark-on-dark with light ink. The same four literals as the
+ * `background` / `text` getters below — those keep their literal form because
+ * validate-contrast parses it; validate-desktop-page-map fails if the two ever
+ * disagree.
+ */
+export function legacyChrome(theme: 'light' | 'dark'): { background: string; text: string } {
+  return theme === 'dark'
+    ? { background: '#0B0D10', text: '#F4EFE6' }
+    : { background: '#F2F2F7', text: '#000000' };
+}
+
 export const Colors = {
   // Default brand is MAGE Orange. The forest-green that used to be the
   // default is still available as a THEME_PRESETS option for users who

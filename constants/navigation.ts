@@ -35,3 +35,23 @@ export const NATIVE_HEADER_TITLE_FACE = {
   fontFamily: 'Fraunces_700Bold',
   fontSize: Type.headline.fontSize,   // 17pt — the native header size
 } as const;
+
+/**
+ * The themed chrome for a root-Stack route that shows the native header —
+ * built at RENDER time from the resolved theme (wave 6b).
+ *
+ * Until wave 6b app/_layout.tsx spread a module-level NATIVE_HEADER_TITLE whose
+ * colour was `Colors.text` read at module load (the light theme's black) onto
+ * ~42 routes, next to a `Colors.background` bar. A dark-mode user therefore got
+ * a black title on a dark bar. RootLayoutNav now calls this with colours taken
+ * from useTheme() and spreads the result, so the header follows every theme
+ * switch. The caller decides the colours; this only fixes the SHAPE, so the
+ * typeface can never be dropped (validate-contrast check 11 is why).
+ */
+export function nativeHeaderOptions(c: { background: string; title: string; tint: string }) {
+  return {
+    headerStyle: { backgroundColor: c.background },
+    headerTintColor: c.tint,
+    headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: c.title },
+  } as const;
+}

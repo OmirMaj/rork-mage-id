@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
-import { Tabs, Slot } from 'expo-router';
+import { Tabs, Slot, useSegments } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Settings } from 'lucide-react-native';
 import { MageProject, MageDiscover, MageSummary } from '@/components/icons';
@@ -11,7 +11,8 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopActionRail from '@/components/DesktopActionRail';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Layout } from '@/constants/designTokens';
+import { pageTypeForTab } from '@/utils/desktopPage';
 
 // Route-level recovery for everything under (tabs). expo-router wraps a module
 // that exports `ErrorBoundary` in its own <Try>, so a crash in a tab screen is
@@ -95,6 +96,23 @@ const tabIconStyles = StyleSheet.create({
   dot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 2 },
 });
 
+/**
+ * The tab routes' page column on desktop (wave 6b). Width comes from the same
+ * route map the root Stack's DesktopPageFrame reads (utils/desktopPage
+ * pageTypeForTab → Layout.page): the estimate hub is a table (1600), every
+ * other tab a dashboard (1280). It replaces the tabs-only literal 1400, so the
+ * app has one width source. A component of its own so useSegments() runs only
+ * on the desktop branch — the phone tab bar never subscribes to it.
+ */
+function DesktopTabColumn({ children }: { children: React.ReactNode }) {
+  // Widened to string[]: the typed-routes tuple for this layout only names
+  // index 0, but at runtime segments[1] is the active tab ('estimate', …).
+  const segments: readonly string[] = useSegments();
+  const kind = pageTypeForTab(segments[1]);
+  const maxWidth = kind === 'bleed' ? undefined : Layout.page[kind];
+  return <View style={[styles.desktopContentInner, { maxWidth }]}>{children}</View>;
+}
+
 export default function TabLayout() {
   const layout = useResponsiveLayout();
   const { total: attentionCount, sourceFailed } = useBrainWatch();
@@ -156,9 +174,8 @@ export default function TabLayout() {
         <View style={styles.desktopContent}>
           {/* Constrain routed content to a centered, readable column on wide
               displays instead of stretching full-bleed to the monitor edge —
-              the top "built by a coder, not a designer" tell. Uses the
-              responsive hook's contentMaxWidth (1400 on desktop). */}
-          <View style={[styles.desktopContentInner, { maxWidth: layout.contentMaxWidth }]}>
+              the top "built by a coder, not a designer" tell. */}
+          <DesktopTabColumn>
           <Tabs
             initialRouteName="(home)"
             screenOptions={{
@@ -185,7 +202,7 @@ export default function TabLayout() {
             <Tabs.Screen name="subs" options={{ href: null }} />
             <Tabs.Screen name="equipment" options={{ href: null }} />
           </Tabs>
-          </View>
+          </DesktopTabColumn>
         </View>
         {showActionRail && <DesktopActionRail />}
       </View>

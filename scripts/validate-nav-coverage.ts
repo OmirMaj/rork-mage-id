@@ -270,6 +270,154 @@ for (const route of ['/post-bid', '/smart-proposal']) {
     'Its only other inbound link lives inside the Discover tab, which does not exist on desktop.');
 }
 
+// ── The re-tiered desktop rail (wave 6b) keeps every door ──────────────────
+// Wave 6b re-tiered the rail around the job (THIS JOB / More for this job /
+// WORKSPACE / collapsed BUSINESS, FINANCE, SETUP & TOOLS / ACCOUNT). A re-tier
+// is exactly how a destination quietly falls off a nav: a row filed under a
+// section name the render loop no longer iterates is still in NAV_ITEMS, still
+// passes every grep above, and draws nothing. So two checks: the full route
+// list the pre-wave rail had (6065b326), frozen, must still be in NAV_ITEMS;
+// and every section a row names must be one the component actually renders.
+{
+  const PRE_6B_RAIL_ROUTES = [
+    '/(tabs)/summary', '/(tabs)/(home)', '/ask', '/business', '/track-record', '/waiting-on',
+    '/delay-events', '/portfolio-margin', '/margin-alerts', '/cost-database', '/estimate-scorecard',
+    '/cost-seed', '/area-takeoff', '/cost-xray', '/copilot-hub', '/construction-news',
+    '/(tabs)/mage-id-bids', '/(tabs)/discover/bids', '/post-bid', '/(tabs)/marketplace', '/judges',
+    '/auto-bids', '/leads', '/widget-setup', '/contacts', '/crew', '/(tabs)/subs',
+    '/(tabs)/discover/companies', '/(tabs)/discover/hire', '/(tabs)/construction-ai',
+    '/(tabs)/discover/estimate', '/(tabs)/discover/schedule', '/last-planner', '/plans',
+    '/plan-intelligence', '/daily-report', '/field-ticket', '/time-tracking', '/photo-triage', '/scan',
+    '/punch-list', '/safety', '/rfi', '/submittal', '/oac-meeting', '/deliveries', '/building-access',
+    '/(tabs)/equipment', '/invoice', '/change-order', '/aia-pay-app', '/budget-dashboard',
+    '/wip-report', '/job-costing', '/cash-flow', '/payments', '/reports', '/client-portal-setup',
+    '/contract', '/smart-proposal', '/selections', '/closeout-binder', '/home-passport',
+    '/notifications-inbox', '/messages', '/report-inbox', '/(tabs)/settings',
+  ];
+  const navStart = sidebarSrc.indexOf('const NAV_ITEMS');
+  const navEnd = sidebarSrc.indexOf('const JOB_SECTION');
+  const navTable = navStart >= 0 && navEnd > navStart ? sidebarSrc.slice(navStart, navEnd) : '';
+  const liveRows = navTable.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  const railRoutes = new Set([...liveRows.matchAll(/\broute:\s*'([^']+)'/g)].map(m => m[1]));
+  const dropped = PRE_6B_RAIL_ROUTES.filter(r => !railRoutes.has(r));
+  ok(`the desktop rail still offers all ${PRE_6B_RAIL_ROUTES.length} destinations it had before the re-tier`,
+    navTable.length > 0 && dropped.length === 0,
+    `missing from NAV_ITEMS: ${dropped.join(', ')}. Every destination reachable from the rail on `
+    + '6065b326 must stay reachable — move a row, never drop it. (The Discover tab has no desktop '
+    + 'entry, so a route that leaves the rail is often a route that leaves the laptop.)');
+
+  // Rows name sections as quoted strings; the component renders the sections
+  // held in these constants. A section in the first set and not the second is
+  // a row nobody draws.
+  const rowSections = new Set([...liveRows.matchAll(/\bsection:\s*'([^']+)'/g)].map(m => m[1]));
+  const constBody = (name: string) => new RegExp(`const ${name}\\s*=\\s*([^;]+);`).exec(sidebarSrc)?.[1] ?? '';
+  const rendered = new Set(
+    ['JOB_SECTION', 'MORE_JOB_SECTIONS', 'WORKSPACE_SECTION', 'COLLAPSIBLE_SECTIONS', 'ACCOUNT_SECTION']
+      .flatMap(n => [...constBody(n).matchAll(/'([^']+)'/g)].map(m => m[1])),
+  );
+  const undrawn = [...rowSections].filter(sec => !rendered.has(sec));
+  ok('every section a rail row names is one the rail renders',
+    rowSections.size >= 5 && rendered.size >= 5 && undrawn.length === 0,
+    `rows filed under ${undrawn.map(u => `'${u}'`).join(', ')} are in NAV_ITEMS but no render loop `
+    + 'iterates that section, so they draw nothing. Add the section to one of JOB_SECTION / '
+    + 'MORE_JOB_SECTIONS / WORKSPACE_SECTION / COLLAPSIBLE_SECTIONS / ACCOUNT_SECTION.');
+  // …and each of those constants is actually iterated by the JSX (a constant
+  // nobody reads renders nothing either).
+  const drawn = ['itemsIn(JOB_SECTION)', 'MORE_JOB_SECTIONS.map', 'itemsIn(WORKSPACE_SECTION)',
+    'COLLAPSIBLE_SECTIONS.map', 'itemsIn(ACCOUNT_SECTION)'];
+  ok('each rail section constant is rendered', drawn.every(d => sidebarSrc.includes(d)),
+    `expected the JSX to call ${drawn.filter(d => !sidebarSrc.includes(d)).join(', ')}`);
+}
+
+// ── The rail carries the job, and rows are real links ───────────────────────
+// Before wave 6b every project-tool row pushed a bare route ('/rfi'), so the
+// job the PM was looking at was dropped and the tool asked for it again —
+// every tool, every time (web-PM audit, blocker). And no row was a link, so
+// Cmd-click and "Copy link" did nothing.
+{
+  ok('rail rows are RowLinks (real <a> on web), not router.push handlers',
+    /<RowLink\b/.test(sidebarSrc) && !/router\.push\(route as any\)/.test(sidebarSrc)
+    && !/onPress=\{\(\) => handleNav\(/.test(sidebarSrc),
+    'components/desktop/RowLink renders expo-router <Link> on web, so hover shows the URL and '
+    + 'Cmd/middle-click opens a new tab. A TouchableOpacity + router.push row does neither.');
+  ok('a row\'s href carries the active job exactly when the registry says the screen reads one',
+    /featureFor\(item\.feature\)\.projectScoped/.test(sidebarSrc)
+    && /jobScopedTarget\(item\.route,\s*\{[^}]*activeProjectId:/.test(sidebarSrc),
+    'hrefFor must route through utils/activeProject jobScopedTarget with the registry flag — '
+    + 'scripts/validate-active-project.ts proves what that function returns.');
+  // Every THIS JOB row must actually carry the job — that is the section's
+  // whole promise. A row there whose registry entry is not projectScoped (and
+  // has no jobRoute) would open bare and ask again, under a header saying it
+  // will not.
+  const navStart = sidebarSrc.indexOf('const NAV_ITEMS');
+  const navEnd = sidebarSrc.indexOf('const JOB_SECTION');
+  const jobRows = sidebarSrc.slice(navStart, navEnd).split('\n')
+    .filter(l => /section:\s*'THIS JOB'/.test(l) && !/^\s*\/\//.test(l));
+  const bare = jobRows.filter(l => {
+    if (/\bjobRoute:\s*'/.test(l)) return false;
+    const f = /\bfeature:\s*'([^']+)'/.exec(l)?.[1];
+    return !f || !FEATURE_REGISTRY.find(e => e.id === f)?.projectScoped;
+  });
+  ok(`every THIS JOB row carries the job (${jobRows.length} rows)`,
+    jobRows.length >= 7 && bare.length === 0,
+    bare.map(l => l.trim()).join('\n        ')
+    + '\n        Mark the registry row projectScoped (its screen must then pass the picker checks '
+    + 'below) or give the rail row a jobRoute, or move it out of THIS JOB.');
+  ok('the five money/field rows the audit found unflagged are projectScoped',
+    ['invoice', 'change-order', 'aia-pay-app', 'contract', 'submittal']
+      .every(id => FEATURE_REGISTRY.find(e => e.id === id)?.projectScoped === true),
+    'without the flag the rail pushes these bare and the job is dropped');
+  ok('Recent is recently OPENED jobs from the job context, not the first rows of the list',
+    /recentProjectIds/.test(sidebarSrc) && !/projects\.slice\(0,\s*3\)/.test(sidebarSrc),
+    'read useActiveProject().recentProjectIds — it already drops closed, sample, deleted and '
+    + "another account's jobs (utils/activeProject visibleRecent).");
+  // The three wirings the wave-6b integration review mutated and nothing
+  // failed on (C1–C3). Pinned as source shapes: each one's BEHAVIOUR is
+  // proven elsewhere (jobScopedTarget in validate-active-project, the Link in
+  // the __tests__/web harness), but only if these lines still feed it.
+  ok('C1: the job the rail carries IS the active job (not a constant, not a stale copy)',
+    /\{[^}]*\bactiveProjectId\b[^}]*\}\s*=\s*useActiveProject\(\)/.test(sidebarSrc)
+    && /const jobId\s*=\s*isMinimalPersona\s*\?\s*null\s*:\s*activeProjectId\s*;/.test(sidebarSrc)
+    && /jobScopedTarget\(item\.route,\s*\{[^}]*\bactiveProjectId:\s*jobId\s*\}/.test(sidebarSrc)
+    && /\}, \[jobId\]\);/.test(sidebarSrc),
+    'hrefFor must pass `activeProjectId: jobId`, with `const jobId = isMinimalPersona ? null : activeProjectId` '
+    + 'read from useActiveProject() and jobId in its deps — otherwise every THIS JOB row opens bare.');
+  const rowLinkSrc = read(join('components', 'desktop', 'RowLink.tsx'));
+  ok('C2: RowLink PUSHES (`<Link href={href} push asChild>`), so a job switch mounts the tool fresh',
+    /<Link href=\{href\} push asChild>/.test(rowLinkSrc),
+    "Link's default is navigate, which swaps params on the screen already mounted — picking another "
+    + 'job from the switcher would leave the old job on screen.');
+  ok('C3: rail rows are 32 px (the height that fits THIS JOB above the fold on 1512×945)',
+    /const ROW_HEIGHT = 32;/.test(sidebarSrc) && /height: ROW_HEIGHT,/.test(sidebarSrc),
+    'the rail was re-measured at 32 px rows (DesktopSidebar IA note); 38 pushes WORKSPACE below the fold');
+  ok('the collapsible groups remember their open state under a mageid_ key',
+    /SIDEBAR_SECTIONS_KEY/.test(sidebarSrc) && /parseSectionState\(/.test(sidebarSrc)
+    && /AsyncStorage\.setItem\(SIDEBAR_SECTIONS_KEY/.test(sidebarSrc),
+    'mageid_sidebar_sections (utils/activeProject) — the prefix is what puts it in the tenant sweep');
+}
+
+// ── A pick in any project tool is remembered ────────────────────────────────
+// Twenty-one screens held the ToolProjectPicker pick only in component state
+// (`onPick={setPickedProjectId}`), so a refresh, Back or a copied URL lost the
+// job, and the next tool asked again. The fix lives in ONE place, the picker,
+// so it covers every screen that renders it — including app/schedule-pro.tsx,
+// which this wave may not edit. Pinned here: the row remembers the pick BEFORE
+// handing it to the host, and only writes the URL on web.
+{
+  const chromeSrc = read(join('components', 'ToolScreenChrome.tsx'));
+  const remember = /const rememberPick = \(projectId: string\) => \{([\s\S]*?)\n  \};/.exec(chromeSrc)?.[1] ?? '';
+  ok('ToolProjectPicker makes the pick the active job',
+    /setActiveProject\(projectId\)/.test(remember) && /useActiveProject\(\)/.test(chromeSrc),
+    'call useActiveProject().setActiveProject in rememberPick');
+  ok('…and, on the web, writes it into the URL under the param the screen reads',
+    /Platform\.OS === 'web'/.test(remember) && /router\.setParams\(\{ \[projectParamFor\(pathname\)\]: projectId \}\)/.test(remember),
+    'router.setParams({ [projectParamFor(pathname)]: projectId }), web only — a phone has no URL '
+    + 'to keep, and several screens gate on the param');
+  ok('…and every pick row goes through it before the host sees the pick',
+    /onPress=\{\(\) => \{ rememberPick\(p\.id\); onPick\(p\.id\); \}\}/.test(chromeSrc),
+    'the row must call rememberPick(p.id) and then onPick(p.id)');
+}
+
 // Construction News (wave 4, founder request F3) shipped with a door on each
 // form factor. Both pinned by name, because the sidebar row has no registry
 // `feature` yet (utils/featureRegistry.ts belongs to another lane — reported
@@ -381,7 +529,7 @@ const registryById = new Map(FEATURE_REGISTRY.map(e => [e.id, e]));
 // /client-portal-setup came to advertise nothing on a Pro one.
 {
   const sidebar = read(join('components', 'DesktopSidebar.tsx'));
-  const navBlock = sidebar.slice(sidebar.indexOf('const NAV_ITEMS'), sidebar.indexOf('const GLOBAL_SECTIONS'));
+  const navBlock = sidebar.slice(sidebar.indexOf('const NAV_ITEMS'), sidebar.indexOf('const JOB_SECTION'));
   ok('the sidebar keeps no second copy of the tier gate',
     navBlock.length > 0 && !/\brequires:\s*'/.test(navBlock) && /featureFor\(item\.feature\)\.requires/.test(sidebar),
     'NAV_ITEMS must carry no `requires:` — read it from featureFor(item.feature).requires.');
@@ -853,7 +1001,11 @@ console.log('\nproject-scoped registry entries resolve their own project:');
 // are correct: most hold the pick in local state (`pickedProjectId ?? param…`),
 // while app/budget-dashboard.tsx pushes it into the URL with router.setParams,
 // which overwrites the stale id outright. Accept either; reject neither by
-// accident.
+// accident. Since wave 6b the local-state screens ALSO get the URL write —
+// from ToolProjectPicker itself (the rememberPick checks above) — so the
+// local pick is the same-frame answer and the URL is the one that survives a
+// refresh. Neither regex needs to change for that, which is the point of
+// doing it in the shared component.
 const OUTRANKS_STALE = [
   /pickedProjectId \?\? param(ProjectId|Id|InvoiceId)/,
   /onPick=\{\(id\) => router\.setParams\(\{ projectId: id \}\)\}/,
