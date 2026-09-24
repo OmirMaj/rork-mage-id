@@ -27,6 +27,7 @@ import type {
   Project, AppSettings, ProjectPhoto, PublicProfileSettings,
 } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 export const PUBLIC_PROFILE_SNAPSHOT_VERSION = 2;
 
@@ -68,6 +69,7 @@ export interface PublicProfileSnapshot {
     id: string;
     name: string;
     slug: string;
+    /** Display label (projectTypeLabel), not the type id. */
     type?: string;
     /** The full street address: present ONLY when showAddress is true. */
     address?: string;
@@ -223,7 +225,10 @@ export function buildPublicProfileSnapshot(opts: BuildOpts): PublicProfileSnapsh
       id: project.id,
       name: project.name,
       slug: projectSlug,
-      type: project.type,
+      // Q6: what a prospect reads — the type's label, or his words for an
+      // Other job ("Whole-house repipe"), never a raw id like 'new_build'.
+      // marketing/builders/index.html prints this field as-is.
+      type: projectTypeLabel(project) || undefined,
       ...(where.address ? { address: where.address, showAddress: true } : {}),
       ...(where.locality ? { locality: where.locality } : {}),
       squareFootage: project.squareFootage,

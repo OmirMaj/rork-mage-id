@@ -450,10 +450,10 @@ ok('the task-detail weather panel marks what it prints',
 ok('both VerticalGantt mounts are fed the real forecast',
   (schedIndexCode.match(/forecast=\{ganttForecast\}/g) ?? []).length === 4,
   'two GanttChart mounts + two VerticalGantt mounts (mobile + desktop)');
-ok('both TodayView mounts are fed the jobsite location',
+ok('both TodayView and both LookaheadView mounts are fed the jobsite location',
   (schedIndexCode.match(/location=\{selectedProject\?\.location\}/g) ?? []).length === 4 &&
-  (schedIndexCode.match(/locationLatitude=\{selectedProject\?\.locationLatitude\}/g) ?? []).length === 2,
-  'two TodayView + two LookaheadView mounts take `location`; TodayView also takes lat/lng');
+  (schedIndexCode.match(/locationLatitude=\{selectedProject\?\.locationLatitude\}/g) ?? []).length === 4,
+  'two TodayView + two LookaheadView mounts take `location` AND lat/lng (lane Q2, 2026-09-24: Lookahead used to get the text only)');
 
 // ── The sweep: nothing NEW may render weather unmarked ─────────────────────
 // Two independent nets, so a future surface can't slip through by copying

@@ -48,6 +48,7 @@ import { levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
+import { prequalAwardLeg } from '@/utils/prequalAwardGate';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -784,8 +785,10 @@ export default function BuyoutPackageScreen() {
       ? prequalPackets.find(p => p.subcontractorId === sub.id)
       : null;
 
-    // D4-1: structured blocker evaluation via prequalEngine
-    const review = packet ? reviewPrequalPacket(packet) : null;
+    // D4-1: structured blocker evaluation via prequalEngine — run only on a
+    // SUBMITTED packet (Q5): an invited one is blank because the sub has not
+    // filled it in yet, and an approved/rejected one carries the GC's decision.
+    const review = packet && packet.status === 'submitted' ? reviewPrequalPacket(packet) : null;
     const blockers: string[] = [];
     const notes: string[] = [];
     const now = Date.now();
@@ -807,11 +810,14 @@ export default function BuyoutPackageScreen() {
         // A note, not a blocker: the prequal form is a separate invite the bid
         // invite never mentioned. Offered as one tap below ("Request prequal").
         notes.push(`No prequal packet on file for ${sub.companyName} — paperwork you may have chosen not to run on this job, not an insurance gap.`);
-      } else if (review && review.overall !== 'pass') {
-        for (const f of review.findings) {
-          if (!f.passed && f.severity === 'blocker') blockers.push(f.note ? `${f.label} — ${f.note}` : f.label);
-        }
-        if (!review.findings.some(f => !f.passed && f.severity === 'blocker')) notes.push(`Prequal not approved: ${review.summary}`);
+      } else {
+        // Q5: the packet's STATUS decides, not a re-run of the auto-review on
+        // whatever it holds — invited-but-unfilled is pending (a note), and the
+        // GC's own Reject is a blocker. Rules: utils/prequalAwardGate.ts,
+        // pinned by scripts/validate-prequal-engine.ts (section 9).
+        const leg = prequalAwardLeg(packet, review, sub.companyName, now);
+        blockers.push(...leg.blockers);
+        notes.push(...leg.notes);
       }
     }
     const isRisky = blockers.length > 0;

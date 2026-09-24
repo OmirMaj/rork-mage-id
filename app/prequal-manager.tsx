@@ -12,7 +12,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Linking, RefreshControl,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, RefreshControl,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -45,9 +45,12 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import {
-  reviewPrequalPacket, generatePrequalToken, computePrequalExpiry, renewalBucket,
+  reviewPrequalPacket, computePrequalExpiry, prequalApprovalRisk, renewalBucket,
   type PrequalReviewResult,
 } from '@/utils/prequalEngine';
+// Q5: the magic-link token comes from expo-crypto's CSPRNG, not Math.random.
+import { generatePrequalToken } from '@/utils/prequalToken';
+import { composeMailOrOfferLink } from '@/utils/prequalMail';
 import {
   DEFAULT_PREQUAL_CRITERIA,
   type PrequalPacket,
@@ -56,6 +59,13 @@ import {
 } from '@/types';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
+
+/** Q5: sign the emails the GC sends with HIS company — they used to end
+ *  "Thanks, MAGE ID", which reads as a vendor mailing the sub, not the GC. */
+function prequalSignOff(companyName: string | undefined): string {
+  const name = (companyName ?? '').trim();
+  return name ? `Thanks,\n${name}` : 'Thanks';
+}
 
 /** Recipient-safe prequal invite URL. Independent of the SENDER's platform:
  *  the GC on his iPhone and on the laptop mint the same https link. */
@@ -251,7 +261,8 @@ function PrequalManagerInner() {
   const router = useRouter();
   // The context's narrow review write (#24, w5-join-core) — aliased: this file
   // already imports prequalEngine's reviewPrequalPacket (the auto-review).
-  const { subcontractors, upsertPrequalPacket, reviewPrequalPacket: writePrequalReview, getPrequalPacketForSub, prequalPackets } = useProjects();
+  const { subcontractors, upsertPrequalPacket, reviewPrequalPacket: writePrequalReview, getPrequalPacketForSub, prequalPackets, settings } = useProjects();
+  const signOff = prequalSignOff(settings?.branding?.companyName);
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -414,10 +425,25 @@ function PrequalManagerInner() {
       `Please complete our subcontractor prequalification form. This keeps your paperwork current and unlocks bid invites from us — it takes about 10 minutes and you don't need a login.\n\n` +
       `Start here: ${link}\n\n` +
       `If the link doesn't open, tell us your preferred email and we'll resend.\n\n` +
-      `Thanks,\nMAGE ID`
+      signOff
     );
-    void Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`).catch(() => {});
-  }, [getPrequalPacketForSub, upsertPrequalPacket]);
+    // Q5: same honesty as the renewal and decision emails. This used to
+    // swallow a failed open, so with no mail app the GC saw nothing and had no
+    // link — the packet was saved and nobody was told.
+    void composeMailOrOfferLink({
+      mailto: `mailto:${email}?subject=${subject}&body=${body}`,
+      link,
+      ready: {
+        title: 'Invite ready to send',
+        nativeBody: `Your mail app opened with the link to ${email}. It is not sent until you tap Send there.`,
+        webBody: `Your mail app should open with the link to ${email}. Nothing is sent until you tap Send there. If no mail app opened, copy the link and send it yourself — a text message works.`,
+      },
+      failed: {
+        title: 'Invite saved — no email went out',
+        body: `No mail app opened, so ${email} has not been sent anything. Copy the link and send it yourself — a text message works.`,
+      },
+    });
+  }, [getPrequalPacketForSub, upsertPrequalPacket, signOff]);
 
   /**
    * #111 — tell the sub. A decision used to change a status the sub never saw:
@@ -451,45 +477,56 @@ function PrequalManagerInner() {
       + (kind === 'needs_changes'
         ? `Update your answers and resubmit here — no login needed: ${link}\n\n`
         : `Your packet and this note are here: ${link}\n\n`)
-      + 'Thanks',
+      + signOff,
     );
-    try {
-      await Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
-      showAlert(
-        'Status saved — email ready to send',
-        `Your mail app opened with the note to ${to}. It is not sent until you tap Send there. The sub also sees the note when they open their link.`,
-      );
-    } catch {
-      showAlert(
-        'Status saved — no email went out',
-        `No mail app opened, so ${to} has not been told. Copy the link and send it with your note, or use Resend note from this packet.`,
-        [
-          { text: 'Close', style: 'cancel' },
-          { text: 'Copy link', onPress: () => { void copyToClipboard(link); } },
-        ],
-      );
-    }
-  }, [subcontractors]);
+    await composeMailOrOfferLink({
+      mailto: `mailto:${to}?subject=${subject}&body=${body}`,
+      link,
+      ready: {
+        title: 'Status saved — email ready to send',
+        nativeBody: `Your mail app opened with the note to ${to}. It is not sent until you tap Send there. The sub also sees the note when they open their link.`,
+        webBody: `Your mail app should open with the note to ${to}. Nothing is sent until you tap Send there. If no mail app opened, copy the link and send it with your note. The sub also sees the note when they open their link.`,
+      },
+      failed: {
+        title: 'Status saved — no email went out',
+        body: `No mail app opened, so ${to} has not been told. Copy the link and send it with your note, or use Resend note from this packet.`,
+      },
+    });
+  }, [subcontractors, signOff]);
 
   // #24: each decision is the FRESH packet (the modal re-read it) with only the
   // review fields laid over it — never the stale in-memory spread.
   const handleApprove = useCallback((packet: PrequalPacket) => {
-    const now = new Date().toISOString();
-    // expiresAt and the findings snapshot come from what the sub actually
-    // submitted — the stale copy's coiExpiry was usually empty.
-    const updated = applyPrequalReview(packet, {
-      status: 'approved',
-      reviewedAt: now,
-      expiresAt: computePrequalExpiry(now, packet.insurance.coiExpiry),
-      autoReviewFindings: reviewPrequalPacket(packet).findings.map(f => ({
-        criterion: f.criterion, passed: f.passed, note: f.note,
-      })),
-      updatedAt: now,
-    });
-    // #24: only the reviewer's columns go to the server — never the sub's
-    // answers, which a row upsert would rewrite from whatever copy we hold.
-    writePrequalReview(packet.id, prequalReviewPatchOf(updated));
-    setReviewingPacket(null);
+    const commit = () => {
+      const now = new Date().toISOString();
+      // expiresAt and the findings snapshot come from what the sub actually
+      // submitted — the stale copy's coiExpiry was usually empty.
+      const updated = applyPrequalReview(packet, {
+        status: 'approved',
+        reviewedAt: now,
+        expiresAt: computePrequalExpiry(now, packet.insurance?.coiExpiry),
+        autoReviewFindings: reviewPrequalPacket(packet).findings.map(f => ({
+          criterion: f.criterion, passed: f.passed, note: f.note,
+        })),
+        updatedAt: now,
+      });
+      // #24: only the reviewer's columns go to the server — never the sub's
+      // answers, which a row upsert would rewrite from whatever copy we hold.
+      writePrequalReview(packet.id, prequalReviewPatchOf(updated));
+      setReviewingPacket(null);
+    };
+    // Q5: an unreadable or past COI date caps the approval at today (see
+    // computePrequalExpiry). Say so before writing it, not after.
+    const { coiExpiry: typedCoi } = packet.insurance ?? {};
+    const risk = prequalApprovalRisk(new Date().toISOString(), typedCoi);
+    if (!risk) { commit(); return; }
+    const warning = risk.kind === 'unreadable'
+      ? `The COI expiry the sub entered ("${risk.typed}") is not a date MAGE can read, so this approval would only last until today. Send it back for changes to get a real date.`
+      : `The sub's COI expiry (${formatPacketDate(risk.coi) ?? risk.coi}) is ${risk.today ? 'today' : 'already past'}, so this approval would lapse right away. Ask for a current certificate first.`;
+    showAlert('Approve with this COI date?', warning, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Approve anyway', onPress: commit },
+    ]);
   }, [writePrequalReview, setReviewingPacket]);
 
   const handleNeedsChanges = useCallback((packet: PrequalPacket, note: string) => {
@@ -541,24 +578,26 @@ function PrequalManagerInner() {
               + 'It is time to renew your subcontractor prequalification with us. Your previous answers are already filled in — '
               + 'update anything that changed (insurance dates especially) and resubmit. No login needed.\n\n'
               + `Start here: ${link}\n\n`
-              + 'The link in any earlier email no longer works.\n\nThanks',
+              + `The link in any earlier email no longer works.\n\n${signOff}`,
             );
-            Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`).then(
-              () => showAlert('Renewal ready to send', `Your mail app opened with the new link to ${email}. It is not sent until you tap Send there.`),
-              () => showAlert(
-                'Renewal saved — no email went out',
-                `No mail app opened, so ${email} has not been told. Copy the new link and send it yourself.`,
-                [
-                  { text: 'Close', style: 'cancel' },
-                  { text: 'Copy link', onPress: () => { void copyToClipboard(link); } },
-                ],
-              ),
-            );
+            void composeMailOrOfferLink({
+              mailto: `mailto:${email}?subject=${subject}&body=${body}`,
+              link,
+              ready: {
+                title: 'Renewal ready to send',
+                nativeBody: `Your mail app opened with the new link to ${email}. It is not sent until you tap Send there.`,
+                webBody: `Your mail app should open with the new link to ${email}. Nothing is sent until you tap Send there. If no mail app opened, copy the new link and send it yourself.`,
+              },
+              failed: {
+                title: 'Renewal saved — no email went out',
+                body: `No mail app opened, so ${email} has not been told. Copy the new link and send it yourself.`,
+              },
+            });
           },
         },
       ],
     );
-  }, [upsertPrequalPacket, setReviewingPacket]);
+  }, [upsertPrequalPacket, setReviewingPacket, signOff]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>

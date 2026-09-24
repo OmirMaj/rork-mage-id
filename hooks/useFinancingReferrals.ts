@@ -3,6 +3,7 @@ import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { generateUUID } from '@/utils/generateId';
 import type { FinancingReferral, FinancingReferralSource } from '@/types';
+import { referralRefreshPatch } from '@/utils/financingCore';
 
 interface ReferralRow {
   id: string;
@@ -65,7 +66,24 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
       const existing = (referralsQ.data ?? []).find(
         r => r.projectId === args.projectId && r.source === args.source,
       );
-      if (existing) return existing.id;
+      if (existing) {
+        // One row per (project, source) is re-used for every invoice on the
+        // project, and financing-redirect pre-fills the lender's page from the
+        // ROW's amount. Unrefreshed, invoice #2 for $40,000 opened the lender
+        // at invoice #1's $5,000. Bring the row to THIS invoice first.
+        const { error: refreshErr } = await supabase
+          .from('financing_referrals')
+          .update({ ...referralRefreshPatch(args), updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        void queryClient.invalidateQueries({ queryKey: ['financingReferrals', gcUserId] });
+        if (refreshErr) {
+          // Same rule as a failed insert below: a link that would open the
+          // lender at the wrong amount is left out of the email.
+          console.warn('[useFinancingReferrals] refresh failed:', refreshErr.message);
+          return '';
+        }
+        return existing.id;
+      }
       // `fin_` + 32 lower-case hex: financing-redirect accepts exactly this
       // shape (REF_RE) and treats the ref itself as the capability (#180).
       const token = `fin_${generateUUID().replace(/-/g, '').toLowerCase()}`;
@@ -115,8 +133,10 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
     referrals,
     counts: {
       created: referrals.length,
+      // No "funded": no lender reports back to MAGE ID (financing-callback
+      // needs a signature no off-the-shelf lender sends), so that count could
+      // only ever read 0. See utils/financingCore.FINANCING_TRACKING_LIMIT.
       clicked: referrals.filter(r => r.status !== 'created').length,
-      funded: referrals.filter(r => r.status === 'funded').length,
     },
     ensureReferral,
     refetch: referralsQ.refetch,

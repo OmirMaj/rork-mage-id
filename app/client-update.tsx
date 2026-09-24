@@ -1,3 +1,4 @@
+import { projectTypeLabel } from '@/utils/projectTypes';
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, KeyboardAvoidingView,
@@ -265,7 +266,7 @@ export default function ClientUpdateScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
-                    <Text style={styles.projectRowMeta}>{p.type}{displayText(p.location) ? ` · ${displayText(p.location)}` : ''}</Text>
+                    <Text style={styles.projectRowMeta}>{projectTypeLabel(p)}{displayText(p.location) ? ` · ${displayText(p.location)}` : ''}</Text>
                   </View>
                   {active && <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>

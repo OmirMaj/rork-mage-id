@@ -1,3 +1,4 @@
+import { projectTypeLabel } from '@/utils/projectTypes';
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Platform, ActivityIndicator,
@@ -276,7 +277,7 @@ export default function DataExportScreen() {
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
-                      <Text style={styles.projectRowMeta}>{p.type}{displayText(p.location) ? ` · ${displayText(p.location)}` : ''}</Text>
+                      <Text style={styles.projectRowMeta}>{projectTypeLabel(p)}{displayText(p.location) ? ` · ${displayText(p.location)}` : ''}</Text>
                     </View>
                     {active && <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />}
                   </TouchableOpacity>

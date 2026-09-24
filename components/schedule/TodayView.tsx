@@ -37,9 +37,11 @@ import {
   getPredecessors,
   getSuccessors,
 } from '@/utils/scheduleEngine';
-import { getForecastWithFallback, getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import { getForecastWithFallback, getConditionIcon, localCalendarDay, type DayForecast } from '@/utils/weatherService';
+import { describeForecast } from '@/utils/weatherProvenance';
 import {
   SimulatedWeatherBanner,
+  WeatherPlaceLine,
   SimulatedDayChip,
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
@@ -375,9 +377,9 @@ function TodayView({
    * so "72°F, 15% rain" was a number with no source.
    *
    * Now it goes through getForecastWithFallback, the same path LookaheadView
-   * and schedule-pro use: live OpenWeather when EXPO_PUBLIC_OPENWEATHER_API_KEY
-   * is set, simulated only when there's no key / no location / the request
-   * failed. Every returned day is tagged, and any non-live day on screen is
+   * and schedule-pro use: live OpenWeather (the build's own key, or the
+   * weather-forecast edge function on the web), simulated only when there's
+   * no location or the request failed. Every returned day is tagged, and any non-live day on screen is
    * marked (banner + per-day SIM chip).
    *
    * Starts empty rather than pre-seeding with simulated data: an empty header
@@ -398,7 +400,17 @@ function TodayView({
     return () => { cancelled = true; };
   }, [now, location, locationLatitude, locationLongitude]);
 
-  const todayWeather = forecast[0];
+  // TODAY's reading is the day whose date IS today — not whatever came first.
+  // Bucketed in UTC, the first day after ~8 PM Eastern was tomorrow's, and
+  // this card printed tomorrow's temperature as today's (2026-09-24).
+  const todayKey = localCalendarDay(now);
+  const todayWeather = forecast.find((f) => f.date === todayKey) ?? null;
+  const outlook = forecast.filter((f) => f.date > todayKey);
+  // Where this forecast is for, and why any of it is simulated.
+  const weatherDesc = describeForecast(
+    { city: location, latitude: locationLatitude, longitude: locationLongitude },
+    forecast,
+  );
 
   const activeTasks = useMemo(() => {
     return tasks.filter(t => {
@@ -497,11 +509,12 @@ function TodayView({
 
       {/* Above the strip it disclaims. Self-hiding when every day is live —
           `container` already supplies the gap, so no extra spacing needed. */}
-      <SimulatedWeatherBanner days={forecast} />
+      <WeatherPlaceLine text={weatherDesc.placeLine} />
+      <SimulatedWeatherBanner days={forecast} cause={weatherDesc.cause} />
 
-      {forecast.length > 1 && (
+      {outlook.length > 0 && (
         <View style={s.forecastRow}>
-          {forecast.slice(1).map((f) => {
+          {outlook.map((f) => {
             // UX-F10: f.date is a bare 'YYYY-MM-DD' — as UTC midnight the strip
             // was labelled Sun…Sat for Mon…Sun data west of Greenwich.
             const d = parseCalendarDay(f.date);

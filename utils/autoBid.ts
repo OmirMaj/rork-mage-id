@@ -72,6 +72,8 @@ export const PROJECT_TYPE_TO_BID_CATEGORY: Record<ProjectType | 'awarded_rfp', B
   plumbing: 'residential',
   electrical: 'residential',
   concrete: 'residential',
+  // Q6: an Other job (a repipe, an HVAC changeout) is homeowner work too.
+  other: 'residential',
   awarded_rfp: 'residential',
   commercial: 'construction',
 };

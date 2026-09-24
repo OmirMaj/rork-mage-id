@@ -8,6 +8,7 @@
 // Pure; never throws; capped so the prompt stays cheap on fast tier.
 import type { ChangeOrder, LinkedEstimateItem, Project } from '@/types';
 import { csiDivisionLabel } from '@/utils/csiMasterFormat';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 export const MAX_SCOPE_CHARS = 6000;
 
@@ -18,7 +19,7 @@ export function buildScopeSummary(project: Project, changeOrders: ChangeOrder[])
   try {
     const name = project?.name || 'This project';
     const meta: string[] = [];
-    if (project?.type) meta.push(String(project.type));
+    if (project?.type) meta.push(projectTypeLabel(project));
     if (project?.squareFootage) meta.push(`${project.squareFootage} sf`);
     if (project?.quality) meta.push(String(project.quality));
     const header = `PROJECT: ${name}${meta.length ? ` (${meta.join(', ')})` : ''}`;

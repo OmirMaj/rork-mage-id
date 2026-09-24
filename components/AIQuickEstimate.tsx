@@ -16,6 +16,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
+import { projectTypeLabel, projectTypeBlockReason, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
@@ -106,6 +107,9 @@ export default React.memo(function AIQuickEstimate({
   const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
   const [description, setDescription] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
+  // Q6: Other's own words — the AI is sent these, never the bare word "Other".
+  const [projectTypeOther, setProjectTypeOther] = useState('');
+  const typeBlock = projectTypeBlockReason(projectType, projectTypeOther, 'ai');
   const [sqft, setSqft] = useState('');
   const [quality, setQuality] = useState<QualityTier>('standard');
   const [result, setResult] = useState<AIQuickEstimateResult | null>(null);
@@ -173,6 +177,10 @@ export default React.memo(function AIQuickEstimate({
       showAlert('Describe Your Project', 'Tell us what you\'re building so AI can generate an accurate estimate.');
       return;
     }
+    if (typeBlock) {
+      showAlert('Describe the job', typeBlock);
+      return;
+    }
 
     // Quick Estimate is gated as a high-value feature. Free tier gets 3
     // lifetime trials (so they can DEMO the magic), then must upgrade to
@@ -191,11 +199,16 @@ export default React.memo(function AIQuickEstimate({
       // Grounding chosen for THIS job from what the model is about to see,
       // and snapshotted before the call so the chip describes this prompt
       // even if the cost book finishes loading (or changes) mid-call.
-      const used = groundingFor ? groundingFor({ projectType, scope: description }) : EMPTY_GROUNDING;
+      // An Other job grounds on his words ("Whole-house repipe" reaches the
+      // plumbing rates), the same as the estimate copilot does.
+      const typeText = projectTypeLabel({ type: projectType, projectTypeOther });
+      const used = groundingFor ? groundingFor({ projectType: projectType === 'other' ? typeText : projectType, scope: description }) : EMPTY_GROUNDING;
       setResultGrounding(used);
       const data = await generateQuickEstimate(
         description,
-        projectType,
+        // Q6: the AI reads the type's label ("New Build"), never the raw id —
+        // and for Other, his own words.
+        typeText,
         parseInt(sqft, 10) || 0,
         quality,
         location,
@@ -224,7 +237,7 @@ export default React.memo(function AIQuickEstimate({
       setStep('input');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [description, projectType, sqft, quality, location, tier, groundingFor]);
+  }, [description, projectType, projectTypeOther, typeBlock, sqft, quality, location, tier, groundingFor]);
 
   const matchMaterial = useCallback((aiMat: { name: string; category: string; unit: string; unitPrice: number; supplier: string }) => {
     const nameLower = aiMat.name.toLowerCase();
@@ -418,17 +431,33 @@ export default React.memo(function AIQuickEstimate({
       <View style={s.inputSection}>
         <Text style={s.sectionLabel}>Project Type</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.typeRow}>
-          {PROJECT_TYPES.slice(0, 8).map(pt => (
+          {/* Q6: every type, not the first eight — Painting, Plumbing,
+              Electrical and Concrete were unreachable. It already scrolls. */}
+          {PROJECT_TYPES.map(pt => (
             <TouchableOpacity
               key={pt.id}
               style={[s.typeChip, projectType === pt.id && s.typeChipActive]}
               onPress={() => { setProjectType(pt.id); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
               activeOpacity={0.7}
             >
-              <Text style={[s.typeChipText, projectType === pt.id && s.typeChipTextActive]}>{pt.label}</Text>
+              <Text style={[s.typeChipText, projectType === pt.id && s.typeChipTextActive]}>{pt.id === 'other' ? 'Other (describe it)' : pt.label}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
+        {projectType === 'other' ? (
+          <View style={s.typeOtherWrap}>
+            <TextInput
+              style={s.detailInput}
+              value={projectTypeOther}
+              onChangeText={setProjectTypeOther}
+              placeholder="Describe the job, e.g. Whole-house repipe"
+              placeholderTextColor={t.textMuted}
+              maxLength={PROJECT_TYPE_OTHER_MAX}
+              testID="ai-type-other"
+            />
+            {typeBlock ? <Text style={s.typeOtherHint}>{typeBlock}</Text> : null}
+          </View>
+        ) : null}
       </View>
 
       <View style={s.inputSection}>
@@ -456,9 +485,9 @@ export default React.memo(function AIQuickEstimate({
       )}
 
       <TouchableOpacity
-        style={[s.generateBtn, !description.trim() && s.generateBtnDisabled]}
+        style={[s.generateBtn, (!description.trim() || !!typeBlock) && s.generateBtnDisabled]}
         onPress={handleGenerate}
-        disabled={!description.trim()}
+        disabled={!description.trim() || !!typeBlock}
         activeOpacity={0.8}
         testID="ai-generate-btn"
       >
@@ -903,6 +932,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   inputSection: {
     marginBottom: 16,
+  },
+  typeOtherWrap: {
+    marginTop: 10,
+    gap: 6,
+  },
+  typeOtherHint: {
+    fontSize: Type.caption1.fontSize,
+    color: t.textSecondary,
+    lineHeight: 17,
   },
   descInput: {
     minHeight: 100,

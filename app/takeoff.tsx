@@ -78,6 +78,7 @@ import { TakeoffAccuracyPanel } from '@/components/TakeoffAccuracyPanel';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import type {
   TakeoffResult, TakeoffConfidence, TakeoffWall, TakeoffFloorArea,
   TakeoffDoor, TakeoffWindow, TakeoffFinish, TakeoffFixture, TakeoffBulkMaterial,
@@ -254,7 +255,8 @@ function TakeoffInner() {
       // Legacy, one release: an un-redeployed function still needs URLs.
       pageUrls: rendered.map(p => p.viewUrl),
       projectName: project?.name,
-      projectType: project?.type,
+      // Q6: the AI reads the type's label (his words for Other), never the raw id.
+      projectType: projectTypeLabel(project) || undefined,
       squareFootage: project?.squareFootage,
       location: project?.location,
       model: pickedModel,

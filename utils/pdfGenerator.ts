@@ -1,3 +1,4 @@
+import { projectTypeLabel } from './projectTypes';
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -382,6 +383,11 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** An estimate total in the whole cents footLines foots its rows to. */
+function estimateTotalCents(grandTotal: number): number {
+  return Math.round((Number.isFinite(grandTotal) ? grandTotal : 0) * 100);
+}
+
 function formatCurrency(n: number): string {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -457,6 +463,13 @@ function buildEstimateHtml(
     // finding, no quantity that could hint at one).
     const clientRows = clientEstimateLineRows(est.items);
     const rowCents = footLines(clientRows.map(r => r.lineTotal), est.grandTotal);
+    // The TOTAL is printed in the SAME cents footLines foots the rows to
+    // (Math.round of grandTotal × 100). An estimate built today is on the cent
+    // grid (utils/estimateMarkup cartLineSell), so this is exactly
+    // est.grandTotal; an older estimate kept fractional-cent lines, and
+    // printing its raw total through Intl rounded a half-cent the other way
+    // from the rows printed right above it ($66.59 over rows adding to $66.58).
+    const totalCents = estimateTotalCents(est.grandTotal);
     itemsHtml = `
       <h2>Materials & Items</h2>
       <table>
@@ -480,7 +493,7 @@ function buildEstimateHtml(
         </tbody>
       </table>
       <div class="summary-box">
-        <div class="summary-row total"><span>Estimate Total</span><span>${formatCurrency(est.grandTotal)}</span></div>
+        <div class="summary-row total"><span>Estimate Total</span><span>${formatCurrency(totalCents / 100)}</span></div>
       </div>
       ${bulkSavingsNoteHtml(est.bulkSavingsTotal)}`;
   } else if (legacyEst) {
@@ -782,7 +795,7 @@ function buildEstimateHtml(
       <span>Date: ${now}</span>
       <span>Location: ${escapeHtml(project.location)}</span>
       ${project.squareFootage > 0 ? `<span>Area: ${project.squareFootage.toLocaleString()} sq ft</span>` : ''}
-      <span>Type: ${escapeHtml(project.type.replace(/_/g, ' '))}</span>
+      <span>Type: ${escapeHtml(projectTypeLabel(project))}</span>
     </div>
     ${project.description ? `<p style="margin-top:8px;font-size:12px;color:#555">${escapeHtml(project.description)}</p>` : ''}
   </div>
@@ -1877,13 +1890,15 @@ export function buildEstimateTextForEmail(
     // the TOTAL; never a cost unit price, a markup %, Base Cost or Markup.
     const clientRows = clientEstimateLineRows(est.items);
     const rowCents = footLines(clientRows.map(r => r.lineTotal), est.grandTotal);
+    // Same as the PDF: the TOTAL in the cents the rows are footed to.
+    const totalCents = estimateTotalCents(est.grandTotal);
     clientRows.forEach((row, i) => {
       text += `${i + 1}. ${row.name}\n`;
       text += row.quantity != null ? `   ${row.quantity} ${row.unit}\n` : `   Lump sum\n`;
       text += `   Line Total: ${formatCurrency(rowCents[i] / 100)}\n\n`;
     });
     text += `${divider}\n`;
-    text += `TOTAL:        ${formatCurrency(est.grandTotal)}\n`;
+    text += `TOTAL:        ${formatCurrency(totalCents / 100)}\n`;
     text += bulkSavingsNoteText(est.bulkSavingsTotal);
     text += '\n';
   }

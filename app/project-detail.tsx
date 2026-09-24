@@ -26,6 +26,7 @@ import {
   MageEstimate, MageSchedule, MageContract, MageChangeOrder, MageInvoice,
   MageDailyReport, MageMargin,
 } from '@/components/icons';
+import { cleanProjectTypeOther, projectTypeBlockReason, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
 import { PROJECT_TYPES, CONTRACT_MODES, CONTRACT_MODE_LABELS, CONTRACT_TERM_RANGES, type ContractMode, type Project, type ProjectContract, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState, type ChangeOrder } from '@/types';
 import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleReflowPreviewModal';
 import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
@@ -881,6 +882,8 @@ export default function ProjectDetailScreen() {
   const [editDescription, setEditDescription] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editType, setEditType] = useState<ProjectType>('renovation');
+  // Q6 · his words when the type is Other.
+  const [editTypeOther, setEditTypeOther] = useState('');
   const [editSquareFootage, setEditSquareFootage] = useState('');
   // Contract block. Strings while typing; parsed and range-checked on save
   // against CONTRACT_TERM_RANGES — the same bounds as the DB CHECKs, because a
@@ -920,6 +923,7 @@ export default function ProjectDetailScreen() {
     setEditDescription(project.description || '');
     setEditLocation(project.location || '');
     setEditType(project.type);
+    setEditTypeOther(project.projectTypeOther ?? '');
     setEditSquareFootage(project.squareFootage > 0 ? project.squareFootage.toString() : '');
     setEditContractMode(project.contractMode);
     setEditGmpCap(project.gmpCap != null ? String(project.gmpCap) : '');
@@ -1105,19 +1109,29 @@ export default function ProjectDetailScreen() {
       }
       contractPatch = built.patch;
     }
+    // Q6: Other needs his words — checked before anything is written.
+    const typeBlock = projectTypeBlockReason(editType, editTypeOther);
+    if (typeBlock) {
+      showAlert('Describe the job', typeBlock);
+      return;
+    }
     const sqft = parseFloat(editSquareFootage) || 0;
     updateProject(id, {
       name,
       description: editDescription.trim(),
-      location: editLocation.trim() || 'United States',
+      // Blank = no address. 'United States' geocoded to the Kansas centroid
+      // and showed Kansas weather for the job (lane Q2, 2026-09-24).
+      location: editLocation.trim(),
       type: editType,
+      // Leaving Other drops the words (the write sends NULL for them anyway).
+      projectTypeOther: editType === 'other' ? cleanProjectTypeOther(editTypeOther) : undefined,
       squareFootage: sqft,
       ...contractPatch,
     });
     setShowEditModal(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     console.log('[ProjectDetail] Project updated:', id);
-  }, [id, editName, editDescription, editLocation, editType, editSquareFootage, updateProject, contractAccess, buildContractPatch, project, capGate]);
+  }, [id, editName, editDescription, editLocation, editType, editTypeOther, editSquareFootage, updateProject, contractAccess, buildContractPatch, project, capGate]);
 
   const branding = useMemo(() => settings.branding ?? {
     companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
@@ -5352,6 +5366,20 @@ export default function ProjectDetailScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+                {editType === 'other' ? (
+                  <>
+                    <Text style={styles.inviteFieldLabel}>Describe the job</Text>
+                    <TextInput
+                      style={styles.inviteInput}
+                      value={editTypeOther}
+                      onChangeText={setEditTypeOther}
+                      placeholder="e.g. Whole-house repipe"
+                      placeholderTextColor={themeColors.textMuted}
+                      maxLength={PROJECT_TYPE_OTHER_MAX}
+                      testID="edit-type-other-input"
+                    />
+                  </>
+                ) : null}
 
                 {!contractAccess.hidden && (
                   <View style={styles.contractBlock} testID="edit-contract-block">

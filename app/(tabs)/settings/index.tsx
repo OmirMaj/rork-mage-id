@@ -26,7 +26,7 @@ import { useAuth, dropPendingWrites } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { platformFeeLabel } from '@/utils/platformFees';
-import { getAIUsageStats } from '@/utils/aiRateLimiter';
+import { getAIUsageStats, describeAIUsageCard, type AIUsageSource, type SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { nextAiResetLabel } from '@/utils/aiRateLimiterCore';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { listPriceLabel, type PaidTier } from '@/constants/pricing';
@@ -281,10 +281,17 @@ export default function SettingsScreen() {
   const { colors: themeColors, resolved: resolvedTheme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
-  const [aiUsed, setAiUsed] = useState(0);
-  const [aiLimit, setAiLimit] = useState(10);
-  const [aiSmartUsed, setAiSmartUsed] = useState(0);
-  const [aiSmartLimit, setAiSmartLimit] = useState(3);
+  // AI USAGE: no placeholder caps. This used to open on useState(10) /
+  // useState(3) — the retired v1 free cap and a number no plan has — printed as
+  // "Today: 0 of 10 requests" until the read landed, and forever when it threw
+  // (the founder's "10 attempts", 2026-09-24). describeAIUsageCard decides what
+  // is real enough to show; see utils/aiRateLimiter.ts.
+  const [aiUsage, setAiUsage] = useState<{
+    tier: SubscriptionTierKey;
+    stats: { used: number; smartUsed: number; source: AIUsageSource };
+  } | null>(null);
+  const [aiUsageFailed, setAiUsageFailed] = useState(false);
+  const [aiUsageAttempt, setAiUsageAttempt] = useState(0);
   // #123 / #128: the daily and monthly AI counters roll over at 00:00 UTC —
   // 8:00 PM the evening before for an east-coast contractor — so this line
   // says the real local moment instead of "midnight" / "the 1st". Computed
@@ -374,13 +381,27 @@ export default function SettingsScreen() {
   const takeoffQuota = useTakeoffPagesQuota();
 
   React.useEffect(() => {
-    getAIUsageStats(tier as any).then(stats => {
-      setAiUsed(stats.used);
-      setAiLimit(stats.limit);
-      setAiSmartUsed(stats.smartUsed);
-      setAiSmartLimit(stats.smartLimit);
-    }).catch(() => {});
-  }, [tier]);
+    // `cancelled`: a read for a tier the screen has since left (cached tier,
+    // then the resolved one) must not land last and paint the wrong plan.
+    let cancelled = false;
+    // A retry (or a new tier) goes back to "Loading…" rather than leaving the
+    // last answer up while the new read is in flight.
+    setAiUsage(null);
+    setAiUsageFailed(false);
+    const readFor = tier as SubscriptionTierKey;
+    getAIUsageStats(readFor).then(stats => {
+      if (!cancelled) setAiUsage({ tier: readFor, stats });
+    }).catch((err) => {
+      console.warn('[settings] AI usage read failed', err);
+      if (!cancelled) setAiUsageFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [tier, aiUsageAttempt]);
+  const aiCard = describeAIUsageCard({ tier: tier as SubscriptionTierKey, loaded: aiUsage, failed: aiUsageFailed });
+  const aiUsed = aiCard.kind === 'ready' ? aiCard.used : 0;
+  const aiLimit = aiCard.kind === 'ready' ? aiCard.limit : 0;
+  const aiSmartUsed = aiCard.kind === 'ready' ? aiCard.smartUsed : 0;
+  const aiSmartLimit = aiCard.kind === 'ready' ? aiCard.smartLimit : 0;
 
   // ── THE THREE NUMBERS THAT PRICE EVERY JOB ────────────────────────────────
   // Location, sales tax and contingency used to be local drafts committed ONLY
@@ -598,7 +619,8 @@ export default function SettingsScreen() {
     // screen would otherwise overwrite anything the user just edited
     // in the dedicated screen with stale values.
     updateSettings({
-      location: location.trim() || 'United States',
+      // Blank = no market (the US average). Never the literal 'United States'.
+      location: location.trim(),
       biometricsEnabled,
       pdfNaming: pdfNaming.enabled ? pdfNaming : undefined,
       ...extra,
@@ -607,7 +629,7 @@ export default function SettingsScreen() {
   }, [location, biometricsEnabled, pdfNaming, updateSettings, refuseWhileProfileFailed]);
 
   const commitLocation = useCallback(() => {
-    const next = location.trim() || 'United States';
+    const next = location.trim();
     if (next === settings.location) return;
     if (!commitScreen({ location: next })) { setLocation(settings.location); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -1032,6 +1054,37 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHeader}>AI USAGE</Text>
         <View style={styles.group}>
+          {/* Loading / couldn't-load replace BOTH daily rows: no number is shown
+              until it is the real one (describeAIUsageCard). The ready branch
+              below is the pre-existing markup, unchanged. */}
+          {aiCard.kind === 'loading' ? (
+            <View style={styles.row} testID="ai-usage-loading">
+              <View style={styles.iconWrap}>
+                <MageAIMark size={14} color={themeColors.textSecondary} />
+              </View>
+              <Text style={[styles.rowLabel, { color: themeColors.textMuted }]}>{aiCard.message}</Text>
+              <ActivityIndicator size="small" color={themeColors.textMuted} />
+            </View>
+          ) : aiCard.kind === 'unavailable' ? (
+            <View style={styles.row} testID="ai-usage-unavailable">
+              <View style={styles.iconWrap}>
+                <MageAIMark size={14} color={themeColors.textSecondary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>{aiCard.message}</Text>
+                <Text style={styles.rowSubtext}>{aiCard.allowance}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setAiUsageAttempt(n => n + 1)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading AI usage"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={{ fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (<>
           <View style={styles.row}>
             <View style={styles.iconWrap}>
               <MageAIMark size={14} color={themeColors.textSecondary} />
@@ -1079,6 +1132,7 @@ export default function SettingsScreen() {
               )}
             </View>
           </View>
+          </>)}
           <View style={styles.rowSeparator} />
           {/* Monthly takeoff page quota — distinct from the daily AI
               request counters above. Takeoffs are page-metered (a

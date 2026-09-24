@@ -7,6 +7,9 @@
 // WizardAnswers exactly + an updatedAt stamp.
 
 import { z } from 'zod';
+import type { ProjectType } from '@/types';
+import { PROJECT_TYPES as APP_PROJECT_TYPES } from '@/types';
+import { cleanProjectTypeOther, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
 
 export interface WizardAnswers {
   projectType: string;
@@ -41,7 +44,125 @@ export const PROJECT_TYPES = [
   'Commercial TI',
   'Roof Replacement',
   'Deck / Outdoor',
+  // Q6: the founder's repipe had no box, so he picked "Bathroom Remodel" and
+  // the AI was told so. Both map onto ids the app already has.
+  'Plumbing / Repipe',
+  'Electrical / Rewire',
 ] as const;
+
+/** One of the chip answers above. Anything else in WizardAnswers.projectType
+ *  is an "Other (describe it)" answer — the contractor's own words. */
+export type ScopeTypeChip = typeof PROJECT_TYPES[number];
+
+/** The Other box's cap — the same as the projects.project_type_other CHECK,
+ *  because a new project's description is this answer. */
+export const SCOPE_TYPE_OTHER_MAX = PROJECT_TYPE_OTHER_MAX;
+
+export function isScopeTypeChip(answer: string): answer is ScopeTypeChip {
+  return (PROJECT_TYPES as readonly string[]).includes(answer);
+}
+
+/** Each chip → the app's ProjectType. Exhaustive: a chip added above without
+ *  a row here is a type error. Matches what the wizard's old substring
+ *  mapProjectType produced for every original chip. */
+const SCOPE_CHIP_TYPE: Readonly<Record<ScopeTypeChip, ProjectType>> = {
+  'New Build': 'new_build',
+  'Full Remodel': 'remodel',
+  'Kitchen Remodel': 'remodel',
+  'Bathroom Remodel': 'remodel',
+  'Addition': 'addition',
+  'Basement Finish': 'renovation',
+  'ADU / Backyard Build': 'new_build',
+  'Commercial TI': 'commercial',
+  'Roof Replacement': 'roofing',
+  'Deck / Outdoor': 'landscape',
+  'Plumbing / Repipe': 'plumbing',
+  'Electrical / Rewire': 'electrical',
+};
+
+/** Free-text keywords → type, in order: the whole-job kinds first (a
+ *  "bathroom remodel with new plumbing" is a remodel), then the trades. The
+ *  trade rows are what let "Whole-house repipe", "PEX repipe", "copper
+ *  repipe", "rewire" and "panel upgrade" land on plumbing / electrical. */
+const SCOPE_TEXT_RULES: ReadonlyArray<readonly [RegExp, ProjectType]> = [
+  [/\bnew (build|construction|home|house)\b|\bground[- ]?up\b|\badu\b/i, 'new_build'],
+  [/\baddition\b/i, 'addition'],
+  [/\bcommercial\b|\bti\b|tenant improvement/i, 'commercial'],
+  [/\bremodel/i, 'remodel'],
+  [/\brenovat|\bbasement\b/i, 'renovation'],
+  [/\b(re-?)?roof/i, 'roofing'],
+  [/\bdeck|\boutdoor|landscap/i, 'landscape'],
+  [/plumb|\bre-?pip|\bpex\b|\bcopper\b|\bpiping\b|\bwater (line|heater)|\bsewer\b|\bdrain line/i, 'plumbing'],
+  [/electric|\bre-?wir|\bwiring\b|\bpanel (upgrade|swap|replace)|\bservice upgrade/i, 'electrical'],
+  [/\bflooring\b|\bhardwood\b|\blvp\b|\bcarpet/i, 'flooring'],
+  [/\bpaint/i, 'painting'],
+  [/\bconcrete\b|\bflatwork\b|\bdriveway\b|\bfoundation\b/i, 'concrete'],
+];
+
+/**
+ * The wizard's project-type answer → the Project's type (and, for Other, his
+ * words). Replaces app/estimate-wizard.tsx's local mapProjectType, which could
+ * only produce seven types and turned everything else into 'renovation'.
+ *   a chip → its type
+ *   an app type's own label or id ("Flooring", "plumbing", "new build") → that type
+ *   free text naming a kind of job or trade ("Whole-house repipe") → that type
+ *   anything else ("HVAC changeout", "Windows & doors") → 'other' + his words
+ *   blank → 'renovation' (the app's generic default, as before)
+ */
+export function projectTypeFromScopeAnswer(answer: string): { type: ProjectType; projectTypeOther?: string } {
+  const text = cleanProjectTypeOther(answer);
+  if (!text) return { type: 'renovation' };
+  if (isScopeTypeChip(text)) return { type: SCOPE_CHIP_TYPE[text] };
+  const norm = text.toLowerCase().replace(/[_\s]+/g, ' ');
+  const named = APP_PROJECT_TYPES.find(t => t.id !== 'other' && (t.label.toLowerCase() === norm || t.id.replace(/_/g, ' ') === norm));
+  if (named) return { type: named.id };
+  for (const [re, type] of SCOPE_TEXT_RULES) if (re.test(text)) return { type };
+  return { type: 'other', projectTypeOther: text };
+}
+
+/** Words a model returns where a type goes and that say nothing about the job. */
+const NO_TYPE_WORDS = new Set(['other', 'null', 'none', 'n/a', 'na', 'undefined', 'unknown', 'general', 'project']);
+
+/**
+ * A project type from a VOICE / copilot parse, which may be an id
+ * ("plumbing"), a label ("New Build") or the kind of job in his own words
+ * ("HVAC changeout", "whole-house repipe"). Same mapping as the wizard
+ * (projectTypeFromScopeAnswer), so a repipe lands on plumbing and an HVAC
+ * changeout on 'other' with his words — never silently on 'renovation'.
+ * Returns null when the value names no job at all (blank, not a string, or a
+ * bare "other" / "none" / "unknown"): the caller asks, or keeps its default.
+ */
+export function projectTypeFromParsedType(v: unknown): { type: ProjectType; projectTypeOther?: string } | null {
+  const text = cleanProjectTypeOther(v);
+  if (!text || NO_TYPE_WORDS.has(text.toLowerCase())) return null;
+  return projectTypeFromScopeAnswer(text);
+}
+
+/** A job's type → the answer the "What kind of project?" step opens on, so
+ *  the scope screen and the wizard never re-ask what the job already says.
+ *  Types with a chip open on the chip; flooring / painting / concrete open
+ *  on Other with the type's own name (a chip list is not the whole
+ *  taxonomy); an Other job opens on Other with his words. 'renovation' — the
+ *  New Project form's default, which says nothing about the job — and any
+ *  unknown id open blank, as the wizard always did. Round-trips through
+ *  projectTypeFromScopeAnswer for every type but 'renovation'. */
+export function scopeAnswerForProject(p: { type?: string | null; projectTypeOther?: string | null } | null | undefined): string {
+  switch (p?.type) {
+    case 'new_build': return 'New Build';
+    case 'remodel': return 'Full Remodel';
+    case 'addition': return 'Addition';
+    case 'commercial': return 'Commercial TI';
+    case 'roofing': return 'Roof Replacement';
+    case 'landscape': return 'Deck / Outdoor';
+    case 'plumbing': return 'Plumbing / Repipe';
+    case 'electrical': return 'Electrical / Rewire';
+    case 'flooring': return 'Flooring';
+    case 'painting': return 'Painting';
+    case 'concrete': return 'Concrete';
+    case 'other': return cleanProjectTypeOther(p.projectTypeOther);
+    default: return '';
+  }
+}
 
 export const QUALITY_LABELS: Record<WizardAnswers['quality'], string> = {
   budget: 'Budget',
@@ -93,7 +214,7 @@ export function firstNumber(s: string): number | null {
 
 export function stepCanAdvance(stepIndex: number, a: WizardAnswers): boolean {
   switch (stepIndex) {
-    case 0: return a.projectType.length > 0;
+    case 0: return a.projectType.trim().length > 0;
     case 1: return firstNumber(a.sizeSqft) !== null;
     case 2: return a.location.trim().length > 0;
     case 3: return true;
@@ -110,7 +231,7 @@ export function stepCanAdvance(stepIndex: number, a: WizardAnswers): boolean {
 export function stepBlockReason(stepIndex: number, a: WizardAnswers): string | null {
   if (stepCanAdvance(stepIndex, a)) return null;
   switch (stepIndex) {
-    case 0: return 'Pick a project type to continue.';
+    case 0: return 'Pick a project type to continue, or tap Other and describe the job.';
     case 1: return 'Enter the size with a number — e.g. 2500 or 2,500 sqft.';
     case 2: return 'Enter a location — city and state is plenty.';
     case 4: return 'Describe the scope in a few words — a short sentence is plenty.';

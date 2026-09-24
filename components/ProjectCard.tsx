@@ -2,10 +2,11 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home,
-  LayoutGrid, Paintbrush, Droplets, Zap, Boxes, ChevronRight, MapPin,
+  LayoutGrid, Paintbrush, Droplets, Zap, Boxes, Wrench, ChevronRight, MapPin,
 } from 'lucide-react-native';
 import { formatMoney, displayText } from '@/utils/formatters';
 import type { Project, ProjectType } from '@/types';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -15,7 +16,7 @@ import { EyebrowLabel } from '@/components/ui/EyebrowLabel';
 import type { ThemeColors } from '@/constants/colors';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
-  Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes,
+  Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes, Wrench,
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -38,6 +39,7 @@ const TYPE_ICON_MAP: Record<ProjectType, string> = {
   new_build: 'Building2', renovation: 'Hammer', addition: 'Plus', remodel: 'PenLine',
   commercial: 'Store', landscape: 'Trees', roofing: 'Home', flooring: 'LayoutGrid',
   painting: 'Paintbrush', plumbing: 'Droplets', electrical: 'Zap', concrete: 'Boxes',
+  other: 'Wrench',
 };
 
 function getTypeIcon(type: ProjectType) {
@@ -172,7 +174,9 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate,
               <IconComponent size={20} color={colors.accent} strokeWidth={1.8} />
             </View>
             <View style={styles.titleBlock}>
-              <EyebrowLabel tone="amber">Project</EyebrowLabel>
+              {/* Q6: an Other job's icon is a generic wrench, so the eyebrow
+                  carries its words ("Whole-house repipe"), never "other". */}
+              <EyebrowLabel tone="amber">{project.type === 'other' ? projectTypeLabel(project) : 'Project'}</EyebrowLabel>
               <Text style={[Type.serifHeadline, { color: colors.text, marginTop: 2 }]} numberOfLines={2}>
                 {project.name}
               </Text>

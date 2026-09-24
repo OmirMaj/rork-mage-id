@@ -63,6 +63,8 @@ import { CreateMenu } from '@/components/CreateMenu';
 import OfflineSyncPill from '@/components/OfflineSyncPill';
 import QuickFieldUpdate from '@/components/QuickFieldUpdate';
 import { PROJECT_TYPES, type Project, type ProjectType, type EntityRef } from '@/types';
+import { cleanProjectTypeOther, projectTypeBlockReason, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
+import { projectTypeFromParsedType } from '@/utils/scopeQuestions';
 import WarrantyWalkBanner from '@/components/WarrantyWalkBanner';
 import { getUpcomingWarrantyWalks } from '@/utils/warrantyWalks';
 import { Type } from '@/constants/typography';
@@ -349,6 +351,8 @@ export default function HomeScreen() {
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
+  // Q6 · his words when he picks Other ("Whole-house repipe").
+  const [projectTypeOther, setProjectTypeOther] = useState('');
   // Jobsite address and size. Both used to be hardcoded at write time
   // (`location: 'United States'`, `squareFootage: 0`) because this modal had
   // no field for either — see handleCreateProject for what that placeholder
@@ -556,6 +560,12 @@ export default function HomeScreen() {
       showAlert('Missing Name', 'Please enter a project name.');
       return;
     }
+    // Q6: Other needs his words — "Other" alone tells nobody what the job is.
+    const typeBlock = projectTypeBlockReason(projectType, projectTypeOther);
+    if (typeBlock) {
+      showAlert('Describe the job', typeBlock);
+      return;
+    }
     const now = new Date().toISOString();
     // MUST be a real UUID — projects.id is uuid in Supabase. Pre-fix this
     // used `project-{timestamp}-{rand}`, which Postgres rejected on upsert.
@@ -585,6 +595,7 @@ export default function HomeScreen() {
       id,
       name,
       type: projectType,
+      ...(projectType === 'other' ? { projectTypeOther: cleanProjectTypeOther(projectTypeOther) } : {}),
       location,
       squareFootage: Number.isFinite(squareFootage) ? squareFootage : 0,
       // `quality` is a genuine default, not a stand-in for an answer we
@@ -608,9 +619,10 @@ export default function HomeScreen() {
     setProjectName('');
     setProjectDescription('');
     setProjectType('renovation');
+    setProjectTypeOther('');
     setProjectLocation('');
     setProjectSqft('');
-  }, [projectName, projectDescription, projectType, projectLocation, projectSqft, addProject]);
+  }, [projectName, projectDescription, projectType, projectTypeOther, projectLocation, projectSqft, addProject]);
 
   const handleNextStep = useCallback((step: 'estimate' | 'schedule' | 'later') => {
     setShowNextStepModal(false);
@@ -1305,7 +1317,12 @@ export default function HomeScreen() {
                     const heardSomething = !!(partial.name || partial.notes || partial.location);
                     if (partial.name) setProjectName(prev => prev || partial.name);
                     if (partial.notes) setProjectDescription(prev => prev || partial.notes);
-                    if (partial.type && heardSomething) setProjectType(partial.type as ProjectType);
+                    // Q6: the parse may name the job in his words ("HVAC
+                    // changeout") — resolved to a real type, with the words
+                    // kept for Other. Unresolvable → renovation, as before.
+                    const heardType = projectTypeFromParsedType(partial.type) ?? { type: 'renovation' as ProjectType, projectTypeOther: undefined };
+                    if (partial.type && heardSomething) setProjectType(heardType.type);
+                    if (partial.type && heardSomething) setProjectTypeOther(heardType.projectTypeOther ?? '');
                     // The parser has always returned `location` — it is right
                     // there in the suggestion copy above ("at 123 Main Street
                     // San Diego") — and this handler dropped it on the floor
@@ -1401,6 +1418,23 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+                {projectType === 'other' ? (
+                  <>
+                    <Text style={styles.fieldLabel}>Describe the job</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={projectTypeOther}
+                      onChangeText={setProjectTypeOther}
+                      placeholder="e.g. Whole-house repipe"
+                      placeholderTextColor={themeColors.textMuted}
+                      maxLength={PROJECT_TYPE_OTHER_MAX}
+                      testID="project-type-other-input"
+                    />
+                    <Text style={styles.fieldHint}>
+                      Shown instead of &quot;Other&quot; on the job list, PDFs and the client portal, and sent to the AI as the project type.
+                    </Text>
+                  </>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Square Footage</Text>
                 <TextInput

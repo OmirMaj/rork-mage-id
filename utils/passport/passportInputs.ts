@@ -21,6 +21,7 @@ import type {
 } from '@/utils/passport/consumerPassport';
 import { calendarDayOf } from '@/utils/calendarDate';
 import { ownerSharingFor } from '@/utils/passport/ownerSharing';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 const clean = (s: string | undefined | null): string => (typeof s === 'string' ? s.trim() : '');
 
@@ -45,7 +46,7 @@ export function passportContractorFromBranding(
 }
 
 type ProjectLike = Pick<Project, 'id' | 'name' | 'location' | 'type' | 'status' | 'createdAt' | 'squareFootage'>
-  & Partial<Pick<Project, 'substantialCompletionDate' | 'closedAt' | 'clientPortal'>>;
+  & Partial<Pick<Project, 'substantialCompletionDate' | 'closedAt' | 'clientPortal' | 'projectTypeOther'>>;
 
 function withDay<K extends 'substantialCompletionDate' | 'closedAt'>(key: K, value: string | null | undefined): Partial<Record<K, string>> {
   const day = calendarDayOf(value);
@@ -63,7 +64,9 @@ export function passportJobsFromProjects(
     id: p.id,
     name: p.name,
     location: p.location,
-    type: String(p.type ?? ''),
+    // Q6: the homeowner reads this (work history, share text) — the type's
+    // label or his words for an Other job, never a raw id like 'new_build'.
+    type: projectTypeLabel(p),
     status: String(p.status ?? ''),
     createdAt: p.createdAt,
     squareFootage: p.squareFootage,

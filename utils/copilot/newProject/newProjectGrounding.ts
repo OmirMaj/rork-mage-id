@@ -27,7 +27,9 @@ function modal(values: (string | undefined | null)[]): string | null {
 
 export async function buildNewProjectGrounding(c: CopilotContext): Promise<Grounding> {
   const projects = (c.ctx?.projects ?? []) as ProjectLike[];
-  const usualType = modal(projects.map((p) => p.type));
+  // Q6: 'other' is many different jobs pooled under one id (each carries its
+  // own words) — never a "what you usually build" default.
+  const usualType = modal(projects.map((p) => p.type).filter((t) => t !== 'other'));
   const usualQuality = modal(projects.map((p) => p.quality));
   const usualLocation = modal(projects.map((p) => p.location).filter((l) => l && l !== 'United States'));
 

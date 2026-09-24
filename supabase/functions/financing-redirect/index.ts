@@ -1,13 +1,15 @@
 // financing-redirect
 //
-// GET ?ref=<refToken>                               — emailed invoice/estimate link.
+// GET ?ref=<refToken>                               — emailed invoice link.
 // GET ?project=<id>&src=portal&portal=<portalId>&t=<accessToken>
 //                                                   — client-portal button.
 // Records the homeowner click on the financing offer, then 302-redirects
 // to the partner's hosted prequalification page (prefilled with amount +
 // the GC's partner code + the ref token as the partner return key).
 //
-// MAGE is not a lender; this only forwards the homeowner to the partner.
+// MAGE is not a lender, has no lending partner and is not paid for the
+// referral ("bring your own lender"); this only forwards the homeowner to the
+// lender the GC named in Payments.
 // Unknown/missing token => safe redirect to the marketing site, never an
 // error page to the homeowner.
 //
@@ -56,8 +58,10 @@ serve(async (req) => {
     const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Two entry modes:
-    //  (a) ?ref=<token>  — emailed invoice/estimate link (row pre-created
-    //      by the authenticated GC via the app).
+    //  (a) ?ref=<token>  — emailed invoice link (row pre-created by the
+    //      authenticated GC via the app, and brought to THAT invoice's amount
+    //      before each send — hooks/useFinancingReferrals.ensureReferral —
+    //      because the amount prefilled below is read from the row).
     //  (b) ?project=<id>&src=portal&portal=<portalId>&t=<accessToken> — the
     //      client-portal button. The homeowner has no auth.uid(), so it
     //      CANNOT insert under RLS; instead this service-role fn

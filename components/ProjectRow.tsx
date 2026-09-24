@@ -12,10 +12,11 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home,
-  LayoutGrid, Paintbrush, Droplets, Zap, Boxes, ChevronRight, MapPin,
+  LayoutGrid, Paintbrush, Droplets, Zap, Boxes, Wrench, ChevronRight, MapPin,
 } from 'lucide-react-native';
 import { formatMoney, displayText } from '@/utils/formatters';
 import type { Project, ProjectType } from '@/types';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -24,7 +25,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
-  Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes,
+  Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes, Wrench,
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -47,6 +48,7 @@ const TYPE_ICON_MAP: Record<ProjectType, string> = {
   new_build: 'Building2', renovation: 'Hammer', addition: 'Plus', remodel: 'PenLine',
   commercial: 'Store', landscape: 'Trees', roofing: 'Home', flooring: 'LayoutGrid',
   painting: 'Paintbrush', plumbing: 'Droplets', electrical: 'Zap', concrete: 'Boxes',
+  other: 'Wrench',
 };
 
 interface Props {
@@ -114,6 +116,13 @@ const ProjectRow = React.memo(function ProjectRow({
 
       <View style={styles.nameCol}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{project.name}</Text>
+        {/* Q6: an Other job's icon is a generic wrench, so its words say what
+            the job is ("Whole-house repipe") — never the word "other". */}
+        {project.type === 'other' ? (
+          <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1} testID={`project-row-type-${project.id}`}>
+            {projectTypeLabel(project)}
+          </Text>
+        ) : null}
         {displayText(project.location) ? (
           <View style={styles.locationRow}>
             <MapPin size={11} color={colors.textMuted} strokeWidth={1.75} />

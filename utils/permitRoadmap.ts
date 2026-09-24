@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Project, ScheduleTask, PermitRoadmap, RoadmapPermit, RoadmapInspection } from '@/types';
 import { mageAISmart } from '@/utils/mageAI';
 import { createId } from '@/utils/scheduleEngine';
+import { projectTypeLabel } from '@/utils/projectTypes';
 // The date + flag arithmetic moved to a PURE sibling so a validator can import
 // it without pulling react-native in through mageAI. Re-exported here so every
 // existing call site and import path is untouched.
@@ -76,7 +77,7 @@ export async function generateRoadmap(
   const tasks = project.schedule?.tasks ?? [];
   const taskList = tasks.map((t) => `- ${t.title} [${t.phase || 'General'}] day ${t.startDay ?? 0}`).join('\n');
   const groundingBlock = (opts?.grounding?.blocks ?? []).filter(Boolean).join('\n\n');
-  const prompt = `You are a construction permitting expert. For this project, list the PERMITS required (inferred from the scope) and the INSPECTIONS required, sequenced to the schedule.\n\nLOCATION: ${project.location || 'unknown'}\n${groundingBlock ? groundingBlock + '\n' : ''}PROJECT TYPE: ${project.type || 'unknown'}\nSCOPE (estimate line items): ${scopeSummary(project) || '(none — infer from project type)'}\nSCHEDULE TASKS:\n${taskList || '(no schedule)'}\n\nFor each permit: type, title, description (tie to the scope), whoPulls (gc/sub/owner), leadTimeDays (typical issuance lead).\nFor each inspection: type, title, description, gatesTaskHint (the schedule task/phase keyword this inspection must precede, e.g. "Drywall"), leadTimeDays (book-ahead lead).\nReturn ONLY JSON matching the schema.`;
+  const prompt = `You are a construction permitting expert. For this project, list the PERMITS required (inferred from the scope) and the INSPECTIONS required, sequenced to the schedule.\n\nLOCATION: ${project.location || 'unknown'}\n${groundingBlock ? groundingBlock + '\n' : ''}PROJECT TYPE: ${projectTypeLabel(project) || 'unknown'}\nSCOPE (estimate line items): ${scopeSummary(project) || '(none — infer from project type)'}\nSCHEDULE TASKS:\n${taskList || '(no schedule)'}\n\nFor each permit: type, title, description (tie to the scope), whoPulls (gc/sub/owner), leadTimeDays (typical issuance lead).\nFor each inspection: type, title, description, gatesTaskHint (the schedule task/phase keyword this inspection must precede, e.g. "Drywall"), leadTimeDays (book-ahead lead).\nReturn ONLY JSON matching the schema.`;
   // Cache key carries a version tag (`v2`) so the model-hint fix invalidates any
   // stale empty roadmaps cached under the old key. Regenerate forces a fresh call
   // (no cacheKey → mageAI skips the cache read/write) so "Regenerate" always

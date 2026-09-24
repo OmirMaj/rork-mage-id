@@ -24,6 +24,37 @@ export const PLATFORM_FEE_BPS: Record<FeeTier, number> = {
 /** Stripe's standard US card pricing, used only for on-screen estimates. */
 export const STRIPE_CARD_PROCESSING = { percent: 2.9, fixedCents: 30 } as const;
 
+/**
+ * Stripe's standard US bank-debit (ACH Direct Debit) pricing: 0.8%, capped at
+ * $5 per payment. Copy only — MAGE ID sets no processing price, Stripe does,
+ * and the client is offered a bank option only when bank payments are turned
+ * on in Stripe. (The platform fee above applies to either method.)
+ */
+export const STRIPE_ACH_PROCESSING = { percent: 0.8, capCents: 500 } as const;
+
+function centsLabel(cents: number): string {
+  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
+}
+
+/** "cards 2.9% + 30¢; bank transfer (ACH) 0.8%, capped at $5" */
+export function stripeProcessingCopy(): string {
+  return `cards ${STRIPE_CARD_PROCESSING.percent}% + ${STRIPE_CARD_PROCESSING.fixedCents}¢; `
+    + `bank transfer (ACH) ${STRIPE_ACH_PROCESSING.percent}%, capped at ${centsLabel(STRIPE_ACH_PROCESSING.capCents)}`;
+}
+
+/**
+ * When the money reaches the GC's bank. Stripe pays out on its own schedule:
+ * a new account's FIRST payout usually takes about a week, later ones about
+ * two business days, and a bank-transfer (ACH) payment takes a few business
+ * days to clear before it can be paid out at all. Never "1–2 business days".
+ */
+export const PAYOUT_TIMING_COPY =
+  "Stripe pays out to your bank on its own schedule: the first payout usually takes about a week, "
+  + 'later ones about 2 business days. Bank-transfer (ACH) payments take a few business days to clear first.';
+
+/** The one-line version for a benefit list. */
+export const PAYOUT_TIMING_SHORT = 'Payouts on Stripe’s schedule: first one about a week, then about 2 business days';
+
 export function platformFeeBps(tier: string | null | undefined): number {
   return PLATFORM_FEE_BPS[(tier ?? 'free') as FeeTier] ?? PLATFORM_FEE_BPS.free;
 }

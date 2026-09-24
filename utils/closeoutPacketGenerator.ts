@@ -1,3 +1,4 @@
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -326,7 +327,7 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
       <h3>Project Information</h3>
       <table class="info">
         <tr><td>Project Name</td><td>${escapeHtml(project.name)}</td></tr>
-        <tr><td>Type</td><td>${escapeHtml(project.type)}</td></tr>
+        <tr><td>Type</td><td>${escapeHtml(projectTypeLabel(project))}</td></tr>
         <tr><td>Location</td><td>${escapeHtml(project.location)}</td></tr>
         <tr><td>Square Footage</td><td>${project.squareFootage ? project.squareFootage.toLocaleString() + ' sq ft' : '—'}</td></tr>
         <tr><td>Quality</td><td>${escapeHtml(project.quality)}</td></tr>

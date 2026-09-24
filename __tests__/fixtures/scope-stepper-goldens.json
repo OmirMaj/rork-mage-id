@@ -1,0 +1,3279 @@
+{
+ "steps": [
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "xmlns": "http://www.w3.org/2000/svg",
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "stroke": "#FF6A1A",
+        "strokeWidth": 2,
+        "strokeLinecap": "round",
+        "strokeLinejoin": "round",
+        "data-testid": "__undefined__",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "stroke": {
+           "type": 0,
+           "payload": 4294928922
+          },
+          "strokeWidth": 2,
+          "strokeLinecap": 1,
+          "strokeLinejoin": 1,
+          "propList": [
+           "fill",
+           "stroke",
+           "strokeWidth",
+           "strokeLinecap",
+           "strokeLinejoin"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 6h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 10h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 14h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 18h4"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "What kind of project?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "Pick the closest match — we'll refine in the next steps."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "View",
+       "props": {
+        "style": {
+         "flexDirection": "row",
+         "flexWrap": "wrap",
+         "gap": 8
+        }
+       },
+       "children": [
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-New Build",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "New Build"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-Full Remodel",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Full Remodel"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-Kitchen Remodel",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Kitchen Remodel"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#BC440C",
+           "borderWidth": 1,
+           "borderColor": "#FF6A1A",
+           "opacity": 1
+          },
+          "testID": "scope-type-Bathroom Remodel",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             {
+              "color": "#FFF"
+             }
+            ]
+           },
+           "children": [
+            "Bathroom Remodel"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-Addition",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Addition"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-Basement Finish",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Basement Finish"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-ADU / Backyard Build",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "ADU / Backyard Build"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-Commercial TI",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Commercial TI"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-Roof Replacement",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Roof Replacement"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-type-Deck / Outdoor",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Deck / Outdoor"
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "xmlns": "http://www.w3.org/2000/svg",
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "stroke": "#FF6A1A",
+        "strokeWidth": 2,
+        "strokeLinecap": "round",
+        "strokeLinejoin": "round",
+        "data-testid": "__undefined__",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "stroke": {
+           "type": 0,
+           "payload": 4294928922
+          },
+          "strokeWidth": 2,
+          "strokeLinecap": 1,
+          "strokeLinejoin": 1,
+          "propList": [
+           "fill",
+           "stroke",
+           "strokeWidth",
+           "strokeLinecap",
+           "strokeLinejoin"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "How big is the project?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "Approximate square footage of the work area."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "TextInput",
+       "props": {
+        "value": "1500",
+        "onChangeText": "[fn onChangeText]",
+        "placeholder": "e.g. 1500",
+        "placeholderTextColor": "rgba(43,48,56,0.7)",
+        "keyboardType": "numeric",
+        "inputAccessoryViewID": "scope-stepper-kb-done",
+        "style": {
+         "backgroundColor": "#FFFFFF",
+         "borderWidth": 1,
+         "borderColor": "rgba(43,48,56,0.12)",
+         "borderRadius": 12,
+         "paddingHorizontal": 14,
+         "paddingVertical": 12,
+         "fontSize": 16,
+         "color": "#2B3038"
+        },
+        "testID": "scope-sizeSqft"
+       },
+       "children": null
+      },
+      {
+       "type": "Text",
+       "props": {
+        "style": {
+         "fontSize": 12,
+         "color": "rgba(43,48,56,0.7)",
+         "marginTop": 6
+        }
+       },
+       "children": [
+        "Square feet"
+       ]
+      },
+      {
+       "type": "RCTInputAccessoryView",
+       "props": {
+        "style": [
+         "__undefined__",
+         {
+          "position": "absolute"
+         }
+        ],
+        "nativeID": "scope-stepper-kb-done",
+        "backgroundColor": "__undefined__"
+       },
+       "children": [
+        {
+         "type": "RCTSafeAreaView",
+         "props": {
+          "style": [
+           {
+            "flex": 1
+           },
+           {
+            "width": 750
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "View",
+           "props": {
+            "style": {
+             "backgroundColor": "#F4EFE6",
+             "borderTopWidth": 0.5,
+             "borderTopColor": "rgba(43,48,56,0.12)",
+             "paddingHorizontal": 12,
+             "paddingVertical": 8,
+             "alignItems": "flex-end"
+            }
+           },
+           "children": [
+            {
+             "type": "View",
+             "props": {
+              "accessible": true,
+              "accessibilityLabel": "Done",
+              "accessibilityRole": "button",
+              "accessibilityState": {
+               "busy": "__undefined__",
+               "checked": "__undefined__",
+               "disabled": "__undefined__",
+               "expanded": "__undefined__",
+               "selected": "__undefined__"
+              },
+              "accessibilityValue": {
+               "max": "__undefined__",
+               "min": "__undefined__",
+               "now": "__undefined__",
+               "text": "__undefined__"
+              },
+              "style": {
+               "opacity": 1
+              },
+              "hitSlop": {
+               "top": 8,
+               "bottom": 8,
+               "left": 12,
+               "right": 12
+              },
+              "focusable": true,
+              "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+              "onResponderGrant": "[fn onResponderGrant]",
+              "onResponderMove": "[fn onResponderMove]",
+              "onResponderRelease": "[fn onResponderRelease]",
+              "onResponderTerminate": "[fn onResponderTerminate]",
+              "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+              "onClick": "[fn onClick]",
+              "collapsable": false
+             },
+             "children": [
+              {
+               "type": "Text",
+               "props": {
+                "style": {
+                 "fontSize": 17,
+                 "fontWeight": "600",
+                 "color": "#FF6A1A"
+                }
+               },
+               "children": [
+                "Done"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "xmlns": "http://www.w3.org/2000/svg",
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "stroke": "#FF6A1A",
+        "strokeWidth": 2,
+        "strokeLinecap": "round",
+        "strokeLinejoin": "round",
+        "data-testid": "__undefined__",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "stroke": {
+           "type": 0,
+           "payload": 4294928922
+          },
+          "strokeWidth": 2,
+          "strokeLinecap": 1,
+          "strokeLinejoin": 1,
+          "propList": [
+           "fill",
+           "stroke",
+           "strokeWidth",
+           "strokeLinecap",
+           "strokeLinejoin"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 6h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 10h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 14h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 18h4"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "Where's the job?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "City and state — we use this for regional pricing."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "TextInput",
+       "props": {
+        "value": "Austin, TX",
+        "onChangeText": "[fn onChangeText]",
+        "placeholder": "e.g. Austin, TX",
+        "placeholderTextColor": "rgba(43,48,56,0.7)",
+        "style": {
+         "backgroundColor": "#FFFFFF",
+         "borderWidth": 1,
+         "borderColor": "rgba(43,48,56,0.12)",
+         "borderRadius": 12,
+         "paddingHorizontal": 14,
+         "paddingVertical": 12,
+         "fontSize": 16,
+         "color": "#2B3038"
+        },
+        "testID": "scope-location"
+       },
+       "children": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "propList": [
+           "fill"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 2.5,
+            "y1": 21,
+            "x2": 6.75,
+            "y2": 6.5
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 11,
+            "y1": 21,
+            "x2": 6.75,
+            "y2": 6.5
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 4.4,
+            "y1": 14.5,
+            "x2": 9.1,
+            "y2": 14.5
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 14.5,
+            "y1": 8,
+            "x2": 22,
+            "y2": 8
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 18.25,
+            "y1": 8,
+            "x2": 18.25,
+            "y2": 21
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 14.5,
+            "y1": 21,
+            "x2": 22,
+            "y2": 21
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "propList": [
+             "fill"
+            ],
+            "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "What quality tier?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "Drives material selection and labor assumptions."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "View",
+       "props": {
+        "style": {
+         "flexDirection": "row",
+         "flexWrap": "wrap",
+         "gap": 8
+        }
+       },
+       "children": [
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-quality-budget",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Budget"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#FFFFFF",
+           "borderWidth": 1,
+           "borderColor": "rgba(43,48,56,0.12)",
+           "opacity": 1
+          },
+          "testID": "scope-quality-standard",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             false
+            ]
+           },
+           "children": [
+            "Standard"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "View",
+         "props": {
+          "accessible": true,
+          "accessibilityState": {
+           "busy": "__undefined__",
+           "checked": "__undefined__",
+           "disabled": "__undefined__",
+           "expanded": "__undefined__",
+           "selected": "__undefined__"
+          },
+          "accessibilityValue": {
+           "max": "__undefined__",
+           "min": "__undefined__",
+           "now": "__undefined__",
+           "text": "__undefined__"
+          },
+          "style": {
+           "paddingHorizontal": 14,
+           "paddingVertical": 10,
+           "borderRadius": 18,
+           "backgroundColor": "#BC440C",
+           "borderWidth": 1,
+           "borderColor": "#FF6A1A",
+           "opacity": 1
+          },
+          "testID": "scope-quality-high_end",
+          "focusable": true,
+          "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+          "onResponderGrant": "[fn onResponderGrant]",
+          "onResponderMove": "[fn onResponderMove]",
+          "onResponderRelease": "[fn onResponderRelease]",
+          "onResponderTerminate": "[fn onResponderTerminate]",
+          "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+          "onClick": "[fn onClick]",
+          "collapsable": false
+         },
+         "children": [
+          {
+           "type": "Text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 14,
+              "fontWeight": "600",
+              "color": "#2B3038"
+             },
+             {
+              "color": "#FFF"
+             }
+            ]
+           },
+           "children": [
+            "High-End"
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "xmlns": "http://www.w3.org/2000/svg",
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "stroke": "#FF6A1A",
+        "strokeWidth": 2,
+        "strokeLinecap": "round",
+        "strokeLinejoin": "round",
+        "data-testid": "__undefined__",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "stroke": {
+           "type": 0,
+           "payload": 4294928922
+          },
+          "strokeWidth": 2,
+          "strokeLinecap": 1,
+          "strokeLinejoin": 1,
+          "propList": [
+           "fill",
+           "stroke",
+           "strokeWidth",
+           "strokeLinecap",
+           "strokeLinejoin"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "What's the scope?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "A few sentences on what you're actually building."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "TextInput",
+       "props": {
+        "value": "Gut the hall bath",
+        "onChangeText": "[fn onChangeText]",
+        "placeholder": "e.g. Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors.",
+        "placeholderTextColor": "rgba(43,48,56,0.7)",
+        "multiline": true,
+        "numberOfLines": 5,
+        "textAlignVertical": "top",
+        "inputAccessoryViewID": "scope-stepper-kb-done",
+        "style": {
+         "backgroundColor": "#FFFFFF",
+         "borderWidth": 1,
+         "borderColor": "rgba(43,48,56,0.12)",
+         "borderRadius": 12,
+         "padding": 12,
+         "minHeight": 120,
+         "fontSize": 15,
+         "color": "#2B3038"
+        },
+        "testID": "scope-scope"
+       },
+       "children": null
+      },
+      {
+       "type": "RCTInputAccessoryView",
+       "props": {
+        "style": [
+         "__undefined__",
+         {
+          "position": "absolute"
+         }
+        ],
+        "nativeID": "scope-stepper-kb-done",
+        "backgroundColor": "__undefined__"
+       },
+       "children": [
+        {
+         "type": "RCTSafeAreaView",
+         "props": {
+          "style": [
+           {
+            "flex": 1
+           },
+           {
+            "width": 750
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "View",
+           "props": {
+            "style": {
+             "backgroundColor": "#F4EFE6",
+             "borderTopWidth": 0.5,
+             "borderTopColor": "rgba(43,48,56,0.12)",
+             "paddingHorizontal": 12,
+             "paddingVertical": 8,
+             "alignItems": "flex-end"
+            }
+           },
+           "children": [
+            {
+             "type": "View",
+             "props": {
+              "accessible": true,
+              "accessibilityLabel": "Done",
+              "accessibilityRole": "button",
+              "accessibilityState": {
+               "busy": "__undefined__",
+               "checked": "__undefined__",
+               "disabled": "__undefined__",
+               "expanded": "__undefined__",
+               "selected": "__undefined__"
+              },
+              "accessibilityValue": {
+               "max": "__undefined__",
+               "min": "__undefined__",
+               "now": "__undefined__",
+               "text": "__undefined__"
+              },
+              "style": {
+               "opacity": 1
+              },
+              "hitSlop": {
+               "top": 8,
+               "bottom": 8,
+               "left": 12,
+               "right": 12
+              },
+              "focusable": true,
+              "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+              "onResponderGrant": "[fn onResponderGrant]",
+              "onResponderMove": "[fn onResponderMove]",
+              "onResponderRelease": "[fn onResponderRelease]",
+              "onResponderTerminate": "[fn onResponderTerminate]",
+              "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+              "onClick": "[fn onClick]",
+              "collapsable": false
+             },
+             "children": [
+              {
+               "type": "Text",
+               "props": {
+                "style": {
+                 "fontSize": 17,
+                 "fontWeight": "600",
+                 "color": "#FF6A1A"
+                }
+               },
+               "children": [
+                "Done"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "xmlns": "http://www.w3.org/2000/svg",
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "stroke": "#FF6A1A",
+        "strokeWidth": 2,
+        "strokeLinecap": "round",
+        "strokeLinejoin": "round",
+        "data-testid": "__undefined__",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "stroke": {
+           "type": 0,
+           "payload": 4294928922
+          },
+          "strokeWidth": 2,
+          "strokeLinecap": 1,
+          "strokeLinejoin": 1,
+          "propList": [
+           "fill",
+           "stroke",
+           "strokeWidth",
+           "strokeLinecap",
+           "strokeLinejoin"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 6h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 10h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 14h4"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M10 18h4"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "What's the timeline?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "Expected duration in weeks — optional, skip if unsure."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "TextInput",
+       "props": {
+        "value": "6",
+        "onChangeText": "[fn onChangeText]",
+        "placeholder": "e.g. 8",
+        "placeholderTextColor": "rgba(43,48,56,0.7)",
+        "keyboardType": "numeric",
+        "inputAccessoryViewID": "scope-stepper-kb-done",
+        "style": {
+         "backgroundColor": "#FFFFFF",
+         "borderWidth": 1,
+         "borderColor": "rgba(43,48,56,0.12)",
+         "borderRadius": 12,
+         "paddingHorizontal": 14,
+         "paddingVertical": 12,
+         "fontSize": 16,
+         "color": "#2B3038"
+        },
+        "testID": "scope-timelineWeeks"
+       },
+       "children": null
+      },
+      {
+       "type": "Text",
+       "props": {
+        "style": {
+         "fontSize": 12,
+         "color": "rgba(43,48,56,0.7)",
+         "marginTop": 6
+        }
+       },
+       "children": [
+        "Weeks"
+       ]
+      },
+      {
+       "type": "RCTInputAccessoryView",
+       "props": {
+        "style": [
+         "__undefined__",
+         {
+          "position": "absolute"
+         }
+        ],
+        "nativeID": "scope-stepper-kb-done",
+        "backgroundColor": "__undefined__"
+       },
+       "children": [
+        {
+         "type": "RCTSafeAreaView",
+         "props": {
+          "style": [
+           {
+            "flex": 1
+           },
+           {
+            "width": 750
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "View",
+           "props": {
+            "style": {
+             "backgroundColor": "#F4EFE6",
+             "borderTopWidth": 0.5,
+             "borderTopColor": "rgba(43,48,56,0.12)",
+             "paddingHorizontal": 12,
+             "paddingVertical": 8,
+             "alignItems": "flex-end"
+            }
+           },
+           "children": [
+            {
+             "type": "View",
+             "props": {
+              "accessible": true,
+              "accessibilityLabel": "Done",
+              "accessibilityRole": "button",
+              "accessibilityState": {
+               "busy": "__undefined__",
+               "checked": "__undefined__",
+               "disabled": "__undefined__",
+               "expanded": "__undefined__",
+               "selected": "__undefined__"
+              },
+              "accessibilityValue": {
+               "max": "__undefined__",
+               "min": "__undefined__",
+               "now": "__undefined__",
+               "text": "__undefined__"
+              },
+              "style": {
+               "opacity": 1
+              },
+              "hitSlop": {
+               "top": 8,
+               "bottom": 8,
+               "left": 12,
+               "right": 12
+              },
+              "focusable": true,
+              "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+              "onResponderGrant": "[fn onResponderGrant]",
+              "onResponderMove": "[fn onResponderMove]",
+              "onResponderRelease": "[fn onResponderRelease]",
+              "onResponderTerminate": "[fn onResponderTerminate]",
+              "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+              "onClick": "[fn onClick]",
+              "collapsable": false
+             },
+             "children": [
+              {
+               "type": "Text",
+               "props": {
+                "style": {
+                 "fontSize": 17,
+                 "fontWeight": "600",
+                 "color": "#FF6A1A"
+                }
+               },
+               "children": [
+                "Done"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "propList": [
+           "fill"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 2.5,
+            "y1": 21,
+            "x2": 6.75,
+            "y2": 6.5
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 11,
+            "y1": 21,
+            "x2": 6.75,
+            "y2": 6.5
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 4.4,
+            "y1": 14.5,
+            "x2": 9.1,
+            "y2": 14.5
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 14.5,
+            "y1": 8,
+            "x2": 22,
+            "y2": 8
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 18.25,
+            "y1": 8,
+            "x2": 18.25,
+            "y2": 21
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4278190080
+            },
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2.1,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": 14.5,
+            "y1": 21,
+            "x2": 22,
+            "y2": 21
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "propList": [
+             "fill"
+            ],
+            "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "Any special requirements?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "Permits, HOA, historic, accessibility, etc. Optional."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "TextInput",
+       "props": {
+        "value": "HOA review",
+        "onChangeText": "[fn onChangeText]",
+        "placeholder": "e.g. Historic district review, ADA bathroom.",
+        "placeholderTextColor": "rgba(43,48,56,0.7)",
+        "multiline": true,
+        "numberOfLines": 4,
+        "textAlignVertical": "top",
+        "inputAccessoryViewID": "scope-stepper-kb-done",
+        "style": {
+         "backgroundColor": "#FFFFFF",
+         "borderWidth": 1,
+         "borderColor": "rgba(43,48,56,0.12)",
+         "borderRadius": 12,
+         "padding": 12,
+         "minHeight": 120,
+         "fontSize": 15,
+         "color": "#2B3038"
+        },
+        "testID": "scope-specialRequirements"
+       },
+       "children": null
+      },
+      {
+       "type": "RCTInputAccessoryView",
+       "props": {
+        "style": [
+         "__undefined__",
+         {
+          "position": "absolute"
+         }
+        ],
+        "nativeID": "scope-stepper-kb-done",
+        "backgroundColor": "__undefined__"
+       },
+       "children": [
+        {
+         "type": "RCTSafeAreaView",
+         "props": {
+          "style": [
+           {
+            "flex": 1
+           },
+           {
+            "width": 750
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "View",
+           "props": {
+            "style": {
+             "backgroundColor": "#F4EFE6",
+             "borderTopWidth": 0.5,
+             "borderTopColor": "rgba(43,48,56,0.12)",
+             "paddingHorizontal": 12,
+             "paddingVertical": 8,
+             "alignItems": "flex-end"
+            }
+           },
+           "children": [
+            {
+             "type": "View",
+             "props": {
+              "accessible": true,
+              "accessibilityLabel": "Done",
+              "accessibilityRole": "button",
+              "accessibilityState": {
+               "busy": "__undefined__",
+               "checked": "__undefined__",
+               "disabled": "__undefined__",
+               "expanded": "__undefined__",
+               "selected": "__undefined__"
+              },
+              "accessibilityValue": {
+               "max": "__undefined__",
+               "min": "__undefined__",
+               "now": "__undefined__",
+               "text": "__undefined__"
+              },
+              "style": {
+               "opacity": 1
+              },
+              "hitSlop": {
+               "top": 8,
+               "bottom": 8,
+               "left": 12,
+               "right": 12
+              },
+              "focusable": true,
+              "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+              "onResponderGrant": "[fn onResponderGrant]",
+              "onResponderMove": "[fn onResponderMove]",
+              "onResponderRelease": "[fn onResponderRelease]",
+              "onResponderTerminate": "[fn onResponderTerminate]",
+              "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+              "onClick": "[fn onClick]",
+              "collapsable": false
+             },
+             "children": [
+              {
+               "type": "Text",
+               "props": {
+                "style": {
+                 "fontSize": 17,
+                 "fontWeight": "600",
+                 "color": "#FF6A1A"
+                }
+               },
+               "children": [
+                "Done"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "View",
+   "props": {},
+   "children": [
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "width": 64,
+       "height": 64,
+       "borderRadius": 32,
+       "backgroundColor": "#FF6A1A14",
+       "alignItems": "center",
+       "justifyContent": "center",
+       "marginBottom": 12
+      }
+     },
+     "children": [
+      {
+       "type": "RNSVGSvgView",
+       "props": {
+        "xmlns": "http://www.w3.org/2000/svg",
+        "width": 28,
+        "height": 28,
+        "fill": "none",
+        "stroke": "#FF6A1A",
+        "strokeWidth": 2,
+        "strokeLinecap": "round",
+        "strokeLinejoin": "round",
+        "data-testid": "__undefined__",
+        "focusable": false,
+        "style": [
+         {
+          "backgroundColor": "transparent",
+          "borderWidth": 0
+         },
+         {
+          "width": 28,
+          "height": 28,
+          "flex": 0
+         }
+        ],
+        "bbWidth": 28,
+        "bbHeight": 28,
+        "minX": 0,
+        "minY": 0,
+        "vbWidth": 24,
+        "vbHeight": 24,
+        "align": "xMidYMid",
+        "meetOrSlice": 0
+       },
+       "children": [
+        {
+         "type": "RNSVGGroup",
+         "props": {
+          "fill": null,
+          "stroke": {
+           "type": 0,
+           "payload": 4294928922
+          },
+          "strokeWidth": 2,
+          "strokeLinecap": 1,
+          "strokeLinejoin": 1,
+          "propList": [
+           "fill",
+           "stroke",
+           "strokeWidth",
+           "strokeLinecap",
+           "strokeLinejoin"
+          ]
+         },
+         "children": [
+          {
+           "type": "RNSVGLine",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "x1": "12",
+            "y1": "2",
+            "x2": "12",
+            "y2": "22"
+           },
+           "children": null
+          },
+          {
+           "type": "RNSVGPath",
+           "props": {
+            "fill": null,
+            "stroke": {
+             "type": 0,
+             "payload": 4294928922
+            },
+            "strokeWidth": 2,
+            "strokeLinecap": 1,
+            "strokeLinejoin": 1,
+            "propList": [
+             "fill",
+             "stroke",
+             "strokeWidth",
+             "strokeLinecap",
+             "strokeLinejoin"
+            ],
+            "d": "M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+           },
+           "children": null
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontFamily": "Fraunces_700Bold",
+       "fontSize": 22,
+       "lineHeight": 26,
+       "letterSpacing": -0.22,
+       "color": "#2B3038",
+       "marginBottom": 6
+      }
+     },
+     "children": [
+      "Target budget?"
+     ]
+    },
+    {
+     "type": "Text",
+     "props": {
+      "style": {
+       "fontSize": 15,
+       "color": "rgba(43,48,56,0.7)",
+       "lineHeight": 21
+      }
+     },
+     "children": [
+      "Optional — helps the AI sanity-check the estimate."
+     ]
+    },
+    {
+     "type": "View",
+     "props": {
+      "style": {
+       "marginTop": 16
+      }
+     },
+     "children": [
+      {
+       "type": "TextInput",
+       "props": {
+        "value": "40000",
+        "onChangeText": "[fn onChangeText]",
+        "placeholder": "e.g. 75000",
+        "placeholderTextColor": "rgba(43,48,56,0.7)",
+        "keyboardType": "numeric",
+        "inputAccessoryViewID": "scope-stepper-kb-done",
+        "style": {
+         "backgroundColor": "#FFFFFF",
+         "borderWidth": 1,
+         "borderColor": "rgba(43,48,56,0.12)",
+         "borderRadius": 12,
+         "paddingHorizontal": 14,
+         "paddingVertical": 12,
+         "fontSize": 16,
+         "color": "#2B3038"
+        },
+        "testID": "scope-targetBudget"
+       },
+       "children": null
+      },
+      {
+       "type": "Text",
+       "props": {
+        "style": {
+         "fontSize": 12,
+         "color": "rgba(43,48,56,0.7)",
+         "marginTop": 6
+        }
+       },
+       "children": [
+        "Dollars (optional)"
+       ]
+      },
+      {
+       "type": "RCTInputAccessoryView",
+       "props": {
+        "style": [
+         "__undefined__",
+         {
+          "position": "absolute"
+         }
+        ],
+        "nativeID": "scope-stepper-kb-done",
+        "backgroundColor": "__undefined__"
+       },
+       "children": [
+        {
+         "type": "RCTSafeAreaView",
+         "props": {
+          "style": [
+           {
+            "flex": 1
+           },
+           {
+            "width": 750
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "View",
+           "props": {
+            "style": {
+             "backgroundColor": "#F4EFE6",
+             "borderTopWidth": 0.5,
+             "borderTopColor": "rgba(43,48,56,0.12)",
+             "paddingHorizontal": 12,
+             "paddingVertical": 8,
+             "alignItems": "flex-end"
+            }
+           },
+           "children": [
+            {
+             "type": "View",
+             "props": {
+              "accessible": true,
+              "accessibilityLabel": "Done",
+              "accessibilityRole": "button",
+              "accessibilityState": {
+               "busy": "__undefined__",
+               "checked": "__undefined__",
+               "disabled": "__undefined__",
+               "expanded": "__undefined__",
+               "selected": "__undefined__"
+              },
+              "accessibilityValue": {
+               "max": "__undefined__",
+               "min": "__undefined__",
+               "now": "__undefined__",
+               "text": "__undefined__"
+              },
+              "style": {
+               "opacity": 1
+              },
+              "hitSlop": {
+               "top": 8,
+               "bottom": 8,
+               "left": 12,
+               "right": 12
+              },
+              "focusable": true,
+              "onStartShouldSetResponder": "[fn onStartShouldSetResponder]",
+              "onResponderGrant": "[fn onResponderGrant]",
+              "onResponderMove": "[fn onResponderMove]",
+              "onResponderRelease": "[fn onResponderRelease]",
+              "onResponderTerminate": "[fn onResponderTerminate]",
+              "onResponderTerminationRequest": "[fn onResponderTerminationRequest]",
+              "onClick": "[fn onClick]",
+              "collapsable": false
+             },
+             "children": [
+              {
+               "type": "Text",
+               "props": {
+                "style": {
+                 "fontSize": 17,
+                 "fontWeight": "600",
+                 "color": "#FF6A1A"
+                }
+               },
+               "children": [
+                "Done"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

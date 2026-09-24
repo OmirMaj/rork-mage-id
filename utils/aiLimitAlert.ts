@@ -26,7 +26,7 @@ import { Platform } from 'react-native';
 import { showAlert } from '@/utils/alert';
 import type { Router } from 'expo-router';
 import type { LimitCheck } from '@/utils/aiRateLimiter';
-import { nextAiResetLabel, timeUntilAiDailyReset } from '@/utils/aiRateLimiterCore';
+import { LIMITS, nextAiResetLabel, timeUntilAiDailyReset } from '@/utils/aiRateLimiterCore';
 
 const TIER_LABEL: Record<string, string> = {
   pro: 'Pro',
@@ -81,7 +81,9 @@ export function showAILimitAlert({ limit, router, monthly = false }: ShowAILimit
   if (reason === 'lifetime_cap') {
     showAlert(
       'Free trials used',
-      message ?? "You've used your free AI trials. Upgrade to Pro for unlimited use.",
+      // Never "unlimited": no plan is uncapped (Pro is LIMITS.pro — 30 a day,
+      // 6 advanced), and the paywall prints that table two taps away.
+      message ?? `You've used your free AI trials. Pro includes ${LIMITS.pro.daily} AI requests a day, ${LIMITS.pro.smart} of them advanced.`,
       [
         { text: 'Not now', style: 'cancel' },
         { text: 'Upgrade to Pro', onPress: () => router.push('/paywall' as never) },

@@ -46,6 +46,9 @@ export function aggregateTypeMargin(
   commitments: Commitment[],
   changeOrders: ChangeOrder[],
 ): TypeMarginSummary {
+  // Q6: 'other' pools unlike jobs (a repipe beside an HVAC changeout), so its
+  // average is never a verdict basis — no history, the same as a new type.
+  if (type === 'other') return { avgMarginPct: null, jobCount: 0 };
   const margins: number[] = [];
   for (const p of closedProjects) {
     if (!isClosed(p) || p.type !== type) continue;

@@ -1,13 +1,17 @@
 // Single source of truth for the client-financing offer surface. The
-// invoice email, estimate email, and client portal all render from here
-// so copy / disclosure / URL can never drift between surfaces.
+// invoice email renders from here and the client portal renders from the
+// snapshot block built by utils/financingCore (the same words), so copy /
+// disclosure / URL can never drift between surfaces. (Estimate emails do not
+// carry the offer; the Payments toggle says "invoices and your client portal".)
 //
-// MAGE ID is NOT a lender. This module only builds marketing copy and a
-// redirect URL to the partner's hosted prequalification page. No SSN /
-// income / bank data is ever collected in-app.
+// MAGE ID is NOT a lender and has no lending partner ("bring your own
+// lender"). This module only builds copy and a redirect URL to the GC's
+// lender's hosted prequalification page. No SSN / income / bank data is ever
+// collected in-app, and MAGE ID is not paid for a referral.
 
 import type { AppSettings, FinancingConfig } from '@/types';
 import { SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
+import { financingConfigLive, financingDisclosureText } from '@/utils/financingCore';
 
 function escapeHtml(s: string): string {
   return s
@@ -19,8 +23,7 @@ function escapeHtml(s: string): string {
 }
 
 export function isFinancingAvailable(settings: AppSettings | undefined): boolean {
-  const f = settings?.financing;
-  return !!f && f.enabled && f.partnerName.trim().length > 0 && /^https:\/\//i.test(f.prequalBaseUrl.trim());
+  return financingConfigLive(settings?.financing);
 }
 
 /** Standard amortized monthly payment. Returns null when an illustrative
@@ -36,7 +39,7 @@ export function illustrativeMonthly(amountCents: number, cfg: FinancingConfig): 
 }
 
 export function financingDisclosure(cfg: FinancingConfig): string {
-  return `Financing provided by ${cfg.partnerName}, a third party, subject to credit approval. MAGE ID is not a lender and may receive compensation.`;
+  return financingDisclosureText(cfg.partnerName);
 }
 
 /**
@@ -54,7 +57,7 @@ export function buildFinancingRedirectUrl(refToken: string): string {
   return `${SUPABASE_FUNCTIONS_URL}/financing-redirect?ref=${encodeURIComponent(refToken)}`;
 }
 
-/** Pre-rendered HTML block injected into invoice/estimate emails. Empty
+/** Pre-rendered HTML block injected into invoice emails. Empty
  *  string when financing is unavailable (caller appends unconditionally). */
 export function financingEmailBlockHtml(args: {
   settings: AppSettings | undefined;
@@ -70,10 +73,10 @@ export function financingEmailBlockHtml(args: {
   const url = buildFinancingRedirectUrl(refToken);
   const monthly = illustrativeMonthly(amountCents, cfg);
   const headline = monthly
-    ? `Prefer to pay monthly? Est. <strong>$${monthly.toLocaleString('en-US')}/mo</strong> — see if you prequalify in ~2 min.`
-    : `Prefer to pay monthly? See if you prequalify in ~2 min.`;
+    ? `Prefer to pay monthly? Est. <strong>$${monthly.toLocaleString('en-US')}/mo</strong> — see if you prequalify with ${escapeHtml(cfg.partnerName)}.`
+    : `Prefer to pay monthly? See if you prequalify with ${escapeHtml(cfg.partnerName)}.`;
   const safePartner = escapeHtml(cfg.partnerName);
-  const disclosureHtml = `Financing provided by ${safePartner}, a third party, subject to credit approval. MAGE ID is not a lender and may receive compensation.`;
+  const disclosureHtml = escapeHtml(financingDisclosureText(cfg.partnerName));
   return `
     <div style="margin:18px 0;padding:16px;border:1px solid #E2E5E9;border-radius:12px;background:#F7F8FA;">
       <p style="margin:0 0 10px;font-size:14px;color:#2B3038;">${headline}</p>

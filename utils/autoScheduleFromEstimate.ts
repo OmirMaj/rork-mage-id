@@ -1,3 +1,4 @@
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { mageAI } from '@/utils/mageAI';
 import { matchSubForPhase, assignmentNote, summariseAssignments, type TradeCandidate, type SubTradeOutcome } from '@/utils/subTradeMatch';
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
@@ -85,7 +86,7 @@ export async function generateScheduleFromEstimate(
 
 PROJECT:
 Name: ${project.name}
-Type: ${project.type}
+Type: ${projectTypeLabel(project)}
 Square Footage: ${project.squareFootage || 'unspecified'}
 Quality Tier: ${project.quality}
 Location: ${project.location}

@@ -39,6 +39,7 @@ import { draftLinesFromScope, runJudges } from '@/utils/judges/runJudges';
 import type { JudgesResult } from '@/utils/judges/runJudges';
 import type { JudgesLine } from '@/utils/judges/types';
 import { PROJECT_TYPES } from '@/types';
+import { projectTypeLabel, projectTypeBlockReason, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
 import type { ProjectType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -100,6 +101,9 @@ function JudgesInner() {
   // ── Describe-mode state ───────────────────────────────────────────────
   const [scope, setScope] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
+  // Q6: Other's own words. "Other" alone tells the AI nothing about the job.
+  const [projectTypeOther, setProjectTypeOther] = useState('');
+  const typeBlock = projectTypeBlockReason(projectType, projectTypeOther, 'ai');
   const [sizeSqft, setSizeSqft] = useState('');
   const [quality, setQuality] = useState<WizardAnswers['quality']>('standard');
   const [timelineWeeks, setTimelineWeeks] = useState('');
@@ -141,6 +145,7 @@ function JudgesInner() {
   // ── Describe path: draft + judge ─────────────────────────────────────
   const handleDescribeJudge = useCallback(async () => {
     if (!scope.trim()) return;
+    if (typeBlock) { setError(typeBlock); return; }
     const tm = resolveTargetMargin({ savedMarkupPct: savedMarkup, markupDecided });
     if (!tm.ok) { setError(tm.reason); return; }
     setLoading(true);
@@ -149,7 +154,9 @@ function JudgesInner() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const answers: WizardAnswers = {
-        projectType,
+        // Q6: the AI reads the type's label ("New Build"), never the raw id —
+        // and for Other, his own words ("Whole-house repipe").
+        projectType: projectTypeLabel({ type: projectType, projectTypeOther }),
         sizeSqft: sizeSqft.trim(),
         // His business location from settings — a regional pricing hint for
         // the drafted lines (was '' — every describe job priced nowhere).
@@ -208,7 +215,7 @@ function JudgesInner() {
     } finally {
       setLoading(false);
     }
-  }, [scope, projectType, sizeSqft, quality, timelineWeeks, ctx, savedMarkup, markupDecided, settings?.location]);
+  }, [scope, projectType, projectTypeOther, typeBlock, sizeSqft, quality, timelineWeeks, ctx, savedMarkup, markupDecided, settings?.location]);
 
   // ── Pick-existing path: map estimate items + judge ────────────────────
   const handlePickProject = useCallback(async (projectId: string) => {
@@ -448,10 +455,25 @@ function JudgesInner() {
                   onPress={() => setProjectType(pt.id)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.chipText, projectType === pt.id && styles.chipTextActive]}>{pt.label}</Text>
+                  <Text style={[styles.chipText, projectType === pt.id && styles.chipTextActive]}>{pt.id === 'other' ? 'Other (describe it)' : pt.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            {projectType === 'other' ? (
+              <>
+                <Text style={styles.fieldLabel}>Describe the job</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projectTypeOther}
+                  onChangeText={setProjectTypeOther}
+                  placeholder="e.g. Whole-house repipe"
+                  placeholderTextColor={t.textMuted}
+                  maxLength={PROJECT_TYPE_OTHER_MAX}
+                  testID="judges-type-other"
+                />
+                {typeBlock ? <Text style={styles.markupNote}>{typeBlock}</Text> : null}
+              </>
+            ) : null}
 
             <View style={styles.compactRow}>
               <View style={styles.compactCol}>
@@ -499,9 +521,9 @@ function JudgesInner() {
             {markupRow}
 
             <TouchableOpacity
-              style={[styles.judgeBtn, (!scope.trim() || loading || markupUnset) && styles.judgeBtnDisabled]}
+              style={[styles.judgeBtn, (!scope.trim() || loading || markupUnset || !!typeBlock) && styles.judgeBtnDisabled]}
               onPress={handleDescribeJudge}
-              disabled={!scope.trim() || loading || markupUnset}
+              disabled={!scope.trim() || loading || markupUnset || !!typeBlock}
               activeOpacity={0.85}
             >
               {loading

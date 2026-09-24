@@ -46,6 +46,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Project } from '../types';
+import { __resetGeocodeForTests } from '../utils/geocodeProject';
 import {
   resolveZoning,
   resolveZoningAsync,
@@ -549,6 +550,11 @@ async function main() {
   let fetchCalls = 0;
   const withFetch = async <T,>(impl: typeof globalThis.fetch, fn: () => Promise<T>): Promise<T> => {
     fetchCalls = 0;
+    // Each case starts from a cold geocoder: geocodeProjectLocation caches
+    // answers and spaces requests 1.1 s apart (Nominatim policy, lane Q2), so
+    // without a reset the "fails" case would be served the "answers" case's
+    // cached hit for the same address.
+    __resetGeocodeForTests();
     globalThis.fetch = ((...args: Parameters<typeof globalThis.fetch>) => {
       fetchCalls += 1;
       return impl(...args);

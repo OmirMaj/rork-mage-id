@@ -6,7 +6,13 @@
 // Unknown token => 200 no-op (never error). Then 302 to a thank-you page.
 //
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FINANCING_THANKYOU_URL
-// (optional; defaults to https://mageid.app/financing/thanks).
+// (optional; defaults to https://mageid.app — see THANKYOU_URL below).
+//
+// DORMANT BY DESIGN (Q4, 2026-09-24). Financing is "bring your own lender":
+// no lender MAGE ID works with signs this callback, so no referral ever moves
+// past 'clicked' and the app no longer shows a "funded" count (it could only
+// read 0). This function stays for a future lender integration that signs its
+// postbacks; until then its only visible effect is where it sends a browser.
 // FINANCING_CALLBACK_SECRET — HMAC-SHA256 key. When set, the caller must
 // send x-financing-signature: <hex(HMAC-SHA256(key, "ref:next"))>.
 // Unset (or invalid sig) => DB write is skipped but redirect still happens
@@ -17,7 +23,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const THANKYOU_URL = Deno.env.get("FINANCING_THANKYOU_URL") || "https://mageid.app/financing/thanks";
+// The default used to be https://mageid.app/financing/thanks — a page that
+// never existed (marketing/_redirects' catch-all answers 404), so a homeowner
+// a lender sent back here landed on "page not found". The site root exists.
+const THANKYOU_URL = Deno.env.get("FINANCING_THANKYOU_URL") || "https://mageid.app";
 const FINANCING_CALLBACK_SECRET = Deno.env.get("FINANCING_CALLBACK_SECRET") || "";
 
 function timingSafeEqual(a: string, b: string): boolean {

@@ -53,6 +53,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { toCalendarDayString, addCalendarDays, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 interface PickedPhoto { uri: string; id: string; fromProject?: boolean }
 
@@ -423,7 +424,8 @@ function PhotoTriageInner() {
       const { entries } = await triagePhotos({
         photoUrls: pickedPhotos.map(p => p.uri),
         projectName: project?.name,
-        projectType: project?.type,
+        // Q6: the AI reads the type's label (his words for Other), never the raw id.
+        projectType: projectTypeLabel(project) || undefined,
       });
       await recordAIUsage('smart', 'photoAnalysis');
       const reviewable: ReviewEntry[] = entries.map(e => {

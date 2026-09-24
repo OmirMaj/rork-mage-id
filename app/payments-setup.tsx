@@ -45,10 +45,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import { platformFeeLabel, STRIPE_CARD_PROCESSING } from '@/utils/platformFees';
+import { platformFeeLabel, stripeProcessingCopy, PAYOUT_TIMING_COPY, PAYOUT_TIMING_SHORT } from '@/utils/platformFees';
 import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
 import ProfileLoadNotice from '@/components/ProfileLoadNotice';
 import { financingDisclosure } from '@/utils/financing';
+import {
+  FINANCING_EXPLAINER, FINANCING_TOGGLE_LABEL, FINANCING_TRACKING_LIMIT, financingReferralSummary,
+} from '@/utils/financingCore';
 import type { FinancingConfig } from '@/types';
 import {
   startStripeConnectOnboarding, fetchStripeConnectStatus, type ConnectStatus,
@@ -106,8 +109,14 @@ export default function PaymentsSetupScreen() {
   const saveFinancing = useCallback((enabled: boolean) => {
     if (!settingsLoaded || !finSeededRef.current) return;
     const url = finUrl.trim();
+    // Switched on without a lender's name, the offer would silently never
+    // appear (financingConfigLive needs one) — say why instead.
+    if (enabled && !finPartner.trim()) {
+      showAlert('Lender name needed', "Add your lender's name. Your client sees it on the button and in the note under it.");
+      return;
+    }
     if (enabled && !/^https:\/\//i.test(url)) {
-      showAlert('Invalid URL', "The partner's prequalification link must start with https://.");
+      showAlert('Invalid URL', "Your lender's prequalification link must start with https://.");
       return;
     }
     if (finApr.trim() && !Number.isFinite(Number(finApr))) {
@@ -330,7 +339,7 @@ export default function PaymentsSetupScreen() {
         <View style={styles.card}>
           <Text style={styles.heroTitle}>Client financing</Text>
           <Text style={styles.heroSub}>
-            Let homeowners pay monthly through a third-party partner — you're paid in full upfront.
+            {FINANCING_EXPLAINER}
           </Text>
 
           {!settingsLoaded ? (
@@ -338,16 +347,16 @@ export default function PaymentsSetupScreen() {
           ) : (
           <>
           <View style={styles.finRow}>
-            <Text style={styles.heroSub}>Offer financing on estimates & invoices</Text>
+            <Text style={[styles.heroSub, { flex: 1 }]}>{FINANCING_TOGGLE_LABEL}</Text>
             <Switch value={finEnabled} onValueChange={(v) => saveFinancing(v)} trackColor={{ false: themeColors.line, true: themeColors.accent }} thumbColor="#FFFFFF" testID="financing-enable" />
           </View>
 
           <TextInput style={styles.finInput} value={finPartner} onChangeText={setFinPartner}
-            placeholder="Partner name (e.g. Wisetack)" placeholderTextColor={themeColors.textMuted} />
+            placeholder="Your lender's name" placeholderTextColor={themeColors.textMuted} />
           <TextInput style={styles.finInput} value={finUrl} onChangeText={setFinUrl}
-            placeholder="https://partner.com/prequalify" autoCapitalize="none" keyboardType="url" placeholderTextColor={themeColors.textMuted} />
+            placeholder="Lender's prequalification link (https://…)" autoCapitalize="none" keyboardType="url" placeholderTextColor={themeColors.textMuted} />
           <TextInput style={styles.finInput} value={finRefCode} onChangeText={setFinRefCode}
-            placeholder="Your partner referral code (optional)" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
+            placeholder="Your referral code with the lender (optional)" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
           <View style={styles.finAprRow}>
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finApr} onChangeText={setFinApr}
               placeholder="Example APR % (optional)" keyboardType="decimal-pad" placeholderTextColor={themeColors.textMuted} />
@@ -362,12 +371,15 @@ export default function PaymentsSetupScreen() {
           <Text style={styles.finDisclosure}>
             {finPartner.trim() ? financingDisclosure({
               enabled: finEnabled, partnerName: finPartner.trim(), prequalBaseUrl: finUrl, updatedAt: '',
-            }) : 'Configure a partner to see the client disclosure that will appear on every offer.'}
+            }) : "Add your lender's name to see the note your client reads under every offer."}
           </Text>
           {finEnabled && (
-            <Text style={styles.finStats}>
-              Referrals: {referralStats.created} created · {referralStats.clicked} clicked · {referralStats.funded} funded
-            </Text>
+            <>
+              <Text style={styles.finStats} testID="financing-stats">
+                {financingReferralSummary(referralStats)}
+              </Text>
+              <Text style={styles.finDisclosure}>{FINANCING_TRACKING_LIMIT}</Text>
+            </>
           )}
           </>
           )}
@@ -377,7 +389,7 @@ export default function PaymentsSetupScreen() {
           <Lock size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.fineprintText}>
             Secured by Stripe. MAGE ID never stores card data. A {platformFeeLabel(tier)} platform fee on your plan plus standard
-            Stripe processing ({STRIPE_CARD_PROCESSING.percent}% + {STRIPE_CARD_PROCESSING.fixedCents}¢) is deducted from each successful payment.
+            Stripe processing ({stripeProcessingCopy()}) is deducted from each successful payment. {PAYOUT_TIMING_COPY}
           </Text>
         </View>
       </ScrollView>
@@ -397,13 +409,13 @@ function NotConnectedCard({
       </View>
       <Text style={styles.heroTitle}>Get paid faster</Text>
       <Text style={styles.heroSub}>
-        Connect your bank in 3 minutes. Clients tap "Pay" in your invoice email and the money
-        lands in your account — no chasing checks.
+        Connect your bank through Stripe's own sign-up form. Clients tap "Pay" in your invoice
+        email and the money goes to your Stripe account — no chasing checks.
       </Text>
 
       <View style={styles.benefits}>
-        <Benefit text="One-tap card or bank pay on every invoice" />
-        <Benefit text="Funds in your bank in 1–2 business days" />
+        <Benefit text="A Pay button on every invoice: card, or bank transfer (ACH) once it is on in your Stripe account" />
+        <Benefit text={PAYOUT_TIMING_SHORT} />
         <Benefit text="Stripe handles compliance, KYC, and 1099-K tax docs" />
       </View>
 
@@ -481,8 +493,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
       </View>
       <Text style={styles.heroTitle}>Payments connected</Text>
       <Text style={styles.heroSub}>
-        You're all set. Every invoice you send now includes a one-tap pay button. Money lands
-        in your bank in 1–2 business days.
+        You're all set. Every invoice you send now includes a Pay button. {PAYOUT_TIMING_COPY}
       </Text>
 
       <View style={styles.statRow}>

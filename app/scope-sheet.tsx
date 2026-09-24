@@ -33,6 +33,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScopeSheet, ScopeSheetItem } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import {
   generateScopeSheet, loadScopeSheet, saveScopeSheet, scopeSheetToText, estimateTotalOf,
 } from '@/utils/scopeSheet';
@@ -186,7 +187,7 @@ export default function ScopeSheetScreen() {
         <View style={styles.headerCard}>
           <Text style={styles.projectName} numberOfLines={1}>{project.name}</Text>
           <Text style={styles.headerMeta}>
-            {project.type || 'Project'} · estimate {money(currentTotal)}
+            {projectTypeLabel(project) || 'Project'} · estimate {money(currentTotal)}
             {sheet ? ` · ${itemCount} item${itemCount === 1 ? '' : 's'}` : ''}
           </Text>
           {sheet && (

@@ -54,6 +54,7 @@ const RFI_STATUSES: readonly RFIStatus[] = ['open', 'answered', 'closed', 'void'
 const PROJECT_TYPES: readonly ProjectType[] = [
   'new_build', 'renovation', 'addition', 'remodel', 'commercial', 'landscape',
   'roofing', 'flooring', 'painting', 'plumbing', 'electrical', 'concrete',
+  'other',
 ];
 const PROJECT_STATUSES = ['draft', 'estimated', 'in_progress', 'completed', 'closed'] as const;
 
@@ -259,6 +260,10 @@ export function hydratePortalSnapshot(
     id: projectId,
     name: projectName,
     type: oneOf(snapshot.project?.type, PROJECT_TYPES, 'renovation'),
+    // Q6: an Other job's words ride the snapshot's typeLabel.
+    ...(snapshot.project?.type === 'other' && snapshot.project?.typeLabel
+      ? { projectTypeOther: snapshot.project.typeLabel }
+      : {}),
     location: snapshot.project?.address ?? '',
     squareFootage: 0,
     quality: 'standard',

@@ -56,6 +56,7 @@ import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 export default function PlanIntelligenceScreen() {
   const router = useRouter();
@@ -178,7 +179,8 @@ function PlanIntelligenceInner() {
         // one caller. Revisit if this screen ever becomes plan-sheet-only.
         photoUrls: [uri],
         projectName: project?.name,
-        projectType: project?.type,
+        // Q6: the AI reads the type's label (his words for Other), never the raw id.
+        projectType: projectTypeLabel(project) || undefined,
       });
       const built = buildPlanRooms(raw, memory, generateUUID);
       if (built.length === 0) {

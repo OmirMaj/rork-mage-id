@@ -15,7 +15,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
-  SCOPE_STEPS, PROJECT_TYPES, QUALITY_LABELS,
+  SCOPE_STEPS, PROJECT_TYPES, QUALITY_LABELS, SCOPE_TYPE_OTHER_MAX, isScopeTypeChip,
   type WizardAnswers, type ScopeStep,
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
@@ -113,6 +113,11 @@ export function ScopeQuestionStepper({
 }: ScopeQuestionStepperProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Q6 · "Other (describe it)". Open when he tapped it, or when the answer is
+  // already his own words (an Other job seeded by the wizard / scope screen,
+  // or a saved scope). Derived, not initial state, because the wizard seeds
+  // answers in an effect AFTER this mounts.
+  const [otherPicked, setOtherPicked] = React.useState(false);
   const step = SCOPE_STEPS[stepIndex];
   if (!step) return null;
 
@@ -132,11 +137,11 @@ export function ScopeQuestionStepper({
         return (
           <View style={styles.chipWrap}>
             {PROJECT_TYPES.map((t) => {
-              const active = answers.projectType === t;
+              const active = answers.projectType === t && !otherPicked;
               return (
                 <TouchableOpacity
                   key={t}
-                  onPress={() => onChange('projectType', t)}
+                  onPress={() => { setOtherPicked(false); onChange('projectType', t); }}
                   style={[styles.chip, active && styles.chipActive]}
                   activeOpacity={0.8}
                   testID={`${testIDPrefix}-type-${t}`}
@@ -145,6 +150,47 @@ export function ScopeQuestionStepper({
                 </TouchableOpacity>
               );
             })}
+            {(() => {
+              const typed = answers.projectType;
+              const otherActive = otherPicked || (typed.trim().length > 0 && !isScopeTypeChip(typed));
+              return (
+                <>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setOtherPicked(true);
+                      // A chip answer is not his words — clear it so the box
+                      // opens empty and Next stays blocked until he types.
+                      if (isScopeTypeChip(typed)) onChange('projectType', '');
+                    }}
+                    style={[styles.chip, otherActive && styles.chipActive]}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: otherActive }}
+                    testID={`${testIDPrefix}-type-other`}
+                  >
+                    <Text style={[styles.chipText, otherActive && styles.chipTextActive]}>Other (describe it)</Text>
+                  </TouchableOpacity>
+                  {otherActive ? (
+                    <View style={styles.otherWrap}>
+                      <TextInput
+                        // While he is typing under Other, show exactly what he
+                        // typed — even a word that happens to equal a chip.
+                        value={otherPicked || !isScopeTypeChip(typed) ? typed : ''}
+                        onChangeText={(v) => onChange('projectType', v)}
+                        placeholder="Describe the job, e.g. Whole-house repipe"
+                        placeholderTextColor={themeColors.textMuted}
+                        maxLength={SCOPE_TYPE_OTHER_MAX}
+                        autoFocus={otherPicked && !typed}
+                        style={styles.input}
+                        accessibilityLabel="Describe the job"
+                        testID={`${testIDPrefix}-type-other-input`}
+                      />
+                      <Text style={styles.hint}>Your words are sent to the AI as the project type.</Text>
+                    </View>
+                  ) : null}
+                </>
+              );
+            })()}
           </View>
         );
 
@@ -297,6 +343,8 @@ const makeStyles = (themeColors: ThemeColors) =>
       color: themeColors.text,
     },
     chipTextActive: { color: '#FFF' },
+    // Q6 · the Other box takes its own full-width line under the chips.
+    otherWrap: { width: '100%' as const, marginTop: 4 },
     // Text inputs — verbatim from wizard's makeStyles
     input: {
       backgroundColor: themeColors.surface,

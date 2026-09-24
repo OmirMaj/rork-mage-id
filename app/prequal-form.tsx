@@ -29,7 +29,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { reviewPrequalPacket } from '@/utils/prequalEngine';
+import { reviewPrequalPacket, parsePrequalDate, normalizePrequalDateInput } from '@/utils/prequalEngine';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -81,6 +81,22 @@ function rowToPacket(r: Record<string, unknown>): PrequalPacket {
   };
 }
 
+/** Q5: who is asking. lookup_prequal_packet_by_token (20260924150500) returns
+ *  the GC's company (read server-side from the packet owner's profile) and the
+ *  sub's name from the GC's roster. '' or absent on an older server. */
+function namesFromRow(r: Record<string, unknown>): { gcName: string; subName: string } {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  return { gcName: str(r.gc_company_name), subName: str(r.sub_company_name) };
+}
+
+/** How a save through submit_prequal_packet ended.
+ *   'saved'   — the server took it.
+ *   'refused' — the server answered false: the packet is approved, or the link
+ *               has expired or been replaced by a renewal. Retrying cannot help.
+ *   'failed'  — the call itself failed (offline, server error); the answers are
+ *               still on screen and the next change retries. */
+type PrequalSaveOutcome = 'saved' | 'refused' | 'failed';
+
 /** reviewed_at is a timestamptz — an instant, so a local date is right. */
 function formatReviewedOn(iso: string): string | null {
   const d = new Date(iso);
@@ -103,6 +119,7 @@ export default function PrequalFormScreen() {
   // makes the token-bearer "no auth" design described in the file's own
   // header comment actually work.
   const [packet, setPacket] = useState<PrequalPacket | null>(null);
+  const [names, setNames] = useState<{ gcName: string; subName: string }>({ gcName: '', subName: '' });
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'missing' | 'error'>('loading');
   // Holds the CLASSIFIED copy, not `error.message` — the sub used to be shown
   // the raw PostgREST string as the whole explanation.
@@ -129,13 +146,15 @@ export default function PrequalFormScreen() {
         return;
       }
       setPacket(rowToPacket(data as Record<string, unknown>));
+      setNames(namesFromRow(data as Record<string, unknown>));
       setLoadState('ok');
     })();
     return () => { cancelled = true; };
   }, [token, reloadNonce]);
 
   // Sub is best-effort — for authed GCs the subcontractors array is
-  // populated; for anon subs it's empty and we fall back to "your company".
+  // populated; for anon subs (the normal case) it's empty, and the name the
+  // lookup RPC read from the GC's roster is used, then "your company".
   const sub = packet ? subcontractors.find(s => s.id === packet.subcontractorId) ?? null : null;
 
   // RPC-backed save: submits the packet via the submit_prequal_packet
@@ -143,7 +162,9 @@ export default function PrequalFormScreen() {
   // must not be approved, packet must not be expired. Status transitions
   // draft|invited|needs_changes → submitted only when p_status is
   // 'submitted'; otherwise status is preserved (autosave path).
-  const saveViaRpc = useCallback(async (next: PrequalPacket) => {
+  const saveViaRpc = useCallback(async (next: PrequalPacket, mode: 'autosave' | 'submit'): Promise<PrequalSaveOutcome> => {
+    // A thrown call (fetch rejecting outright) is the same "failed" as an
+    // error answer — never an unhandled rejection with no word to the sub.
     const { data, error } = await supabase.rpc('submit_prequal_packet', {
       p_token: token,
       // #114: the server no longer WRITES criteria from this path
@@ -160,7 +181,7 @@ export default function PrequalFormScreen() {
       p_w9_on_file: next.w9OnFile,
       p_w9_doc_path: next.w9DocPath ?? null,
       p_status: next.status,
-    });
+    }).then(r => r, (thrown: unknown) => ({ data: null, error: thrown as Error }));
     if (error) {
       // The raw PostgREST text goes to the log, where an engineer reads it.
       // The sub — filling this out on a phone between job sites — gets a
@@ -168,16 +189,20 @@ export default function PrequalFormScreen() {
       // keptLocally: the form's useState still holds every field, and the
       // 800ms autosave will retry on his next keystroke.
       console.warn('[prequal-form] save RPC failed:', rawErrorMessage(error));
-      const copy = describeError(error, { action: 'save your prequal packet', keptLocally: true });
+      const copy = describeError(error, { action: mode === 'submit' ? 'submit your prequal packet' : 'save your prequal packet', keptLocally: true });
       showAlert(copy.title, copy.body);
-      return;
+      return 'failed';
     }
     if (data !== true) {
+      // Q5: said once, then the form locks (PrequalFormInner) — it used to pop
+      // on every autosave pause, forever.
       showAlert(
-        'Couldn\'t save',
-        'The packet may have been approved or the invite link expired. Ask the GC to send a fresh link.',
+        mode === 'submit' ? 'Not submitted' : 'Couldn\'t save',
+        'This link no longer accepts changes — the packet may have been approved, or the invite link expired or was replaced. Your answers are still on this screen. Ask the GC to send a fresh link.',
       );
+      return 'refused';
     }
+    return 'saved';
   }, [token]);
 
   if (loadState === 'loading') {
@@ -224,18 +249,28 @@ export default function PrequalFormScreen() {
     );
   }
 
-  return <PrequalFormInner packet={packet} subCompanyName={sub?.companyName ?? 'your company'} onSave={saveViaRpc} onExit={() => router.back()} />;
+  return (
+    <PrequalFormInner
+      packet={packet}
+      gcName={names.gcName}
+      subCompanyName={sub?.companyName || names.subName || 'your company'}
+      onSave={saveViaRpc}
+      onExit={() => router.back()}
+    />
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
 
-function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
+function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
   packet: PrequalPacket;
+  /** The GC's company from the lookup RPC; '' when the server did not say. */
+  gcName: string;
   subCompanyName: string;
-  /** Async or sync; the autosave + handleSubmit callers don't await this
-   *  (fire-and-forget). Errors are surfaced inside the save handler via
-   *  Alert (see saveViaRpc in the parent). */
-  onSave: (p: PrequalPacket) => void | Promise<void>;
+  /** Resolves to how the save ended. Autosave reads it to stop saving into a
+   *  link the server refuses; Submit awaits it and says "Submitted" only on
+   *  'saved' (Q5). The failure alert itself is raised inside saveViaRpc. */
+  onSave: (p: PrequalPacket, mode: 'autosave' | 'submit') => Promise<PrequalSaveOutcome>;
   onExit: () => void;
 }) {
   const { colors: themeColors } = useTheme();
@@ -251,17 +286,41 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
   const [licenses, setLicenses] = useState<PrequalLicense[]>(packet.licenses);
   const [w9OnFile, setW9OnFile] = useState<boolean>(packet.w9OnFile);
   const [dirty, setDirty] = useState(false);
+  // Q5: the status this screen shows moves when a submit is confirmed by the
+  // server, so the footer changes to "Submitted — awaiting review" without a
+  // reload. Starts at what the lookup returned.
+  const [status, setStatus] = useState<PrequalPacket['status']>(packet.status);
+  const [submitting, setSubmitting] = useState(false);
+  // Q5: the server refused a save (approved, expired or replaced link). One
+  // alert, then the form locks — retrying every 800ms cannot succeed.
+  const [refused, setRefused] = useState(false);
+  // An approved packet is final: submit_prequal_packet refuses every write to
+  // it, so the fields are read-only rather than inviting edits that bounce.
+  const locked = status === 'approved' || refused;
+  // Q5 (review r1): the date fields being typed in right now. Their inline
+  // "not a date we can read" waits for the blur (or the submit), so it does
+  // not flash under every keystroke of a half-typed "2026-1". A date that
+  // arrived unreadable from the server is not in here, so it shows at once.
+  const [typingDates, setTypingDates] = useState<ReadonlySet<string>>(() => new Set());
+  const markTyping = useCallback((key: string, on: boolean) => {
+    setTypingDates(prev => {
+      if (prev.has(key) === on) return prev;
+      const next = new Set(prev);
+      if (on) next.add(key); else next.delete(key);
+      return next;
+    });
+  }, []);
 
   // ── Autosave pattern. Whenever any field changes, flip dirty; a
   // useEffect then writes back after 800ms of inactivity. We don't use
   // a library — this form has ~25 inputs and direct setState is fine.
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty || locked) return;
     const h = setTimeout(() => {
       const now = new Date().toISOString();
       const next: PrequalPacket = {
         ...packet,
-        status: packet.status === 'invited' || packet.status === 'draft' ? 'in_progress' : packet.status,
+        status: status === 'invited' || status === 'draft' ? 'in_progress' : status,
         financials,
         safety,
         insurance,
@@ -269,23 +328,50 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
         w9OnFile,
         updatedAt: now,
       };
-      onSave(next);
       setDirty(false);
+      void onSave(next, 'autosave').then(outcome => { if (outcome === 'refused') setRefused(true); });
     }, 800);
     return () => clearTimeout(h);
-  }, [dirty, packet, financials, safety, insurance, licenses, w9OnFile, onSave]);
+  }, [dirty, locked, status, packet, financials, safety, insurance, licenses, w9OnFile, onSave]);
 
   // ── Live auto-review. Runs on every render cheaply — the engine is pure.
   const preview = useMemo(() => reviewPrequalPacket({
     ...packet, financials, safety, insurance, licenses, w9OnFile,
   }), [packet, financials, safety, insurance, licenses, w9OnFile]);
 
-  const handleSubmit = useCallback(() => {
+  // Q5: a typed date that does not read as a real day. The engine lists it as
+  // a blocker too; the submit below stops on it with the field named, because
+  // the GC would only send it straight back.
+  const handleSubmit = useCallback(async () => {
+    if (submitting || locked) return;
+    // Q5 (review r1): tidy the typed dates HERE too, not only on blur. The
+    // scroll view keeps taps with keyboardShouldPersistTaps="handled", so
+    // Submit tapped straight from a focused "12/31/2026" never blurred it and
+    // was refused for a date one more tap would have accepted.
+    const tidy = tidyTypedDates(insurance, licenses);
+    if (tidy.changed) {
+      setInsurance(tidy.insurance);
+      setLicenses(tidy.licenses);
+      setDirty(true); // so the tidied value is kept even if this submit stops below
+    }
+    setTypingDates(new Set());
+    const unreadableDates = unreadableDatesOf(tidy.insurance, tidy.licenses);
+    // An unreadable date is fixable by typing, so it is named before the hard
+    // gate below (which used to catch an unreadable licence date first and say
+    // "cannot be auto-approved").
+    if (unreadableDates.length > 0) {
+      showAlert('Check the dates',
+        `${unreadableDates.join(', ')} ${unreadableDates.length === 1 ? 'is' : 'are'} not a date we can read. Enter ${unreadableDates.length === 1 ? 'it' : 'each one'} as YYYY-MM-DD, for example 2026-12-31.`);
+      return;
+    }
     // Allow submitting even if auto-review is 'needs_info' — the GC
     // still wants eyes on it and the checklist shows them what to ask
     // for. We only block on 'fail' with hard blockers that can't be
     // resolved by filling fields (e.g. EMR too high).
-    const hardFail = preview.overall === 'fail' && preview.findings.some(
+    const review = reviewPrequalPacket({
+      ...packet, financials, safety, insurance: tidy.insurance, licenses: tidy.licenses, w9OnFile,
+    });
+    const hardFail = review.overall === 'fail' && review.findings.some(
       f => !f.passed && f.severity === 'blocker' && f.criterion !== 'coi_expiry'
       && !['cg_20_10', 'cg_20_37', 'w9', 'workers_comp', 'cgl_per_occurrence', 'cgl_aggregate'].includes(f.criterion)
     );
@@ -298,44 +384,78 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
     const next: PrequalPacket = {
       ...packet,
       status: 'submitted',
-      financials, safety, insurance, licenses, w9OnFile,
+      financials, safety, insurance: tidy.insurance, licenses: tidy.licenses, w9OnFile,
       submittedAt: now,
       updatedAt: now,
     };
-    onSave(next);
+    // Q5: "Submitted" only once the server has it. This used to fire the save
+    // and show "Submitted … sent to the GC" at once, so a dead link or a lost
+    // connection showed "Submitted" and "Couldn't save" on top of each other.
+    setSubmitting(true);
+    // Anything typed before this tap is in `next`; a pending autosave of the
+    // same answers would only race it.
+    setDirty(false);
+    let outcome: PrequalSaveOutcome;
+    try {
+      outcome = await onSave(next, 'submit');
+    } finally {
+      setSubmitting(false);
+    }
+    if (outcome === 'refused') { setRefused(true); return; }
+    if (outcome !== 'saved') return; // saveViaRpc has said what went wrong
+    setStatus('submitted');
     showAlert('Submitted',
-      'Your prequalification packet has been sent to the GC. They\'ll review it within a day or two and follow up if anything\'s missing.',
+      `Your prequalification packet has been sent to ${gcName || 'the GC'}. They\'ll review it and follow up if anything\'s missing.`,
       [{ text: 'Done', onPress: onExit }],
     );
-  }, [packet, financials, safety, insurance, licenses, w9OnFile, preview, onSave, onExit]);
+  }, [submitting, locked, gcName, packet, financials, safety, insurance, licenses, w9OnFile, onSave, onExit]);
 
   // Field change helpers — each one just patches the right slice of
   // state. Wrapping setState inside these keeps dirty-flag bookkeeping
   // in one place.
-  const patchFin = useCallback((p: Partial<PrequalFinancials>) => { setFinancials(f => ({ ...f, ...p })); setDirty(true); }, []);
-  const patchSafety = useCallback((p: Partial<PrequalSafetyRecord>) => { setSafety(s => ({ ...s, ...p })); setDirty(true); }, []);
-  const patchIns = useCallback((p: Partial<PrequalInsurance>) => { setInsurance(i => ({ ...i, ...p })); setDirty(true); }, []);
-  const toggleW9 = useCallback((v: boolean) => { setW9OnFile(v); setDirty(true); }, []);
+  // A locked form (Q5) takes no edits at all — the inputs are read-only, and
+  // these guards cover the switches and buttons too.
+  const patchFin = useCallback((p: Partial<PrequalFinancials>) => { if (locked) return; setFinancials(f => ({ ...f, ...p })); setDirty(true); }, [locked]);
+  const patchSafety = useCallback((p: Partial<PrequalSafetyRecord>) => { if (locked) return; setSafety(s => ({ ...s, ...p })); setDirty(true); }, [locked]);
+  const patchIns = useCallback((p: Partial<PrequalInsurance>) => { if (locked) return; setInsurance(i => ({ ...i, ...p })); setDirty(true); }, [locked]);
+  const toggleW9 = useCallback((v: boolean) => { if (locked) return; setW9OnFile(v); setDirty(true); }, [locked]);
 
   const addLicense = useCallback(() => {
+    if (locked) return;
     setLicenses(ls => [...ls, { id: generateUUID(), state: '', number: '', classification: '', expiresAt: '' }]);
     setDirty(true);
-  }, []);
+  }, [locked]);
   const patchLicense = useCallback((id: string, p: Partial<PrequalLicense>) => {
+    if (locked) return;
     setLicenses(ls => ls.map(l => l.id === id ? { ...l, ...p } : l));
     setDirty(true);
-  }, []);
+  }, [locked]);
   const removeLicense = useCallback((id: string) => {
+    if (locked) return;
     setLicenses(ls => ls.filter(l => l.id !== id));
     setDirty(true);
-  }, []);
+  }, [locked]);
 
-  const isSubmitted = packet.status === 'submitted' || packet.status === 'approved';
+  // Q5: a typed date is tidied on blur — "12/31/2026" becomes "2026-12-31" —
+  // and left as typed (with the error under it) when it cannot be read.
+  const tidyCoiDate = useCallback(() => {
+    markTyping('coi', false);
+    const raw = insurance.coiExpiry ?? '';
+    const tidy = normalizePrequalDateInput(raw);
+    if (tidy && tidy !== raw) patchIns({ coiExpiry: tidy });
+  }, [insurance.coiExpiry, patchIns, markTyping]);
+  const tidyLicenseDate = useCallback((id: string, raw: string) => {
+    markTyping(`lic:${id}`, false);
+    const tidy = normalizePrequalDateInput(raw);
+    if (tidy && tidy !== raw) patchLicense(id, { expiresAt: tidy });
+  }, [patchLicense, markTyping]);
+
+  const isSubmitted = status === 'submitted' || status === 'approved';
   // #111: the GC's decision, said to the sub. reviewer_notes came back from the
   // lookup and was never rendered, so a sub sent back for changes reopened his
   // link to a form that looked untouched.
-  const needsChanges = packet.status === 'needs_changes';
-  const rejected = packet.status === 'rejected';
+  const needsChanges = status === 'needs_changes';
+  const rejected = status === 'rejected';
   const reviewedOn = packet.reviewedAt ? formatReviewedOn(packet.reviewedAt) : null;
 
   return (
@@ -345,10 +465,14 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       <View style={styles.header}>
         <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>Prequalification · MAGE ID</Text>
+          {/* Q5: name who is asking — a form that asks for revenue and
+              insurance limits and names nobody reads like phishing. */}
+          <Text style={styles.headerEyebrow} numberOfLines={1} testID="prequal-requester">
+            {gcName ? `Prequalification for ${gcName}` : 'Prequalification request'}
+          </Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{subCompanyName}</Text>
         </View>
-        {dirty && (
+        {dirty && !locked && (
           <View style={styles.savingChip}>
             <Save size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.savingChipText}>Saving…</Text>
@@ -360,7 +484,27 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
+        <FormLockContext.Provider value={locked}>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 160 + insets.bottom }} keyboardShouldPersistTaps="handled">
+          {/* Q5 — a locked form says why, once, instead of an alert per keystroke. */}
+          {locked && (
+            <View style={[styles.decisionCard, status === 'approved' && styles.decisionCardApproved]} testID="prequal-locked">
+              {status === 'approved'
+                ? <CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />
+                : <AlertTriangle size={18} color={Colors.warningLabel} strokeWidth={1.75} />}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.decisionTitle}>
+                  {status === 'approved' ? 'Approved — answers locked' : 'This link no longer accepts changes'}
+                </Text>
+                <Text style={styles.decisionBody}>
+                  {status === 'approved'
+                    ? `${gcName || 'The GC'} approved this packet, so it can\u2019t be edited here. If something has changed, ask them to send you a renewal.`
+                    : 'It may have been approved, or the invite link expired or was replaced. Your answers are still on this screen. Ask the GC to send a fresh link.'}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* #111 — the decision and the GC's note, word for word. */}
           {(needsChanges || rejected) && (
             <View style={[styles.decisionCard, rejected && styles.decisionCardRejected]} testID={needsChanges ? 'prequal-needs-changes' : 'prequal-rejected'}>
@@ -391,7 +535,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             <View style={{ flex: 1 }}>
               <Text style={styles.introTitle}>About this form</Text>
               <Text style={styles.introBody}>
-                Your GC is collecting standard compliance docs — COI limits, licenses, safety
+                {gcName ? `${gcName} is` : 'Your GC is'} collecting standard compliance docs — COI limits, licenses, safety
                 record. It takes about 10 minutes, everything autosaves, and you don{"\u2019"}t need an
                 account. When you{"\u2019"}re done, tap Submit and they{"\u2019"}ll review within a day or two.
               </Text>
@@ -490,7 +634,9 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
 
           <Field label="COI expiry date (YYYY-MM-DD)"
             value={insurance.coiExpiry ?? ''}
-            onChangeText={(v) => patchIns({ coiExpiry: v })}
+            onChangeText={(v) => { markTyping('coi', true); patchIns({ coiExpiry: v }); }}
+            onBlur={tidyCoiDate}
+            error={typingDates.has('coi') ? undefined : dateError(insurance.coiExpiry)}
             placeholder="2026-12-31" autoCapitalize="none" />
 
           <ToggleRow label="Workers Comp — active policy"
@@ -574,21 +720,27 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Field label="Expiry (YYYY-MM-DD)" value={lic.expiresAt}
-                    onChangeText={(v) => patchLicense(lic.id, { expiresAt: v })}
+                    onChangeText={(v) => { markTyping(`lic:${lic.id}`, true); patchLicense(lic.id, { expiresAt: v }); }}
+                    onBlur={() => tidyLicenseDate(lic.id, lic.expiresAt)}
+                    error={typingDates.has(`lic:${lic.id}`) ? undefined : dateError(lic.expiresAt)}
                     placeholder="2026-06-30" autoCapitalize="none" />
                 </View>
               </Row>
-              <TouchableOpacity onPress={() => removeLicense(lic.id)} style={styles.removeBtn} hitSlop={8}>
-                <Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} />
-                <Text style={styles.removeBtnText}>Remove license</Text>
-              </TouchableOpacity>
+              {!locked && (
+                <TouchableOpacity onPress={() => removeLicense(lic.id)} style={styles.removeBtn} hitSlop={8}>
+                  <Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} />
+                  <Text style={styles.removeBtnText}>Remove license</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ))}
 
-          <TouchableOpacity onPress={addLicense} style={styles.addLicenseBtn}>
-            <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.addLicenseText}>Add license</Text>
-          </TouchableOpacity>
+          {!locked && (
+            <TouchableOpacity onPress={addLicense} style={styles.addLicenseBtn}>
+              <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.addLicenseText}>Add license</Text>
+            </TouchableOpacity>
+          )}
 
           {/* ── W-9 ──────────────────────────────── */}
           <SectionHeader icon={<FileText size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Tax / W-9" />
@@ -600,6 +752,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             copy to kickoff. MAGE doesn{"\u2019"}t upload tax forms through this link.
           </Text>
         </ScrollView>
+        </FormLockContext.Provider>
       </KeyboardAvoidingView>
 
       {/* Submit footer */}
@@ -609,7 +762,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             <View style={styles.submittedChip}>
               <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.submittedText}>
-                {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
+                {status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
               </Text>
             </View>
             {/* #113: this link used to promise "your work history across every
@@ -642,6 +795,11 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
               </TouchableOpacity>
             )}
           </>
+        ) : refused ? (
+          <View style={styles.submittedChip}>
+            <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
+            <Text style={styles.submittedText}>Link closed — ask the GC for a fresh link</Text>
+          </View>
         ) : rejected ? (
           // No bare "Submit" on a rejected packet: the server keeps it
           // rejected, and a "Submitted" alert over that would be a lie.
@@ -651,17 +809,20 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
           </View>
         ) : (
           <TouchableOpacity
-            style={[styles.submitBtn, preview.overall !== 'pass' && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
+            style={[styles.submitBtn, (preview.overall !== 'pass' || submitting) && styles.submitBtnDisabled]}
+            onPress={() => { void handleSubmit(); }}
+            disabled={submitting}
+            accessibilityState={{ disabled: submitting }}
             activeOpacity={0.8}
+            testID="prequal-submit"
           >
             <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
             <Text style={styles.submitBtnText}>
-              {needsChanges ? 'Resubmit' : preview.overall === 'pass' ? 'Submit for review' : 'Submit anyway'}
+              {submitting ? 'Sending…' : needsChanges ? 'Resubmit' : preview.overall === 'pass' ? 'Submit for review' : 'Submit anyway'}
             </Text>
           </TouchableOpacity>
         )}
-        {preview.overall !== 'pass' && !isSubmitted && !rejected && (
+        {preview.overall !== 'pass' && !isSubmitted && !rejected && !refused && (
           <Text style={styles.submitHelper}>
             {preview.missingFields.length > 0
               ? 'Some fields are empty. You can still submit and the GC will follow up.'
@@ -675,6 +836,56 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
 
 // ─────────────────────────────────────────────────────────────
 // Primitives
+
+/** Q5: true while the form is locked (approved, or the link refused a save).
+ *  Field and ToggleRow read it, so every input goes read-only in one place. */
+const FormLockContext = React.createContext(false);
+
+/** Q5: the typed dates as they will be saved — "12/31/2026" and "2026/1/5"
+ *  tidied to YYYY-MM-DD, anything unreadable left exactly as typed. `changed`
+ *  is false (and the inputs come back as the same objects) when nothing moved. */
+function tidyTypedDates(insurance: PrequalInsurance, licenses: PrequalLicense[]): {
+  insurance: PrequalInsurance; licenses: PrequalLicense[]; changed: boolean;
+} {
+  const tidyOf = (raw: string | undefined) => {
+    const t = raw && raw.trim() ? normalizePrequalDateInput(raw) : null;
+    return t && t !== raw ? t : null;
+  };
+  const coi = tidyOf(insurance.coiExpiry);
+  let changed = !!coi;
+  const nextLicenses = licenses.map(l => {
+    const t = tidyOf(l.expiresAt);
+    if (!t) return l;
+    changed = true;
+    return { ...l, expiresAt: t };
+  });
+  return {
+    insurance: coi ? { ...insurance, coiExpiry: coi } : insurance,
+    licenses: changed ? nextLicenses : licenses,
+    changed,
+  };
+}
+
+/** Q5: every typed date that still does not read as a real day, named for the
+ *  "Check the dates" alert. Blank is fine (not given yet). */
+function unreadableDatesOf(insurance: PrequalInsurance, licenses: PrequalLicense[]): string[] {
+  const out: string[] = [];
+  const coi = (insurance.coiExpiry ?? '').trim();
+  if (coi && !parsePrequalDate(coi)) out.push(`COI expiry "${coi}"`);
+  for (const l of licenses) {
+    const d = (l.expiresAt ?? '').trim();
+    if (d && !parsePrequalDate(d)) out.push(`${l.state || 'licence'} expiry "${d}"`);
+  }
+  return out;
+}
+
+/** The inline error under a typed date: blank is fine (not given yet), a
+ *  readable YYYY-MM-DD is fine, anything else is named. */
+function dateError(value: string | undefined): string | undefined {
+  const v = (value ?? '').trim();
+  if (!v || parsePrequalDate(v)) return undefined;
+  return 'Not a date we can read — use YYYY-MM-DD, e.g. 2026-12-31';
+}
 
 // The local ErrorState that used to live here moved to
 // components/ErrorState.tsx — unchanged in shape, generalised on onRetry /
@@ -699,21 +910,28 @@ function Field(props: {
   placeholder?: string;
   keyboardType?: 'default' | 'number-pad' | 'decimal-pad' | 'email-address';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  onBlur?: () => void;
+  /** Shown under the input when set (Q5: an unreadable date). */
+  error?: string;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const locked = React.useContext(FormLockContext);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{props.label}</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, locked && styles.inputLocked, !!props.error && styles.inputError]}
         value={props.value}
         onChangeText={props.onChangeText}
+        onBlur={props.onBlur}
+        editable={!locked}
         placeholder={props.placeholder}
         placeholderTextColor={themeColors.textMuted}
         keyboardType={props.keyboardType ?? 'default'}
         autoCapitalize={props.autoCapitalize ?? 'sentences'}
       />
+      {props.error ? <Text style={styles.fieldError}>{props.error}</Text> : null}
     </View>
   );
 }
@@ -729,10 +947,11 @@ function ToggleRow({ label, value, onValueChange }: {
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const locked = React.useContext(FormLockContext);
   return (
     <View style={styles.toggleRow}>
       <Text style={styles.toggleLabel}>{label}</Text>
-      <Switch value={value} onValueChange={onValueChange}
+      <Switch value={value} onValueChange={onValueChange} disabled={locked}
         trackColor={{ true: themeColors.accent, false: themeColors.surfaceAlt }}
         thumbColor={Platform.OS === 'android' ? (value ? '#FFFFFF' : '#fff') : undefined} />
     </View>
@@ -789,6 +1008,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
+  inputLocked: { opacity: 0.6 },
+  inputError: { borderWidth: 1, borderColor: t.danger },
+  fieldError: { fontSize: Type.caption2.fontSize, color: t.dangerLabel, marginTop: 4, lineHeight: 15 },
   row: { flexDirection: 'row', gap: 10 },
   helperText: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginBottom: 10, lineHeight: 15 },
 
@@ -839,6 +1061,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md, borderLeftWidth: 3, borderLeftColor: Colors.warning, backgroundColor: Colors.warningLight,
   },
   decisionCardRejected: { borderLeftColor: t.danger, backgroundColor: Colors.errorLight },
+  decisionCardApproved: { borderLeftColor: t.success, backgroundColor: Colors.successLight },
   decisionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
   decisionNote: { fontSize: Type.footnote.fontSize, color: t.text, marginTop: 6, lineHeight: 19, fontStyle: 'italic' as const },
   decisionBody: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 6, lineHeight: 16 },

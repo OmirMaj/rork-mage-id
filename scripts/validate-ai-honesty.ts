@@ -245,7 +245,8 @@ console.log('\nsource assertions:');
   ok('wizard (UX-F14/F18): no bare router.back() — a cold-start deep link into a gestureEnabled:false modal must still escape', !/router\.back\(\)/.test(wizard) && /useSafeBack\(\)/.test(wizard) && /safeBack\(\)/.test(wizard));
   const quick = src('components/AIQuickEstimate.tsx');
   ok('quick estimate: chip label comes from groundingChipLabel', /groundingChipLabel\(/.test(quick) && !/\$\{learnedRateCount\} learned rate/.test(quick));
-  ok('quick estimate (re-review A2): grounding is chosen per run from the description + type and snapshotted next to the result', /groundingFor\(\{ projectType, scope: description \}\)/.test(quick) && /setResultGrounding\(used\)/.test(quick) && /useState<GroundingBundle \| null>/.test(quick) && /used\.facts,/.test(quick));
+  // Q6: an Other job grounds on his words (typeText) rather than the bare id.
+  ok('quick estimate (re-review A2): grounding is chosen per run from the description + type and snapshotted next to the result', /groundingFor\(\{ projectType(: projectType === 'other' \? typeText : projectType)?, scope: description \}\)/.test(quick) && /setResultGrounding\(used\)/.test(quick) && /useState<GroundingBundle \| null>/.test(quick) && /used\.facts,/.test(quick));
   ok('quick estimate (re-review A2): the chip reads the snapshot, never a live prop, and carries the calibration flag', /\(resultGrounding \?\? EMPTY_GROUNDING\)\.counts/.test(quick) && /calibration: resultGrounding\?\.calibration/.test(quick) && !/learnedRateCount/.test(quick) && !/seededRateCount/.test(quick));
   ok('quick estimate (re-review A2): reset clears the snapshot', /setResultGrounding\(null\)/.test(quick));
   const full = src('app/(tabs)/estimate/full.tsx');

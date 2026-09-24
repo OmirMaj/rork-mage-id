@@ -240,3 +240,6 @@ verify_jwt = true
 
 [functions.validate-portal-passcode]
 verify_jwt = true
+
+[functions.weather-forecast]
+verify_jwt = true

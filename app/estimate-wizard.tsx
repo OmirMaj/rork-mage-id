@@ -73,10 +73,11 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage, getFreeTrialsRemaining, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
-import type { Commitment, CompanyBranding, LinkedEstimate, PaymentSplit, Project, ProjectType, QualityTier } from '@/types';
+import type { Commitment, CompanyBranding, LinkedEstimate, PaymentSplit, Project, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, SCOPE_STEPS, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
   estimateSchema, QUALITY_LABELS, stepBlockReason, jobsiteLocationFor, typedPricingLocation,
+  projectTypeFromScopeAnswer, scopeAnswerForProject,
   type WizardAnswers, type EstimateResult,
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
@@ -186,19 +187,11 @@ function freeRunsLabel(left: number | null): string | null {
 // util is what lets scripts/validate-estimate-cost-basis.ts call the exact
 // function this screen ships instead of a re-typed copy of it.
 
-// Map the wizard's free-text project-type answer onto the legacy Project.type
-// enum so a newly-created project still classifies sensibly. Falls back to
-// 'renovation' (the app's generic default) for anything unrecognized.
-function mapProjectType(answer: string): ProjectType {
-  const a = answer.toLowerCase();
-  if (a.includes('new build') || a.includes('new construction') || a.includes('adu')) return 'new_build';
-  if (a.includes('addition')) return 'addition';
-  if (a.includes('commercial') || a.includes(' ti')) return 'commercial';
-  if (a.includes('roof')) return 'roofing';
-  if (a.includes('deck') || a.includes('outdoor') || a.includes('landscap')) return 'landscape';
-  if (a.includes('remodel')) return 'remodel';
-  return 'renovation';
-}
+// The wizard's project-type answer → Project.type (+ his words for Other) is
+// utils/scopeQuestions projectTypeFromScopeAnswer (Q6). The local
+// mapProjectType it replaces could only produce seven types and folded a
+// plumbing / electrical / flooring job — and anything typed — into
+// 'renovation'. scripts/validate-project-types.ts runs the shared one.
 
 // Map the wizard's quality answer onto the legacy Project.quality enum.
 function mapQuality(quality: WizardAnswers['quality']): QualityTier {
@@ -423,15 +416,19 @@ function EstimateWizardScreenInner() {
       // Re-opening the wizard for a project that already has scope stamped:
       // restore all wizard answers so nothing is re-asked.
       const { updatedAt: _updatedAt, ...rest } = scopedProject.scope;
-      setAnswers({ ...INITIAL_SCOPE, ...rest });
+      // A saved scope with no type answer opens on the job's own type (Q6).
+      const typeSeed = (rest.projectType ?? '').trim() ? rest.projectType : scopeAnswerForProject(scopedProject);
+      setAnswers({ ...INITIAL_SCOPE, ...rest, projectType: typeSeed });
     } else if (scopedProject) {
       // First time through the wizard for this project — seed from the Project
       // record so the wizard never re-asks what the project already knows.
-      // mapProjectType is a local helper that folds ProjectType back to a
-      // wizard display string (e.g. 'renovation' → 'Full Remodel'); we just
-      // use the raw type value here since the wizard accepts free text.
-      const { type, squareFootage, quality, location, description } = scopedProject;
-      const seedType = type && type !== 'renovation' ? type.replace(/_/g, ' ') : '';
+      // Q6: the seed is the chip for the job's type ('plumbing' → "Plumbing /
+      // Repipe"), or his words for an Other job — never the raw id, which
+      // matched no chip, so a Plumbing job opened with nothing selected and
+      // he re-picked a wrong box. 'renovation' (the New Project default)
+      // still opens blank.
+      const { squareFootage, quality, location, description } = scopedProject;
+      const seedType = scopeAnswerForProject(scopedProject);
       const seedQuality: WizardAnswers['quality'] =
         quality === 'premium' || quality === 'luxury' ? 'high_end'
         : quality === 'economy' ? 'budget'
@@ -886,7 +883,9 @@ function EstimateWizardScreenInner() {
     const baseProject: Project = {
       id,
       name: name.trim(),
-      type: mapProjectType(answers.projectType),
+      // Q6: a chip → its type; his own words → the type they name, else
+      // 'other' carrying them (the job list, PDFs and portal print them).
+      ...projectTypeFromScopeAnswer(answers.projectType),
       location: jobsiteLocationFor({ jobsite, pricingAnswer: answers.location, homeMarket: homeMarketSeed }),
       squareFootage: Number(answers.sizeSqft) || 0,
       quality: mapQuality(answers.quality),

@@ -15,6 +15,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mageAI } from '@/utils/mageAI';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { isGcOnlyEstimateLine } from '@/utils/clientEstimateView';
 import type { Project, ScopeSheet, ScopeSheetItem } from '@/types';
 
@@ -66,7 +67,7 @@ function buildDigest(project: Project): string {
     byGroup.set(it.group, arr);
   }
   const lines: string[] = [];
-  lines.push(`Project type: ${project.type || 'n/a'}`);
+  lines.push(`Project type: ${projectTypeLabel(project) || 'n/a'}`);
   if (project.location) lines.push(`Location: ${project.location}`);
   if (project.squareFootage) lines.push(`Size: ${project.squareFootage} sq ft`);
   if (project.quality) lines.push(`Quality level: ${project.quality}`);

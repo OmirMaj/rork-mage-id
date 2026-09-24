@@ -14,6 +14,7 @@ import type { AssemblyItem } from '@/constants/assemblies';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { priceMaterialLine } from '@/utils/estimateMarkup';
 
 interface CartItem {
   material: MaterialItem;
@@ -146,7 +147,8 @@ const EstimateComparison = React.memo(function EstimateComparison({
       id: i.material.id,
       name: i.material.name,
       category: i.material.category,
-      total: (i.usesBulk ? i.material.baseBulkPrice : i.material.baseRetailPrice) * (1 + i.markup / 100) * i.quantity,
+      // The row's cent-grid sell — the figure the estimator row prints.
+      total: priceMaterialLine(i).sell,
       quantity: i.quantity,
     }));
 
@@ -241,7 +243,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
     const totalDelta = formatDelta(currentGrandTotal, selectedVersion.grandTotal);
 
     const currentItemMap = new Map(currentCart.map(i => {
-      const total = (i.usesBulk ? i.material.baseBulkPrice : i.material.baseRetailPrice) * (1 + i.markup / 100) * i.quantity;
+      const total = priceMaterialLine(i).sell;
       return [i.material.id, { name: i.material.name, total, quantity: i.quantity }];
     }));
     const savedItemMap = new Map(selectedVersion.items.map(i => [i.id, i]));

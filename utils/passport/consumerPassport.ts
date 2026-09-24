@@ -99,7 +99,8 @@ export interface PassportJobInput {
   name: string;
   /** Where the work happened. Used to group jobs onto one home. */
   location?: string;
-  /** Free display string ('renovation', 'roofing', …). */
+  /** Display label, printed as-is to the homeowner ('Renovation', 'Whole-house
+   *  repipe'). passportJobsFromProjects maps it through projectTypeLabel. */
   type?: string;
   /** Project.status — 'completed' / 'closed' mark the job done. */
   status?: string;

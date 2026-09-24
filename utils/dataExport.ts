@@ -1,3 +1,4 @@
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { deliverTextFile } from '@/utils/platformFile';
@@ -285,9 +286,11 @@ export function payloadToCsvs(
   const csvs: Record<string, string> = {};
 
   csvs.projects = toCsv(
-    ['id', 'name', 'type', 'location', 'squareFootage', 'quality', 'status', 'grandTotal', 'createdAt', 'updatedAt'],
+    // Q6: `type` stays the machine id (a backup must round-trip); typeLabel is
+    // what a person reads — his words for an Other job ("Whole-house repipe").
+    ['id', 'name', 'type', 'typeLabel', 'location', 'squareFootage', 'quality', 'status', 'grandTotal', 'createdAt', 'updatedAt'],
     p.projects.map(pr => [
-      pr.id, pr.name, pr.type, pr.location, pr.squareFootage, pr.quality,
+      pr.id, pr.name, pr.type, projectTypeLabel(pr), pr.location, pr.squareFootage, pr.quality,
       pr.status, (effectiveEstimateTotal(pr) || ''), pr.createdAt, pr.updatedAt,
     ]),
   );

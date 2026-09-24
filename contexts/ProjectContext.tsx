@@ -11,6 +11,7 @@ import { foldPlanSheets } from '@/utils/planSheetBatchCore';
 import { punchItemsFollowingSubRename, ownsProjectFor } from '@/utils/subPortalSnapshot';
 import { dayOrInstantDate, todayCalendarDay } from '@/utils/calendarDate';
 import { projectTypeForLead, targetBudgetSeedForLead } from '@/utils/widgetLeadCore';
+import { projectTypeOtherColumn, projectTypeOtherFromRow } from '@/utils/projectTypes';
 import { withSourcePhotoUris } from '@/utils/punchSourcePhoto';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMageReachability, MAGE_REACHABILITY_QUERY_KEY } from '@/hooks/useMageReachability';
@@ -72,7 +73,10 @@ import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
 import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
 import type { BuildingAccessRules, AccessReservation } from '@/utils/buildingAccess';
-import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
+import {
+  geocodeProjectLocation, shouldGeocode, clearCoordsOnLocationChange, geocodeStillApplies,
+  pickGeocodeBackfill, pickCountryCentroidCoords,
+} from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
 import { fireGradingEvent } from '@/utils/brain/gradingBus';
@@ -2100,6 +2104,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
                 financialPickAfterLoad(f, key, legacy, owned, finReadOk, cachedValue, displayRole);
               return ({
               id: r.id as string, name: r.name as string, type: r.type as string,
+              // Q6: his words for an 'other' job (projects.project_type_other).
+              projectTypeOther: projectTypeOtherFromRow(r.project_type_other),
               // Who the row belongs to. Persisted with the local copy so the
               // write path (classifyProjectForSync) knows a shared project from
               // an owned one on an OFFLINE launch too — the old in-memory
@@ -4383,6 +4389,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           const includeSchedule = ownerUpsertCarriesSchedule(sendsSchedule, shared, serverProjectIdsRef.current.has(project.id));
           const base = {
             id: project.id, name: project.name, type: project.type,
+            // Q6: NULL unless the type is 'other' (projectTypeOtherColumn), so
+            // leaving Other clears the words. Needs 20260924160600 applied first.
+            project_type_other: projectTypeOtherColumn(project),
             location: project.location, square_footage: project.squareFootage, quality: project.quality,
             location_latitude: project.locationLatitude ?? null,
             location_longitude: project.locationLongitude ?? null,
@@ -5091,28 +5100,36 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // Geocode a project's location string into lat/lng for hyperlocal weather
   // (morning digest, schedule weather alerts). Best-effort and async — never
   // blocks save. Updates the project in-place once Nominatim resolves.
+  //
+  // Nominatim's 1-request-per-second limit and the answer cache live inside
+  // geocodeProjectLocation (utils/geocodeProject.ts), so any number of calls
+  // here queue politely. A country on its own ('United States') is never
+  // geocoded — it resolved to the Kansas centroid (2026-09-24).
   const geocodeIfNeeded = useCallback((project: Project) => {
     const hasCoords = project.locationLatitude != null && project.locationLongitude != null;
     if (!shouldGeocode(undefined, project.location, hasCoords, project.locationGeocodedAt)) return;
-    void geocodeProjectLocation(project.location).then(result => {
+    const askedFor = project.location;
+    void geocodeProjectLocation(askedFor).then(result => {
       if (!result) return;
-      // Re-read from current state at resolve-time so we don't overwrite a
-      // concurrent edit. setProjects gets the latest snapshot via the
-      // function setter.
-      setProjects(prev => {
-        const next = prev.map(p => p.id === project.id ? {
-          ...p,
-          locationLatitude: result.latitude,
-          locationLongitude: result.longitude,
-          locationGeocodedAt: new Date().toISOString(),
-        } : p);
-        // Persist + sync
-        saveProjectsMutation.mutate(next);
-        const updated = next.find(p => p.id === project.id);
-        // Coordinates only — never a schedule this device may hold stale (#25).
-        if (updated) syncProjectToSupabase(updated, 'upsert', { changedKeys: ['locationLatitude', 'locationLongitude', 'locationGeocodedAt'] });
-        return next;
-      });
+      // Re-read the LATEST list at resolve time. The answer applies only to
+      // the address it was asked about: two quick edits can resolve out of
+      // order, and the first address's coordinates must not land on the
+      // second (or on a project deleted meanwhile).
+      const base = projectsRef.current;
+      const current = base.find(p => p.id === project.id);
+      if (!current || !geocodeStillApplies(current.location, askedFor)) return;
+      const updated: Project = {
+        ...current,
+        locationLatitude: result.latitude,
+        locationLongitude: result.longitude,
+        locationGeocodedAt: new Date().toISOString(),
+      };
+      const next = base.map(p => p.id === project.id ? updated : p);
+      projectsRef.current = next;
+      setProjects(next);
+      saveProjectsMutation.mutate(next);
+      // Coordinates only — never a schedule this device may hold stale (#25).
+      syncProjectToSupabase(updated, 'upsert', { changedKeys: ['locationLatitude', 'locationLongitude', 'locationGeocodedAt'] });
     }).catch(() => { /* silent — falls back to no-coords path */ });
   }, [saveProjectsMutation, syncProjectToSupabase]);
 
@@ -5120,6 +5137,47 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // QuickBooks call sites are handed ids, not projects, and read it; replacing
   // it wholesale here means a sign-out's empty lists empty it too.
   useEffect(() => { noteSampleScope(projects, invoices); }, [projects, invoices]);
+  // BACKFILL + CENTROID SCRUB, once this account's server list has landed.
+  // (1) A job with an address but no coordinates was never looked up — it was
+  //     saved before geocoding, or its lookup failed (The Henderson Residence,
+  //     2026-09-24) — and geocoding only ran on create / address change, so it
+  //     never would be. Up to GEOCODE_BACKFILL_MAX_PER_SESSION of his own jobs
+  //     are looked up per session, each once, spaced 1.1 s apart by the
+  //     module throttle.
+  // (2) A job whose address is only a country still carrying coordinates holds
+  //     the Kansas centroid: clear them (same scope as the migration
+  //     20260924120500_clear_country_centroid_coords, which covers the server).
+  // Gated on the hydrated server list so neither write can carry a stale
+  // cached row over a newer server one.
+  const geocodeBackfillAttemptedRef = useRef<Set<string>>(new Set());
+  const centroidScrubbedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    geocodeBackfillAttemptedRef.current = new Set();
+    centroidScrubbedRef.current = new Set();
+  }, [userId]);
+  useEffect(() => {
+    if (!userId || !canSync || !projectsLoaded || projectsHydratedForRef.current !== userId) return;
+    const mine = (p: Project) => !p.ownerUserId || p.ownerUserId === userId;
+    const stale = pickCountryCentroidCoords(projects).filter(p => mine(p) && !centroidScrubbedRef.current.has(p.id));
+    if (stale.length > 0) {
+      const ids = new Set(stale.map(p => p.id));
+      for (const id of ids) centroidScrubbedRef.current.add(id);
+      const next = projectsRef.current.map(p => ids.has(p.id)
+        ? { ...p, locationLatitude: undefined, locationLongitude: undefined, locationGeocodedAt: undefined }
+        : p);
+      projectsRef.current = next;
+      setProjects(next);
+      saveProjectsMutation.mutate(next);
+      for (const p of next) {
+        if (ids.has(p.id)) syncProjectToSupabase(p, 'upsert', { changedKeys: ['locationLatitude', 'locationLongitude', 'locationGeocodedAt'] });
+      }
+      return;
+    }
+    for (const p of pickGeocodeBackfill(projects, geocodeBackfillAttemptedRef.current, userId)) {
+      geocodeBackfillAttemptedRef.current.add(p.id);
+      geocodeIfNeeded(p);
+    }
+  }, [projects, userId, canSync, projectsLoaded, geocodeIfNeeded, saveProjectsMutation, syncProjectToSupabase]);
 
   const addProject = useCallback((incoming: Project) => {
     // A-1: the creator owns what they create. Stamps ownerUserId and drops the
@@ -5208,7 +5266,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const updates: Partial<Project> = rawUpdates.schedule?.tasks
       ? { ...rawUpdates, schedule: { ...rawUpdates.schedule, tasks: stampFieldEdits(prior?.schedule?.tasks, rawUpdates.schedule.tasks, nowISO) } }
       : rawUpdates;
-    const updated = base.map(p => p.id === id ? { ...p, ...updates, updatedAt: nowISO } : p);
+    // An address change drops the old site's coordinates in the same write
+    // (clearCoordsOnLocationChange): an address Nominatim can't resolve used to
+    // leave every forecast on the OLD site. geocodeIfNeeded below refills them.
+    const updated = base.map(p => p.id === id ? { ...p, ...clearCoordsOnLocationChange(prior, updates), updatedAt: nowISO } : p);
     projectsRef.current = updated;
     setProjects(updated);
     saveProjectsMutation.mutate(updated);
@@ -7008,7 +7069,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       // A widget lead now arrives with project_type_mapped; older ones map
       // back from the widget's scope label (utils/widgetLeadCore).
       type: (projectTypeForLead(lead) ?? 'renovation') as ProjectType,
-      location: lead.address ?? 'United States',
+      // Blank = no address. 'United States' geocoded to the Kansas centroid
+      // and showed Kansas weather for the job (lane Q2, 2026-09-24).
+      location: lead.address ?? '',
       squareFootage: 0,
       quality: 'standard',
       description: lead.scope ?? '',
