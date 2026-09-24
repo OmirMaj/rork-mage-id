@@ -15,9 +15,10 @@
 // x-client-info, authorization and content-type. Webhooks and cron targets are
 // not called from a browser and are not checked.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = join(import.meta.dir, '..');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 let fails = 0;
 const ok = (name: string, cond: boolean, detail = '') => {
   console.log(`  ${cond ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`);
