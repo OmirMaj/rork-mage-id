@@ -115,6 +115,23 @@ import { useAuth } from '@/contexts/AuthContext';
 // job, the owner's subs on the job when he is a collaborator — never his own
 // directory on someone else's job (#110).
 import { useProjectSubcontractors, type ProjectSubcontractorsState } from '@/hooks/useProjectSubcontractors';
+// Learn-by-doing tutorials (utils/tutorial, tutorial 'punch-walk'): the coach
+// spotlights these REAL controls and advances only on the signals this screen
+// emits at its real success points. Idle cost: a View and a Map write each.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { TutorialOfferChip } from '@/components/tutorial/TutorialOfferChip';
+import {
+  isTutorialActive, tutorialSignal, useTutorialAssist, useTutorialPractice, useTutorialRun, useTutorialSandboxId, useTutorialStepActive,
+} from '@/utils/tutorial/store';
+import type { RunState } from '@/utils/tutorial/types';
+
+/** The sandbox of a live tutorial run whose sample plan did NOT load, else
+ *  null. Module-level so useTutorialRun's selector is stable. */
+const selectNoSamplePlanSandbox = (s: RunState): string | null =>
+  s.status === 'running' && s.flags?.samplePlan === false ? s.sandboxProjectId : null;
+import { PUNCH_SAMPLE } from '@/utils/tutorial/fixtures';
+import { samplePhotoImage } from '@/utils/tutorial/sandbox';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Anything not recognized falls back to 'General'.
@@ -213,16 +230,26 @@ export default function PunchWalkScreen() {
   // ask 'were they invited to THIS project?' before paywalling.
   const { projectId: gateProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { canAccess } = useProjectAccess(gateProjectId);
+  // The founder's practice pass (utils/tutorial/practicePass): during the
+  // punch-walk tutorial, and only on its SAMPLE job, a Free or Pro user may
+  // walk. Opt-in HERE rather than in useProjectAccess, so it opens this screen
+  // and no other; walk mode writes only to this same URL projectId (it takes
+  // no record id), so the pass cannot reach a real job. Empty when idle.
+  const practice = useTutorialPractice(gateProjectId);
   // Walk Mode builds the same punch list the Punch List screen gates behind
   // Business — gate the capture surface too, or a free/Pro user could dictate
   // and save a full list here and only hit the paywall on the read/manage view.
-  if (!canAccess('punch_list_closeout')) {
+  if (!canAccess('punch_list_closeout') && !practice.has('punch_list_closeout')) {
     return (
       <Paywall
         visible={true}
         feature="Punch List & Closeout"
         requiredTier="business"
         onClose={() => router.back()}
+        // "Try it free on a sample job first": the punch-walk tutorial runs on
+        // the sample under the practice pass, so the wall becomes feel-then-buy.
+        practiceTutorialId="punch-walk"
+        source="punch_walk_gate"
       />
     );
   }
@@ -302,6 +329,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
+  // So the tutorial coach can scroll a target (Save) into view.
+  const walkScrollRef = useRef<ScrollView>(null);
   const router = useRouter();
   const navigation = useNavigation();
   // Look up the project for AI-context (description -> location/trade/priority).
@@ -372,6 +401,15 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   // Set when he skips the "no plan on this job" screen. See
   // shouldAutoOpenPinStep: that screen is shown once a walk, not once a photo.
   const [dismissedNoPlan, setDismissedNoPlan] = useState(false);
+  // A tutorial run on THIS sample whose plan didn't load (offline, slow upload,
+  // unsynced sample) has already auto-skipped its pin steps. The photo must
+  // not then open the "Add your floor plan" screen: the planPin layer would
+  // hide the coach until he closed it himself. Treat that screen as already
+  // seen this walk — the same state his own Skip leaves.
+  const noSamplePlanSandbox = useTutorialRun(selectNoSamplePlanSandbox);
+  useEffect(() => {
+    if (noSamplePlanSandbox && noSamplePlanSandbox === projectId) setDismissedNoPlan(true);
+  }, [noSamplePlanSandbox, projectId]);
   // DURABLE sheets, not merely listed or locally renderable ones: a sheet with
   // no image saved (IMG_1668 on any other device) has nothing to pin on, and a
   // device-only one (IMG_1668 on the phone that imported it) must be saved
@@ -614,6 +652,9 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       // first put seconds between the shutter and the plan on every item of a
       // sixty-item walk.
       setDraft(d => ({ ...d, photoUri: result.assets[0].uri, photoStamp: undefined }));
+      // Tutorial success point: a real photo is on the draft. (Web's Photo is
+      // a file picker, so it reports as a library pick.)
+      tutorialSignal('punch.photo.added', { projectId, source: Platform.OS === 'web' ? 'library' : 'camera' });
       const stampPromise = stampPhotoLocation();
       pendingStampRef.current = { shotUri, promise: stampPromise };
       void stampPromise.then(stamp => {
@@ -648,7 +689,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
         }, Platform.OS === 'ios' ? CAMERA_DISMISS_MS : 0);
       }
     }
-  }, [planSheetCount, dismissedNoPlan]);
+  }, [planSheetCount, dismissedNoPlan, projectId]);
   handleCameraRef.current = handleCamera;
 
   const handlePinNext = useCallback((pin: WalkPin, sheetLabel: string) => {
@@ -658,12 +699,14 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     setLastPinSheetId(pin.sheetId);
     pinDecidedRef.current = true;
     setPinStepOpen(false);
+    // Tutorial success point: he answered "where is this" with a pin.
+    tutorialSignal('punch.pin.decided', { projectId, pinned: true });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Pin first: the spot is set, now the photo.
     if (shouldOpenCameraAfterPin({ pinFirst: pinFirstRef.current, draftHasPhoto: !!draftPhotoRef.current })) {
       runAfterPinStep(() => { void handleCameraRef.current(); });
     }
-  }, [runAfterPinStep]);
+  }, [runAfterPinStep, projectId]);
 
   const handlePinSkip = useCallback(({ hadPlan }: { hadPlan: boolean }) => {
     // Skip means "no pin for this item" — including clearing one he placed
@@ -673,10 +716,13 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     // Answered: the photo that follows (pin first) must not bring the plan back.
     pinDecidedRef.current = true;
     setPinStepOpen(false);
+    // Tutorial: Skip is an answer too — the walk moves on without a pin.
+    tutorialSignal('punch.pin.decided', { projectId, pinned: false });
     if (shouldOpenCameraAfterPin({ pinFirst: pinFirstRef.current, draftHasPhoto: !!draftPhotoRef.current })) {
       runAfterPinStep(() => { void handleCameraRef.current(); });
     }
-  }, [runAfterPinStep]);
+  }, [runAfterPinStep, projectId]);
+
 
   const handleRemovePin = useCallback(() => {
     setDraft(d => ({ ...d, pin: undefined, pinLabel: undefined }));
@@ -684,6 +730,38 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     pinDecidedRef.current = true;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
+
+  // ── Tutorial: the sample photo (punch-walk, step punch-photo) ────────────
+  // The bundled illustration (assets/tutorial/sample-outlet.jpg) lands on the
+  // draft and runs the camera's own continuation — photo on the draft, THEN
+  // the pin step — so the walk he practises is the walk he gets, with no
+  // camera-permission prompt mid-tour and a path on the simulator and web.
+  // Not a call into handleCamera: that body is the camera's, pinned line by
+  // line (validate-punch-plan-pin), and it does two things a sample must not:
+  // wait out an iOS camera dismiss that never happened, and GPS-stamp the
+  // photo with where he is standing — a stamp on an illustration taken
+  // nowhere would be a lie about the picture.
+  const [samplePhotoBusy, setSamplePhotoBusy] = useState(false);
+  const acceptSamplePhoto = useCallback(async () => {
+    if (samplePhotoBusy) return;
+    setSamplePhotoBusy(true);
+    try {
+      const img = await samplePhotoImage();
+      if (!img) {
+        showAlert('Sample photo unavailable', 'Use Photo to take one instead.');
+        return;
+      }
+      setDraft(d => ({ ...d, photoUri: img.uri, photoStamp: undefined }));
+      pendingStampRef.current = null;
+      tutorialSignal('punch.photo.added', { projectId, source: 'sample' });
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (shouldAutoOpenPinStep({ pinnableSheetCount: planSheetCount, dismissedNoPlanThisWalk: dismissedNoPlan, pinDecided: pinDecidedRef.current })) {
+        openPinStep();
+      }
+    } finally {
+      setSamplePhotoBusy(false);
+    }
+  }, [samplePhotoBusy, projectId, planSheetCount, dismissedNoPlan, openPinStep]);
 
   // Opened with start=pin: the plan first. With no plan the step IS the
   // "Add your floor plan" screen, and it latches a sheet that hydrates late.
@@ -718,6 +796,43 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     }));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
+
+  // ── Tutorial wiring (idle: a sandbox read and a step read, nothing else) ──
+  const tutorialSandboxId = useTutorialSandboxId();
+  const onTutorialSample = tutorialSandboxId === projectId;
+  const samplePhotoStepLive = useTutorialStepActive('punch-photo');
+  const sampleLineStepLive = useTutorialStepActive('punch-describe');
+  const showSamplePhoto = onTutorialSample && samplePhotoStepLive;
+  const showSampleLine = onTutorialSample && sampleLineStepLive;
+
+  // 'Use the sample line': the description a super would say, and the room
+  // when none is set. The trade is NOT set here — the existing inference
+  // effect above picks Electrical from 'outlet', deterministically, with no AI
+  // call, exactly as it would from his own words.
+  const applySampleLine = useCallback(() => {
+    setDraft(d => ({
+      ...d,
+      description: PUNCH_SAMPLE.line,
+      location: d.location.trim() ? d.location : PUNCH_SAMPLE.room,
+      locationOrigin: d.location.trim() ? d.locationOrigin : 'picked',
+    }));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+  // 'Do it for me' fills inputs and picks the bundled media; it never presses
+  // Save — the save stays his (utils/tutorial/store useTutorialAssist).
+  useTutorialAssist('punch.useSamplePhoto', () => { if (onTutorialSample) void acceptSamplePhoto(); });
+  useTutorialAssist('punch.useSampleLine', () => { if (onTutorialSample) applySampleLine(); });
+
+  // Tutorial success point for the describe step: the description has
+  // settled at 3+ characters (typed, dictated or the sample line). Debounced
+  // so it reports a pause, not every keystroke; no timer at all when no
+  // tutorial is running.
+  useEffect(() => {
+    const chars = draft.description.trim().length;
+    if (chars < 3 || !isTutorialActive()) return;
+    const t = setTimeout(() => tutorialSignal('punch.description.filled', { projectId, chars }), 600);
+    return () => clearTimeout(t);
+  }, [draft.description, projectId]);
 
   const handleSave = useCallback(() => {
     if (!draft.description.trim()) {
@@ -767,6 +882,18 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       updatedAt: now,
     };
     onAdd(item);
+    // Tutorial success point — the real save, right after onAdd. `sheet` is
+    // the plan's sheet number when pinned ("pinned on A-101" on the stamp).
+    tutorialSignal('punch.saved', {
+      projectId,
+      itemId: id,
+      location: item.location,
+      trade: draft.trade,
+      pinned: !!item.planSheetId,
+      sheet: item.planSheetId
+        ? (getPlanSheetsForProject(projectId).find(sh => sh.id === item.planSheetId)?.sheetNumber || draft.pinLabel)
+        : undefined,
+    });
     const pendingStamp = pendingStampRef.current;
     if (!draft.photoStamp && draft.photoUri && pendingStamp && pendingStamp.shotUri === draft.photoUri) {
       // Saved before the fix arrived: attach the location to THIS item when it
@@ -825,7 +952,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       Keyboard.dismiss();
       openPinStep();
     }
-  }, [draft, listType, subChoice, subs, userId, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep]);
+  }, [draft, listType, subChoice, subs, userId, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep, getPlanSheetsForProject]);
 
   const handleUndo = useCallback((id: string) => {
     onDelete(id);
@@ -878,7 +1005,14 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
+        {/* backTarget grows the wrapper by 8 on every side and pulls it back
+            with a negative margin: the flow size stays 36, but the wrapper is
+            now 52 x 52. On iOS (Fabric) a touch outside a parent's bounds never
+            reaches the child, so an exact-size wrapper cut the button's
+            hitSlop off and shrank its touch area below 44 pt on every walk. */}
+        <TutorialTarget id="punch.back" style={styles.backTarget}>
+          <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
+        </TutorialTarget>
         <View style={{ flex: 1 }}>
           {/* The eyebrow names the ACTIVE list, in its own ink, so the list is
               readable even with the card scrolled off screen. */}
@@ -888,17 +1022,29 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
         </View>
         {session.length > 0 && (
-          <View style={styles.sessionChip}>
-            <Text style={styles.sessionChipText}>{session.length}</Text>
-          </View>
+          <TutorialTarget id="punch.sessionCount">
+            <View style={styles.sessionChip}>
+              <Text style={styles.sessionChipText}>{session.length}</Text>
+            </View>
+          </TutorialTarget>
         )}
       </View>
 
+      {/* The contextual tutorial offer (spec entry point 3). WalkInner renders
+          only past the Business gate, so a paywalled user gets the Paywall's
+          'Try it on a sample first' instead. Quiet once he has started an item
+          or saved one this walk; every other rule is in utils/tutorial/offers. */}
+      <TutorialOfferChip
+        tutorialId="punch-walk"
+        projectId={projectId}
+        midDraft={!!draft.description.trim() || !!draft.photoUri || session.length > 0}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={walkScrollRef} {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
+          <TutorialScrollAnchor scrollRef={walkScrollRef}>
 
           {/* List — which list this item is filed to. Above the location
               because it is the more expensive mistake: a wrong room is
@@ -1063,6 +1209,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 
           {/* Description — the big centerpiece */}
           <View style={styles.descCard}>
+            <TutorialTarget id="punch.description">
             <TextInput
               style={styles.descInput}
               value={draft.description}
@@ -1073,6 +1220,22 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               autoCapitalize="sentences"
               testID="walk-description"
             />
+            {/* The tutorial's sample line — only while its step is live on the
+                sample job. Deterministic: no AI call, no credits. */}
+            {showSampleLine ? (
+              <TouchableOpacity
+                style={styles.sampleChip}
+                onPress={applySampleLine}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Use the sample line: ${PUNCH_SAMPLE.line}`}
+                testID="walk-sample-line"
+              >
+                <Text style={styles.sampleChipLabel}>Sample line</Text>
+                <Text style={styles.sampleChipText} numberOfLines={2}>{'“'}{PUNCH_SAMPLE.line}{'”'}</Text>
+              </TouchableOpacity>
+            ) : null}
+            </TutorialTarget>
 
             {/* Inferred-trade + priority badges */}
             <View style={styles.metaRow}>
@@ -1208,6 +1371,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             )}
             {/* Pinned first, no photo yet: the photo is the next action (and the
                 way back if the camera never came up). */}
+            <TutorialTarget id="punch.camera">
             {pinFirst && draft.pin && !draft.photoUri ? (
               <TouchableOpacity
                 style={[styles.cameraBtn, styles.cameraBtnEmphasis]}
@@ -1226,6 +1390,22 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 <Text style={styles.cameraBtnText}>Photo</Text>
               </TouchableOpacity>
             )}
+            {/* The tutorial's sample photo — only while its step is live on the
+                sample job. An illustration, labelled as one. */}
+            {showSamplePhoto ? (
+              <TouchableOpacity
+                style={styles.sampleChip}
+                onPress={() => { void acceptSamplePhoto(); }}
+                disabled={samplePhotoBusy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Use the sample photo, an illustration of an outlet with no cover"
+                testID="walk-sample-photo"
+              >
+                <Text style={styles.sampleChipText}>{samplePhotoBusy ? 'Loading…' : 'Use sample photo'}</Text>
+              </TouchableOpacity>
+            ) : null}
+            </TutorialTarget>
           </View>
 
           {/* Which comes first. Pin first puts the plan up before the camera
@@ -1278,6 +1458,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
 
+          <TutorialTarget id="punch.save">
           <TouchableOpacity
             style={[styles.saveBtn, !draft.description.trim() && styles.saveBtnDisabled]}
             onPress={handleSave}
@@ -1290,6 +1471,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 where the item is going. */}
             <Text style={styles.saveBtnText}>Save to {isPunch ? 'punch list' : 'crew list'}</Text>
           </TouchableOpacity>
+          </TutorialTarget>
 
           {pinFirst && (
             <Text style={styles.hint}>
@@ -1338,6 +1520,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               </Text>
             </View>
           )}
+          </TutorialScrollAnchor>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1492,6 +1675,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           </View>
         </View>
       </Modal>
+      {/* Tutorial blocker: these sheets have no tutorial layer and draw ABOVE
+          the root one on iOS, so while any is up the coach draws nothing
+          rather than a dim and a card behind the sheet. (PlanPinStep is not
+          here: it hosts its own planPin layer.) Zero-size, inert. */}
+      {(showTradeOverride || showSubPicker || showAllLocations) ? <TutorialTarget id="punch.modalUp" /> : null}
     </View>
   );
 }
@@ -1592,6 +1780,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
     backgroundColor: t.surfaceAlt,
   },
+  // The punch.back tutorial wrapper: +8 hit area on each side, net flow size
+  // unchanged (see the header). 36 + 2*8 = 52 >= Tokens.touchTarget.comfortable.
+  backTarget: { margin: -8, padding: 8 },
   headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
   headerTitle: { ...Type.serifHeadline, color: t.text },
   sessionChip: {
@@ -1757,6 +1948,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   aiPunchBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accent },
   aiPunchBtnSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
+  // The tutorial's sample chips (sample photo, sample line): a plain surface
+  // chip — the accent is never the background. Shown only while their step is
+  // live on the sample job.
+  sampleChip: {
+    marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, gap: 2,
+    borderRadius: Tokens.radius.md, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
+  },
+  sampleChipLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, letterSpacing: 0.3 },
+  sampleChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 14, marginTop: 14, paddingVertical: 16, borderRadius: Tokens.radius.lg,

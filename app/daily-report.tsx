@@ -37,6 +37,15 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import VoiceRecorder from '@/components/VoiceRecorder';
+// Learn-by-doing tutorials (utils/tutorial): the coach spotlights REAL
+// controls through these wrappers and advances only on the signals this
+// screen emits at its real success points. Idle cost: a View and a Map write.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { TutorialOfferChip } from '@/components/tutorial/TutorialOfferChip';
+import { tutorialSignal, useTutorialAssist, useTutorialSandboxId, useTutorialStepActive } from '@/utils/tutorial/store';
+import { DFR_SAMPLE_NOTE, SAMPLE_NO_CREDITS_LABEL } from '@/utils/tutorial/fixtures';
+import { sampleSendAllowed, sampleSendPlan } from '@/utils/sampleGuard';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
@@ -2690,6 +2699,98 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // `silent` writes the record and nothing else — no haptic, no toast, no
   // navigation. handleConfirmSend uses it to get the day on disk BEFORE it
   // tries to deliver anything, and owns the outcome message itself.
+  /**
+   * The voice fill, shared by the mic and the tutorial's sample note. One body
+   * so the sample can never fill the form differently from the real thing —
+   * the tutorial would otherwise teach a screen that does not exist.
+   *
+   * `metered` is the only difference: the mic path spent an AI call
+   * (parseDFRFromTranscript), so it is counted against his voiceCapture
+   * allowance exactly as before; the sample note is a canned parse
+   * (utils/tutorial/fixtures DFR_SAMPLE_NOTE) that made no AI call, so it
+   * costs nothing and the meter does not move. Every field only fills when it
+   * is empty — anything he already typed is never overwritten.
+   */
+  const applyParsedDfr = useCallback(async (
+    parsed: Partial<DailyFieldReport>,
+    opts: { metered: boolean; source: 'mic' | 'sample' },
+  ) => {
+    // Track what was filled this round — used to build the
+    // preview card so the GC can verify before saving.
+    const populated: typeof voiceParsed = {};
+    // Which sections this note actually wrote — the tutorial's stat says
+    // "3 sections from one note" from this list, never from a guess.
+    const fields: string[] = [];
+    if (parsed.weather && !weather.temperature) {
+      // isManual TRUE: dictated weather is the super's own account
+      // of the day, not a reading from a weather service. The
+      // parser defaults it to false (utils/voiceDFRParser.ts), which
+      // would put the "fetched" flag on a sentence he spoke —
+      // DFR-WEATHER-DAY's lie by a different route.
+      setWeather({ ...parsed.weather, isManual: true });
+      populated.weather = { temperature: parsed.weather.temperature, conditions: parsed.weather.conditions };
+      fields.push('weather');
+    }
+    if (parsed.manpower && manpower.length === 0) {
+      setManpower(parsed.manpower);
+      const total = parsed.manpower.reduce((s, m) => s + (m.headcount ?? 0), 0);
+      const trades = parsed.manpower.map(m => `${m.headcount ?? 0} ${m.trade?.toLowerCase() ?? 'workers'}`).join(', ');
+      populated.crewSummary = total > 0 ? trades : undefined;
+      fields.push('manpower');
+    }
+    if (parsed.workPerformed && !workPerformed) {
+      setWorkPerformed(parsed.workPerformed);
+      populated.workPerformed = parsed.workPerformed;
+      fields.push('workPerformed');
+    }
+    if (parsed.materialsDelivered && materialsDelivered.length === 0) {
+      setMaterialsDelivered(parsed.materialsDelivered);
+      populated.materialsDelivered = parsed.materialsDelivered;
+      fields.push('materialsDelivered');
+    }
+    if (parsed.issuesAndDelays && !issuesAndDelays) {
+      setIssuesAndDelays(parsed.issuesAndDelays);
+      populated.issuesAndDelays = parsed.issuesAndDelays;
+      fields.push('issuesAndDelays');
+    }
+    setVoiceParsed(Object.keys(populated).length > 0 ? populated : null);
+    setShowVoiceBanner(true);
+    if (opts.metered) {
+      await recordAIUsage('fast', 'voiceCapture');
+      setGateRefresh(n => n + 1);
+    }
+    // The tutorial's real success point for the voice step. Only when the
+    // note actually filled something: the next card says "one note filled
+    // crew, work done and the delay", and a note that filled nothing must not
+    // be told it did. A no-op when no tutorial runs (and ignored off the sample).
+    if (projectId && fields.length > 0) tutorialSignal('dfr.voice.applied', { projectId, fields, source: opts.source });
+  }, [weather.temperature, manpower.length, workPerformed, materialsDelivered.length, issuesAndDelays, projectId]);
+
+  // ── Tutorial: the sample voice note (daily-report-voice, step dfr-voice) ──
+  // Rendered ONLY while that step is live on the tutorial's sample job, beside
+  // the real mic (one spotlight hole covers both). It is the web path — the
+  // web VoiceRecorder is disabled — and on iPhone it spares a first-run user a
+  // microphone prompt. The mic stays live and metered.
+  const tutorialSandboxId = useTutorialSandboxId();
+  const onTutorialSample = !!projectId && tutorialSandboxId === projectId;
+  const sampleNoteStepLive = useTutorialStepActive('dfr-voice');
+  const showSampleNote = onTutorialSample && sampleNoteStepLive;
+  const applySampleNote = useCallback(() => {
+    if (!onTutorialSample) return;
+    // Fresh row ids: a replay on the same sample must not reuse the fixture's.
+    const parsed: Partial<DailyFieldReport> = {
+      ...DFR_SAMPLE_NOTE.parsed,
+      manpower: (DFR_SAMPLE_NOTE.parsed.manpower ?? []).map(m => ({ ...m, id: createId('mp') })),
+    };
+    void applyParsedDfr(parsed, { metered: false, source: 'sample' });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [onTutorialSample, applyParsedDfr]);
+  // 'Do it for me' on the voice step: the same fill the chip does. Never saves.
+  useTutorialAssist('dfr.useSampleNote', applySampleNote);
+  // The form's ScrollView, so the coach can scroll a target into view
+  // (TutorialScrollAnchor wraps its content).
+  const dfrScrollRef = useRef<ScrollView>(null);
+
   const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string, opts?: { silent?: boolean }) => {
     if (!projectId) return;
     const silent = opts?.silent === true;
@@ -2877,6 +2978,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       if (!silent) {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
+        // Tutorial success point (a re-save during a replay lands here).
+        // Emitted before goBack() below so the coach never flashes "paused".
+        tutorialSignal('dfr.saved', {
+          projectId, reportId: savedRecord.id, status, date: reportDate,
+          crew: manpower.reduce((n, m) => n + (m.headcount ?? 0), 0),
+        });
       }
     } else {
       const report: DailyFieldReport = {
@@ -2924,6 +3031,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         // The hammer-strike toast confirms without blocking the back nav.
         nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
+        // Tutorial success point — the real save, right after addDailyReport,
+        // on the non-silent path only (the pre-send write is silent and is
+        // not the user's Save). Before goBack() so the coach's next card is
+        // the hub, not a one-frame "paused". A no-op when no tutorial runs.
+        tutorialSignal('dfr.saved', {
+          projectId, reportId: report.id, status, date: reportDate,
+          crew: manpower.reduce((n, m) => n + (m.headcount ?? 0), 0),
+        });
       }
     }
     if (!silent && liveHoursWarning) showAlert('Saved with hours so far', liveHoursWarning);
@@ -3114,6 +3229,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     && !incident.hasIncident;
 
   const handleSendPress = useCallback(() => {
+    // A sample job's report goes to its owner and nobody else
+    // (utils/sampleGuard): the sheet opens locked to his own address.
+    const samplePlan = sampleSendPlan(project, user?.email);
+    if (samplePlan.sample) {
+      setSendRecipientName('');
+      setSendRecipientEmail(samplePlan.to ?? '');
+      setContactPicked(false);
+    }
     // Sending puts the hours in front of the owner as the day's record — ask
     // first while shifts it counted are still open.
     if (liveHoursWarning) {
@@ -3124,7 +3247,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       return;
     }
     setShowSendRecipient(true);
-  }, [liveHoursWarning]);
+  }, [liveHoursWarning, project, user?.email]);
 
   // #25: the gallery copies of this project's photos — where the annotator
   // draws markup, keyed by the same id the report's photos carry.
@@ -3260,6 +3383,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   }, [handlePrintCopy, project, sharingPdf, documentReport, brandingOrBlank, galleryPhotos, documentClassification, filedBy.document]);
 
   const handleConfirmSend = useCallback(async () => {
+    // A sample job never emails a client or a sub — only its owner. The sheet
+    // is locked to his address on a sample; this refuses anything else that
+    // reaches here (a stale sheet, a pasted address). The project-files copy
+    // with no email sends nothing, so it stays allowed.
+    if (sendRecipientEmail.trim() && !sampleSendAllowed(project, sendRecipientEmail, user?.email)) {
+      showAlert('Sample job', 'A sample job sends only to you. Nothing was sent.');
+      return;
+    }
     // Email is optional when the project-files copy is on — a GC who just
     // wants the PDF in the shared drive can skip the recipient. On web there
     // is no project-files copy (#27), so there an email is the destination.
@@ -3395,7 +3526,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // which does, is the dep that carries it; documentReport carries createdAt).
   }, [handleSave, sendRecipientName, sendRecipientEmail, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays,
       manpower, materialsDelivered, photos, reportDate, saveToProjectFiles, projectId, isFree, goBack, stableReportId,
-      brandingOrBlank, documentReport, galleryPhotos, documentClassification, filedBy.document]);
+      brandingOrBlank, documentReport, galleryPhotos, documentClassification, filedBy.document, user?.email]);
 
 
   // ─── Unsaved-work guard: a dirty check and a debounced draft ──────────────
@@ -3708,6 +3839,8 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   }
 
   const isLocked = existingReport?.status === 'sent';
+  /** A sample job's Submit is locked to his own address (utils/sampleGuard). */
+  const sendIsSample = sampleSendPlan(project, user?.email).sample;
   /** The homeowner-update controls: an open report, or (#58) a submitted one
    *  for an owner/editor. A field/viewer seat on a submitted report reads it. */
   const hsEditable = !isLocked || hsEditableWhenLocked;
@@ -3769,6 +3902,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           </TouchableOpacity>
           {!isLocked ? (
             <View style={styles.topBarActions}>
+              <TutorialTarget id="dfr.saveDraft">
               <Button
                 label="Save Draft"
                 onPress={() => handleSave('draft')}
@@ -3776,6 +3910,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 size="sm"
                 testID="save-draft-btn"
               />
+              </TutorialTarget>
               <Button
                 label="Submit"
                 onPress={handleSendPress}
@@ -3802,52 +3937,30 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           )}
         </View>
 
+        {/* The contextual tutorial offer (spec entry point 3): one dismissible
+            line, the first open on a REAL job only. Every quiet rule (once, ×
+            forever, one a day, never on a sample / mid-draft / during a run)
+            lives in utils/tutorial/offers.ts. A submitted report is read-only,
+            so there is nothing to practise from it. */}
+        <TutorialOfferChip tutorialId="daily-report-voice" projectId={projectId} screenOpened={!isLocked} midDraft={isDirty} />
         <ScrollView
+          ref={dfrScrollRef}
           {...fabScroll}
           contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <TutorialScrollAnchor scrollRef={dfrScrollRef}>
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            <TutorialTarget id="dfr.voice">
             <VoiceRecorder
               onTranscriptReady={async (transcript) => {
                 setVoiceLoading(true);
                 try {
                   const parsed = await parseDFRFromTranscript(transcript, projectId ?? '', todaysProjectPhotos);
-                  // Track what was filled this round — used to build the
-                  // preview card so the GC can verify before saving.
-                  const populated: typeof voiceParsed = {};
-                  if (parsed.weather && !weather.temperature) {
-                    // isManual TRUE: dictated weather is the super's own account
-                    // of the day, not a reading from a weather service. The
-                    // parser defaults it to false (utils/voiceDFRParser.ts), which
-                    // would put the "fetched" flag on a sentence he spoke —
-                    // DFR-WEATHER-DAY's lie by a different route.
-                    setWeather({ ...parsed.weather, isManual: true });
-                    populated.weather = { temperature: parsed.weather.temperature, conditions: parsed.weather.conditions };
-                  }
-                  if (parsed.manpower && manpower.length === 0) {
-                    setManpower(parsed.manpower);
-                    const total = parsed.manpower.reduce((s, m) => s + (m.headcount ?? 0), 0);
-                    const trades = parsed.manpower.map(m => `${m.headcount ?? 0} ${m.trade?.toLowerCase() ?? 'workers'}`).join(', ');
-                    populated.crewSummary = total > 0 ? trades : undefined;
-                  }
-                  if (parsed.workPerformed && !workPerformed) {
-                    setWorkPerformed(parsed.workPerformed);
-                    populated.workPerformed = parsed.workPerformed;
-                  }
-                  if (parsed.materialsDelivered && materialsDelivered.length === 0) {
-                    setMaterialsDelivered(parsed.materialsDelivered);
-                    populated.materialsDelivered = parsed.materialsDelivered;
-                  }
-                  if (parsed.issuesAndDelays && !issuesAndDelays) {
-                    setIssuesAndDelays(parsed.issuesAndDelays);
-                    populated.issuesAndDelays = parsed.issuesAndDelays;
-                  }
-                  setVoiceParsed(Object.keys(populated).length > 0 ? populated : null);
-                  setShowVoiceBanner(true);
-                  await recordAIUsage('fast', 'voiceCapture');
-                  setGateRefresh(n => n + 1);
+                  // The shared fill (applyParsedDfr, above): same fields, same
+                  // never-overwrite rule, and metered — this path made an AI call.
+                  await applyParsedDfr(parsed, { metered: true, source: 'mic' });
                   if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
                   console.log('[DFR] Voice auto-fill complete');
                 } catch (err) {
@@ -3887,9 +4000,26 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 { label: "Tomorrow's plan", hint: 'what crews and tasks are scheduled (optional)' },
               ]}
             />
+            {/* The tutorial's sample note — only while its step is live on the
+                sample job. Labelled as a sample; it makes no AI call. */}
+            {showSampleNote && !isLocked ? (
+              <TouchableOpacity
+                style={voiceStyles.sampleChip}
+                onPress={applySampleNote}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Use the sample voice note. ${SAMPLE_NO_CREDITS_LABEL}.`}
+                testID="dfr-sample-note"
+              >
+                <Text style={voiceStyles.sampleChipLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text>
+                <Text style={voiceStyles.sampleChipQuote} numberOfLines={3}>{'“'}{DFR_SAMPLE_NOTE.transcript}{'”'}</Text>
+              </TouchableOpacity>
+            ) : null}
+            </TutorialTarget>
           </View>
 
           {showVoiceBanner && voiceParsed && (
+            <TutorialTarget id="dfr.voicePreview">
             <View style={voiceStyles.previewCard}>
               <View style={voiceStyles.previewHead}>
                 <MageAIMark size={14} color={themeColors.accent} />
@@ -3919,6 +4049,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 )}
               </View>
             </View>
+            </TutorialTarget>
           )}
 
           {showVoiceBanner && !voiceParsed && (
@@ -4380,6 +4511,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               <Text style={styles.sectionTitle}>Work Performed</Text>
             </View>
             {!isLocked ? (
+              <TutorialTarget id="dfr.workPerformed">
               <TextInput
                 style={styles.textArea}
                 value={workPerformed}
@@ -4390,6 +4522,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 textAlignVertical="top"
                 testID="work-performed-input"
               />
+              </TutorialTarget>
             ) : (
               <Text style={styles.readOnlyText}>{workPerformed || 'No notes.'}</Text>
             )}
@@ -5434,6 +5567,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </Text>
             </View>
           )}
+          </TutorialScrollAnchor>
         </ScrollView>
 
         {/* Bottom save bar removed — Save Draft + Submit now live in the
@@ -5481,8 +5615,15 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     placeholderTextColor={themeColors.textMuted}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    // A sample job sends only to its owner: the address is his, read-only.
+                    editable={!sendIsSample}
                   />
-                  {contacts.length > 0 && (
+                  {sendIsSample && (
+                    <Text style={styles.modalFieldLabel} testID="dfr-sample-send-note">
+                      Sample job {'—'} this goes to you, not a client.
+                    </Text>
+                  )}
+                  {contacts.length > 0 && !sendIsSample && (
                     <TouchableOpacity
                       style={styles.pickContactBtn}
                       onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
@@ -5818,6 +5959,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         featureLabel="Voice Capture"
         onClose={() => setUpgradeLimit(null)}
       />
+      {/* Tutorial blocker: these modals have no tutorial layer and draw ABOVE
+          the root one on iOS, so while any is up the coach draws nothing
+          rather than a dim and a card behind the sheet. Zero-size, inert. */}
+      {(showSendRecipient || showTaskPicker || showManpowerModal || delayTaskPickerIdx !== null || showDatePicker || showContactPicker || !!upgradeLimit)
+        ? <TutorialTarget id="dfr.modalUp" />
+        : null}
     </View>
   );
 }
@@ -5901,6 +6048,15 @@ const makeVoiceStyles = (themeColors: ThemeColors) => StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   rowLabel: { width: 90, fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
   rowValue: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
+  // The tutorial's sample-note chip: a plain surface card (the accent is never
+  // the background), under the mic, inside the same spotlight hole.
+  sampleChip: {
+    marginBottom: 12, padding: 12, gap: 4,
+    backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
+  },
+  sampleChipLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textSecondary, letterSpacing: 0.3 },
+  sampleChipQuote: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
 });
 
 const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({

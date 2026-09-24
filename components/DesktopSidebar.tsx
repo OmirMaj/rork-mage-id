@@ -13,7 +13,7 @@ import {
   Presentation, LayoutDashboard, Plus,
   PieChart, LineChart, Coins, BellRing,
   Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap, Upload,
-  CalendarClock, Truck, Megaphone, Newspaper,
+  CalendarClock, Truck, Megaphone, Newspaper, BookOpen,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -235,6 +235,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── ACCOUNT (pinned to bottom)
   { key: 'messages',          label: 'Messages',         icon: MessageCircle,   route: '/messages',                         section: 'ACCOUNT' },
   { key: 'report-inbox',      label: 'Report Inbox',     icon: Inbox,           route: '/report-inbox',                     section: 'ACCOUNT', feature: 'report-inbox' },
+  { key: 'tutorials',         label: 'Help & tutorials', icon: BookOpen,        route: '/tutorials',                        section: 'ACCOUNT', feature: 'tutorials' },
   { key: 'settings',          label: 'Settings',         icon: Settings,        route: '/(tabs)/settings',                 section: 'ACCOUNT', feature: 'settings' },
 ];
 

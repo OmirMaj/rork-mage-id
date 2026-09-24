@@ -23,6 +23,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import VoiceCaptureModal from './VoiceCaptureModal';
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -104,6 +105,10 @@ export default function VoiceRecorder({
           {isLoading ? 'Processing…' : 'Tap to dictate'}
         </Text>
       </TouchableOpacity>
+      {/* Tutorial blocker sentinel: the capture sheet is an RN Modal that draws
+          above the root tutorial layer, so while it is up the coach must hide
+          instead of dimming behind it (validate-tutorial-defs pins this id). */}
+      {modalOpen ? <TutorialTarget id="voice.modalUp" /> : null}
       <VoiceCaptureModal
         visible={modalOpen}
         onClose={() => setModalOpen(false)}

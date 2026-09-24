@@ -58,10 +58,10 @@ const CEILING = {
   /** seg/segment/tab/toggle/mode style entries that stretch (flex:1 /
    *  flexGrow:1) with no `segmentedDesktop` companion at their use site.
    *  Excludes components/schedule/mobile and `…Phone` styles. */
-  stretchedSegments: 46,
+  stretchedSegments: 45,
   /** Files with a transparent <Modal> and no desktop frame (no Sheet /
    *  useSheetFrame, no maxWidth anywhere in the file). */
-  unframedTransparentModalFiles: 58,
+  unframedTransparentModalFiles: 57,
   /** Non-transparent pageSheet <Modal>s (full-window on web). */
   pageSheetModals: 27,
   /** Percent-width tile literals (width / flexBasis / minWidth of 22–25%,

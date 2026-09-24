@@ -26,6 +26,7 @@ import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState, type ProjectRole } from '@/hooks/useProjectRole';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@/contexts/AuthContext';
+import { sampleSendAllowed } from '@/utils/sampleGuard';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
@@ -1015,6 +1016,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     projects, changeOrders: allChangeOrders, sendToClientPortal,
   } = useProjects();
   const { user: authUser } = useAuth();
+  // Read by the send's sample fence without changing its pinned deps list.
+  const authEmailRef = useRef<string | null | undefined>(authUser?.email);
+  authEmailRef.current = authUser?.email;
   // #35 — Send & Save shares the CO to the portal AFTER its write. The
   // context's sendToClientPortal finds the item in the change-order list its
   // closure was built with, and writes the portal state over that list — so
@@ -1949,6 +1953,15 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
       showAlert('Email Required', 'Please enter a recipient email address.');
+      return;
+    }
+    // Sample fence (utils/sampleGuard): a sample job is a real synced row a
+    // Pro owner can open this screen on, but nothing from a sample may reach
+    // a client or a sub — only his own address. Refused BEFORE anything is
+    // written or sent. (The tutorial practice pass never opens this screen:
+    // it is opt-in on punch-walk / invoice / the hub only.)
+    if (!sampleSendAllowed(project ?? '', sendRecipientEmail, authEmailRef.current)) {
+      showAlert('Sample job', `Change orders on a sample job go only to you${authEmailRef.current ? ` (${authEmailRef.current})` : ''}. Nothing is sent to a client or a sub.`);
       return;
     }
     // Refuse BEFORE anything goes out — see coSaveBlocker.

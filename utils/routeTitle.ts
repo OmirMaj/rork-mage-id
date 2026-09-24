@@ -117,6 +117,7 @@ export function pathToDocumentTitle(pathname: string): string | null {
     '/submittal': 'Submittal',
     '/oac-meeting': 'OAC meeting',
     '/daily-report': 'Daily report',
+    '/tutorials': 'Tutorials',
     '/delay-events': 'Delay register',
     '/time-tracking': 'Time tracking',
     '/photo-triage': 'Photo triage',

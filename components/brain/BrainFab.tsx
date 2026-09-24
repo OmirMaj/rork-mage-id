@@ -26,6 +26,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Tokens } from '@/constants/designTokens';
 import { MageAIMark } from '@/components/icons';
 import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain/brainFabState';
+import { useTutorialCoachVisible } from '@/utils/tutorial/store';
 import { anchorProjectIdFor } from '@/utils/resolveStarters';
 
 // Routes where the Brain must NOT appear: tokenized public viewers handed to
@@ -49,7 +50,12 @@ export function BrainFab() {
 
   // Scroll-away + per-screen suppression / lift. See brainFabState for why the
   // FAB owns this rather than every screen padding around it (audit defect #5).
-  const { hidden, lift } = useBrainFabPresentation();
+  const { hidden: fabStateHidden, lift } = useBrainFabPresentation();
+  // A tutorial coach (spotlight, card, stamp or finale) is on screen: hide.
+  // In card mode there are no dims over the FAB, and a tap on it opened /ask
+  // mid-step, pausing the run (spec §16).
+  const coachUp = useTutorialCoachVisible();
+  const hidden = fabStateHidden || coachUp;
 
   // A screen that scrolled the FAB away stays mounted under whatever is pushed
   // on top of it, so its own cleanup never runs. Reset on every route change.

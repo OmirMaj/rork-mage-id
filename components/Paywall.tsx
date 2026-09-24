@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Crown, Building2, CheckCircle2, X, Shield, Smartphone, Apple } from 'lucide-react-native';
+import { Crown, Building2, CheckCircle2, X, Shield, Smartphone, Apple, CirclePlay } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -19,6 +19,18 @@ import {
   LIST_PRICE_MONTHLY, PRICE_AT_CHECKOUT, annualPerMonth, annualSavingsAmount, annualSavingsPercent,
 } from '@/constants/pricing';
 import { planFeatureLines } from '@/utils/planFeatureCopy';
+import type { StartCtx, TutorialId } from '@/utils/tutorial/types';
+import { getTutorialState, startTutorial, useTutorialRun } from '@/utils/tutorial/store';
+import { resumeTarget } from '@/utils/tutorial/machine';
+import { TUTORIAL_DEFS } from '@/utils/tutorial/defs';
+import { useTutorialProgress } from '@/utils/tutorial/progress';
+import { chipReturnTo } from '@/utils/tutorial/entryPoints';
+import { useGlobalSearchParams, usePathname } from 'expo-router';
+import { paywallPracticeOffer, restoredRunId, runBlocksPaywallOffer } from '@/utils/paywallPracticeOffer';
+
+// resumeTarget() needs a StartCtx only to build params; handlePracticeFirst
+// reads just whether it is null, so any fixed dates do.
+const RESUME_PROBE_CTX: StartCtx = { today: '1970-01-01', reportDay: '1970-01-01' };
 
 // App Store / Play Store deep links — used by the web paywall to bounce
 // users to mobile. App Store ID 6762229238 is from eas.json submit.production.
@@ -41,7 +53,28 @@ interface PaywallProps {
   feature: string;
   /** Minimum tier required for this feature. */
   requiredTier: RequiredTier;
+  /**
+   * The tutorial that practises this feature on the SAMPLE job (punch walk,
+   * invoicing). When set, the practice pass is on and he has not practised it
+   * yet, the wall offers "Try it free on a sample job first" under the plans —
+   * so a Free user feels the feature before being asked to buy it. Tapping it
+   * closes the wall (the caller's own onClose) and starts the tutorial.
+   */
+  practiceTutorialId?: TutorialId;
+  /**
+   * Which surface opened this wall ('tutorial_handoff' from a tutorial's
+   * finale, …). Passed into PAYWALL_VIEWED so the funnel can split the
+   * practice → paywall → purchase path from every other gate.
+   */
+  source?: string;
 }
+
+// A live run is running (or paused) — the offer hides then, so a wall met
+// mid-tutorial never ends the run he is in. A RESTORED run is the exception
+// (utils/paywallPracticeOffer): it holds no pass, so this wall is what a web
+// reload of the sample's gated screen shows, and the offer is its Resume.
+const selectRunActive = runBlocksPaywallOffer;
+const selectRestoredId = restoredRunId;
 
 // Prices: RevenueCat's package when loaded, else the published list rate from
 // constants/pricing.ts — the ONE fallback table (#42). This file used to carry
@@ -265,7 +298,7 @@ const FEATURE_TITLE: Record<string, string> = {
   schedule_scenarios: 'Saved Schedule Plans',
 };
 
-export default function Paywall({ visible, onClose, feature, requiredTier }: PaywallProps) {
+export default function Paywall({ visible, onClose, feature, requiredTier, practiceTutorialId, source }: PaywallProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -277,8 +310,25 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   // funnels by which gate produces conversion.
   useEffect(() => {
     if (!visible) return;
-    track(AnalyticsEvents.PAYWALL_VIEWED, { feature, tier_blocked: requiredTier });
-  }, [visible, feature, requiredTier]);
+    track(AnalyticsEvents.PAYWALL_VIEWED, { feature, tier_blocked: requiredTier, ...(source ? { source } : {}) });
+  }, [visible, feature, requiredTier, source]);
+
+  // "Try it free on a sample job first" (utils/paywallPracticeOffer decides).
+  const { progress: tutorialProgress, loaded: tutorialProgressLoaded } = useTutorialProgress();
+  const tutorialRunActive = useTutorialRun(selectRunActive);
+  const restoredTutorialId = useTutorialRun(selectRestoredId);
+  const practiceOffer = useMemo(() => paywallPracticeOffer({
+    tutorialId: practiceTutorialId,
+    progress: tutorialProgress,
+    progressLoaded: tutorialProgressLoaded,
+    runActive: tutorialRunActive,
+    restoredTutorialId,
+  }), [practiceTutorialId, tutorialProgress, tutorialProgressLoaded, tutorialRunActive, restoredTutorialId]);
+  const offeredTutorialId = visible ? practiceOffer?.tutorialId ?? null : null;
+  useEffect(() => {
+    if (!offeredTutorialId) return;
+    track(AnalyticsEvents.TUTORIAL_OFFERED, { tutorial_id: offeredTutorialId, entry: 'paywall' });
+  }, [offeredTutorialId]);
 
   // Wrap every dismissal path so paywall_dismissed always fires.
   // Pair with paywall_viewed → bounce rate. Pair with started/completed
@@ -287,6 +337,57 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
     track(AnalyticsEvents.PAYWALL_DISMISSED, { feature });
     onClose();
   }, [feature, onClose]);
+
+  // The wall closes through the caller's own onClose (a gated screen pops
+  // itself), THEN the tutorial starts: the host seeds the sample and pushes
+  // the sample hub + screen on top of wherever that leaves him, and the
+  // practice pass opens the feature on the sample only.
+  // returnTo is the gated screen he tried to open (with its params, e.g. his
+  // real job), so the finale's Done lands him back where he started instead
+  // of wherever the pop left him.
+  const pathname = usePathname();
+  const routeParams = useGlobalSearchParams();
+  const handlePracticeFirst = useCallback(() => {
+    if (!practiceOffer) return;
+    track(AnalyticsEvents.PAYWALL_DISMISSED, { feature, kind: 'practice_sample' });
+    // Resuming a RESTORED run of this tutorial. One rule, read from the same
+    // function the host resumes with: if resumeTarget() is null the run's
+    // checkpoint IS this screen (a web reload of the sample's /invoice), so do
+    // NOT pop: Resume lifts the pause, the pass comes back and the gate
+    // re-renders into the editor right here (popping first raced the host,
+    // which still saw the popped route as "already there" and never navigated,
+    // integration review round 2). Otherwise this wall is on a real job or on
+    // /punch-list, the host will PUSH the sample screens over it, and a wall
+    // left mounted underneath keeps its <Modal visible> presented over the
+    // tutorial on iOS and web (round 3). So pop first, as before. The ctx only
+    // feeds params; only null-or-not matters here.
+    if (restoredTutorialId === practiceOffer.tutorialId) {
+      const inPlace = resumeTarget(getTutorialState(), TUTORIAL_DEFS, RESUME_PROBE_CTX) === null;
+      if (!inPlace) onClose();
+      void startTutorial(practiceOffer.tutorialId, { entry: 'paywall' });
+      return;
+    }
+    const returnTo = chipReturnTo(pathname, routeParams as Record<string, string | string[] | undefined>);
+    onClose();
+    void startTutorial(practiceOffer.tutorialId, { entry: 'paywall', returnTo });
+  }, [practiceOffer, restoredTutorialId, feature, onClose, pathname, routeParams]);
+
+  const practiceBlock = practiceOffer ? (
+    <View style={styles.practiceWrap}>
+      <TouchableOpacity
+        style={styles.practiceBtn}
+        onPress={handlePracticeFirst}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={practiceOffer.label}
+        testID="paywall-practice-sample"
+      >
+        <CirclePlay size={18} color={themeColors.text} strokeWidth={1.75} />
+        <Text style={styles.practiceBtnText}>{practiceOffer.label}</Text>
+      </TouchableOpacity>
+      <Text style={styles.practiceSub}>{practiceOffer.sub}</Text>
+    </View>
+  ) : null;
 
   const {
     purchasePro,
@@ -487,6 +588,8 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               <Text style={styles.upgradeBtnText}>Open in Google Play</Text>
             </TouchableOpacity>
 
+            {practiceBlock}
+
             <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now-web">
               <Text style={styles.notNowText}>Maybe later</Text>
             </TouchableOpacity>
@@ -630,6 +733,8 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             )}
           </TouchableOpacity>
 
+          {practiceBlock}
+
           <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now">
             <Text style={styles.notNowText}>Not now</Text>
           </TouchableOpacity>
@@ -757,6 +862,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   upgradeBtnText: { color: '#fff', fontSize: Type.body.fontSize, fontWeight: '800' as const, letterSpacing: 0.2 },
   notNowBtn: { paddingVertical: 12 },
+  // The practice offer is a secondary action: outlined, never the tier's fill
+  // (the accent stays on Upgrade — it must not become a second primary).
+  practiceWrap: { width: '100%', alignItems: 'center' as const, marginTop: 4, marginBottom: 2 },
+  practiceBtn: {
+    width: '100%',
+    minHeight: Tokens.touchTarget.comfortable,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: t.line,
+    backgroundColor: t.surface,
+  },
+  practiceBtnText: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '600' as const, flexShrink: 1, textAlign: 'center' as const },
+  practiceSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, marginTop: 6, paddingHorizontal: 8 },
   notNowText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   unavailableNote: {
     fontSize: Type.footnote.fontSize,

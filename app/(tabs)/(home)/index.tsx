@@ -193,8 +193,9 @@ export default function HomeScreen() {
     setShowCreateModal(true);
   }, [canCreateProject, realProjectCount]);
 
-  // Tutorial replay lives in Settings ("Show Tutorial") and the Brain surface's
-  // Help sheet — not on home. NextStepHero is the real first-run spine.
+  // Tutorials live at /tutorials (the Brain surface's Help sheet, Settings →
+  // Tutorials, and the desktop sidebar) — not on home. NextStepHero is the
+  // real first-run spine.
 
   // Onboarding milestones — drives the 5-step "Get up and running" panel.
   // Re-reads when the project / invoice count changes so the user sees

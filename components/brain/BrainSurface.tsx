@@ -14,33 +14,40 @@
 // Because voice + help now live at the Brain surface globally, they're one tap
 // from anywhere — not just the home screen, as before.
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import UniversalSearch from '@/components/UniversalSearch';
-import Tutorial from '@/components/Tutorial';
 import UniversalMicButton from '@/components/UniversalMicButton';
 import { HelpFab } from '@/components/HelpFab';
 import { BrainFab } from '@/components/brain/BrainFab';
 import { useSearch } from '@/contexts/SearchContext';
+import { useCoreData } from '@/contexts/ProjectContext';
+import { helpTutorialsRowVisible } from '@/utils/tutorial/entryPoints';
 
 export function BrainSurface() {
   const { voiceSignal, helpSignal } = useSearch();
-  // HelpFab renders its "Replay the tutorial" row only when it is given a
-  // handler (components/HelpFab.tsx:144). This mount — the app-wide one — was
-  // passing none, so the 988-line interactive Tutorial had exactly one door in
-  // the whole product: a row buried in a ~1800-line settings screen. Owning the
-  // modal here is what HelpFab's `onReplayTutorial` was designed for; its own
-  // comment says the parent should hold the visible state rather than have the
-  // FAB reach into it (audit 2026-09-07, built-but-unreachable #5).
-  const [showTutorial, setShowTutorial] = useState(false);
-  const openTutorial = useCallback(() => setShowTutorial(true), []);
-  const closeTutorial = useCallback(() => setShowTutorial(false), []);
+  const router = useRouter();
+  // The narrow core slice, not useProjects(): this surface is always mounted,
+  // and the full hook re-rendered it (and UniversalSearch, the FAB and the mic)
+  // on every financial / field / docs change across the app.
+  const { userRole } = useCoreData();
+  // The Help sheet's Tutorials row opens the /tutorials hub — learn-by-doing
+  // coach marks over the real screens on a sample job. It replaced the
+  // 1,012-line mock slideshow this surface used to mount as a modal (the old
+  // components/Tutorial.tsx, retired with the hub). HelpFab draws the row only
+  // when handed a handler, so a client or property-manager persona — who has
+  // nothing to practise — gets no handler and no row.
+  const openTutorials = useCallback(() => router.push('/tutorials'), [router]);
   return (
     <>
       <UniversalSearch />
       <BrainFab />
       <UniversalMicButton hideFab openSignal={voiceSignal} />
-      <HelpFab hideFab openSignal={helpSignal} onReplayTutorial={openTutorial} />
-      <Tutorial visible={showTutorial} onClose={closeTutorial} />
+      <HelpFab
+        hideFab
+        openSignal={helpSignal}
+        onOpenTutorials={helpTutorialsRowVisible(userRole) ? openTutorials : undefined}
+      />
     </>
   );
 }

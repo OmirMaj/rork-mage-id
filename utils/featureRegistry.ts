@@ -381,6 +381,7 @@ const REGISTRY = [
   { id: 'data-export', title: 'Data Export', synonyms: ['backup', 'csv', 'export everything'], route: '/data-export', icon: 'Download', group: 'account' },
   { id: 'data-import', title: 'Data Import', synonyms: ['import', 'migrate', 'bring data'], route: '/data-import', icon: 'Upload', group: 'account' },
   { id: 'upgrade', title: 'Upgrade Plan', synonyms: ['subscription', 'pricing', 'pro', 'billing plan', 'paywall'], route: '/paywall', icon: 'CreditCard', group: 'account', persona: 'all' },
+  { id: 'tutorials', title: 'Help & tutorials', synonyms: ['tutorial', 'how do i', 'walkthrough', 'practice', 'help'], route: '/tutorials', icon: 'BookOpen', group: 'account' },
   { id: 'settings', title: 'Settings', synonyms: ['preferences', 'account', 'profile', 'theme', 'dark mode'], route: '/(tabs)/settings', icon: 'Settings', group: 'account', persona: 'all' },
 
   // ── Property-owner persona ────────────────────────────────────────────

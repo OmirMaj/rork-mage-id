@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier } from "../_shared/auth.ts";
 import { loadConnection, svc } from "../_shared/qbo.ts";
 import { QBO_PENDING_COUNT_FILTER } from "../_shared/qboSyncFilter.ts";
+import { notOnSampleProjectsFilter, sampleProjectIdsFor } from "../_shared/sampleFence.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +27,13 @@ serve(async (req) => {
 
   // Count invoices by qbo_sync_status for the user (parallel, single round-trip).
   const s = svc();
+  // A sample job's invoices are never pushed (_shared/sampleFence), so they
+  // must not sit in Pending forever either. A failed read only costs the
+  // exclusion — the count is a label, not a push.
+  let sampleProjectIds: string[] = [];
+  try { sampleProjectIds = await sampleProjectIdsFor(s, auth.userId); } catch (e) {
+    console.warn("[qbo-connect-status] sample project read failed", (e as Error).message);
+  }
   const [
     { count: syncedCount, error: e1 },
     { count: pendingCount, error: e2 },
@@ -35,7 +43,8 @@ serve(async (req) => {
     // Pending = everything the reconciler still owes QuickBooks except the
     // errors counted below: 'pending' plus a non-draft row with no status (a
     // draft paid through its link server-side — see _shared/qboSyncFilter).
-    s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).or(QBO_PENDING_COUNT_FILTER),
+    s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).or(QBO_PENDING_COUNT_FILTER)
+      .or(notOnSampleProjectsFilter(sampleProjectIds)),
     s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).eq("qbo_sync_status", "error"),
   ]);
   const firstError = e1 ?? e2 ?? e3;

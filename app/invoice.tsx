@@ -67,7 +67,7 @@ function mapInvoiceStatus(s: InvoiceStatus): InvoiceStatus {
   return s;
 }
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Layout } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -110,6 +110,17 @@ import { showAlert } from '@/utils/alert';
 import { qboClosedFlagOf, qboClosedFlagAlertReason } from '@/utils/qboClosedFlag';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { pdfFailureMessage } from '@/utils/platformFile';
+// Tutorials (invoice-to-self) + the sample-job outbound invariant.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { TutorialOfferChip } from '@/components/tutorial/TutorialOfferChip';
+import { tutorialSignal, useTutorialAssist, useTutorialPractice } from '@/utils/tutorial/store';
+import { SAMPLE_PROGRESS_PCT } from '@/utils/tutorial/fixtures';
+import {
+  isSampleProject, sampleSendPlan, sampleSendAllowed, sampleEmailSubject,
+  SAMPLE_PAY_LINK_REFUSAL, SAMPLE_NOTHING_SENT, SAMPLE_SEND_TO_ME_LABEL,
+} from '@/utils/sampleGuard';
+import { invoiceAmountSignalReady, invoiceModalUp, INVOICE_AMOUNT_SIGNAL_DEBOUNCE_MS } from '@/utils/invoiceSampleCore';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -286,16 +297,28 @@ export default function InvoiceScreen() {
     stampedRole: gateProject?.myRole,
     ownedLocally: !!gateProject?.ownerUserId && !!authUser?.id && gateProject.ownerUserId === authUser.id,
   });
+  // The founder's practice pass (utils/tutorial/practicePass): during the
+  // invoice-to-self tutorial, and ONLY on its sample job, a Free user may open
+  // invoicing. Client-side monetisation, not security — RLS is untouched and
+  // invoice writes carry no server tier check. Empty whenever no run is live.
+  // Keyed to the URL's projectId only, never the invoice-derived fallback: a
+  // link that names just an invoice must not borrow the pass (the editor's
+  // picker could then open a REAL job). InvoiceInner re-checks the job it
+  // actually writes to.
+  const practice = useTutorialPractice(paramProjectId || undefined);
   if (roleGate !== 'open') {
     return <InvoiceRoleBlocked gate={roleGate} pausedReason={roleState.reason} onRetry={roleState.refetch} />;
   }
   if (!canAccess('change_orders_invoicing')) {
+    if (practice.has('change_orders_invoicing')) return <InvoiceInner />;
     return (
       <Paywall
         visible={true}
         feature="Invoicing"
         requiredTier="pro"
         onClose={() => router.back()}
+        practiceTutorialId="invoice-to-self"
+        source="invoice_gate"
       />
     );
   }
@@ -421,6 +444,32 @@ function InvoiceInner() {
     ownedLocally: !!project?.ownerUserId && !!user?.id && project.ownerUserId === user.id,
   });
   const billingBlocked = innerRoleGate !== 'open';
+  // The tier again, on the job this editor WRITES to. The route gate checked
+  // the URL's job; a job picked in ToolProjectPicker (or reached via an
+  // invoice-only link) has not been checked. Without this, a live practice
+  // pass on the sample opened the full Pro editor on a real job — whose Send
+  // emails the real client and mints a live pay link. Simplest provable rule:
+  // the editor renders only when the plan, or the pass for THIS project, allows.
+  const { canAccess: innerCanAccess } = useTierAccess();
+  const innerPractice = useTutorialPractice(projectId || undefined);
+  const innerTierOpen = innerCanAccess('change_orders_invoicing') || innerPractice.has('change_orders_invoicing');
+  // ── Sample job (utils/sampleGuard) ──────────────────────────────────────
+  // A sample ("Sample — Sarah's Place") is a real, synced project, so the real
+  // save and send paths run on it — that is what makes the invoice tutorial
+  // honest. What they may NOT do is reach anyone but him: the Send sheet is
+  // locked to his own email, no pay link is minted, no reminder or portal
+  // post goes out. A real job gets `{ sample: false }` and every line below
+  // is a no-op for it.
+  const samplePlan = useMemo(() => sampleSendPlan(project ?? null, user?.email), [project, user?.email]);
+  const isSampleJob = samplePlan.sample;
+  // Refs for handlers whose dependency lists are pinned by the billing
+  // validators: they read the latest name / email without a deps change.
+  const projectNameRef = useRef<string | null>(project?.name ?? null);
+  const userEmailRef = useRef<string | null>(user?.email ?? null);
+  useEffect(() => {
+    projectNameRef.current = project?.name ?? null;
+    userEmailRef.current = user?.email ?? null;
+  }, [project?.name, user?.email]);
   // #34: one send at a time. A ref, not only state: a double tap on the
   // sheet's Send runs both handlers from ONE render, where state has not
   // changed yet — both built a new draft under the same number N. The state
@@ -822,6 +871,33 @@ function InvoiceInner() {
   // button is disabled with this reason, and the send paths skip the mint.
   const payLinkLimitReason = balanceDue > 0 ? payLinkAmountBlock(balanceDue) : null;
 
+  // ── Tutorial: "Bill 15% for the rough-in" ──────────────────────────────
+  // The percentage opens prefilled, so the step completes only once HE has
+  // changed it (typed, or 'Do it for me') — never on the screen's default.
+  // `total` is today's balance due: the figure the email and the Pay button
+  // name. tutorialSignal is a no-op with no run live, and the machine ignores
+  // any project but the run's sample, so a real invoice is untouched by this.
+  const [percentTouched, setPercentTouched] = useState(false);
+  // The coach scrolls a target into view through this (TutorialScrollAnchor).
+  const invoiceScrollRef = useRef<ScrollView>(null);
+  const onProgressPercentChange = useCallback((v: string) => {
+    setPercentTouched(true);
+    setProgressPercent(v);
+  }, []);
+  useEffect(() => {
+    if (!projectId) return;
+    if (!invoiceAmountSignalReady({ touched: percentTouched, isProgress: isProgressType, percent: pctValue, total: balanceDue })) return;
+    const t = setTimeout(() => tutorialSignal('invoice.amount.set', { projectId, total: balanceDue }), INVOICE_AMOUNT_SIGNAL_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [projectId, percentTouched, isProgressType, pctValue, balanceDue]);
+  // 'Do it for me' fills the percentage — never presses Send. Only on a
+  // sample: the assist is a tutorial seam, not a way to edit a real bill.
+  useTutorialAssist('invoice.fillPercent', () => {
+    if (!isSampleProject(projectNameRef.current)) return;
+    setPercentTouched(true);
+    setProgressPercent(String(SAMPLE_PROGRESS_PCT));
+  });
+
   // MISS-04: an invoice saved before the basis fix stored retainage computed on
   // the tax-INCLUSIVE total. The Retention screen, Payments, the portal and the
   // A/R aging all read that STORED column, so they keep showing the old figure
@@ -917,7 +993,10 @@ function InvoiceInner() {
     | { ok: true; url: string; id: string }
     // `message`: why, in words the GC can act on (billingFlowCore) — every
     // non-not_connected failure is shown in place of the success toast (#49).
-    | { ok: false; reason: 'not_connected' | 'failed'; error?: string; message?: string };
+    | { ok: false; reason: 'not_connected' | 'failed'; error?: string; message?: string }
+    // A sample job never gets a pay link (utils/sampleGuard). Refused here,
+    // before any network call; create-payment-link refuses it too (409).
+    | { ok: false; reason: typeof SAMPLE_PAY_LINK_REFUSAL; error?: string; message?: string };
 
   /**
    * Mint a Stripe Payment Link for `amount` (dollars) against `invoice` and
@@ -932,6 +1011,7 @@ function InvoiceInner() {
     amount: number,
     customerEmail?: string,
   ): Promise<MintResult> => {
+    if (isSampleProject(project?.name ?? null)) return { ok: false, reason: SAMPLE_PAY_LINK_REFUSAL, message: SAMPLE_NOTHING_SENT };
     if (amount <= 0) return { ok: false, reason: 'failed', error: 'Nothing due', message: 'nothing is due on it' };
     // #83: every mint on this screen (Send, the PDF send, the re-mint after a
     // payment or a retention release) goes through here.
@@ -1123,10 +1203,13 @@ function InvoiceInner() {
   // Prefill for the PDF send (the reminder card's "Email the invoice" fix):
   // the address it went to last time, else the portal's first invitee — the
   // same order the reminder cron resolves its recipient in.
-  const pdfDefaultRecipient = useMemo(() => {
+  const clientPdfRecipient = useMemo(() => {
     const billTo = existingInvoice as (Invoice & InvoiceBillTo) | null | undefined;
     return reminderRecipient(billTo?.billToEmail, project?.clientPortal?.invites ?? []) ?? '';
   }, [existingInvoice, project?.clientPortal?.invites]);
+  // On a sample the PDF sheet opens on HIS address (handleSendPDF refuses any
+  // other); a real job keeps the client's.
+  const pdfDefaultRecipient = samplePlan.sample ? (samplePlan.to ?? '') : clientPdfRecipient;
 
   const handleSendPress = useCallback(() => {
     // #34: the sheet must not reopen and queue a second send mid-flight.
@@ -1165,6 +1248,18 @@ function InvoiceInner() {
     if (name && !sendRecipientName.trim()) setSendRecipientName(name);
   }, [showSendRecipient, sendRecipientEmail, sendRecipientName, existingInvoice, project?.clientPortal?.invites]);
 
+  // Sample job: the sheet's recipient is HIS OWN email, read-only, and the
+  // portal post is off (and hidden). Re-asserted every time the sheet opens —
+  // declared after the prefill above so it wins over a client address.
+  useEffect(() => {
+    if (!samplePlan.sample) return;
+    setPostToPortal(false);
+    if (!showSendRecipient) return;
+    setContactPicked(false);
+    setSendRecipientName('');
+    setSendRecipientEmail(samplePlan.to ?? '');
+  }, [samplePlan, showSendRecipient]);
+
   // The body of a send. Resolves 'left' when it ended in router.back(): the
   // screen is going away, so the in-flight lock stays held (a tap during the
   // pop must not start another send). Every other exit releases it — see
@@ -1172,6 +1267,16 @@ function InvoiceInner() {
   const runConfirmSend = useCallback(async (): Promise<'left' | void> => {
     if (billingBlocked) {
       showAlert('Only the job owner bills', INVOICE_OWNER_ONLY_REASON);
+      return;
+    }
+    // Last line of the sample invariant: whatever the sheet shows, a sample's
+    // invoice goes to his own address or nowhere.
+    if (!sampleSendAllowed(project, sendRecipientEmail, userEmailRef.current)) {
+      const reason = userEmailRef.current
+        ? 'A sample invoice can only go to your own email.'
+        : 'A sample invoice can only go to your own email, and your account has none on record.';
+      showAlert('Sample job', reason);
+      if (projectId) tutorialSignal('invoice.send.failed', { projectId, reason });
       return;
     }
     if (!sendRecipientEmail.trim()) {
@@ -1293,6 +1398,15 @@ function InvoiceInner() {
     // QuickBooks on the next refresh while the client holds it. The draft is
     // still on screen (the params point at it); the copy sends him to Retry
     // it from "Not saved", the one path that resends it.
+    // Tutorial: a stop below keeps the step where it is, with the real reason.
+    if (insertState === 'failed' || insertState === 'unsaved') {
+      tutorialSignal('invoice.send.failed', {
+        projectId: workingInvoice.projectId,
+        reason: insertState === 'failed'
+          ? invoiceInsertRefusedMessage(workingInvoice.number)
+          : invoiceUnsavedOnServerMessage(workingInvoice.number),
+      });
+    }
     if (insertState === 'failed') {
       showAlert('Invoice not sent', invoiceInsertRefusedMessage(workingInvoice.number));
       return;
@@ -1315,6 +1429,9 @@ function InvoiceInner() {
           const minted = await mintPayLinkFor(workingInvoice, balanceDue, sendRecipientEmail.trim());
           if (minted.ok) {
             payLinkUrl = minted.url;
+          } else if (minted.reason === SAMPLE_PAY_LINK_REFUSAL) {
+            // A sample: no Pay button BY DESIGN. The email shows a specimen
+            // instead, so this is not a "sent without a Pay button" failure.
           } else if (minted.reason === 'not_connected') {
             console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
             stripeNotConnected = true;
@@ -1333,7 +1450,8 @@ function InvoiceInner() {
 
     let financingHtml = '';
     try {
-      if (isFinancingAvailable(settings) && projectId) {
+      // Never on a sample: a financing referral is a lead handed to a lender.
+      if (isFinancingAvailable(settings) && projectId && !isSampleProject(project)) {
         const refToken = await ensureReferral({
           projectId,
           source: 'invoice',
@@ -1370,6 +1488,8 @@ function InvoiceInner() {
       // client gets invoice → taps "Pay Securely" → on Stripe in 1s.
       payLinkUrl,
       financingHtml,
+      // A sample's email says SAMPLE and shows a Pay specimen, never a link.
+      sample: isSampleProject(project),
     });
 
     const result = await sendEmail({
@@ -1377,6 +1497,8 @@ function InvoiceInner() {
       // Exact to the cent (#135): the subject is the figure the Pay button
       // charges — "$77K due" over a $77,484.88 charge read as a mismatch.
       subject: `Invoice #${workingInvoice.number}: ${formatCurrency(amountDueNow)} due · ${project?.name ?? 'Project'}`,
+      // A sample's subject says so ([Sample] …) — it is in HIS inbox only.
+      ...(isSampleProject(project) ? { subject: sampleEmailSubject(`Invoice #${workingInvoice.number}: ${formatCurrency(amountDueNow)} due · ${project?.name ?? 'Project'}`) } : {}),
       html,
       replyTo: branding.email || undefined,
       fromCompanyName: branding.companyName || undefined,
@@ -1396,6 +1518,14 @@ function InvoiceInner() {
       if (createdNew) router.setParams({ invoiceId: workingInvoice.id });
       if (result.error === 'cancelled') return;
       console.warn('[Invoice] Email send failed:', result.outcome, result.error);
+      // Tutorial: the step stays put and the card shows the real reason —
+      // never a success stamp over an email that did not go.
+      tutorialSignal('invoice.send.failed', {
+        projectId: workingInvoice.projectId,
+        reason: result.outcome === 'composer_opened'
+          ? 'A draft opened in your email app — nothing was sent yet.'
+          : `The email could not be sent${result.error ? `: ${result.error}` : '.'}`,
+      });
       if (result.outcome === 'composer_opened') {
         // #84: the address is known — he typed it a moment ago. Store it on
         // the draft now (through the offline queue), so when he taps Mark
@@ -1467,6 +1597,17 @@ function InvoiceInner() {
         retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
       });
     }
+
+    // Tutorial success point: the email went and the invoice is flipped. Emitted
+    // BEFORE the router.back() below so the stamp never flashes a paused coach.
+    // A no-op with no run live; the machine ignores any project but its sample.
+    tutorialSignal('invoice.sent', {
+      projectId: workingInvoice.projectId,
+      invoiceId: workingInvoice.id,
+      number: workingInvoice.number,
+      total: amountDueNow,
+      to: sendRecipientEmail.trim(),
+    });
 
     // #45: post it to the client portal too (ticked by default). Through the
     // latest-callback ref, so the context's newest sendToClientPortal — the
@@ -1547,6 +1688,12 @@ function InvoiceInner() {
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;
     setShowPDFPreSend(false);
+    // The other way an invoice reaches a client: on a sample it too goes to
+    // his own address or nowhere (utils/sampleGuard).
+    if (options.method === 'email' && !sampleSendAllowed(project, options.recipient, userEmailRef.current)) {
+      showAlert('Sample job', 'A sample invoice can only be emailed to your own address.');
+      return;
+    }
 
     if (options.method === 'email' && options.recipient.trim()) {
       const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
@@ -1590,6 +1737,8 @@ function InvoiceInner() {
           const minted = await mintPayLinkFor(existingInvoice, pdfNetDue, options.recipient.trim());
           if (minted.ok) {
             payLinkUrl = minted.url;
+          } else if (minted.reason === SAMPLE_PAY_LINK_REFUSAL) {
+            // A sample: no Pay button by design (the email shows a specimen).
           } else if (minted.reason === 'not_connected') {
             // #36: this path used to only log, and the result read "Email
             // Sent" over an invoice the client could not pay online.
@@ -1621,6 +1770,7 @@ function InvoiceInner() {
         contactEmail: branding.email,
         contactPhone: branding.phone,
         payLinkUrl,
+        sample: isSampleProject(project),
       });
 
       const pdfUri = await generateInvoicePDFUri(existingInvoice, project, branding);
@@ -1655,6 +1805,7 @@ function InvoiceInner() {
       const result = await sendEmail({
         to: options.recipient.trim(),
         subject: `Invoice #${existingInvoice.number}: ${formatCurrency(pdfNetDue)} due · ${project.name}`,
+        ...(isSampleProject(project) ? { subject: sampleEmailSubject(`Invoice #${existingInvoice.number}: ${formatCurrency(pdfNetDue)} due · ${project.name}`) } : {}),
         html: emailHtml,
         replyTo: branding.email || undefined,
         attachments: pdfUri ? [pdfUri] : undefined,
@@ -1996,6 +2147,11 @@ function InvoiceInner() {
   // needing another round-trip.
   const handleGeneratePayLink = useCallback(async () => {
     if (!existingInvoice || !project) return;
+    // A sample never gets a pay link (the server refuses one too).
+    if (isSampleProject(project)) {
+      showAlert('Sample job', SAMPLE_NOTHING_SENT);
+      return;
+    }
     if (balanceDue <= 0) {
       showAlert('Nothing Due', 'This invoice has no outstanding balance.');
       return;
@@ -2186,6 +2342,11 @@ function InvoiceInner() {
 
   const handleSendReminder = useCallback(async () => {
     if (!existingInvoice || sendingReminder) return;
+    // A sample never chases anyone (invoice-dunning skips samples server-side).
+    if (isSampleProject(projectNameRef.current)) {
+      showAlert('Sample job', SAMPLE_NOTHING_SENT);
+      return;
+    }
     setSendingReminder(true);
     try {
       const res = await sendInvoiceReminderNow(existingInvoice.id);
@@ -2484,6 +2645,20 @@ function InvoiceInner() {
     return <InvoiceRoleBlocked gate={innerRoleGate} pausedReason={innerRoleState.reason} onRetry={innerRoleState.refetch} />;
   }
 
+  // The picked / resolved job's tier check (see innerTierOpen above).
+  if (!innerTierOpen) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Invoicing"
+        requiredTier="pro"
+        onClose={() => router.back()}
+        practiceTutorialId="invoice-to-self"
+        source="invoice_gate"
+      />
+    );
+  }
+
   const daysPastDue = existingInvoice ? getDaysPastDue(existingInvoice) : 0;
 
   // Audit-2026-05-21 (#28.2 MED): tighten lock from paid-only to "anything
@@ -2515,11 +2690,18 @@ function InvoiceInner() {
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
+          ref={invoiceScrollRef}
           {...fabScroll}
           contentContainerStyle={[{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <TutorialScrollAnchor scrollRef={invoiceScrollRef}>
+          {/* The contextual tutorial offer (spec entry point 3): a brand-new
+              invoice only (never over a document already issued), and only
+              past both gates — InvoiceInner renders nothing else for a
+              paywalled user, who gets the Paywall's sample offer instead. */}
+          <TutorialOfferChip tutorialId="invoice-to-self" projectId={projectId} screenOpened={!existingInvoice} midDraft={percentTouched} />
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>
               {isProgressType ? 'Progress Bill' : 'Full Invoice'} #{nextInvoiceNumber}
@@ -2582,16 +2764,18 @@ function InvoiceInner() {
           {isProgressType && !isLocked && !anyPreScaledLine && (
             <View style={styles.progressSection}>
               <Text style={styles.progressLabel}>Billing Percentage</Text>
+              <TutorialTarget id="invoice.percent">
               <View style={styles.progressRow}>
                 <TextInput
                   style={styles.progressInput}
                   value={progressPercent}
-                  onChangeText={setProgressPercent}
+                  onChangeText={onProgressPercentChange}
                   keyboardType="numeric"
                   testID="progress-percent-input"
                 />
                 <Text style={styles.progressSign}>% of {formatCurrency(contractTotal)}</Text>
               </View>
+              </TutorialTarget>
               <View style={styles.progressBarTrack}>
                 <View style={[styles.progressBarFill, { width: `${Math.min(pctValue, 100)}%` }]} />
               </View>
@@ -2760,7 +2944,11 @@ function InvoiceInner() {
             ))}
           </View>
 
-          <View style={styles.totalsCard}>
+          {/* The wrapper carries the card's outer margins so the coach's hole
+              hugs the card itself (TutorialTarget: layout styles move onto
+              the wrapper). */}
+          <TutorialTarget id="invoice.totals" style={styles.totalsTarget}>
+          <View style={[styles.totalsCard, styles.totalsCardInTarget]}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
               <Text style={styles.totalValue}>{formatCurrency(subtotal)}</Text>
@@ -2894,6 +3082,7 @@ function InvoiceInner() {
               </>
             )}
           </View>
+          </TutorialTarget>
 
           {/* Record Payment lives in the content, not the absolute bottom bar:
               that bar is hidden for every invoice past draft (isLocked), which
@@ -3015,8 +3204,11 @@ function InvoiceInner() {
                   <Text style={styles.pickContactText}>Email the invoice to your client</Text>
                 </TouchableOpacity>
               )}
+              {isSampleJob ? (
+                <Text style={styles.reminderHint} testID="reminder-sample-note">{SAMPLE_NOTHING_SENT}</Text>
+              ) : null}
               <TouchableOpacity
-                style={[styles.reminderBtn, (!reminderState.eligibility.eligible || sendingReminder) && styles.reminderBtnDisabled]}
+                style={[styles.reminderBtn, (!reminderState.eligibility.eligible || sendingReminder || isSampleJob) && styles.reminderBtnDisabled]}
                 onPress={() => {
                   if (!qboClosedFlag) { void handleSendReminder(); return; }
                   showAlert(
@@ -3030,7 +3222,7 @@ function InvoiceInner() {
                     ],
                   );
                 }}
-                disabled={!reminderState.eligibility.eligible || sendingReminder}
+                disabled={!reminderState.eligibility.eligible || sendingReminder || isSampleJob}
                 activeOpacity={0.85}
                 accessibilityRole="button"
                 accessibilityLabel="Send a payment reminder to the client now"
@@ -3182,8 +3374,11 @@ function InvoiceInner() {
                     {`No payment link: ${payLinkLimitReason}.`}
                   </Text>
                 ) : null}
+                {isSampleJob ? (
+                  <Text style={styles.reminderHint} testID="pay-link-sample-note">{SAMPLE_NOTHING_SENT}</Text>
+                ) : null}
                 <TouchableOpacity
-                  style={[styles.payLinkGenerateBtn, !!payLinkLimitReason && styles.reminderBtnDisabled]}
+                  style={[styles.payLinkGenerateBtn, (!!payLinkLimitReason || isSampleJob) && styles.reminderBtnDisabled]}
                   onPress={handleGeneratePayLink}
                   activeOpacity={0.85}
                   disabled={generatingPayLink || !!payLinkLimitReason}
@@ -3296,9 +3491,11 @@ function InvoiceInner() {
               <Text style={styles.aiaCtaArrow}>›</Text>
             </TouchableOpacity>
           )}
+          </TutorialScrollAnchor>
         </ScrollView>
 
-        {existingInvoice && (
+        {/* Never on a sample: posting to its portal is a send like any other. */}
+        {existingInvoice && !isSampleJob && (
           <SendToClientButton
             kind="invoice"
             itemId={existingInvoice.id}
@@ -3323,6 +3520,19 @@ function InvoiceInner() {
                   disabled={sendInFlight}
                   testID="save-invoice-to-project"
                 />
+                <TutorialTarget id="invoice.send" style={isDesktop && Platform.OS === 'web' ? styles.sendTargetDesktop : undefined}>
+                {isSampleJob ? (
+                  // A sample sends to HIM ("Send to me"): same handler, same
+                  // sheet, the recipient locked to his own email there.
+                  <Button
+                    label={sendInFlight ? 'Sending…' : SAMPLE_SEND_TO_ME_LABEL}
+                    onPress={handleSendPress}
+                    disabled={sendInFlight}
+                    iconLeft={<Send size={16} color={Colors.textOnAccent} strokeWidth={1.75} />}
+                    fullWidth
+                    testID="send-invoice-btn"
+                  />
+                ) : (
                 <Button
                   label={sendInFlight ? 'Sending…' : 'Send & Save'}
                   onPress={handleSendPress}
@@ -3331,11 +3541,27 @@ function InvoiceInner() {
                   fullWidth
                   testID="send-invoice-btn"
                 />
+                )}
+                </TutorialTarget>
               </>
             )}
           </View>
         )}
       </KeyboardAvoidingView>
+
+      {/* Tutorial blocker sentinel: while any of this screen's layer-less
+          modals is up (they draw above the root coach layer on iOS), the
+          coach draws nothing — no dim or card behind a sheet. */}
+      {invoiceModalUp({
+        sendSheet: showSendRecipient,
+        retainageAsk: showRetainageAsk,
+        retention: showRetentionModal,
+        payment: showPaymentModal,
+        contactPicker: showContactPicker,
+        pdfPreSend: showPDFPreSend,
+        receivedDatePicker: showReceivedDatePicker,
+        sendInFlight,
+      }) ? <TutorialTarget id="invoice.modalUp" /> : null}
 
       <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -3597,7 +3823,20 @@ function InvoiceInner() {
                 </TouchableOpacity>
               </View>
 
-              {contactPicked ? (
+              {isSampleJob ? (
+                // Locked, read-only: a sample's invoice goes to him only.
+                <View testID="send-sample-locked">
+                  <Text style={styles.modalFieldLabel}>Email</Text>
+                  <View style={styles.selectedRecipientCard}>
+                    <User size={16} color={themeColors.accent} strokeWidth={1.75} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.selectedRecipientName}>{samplePlan.sample && samplePlan.to ? 'You' : 'No email on your account'}</Text>
+                      {samplePlan.sample && samplePlan.to ? <Text style={styles.selectedRecipientEmail}>{samplePlan.to}</Text> : null}
+                    </View>
+                  </View>
+                  <Text style={styles.portalPostHint} testID="send-sample-note">{samplePlan.sample ? samplePlan.note : ''}</Text>
+                </View>
+              ) : contactPicked ? (
                 <View style={styles.selectedRecipientCard}>
                   <User size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
@@ -3644,6 +3883,7 @@ function InvoiceInner() {
               {/* #45: emailing and posting to the portal were two separate
                   sends nothing reconciled — the portal showed no invoice and
                   no Pay button for one the client had in their inbox. */}
+              {!isSampleJob && (
               <TouchableOpacity
                 style={[styles.portalPostRow, !portalEnabled && { opacity: 0.55 }]}
                 onPress={() => setPostToPortal(v => !v)}
@@ -3668,6 +3908,7 @@ function InvoiceInner() {
                   </Text>
                 </View>
               </TouchableOpacity>
+              )}
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
                 <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
@@ -3813,6 +4054,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   lineItemMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   lineItemMetaText: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
   lineItemTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  totalsTarget: { marginHorizontal: 20, marginTop: 16 },
+  // The send wrapper on desktop web: the Button inside hugs its label only when
+  // the wrapper doesn't stretch it (wave 6b Layout.button.fullWidthMax).
+  sendTargetDesktop: { width: '100%', maxWidth: Layout.button.fullWidthMax, flexShrink: 1 },
+  totalsCardInTarget: { marginHorizontal: 0, marginTop: 0 },
   totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
   totalLabel: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const },

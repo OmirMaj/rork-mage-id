@@ -110,6 +110,7 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'get-verified': 'form', 'work-order': 'form', 'warranty-walk': 'form',
   'dev-seeder': 'form', 'dev-flagship-seeder': 'form', 'tax-1099-export': 'form',
   'client-messages': 'form', 'messages': 'form', '+not-found': 'form',
+  'tutorials': 'form',
 
   // ── reading 760 — long single-column text. No route takes it today:
   // construction-news was seeded here, but on desktop that screen lays its

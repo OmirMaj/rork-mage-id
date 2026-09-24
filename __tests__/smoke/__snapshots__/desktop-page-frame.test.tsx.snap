@@ -16712,7 +16712,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Show Tutorial",
+                                                                                            "Tutorials",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -16802,6 +16802,8 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                       ],
                                                                                       "props": {
+                                                                                        "accessibilityLabel": "Tutorials — practise on a sample job",
+                                                                                        "accessibilityRole": "button",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
                                                                                           "checked": undefined,
