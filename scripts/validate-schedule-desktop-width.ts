@@ -1,26 +1,25 @@
-// scripts/validate-schedule-desktop-width.ts — the schedule's card views stay a
-// readable column on a desktop browser (founder, 2026-09-23: "when doing the
+// scripts/validate-schedule-desktop-width.ts — Schedule Pro's card views stay
+// a readable column on a desktop browser (founder, 2026-09-23: "when doing the
 // schedules or picking a subtab the boxes are so stretched out and it looks
 // terrible").
 //
-// MEASURED ON app.mageid.app (2056px window, Schedule tab › Today): the routed
-// content is 1400 wide and every card in it was 1,368px — a one-line
-// "SIMULATED WEATHER" banner 1,368 × 54, an empty-state card 1,368 × 115.
-// Schedule Pro is full-bleed, so its Dashboard's four flex:1 stat tiles and
-// its Board's four columns stretched across the whole monitor.
+// MEASURED ON app.mageid.app: Schedule Pro is full-bleed, so its Overview's
+// four flex:1 stat tiles and its Board's four columns stretched across the
+// whole monitor (~500 px tiles, a single card lost in the middle of a column).
 //
-// THE RULE (constants/designTokens ContentWidth): stacked cards / single-
-// column lists sit in a centred column of ContentWidth.reading; a kanban in
-// one of ContentWidth.board; timelines and grids (Gantt, List, Workload) keep
-// the full width. Each column is `width: 100%` under its cap, so phones,
-// tablets and narrow windows are unchanged. Applying exactly this style to
-// the live Today view's scroll content (2026-09-23) gave a 1,040px column
-// centred to the pixel at 2056, and 100% with no horizontal scroll at 1440
-// and 1280.
+// THE RULE (wave 6c: the page widths live in constants/designTokens Layout.page):
+// the Overview's scroll content and the Board's row of columns are centred at
+// Layout.page.dashboard (1280), `width: 100%` under the cap, so phones, tablets
+// and narrow windows are unchanged. Timelines and grids (Gantt, List,
+// Workload) keep the full width — their content really is that wide.
+//
+// Wave 6c dropped two sections this file used to carry: the classic Schedule
+// tab (lane DC pins it in its own validator now) and the ContentWidth token
+// (the orchestrator removes it and adds the "no ContentWidth anywhere" check
+// here at integration).
 //
 // This is a SOURCE guard: styles are not observable from bun without a
-// renderer. It pins each cap to the element that owns the stretch, and pins
-// that the Gantt / grid did NOT get one.
+// renderer (the w6c-schedule-canvas smoke test renders them).
 //
 // Run via: bun run scripts/validate-schedule-desktop-width.ts
 
@@ -37,42 +36,38 @@ const code = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\
 // designTokens imports react-native (Platform), which bun cannot load — read
 // the literal instead.
 const tokens = code('constants/designTokens.ts');
-const cw = /export const ContentWidth = \{\s*reading:\s*(\d+),\s*board:\s*(\d+),\s*\} as const;/.exec(tokens);
-const ContentWidth = { reading: Number(cw?.[1] ?? NaN), board: Number(cw?.[2] ?? NaN) };
+const page = /page:\s*\{([^}]*)\}/.exec(tokens)?.[1] ?? '';
+const dashboard = Number(/\bdashboard:\s*(\d+)/.exec(page)?.[1] ?? NaN);
 
-console.log('\nthe widths:');
-ok('ContentWidth is declared', !!cw);
-ok('reading column is a reading width (960-1100)', ContentWidth.reading >= 960 && ContentWidth.reading <= 1100, ContentWidth);
-ok('board column is wider than reading and inside the 1400 routed content', ContentWidth.board > ContentWidth.reading && ContentWidth.board <= 1400, ContentWidth);
-ok('exposed on the Tokens barrel', /contentWidth:\s*ContentWidth,/.test(tokens));
-
-console.log('\nclassic Schedule tab, desktop branch (app/(tabs)/schedule/index.tsx):');
-{
-  const src = code('app/(tabs)/schedule/index.tsx');
-  const desktopAt = src.indexOf('if (layout.isDesktop && hasScheduleData && activeSchedule)');
-  const desktop = src.slice(desktopAt, src.indexOf('{renderDesktopStatusBar()}', desktopAt));
-  ok('the desktop branch is where it was', desktopAt > 0 && desktop.length > 0);
-  const colStyle = /readingColumn:\s*\{\s*width:\s*'100%'[^}]*maxWidth:\s*ContentWidth\.reading,[^}]*alignSelf:\s*'center'/.test(src);
-  ok('readingColumn = width 100%, maxWidth ContentWidth.reading, centred', colStyle);
-  ok('Today / Lookahead / Resources / Summary scroll in the column (not the Gantt)',
-    /contentContainerStyle=\{\[\{ paddingBottom: 60 \}, viewMode !== 'gantt' \? desktopStyles\.readingColumn : null\]\}/.test(desktop));
-  const board = desktop.slice(desktop.indexOf('<FlatList'), desktop.indexOf('/>', desktop.indexOf('<FlatList')));
-  ok('the Board list scrolls in the column', /contentContainerStyle=\{\[\{ paddingBottom: 60 \}, desktopStyles\.readingColumn\]\}/.test(board), board.slice(0, 200));
-  ok('the start bar lines up with the cards (column unless Gantt)', /<View style=\{viewMode !== 'gantt' \? desktopStyles\.readingColumn : null\}>\s*<View\s+style=\{\[styles\.projectStartBar/.test(desktop));
-  ok('the Gantt wrapper itself carries no cap', !/ganttWrapper[^\n]*readingColumn/.test(desktop));
-}
+console.log('\nthe width:');
+ok('Layout.page.dashboard is declared', Number.isFinite(dashboard), page);
+ok('the dashboard page is wide enough for four 220 px KPI tiles and inside the 1400 routed content',
+  dashboard >= 4 * 220 + 3 * 12 && dashboard <= 1400, dashboard);
 
 console.log('\nSchedule Pro sub-tabs (components/schedule/tabs/*):');
 {
   const dash = code('components/schedule/tabs/DashboardTab.tsx');
-  ok('Dashboard: its scroll content (stat tiles, charts, critical list) is a centred reading column',
-    /content:\s*\{[^}]*width:\s*'100%'[^}]*maxWidth:\s*ContentWidth\.reading[^}]*alignSelf:\s*'center'/.test(dash)
+  ok('Overview: its scroll content (stat tiles, charts, critical list) is centred at Layout.page.dashboard',
+    /content:\s*\{[^}]*width:\s*'100%'[^}]*maxWidth:\s*Layout\.page\.dashboard[^}]*alignSelf:\s*'center'/.test(dash)
     && /<ScrollView style=\{styles\.root\} contentContainerStyle=\{styles\.content\}>/.test(dash));
+  ok('Overview: no ContentWidth reference', !/ContentWidth/.test(dash));
+  ok('Overview: the KPI tiles size from TileGrid (220 px minimum), not flex:1 across the page',
+    /<TileGrid preset="kpi" phoneStyle=\{\[styles\.statRow, isPhone && styles\.statRowPhone\]\}>/.test(dash));
+  ok('Overview: the critical-path list is a form-width column on desktop only',
+    /style=\{\[styles\.cpList, isDesktop && styles\.cpListDesktop\]\}/.test(dash)
+    && /cpListDesktop:\s*\{[^}]*maxWidth:\s*Layout\.page\.form/.test(dash));
+  ok('Overview: the earned-value placeholder hides only on desktop with no budget',
+    /const hideEvPlaceholder = isDesktop && hasBudget === false;/.test(dash));
+
   const boardTab = code('components/schedule/tabs/BoardTab.tsx');
-  ok('Board: the four status columns sit in a centred board-width row',
-    /\broot:\s*\{[^}]*flexDirection:\s*'row'[^}]*width:\s*'100%'[^}]*maxWidth:\s*ContentWidth\.board[^}]*alignSelf:\s*'center'/.test(boardTab));
+  ok('Board: the four status columns sit in a centred Layout.page.dashboard row',
+    /\broot:\s*\{[^}]*flexDirection:\s*'row'[^}]*width:\s*'100%'[^}]*maxWidth:\s*Layout\.page\.dashboard[^}]*alignSelf:\s*'center'/.test(boardTab));
+  ok('Board: no ContentWidth reference', !/ContentWidth/.test(boardTab));
+
   for (const f of ['GanttTab', 'ListTab', 'WorkloadTab']) {
-    ok(`${f} keeps the full width (a timeline / grid, not cards)`, !/ContentWidth/.test(code(`components/schedule/tabs/${f}.tsx`)));
+    const src = code(`components/schedule/tabs/${f}.tsx`);
+    ok(`${f} keeps the full width (a timeline / grid, not cards): no page cap`,
+      !/ContentWidth/.test(src) && !/Layout\.page\./.test(src));
   }
 }
 

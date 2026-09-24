@@ -14,6 +14,7 @@
 import { View, StyleSheet } from 'react-native';
 import GridPaneDefault from '../GridPane';
 import { useScheduler } from '../SchedulerContext';
+import { DENSITY, type Density } from '@/utils/scheduleProLayout';
 import type { ScheduleTask } from '@/types';
 
 export interface ListTabProps {
@@ -32,6 +33,8 @@ export interface ListTabProps {
   onBulkSetPhase?: (ids: string[], phase: string) => void;
   onBulkSetCrew?: (ids: string[], crew: string) => void;
   onBulkAskAI?: (ids: string[]) => void;
+  /** Row density (wave 6c). Omitted = today's 56 px rows. */
+  density?: Density;
 }
 
 export function ListTab({
@@ -50,8 +53,10 @@ export function ListTab({
   onBulkSetPhase,
   onBulkSetCrew,
   onBulkAskAI,
+  density,
 }: ListTabProps) {
   const { tasks } = useScheduler();
+  const dims = density ? DENSITY[density] : undefined;
 
   return (
     <View style={styles.root}>
@@ -73,6 +78,8 @@ export function ListTab({
         onBulkSetCrew={onBulkSetCrew}
         onBulkAskAI={onBulkAskAI}
         showExtendedColumns
+        rowHeight={dims?.row}
+        headerHeight={dims?.header}
       />
     </View>
   );

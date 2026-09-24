@@ -30,7 +30,7 @@
 //     successor bars can snap to computed ES on commit. The parent is
 //     expected to re-run runCpm() after each onEdit; we just show what we get.
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,8 @@ import {
   Pressable,
   AccessibilityInfo,
   type GestureResponderEvent,
+  type LayoutChangeEvent,
+  type ViewStyle,
 } from 'react-native';
 import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle, Text as SvgText } from 'react-native-svg';
 import { Check } from 'lucide-react-native';
@@ -63,8 +65,12 @@ import { colorForTask as canonicalColorForTask, statusColorForTask, statusColor,
 import { useGanttColorMode } from '@/hooks/useGanttColorMode';
 import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
-import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
+import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction, type RowMenuAnchor } from '@/components/schedule/ScheduleRowMenu';
 import { orthogonalArrowPath, CLEARANCE } from '@/utils/ganttArrowPath';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { cardSurface } from '@/components/ui';
+import { FIT_TAIL_DAYS, GANTT_FOOTER_STRIP_H, GANTT_SYNC_TAIL, fitPxPerDay } from '@/utils/scheduleProLayout';
+import { finishDeltaLabel, type SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
 
 // Bar fill is trade-driven via the canonical colorForTask() from scheduleColors.
 // This delegates so existing internal call sites keep working unchanged.
@@ -149,6 +155,39 @@ export interface InteractiveGanttProps {
    * neither, the buttons stamp only the ISO date (no day number).
    */
   scheduleStartDate?: string | null;
+
+  // ---- Wave 6c: the Schedule Pro desktop canvas. Every default is today. ----
+  /** Row height (default 56). MUST equal the grid beside it (GridPane rowHeight). */
+  rowHeight?: number;
+  /** Header height (default 56 = month row + day row). MUST equal the grid's header. */
+  headerHeight?: number;
+  /** The band a bar is centred in (default 26); the drawn bar stays 20 px. */
+  barHeight?: number;
+  /** Hide the zoom / Fit / Today / colour toolbar: the screen's own toolbar
+   *  drives them through `controllerRef`. The colour toggle and the legend
+   *  move into the 24 px footer strip. */
+  hideToolbar?: boolean;
+  /** The timeline's vertical scroll offset (the grid beside it follows). */
+  onVerticalScroll?: (y: number) => void;
+  /** The timeline's vertical ScrollView, so the grid can drive it. */
+  verticalScrollRef?: React.MutableRefObject<ScrollView | null>;
+  /** A proposed change, drawn as dashed outlines — nothing in it is applied. */
+  preview?: SchedulePreviewOverlay | null;
+  /** zoomIn / zoomOut / fit / today / scrollToRow / scrollToTask. */
+  controllerRef?: React.Ref<InteractiveGanttHandle>;
+}
+
+/** What a toolbar outside the Gantt can ask of it (wave 6c). */
+export interface InteractiveGanttHandle {
+  zoomIn(): void;
+  zoomOut(): void;
+  /** The whole job (+ a 2-day tail) across the measured timeline width. */
+  fit(): void;
+  /** Scroll so today's line sits near the left edge. */
+  today(): void;
+  /** Scroll row `index` (of the rows drawn) into view, vertically and to its bar. */
+  scrollToRow(index: number): void;
+  scrollToTask(id: string): void;
 }
 
 /**
@@ -192,6 +231,32 @@ const PX_PER_DAY: Record<ZoomMode, number> = {
   week: 8,
   month: 2,
 };
+
+// Fit before the timeline has reported its width (the first frame, or a test
+// renderer that never lays out): the old fixed guess. Once measured, Fit reads
+// the real viewport through fitPxPerDay (utils/scheduleProLayout).
+const FIT_UNMEASURED_VIEWPORT = 800;
+
+// Desktop web: the day header sticks to the top of the timeline's vertical
+// scroller, so the dates never scroll away from the bars under them.
+// (position: sticky is CSS; RN's types do not list it.) zIndex 30 sits above
+// every layer drawn in the canvas that scrolls under it — bars (2, focused 10,
+// dragged 20), link handles (3), preview outlines (4) and the finish marker
+// (7), crew avatars (15 / 16) — and below the 999+ popovers.
+const STICKY_HEADER_WEB = { position: 'sticky', top: 0, zIndex: 30 } as unknown as ViewStyle;
+// The marks that live IN the header band paint ABOVE the sticky header (they
+// share its stacking context, the timeline's background Pressable): the TODAY
+// line (so it runs through the dates too), the TODAY pill (drawn at top -1,
+// wholly inside the header) and the drag date pill ('Sep 7 → Sep 9 · 3d',
+// drawn 22 px above the dragged bar, so row 0's pill overlaps the header).
+// The dragged bar itself stays at 20, under the header. The TODAY raise is
+// desktop-web only, like the sticky header it clears (phone / tablet / native
+// keep the 5 / 6 in styles.todayLine / todayLabel byte for byte).
+const TODAY_LINE_Z = 31;
+const TODAY_LABEL_Z = 32;
+const DRAG_DATE_PILL_Z = 33;
+const TODAY_LINE_WEB: ViewStyle = { zIndex: TODAY_LINE_Z };
+const TODAY_LABEL_WEB: ViewStyle = { zIndex: TODAY_LABEL_Z };
 
 // ---------------------------------------------------------------------------
 // Date helpers (1-indexed inclusive day numbering — matches the rest of the app)
@@ -241,6 +306,14 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   const toOrdinal = useCallback((calendarIndex: number) => calendarIndexToWorkingOrdinal(calendarIndex, dayScale), [dayScale]);
   const workingSpan = useCallback((from: number, to: number) => workingDaysInSpan(from, to, dayScale), [dayScale]);
   const isPhone = mode === 'phone';
+  const isDesktopWeb = useIsDesktopWeb();
+  // Row geometry. The defaults are the module constants, so every caller that
+  // passes nothing (shared-schedule, the phone) draws exactly what it did.
+  const rowH = props.rowHeight ?? ROW_HEIGHT;
+  const headerH = props.headerHeight ?? HEADER_HEIGHT;
+  const barH = props.barHeight ?? BAR_HEIGHT;
+  const barVPad = (rowH - barH) / 2;
+  const { hideToolbar, onVerticalScroll, verticalScrollRef, preview, controllerRef } = props;
 
   // Bar-fill color mode — persisted, defaults to 'status' (progress signal).
   // Trade stays available as an opt-in; the phase/gutter dot always shows trade
@@ -252,8 +325,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // distinct from the drag PanResponder. iOS fires the native ActionSheet
   // imperatively; web/Android open the <ScheduleRowMenu> modal.
   const presentBarMenu = useScheduleRowMenu();
-  const [barMenu, setBarMenu] = useState<{ title: string; actions: RowMenuAction[] } | null>(null);
-  const openBarMenu = useCallback((task: ScheduleTask) => {
+  const [barMenu, setBarMenu] = useState<{ title: string; actions: RowMenuAction[]; anchor?: RowMenuAnchor } | null>(null);
+  const openBarMenu = useCallback((task: ScheduleTask, anchor?: RowMenuAnchor) => {
     const actions: RowMenuAction[] = [
       { key: 'indent',  label: 'Indent',  onPress: () => onOutline?.(task.id, 'indent') },
       { key: 'outdent', label: 'Outdent', onPress: () => onOutline?.(task.id, 'outdent') },
@@ -264,7 +337,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask?.(task.id) },
     ];
     const title = task.title || 'Task';
-    if (!presentBarMenu(title, actions)) setBarMenu({ title, actions });
+    if (!presentBarMenu(title, actions)) setBarMenu({ title, actions, anchor });
   }, [onOutline, onReorder, onEdit, onDeleteTask, presentBarMenu]);
   // Filter rows belonging to collapsed summaries. CPM still honored them (we
   // received the pre-rolled set); we only hide them visually so the gantt
@@ -302,6 +375,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   });
   const zoom: ZoomMode = pxPerDay >= 16 ? 'day' : pxPerDay >= 6 ? 'week' : 'month';
   const setZoom = useCallback((z: ZoomMode) => setPxPerDay(PX_PER_DAY[z]), []);
+  // The measured timeline viewport (onLayout on the horizontal scroller) and
+  // the scale Fit last set. `fitted` holds only while pxPerDay is still that
+  // value, so the next manual zoom (buttons, slider, wheel) clears it.
+  const [fitViewportW, setFitViewportW] = useState<number | null>(null);
+  const [fittedAt, setFittedAt] = useState<number | null>(null);
+  const fitted = fittedAt != null && fittedAt === pxPerDay;
+  const onTimelineLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = Math.round(e?.nativeEvent?.layout?.width ?? NaN);
+    if (!Number.isFinite(w) || w <= 0) return;
+    setFitViewportW(prev => (prev === w ? prev : w));
+  }, []);
 
   // Animated sliding pill for the Day/Week/Month segmented control. The pill
   // smoothly translates between segments instead of snapping background-color
@@ -323,13 +407,25 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // Always render at least ~30 days to the right of project finish so users can
   // visually extend, and always start at day 1 (project start).
   const totalDays = useMemo(() => {
-    const lastEf = cpm.projectFinish || 1;
+    // A proposed change can push the finish out; draw far enough to show it.
+    const lastEf = Math.max(cpm.projectFinish || 1, preview?.finishAfter ?? 0);
+    // Right after Fit the job + a 2-day tail IS the viewport — no 30-day floor
+    // and no zoom tail, or Fit would leave a horizontal scrollbar behind.
+    if (fitted) return lastEf + FIT_TAIL_DAYS;
     const tail = zoom === 'month' ? 60 : zoom === 'week' ? 30 : 14;
     return Math.max(30, lastEf + tail);
-  }, [cpm.projectFinish, zoom]);
+  }, [cpm.projectFinish, zoom, fitted, preview?.finishAfter]);
 
   const timelineWidth = totalDays * pxPerDay;
-  const gridHeight = HEADER_HEIGHT + tasks.length * ROW_HEIGHT;
+  // Rows a proposal would add are drawn below the last task row.
+  const previewAddedRows = preview?.added.length ?? 0;
+  // Scrolling with the grid (toolbar hidden): a tail that makes this pane's
+  // maximum scrollTop equal the grid's, whose body ends in a 40 px ghost
+  // "type a task" row while this one gives 24 px to the footer strip.
+  // GANTT_SYNC_TAIL = GRID_GHOST_ROW_H − GANTT_FOOTER_STRIP_H (utils/scheduleProLayout,
+  // where the validator proves the two maxima equal).
+  const syncTail = onVerticalScroll && hideToolbar ? GANTT_SYNC_TAIL : 0;
+  const gridHeight = headerH + (tasks.length + previewAddedRows) * rowH + syncTail;
 
   // Today's offset in day coordinates (1-indexed). Can be negative (project
   // starts in the future) or > totalDays (project is ancient history).
@@ -418,7 +514,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         isMilestone ? 0 : MIN_BAR_PX_WIDTH,
         (isMilestone ? 0 : calSpan) * pxPerDay,
       );
-      const y = HEADER_HEIGHT + index * ROW_HEIGHT + BAR_VERTICAL_PADDING;
+      const y = headerH + index * rowH + barVPad;
       // The scheduled position expressed back on the STORED working-ordinal
       // scale. The as-built variance badge compares `actualStartDay` /
       // `actualEndDay` (working ordinals, "same basis as startDay" —
@@ -432,7 +528,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         : taskStartDay + Math.max(0, taskDuration - 1);
       return { task, index, startDay: calStart, duration, isMilestone, isCritical, x, y, w, cpmRow, calStart, calEnd: calStart + Math.max(0, calSpan - 1), planStartOrdinal, planEndOrdinal };
     });
-  }, [tasks, dragState, cpm, pxPerDay, toCal, toOrdinal, workingSpan]);
+  }, [tasks, dragState, cpm, pxPerDay, toCal, toOrdinal, workingSpan, headerH, rowH, barVPad]);
 
   // Quick lookup for dependency drawing.
   const barById = useMemo(() => {
@@ -602,8 +698,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // the row hitbox to the full row height so sloppy drops still work.
   const hitTestBar = useCallback((localX: number, localY: number): string | null => {
     for (const b of bars) {
-      const top = HEADER_HEIGHT + b.index * ROW_HEIGHT;
-      const bottom = top + ROW_HEIGHT;
+      const top = headerH + b.index * rowH;
+      const bottom = top + rowH;
       if (localY < top || localY > bottom) continue;
       // Match within the whole row left-of-bar-center to be forgiving; on miss
       // we still need something within the bar's horizontal footprint.
@@ -612,7 +708,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       }
     }
     return null;
-  }, [bars]);
+  }, [bars, headerH, rowH]);
 
   const beginLinkDrag = useCallback((sourceTaskId: string, evt: any) => {
     const { pageX, pageY, locationX, locationY } = evt.nativeEvent;
@@ -622,7 +718,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     // us pageX, we derive local by subtracting the delta between first page
     // position and the bar's known local position.
     const originLocalX = src.x + src.w;
-    const originLocalY = src.y + BAR_HEIGHT / 2;
+    const originLocalY = src.y + barH / 2;
     linkOriginRef.current = {
       pageX, pageY,
       originX: originLocalX,
@@ -635,7 +731,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       hoverTargetId: null,
       invalid: false,
     });
-  }, [barById]);
+  }, [barById, barH]);
 
   const updateLinkDrag = useCallback((evt: any) => {
     if (!linkOriginRef.current) return;
@@ -826,17 +922,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         // Fan the landing Y around the bar midpoint: -(n-1)/2 .. +(n-1)/2 steps.
         const fanY = (i - (n - 1) / 2) * FAN_STEP;
         const d = orthogonalArrowPath(
-          { x: pred.x + pred.w, y: pred.y + BAR_HEIGHT / 2 },
-          { x: succ.x,          y: succ.y + BAR_HEIGHT / 2 + fanY },
+          { x: pred.x + pred.w, y: pred.y + barH / 2 },
+          { x: succ.x,          y: succ.y + barH / 2 + fanY },
         );
         const label = link.type !== 'FS' || (link.lagDays ?? 0) !== 0
           ? `${link.type}${link.lagDays ? (link.lagDays > 0 ? `+${link.lagDays}` : `${link.lagDays}`) : ''}`
           : '';
-        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, connected, label, labelX: succ.x - CLEARANCE - 2, labelY: succ.y + BAR_HEIGHT / 2 + fanY });
+        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, connected, label, labelX: succ.x - CLEARANCE - 2, labelY: succ.y + barH / 2 + fanY });
       });
     }
     return out;
-  }, [bars, barById, focusedTaskId, hoverTaskId]);
+  }, [bars, barById, focusedTaskId, hoverTaskId, barH]);
 
   // Is a task currently active (hovered/focused)? Drives the dim/emphasize
   // treatment on the arrows below — when something is active, unconnected
@@ -959,6 +1055,97 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     setPxPerDay(prev => Math.max(1, Math.min(40, prev + step)));
   }, []);
 
+  // --- Fit / Today / scroll (the toolbar buttons and the controller) -------
+  const vScrollRef = useRef<ScrollView | null>(null);
+  const setVScroll = useCallback((node: ScrollView | null) => {
+    vScrollRef.current = node;
+    if (verticalScrollRef) verticalScrollRef.current = node;
+  }, [verticalScrollRef]);
+  const fitToViewport = useCallback(() => {
+    if (fitViewportW != null) {
+      // The whole job + 2 days across the MEASURED timeline, clamped 1–40.
+      const pxDay = fitPxPerDay(fitViewportW, Math.max(cpm.projectFinish, preview?.finishAfter ?? 0));
+      setPxPerDay(pxDay);
+      setFittedAt(pxDay);
+    } else {
+      // Not laid out yet: the old fixed-viewport guess.
+      const span = Math.max(1, cpm.projectFinish);
+      const pxDay = Math.max(1, Math.min(40, Math.round(FIT_UNMEASURED_VIEWPORT / span)));
+      setPxPerDay(pxDay);
+    }
+    hScrollRef.current?.scrollTo({ x: 0, animated: true });
+  }, [fitViewportW, cpm.projectFinish, preview?.finishAfter]);
+  const scrollToToday = useCallback(() => {
+    const x = Math.max(0, (todayDayNumber - 3) * pxPerDay);
+    hScrollRef.current?.scrollTo({ x, animated: true });
+  }, [todayDayNumber, pxPerDay]);
+  const scrollToRow = useCallback((index: number) => {
+    if (!Number.isFinite(index) || index < 0) return;
+    // Two rows of context above it; the header is sticky on desktop web.
+    vScrollRef.current?.scrollTo({ y: Math.max(0, (index - 2) * rowH), animated: true });
+    const b = bars[index];
+    if (b) hScrollRef.current?.scrollTo({ x: Math.max(0, b.x - 80), animated: true });
+  }, [rowH, bars]);
+  useImperativeHandle(controllerRef, () => ({
+    zoomIn: () => setPxPerDay(v => Math.min(40, v + 2)),
+    zoomOut: () => setPxPerDay(v => Math.max(1, v - 2)),
+    fit: fitToViewport,
+    today: scrollToToday,
+    scrollToRow,
+    scrollToTask: (id: string) => scrollToRow(tasks.findIndex(t => t.id === id)),
+  }), [fitToViewport, scrollToToday, scrollToRow, tasks]);
+
+  // --- Preview (a proposed change, drawn — never applied) -----------------
+  const previewFinishColor = !preview || preview.finishDeltaDays === 0
+    ? themeColors.textSecondary
+    : preview.finishDeltaDays > 0 ? themeColors.danger : themeColors.success;
+  // The same vertical band a real bar is drawn in (20 px, centred in the row).
+  const barTopInRow = barVPad + (barH - 20) / 2;
+
+  // Colour toggle + legend: the toolbar's, or the footer strip's when the
+  // toolbar is hidden.
+  const colorModeToggle = (
+        <View style={styles.colorModeGroup} accessibilityRole="tablist">
+          <Text style={styles.colorModeLabel}>Color</Text>
+          {(['status', 'trade'] as GanttColorMode[]).map(m => (
+            <TouchableOpacity
+              key={m}
+              onPress={() => { if (colorMode !== m) toggleColorMode(); }}
+              style={[styles.colorModeBtn, colorMode === m && styles.colorModeBtnActive]}
+              activeOpacity={0.7}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: colorMode === m }}
+              testID={`gantt-colormode-${m}`}
+            >
+              <Text style={[styles.colorModeBtnText, colorMode === m && styles.colorModeBtnTextActive]}>
+                {m === 'status' ? 'Status' : 'Trade'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+  );
+  const legend = colorMode === 'status' ? (
+          <View style={styles.legend}>
+            {STATUS_KEYS.map(s => (
+              <View key={s} style={styles.legendItem}>
+                <View style={[styles.legendStripe, { backgroundColor: statusColor(s, themeColors) }]} />
+                <Text style={styles.legendText}>{statusLabel(s)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendStripe, { backgroundColor: themeColors.danger }]} />
+              <Text style={styles.legendText}>Critical</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendStripe, { backgroundColor: themeColors.accent }]} />
+              <Text style={styles.legendText}>Normal</Text>
+            </View>
+          </View>
+        );
+
   // --- Render ---------------------------------------------------------------
   return (
     <View
@@ -967,7 +1154,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     >
       {/* Toolbar — hidden on phone; zoom/Fit/Today live in the parent shell
           on small screens to reclaim vertical space for the bars. */}
-      {!isPhone && (
+      {!isPhone && !hideToolbar && (
       <View style={styles.toolbar}>
         <Text style={styles.toolbarTitle}>Gantt</Text>
         {/* iOS-style segmented control with a sliding pill behind the active
@@ -1046,26 +1233,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             red line; Focus centers on the selected row's bar. */}
         <View style={styles.navGroup}>
           <TouchableOpacity
-            onPress={() => {
-              // Fit: compute exact pxPerDay so the full project spans the
-              // (approximate) viewport. Clamp into the slider range so the
-              // slider UI stays in sync with the derived scale.
-              const viewport = 800;
-              const span = Math.max(1, cpm.projectFinish);
-              const pxDay = Math.max(1, Math.min(40, Math.round(viewport / span)));
-              setPxPerDay(pxDay);
-              hScrollRef.current?.scrollTo({ x: 0, animated: true });
-            }}
+            // Fit: the pxPerDay that lays the whole project across the
+            // MEASURED timeline (fitToViewport). Clamped into the slider range
+            // so the slider UI stays in sync with the derived scale.
+            onPress={fitToViewport}
             style={styles.navBtn}
             activeOpacity={0.7}
           >
             <Text style={styles.navBtnText}>Fit</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => {
-              const x = Math.max(0, (todayDayNumber - 3) * pxPerDay);
-              hScrollRef.current?.scrollTo({ x, animated: true });
-            }}
+            onPress={scrollToToday}
             style={styles.navBtn}
             activeOpacity={0.7}
           >
@@ -1087,47 +1265,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         </View>
         {/* Color-mode toggle — pick whether bars are colored by task status
             (progress signal, default) or by trade (coordination signal). */}
-        <View style={styles.colorModeGroup} accessibilityRole="tablist">
-          <Text style={styles.colorModeLabel}>Color</Text>
-          {(['status', 'trade'] as GanttColorMode[]).map(m => (
-            <TouchableOpacity
-              key={m}
-              onPress={() => { if (colorMode !== m) toggleColorMode(); }}
-              style={[styles.colorModeBtn, colorMode === m && styles.colorModeBtnActive]}
-              activeOpacity={0.7}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: colorMode === m }}
-              testID={`gantt-colormode-${m}`}
-            >
-              <Text style={[styles.colorModeBtnText, colorMode === m && styles.colorModeBtnTextActive]}>
-                {m === 'status' ? 'Status' : 'Trade'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {colorModeToggle}
         {/* Legend — reflects the active color mode. In status mode, swatches
             name each progress state; in trade mode, the critical/normal key. */}
-        {colorMode === 'status' ? (
-          <View style={styles.legend}>
-            {STATUS_KEYS.map(s => (
-              <View key={s} style={styles.legendItem}>
-                <View style={[styles.legendStripe, { backgroundColor: statusColor(s, themeColors) }]} />
-                <Text style={styles.legendText}>{statusLabel(s)}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendStripe, { backgroundColor: themeColors.danger }]} />
-              <Text style={styles.legendText}>Critical</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendStripe, { backgroundColor: themeColors.accent }]} />
-              <Text style={styles.legendText}>Normal</Text>
-            </View>
-          </View>
-        )}
+        {legend}
       </View>
       )}
 
@@ -1140,7 +1281,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             because the outer container clips. */}
         {leftGutter > 0 && (
         <View style={[styles.gutter, { width: leftGutter }, isPhone && styles.gutterPhone]}>
-          <View style={[styles.gutterHeader, { height: HEADER_HEIGHT }]}>
+          <View style={[styles.gutterHeader, { height: headerH }]}>
             <Text style={styles.gutterHeaderText}>{isPhone ? 'TASK' : 'Task'}</Text>
           </View>
           {tasks.map((t, i) => {
@@ -1162,7 +1303,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   style={[
                     styles.gutterRow,
                     styles.gutterRowPhone,
-                    { height: ROW_HEIGHT },
+                    { height: rowH },
                   ]}
                 >
                   <View style={[styles.phaseDot, { backgroundColor: phaseColor }]} />
@@ -1197,7 +1338,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 onHoverOut={() => setHoverTaskId(null)}
                 style={[
                   styles.gutterRow,
-                  { height: ROW_HEIGHT },
+                  { height: rowH },
                   isHovered && styles.gutterRowHover,
                   // Task 5: blue tint when this row is the focused task.
                   isFocusedRow && styles.gutterRowFocused,
@@ -1221,9 +1362,13 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     </Text>
                     {isCritical && <View style={styles.criticalDot} />}
                   </View>
+                  {/* Under 56 px (a compact density) the row holds one line:
+                      the title. The dates are in the bar and its hover card. */}
+                  {rowH >= ROW_HEIGHT && (
                   <Text style={styles.gutterSubtitle} numberOfLines={1}>
                     {dateRange ? `${dateRange} · ${durationLabel}` : durationLabel}
                   </Text>
+                  )}
                 </View>
               </Pressable>
             );
@@ -1239,11 +1384,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           showsHorizontalScrollIndicator
           contentContainerStyle={{ minWidth: timelineWidth }}
           style={styles.timelineScroll}
+          onLayout={onTimelineLayout}
         >
           <ScrollView
+            ref={setVScroll}
             style={{ flex: 1 }}
             contentContainerStyle={{ height: gridHeight, width: timelineWidth }}
             showsVerticalScrollIndicator
+            {...(onVerticalScroll ? {
+              onScroll: (e: { nativeEvent: { contentOffset: { y: number } } }) => onVerticalScroll(e.nativeEvent.contentOffset.y),
+              scrollEventThrottle: 16,
+            } : {})}
           >
             {/* Background Pressable: captures taps on empty timeline space.
                 Bar PanResponders use onStartShouldSetPanResponderCapture:true
@@ -1255,9 +1406,9 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
               accessibilityLabel="Timeline background — double-tap to add a task at that day"
             >
               {/* --- Header --- */}
-              <View style={[styles.timelineHeader, { width: timelineWidth, height: HEADER_HEIGHT }]}>
+              <View style={[styles.timelineHeader, { width: timelineWidth, height: headerH }, isDesktopWeb && STICKY_HEADER_WEB]}>
                 {/* Month row */}
-                <View style={styles.timelineHeaderRow}>
+                <View style={[styles.timelineHeaderRow, headerH !== HEADER_HEIGHT && { height: headerH / 2 }]}>
                   {headerTicks
                     .filter(t => t.month)
                     .map((t, i) => (
@@ -1267,7 +1418,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     ))}
                 </View>
                 {/* Day row */}
-                <View style={styles.timelineHeaderRow}>
+                <View style={[styles.timelineHeaderRow, headerH !== HEADER_HEIGHT && { height: headerH / 2 }]}>
                   {headerTicks.map((t, i) => (
                     <View key={`d-${i}-${t.x}`} style={[styles.dayCell, { left: t.x }]}>
                       <Text style={[styles.dayText, t.bold && styles.dayTextBold]}>
@@ -1288,9 +1439,9 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   style={[
                     styles.rowBg,
                     {
-                      top: HEADER_HEIGHT + i * ROW_HEIGHT,
+                      top: headerH + i * rowH,
                       width: timelineWidth,
-                      height: ROW_HEIGHT,
+                      height: rowH,
                       backgroundColor: themeColors.surface,
                       borderBottomWidth: i < tasks.length - 1 ? 1 : 0,
                       borderBottomColor: 'rgba(60,60,67,0.045)',
@@ -1320,9 +1471,9 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     <SvgRect
                       key={`wk-${i}`}
                       x={tick.x}
-                      y={HEADER_HEIGHT}
+                      y={headerH}
                       width={pxPerDay}
-                      height={gridHeight - HEADER_HEIGHT}
+                      height={gridHeight - headerH}
                       fill={WEEKEND_TINT}
                     />
                   );
@@ -1331,7 +1482,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   <SvgLine
                     key={`gl-${i}`}
                     x1={tick.x}
-                    y1={HEADER_HEIGHT}
+                    y1={headerH}
                     x2={tick.x}
                     y2={gridHeight}
                     stroke={tick.bold ? 'rgba(60,60,67,0.10)' : 'rgba(60,60,67,0.035)'}
@@ -1420,10 +1571,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const focusedBar = barById.get(focusedTaskId);
                 if (!focusedBar || focusedBar.isMilestone || focusedBar.task.isSummary) return null;
                 const ringX = focusedBar.x - 2;
-                const ringY = focusedBar.y + (BAR_HEIGHT - 20) / 2 - 2;
+                const ringY = focusedBar.y + (barH - 20) / 2 - 2;
                 const ringW = focusedBar.w + 4;
                 const ringH = 20 + 4;
-                const barMidY = focusedBar.y + (BAR_HEIGHT - 20) / 2 + 10;
+                const barMidY = focusedBar.y + (barH - 20) / 2 + 10;
                 return (
                   <Svg
                     width={timelineWidth}
@@ -1496,7 +1647,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     <SvgRect
                       key={`baseline-${bar.task.id}`}
                       x={bx}
-                      y={bar.y + BAR_HEIGHT - 6}
+                      y={bar.y + barH - 6}
                       width={bw}
                       height={4}
                       fill="rgba(60,60,67,0.35)"
@@ -1531,7 +1682,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       x={ax}
                       y={bar.y + 2}
                       width={aw}
-                      height={BAR_HEIGHT - 4}
+                      height={barH - 4}
                       fill={fillColor}
                       stroke={finished ? themeColors.success : 'transparent'}
                       strokeWidth={finished ? 1 : 0}
@@ -1577,8 +1728,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
               {/* --- Today line + label pill --- */}
               {todayVisible && (
                 <>
-                  <View style={[styles.todayLine, { left: todayX }]} />
-                  <View style={[styles.todayLabel, { left: todayX }]}>
+                  <View style={[styles.todayLine, { left: todayX }, isDesktopWeb && TODAY_LINE_WEB]} />
+                  <View style={[styles.todayLabel, { left: todayX }, isDesktopWeb && TODAY_LABEL_WEB]}>
                     {/* Task 6: spec §7.1 pill — white bg, 1px #fecaca border, #ef4444 text.
                         Text is "TODAY" only (no date suffix) to keep the pill compact;
                         the line itself gives positional context. */}
@@ -1612,6 +1763,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     isDownstream={dragSuccessorIds.has(bar.task.id)}
                     isLastMilestone={bar.isMilestone && bar.task.id === lastMilestoneId}
                     showCrewAvatar={showCrewAvatars}
+                    barH={barH}
                     onHoverIn={() => setHoverTaskId(bar.task.id)}
                     onHoverOut={() => setHoverTaskId(null)}
                     onBeginDrag={(mode, evt) => beginDrag(bar.task, mode, evt)}
@@ -1621,19 +1773,99 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     onMoveLink={updateLinkDrag}
                     onEndLink={endLinkDrag}
                     onFocus={() => onFocusTask?.(isFocusedBar ? null : bar.task.id)}
-                    onRequestMenu={() => openBarMenu(bar.task)}
+                    onRequestMenu={(at) => openBarMenu(bar.task, at)}
                     onLogStartToday={() => logStartToday(bar.task)}
                     onLogFinishToday={() => logFinishToday(bar.task)}
                   />
                 );
               })}
 
+              {/* --- Proposed change (wave 6c): dashed outlines, never applied ---
+                  moved   → an accent outline where the bar WOULD go (the solid
+                            bar stays where it is), labelled "proposed";
+                  added   → success outlines in extra rows under the last row;
+                  removed → a danger wash over the bar it would delete;
+                  finish  → a dashed marker at the new finish, "Finish +7d". */}
+              {preview && preview.moved.map(m => {
+                const bar = barById.get(m.id);
+                if (!bar) return null;
+                const x = (m.toEs - 1) * pxPerDay;
+                const w = Math.max(MIN_BAR_PX_WIDTH, Math.max(0, m.toEf - m.toEs + 1) * pxPerDay);
+                return (
+                  <View
+                    key={`pv-m-${m.id}`}
+                    pointerEvents="none"
+                    testID={`gantt-preview-moved-${m.id}`}
+                    style={[styles.previewOutline, {
+                      left: x, top: bar.y + (barH - 20) / 2, width: w, height: 20,
+                      borderColor: themeColors.accent, backgroundColor: themeColors.accent + '14',
+                    }]}
+                  >
+                    <Text style={[styles.previewLabel, { color: themeColors.accentLabel }]} numberOfLines={1}>proposed</Text>
+                  </View>
+                );
+              })}
+              {preview && preview.added.map((a, k) => {
+                const top = headerH + (tasks.length + k) * rowH + barTopInRow;
+                const x = (a.es - 1) * pxPerDay;
+                const w = a.isMilestone ? 20 : Math.max(MIN_BAR_PX_WIDTH, Math.max(1, a.ef - a.es + 1) * pxPerDay);
+                return (
+                  <View
+                    key={`pv-a-${a.id}`}
+                    pointerEvents="none"
+                    testID={`gantt-preview-added-${a.id}`}
+                    style={[styles.previewOutline, {
+                      left: a.isMilestone ? x - 10 : x, top, width: w, height: 20,
+                      borderColor: themeColors.success, backgroundColor: themeColors.success + '14',
+                    }]}
+                  >
+                    <Text style={[styles.previewLabel, { color: themeColors.successLabel }]} numberOfLines={1}>+ {a.title || 'New task'}</Text>
+                  </View>
+                );
+              })}
+              {preview && preview.removedIds.map(id => {
+                const bar = barById.get(id);
+                if (!bar) return null;
+                return (
+                  <View
+                    key={`pv-r-${id}`}
+                    pointerEvents="none"
+                    testID={`gantt-preview-removed-${id}`}
+                    style={[styles.previewOutline, {
+                      left: bar.x - 2, top: bar.y + (barH - 20) / 2 - 2, width: Math.max(bar.w, 20) + 4, height: 24,
+                      borderColor: themeColors.danger, backgroundColor: themeColors.danger + '24',
+                    }]}
+                  />
+                );
+              })}
+              {preview && (() => {
+                // The finish column's right edge: a bar ending on calendar day
+                // `ef` ends at ef · pxPerDay.
+                const x = preview.finishAfter * pxPerDay;
+                return (
+                  <View
+                    pointerEvents="none"
+                    testID="gantt-preview-finish"
+                    style={[styles.previewFinish, { left: x, top: headerH, height: gridHeight - headerH }]}
+                  >
+                    <Svg width={2} height={Math.max(0, gridHeight - headerH)} style={StyleSheet.absoluteFill}>
+                      <SvgLine x1={1} y1={0} x2={1} y2={Math.max(0, gridHeight - headerH)} stroke={previewFinishColor} strokeWidth={1.5} strokeDasharray="4 3" />
+                    </Svg>
+                    <View style={[styles.previewFinishPill, { borderColor: previewFinishColor }]}>
+                      <Text style={[styles.previewFinishText, { color: previewFinishColor }]} numberOfLines={1}>
+                        {finishDeltaLabel(preview.finishDeltaDays)}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })()}
+
               {/* --- Rubber-band dependency line (Phase 4) --- */}
               {linkDrag && (() => {
                 const src = barById.get(linkDrag.sourceTaskId);
                 if (!src) return null;
                 const x1 = src.x + src.w;
-                const y1 = src.y + BAR_HEIGHT / 2;
+                const y1 = src.y + barH / 2;
                 const x2 = linkDrag.pointerLocalX;
                 const y2 = linkDrag.pointerLocalY;
                 const color = linkDrag.invalid ? themeColors.danger : (linkDrag.hoverTargetId ? themeColors.success : themeColors.accent);
@@ -1677,7 +1909,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                         style={{
                           position: 'absolute',
                           left: Math.min(timelineWidth - 110, x2 + 14),
-                          top: Math.max(HEADER_HEIGHT + 4, y2 - 14),
+                          top: Math.max(headerH + 4, y2 - 14),
                           flexDirection: 'row',
                           alignItems: 'center',
                           gap: 4,
@@ -1712,7 +1944,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const fromBar = barById.get(pendingLink.fromId);
                 const toBar = barById.get(pendingLink.toId);
                 const tipX = Math.max(4, Math.min(timelineWidth - 260, pendingLink.x - 130));
-                const tipY = Math.max(HEADER_HEIGHT + 4, pendingLink.y - 120);
+                const tipY = Math.max(headerH + 4, pendingLink.y - 120);
                 return (
                   <View style={[styles.linkPopover, { left: tipX, top: tipY }]}>
                     <Text style={styles.linkPopoverTitle} numberOfLines={1}>
@@ -1784,7 +2016,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       left: origX,
                       top: bar.y,
                       width: origW,
-                      height: BAR_HEIGHT,
+                      height: barH,
                       borderRadius: BAR_RADIUS,
                       borderWidth: 1.5,
                       borderStyle: 'dashed',
@@ -1822,7 +2054,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       left: destX,
                       top: bar.y,
                       width: destW,
-                      height: BAR_HEIGHT,
+                      height: barH,
                       borderRadius: BAR_RADIUS,
                       borderWidth: 2,
                       borderStyle: 'dashed',
@@ -1852,8 +2084,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const cardWidth = 268;
                 const tipX = Math.max(4, Math.min(timelineWidth - cardWidth - 4, bar.x));
                 // Float above the bar; if too close to the timeline header, drop below.
-                const above = bar.y - HEADER_HEIGHT > 110;
-                const tipY = above ? bar.y - 110 : bar.y + BAR_HEIGHT + 8;
+                const above = bar.y - headerH > 110;
+                const tipY = above ? bar.y - 110 : bar.y + barH + 8;
                 const depCount = (t.dependencyLinks?.length ?? t.dependencies.length ?? 0);
                 const progressPct = Math.max(0, Math.min(100, t.progress ?? 0));
                 const accent = bar.isCritical ? themeColors.danger : themeColors.accent;
@@ -1942,7 +2174,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   dragState.currentCalStart + Math.max(0, dragState.currentCalSpan - 1),
                 ) - dragState.originalDuration;
                 const tipX = Math.max(4, Math.min(timelineWidth - 220, bar.x));
-                const tipY = Math.max(HEADER_HEIGHT + 4, bar.y - 44);
+                const tipY = Math.max(headerH + 4, bar.y - 44);
                 return (
                   <View style={[styles.tooltip, { left: tipX, top: tipY }]} pointerEvents="none">
                     <Text style={styles.tooltipTitle} numberOfLines={1}>{bar.task.title || 'Task'}</Text>
@@ -1992,7 +2224,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       paddingHorizontal: 8,
                       paddingVertical: 3,
                       borderRadius: 4,
-                      zIndex: 20,
+                      zIndex: DRAG_DATE_PILL_Z,
                     }}
                   >
                     <Text style={{ color: '#fff', fontSize: 11, fontWeight: '500' }}>
@@ -2007,17 +2239,30 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       </View>
 
       {/* Footer hints — tightened from the verbose comma-soup so the band
-          reads at a glance instead of needing to be parsed. */}
+          reads at a glance instead of needing to be parsed. With the toolbar
+          hidden (wave 6c) it is a 24 px strip that also carries the colour
+          toggle and the legend the toolbar used to. */}
+      {hideToolbar ? (
+        <View style={styles.footerStrip}>
+          {colorModeToggle}
+          {legend}
+          <Text style={styles.footerStripText} numberOfLines={1}>
+            Drag to move · right edge to resize · blue dot to link · grey stripe = baseline · green = actual
+          </Text>
+        </View>
+      ) : (
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           Drag to move · right edge to resize · blue dot to link · grey stripe = baseline · green = actual
         </Text>
       </View>
+      )}
       <ScheduleRowMenu
         visible={barMenu !== null}
         title={barMenu?.title ?? ''}
         actions={barMenu?.actions ?? []}
         onClose={() => setBarMenu(null)}
+        anchor={barMenu?.anchor}
       />
     </View>
   );
@@ -2079,8 +2324,11 @@ interface BarViewProps {
   onMoveLink: (evt: any) => void;
   onEndLink: () => void;
   onFocus?: () => void;
-  /** Long-press (native) / right-click (web) opens the row/bar context menu. */
-  onRequestMenu?: () => void;
+  /** Long-press (native) / right-click (web) opens the row/bar context menu.
+   *  A right-click passes the pointer, so desktop web opens it there. */
+  onRequestMenu?: (at?: RowMenuAnchor) => void;
+  /** The band the bar is centred in (InteractiveGantt's barHeight). */
+  barH?: number;
   onLogStartToday: () => void;
   onLogFinishToday: () => void;
 }
@@ -2088,6 +2336,7 @@ interface BarViewProps {
 function BarView({
   bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber, dayScale, actualBasis,
   dimmed, isFocusTarget, isLastMilestone, isDownstream, showCrewAvatar,
+  barH = BAR_HEIGHT,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
@@ -2230,7 +2479,7 @@ function BarView({
           // need their own @ts-expect-error (RN web pointer events).
           onMouseEnter={onHoverIn}
           onMouseLeave={onHoverOut}
-          {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(); } } as any) : {})}
+          {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(pointerOf(e)); } } as any) : {})}
         />
         {/* Left fang */}
         <View
@@ -2280,14 +2529,14 @@ function BarView({
     // Diamond, centered at bar.x, fills its row vertically.
     // Project-completion milestone (the last-dated one) renders in red (#FF5A51)
     // to signal "end of project". All other milestones use the task's trade color.
-    const size = BAR_HEIGHT;
+    const size = barH;
     const cx = bar.x;
-    const cy = bar.y + BAR_HEIGHT / 2;
+    const cy = bar.y + barH / 2;
     const milestoneColor = isLastMilestone ? Colors.pillLate : barColor;
     return (
       <View
         {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => { if (isDragging) return; e?.stopPropagation?.(); onFocus(); } } as any) : {})}
-        {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(); } } as any) : {})}
+        {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(pointerOf(e)); } } as any) : {})}
         style={{
           position: 'absolute',
           left: cx - size / 2,
@@ -2329,7 +2578,7 @@ function BarView({
             left: bar.x - 4,
             top: bar.y - 4,
             width: bar.w + 8,
-            height: BAR_HEIGHT + 8,
+            height: barH + 8,
             borderRadius: Tokens.radius.md,
             borderWidth: 2,
             borderColor: targetRingColor,
@@ -2351,7 +2600,7 @@ function BarView({
             left: bar.x - 3,
             top: bar.y - 3,
             width: bar.w + 6,
-            height: BAR_HEIGHT + 6,
+            height: barH + 6,
             borderRadius: Tokens.radius.md,
             borderWidth: 1.5,
             borderStyle: 'dashed',
@@ -2367,13 +2616,13 @@ function BarView({
         e?.stopPropagation?.();
         onFocus();
       } } as any) : {})}
-      {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(); } } as any) : {})}
+      {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(pointerOf(e)); } } as any) : {})}
       // Task 2 flat bar restyle: solid fill, borderRadius 4, critical outline,
       // done opacity, name+days label.
       style={{
         position: 'absolute',
         left: bar.x,
-        top: bar.y + (BAR_HEIGHT - 20) / 2,
+        top: bar.y + (barH - 20) / 2,
         width: bar.w,
         height: 20,
         borderRadius: 4,
@@ -2458,7 +2707,7 @@ function BarView({
       >
         <View style={{
           width: 2,
-          height: BAR_HEIGHT - 12,
+          height: barH - 12,
           borderRadius: 1,
           backgroundColor: barColor,
           opacity: 0.55,
@@ -2482,7 +2731,7 @@ function BarView({
           pointerEvents="none"
           style={[styles.avatar, {
             left: bar.x + bar.w + 4,
-            top: bar.y + (BAR_HEIGHT - 18) / 2,
+            top: bar.y + (barH - 18) / 2,
           }]}
         >
           <Text style={styles.avatarText}>{crewInitial}</Text>
@@ -2497,7 +2746,7 @@ function BarView({
         style={{
           position: 'absolute',
           left: bar.x + bar.w + 6,
-          top: bar.y + BAR_HEIGHT / 2 - 7,
+          top: bar.y + barH / 2 - 7,
           width: 14,
           height: 14,
           borderRadius: 7,
@@ -2557,7 +2806,7 @@ function BarView({
         style={{
           position: 'absolute',
           left: bar.x + bar.w + 8,
-          top: bar.y + BAR_HEIGHT / 2 - 8,
+          top: bar.y + barH / 2 - 8,
           paddingHorizontal: 6,
           paddingVertical: 2,
           borderRadius: 4,
@@ -2573,6 +2822,13 @@ function BarView({
     )}
     </>
   );
+}
+
+/** The pointer of a web right-click, in page coordinates (for the popover). */
+function pointerOf(e: any): RowMenuAnchor | undefined {
+  const x = e?.nativeEvent?.pageX ?? e?.pageX;
+  const y = e?.nativeEvent?.pageY ?? e?.pageY;
+  return typeof x === 'number' && typeof y === 'number' ? { x, y } : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -3059,6 +3315,61 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: t.line,
     backgroundColor: Colors.surfaceAlt,
+  },
+  // hideToolbar: one 24 px line — colour toggle, legend, then the hints.
+  footerStrip: {
+    height: GANTT_FOOTER_STRIP_H,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 8,
+    borderTopWidth: 1,
+    borderTopColor: t.line,
+    backgroundColor: t.surfaceAlt,
+    overflow: 'hidden',
+  },
+  footerStripText: {
+    flex: 1,
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'right',
+  },
+
+  // Proposed-change overlays (wave 6c). Colours come in per mark from the theme.
+  previewOutline: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: 4,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    zIndex: 4,
+    overflow: 'hidden',
+  },
+  previewLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontStyle: 'italic',
+  },
+  previewFinish: {
+    position: 'absolute',
+    width: 2,
+    zIndex: 7,
+  },
+  previewFinishPill: {
+    position: 'absolute',
+    top: 2,
+    left: 4,
+    // The card recipe (surface + 1 px border + radius) — the inline
+    // borderColor at the call site overrides the hairline colour.
+    ...cardSurface(t, { radius: 'xs', pad: 'none' }),
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  previewFinishText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   footerText: {
     fontSize: Type.caption2.fontSize,

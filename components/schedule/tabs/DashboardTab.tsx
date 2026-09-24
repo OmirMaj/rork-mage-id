@@ -11,12 +11,12 @@
 // of a single 4-wide row, and the EV / status charts stack vertically.
 
 import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { parseCalendarDay, formatCalendarDay, daysUntilCalendarDay } from '@/utils/calendarDate';
 import { addWorkingDays } from '@/utils/scheduleEngine';
-import { ContentWidth, Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -24,8 +24,14 @@ import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { scheduleVerdict } from '@/utils/scheduleVerdict';
 import { useResponsive } from '@/utils/useResponsive';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { TileGrid } from '@/components/ui/TileGrid';
 
-export function DashboardTab() {
+export function DashboardTab({ hasBudget }: {
+  /** false = no budget is linked. On desktop the earned-value card, which can
+   *  only say "Link a budget", is then left out instead of holding a row. */
+  hasBudget?: boolean;
+} = {}) {
   // Was a bare `useTheme()` over a module-scope StyleSheet — 19 Colors.surface
   // /text/textSecondary/border reads frozen at import, so the four KPI tiles
   // and both chart cards stayed white in dark mode (audit 2026-09-07).
@@ -33,6 +39,8 @@ export function DashboardTab() {
   const styles = useThemedStyles(makeStyles);
   const { bp } = useResponsive();
   const isPhone = bp === 'phone';
+  const { isDesktop } = useResponsiveLayout();
+  const hideEvPlaceholder = isDesktop && hasBudget === false;
   const { tasks, schedule, cpm } = useScheduler();
 
   const stats = useMemo(() => {
@@ -92,8 +100,9 @@ export function DashboardTab() {
         </View>
       </View>
 
-      {/* Stat tiles — desktop: single 4-col row; phone: 2x2 wrap */}
-      <View style={[styles.statRow, isPhone && styles.statRowPhone]}>
+      {/* Stat tiles — phone: 2x2 wrap; desktop: TileGrid's kpi columns
+          (220 px minimum, up to 4), so a tile never stretches past its data. */}
+      <TileGrid preset="kpi" phoneStyle={[styles.statRow, isPhone && styles.statRowPhone]}>
         <StatCard
           label="HEALTH SCORE"
           value={String(healthScore)}
@@ -121,10 +130,11 @@ export function DashboardTab() {
           deltaBad={stats.overdue > 0}
           phone={isPhone}
         />
-      </View>
+      </TileGrid>
 
       {/* Charts row — desktop: side-by-side; phone: stacked */}
       <View style={[styles.chartsRow, isPhone && styles.chartsRowPhone]}>
+        {hideEvPlaceholder ? null : (
         <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1.4 }]}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>Earned Value</Text>
@@ -139,6 +149,7 @@ export function DashboardTab() {
             <Text style={styles.chartHint}>Link a budget to see earned value</Text>
           </View>
         </View>
+        )}
 
         <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1 }]}>
           <View style={styles.chartHeader}>
@@ -168,7 +179,7 @@ export function DashboardTab() {
       </View>
 
       {/* Critical-path activities list */}
-      <View style={styles.cpList}>
+      <View style={[styles.cpList, isDesktop && styles.cpListDesktop]}>
         <View style={styles.chartHeader}>
           <Text style={styles.chartTitle}>Critical Path Activities</Text>
           <Text style={styles.chartHint}>{critical.length} tasks · {cpm.criticalPathDays}d total</Text>
@@ -192,10 +203,12 @@ export function DashboardTab() {
   );
 }
 
-function StatCard({ label, value, valueColor, delta, deltaBad, phone }: { label: string; value: string; valueColor?: string; delta: string; deltaBad?: boolean; phone?: boolean }) {
+// `style` is the column width TileGrid hands each tile on desktop (undefined
+// on a phone, so the card is today's).
+function StatCard({ label, value, valueColor, delta, deltaBad, phone, style }: { label: string; value: string; valueColor?: string; delta: string; deltaBad?: boolean; phone?: boolean; style?: StyleProp<ViewStyle> }) {
   const styles = useThemedStyles(makeStyles);
   return (
-    <View style={[styles.statCard, phone && styles.statCardPhone]}>
+    <View style={[styles.statCard, phone && styles.statCardPhone, style]}>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={[styles.statValue, valueColor ? { color: valueColor } : undefined]}>{value}</Text>
       <Text style={[styles.statDelta, deltaBad ? { color: Colors.pillLate } : undefined]} numberOfLines={1}>{delta}</Text>
@@ -263,11 +276,12 @@ function StatusDonut({ done, inProgress, notStarted, overdue, total }: { done: n
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1 },
-  // Centred at ContentWidth.reading: Schedule Pro is full-bleed on desktop
+  // Centred at Layout.page.dashboard: Schedule Pro is full-bleed on desktop
   // web, and the four flex:1 stat tiles and the chart cards used to stretch
   // across the whole monitor (founder, 2026-09-23). 100% below the cap —
-  // the phone and a narrow window are unchanged.
-  content: { padding: 18, gap: 14, width: '100%', maxWidth: ContentWidth.reading, alignSelf: 'center' },
+  // the phone and a narrow window are unchanged. (Wave 6c: the cap was a
+  // 1040 reading column; the dashboard page width is 1280.)
+  content: { padding: 18, gap: 14, width: '100%', maxWidth: Layout.page.dashboard, alignSelf: 'center' },
   verdictBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: t.surface, borderRadius: Tokens.radius.md, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line },
   verdictDot: { width: 10, height: 10, borderRadius: Tokens.radius.full, marginTop: 4 },
   verdictHeadline: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text },
@@ -293,6 +307,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, borderRadius: 10, padding: 14,
     borderWidth: StyleSheet.hairlineWidth, borderColor: t.line,
   },
+  // A list of names and dates reads as a form column, not a 1,280 px band.
+  cpListDesktop: { width: '100%', maxWidth: Layout.page.form },
   cpRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 7,

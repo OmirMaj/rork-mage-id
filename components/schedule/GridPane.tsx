@@ -59,13 +59,18 @@ import { toCalendarDayString } from '@/utils/calendarDate';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { parsePastedRows } from '@/utils/pasteRows';
-import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
+import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction, type RowMenuAnchor } from '@/components/schedule/ScheduleRowMenu';
+import { GRID_GHOST_ROW_H, SPLIT_NAME_MIN, splitGridColumns } from '@/utils/scheduleProLayout';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor, Pencil } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Shadow, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import PredecessorPicker, { type PredecessorLink, type PredecessorCandidate } from '@/components/schedule/PredecessorPicker';
+
+/** GridPane's container border (each side). The split's leading columns fit inside it. */
+const GRID_CONTAINER_BORDER = 1;
 
 // ---------------------------------------------------------------------------
 // Column definition — single source of truth for widths, alignment, editability
@@ -278,6 +283,33 @@ export interface GridPaneProps {
    * visualises them. Use this when GridPane is rendered alone (ListTab).
    */
   showExtendedColumns?: boolean;
+
+  // ---- Wave 6c desktop canvas (every default is today's grid) ----
+  /** Body row height. MUST equal the Gantt beside it (InteractiveGantt rowHeight). Default 56. */
+  rowHeight?: number;
+  /** Header row height. MUST equal the Gantt's header. Default 56. */
+  headerHeight?: number;
+  /**
+   * The split grid's measured width (Schedule Pro desktop). With `compact`,
+   * the leading columns become splitGridColumns(splitWidth) — Task Name, Dur.,
+   * Start, Finish always (+ # from 440, Float from 600, WBS from 680) — the
+   * name filling what is left, and every other column following to scroll
+   * horizontally. Without it, `compact` hides Start / Finish / Float as today.
+   */
+  splitWidth?: number;
+  /** The body's vertical scroll offset, for syncing the Gantt beside it. */
+  onBodyScroll?: (y: number) => void;
+  /** The body ScrollView, for the Gantt to sync this grid back. */
+  bodyScrollRef?: React.MutableRefObject<ScrollView | null>;
+  /** 'none' drops the conflict banner above the header (the Pro toolbar shows
+   *  conflicts), so the header lines up with the Gantt's. Default 'inline'. */
+  conflictBanner?: 'inline' | 'none';
+  /** 'float' draws the selection bar over the bottom of the grid instead of
+   *  under it, so selecting rows never shifts the rows. Default 'inline'. */
+  bulkBarPlacement?: 'inline' | 'float';
+  /** Tasks a proposed change would ADD: read-only "Proposed · <title>" rows
+   *  after the last task row, matching the Gantt's dashed preview rows. */
+  previewAddedTitles?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -293,6 +325,14 @@ export default function GridPane({
   onBulkSetPhase, onBulkSetCrew, onBulkAskAI,
   compact = false,
   showExtendedColumns = false,
+  rowHeight = ROW_HEIGHT,
+  headerHeight = HEADER_HEIGHT,
+  splitWidth,
+  onBodyScroll,
+  bodyScrollRef,
+  conflictBanner = 'inline',
+  bulkBarPlacement = 'inline',
+  previewAddedTitles,
 }: GridPaneProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -331,17 +371,42 @@ export default function GridPane({
   // date axis rendered by the gantt. Order preserved. Widths fold in any
   // user-saved overrides so the rest of the layout math (frozen offsets,
   // total width, header / row cell widths) just reads from `col.width`.
+  // Split-view leading columns (wave 6c): only with `compact` AND a measured
+  // `splitWidth`. null = today's column rules.
+  const splitLead = useMemo(
+    () => (compact && typeof splitWidth === 'number' && splitWidth > 0 ? splitGridColumns(splitWidth) : null),
+    [compact, splitWidth],
+  );
   const visibleColumns = useMemo(
     () => {
+      const withOverride = (c: ColumnDef): ColumnDef => {
+        const override = colWidthOverrides[c.key];
+        return override != null ? { ...c, width: override } : c;
+      };
+      if (splitLead && typeof splitWidth === 'number') {
+        // The leading set in COLUMNS order, the name taking what the others
+        // leave of the grid, then every remaining column (scrolls sideways).
+        const lead = COLUMNS.filter(c => (splitLead.keys as string[]).includes(c.key)).map(withOverride);
+        const others = lead.reduce((sum, c) => (c.key === 'name' ? sum : sum + c.width), 0);
+        // The container's 1 px border on each side comes out of splitWidth:
+        // the leading set must fit the INNER viewport, or Finish clips 2 px.
+        const nameWidth = Math.max(SPLIT_NAME_MIN, Math.round(splitWidth - GRID_CONTAINER_BORDER * 2 - others));
+        const leadSized = lead.map(c => (c.key === 'name' ? { ...c, width: nameWidth } : c));
+        const rest = COLUMNS.filter(c => !(splitLead.keys as string[]).includes(c.key)).map(withOverride);
+        return [...leadSized, ...rest];
+      }
       const base = compact
         ? COLUMNS.filter(c => c.key !== 'start' && c.key !== 'finish' && c.key !== 'float')
         : COLUMNS;
-      return base.map(c => {
-        const override = colWidthOverrides[c.key];
-        return override != null ? { ...c, width: override } : c;
-      });
+      return base.map(withOverride);
     },
-    [compact, colWidthOverrides],
+    [compact, colWidthOverrides, splitLead, splitWidth],
+  );
+  // Which columns freeze. In the split view only the frozen keys that LEAD
+  // (a '#' that has scrolled into the trailing set must not stick over Dur.).
+  const frozenKeys = useMemo<ColumnKey[]>(
+    () => (splitLead ? FROZEN_KEYS.filter(k => (splitLead.keys as string[]).includes(k)) : FROZEN_KEYS),
+    [splitLead],
   );
   // Freeze the first few columns (select, wbs, name) so long horizontal
   // scrolling doesn't push the task name off-screen. On web we use the
@@ -351,13 +416,16 @@ export default function GridPane({
     const map = new Map<ColumnKey, number>();
     let x = 0;
     for (const c of visibleColumns) {
-      if (FROZEN_KEYS.includes(c.key)) {
+      if (frozenKeys.includes(c.key)) {
         map.set(c.key, x);
         x += c.width;
       }
     }
     return map;
-  }, [visibleColumns]);
+  }, [visibleColumns, frozenKeys]);
+  // Start / Finish open their editors inline on web in the full grid — and
+  // in the split view once they are shown there (wave 6c).
+  const datesInline = !compact || splitLead != null;
   // Extended column widths — Float (72), Resources (140), Phase (100).
   // These are rendered outside the COLUMNS array so they don't interfere with
   // the existing compact / non-compact filter logic.
@@ -464,7 +532,7 @@ export default function GridPane({
   // the <ScheduleRowMenu> modal. Triggered by row long-press / right-click —
   // a gesture distinct from cell-edit taps and selection clicks.
   const presentRowMenu = useScheduleRowMenu();
-  const [rowMenu, setRowMenu] = useState<{ title: string; actions: RowMenuAction[] } | null>(null);
+  const [rowMenu, setRowMenu] = useState<{ title: string; actions: RowMenuAction[]; anchor?: RowMenuAnchor } | null>(null);
 
   const rowActions = useCallback((task: ScheduleTask): RowMenuAction[] => [
     { key: 'indent',  label: 'Indent',  onPress: () => onOutline?.(task.id, 'indent') },
@@ -478,11 +546,12 @@ export default function GridPane({
     { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask(task.id) },
   ], [onOutline, onReorder, onEdit, onDeleteTask, insertRelativeTo]);
 
-  const openRowMenu = useCallback((task: ScheduleTask) => {
+  const openRowMenu = useCallback((task: ScheduleTask, anchor?: RowMenuAnchor) => {
     const actions = rowActions(task);
     const title = task.title || 'Task';
     // iOS handles it imperatively (returns true); web/Android open the modal.
-    if (!presentRowMenu(title, actions)) setRowMenu({ title, actions });
+    // A right-click carries the pointer (desktop web opens the menu there).
+    if (!presentRowMenu(title, actions)) setRowMenu({ title, actions, anchor });
   }, [rowActions, presentRowMenu]);
 
   // ---------------------------------------------------------------------------
@@ -828,7 +897,7 @@ export default function GridPane({
     // underneath or the pinned cell will render transparent over scrolled-in
     // content. The last frozen cell gets a soft right-edge shadow so the
     // freeze boundary is legible.
-    const isFrozen = Platform.OS === 'web' && FROZEN_KEYS.includes(col.key);
+    const isFrozen = Platform.OS === 'web' && frozenKeys.includes(col.key);
     const isLastFrozen = isFrozen && col.key === FROZEN_KEYS[FROZEN_KEYS.length - 1];
     const frozenStyle: any = isFrozen ? {
       position: 'sticky',
@@ -1026,7 +1095,7 @@ export default function GridPane({
       case 'start': {
         const label = cpmRow ? renderCalendarDate(cpmRow.es) : '—';
         const hasAnchor = task.anchorType && task.anchorType !== 'none';
-        if (Platform.OS === 'web' && !compact && cpmRow) {
+        if (Platform.OS === 'web' && datesInline && cpmRow) {
           return (
             <View key={col.key} style={[...cellStyle, styles.cellDate, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
               <TouchableOpacity
@@ -1082,7 +1151,7 @@ export default function GridPane({
       }
       case 'finish': {
         const label = cpmRow ? renderCalendarDate(cpmRow.ef) : '—';
-        if (Platform.OS === 'web' && !compact && cpmRow) {
+        if (Platform.OS === 'web' && datesInline && cpmRow) {
           return (
             <TouchableOpacity
               key={col.key}
@@ -1477,8 +1546,13 @@ export default function GridPane({
   const renderBulkBar = () => {
     if (selected.size === 0) return null;
     const n = selected.size;
+    const floating = bulkBarPlacement === 'float';
     return (
-      <View style={styles.bulkBar}>
+      <View
+        style={[styles.bulkBar, floating && styles.bulkBarFloat]}
+        {...(floating && Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
+        testID={floating ? 'grid-bulk-bar-float' : undefined}
+      >
         <TouchableOpacity onPress={clearSelection} style={styles.bulkClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         <Text style={styles.bulkCount}>{n} selected</Text>
         <View style={styles.bulkBtnRow}>
@@ -1523,9 +1597,14 @@ export default function GridPane({
     );
   };
 
+  // Row / header heights: the defaults ARE the StyleSheet's 56 / 56, so a
+  // caller that passes nothing renders today's styles untouched.
+  const rowHeightStyle = rowHeight !== ROW_HEIGHT ? { height: rowHeight } : null;
+  const headerHeightStyle = headerHeight !== HEADER_HEIGHT ? { height: headerHeight } : null;
+
   return (
     <View style={styles.container}>
-      {renderConflictBanner()}
+      {conflictBanner === 'inline' && renderConflictBanner()}
 
       <ScrollView
         horizontal
@@ -1535,9 +1614,9 @@ export default function GridPane({
       >
         <View style={{ width: visibleTotalWidth + extColumnsWidth }}>
           {/* Sticky header row */}
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, headerHeightStyle]}>
             {visibleColumns.map(col => {
-              const isFrozen = Platform.OS === 'web' && FROZEN_KEYS.includes(col.key);
+              const isFrozen = Platform.OS === 'web' && frozenKeys.includes(col.key);
               const isLastFrozen = isFrozen && col.key === FROZEN_KEYS[FROZEN_KEYS.length - 1];
               const frozenStyle: any = isFrozen ? {
                 position: 'sticky',
@@ -1562,7 +1641,11 @@ export default function GridPane({
                       not rendered on the last/actions column (no column
                       follows it) or on the row-number column (too narrow
                       to be useful). */}
-                  {col.key !== 'rowNum' && col.key !== 'actions' && (
+                  {col.key !== 'rowNum' && col.key !== 'actions'
+                    // Split view: Task Name's width is derived from the pane
+                    // (it ignores any saved override), so a handle there would
+                    // do nothing visible and silently re-size the List tab.
+                    && !(splitLead != null && col.key === 'name') && (
                     <ColumnResizeHandle
                       colKey={col.key}
                       currentWidth={col.width}
@@ -1582,8 +1665,13 @@ export default function GridPane({
           {/* Body rows — children of collapsed summaries are hidden. We keep
               their data intact (CPM still respects them) but suppress the row. */}
           <ScrollView
-            style={{ height: gridBodyH > 0 ? Math.max(120, gridBodyH - HEADER_HEIGHT) : 640 }}
+            ref={bodyScrollRef}
+            style={{ height: gridBodyH > 0 ? Math.max(120, gridBodyH - headerHeight) : 640 }}
             showsVerticalScrollIndicator
+            {...(onBodyScroll ? {
+              onScroll: (e: { nativeEvent: { contentOffset: { y: number } } }) => onBodyScroll(e.nativeEvent.contentOffset.y),
+              scrollEventThrottle: 16,
+            } : {})}
           >
             {(() => {
               const hidden = getHiddenTaskIds(tasks);
@@ -1617,7 +1705,7 @@ export default function GridPane({
                   onLongPress={() => openRowMenu(task)}
                   delayLongPress={350}
                   {...(Platform.OS === 'web'
-                    ? { onContextMenu: (e: any) => { e.preventDefault?.(); openRowMenu(task); } }
+                    ? { onContextMenu: (e: any) => { e.preventDefault?.(); openRowMenu(task, pointerOf(e)); } }
                     : {})}
                   style={[
                     styles.row,
@@ -1627,6 +1715,7 @@ export default function GridPane({
                     inCycleConflict && styles.rowConflict,
                     task.isSummary && styles.rowSummary,
                     { borderLeftColor: getPhaseColor(task.phase) },
+                    rowHeightStyle,
                   ]}
                   testID={`grid-row-${rowIndex}`}
                 >
@@ -1643,6 +1732,20 @@ export default function GridPane({
                 </Pressable>
               );
             })}
+
+            {/* Proposed rows (wave 6c): what a pending change would ADD,
+                read-only, in the same slots the Gantt draws its dashed
+                "+ title" bars. Nothing here is a task until he applies it. */}
+            {(previewAddedTitles ?? []).map((title, i) => (
+              <View
+                key={`preview-${i}`}
+                style={[styles.row, rowHeightStyle, styles.previewRow]}
+                testID={`grid-preview-row-${i}`}
+                accessibilityLabel={`Proposed task: ${title || 'Untitled'}`}
+              >
+                <Text style={styles.previewText} numberOfLines={1}>Proposed · {title || 'Untitled'}</Text>
+              </View>
+            ))}
 
             {/* Ghost row: always-ready inline task entry. Not a member of
                 `tasks`, so it's excluded from selection, bulk ops, hidden-ids,
@@ -1713,9 +1816,17 @@ export default function GridPane({
         title={rowMenu?.title ?? ''}
         actions={rowMenu?.actions ?? []}
         onClose={() => setRowMenu(null)}
+        anchor={rowMenu?.anchor}
       />
     </View>
   );
+}
+
+/** The pointer of a web right-click, in page coordinates (for the popover). */
+function pointerOf(e: any): RowMenuAnchor | undefined {
+  const x = e?.nativeEvent?.pageX ?? e?.pageX;
+  const y = e?.nativeEvent?.pageY ?? e?.pageY;
+  return typeof x === 'number' && typeof y === 'number' ? { x, y } : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -1807,16 +1918,18 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
       anchorDate: needsDate ? date : undefined,
     });
   };
+  const fAnchor = useSheetFrame('dialog', { visible: !!task, animationType: 'fade' });
+  useSheetPrimaryHotkey(!!task, apply);
 
   return (
     <Modal
       visible={!!task}
       transparent
-      animationType="fade"
+      animationType={fAnchor.animationType}
       onRequestClose={onClose}
     >
-      <TouchableOpacity style={anchorStyles.backdrop} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} style={anchorStyles.card} onPress={() => {}}>
+      <TouchableOpacity style={[anchorStyles.backdrop, fAnchor.overlay]} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={[anchorStyles.card, fAnchor.card]} onPress={() => {}}>
           <View style={anchorStyles.header}>
             <Anchor size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={anchorStyles.title}>Anchor</Text>
@@ -2025,13 +2138,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg,
     borderRadius: Tokens.radius.card,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: GRID_CONTAINER_BORDER,
     borderColor: t.line,
   },
   ghostRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
+    // The Gantt's sync tail is derived from this (utils/scheduleProLayout).
+    height: GRID_GHOST_ROW_H,
     paddingHorizontal: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: t.line,
@@ -2281,6 +2395,34 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: t.line,
     backgroundColor: t.surface,
+  },
+  // bulkBarPlacement 'float': over the bottom of the grid pane, so a selection
+  // never pushes the rows (and the Gantt bars beside them) out of line.
+  bulkBarFloat: {
+    position: 'absolute',
+    left: Layout.rowGap,
+    right: Layout.rowGap,
+    bottom: Layout.rowGap,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.md,
+    zIndex: 6,
+    ...Shadow.medium,
+  },
+  // A proposed (not yet applied) task: dashed success outline, italic.
+  previewRow: {
+    borderLeftWidth: 1,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: t.success,
+    backgroundColor: t.surface,
+    paddingHorizontal: 12,
+  },
+  previewText: {
+    fontSize: Type.footnote.fontSize,
+    fontStyle: 'italic',
+    color: t.textSecondary,
   },
   bulkClear: {
     width: 22, height: 22, borderRadius: 11,
