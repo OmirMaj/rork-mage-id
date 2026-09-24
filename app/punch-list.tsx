@@ -779,6 +779,10 @@ export default function PunchListScreen() {
           // the price on the door.
           requiredTier={requiredTierFor('punch_list_closeout')}
           onClose={() => router.back()}
+          // "Try it free on a sample job first" — the punch-walk tutorial,
+          // practised on the sample under the practice pass.
+          practiceTutorialId="punch-walk"
+          source="punch_list_gate"
         />
       );
     }

@@ -268,8 +268,24 @@ type SkipReason =
   | 'closed_in_quickbooks'
   // #38: the invoice's user_id is not the project owner's.
   | 'not_project_owner'
+  // The invoice is on a sample job ('Sample — …'): never chased, cron or button.
+  | 'sample_project'
   // #83: the client started a bank payment (ACH) that has not settled yet.
   | 'payment_pending';
+
+// >>> sample-project-fence (the app's utils/sampleGuard + utils/projectCap
+// rule, restated: a Deno function cannot import '@/utils'. Byte-exact
+// 'Sample', space, EM DASH U+2014, space — the same prefix the free-cap
+// trigger exempts; scripts/validate-sample-guard.ts pins the bytes.)
+// A sample job is real synced data (the tutorials bill it for real, to the
+// user's own inbox) and its seeded invoice #2 is 'sent' and will go overdue —
+// without this the cron would email a payment reminder to whoever is on the
+// sample, from a job that does not exist.
+const SAMPLE_PROJECT_PREFIX = 'Sample — ';
+function isSampleProjectName(name: string | null | undefined): boolean {
+  return typeof name === 'string' && name.startsWith(SAMPLE_PROJECT_PREFIX);
+}
+// <<< sample-project-fence
 
 // >>> payment-pending-hold (pure; mirrored in utils/billingFlowCore.ts and
 // executed against it by scripts/validate-w4-money-ledger-pending.ts)
@@ -542,6 +558,10 @@ async function processInvoice(
   }
 
   const project = projRes.data as ProjectRow;
+  // Sample fence (see isSampleProjectName): before anything is resolved or sent.
+  if (isSampleProjectName(project.name)) {
+    return skip('sample_project');
+  }
   if (!invoiceOwnedByProjectOwner(invoice, project)) {
     console.warn('[invoice-dunning] invoice not owned by the project owner — not chased under their name', invoice.id);
     return skip('not_project_owner');

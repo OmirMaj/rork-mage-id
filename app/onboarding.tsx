@@ -55,6 +55,8 @@ import { parseSeedBlob, draftsToSeeds, type SeedParseResult } from '@/utils/cost
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { takePendingDeepLink } from '@/utils/pendingDeepLink';
+import { ONBOARDING_TUTORIAL_ID, shouldAutoStartOnboardingTutorial } from '@/utils/tutorial/entryPoints';
+import { isTutorialActive, startTutorial } from '@/utils/tutorial/store';
 
 // Funnel screens are never a replay destination — a stash of one is left over
 // from a bounce, and replaying it would loop him back into first-run.
@@ -136,7 +138,10 @@ const PREVIEW_CARDS: PreviewCard[] = [
   {
     Icon: Check,
     title: 'Your turn',
-    body: 'Price a real bid in about two minutes — or walk a finished sample job first and see the invoices, daily reports and change orders with real numbers already in them.',
+    // The sample path is now learn-by-doing, not a look-around: the first
+    // tutorial (utils/tutorial/defs/dailyReportVoice) files today's report on
+    // the sample by voice, so the copy promises exactly that and its time.
+    body: "Price a real bid in about two minutes — or try it on a sample job first: you'll file a day's report by voice in about 35 seconds.",
     isTryIt: true,
   },
 ];
@@ -145,7 +150,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
-    completeOnboarding, settings, updateSettings, hasSeenOnboarding,
+    completeOnboarding, settings, updateSettings, hasSeenOnboarding, userRole,
     addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder,
   } = useProjects();
 
@@ -256,6 +261,20 @@ export default function OnboardingScreen() {
     if (step === 'rates') track(AnalyticsEvents.ONBOARDING_RATES_VIEWED);
   }, [step]);
 
+  // tutorial_offered {entry: 'onboarding'}: the last preview card carries
+  // 'Try it on a sample job', which starts the DFR tutorial for a contractor
+  // or 'both' persona. Once per mount — the offered → started denominator for
+  // this door (spec §13). No replay target is known yet here; the offer is
+  // the button, whatever handleTourSample then decides.
+  const tourOfferedRef = useRef(false);
+  const onTourCard = step === 'preview' && cardIndex >= PREVIEW_CARDS.length - 1;
+  useEffect(() => {
+    if (!onTourCard || tourOfferedRef.current) return;
+    if (!shouldAutoStartOnboardingTutorial({ persona: userRole, replayTarget: null })) return;
+    tourOfferedRef.current = true;
+    track(AnalyticsEvents.TUTORIAL_OFFERED, { tutorial_id: ONBOARDING_TUTORIAL_ID, entry: 'onboarding' });
+  }, [onTourCard, userRole]);
+
   const handleStarted = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Animated.sequence([
@@ -270,7 +289,7 @@ export default function OnboardingScreen() {
     setStep('rates');
   }, []);
 
-  // ── Tour a sample job ────────────────────────────────────────────────
+  // ── Try it on a sample job ───────────────────────────────────────────
   // utils/demoSeed builds a finished job — invoices, daily reports, punch
   // items, RFIs, a change order, photos — and it is the fastest "oh, I get
   // it" the product has. Until now the only door to it was a small link
@@ -357,8 +376,21 @@ export default function OnboardingScreen() {
     // Replacing with the tab shell and pushing on top gives Back something to
     // pop to and puts the tab bar underneath.
     router.replace('/(tabs)/(home)' as never);
+    // Learn by doing (spec entry point 1): the ONE place a tutorial starts by
+    // itself, and only because he just chose 'Try it on a sample job'. The
+    // host (components/tutorial/TutorialHost) waits for the tab shell to
+    // settle outside the funnel routes, then pushes the sample hub and the
+    // daily report on top of it — the same two-deep stack as below, so Back
+    // still has somewhere to go. A waiting deep link always wins (he came for
+    // that screen), and a client / property-manager persona never gets a tour.
+    if (shouldAutoStartOnboardingTutorial({ persona: userRole, replayTarget })) {
+      const started = await startTutorial(ONBOARDING_TUTORIAL_ID, { sandboxProjectId: projectId, entry: 'onboarding' });
+      // No host mounted, or the boot failed before it navigated: fall through
+      // to the plain sample job so the button never lands him nowhere.
+      if (started || isTutorialActive()) return;
+    }
     router.push((replayTarget ?? { pathname: '/project-detail', params: { id: projectId } }) as never);
-  }, [addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, completeOnboarding, router]);
+  }, [addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, completeOnboarding, router, userRole]);
 
   // NO SIGN-IN LINK ON THIS SCREEN, deliberately. app/_layout.tsx:563 only
   // routes here when `isAuthenticated` is already true — onboarding is a
@@ -611,12 +643,12 @@ export default function OnboardingScreen() {
                           pressed && { opacity: 0.82 },
                         ]}
                         accessibilityRole="button"
-                        accessibilityLabel="Tour a sample job"
+                        accessibilityLabel="Try it on a sample job"
                         accessibilityState={{ busy: seedingSample, disabled: seedingSample }}
                         testID="onboarding-tour-sample"
                       >
                         <Text style={styles.ctaSecondaryText}>
-                          {seedingSample ? 'Building the sample job…' : 'Tour a sample job'}
+                          {seedingSample ? 'Building the sample job…' : 'Try it on a sample job'}
                         </Text>
                       </Pressable>
                     )}
@@ -930,7 +962,7 @@ const styles = StyleSheet.create({
 
   // Secondary CTA under the primary — outlined cream on ink so it reads as a
   // real choice rather than a footnote, without competing with the filled
-  // primary. Used for "Tour a sample job" on the final preview card.
+  // primary. Used for "Try it on a sample job" on the final preview card.
   ctaSecondary: {
     flexDirection: 'row',
     alignItems: 'center',

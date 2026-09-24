@@ -30,6 +30,7 @@ import { isValidCron } from "../_shared/cronAuth.ts";
 import { qboFetch, svc, type QboConnectionRow } from "../_shared/qbo.ts";
 import { upsertInvoice } from "../_shared/qbo-mapping/invoice.ts";
 import { QBO_PUSH_OWED_FILTER } from "../_shared/qboSyncFilter.ts";
+import { notOnSampleProjectsFilter, sampleProjectIdsFor } from "../_shared/sampleFence.ts";
 import { upsertPaymentForInvoice } from "../_shared/qbo-mapping/payment.ts";
 import { ledgerFrom, ledgerSum, netPayable, settlementStatus, toCents2, type SettlementInput } from "../_shared/paymentMath.ts";
 import {
@@ -257,6 +258,13 @@ serve(async (req) => {
       //    Eligible: older than 5 min, fewer than 5 retries, limit 50/user.
       // -------------------------------------------------------------------
       const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+      // Sample fence (_shared/sampleFence): a sample job's invoices are real
+      // rows marked 'pending' like any other ("Send to me" in the invoice
+      // tutorial makes one non-draft), and must never reach his real books.
+      // Left out BY QUERY in steps 1 and 1b, so they never take a push slot
+      // and are never touched. A failed read throws: this user's run is
+      // recorded as failed and retried, never pushed blind.
+      const sampleProjectIds = await sampleProjectIdsFor(s, row.user_id);
       const { data: pending } = await s
         .from("invoices")
         .select("id,qbo_retry_count,qbo_error")
@@ -268,6 +276,7 @@ serve(async (req) => {
         // — a draft is not a receivable (audit #12). QBO_PUSH_OWED_FILTER is
         // shared with qbo-connect-status so the screen counts the same set.
         .or(QBO_PUSH_OWED_FILTER)
+        .or(notOnSampleProjectsFilter(sampleProjectIds))
         .or(`qbo_synced_at.is.null,qbo_synced_at.lt.${cutoff}`)
         .lt("qbo_retry_count", 5)
         .limit(50);
@@ -328,6 +337,7 @@ serve(async (req) => {
           .select("id,number,qbo_id,payments,tax_amount")
           .eq("user_id", row.user_id)
           .not("qbo_id", "is", null)
+          .or(notOnSampleProjectsFilter(sampleProjectIds))
           .lt("updated_at", settledCutoff)
           .order("id", { ascending: true })
           .range(from, from + PAGE - 1);

@@ -14,6 +14,7 @@ import {
   fmtMoneyCents,
   type UnsubscribeOpts,
 } from '@/utils/emailLayout';
+import { sampleInvoiceBannerHtml, samplePaySpecimenHtml } from '@/utils/invoiceSampleCore';
 
 export interface SendEmailParams {
   to: string;
@@ -552,12 +553,23 @@ export function buildInvoiceEmailHtml(opts: {
   /** Pre-rendered financing offer block — injected after the stat card.
       Pass '' or omit to suppress the block entirely. */
   financingHtml?: string;
+  /** The invoice is on a SAMPLE project (utils/sampleGuard) and is going to
+      the GC himself, never a client. The email then carries a SAMPLE banner
+      and a Pay specimen instead of a live button — and a payLinkUrl, if a
+      caller ever passed one, is ignored, so a sample email can never carry a
+      link that takes money. */
+  sample?: boolean;
 }): string {
   const {
     companyName, recipientName, projectName, invoiceNumber,
     totalDue, dueDate, paymentTerms, message,
-    contactName, contactEmail, contactPhone, payLinkUrl, financingHtml,
+    contactName, contactEmail, contactPhone, financingHtml,
   } = opts;
+  const sample = opts.sample === true;
+  // Sample mode drops the link here, at the one place the email is built —
+  // not only at the mint (which already refuses samples) — so no caller can
+  // put a live Pay button in front of anyone from a sample job.
+  const payLinkUrl = sample ? undefined : opts.payLinkUrl;
 
   const formattedDue = new Date(dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const stats = `
@@ -567,7 +579,15 @@ export function buildInvoiceEmailHtml(opts: {
     ${emailStatRow('Amount due', fmtMoneyCents(totalDue), { emphasize: true })}
   `;
 
-  const bodyHtml = `
+  const bodyHtml = sample
+    ? `
+    ${sampleInvoiceBannerHtml()}
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">On a real job this is what your client receives, with a live Pay button where the specimen is below.</p>'}
+    ${emailStatCard(stats)}
+    ${samplePaySpecimenHtml(totalDue)}
+  `
+    : `
     ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
     ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">A new invoice is ready for review and payment.</p>'}
     ${emailStatCard(stats)}
@@ -576,8 +596,8 @@ export function buildInvoiceEmailHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `Invoice #${invoiceNumber} for ${projectName} — ${fmtMoneyCents(totalDue)} due ${formattedDue}.`,
-    eyebrow: `Invoice #${invoiceNumber}`,
+    preheader: `${sample ? 'SAMPLE — sent to you only. ' : ''}Invoice #${invoiceNumber} for ${projectName} — ${fmtMoneyCents(totalDue)} due ${formattedDue}.`,
+    eyebrow: `${sample ? 'Sample · ' : ''}Invoice #${invoiceNumber}`,
     title: `${fmtMoneyCents(totalDue)} due`,
     subtitle: `Invoice #${invoiceNumber} for ${projectName}.`,
     bodyHtml,

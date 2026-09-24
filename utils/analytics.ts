@@ -1,3 +1,6 @@
+import { getActiveTutorialId } from '@/utils/tutorial/activeRun';
+import { isKnownSampleProjectId } from '@/utils/sampleGuard';
+
 type EventProperties = Record<string, string | number | boolean | undefined>;
 
 interface AnalyticsProvider {
@@ -16,9 +19,33 @@ export function setAnalyticsProvider(newProvider: AnalyticsProvider): void {
   provider = newProvider;
 }
 
+/**
+ * Funnel hygiene, applied to EVERY event so no call site can forget it:
+ *   • is_sample — an event that names a `project_id` says whether that project
+ *     is a sample (utils/sampleGuard's registry, kept by ProjectContext). The
+ *     sample seed fires PROJECT_CREATED / INVOICE_CREATED / DAILY_REPORT_CREATED
+ *     / PUNCH_ITEM_CREATED for data the user never made; without this the
+ *     Activation funnel counted a tapped "Try it on a sample job" as a first
+ *     project. A caller that already knows (addProject) passes is_sample and wins.
+ *   • in_tutorial / tutorial_id — while a tutorial run is live, so practice on
+ *     the sample is never read as real use (utils/tutorial/activeRun, which
+ *     imports nothing, so this file stays cycle-free).
+ * Exported for scripts/validate-sample-guard.ts; track() is the only caller.
+ */
+export function withFunnelContext(properties?: EventProperties): EventProperties | undefined {
+  let out = properties;
+  const pid = properties?.project_id;
+  if (typeof pid === 'string' && properties?.is_sample === undefined) {
+    out = { ...out, is_sample: isKnownSampleProjectId(pid) };
+  }
+  const tutorialId = getActiveTutorialId();
+  if (tutorialId) out = { ...out, in_tutorial: true, tutorial_id: tutorialId };
+  return out;
+}
+
 export function track(eventName: string, properties?: EventProperties): void {
   try {
-    provider.track(eventName, properties);
+    provider.track(eventName, withFunnelContext(properties));
   } catch (err) {
     console.log('[Analytics] Failed to track event:', eventName, err);
   }
@@ -105,4 +132,28 @@ export const AnalyticsEvents = {
   ESTIMATE_SHARED: 'estimate_shared',
   COST_RATES_SEEDED: 'cost_rates_seeded',
   MATERIAL_RECEIPT_SAVED: 'material_receipt_saved',
+  // ── Learn-by-doing tutorials (utils/tutorial, components/tutorial) ──
+  // Every event fired DURING a run also carries in_tutorial / tutorial_id
+  // (withFunnelContext above). The success metric is TUTORIAL_COMPLETED →
+  // the same create event with is_sample:false and no in_tutorial within 7
+  // days; for practice-passed tutorials, TUTORIAL_HANDOFF_CLICKED(paywall) →
+  // PAYWALL_VIEWED → SUBSCRIPTION_PURCHASED.
+  // TUTORIAL_OFFERED {tutorial_id, entry: onboarding|chip|checklist|paywall|hub|chain}
+  // TUTORIAL_STARTED {tutorial_id, version, entry, platform, persona, tier, practice_pass}
+  // TUTORIAL_STEP_COMPLETED {tutorial_id, step_id, step_index, ms, via: signal|next|skip_ahead|skip_step|assist}
+  // TUTORIAL_STUCK {tutorial_id, step_id} — 15 s idle on a step
+  // TUTORIAL_ASSIST_USED {tutorial_id, step_id, assist_id}
+  // TUTORIAL_TARGET_MISSING {tutorial_id, step_id, target_id} — target rot in the field
+  // TUTORIAL_EXITED {tutorial_id, step_id, reason}
+  // TUTORIAL_COMPLETED {tutorial_id, ms, skipped_steps}
+  // TUTORIAL_HANDOFF_CLICKED {tutorial_id, destination: real_job|create_job|paywall|stripe|chain}
+  TUTORIAL_OFFERED: 'tutorial_offered',
+  TUTORIAL_STARTED: 'tutorial_started',
+  TUTORIAL_STEP_COMPLETED: 'tutorial_step_completed',
+  TUTORIAL_STUCK: 'tutorial_stuck',
+  TUTORIAL_ASSIST_USED: 'tutorial_assist_used',
+  TUTORIAL_TARGET_MISSING: 'tutorial_target_missing',
+  TUTORIAL_EXITED: 'tutorial_exited',
+  TUTORIAL_COMPLETED: 'tutorial_completed',
+  TUTORIAL_HANDOFF_CLICKED: 'tutorial_handoff_clicked',
 } as const;

@@ -3,7 +3,8 @@
 // Renders a small circular button at bottom-right, above the tab bar.
 // Tapping opens a half-sheet with three options:
 //   1. Watch demo videos    → opens mageid.app/demo in the system browser
-//   2. Replay the tutorial  → reopens the in-app interactive Tutorial
+//   2. Tutorials            → the /tutorials hub: practise on a sample job
+//                              (the parent routes there; this sheet only asks)
 //   3. Email support        → mailto: with prefilled subject
 //
 // Render only on the screens where stuck users actually look — currently
@@ -28,8 +29,6 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TUTORIAL_SEEN_KEY } from '@/components/Tutorial';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -40,10 +39,11 @@ export interface HelpFabProps {
   /** Optional offset from the bottom — bump up by tab bar height
    *  on screens that have one. Defaults to 0. */
   bottomOffset?: number;
-  /** Called when the user taps "Replay the tutorial". Allows the
-   *  parent to set its own `showTutorial` state without us reaching
-   *  across screens. */
-  onReplayTutorial?: () => void;
+  /** Called when the user taps "Tutorials — practise on a sample job". The
+   *  parent owns the navigation (BrainSurface pushes /tutorials); with no
+   *  handler the row is not drawn — which is how it stays hidden for the
+   *  client / property-manager personas, who have nothing to practise. */
+  onOpenTutorials?: () => void;
   /** Speed-dial integration: when true, render NO floating "?" button —
    *  the HomeFabStack draws the mini-FAB and opens this component's help
    *  sheet via `openSignal`. All sheet content/handlers stay here; only
@@ -54,7 +54,7 @@ export interface HelpFabProps {
   openSignal?: number;
 }
 
-function HelpFabImpl({ bottomOffset = 0, onReplayTutorial, hideFab = false, openSignal }: HelpFabProps) {
+function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openSignal }: HelpFabProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -94,14 +94,10 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial, hideFab = false, open
     Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {/* ignore */});
   }, []);
 
-  const handleReplayTutorial = useCallback(async () => {
+  const handleOpenTutorials = useCallback(() => {
     setOpen(false);
-    // Clear the seen flag so the auto-open path on home picks it up
-    // as a fresh trigger if the user navigates back. Also call the
-    // parent's hook if provided so they can reopen immediately.
-    try { await AsyncStorage.removeItem(TUTORIAL_SEEN_KEY); } catch {}
-    onReplayTutorial?.();
-  }, [onReplayTutorial]);
+    onOpenTutorials?.();
+  }, [onOpenTutorials]);
 
   return (
     <>
@@ -141,14 +137,21 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial, hideFab = false, open
             <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
-          {onReplayTutorial ? (
-            <TouchableOpacity style={styles.row} onPress={handleReplayTutorial} activeOpacity={0.85} testID="help-fab-tutorial">
+          {onOpenTutorials ? (
+            <TouchableOpacity
+              style={styles.row}
+              onPress={handleOpenTutorials}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Tutorials — practise on a sample job"
+              testID="help-fab-tutorial"
+            >
               <View style={[styles.rowIcon, { backgroundColor: Colors.warning + '14' }]}>
                 <BookOpen size={16} color={Colors.warningLabel} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Replay the tutorial</Text>
-                <Text style={styles.rowSub}>The interactive walkthrough you saw on first launch.</Text>
+                <Text style={styles.rowTitle}>Tutorials — practise on a sample job</Text>
+                <Text style={styles.rowSub}>Do the real thing once, on a sample. Each under a minute.</Text>
               </View>
             </TouchableOpacity>
           ) : null}

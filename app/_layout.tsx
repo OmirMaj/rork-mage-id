@@ -29,6 +29,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { BrainSurface } from "@/components/brain/BrainSurface";
+import { TutorialHost } from "@/components/tutorial/TutorialHost";
 import { useBrainFabPresentation } from "@/components/brain/brainFabState";
 import OfflineSyncPill from "@/components/OfflineSyncPill";
 import { NailItToastHost } from "@/components/animations/NailItToast";
@@ -1263,6 +1264,10 @@ function RootLayoutNav() {
         name="notifications-inbox"
         options={{ headerShown: false }}
       />
+      {/* Help -> Tutorials: practise a real flow on the sample job. A plain
+          pushed screen, not a modal — a tutorial it starts pushes the sample
+          hub and the real screen on top of it. */}
+      <Stack.Screen name="tutorials" options={{ title: 'Tutorials' }} />
       <Stack.Screen
         name="drawing-analyzer"
         options={{ headerShown: false }}
@@ -1806,6 +1811,11 @@ export default Sentry.wrap(function RootLayout() {
                               <MarginAlertManager />
                               <RootLayoutNav />
                               <BrainSurface />
+                              {/* Learn-by-doing tutorials: the coach-mark engine's
+                                  root layer (zIndex 9500 — above NailItToast,
+                                  below Confetti; AlertHost is a Modal and draws
+                                  above it). Renders null when no tutorial runs. */}
+                              <TutorialHost />
                               <GlobalOfflineSyncPill />
                               <SearchHotkeyListener />
                               {/* Renders alerts on web, where RN's Alert is a

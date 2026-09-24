@@ -109,6 +109,14 @@ import {
   type NormalizedPoint,
   type WalkPin,
 } from '@/utils/punchPlanPin';
+// Learn-by-doing tutorials (tutorial 'punch-walk'): this full-screen Modal
+// draws ABOVE the app's root tutorial layer on iOS, so it hosts its own
+// ('planPin') and the coach spotlights the plan and Next from inside it.
+import { TutorialLayer } from '@/components/tutorial/TutorialLayer';
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { useTutorialAssist } from '@/utils/tutorial/store';
+import { SAMPLE_PLAN } from '@/utils/tutorial/fixtures';
+import { findSamplePlanSheet } from '@/utils/tutorial/sandbox';
 
 export interface PlanPinStepProps {
   visible: boolean;
@@ -205,6 +213,9 @@ export default function PlanPinStep(props: PlanPinStepProps) {
         // Taps are off while it closes, so a second tap on Next cannot submit twice.
         <View style={{ flex: 1 }} pointerEvents={visible ? 'auto' : 'none'}>
           <PlanPinStepBody key={openSeq} {...props} />
+          {/* LAST child, so it draws over the plan. Mounted only while the
+              step is open; idle it renders nothing. */}
+          <TutorialLayer host="planPin" />
         </View>
       ) : null}
     </Modal>
@@ -341,6 +352,16 @@ function PlanPinStepBody({
     if (!canPin) return;
     setPin(prev => prev ?? { x: 0.5, y: 0.5 });
   }, [canPin]);
+
+  // Tutorial 'Do it for me' on the drop-pin step: the pin goes on the Kitchen
+  // label of the bundled sample plan. Only on THAT sheet — its room points
+  // are normalised against that drawing, and on any other plan the same
+  // numbers would be a confident pin in a room that is not the kitchen. He
+  // still taps Next himself; an assist never presses it.
+  useTutorialAssist('punch.dropPinKitchen', () => {
+    if (!canPin || !sheet || findSamplePlanSheet([sheet], projectId)?.id !== sheet.id) return;
+    setPin({ x: SAMPLE_PLAN.rooms.Kitchen.x, y: SAMPLE_PLAN.rooms.Kitchen.y });
+  });
 
   const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -677,6 +698,7 @@ function PlanPinStepBody({
             style={StyleSheet.absoluteFill}
             contentContainerStyle={[styles.canvasContent, { width: container.w, height: container.h }]}
           >
+            <TutorialTarget id="punch.planImage">
             <View
               ref={boxRef}
               style={rect ? { width: rect.w, height: rect.h } : { width: container.w, height: container.h }}
@@ -739,7 +761,13 @@ function PlanPinStepBody({
                   <MapPin size={15} color={Colors.textOnAccent} strokeWidth={2.5} />
                 </View>
               )}
+              {/* The pin is down: its mount completes the tutorial's drop-pin
+                  step. A zero-size, untouchable sentinel beside the marker (the
+                  marker is absolutely positioned in this box, and a wrapper
+                  around it would move it). */}
+              {marker ? <TutorialTarget id="punch.pinMarker" /> : null}
             </View>
+            </TutorialTarget>
           </ScrollView>
         ) : null}
 
@@ -902,7 +930,9 @@ function PlanPinStepBody({
             <Button label={skipLabel} variant="secondary" onPress={handleSkip} fullWidth style={footerButtonPad} testID="walk-pin-skip" />
           </View>
           {sheet && imageState !== 'missing' && (
-            <View style={{ flex: 2 }}>
+            // The same flex:2 cell as before, now also the tutorial's Next
+            // target (TutorialTarget is a View carrying this style).
+            <TutorialTarget id="punch.pinNext" style={{ flex: 2 }}>
               <Button
                 // The disabled button says what it is waiting for.
                 label={pin && canPin
@@ -925,7 +955,7 @@ function PlanPinStepBody({
                 style={footerButtonPad}
                 testID="walk-pin-next"
               />
-            </View>
+            </TutorialTarget>
           )}
         </View>
       </View>

@@ -21,6 +21,9 @@ import type {
   ChangeOrder, RFI,
 } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+// The small sample's 8 estimate lines live with the tutorial fixtures, which
+// pin them to DEMO_FLAVORS.small.total (scripts/validate-tutorial-defs.ts).
+import { sampleLinkedEstimate, SAMPLE_RETAINAGE } from '@/utils/tutorial/fixtures';
 
 export type DemoFlavor = 'small' | 'medium' | 'large';
 
@@ -135,6 +138,17 @@ async function seedSmall(ctx: SeedCtx): Promise<{ projectId: string }> {
       estimatedDuration: meta.durationLabel,
       materials: [],
     },
+    // The same $422,400 job as 8 priced lines. Without them estimate.materials
+    // is [] and a progress invoice on the sample bills $0 — the invoice
+    // tutorial's "Bill 15%" would read "$0 due". bulkSavingsTotal is NEVER
+    // set: it is derived at render time and a seed must not fabricate it.
+    linkedEstimate: sampleLinkedEstimate(generateUUID(), isoDaysAgo(45)),
+    // The sample's contract term for retainage: none held (a small residential
+    // remodel), recorded as HIS answer (assumed:false). Without it every
+    // invoice on the sample opens the "Retainage on this job" ask on mount,
+    // which hid the invoice tutorial's first step behind a question it never
+    // mentions. 0 sits inside project_financials' 0–100 CHECK.
+    ...SAMPLE_RETAINAGE,
     status: 'in_progress',
   } as unknown as Project);
 

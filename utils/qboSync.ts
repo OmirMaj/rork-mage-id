@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/lib/supabase';
+import { isSampleQboObject } from '@/utils/sampleGuard';
 
 export interface QboStatus {
   /** 'unknown' = the status check itself failed (no signal, a server error, or
@@ -152,6 +153,10 @@ export async function fetchQboStatus(): Promise<QboStatus> {
 
 /** Fire-and-forget push (used by useQboSync from financial mutations). */
 export async function triggerQboSync(kind: 'project' | 'invoice' | 'payment' | 'item', op: 'upsert' | 'delete', objectId: string): Promise<void> {
+  // A sample job never reaches QuickBooks. One choke point covers every
+  // ProjectContext call site (seed invoices, tutorial sends, payments) without
+  // touching their validator-pinned lines; qbo-sync refuses samples server-side too.
+  if (isSampleQboObject(kind, objectId)) return;
   try { await supabase.functions.invoke('qbo-sync', { body: { kind, op, objectId } }); }
   catch { /* fire-and-forget; status flows via the qbo_sync_status field on the row */ }
 }

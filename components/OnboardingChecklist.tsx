@@ -47,6 +47,15 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getFreeTrialsRemaining } from '@/utils/aiRateLimiter';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { checklistShowMe, type ChecklistShowMe } from '@/utils/tutorial/entryPoints';
+import { TUTORIAL_PRACTICE_PASS } from '@/utils/tutorial/practicePass';
+import { isFieldOnlyUser } from '@/utils/tutorial/sandboxCore';
+import { useTutorialProgress } from '@/utils/tutorial/progress';
+import { startTutorial } from '@/utils/tutorial/store';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 const DISMISSED_KEY = 'mageid_onboarding_checklist_dismissed_v2';
 /** Hide the panel automatically when at least this many items are done.
@@ -111,6 +120,14 @@ function OnboardingChecklistImpl({
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
+  // Learn-by-doing: 'Show me first' under the Try-it and first-invoice rows
+  // practises the step on a sample job. It NEVER ticks the row — the ticks
+  // stay real-state only (practising is not doing).
+  const { projects, userRole } = useProjects();
+  const { user } = useAuth();
+  const { canAccess } = useTierAccess();
+  const { progress: tutorialProgress } = useTutorialProgress();
+  const fieldOnly = useMemo(() => isFieldOnlyUser(projects, user?.id ?? null), [projects, user?.id]);
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   // Free gets TWO AI estimates for life. The row that spends them is labelled
   // "Try it free" and never said how many were left, so the meter only became
@@ -234,6 +251,44 @@ function OnboardingChecklistImpl({
     });
   }, [enter]);
 
+  const showMeFor = useCallback((item: ChecklistItem): ChecklistShowMe | null => checklistShowMe(item.key, {
+    done: item.done,
+    persona: userRole,
+    fieldOnly,
+    progress: tutorialProgress,
+    canAccess,
+    practicePass: TUTORIAL_PRACTICE_PASS,
+  }), [userRole, fieldOnly, tutorialProgress, canAccess]);
+
+  // tutorial_offered {entry: 'checklist'} — the denominator of the
+  // offered → started funnel for this door (spec §13). Once per tutorial per
+  // mount, and only while the panel is actually on screen (the same hide
+  // rules as the render below).
+  const offeredRef = React.useRef<Set<string>>(new Set());
+  const checklistVisible = dismissed === false && doneCount < AUTO_HIDE_AT_DONE;
+  const offeredIds = useMemo(() => {
+    if (!checklistVisible) return [] as string[];
+    const out: string[] = [];
+    for (const item of items) {
+      const m = showMeFor(item);
+      if (m?.kind === 'offer') out.push(m.tutorialId);
+    }
+    return out;
+  }, [checklistVisible, items, showMeFor]);
+  useEffect(() => {
+    for (const id of offeredIds) {
+      if (offeredRef.current.has(id)) continue;
+      offeredRef.current.add(id);
+      track(AnalyticsEvents.TUTORIAL_OFFERED, { tutorial_id: id, entry: 'checklist' });
+    }
+  }, [offeredIds]);
+
+  const handleShowMe = useCallback((offer: ChecklistShowMe) => {
+    if (offer.kind !== 'offer') return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    void startTutorial(offer.tutorialId, { entry: 'checklist' });
+  }, []);
+
   const handleTap = useCallback((item: ChecklistItem) => {
     if (item.heldReason || item.pendingLabel) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -286,9 +341,10 @@ function OnboardingChecklistImpl({
         {items.map(item => {
           const Icon = item.Icon;
           const inert = !!item.heldReason || !!item.pendingLabel;
+          const showMe = showMeFor(item);
           return (
+            <React.Fragment key={item.key}>
             <TouchableOpacity
-              key={item.key}
               style={[styles.item, item.done && styles.itemDone, !!item.heldReason && styles.itemHeld]}
               onPress={() => handleTap(item)}
               activeOpacity={inert ? 1 : 0.85}
@@ -322,6 +378,27 @@ function OnboardingChecklistImpl({
                 )
               )}
             </TouchableOpacity>
+            {showMe ? (
+              showMe.kind === 'practised' ? (
+                <Text style={styles.showMePractised} testID={`onboarding-checklist-${item.key}-practised`}>
+                  Practised on the sample
+                </Text>
+              ) : (
+                // A sibling, not nested in the row: a button inside a button is
+                // one control to VoiceOver and two <button>s on the web.
+                <TouchableOpacity
+                  style={styles.showMe}
+                  onPress={() => handleShowMe(showMe)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${showMe.label} — practise on a sample job`}
+                  testID={`onboarding-checklist-${item.key}-show-me`}
+                >
+                  <Text style={styles.showMeText}>{showMe.label}</Text>
+                </TouchableOpacity>
+              )
+            ) : null}
+            </React.Fragment>
           );
         })}
       </View>
@@ -409,4 +486,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   itemMetaText: { fontSize: Type.caption2.fontSize, color: t.accentLabel, fontWeight: '600' as const, opacity: 0.8 },
   itemHeld: { opacity: 0.7 },
   itemHeldText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const },
+  showMe: {
+    alignSelf: 'flex-start' as const,
+    marginLeft: 36,
+    marginTop: -2,
+    minHeight: Tokens.touchTarget.min,
+    justifyContent: 'center' as const,
+  },
+  showMeText: { fontSize: Type.caption1.fontSize, color: t.accentLabel, fontWeight: '700' as const },
+  showMePractised: {
+    marginLeft: 36,
+    marginTop: -2,
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    fontWeight: '600' as const,
+  },
 });

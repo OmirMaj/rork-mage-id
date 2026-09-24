@@ -6,6 +6,7 @@ import { upsertItem }      from "../_shared/qbo-mapping/item.ts";
 import { upsertInvoice }   from "../_shared/qbo-mapping/invoice.ts";
 import { upsertPaymentForInvoice } from "../_shared/qbo-mapping/payment.ts";
 import { isQboOutageError, keepClosedFlag, markPushFailure, markReversalRecorded, paymentSweepFloor } from "../_shared/paymentLedger.ts";
+import { qboObjectOnSample } from "../_shared/sampleFence.ts";
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -121,6 +122,17 @@ serve(async (req) => {
     if (out.error) return json({ success: false, error: out.error }, 500);
     if (!out.wrote) return json({ success: true, skipped: 'not-a-pending-reversal' });
     return json({ success: true });
+  }
+
+  // Sample fence (_shared/sampleFence): nothing on a sample job ("Sample — …")
+  // is ever pushed to his real books. The app already skips samples; this
+  // holds for a stale build, a replayed offline queue or a crafted call. A row
+  // that cannot be read is refused (500) rather than pushed blind — an invoice
+  // stays 'pending', and the reconciler, which fences by project too, retries.
+  if (body.op === 'upsert') {
+    const onSample = await qboObjectOnSample(svc(), body.kind, body.objectId, auth.userId);
+    if (onSample === 'sample') return json({ success: true, skipped: 'sample_project' });
+    if (onSample === 'unknown') return json({ success: false, error: 'Could not read the record to sync' }, 500);
   }
 
   try {

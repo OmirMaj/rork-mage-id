@@ -112,6 +112,13 @@ import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { daysUntilCalendarDay, dayOrInstantDate, calendarDayOf } from '@/utils/calendarDate';
 import { pdfFailureMessage } from '@/utils/platformFile';
+// Learn-by-doing tutorials (utils/tutorial): every hub tile and group header is
+// a spotlight target — each tutorial ends by lighting the tile its result
+// landed on ("Daily Reports · 5"). Idle cost: a View and a Map write each.
+import { TutorialTarget } from '@/components/tutorial/TutorialTarget';
+import { TutorialScrollAnchor } from '@/components/tutorial/TutorialScrollAnchor';
+import { useTutorialPractice } from '@/utils/tutorial/store';
+import type { FeatureKey } from '@/utils/tutorial/types';
 import {
   computeDailyLogCompletion, calendarOfSchedule,
   dailyLogHeadline, dailyLogEmptyDayLine, dailyLogGapLine, dailyLogTodayLine,
@@ -369,6 +376,8 @@ export default function ProjectDetailScreen() {
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
+  // So the tutorial coach can scroll a tile into view (TutorialScrollAnchor).
+  const hubScrollRef = useRef<ScrollView>(null);
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
@@ -400,13 +409,18 @@ export default function ProjectDetailScreen() {
   // Tiles whose screens hard-gate behind a paywall. Pre-fix a free user
   // tapped Punch List / RFIs / Change Orders and hit a full-screen wall
   // with no warning; a small lock on the tile sets the expectation.
+  // The tutorial practice pass (utils/tutorial/practicePass), opt-in here so
+  // the sample's Punch List tile the punch tutorial lights is not drawn
+  // locked. Display only: every screen behind a tile runs its own gate, and
+  // only punch-walk and invoice honour the pass (see hooks/useProjectAccess).
+  const hubPractice = useTutorialPractice(id);
   const lockedTileKeys = useMemo(
     () => hubLockedTileKeys({
-      canAccessProject: f => canAccessProject(f as Parameters<typeof canAccessProject>[0]),
+      canAccessProject: f => canAccessProject(f as Parameters<typeof canAccessProject>[0]) || hubPractice.has(f as FeatureKey),
       canAccessOwnTier: f => canAccess(f as Parameters<typeof canAccess>[0]),
       roleLoading: roleState.isLoading,
     }) as Set<SectionKey>,
-    [canAccessProject, canAccess, roleState.isLoading],
+    [canAccessProject, canAccess, roleState.isLoading, hubPractice],
   );
 
   // Inline gate flags for the Financial Health sub-buttons and the AI
@@ -2167,10 +2181,12 @@ export default function ProjectDetailScreen() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={stackScreenOptions} />
       <ScrollView
+        ref={hubScrollRef}
         {...fabScroll}
         contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]}
         showsVerticalScrollIndicator={false}
       >
+        <TutorialScrollAnchor scrollRef={hubScrollRef}>
         {/* The hero card unrolls like a blueprint when the project opens. */}
         <BlueprintReveal>
         <View style={styles.heroCard}>
@@ -2615,9 +2631,20 @@ export default function ProjectDetailScreen() {
             const a11yLabel = `${tile.label}`
               + (tile.count != null ? `, ${tile.count} ${tile.count === 1 ? 'item' : 'items'}` : '')
               + (lockReason ? `, locked, ${lockReason}` : '');
+            // The tutorial target wraps the tile; the tile's styles
+            // (sectionTileDesktop included) stay on the HardHatTap, which puts
+            // them on its INNER Animated.View inside an unstyled Pressable.
+            // Phone: the body is a stretching column, so an unstyled wrapper is
+            // neutral. Desktop: the body is a row-wrap grid that STRETCHES its
+            // items to the line height, and the tile's flexGrow:1 filled the
+            // stretched Pressable — equal-height tiles per row. An unstyled
+            // (column) wrapper would stretch while the Pressable inside kept
+            // its content height; a ROW wrapper stretches the Pressable on its
+            // cross axis again, and its width stays the Pressable's own content
+            // width, exactly as when the Pressable was the grid item.
             return (
+              <TutorialTarget key={tile.key} id={`hub.tile.${tile.key}`} style={layout.isDesktop ? styles.tileTargetDesktop : undefined}>
               <HardHatTap
-                key={tile.key}
                 style={layout.isDesktop ? [styles.sectionTile, styles.sectionTileDesktop] : styles.sectionTile}
                 hatColor={tile.color}
                 accessibilityRole="button"
@@ -2673,6 +2700,7 @@ export default function ProjectDetailScreen() {
                 )}
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </HardHatTap>
+              </TutorialTarget>
             );
           };
 
@@ -2686,6 +2714,7 @@ export default function ProjectDetailScreen() {
                 const GroupIcon = group.icon;
                 return (
                   <View key={group.key} style={styles.tileGroup}>
+                    <TutorialTarget id={`hub.group.${group.key}`}>
                     <TouchableOpacity
                       style={styles.tileGroupHeader}
                       onPress={() => toggleGroup(group.key)}
@@ -2703,6 +2732,7 @@ export default function ProjectDetailScreen() {
                       )}
                       {collapsed ? <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
                     </TouchableOpacity>
+                    </TutorialTarget>
                     {/* No wrapper — conditional render only. LayoutAnimation
                         in toggleGroup() handles the smooth open/close.
                         SawCutReveal had a bug where it kept the body mounted
@@ -4984,6 +5014,7 @@ export default function ProjectDetailScreen() {
             <Text style={styles.deleteButtonText}>{leaving ? 'Leaving…' : checkingLeave ? 'Sending unsynced changes…' : 'Leave project'}</Text>
           </TouchableOpacity>
         ) : null}
+        </TutorialScrollAnchor>
       </ScrollView>
 
       <Paywall
@@ -5657,6 +5688,16 @@ export default function ProjectDetailScreen() {
           projectId into /copilot-hub. Mounting UniversalMicButton with
           `hideFab` would have left an unopenable modal plus three context
           subscriptions behind, so the mount is gone rather than muted. */}
+
+      {/* Tutorial blocker: the hub's section, detail, revision, share, edit,
+          note, action, lightbox, paywall and reflow sheets have no tutorial
+          layer and draw ABOVE the root one on iOS, so while any is up the
+          coach draws nothing rather than a dim and a card behind the sheet.
+          Zero-size, inert. */}
+      {(activeTile !== null || detailModal !== null || selectedRevision !== null || showShareModal || showEditModal
+        || showNoteModal || actionSheetRef !== null || lightboxPhoto !== null || portalPaywallOpen || coReflowPreview !== null)
+        ? <TutorialTarget id="hub.modalUp" />
+        : null}
     </View>
   );
 }
@@ -6200,6 +6241,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // into columns instead. flexBasis picks the column count.
   tileGroupBodyDesktop: { flexDirection: 'row' as const, flexWrap: 'wrap' as const },
   sectionTileDesktop: { flexGrow: 1, flexBasis: 240, maxWidth: 400 },
+  // The hub.tile.* tutorial wrapper on the desktop grid (see renderTile).
+  tileTargetDesktop: { flexDirection: 'row' as const },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
   sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },

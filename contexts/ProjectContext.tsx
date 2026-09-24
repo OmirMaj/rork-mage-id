@@ -65,6 +65,9 @@ const mintShareToken = (): string | undefined => mintedShareToken(() => Crypto.r
 import type { UnsavedProjectPins, CollaboratorRowLike, PortalFedList, PortalSideList, PortalServerReads } from '@/utils/projectContextPure';
 import { generateUUID } from '@/utils/generateId';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+// Sample fences: no QuickBooks push from a sample, and every create event says
+// whether it came from one (utils/sampleGuard — the outbound invariant).
+import { isSampleProject, noteSampleProject, noteSampleScope } from '@/utils/sampleGuard';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { estimateGroundingProps } from '@/utils/activationSignals';
 import type { Delivery, DeliveryReceipt } from '@/utils/deliverySchedule';
@@ -5113,6 +5116,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     }).catch(() => { /* silent — falls back to no-coords path */ });
   }, [saveProjectsMutation, syncProjectToSupabase]);
 
+  // Keep utils/sampleGuard's id registry current. track() (is_sample) and the
+  // QuickBooks call sites are handed ids, not projects, and read it; replacing
+  // it wholesale here means a sign-out's empty lists empty it too.
+  useEffect(() => { noteSampleScope(projects, invoices); }, [projects, invoices]);
+
   const addProject = useCallback((incoming: Project) => {
     // A-1: the creator owns what they create. Stamps ownerUserId and drops the
     // loader's per-load stamps that a clone of a SHARED project (home →
@@ -5122,15 +5130,30 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // ownerUserId can only be a cache predating the field (classifyProjectForSync).
     const project = claimProjectForUser(incoming, userId);
     const updated = [project, ...projects];
+    // A sample (utils/demoSeed) is noted NOW, not on the next render's effect:
+    // the seeder adds its invoices, reports and punch items in this same tick,
+    // and their create events must already read is_sample: true.
+    const projectIsSample = isSampleProject(project);
+    noteSampleProject(project);
     // Activation funnel: fire once at the imperative create (never on hydration,
     // which replaces `projects` via the query, not through addProject).
     track(AnalyticsEvents.PROJECT_CREATED, {
       total_projects: updated.length,
       type: project.type,
       has_estimate: !!project.linkedEstimate,
-      is_first_project: updated.length === 1,
+      // First REAL project: a sample is never first, and samples don't count
+      // toward it. "Try it on a sample job" seeds before any real job, so a
+      // raw length read tagged the sample first and his real first job not.
+      is_first_project: !projectIsSample && updated.filter(p => !isSampleProject(p)).length === 1,
+      // The seed used to fire this with is_first_project: true — a tapped
+      // "Try it on a sample job" read as a first real job in the funnel.
+      is_sample: projectIsSample,
+      project_id: project.id,
     });
-    if (project.linkedEstimate || project.status === 'estimated') {
+    // The small sample carries a linkedEstimate (so a progress invoice on it
+    // bills real lines). Nobody generated that estimate: firing the aha event
+    // for it would count every sample seed as an activated user.
+    if (!projectIsSample && (project.linkedEstimate || project.status === 'estimated')) {
       // receipts / laborSamples / seeds are not available in ProjectContext's
       // scope — buildCostDatabase is called with the data that IS here
       // (projects + commitments). Grounding reflects closed-job history only —
@@ -5152,7 +5175,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // the "new project vanishes on reload" bug).
     syncProjectToSupabase(project, 'upsert', { immediate: true });
     geocodeIfNeeded(project);
-    if (canSync && userId) {
+    // Never push a sample into his QuickBooks (utils/sampleGuard).
+    if (canSync && userId && !projectIsSample) {
       void import('@/utils/qboSync').then(m => m.triggerQboSync('project', 'upsert', project.id));
     }
     // #4 (wave 4): how the job's create write ended, for a caller (the sample
@@ -5931,6 +5955,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       total_invoices: updated.length,
       type: finalInvoice.type,
       total_due: finalInvoice.totalDue,
+      // track() derives is_sample from project_id (utils/analytics).
+      project_id: finalInvoice.projectId,
     });
     setInvoices(updated);
     saveInvoicesMutation.mutate(updated);
@@ -6492,6 +6518,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     dailyReportsRef.current = updated;
     setDailyReports(updated);
     saveDailyReportsMutation.mutate(updated);
+    // Defined in utils/analytics since launch and fired nowhere until now. Here,
+    // at the imperative create — never on hydration. track() adds is_sample
+    // (the seed files 4 reports) and in_tutorial from project_id / the run.
+    track(AnalyticsEvents.DAILY_REPORT_CREATED, {
+      status: finalReport.status,
+      crew: (finalReport.manpower ?? []).reduce((n, m) => n + (Number(m.headcount) || 0), 0),
+      project_id: finalReport.projectId,
+    });
     propagateProgressFromDFR(finalReport);
     if (canSync) {
       // One column list for create and edit (dailyReportColumns, #21).
@@ -7920,6 +7954,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     punchItemsRef.current = updated;
     setPunchItems(updated);
     savePunchItemsMutation.mutate(updated);
+    // Defined since launch, fired nowhere until now (see addDailyReport).
+    track(AnalyticsEvents.PUNCH_ITEM_CREATED, {
+      pinned: !!item.planSheetId,
+      has_photo: !!(item.photoUri || item.photoStoragePath || item.photoLocalUri),
+      project_id: item.projectId,
+    });
     if (canSync) void touchedWrite(proDocWriteTouchRef, item.id, () => supabaseWrite('punch_items', 'insert', punchItemToRow(item)));
   }, [savePunchItemsMutation, canSync, punchItemToRow, stagePunchPhoto, stampPunchCreator]);
 
@@ -7935,6 +7975,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     punchItemsRef.current = updated;
     setPunchItems(updated);
     savePunchItemsMutation.mutate(updated);
+    // One event per item, the same as N single adds (a walk filed in a batch
+    // is N items created, not one).
+    items.forEach(item => track(AnalyticsEvents.PUNCH_ITEM_CREATED, {
+      pinned: !!item.planSheetId,
+      has_photo: !!(item.photoUri || item.photoStoragePath || item.photoLocalUri),
+      project_id: item.projectId,
+      batch: true,
+    }));
     if (canSync) items.forEach(item => { void touchedWrite(proDocWriteTouchRef, item.id, () => supabaseWrite('punch_items', 'insert', punchItemToRow(item))); });
   }, [savePunchItemsMutation, canSync, punchItemToRow, stagePunchPhoto, stampPunchCreator]);
 

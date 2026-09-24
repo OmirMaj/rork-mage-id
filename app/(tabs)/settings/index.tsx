@@ -36,7 +36,6 @@ import { THEME_PRESETS } from '@/types';
 import type { AppSettings, PDFNamingSettings } from '@/types';
 import { resolvePricingMarket } from '@/constants/materials';
 import SignaturePad from '@/components/SignaturePad';
-import Tutorial from '@/components/Tutorial';
 import Paywall from '@/components/Paywall';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
@@ -423,7 +422,6 @@ export default function SettingsScreen() {
   const [signatureData, setSignatureData] = useState<string[] | undefined>(branding.signatureData);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
   const [paywallTier, setPaywallTier] = useState<'pro' | 'business' | 'enterprise' | null>(null);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
@@ -2050,16 +2048,21 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHeader}>HELP & SUPPORT</Text>
         <View style={styles.group}>
+          {/* The learn-by-doing hub (app/tutorials.tsx): real screens, a
+              sample job, one action at a time. It replaced the mock slideshow
+              modal this row used to open. */}
           <TouchableOpacity
             style={styles.row}
-            onPress={() => setShowTutorial(true)}
+            onPress={() => router.push('/tutorials')}
             activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel="Tutorials — practise on a sample job"
             testID="show-tutorial"
           >
             <View style={styles.iconWrap}>
               <BookOpen size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Show Tutorial</Text>
+            <Text style={styles.rowLabel}>Tutorials</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
@@ -2253,7 +2256,6 @@ export default function SettingsScreen() {
         </Text>
       </ScrollView>
 
-      <Tutorial visible={showTutorial} onClose={() => setShowTutorial(false)} />
       <Paywall
         visible={paywallTier !== null}
         feature={paywallTier === 'enterprise' ? 'Enterprise Plan'

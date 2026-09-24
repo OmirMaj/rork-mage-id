@@ -564,7 +564,6 @@ safe-area-insets bottom padding, pill-shaped category chips.""",
         "app/documents.tsx",
         "utils/dataExport.ts",
         "components/SignaturePad.tsx",
-        "components/Tutorial.tsx",
         "components/PDFPreSendSheet.tsx",
     ],
 )

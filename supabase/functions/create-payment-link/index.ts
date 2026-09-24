@@ -49,6 +49,8 @@
 //   { success: false, error: string }
 //   409 { success: false, error: 'payment_pending' } — a bank payment through
 //       the previous link is still settling (#83); no new link is minted.
+//   409 { success: false, error: 'sample_project' } — the record belongs to a
+//       sample job ('Sample — …'); a sample never takes real money.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 // EDGE-F8 / MONEY-F8: identity + tier are server-resolved (GoTrue-verified JWT,
@@ -79,6 +81,20 @@ function paymentPendingHolds(pendingAt: string | null | undefined, nowMs: number
   return nowMs - t < PAYMENT_PENDING_HOLD_MS;
 }
 // <<< payment-pending-hold
+
+// >>> sample-project-fence (the app's utils/sampleGuard + utils/projectCap
+// rule, restated: a Deno function cannot import '@/utils'. Byte-exact
+// 'Sample', space, EM DASH U+2014, space — the same prefix the free-cap
+// trigger exempts; scripts/validate-sample-guard.ts pins the bytes.)
+// A sample job ("Sample — Sarah's Place") is real synced data so the tutorials
+// run the real paths, but it must never reach anyone: the app already refuses
+// to mint here on a sample, and this fence holds for a stale build, a replayed
+// offline queue or a crafted call.
+const SAMPLE_PROJECT_PREFIX = "Sample — ";
+function isSampleProjectName(name: string | null | undefined): boolean {
+  return typeof name === "string" && name.startsWith(SAMPLE_PROJECT_PREFIX);
+}
+// <<< sample-project-fence
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -351,17 +367,22 @@ serve(async (req) => {
     const projectId = ownRows[0].project_id ?? null;
     if (projectId) {
       const projRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(projectId)}&select=user_id&limit=1`,
+        `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(projectId)}&select=user_id,name&limit=1`,
         { headers },
       );
       if (!projRes.ok) {
         console.error("[create-payment-link] project lookup failed:", projRes.status);
         return jsonResponse({ success: false, error: "Could not verify project ownership" }, 500);
       }
-      const projRows = await projRes.json() as { user_id: string | null }[];
+      const projRows = await projRes.json() as { user_id: string | null; name?: string | null }[];
       if (!projRows[0] || projRows[0].user_id !== callerSub) {
         console.warn("[create-payment-link] caller", callerSub, "is not the owner of project", projectId);
         return jsonResponse({ success: false, error: "Only the project owner can bill this project's client" }, 403);
+      }
+      // Sample fence: no Stripe link for a sample job, ever (see the header).
+      // After the owner check, so a non-owner still learns nothing about it.
+      if (isSampleProjectName(projRows[0].name)) {
+        return jsonResponse({ success: false, error: "sample_project" }, 409);
       }
     }
     // #83 / #135: the client's bank payment (ACH) through the last link is
