@@ -534,3 +534,16 @@ serve(async (req) => {
   } finally { clearTimeout(tm); }
 });
 ```
+
+## RESOLVED — 2026-09-23 ~20:15 ET
+
+- Live check through the master-only probe: all 16 runs (8 bodies × 2) PASSED — HTTP 200, STOP,
+  0.9–12 s, 8–110 output tokens, closed-schema assertion clean, every feature condition met
+  (graded by the script's `--eval` path over answers collected in the founder's signed-in tab).
+- Ship order: OTA e41b552a (production; preview 82d15424) from 7f4cc150 FIRST, so phones send the
+  closed-shape hints; THEN `ai` deployed from 7f4cc150 (verify_jwt true; anon → 401).
+- End-to-end in the live app (Henderson, Schedule Pro "Tell me what to change"): "Add three tasks
+  after Rough Inspection: fire blocking 2 days, then insulation inspection 1 day, then a moisture
+  test 1 day" → review "Understood 3 changes", three chained adds, finish day 33 → 37, "Apply 3
+  changes" (discarded, schedule untouched).
+- The temporary ai-schema-probe function was deleted (404).
