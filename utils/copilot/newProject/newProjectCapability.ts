@@ -9,6 +9,8 @@ import type { Project, ProjectType, QualityTier } from '@/types';
 import { newProjectGaps, type NewProjectDraft } from './newProjectGaps';
 import { buildNewProjectGrounding } from './newProjectGrounding';
 import { generateUUID } from '@/utils/generateId';
+import { projectTypeFromParsedType, scopeAnswerForProject } from '@/utils/scopeQuestions';
+import { cleanProjectTypeOther, projectTypeLabel } from '@/utils/projectTypes';
 
 export interface NewProjectApplied { route: '/project-detail'; projectId: string }
 
@@ -28,10 +30,19 @@ export function projectCapError(): Error & { code: string } {
 
 const TYPES: ProjectType[] = [
   'new_build', 'renovation', 'addition', 'remodel', 'commercial', 'landscape',
-  'roofing', 'flooring', 'painting', 'plumbing', 'electrical', 'concrete',
+  'roofing', 'flooring', 'painting', 'plumbing', 'electrical', 'concrete', 'other',
 ];
 const asType = (v: unknown): ProjectType | null =>
   typeof v === 'string' && (TYPES as string[]).includes(v) ? (v as ProjectType) : null;
+
+/** Q6: the model's `type` — an id, a label or the kind of job in his words
+ *  ("HVAC changeout") — resolved to a real type (+ his words for Other).
+ *  Null when it names no job (null, junk, a bare "other"), so the type gap
+ *  still asks instead of guessing. */
+function resolveDraftType(v: unknown): { type: ProjectType; typeOther: string | null } | null {
+  const r = projectTypeFromParsedType(v);
+  return r ? { type: r.type, typeOther: r.type === 'other' ? cleanProjectTypeOther(r.projectTypeOther) || null : null } : null;
+}
 
 const QUALITIES: QualityTier[] = ['economy', 'standard', 'premium', 'luxury'];
 const asQuality = (v: unknown): QualityTier | null =>
@@ -82,7 +93,10 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
       '  cleaned up from how they described it. Always try to produce one.',
       '• type: one of new_build | renovation | addition | remodel | commercial |',
       '  landscape | roofing | flooring | painting | plumbing | electrical |',
-      '  concrete — only if the description makes it clear; else null.',
+      '  concrete — only if the description makes it clear; else null. A repipe',
+      '  is plumbing; a rewire or panel upgrade is electrical. If the job is',
+      '  clear but NONE of these fits (an HVAC changeout, windows & doors), put',
+      '  the kind of job in 2-5 of their words instead, e.g. "HVAC changeout".',
       '• quality: economy | standard | premium | luxury — only if they named a',
       '  finish level; else null.',
       '• location: a city / area only if they gave one; else null.',
@@ -99,24 +113,34 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
     schemaHint: { name: 'Miller Addition', type: null, quality: null, location: null, squareFootage: null, description: 'Two-story addition' },
   }),
 
-  mergeDraft: (draft, aiJson, meta): NewProjectDraft => ({
+  mergeDraft: (draft, aiJson, meta): NewProjectDraft => {
+    // Resolve (not just validate) here so a junk value can't suppress the
+    // type/finish gap, and his words for an off-list job survive as Other.
+    const heard = resolveDraftType(aiJson?.type);
+    return {
     name: (typeof aiJson?.name === 'string' && aiJson.name.trim() ? aiJson.name : draft.name) ?? meta?.transcript?.slice(0, 80) ?? null,
-    // Validate the enum here so a junk value can't suppress the type/finish gap.
-    type: asType(aiJson?.type) ?? draft.type ?? null,
+    type: heard ? heard.type : draft.type ?? null,
+    typeOther: heard ? heard.typeOther : draft.typeOther ?? null,
     location: typeof aiJson?.location === 'string' ? aiJson.location : draft.location ?? null,
     squareFootage: typeof aiJson?.squareFootage === 'number' ? aiJson.squareFootage : draft.squareFootage ?? null,
     quality: asQuality(aiJson?.quality) ?? draft.quality ?? null,
     description: (typeof aiJson?.description === 'string' && aiJson.description.trim() ? aiJson.description : draft.description) ?? meta?.transcript ?? null,
-  }),
+    };
+  },
 
   apply: async (draft: NewProjectDraft, ctx: CopilotContext): Promise<NewProjectApplied> => {
     const grounding = await buildNewProjectGrounding(ctx);
     const g = grounding.data as { usualType?: string | null; usualQuality?: string | null; usualLocation?: string | null };
 
     const name = clean(draft.name) || 'New Project';
-    const type: ProjectType = asType(draft.type) ?? asType(g.usualType) ?? 'renovation';
+    // Other without his words says nothing — fall back as for no type.
+    const draftType = asType(draft.type) === 'other' && !cleanProjectTypeOther(draft.typeOther) ? null : asType(draft.type);
+    const type: ProjectType = draftType ?? (asType(g.usualType) === 'other' ? null : asType(g.usualType)) ?? 'renovation';
+    const projectTypeOther = type === 'other' ? cleanProjectTypeOther(draft.typeOther) : '';
     const quality: QualityTier = asQuality(draft.quality) ?? asQuality(g.usualQuality) ?? 'standard';
-    const location = clean(draft.location) || (g.usualLocation ?? '') || 'United States';
+    // Blank = no address, never the literal 'United States' (it geocoded to
+    // the Kansas centroid and named no jobsite).
+    const location = clean(draft.location) || (g.usualLocation ?? '') || '';
     const squareFootage = typeof draft.squareFootage === 'number' && draft.squareFootage > 0 ? draft.squareFootage : 0;
 
     const now = new Date().toISOString();
@@ -138,12 +162,15 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
       id,
       name: name.slice(0, 120),
       type,
+      ...(projectTypeOther ? { projectTypeOther } : {}),
       location,
       squareFootage,
       quality,
       description: clean(draft.description),
       scope: {
-        projectType: type.replace(/_/g, ' '),
+        // The answer the scope screen's "What kind of project?" chips read —
+        // a chip when the type has one, else the type's label / his words.
+        projectType: scopeAnswerForProject({ type, projectTypeOther }) || projectTypeLabel({ type, projectTypeOther }),
         sizeSqft: squareFootage > 0 ? String(squareFootage) : '',
         location,
         quality: qualityForScope,

@@ -31,6 +31,7 @@
 //      for?" — and picking answers it and moves on in the same tap.
 // The template path is untouched for people who want it.
 
+import { projectTypeLabel } from '@/utils/projectTypes';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
@@ -994,7 +995,7 @@ function ProjectStep(props: {
               <View style={{ flex: 1 }}>
                 <Text style={styles.projectName} numberOfLines={1}>{p.name}</Text>
                 <Text style={styles.projectSub} numberOfLines={1}>
-                  {displayText(p.location, 'No location')} · {p.type}
+                  {displayText(p.location, 'No location')} · {projectTypeLabel(p)}
                 </Text>
                 <SeatNote role={p.myRole} />
               </View>
@@ -1073,7 +1074,7 @@ function ProjectStep(props: {
               <View style={{ flex: 1 }}>
                 <Text style={styles.projectName} numberOfLines={1}>{p.name}</Text>
                 <Text style={styles.projectSub} numberOfLines={1}>
-                  {displayText(p.location, 'No location')} · {p.type}
+                  {displayText(p.location, 'No location')} · {projectTypeLabel(p)}
                 </Text>
                 <SeatNote role={p.myRole} />
               </View>

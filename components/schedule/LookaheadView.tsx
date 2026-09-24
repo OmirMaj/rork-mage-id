@@ -28,8 +28,10 @@ import { runCpm } from '@/utils/cpm';
 import { scheduledPlacements, scheduledTaskRange, type ScheduledPlacement } from '@/utils/scheduleOps';
 import { getForecastWithFallback, getConditionIcon } from '@/utils/weatherService';
 import type { DayForecast } from '@/utils/weatherService';
+import { describeForecast } from '@/utils/weatherProvenance';
 import {
   SimulatedWeatherBanner,
+  WeatherPlaceLine,
   SimulatedDayChip,
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
@@ -47,6 +49,14 @@ interface LookaheadViewProps {
    * the weather strip falls back to simulated data and says so, loudly.
    */
   location?: string;
+  /**
+   * The project's saved coordinates for that address. Passed exactly like
+   * TodayView and the Gantt: without them this strip asked for the address
+   * TEXT alone and could show a different place (or simulated weather) than
+   * the Gantt on the same screen (2026-09-24).
+   */
+  locationLatitude?: number;
+  locationLongitude?: number;
 }
 
 interface WeekGroup {
@@ -207,6 +217,8 @@ function LookaheadView({
   onProgressUpdate,
   onTaskPress,
   location,
+  locationLatitude,
+  locationLongitude,
 }: LookaheadViewProps) {
   // Built per theme: the week cards, day columns and their ink baked their
   // t.surface/text/cardBorder at import (audit 2026-09-07).
@@ -233,10 +245,10 @@ function LookaheadView({
    * and the simulator ignores the region entirely, so the strip showed
    * calendar-derived fiction with no relation to the site.
    *
-   * Now it goes through getForecastWithFallback, the same path the Gantt uses:
-   * live OpenWeather for `location` when EXPO_PUBLIC_OPENWEATHER_API_KEY is
-   * set (5 real days on the free tier), simulated only for the padded tail —
-   * or for everything when there's no key. Whatever comes back is tagged
+   * Now it goes through getForecastWithFallback, the same path and the same
+   * location (text + saved coordinates) the Gantt and TodayView use: live
+   * OpenWeather (5 real days on the free tier), simulated only for the padded
+   * tail — or for everything when there's no location or no answer. Whatever comes back is tagged
    * per-day, and any non-live day shown here is marked (see the banner below).
    *
    * Starts empty rather than pre-seeding with simulated data: an empty strip
@@ -248,14 +260,14 @@ function LookaheadView({
     let cancelled = false;
     setForecast([]);
     void getForecastWithFallback(
-      { city: location?.trim() },
+      { city: location?.trim(), latitude: locationLatitude, longitude: locationLongitude },
       now,
       weekCount * 7,
     ).then((days) => {
       if (!cancelled) setForecast(days);
     });
     return () => { cancelled = true; };
-  }, [now, weekCount, location]);
+  }, [now, weekCount, location, locationLatitude, locationLongitude]);
 
   const weekGroups = useMemo<WeekGroup[]>(() => {
     const groups: WeekGroup[] = [];
@@ -400,6 +412,11 @@ function LookaheadView({
     () => weekGroups.flatMap((g) => g.forecast),
     [weekGroups],
   );
+  // Where the strip's weather is for, and why any shown day is simulated.
+  const weatherDesc = describeForecast(
+    { city: location, latitude: locationLatitude, longitude: locationLongitude },
+    displayedDays,
+  );
 
   return (
     <View style={s.container}>
@@ -422,7 +439,8 @@ function LookaheadView({
           week strip that shows the invented conditions, so the label and the
           data it disclaims can't be seen apart. Gated on the days actually
           RENDERED, not the raw fetch, and self-hiding for a fully live week. */}
-      <SimulatedWeatherBanner days={displayedDays} />
+      <WeatherPlaceLine text={weatherDesc.placeLine} />
+      <SimulatedWeatherBanner days={displayedDays} cause={weatherDesc.cause} />
 
       <FlatList
         data={weekGroups}

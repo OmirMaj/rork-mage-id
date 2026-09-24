@@ -64,6 +64,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 // A captured photo (id === the saved ProjectPhoto.id so tell provenance lines up).
 interface CapturedPhoto { id: string; uri: string; timestamp: string }
@@ -298,7 +299,7 @@ export default function CostXrayScreen() {
         // tenant fit-out the tells it should be hunting are different ones.
         // Sending the type was the one line missing; photo-triage has always
         // sent it (app/photo-triage.tsx:209) and this screen never did.
-      }>('analyze-photos', { body: { task: 'conditionRisk', photos: inline, projectName: project?.name, projectType: project?.type } });
+      }>('analyze-photos', { body: { task: 'conditionRisk', photos: inline, projectName: project?.name, projectType: projectTypeLabel(project) || undefined } });
       // The function's own sentence and code, not supabase-js's collapsed
       // "non-2xx" (#124, CONTRACT 26) — the catch below branches on the code.
       if (fnErr) throw await edgeFunctionError(fnErr, 'Cost X-Ray failed');
@@ -362,7 +363,7 @@ export default function CostXrayScreen() {
     } finally {
       setBusy(false);
     }
-  }, [busy, photos, project?.name, project?.type, db, router]);
+  }, [busy, photos, project, db, router]);
 
   // ── Review actions ───────────────────────────────────────────────────
   const patchReview = useCallback((id: string, updates: Partial<ReviewTell>) => {

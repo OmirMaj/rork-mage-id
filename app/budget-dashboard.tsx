@@ -34,6 +34,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { formatMoneyShort } from '@/utils/formatters';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 const CHART_HEIGHT = 200;
 const CHART_PADDING = 40;
@@ -208,7 +209,7 @@ Estimate at Completion: ${formatCurrency(metrics.estimateAtCompletion ?? 0)}`
         : `Actual Cost: NOT AVAILABLE. ${describeCostBasisGap(metrics.costBasis)}
 Do NOT assess cost performance, CPI, cost variance or final cost — there is no cost data for this job. Say plainly that cost tracking is not set up yet and what the contractor should record to get it.`;
 
-      const prompt = `You are a construction project financial analyst. Analyze these Earned Value Management metrics for a ${project.type} project named "${project.name}" with a budget of ${formatCurrency(metrics.budgetAtCompletion)}:
+      const prompt = `You are a construction project financial analyst. Analyze these Earned Value Management metrics for a ${projectTypeLabel(project) || 'construction'} project named "${project.name}" with a budget of ${formatCurrency(metrics.budgetAtCompletion)}:
 
 SPI: ${metrics.schedulePerformanceIndex}
 Schedule Variance: ${formatCurrency(metrics.scheduleVariance)}

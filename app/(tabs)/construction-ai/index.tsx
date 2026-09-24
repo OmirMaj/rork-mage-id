@@ -103,6 +103,7 @@ import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { useSafety } from '@/contexts/SafetyContext';
 import { generateUUID } from '@/utils/generateId';
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -827,7 +828,8 @@ function ConstructionAIScreenInner() {
         imageBase64: base64,
         mimeType,
         location: planProject.location,
-        projectType: planProject.type,
+        // Q6: the AI reads the type's label (his words for Other), never the raw id.
+        projectType: projectTypeLabel(planProject) || undefined,
         // Verbatim, so the prompt and the chip below cannot drift apart.
         jurisdictionBlock: planGrounding.promptBlock,
       });

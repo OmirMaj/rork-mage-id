@@ -1586,6 +1586,9 @@
   .invoice-pay-btn:hover { background: var(--amber-dark); }
   .invoice-pay-btn:active { transform: translateY(1px); }
   .invoice-pay-btn .icn { width: 14px; height: 14px; stroke-width: 2.4; }
+  .fin-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .fin-lead { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text); }
+  .fin-card .prop-note { margin-top: 0; }
   .invoice-detail-hint {
     font-size: 11px; color: var(--text-muted);
     font-weight: 600; letter-spacing: 0.4px;
@@ -4621,6 +4624,44 @@
       '</div>';
   }
 
+  // ── Client financing (Q4, 2026-09-24) ─────────────────────────────────────
+  // "Bring your own lender": the GC switched financing on in Payments and
+  // named a lender; data.financing = { partnerName, disclosure } is baked into
+  // the snapshot from the GC's OWN settings (utils/financingCore.
+  // portalFinancingBlock). It carries no lender URL and no referral code —
+  // financing-redirect reads those server-side, once this portal's id + access
+  // token resolve (portal_project_for_token) to exactly this project. Same URL
+  // the app builds (utils/financingCore.portalFinancingRedirectUrl). Without a
+  // project UUID, a portal id or the ?t= key there is no working link, so no
+  // button: it could only land on the MAGE ID homepage.
+  function financingPortalUrl(data) {
+    var api = (data && data.portalApi) || {};
+    var projectId = String(api.projectId || (data && data.project && data.project.id) || '').trim();
+    var portalId = String(api.portalId || '').trim();
+    var token = getPortalToken();
+    var uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(projectId) || !portalId || !token) return '';
+    var base = api.supabaseUrl
+      ? api.supabaseUrl.replace(/\/+$/, '')
+      : 'https://nteoqhcswappxxjlpvap.supabase.co';
+    return base + '/functions/v1/financing-redirect?project=' + encodeURIComponent(projectId) +
+      '&src=portal&portal=' + encodeURIComponent(portalId) + '&t=' + encodeURIComponent(token);
+  }
+  function renderFinancingCard(fin, url) {
+    var partner = String((fin && fin.partnerName) || '').trim();
+    return (
+      '<div class="fin-card" data-financing="1">' +
+        '<p class="fin-lead">Prefer to pay monthly? Your contractor works with ' + esc(partner) +
+          '. See if you prequalify on their site — it opens in a new tab.</p>' +
+        '<a class="invoice-pay-btn fin-btn" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" ' +
+          'aria-label="' + esc('Check financing options with ' + partner) + '">' +
+          icn(ICONS.creditCard, 14) + '<span>Check financing options</span>' +
+        '</a>' +
+        '<div class="prop-note">' + esc(fin && fin.disclosure) + '</div>' +
+      '</div>'
+    );
+  }
+
   function renderInvoices(invs) {
     if (!invs || !invs.length) return emptyState('No invoices shared yet.');
     return invs.map(function (i) {
@@ -7085,6 +7126,7 @@
       delete sections.changeOrders;
       delete data.openBook;
       delete data.contract;          // hide contract value too
+      delete data.financing;         // and the monthly-payment offer
       // Strip dollar amounts from selections — keep what's chosen, but not the price tags
       if (data.selections) {
         data.selections = data.selections.map(function (cat) {
@@ -7126,7 +7168,9 @@
     var meta = document.getElementById('project-meta');
     var metaItems = [];
     if (project.address) metaItems.push({ icon: 'mapPin', text: project.address });
-    if (project.type) metaItems.push({ icon: 'home', text: statusLabel(project.type) });
+    // Q6: typeLabel is the contractor's words for an Other job ("Whole-house
+    // repipe") or the type's own label — never the raw id or the word "other".
+    if (project.typeLabel || project.type) metaItems.push({ icon: 'home', text: project.typeLabel || statusLabel(project.type) });
     // The dates a homeowner plans their life around, so they are labelled for
     // what they are. A bare "Mar 14 → Aug 22" reads as a promise; it is the
     // current plan, and the plan is what the Gantt further down this page and
@@ -7381,6 +7425,13 @@
       // through the invoice list.
       noteSettledInvoices(sections.invoices);
       addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA-style G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
+    }
+    // Client financing — only when the GC offers it AND this visit carries the
+    // key the redirect needs (see financingPortalUrl).
+    var finUrl = data.financing && data.financing.partnerName ? financingPortalUrl(data) : '';
+    if (finUrl) {
+      addSection('financing', 'creditCard', 'Paying monthly', 'Financing through ' + data.financing.partnerName, null,
+        renderFinancingCard(data.financing, finUrl));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
       addSection('schedule', 'calendar', t('scheduleSectionTitle'), t('scheduleSectionSubtitle'), sections.schedule.tasks.length, renderSchedule(sections.schedule));

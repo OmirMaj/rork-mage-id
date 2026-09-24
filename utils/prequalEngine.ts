@@ -35,6 +35,48 @@ function daysBetween(a: string, b: string): number {
   return Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86_400_000);
 }
 
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * A sub-typed date, read strictly: `YYYY-MM-DD` naming a real calendar day, or
+ * null. Surrounding whitespace is ignored.
+ *
+ * The COI and licence expiry fields are free text the sub types on a phone.
+ * `new Date('next March')` is NaN, and NaN fails every comparison — `days < 0`
+ * and `days < 30` were both false, so "next March" fell through to "COI valid"
+ * and "Auto-review passed. Ready for approval." (Q5, 2026-09-24). `new Date`
+ * also ROLLS invalid days over ('2026-02-30' → March 2) and parses non-ISO
+ * shapes differently per engine (Hermes vs V8), so the only rule that means
+ * the same thing on the sub's phone, the GC's laptop and this validator is
+ * the strict one: the shape, and a round trip that lands on the same day.
+ */
+export function parsePrequalDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const m = ISO_DATE_RE.exec(value.trim());
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+/**
+ * What the sub typed → the `YYYY-MM-DD` the engine reads, or null when it
+ * cannot be read without guessing. Used by the form on blur, so "12/31/2026"
+ * becomes "2026-12-31" instead of an error. US order only (M/D/YYYY) — this is
+ * a US product, and a two-digit year or a word is refused rather than guessed.
+ */
+export function normalizePrequalDateInput(input: string): string | null {
+  const t = input.trim();
+  const strict = parsePrequalDate(t);
+  if (strict) return strict;
+  const ymd = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(t);
+  if (ymd) return parsePrequalDate(`${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`);
+  const mdy = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(t);
+  if (mdy) return parsePrequalDate(`${mdy[3]}-${mdy[1].padStart(2, '0')}-${mdy[2].padStart(2, '0')}`);
+  return null;
+}
+
 /**
  * Packets are user-authored JSON round-tripped through Supabase/AsyncStorage,
  * so a field the TYPE says is an array can arrive as an object, a bare number
@@ -144,9 +186,22 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
     if (!insurance.hasCG2037) missingFields.push('CG 20 37 endorsement');
   }
 
-  // COI expiry — fail if expired, warn if within 30 days.
-  if (insurance.coiExpiry) {
-    const days = daysBetween(insurance.coiExpiry, today);
+  // COI expiry — fail if expired or unreadable, warn if within 30 days.
+  // Blank (or whitespace) is "not provided"; anything else must read as a real
+  // YYYY-MM-DD day, or it is a blocker the sub can fix — never "COI valid".
+  const coiRaw = typeof insurance.coiExpiry === 'string' ? insurance.coiExpiry.trim() : '';
+  const coiDate = parsePrequalDate(coiRaw);
+  if (coiRaw && !coiDate) {
+    findings.push({
+      criterion: 'coi_expiry',
+      label: 'COI expiry date readable',
+      passed: false,
+      note: `Unreadable date: "${coiRaw}" — enter it as YYYY-MM-DD`,
+      severity: 'blocker',
+    });
+    missingFields.push('COI expiry date (YYYY-MM-DD)');
+  } else if (coiDate) {
+    const days = daysBetween(coiDate, today);
     if (days < 0) {
       findings.push({
         criterion: 'coi_expiry',
@@ -168,7 +223,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
         criterion: 'coi_expiry',
         label: 'COI valid',
         passed: true,
-        note: `Expires ${insurance.coiExpiry}`,
+        note: `Expires ${coiDate}`,
         severity: 'advisory',
       });
     }
@@ -234,7 +289,25 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   // Same non-array hazard as emr3yr above: `packet.licenses` is typed
   // non-optional but arrives from JSON, and `.filter` on a bare object threw.
   const licenses = asArray<PrequalLicense>(packet.licenses);
-  const expiredLicenses = licenses.filter(l => l?.expiresAt && daysBetween(l.expiresAt, today) < 0);
+  // Same NaN hole as the COI date: an unreadable licence expiry compared false
+  // against 0, so it counted as current. A blank one is still "no date given"
+  // (not every licence form carries one); a typed one must read.
+  const licRaw = (l: PrequalLicense | null | undefined) => (typeof l?.expiresAt === 'string' ? l.expiresAt.trim() : '');
+  const unreadableLicenses = licenses.filter(l => licRaw(l) !== '' && !parsePrequalDate(licRaw(l)));
+  const expiredLicenses = licenses.filter(l => {
+    const d = parsePrequalDate(licRaw(l));
+    return !!d && daysBetween(d, today) < 0;
+  });
+  if (unreadableLicenses.length > 0) {
+    findings.push({
+      criterion: 'license_date_unreadable',
+      label: 'Licence expiry dates readable',
+      passed: false,
+      note: `Unreadable: ${unreadableLicenses.map(l => `${l.state || 'licence'} "${licRaw(l)}"`).join(', ')} — enter as YYYY-MM-DD`,
+      severity: 'blocker',
+    });
+    missingFields.push('Licence expiry date (YYYY-MM-DD)');
+  }
   if (expiredLicenses.length > 0) {
     findings.push({
       criterion: 'license_expired',
@@ -243,7 +316,7 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
       note: `${expiredLicenses.length} expired (${expiredLicenses.map(l => l.state).join(', ')})`,
       severity: 'blocker',
     });
-  } else if (licenses.length > 0) {
+  } else if (licenses.length > 0 && unreadableLicenses.length === 0) {
     findings.push({
       criterion: 'license_current',
       label: 'Licenses current',
@@ -268,31 +341,80 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   return { overall, findings, summary, missingFields };
 }
 
+/** Magic-link token length. 32 characters from a 54-character alphabet is
+ *  ~184 bits; the lien-waiver RPCs set the same 32-character floor. */
+export const PREQUAL_TOKEN_LENGTH = 32;
+const TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789abcdefghjkmnpqrstuvwxyz';
+/** Largest multiple of the alphabet size that fits in a byte (54 × 4 = 216).
+ *  Bytes at or above it are dropped, so every character is equally likely —
+ *  a plain `byte % 54` would favour the first 40 characters. */
+const TOKEN_BYTE_CEILING = Math.floor(256 / TOKEN_ALPHABET.length) * TOKEN_ALPHABET.length;
+
 /**
- * Magic-link token generator. Not crypto-grade — we want something
- * URL-safe and unique per packet. The actual trust boundary is that the
- * token is emailed directly to the sub's verified address by the GC;
- * anyone holding the token can submit the form, which is the point.
+ * The magic-link token from CSPRNG bytes (utils/prequalToken.ts supplies them
+ * from expo-crypto — never Math.random). The token is the only thing standing
+ * between a stranger and the sub's financials and insurance answers, so it is
+ * the credential and is made like one. Pure so the validator can execute it:
+ * returns null when the bytes run out before 32 unbiased characters (the
+ * caller draws again) — never a short token.
  */
-export function generatePrequalToken(): string {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789abcdefghjkmnpqrstuvwxyz';
+export function prequalTokenFromBytes(bytes: Uint8Array): string | null {
   let out = '';
-  for (let i = 0; i < 24; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < bytes.length && out.length < PREQUAL_TOKEN_LENGTH; i++) {
+    const b = bytes[i];
+    if (b >= TOKEN_BYTE_CEILING) continue;
+    out += TOKEN_ALPHABET[b % TOKEN_ALPHABET.length];
   }
-  return out;
+  return out.length === PREQUAL_TOKEN_LENGTH ? out : null;
 }
 
 /**
  * Compute the renewal cadence for an approved packet. Default is 1 year
  * from review date, but if COI expires sooner we clamp to that.
+ *
+ * A COI date that was TYPED but does not read (see parsePrequalDate) used to
+ * compare as an Invalid Date and fall through to the full year — an approval
+ * outliving an insurance date nobody could check. It now caps at the review
+ * day itself: the approval stands for today and the packet shows as due for
+ * renewal, so the GC asks for a real date. A blank COI date is the GC
+ * approving with "COI expiry date — Missing" in front of him; that keeps the
+ * one-year default it always had.
  */
 export function computePrequalExpiry(reviewedAtIso: string, coiExpiryIso?: string): string {
   const reviewDate = new Date(reviewedAtIso);
-  const oneYearOut = new Date(reviewDate.getFullYear() + 1, reviewDate.getMonth(), reviewDate.getDate());
-  if (!coiExpiryIso) return oneYearOut.toISOString().slice(0, 10);
-  const coiDate = new Date(coiExpiryIso);
-  return (coiDate < oneYearOut ? coiDate : oneYearOut).toISOString().slice(0, 10);
+  const oneYearOut = new Date(Date.UTC(reviewDate.getUTCFullYear() + 1, reviewDate.getUTCMonth(), reviewDate.getUTCDate()));
+  const oneYearIso = oneYearOut.toISOString().slice(0, 10);
+  const raw = typeof coiExpiryIso === 'string' ? coiExpiryIso.trim() : '';
+  if (!raw) return oneYearIso;
+  const coi = parsePrequalDate(raw);
+  if (!coi) return reviewDate.toISOString().slice(0, 10);
+  // Both are YYYY-MM-DD, so string order is date order.
+  return coi < oneYearIso ? coi : oneYearIso;
+}
+
+/**
+ * Why an approval made now would not last (for the Approve confirmation), or
+ * null when it runs its normal course. Mirrors computePrequalExpiry, so what
+ * the GC is warned about is exactly what will be written:
+ *   'unreadable' — a COI date was typed but does not read; the approval would
+ *                  be capped at the review day.
+ *   'lapsed'     — the COI date is today or already past; the approval would
+ *                  expire at once. `today` says which.
+ * A blank COI date is not a risk here (it keeps the one-year default, with
+ * "COI expiry date — Missing" already in the findings).
+ */
+export type PrequalApprovalRisk =
+  | { kind: 'unreadable'; typed: string }
+  | { kind: 'lapsed'; coi: string; today: boolean };
+
+export function prequalApprovalRisk(reviewedAtIso: string, coiExpiry?: string): PrequalApprovalRisk | null {
+  const raw = typeof coiExpiry === 'string' ? coiExpiry.trim() : '';
+  if (!raw) return null;
+  const coi = parsePrequalDate(raw);
+  if (!coi) return { kind: 'unreadable', typed: raw };
+  const today = new Date(reviewedAtIso).toISOString().slice(0, 10);
+  if (coi <= today) return { kind: 'lapsed', coi, today: coi === today };
+  return null;
 }
 
 /**

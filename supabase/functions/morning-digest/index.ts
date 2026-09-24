@@ -152,6 +152,16 @@ interface DfrRow {
 }
 
 // ── Weather fetch (one call per project's coords) ────────────────────
+const DIGEST_COUNTRY_ONLY = new Set([
+  'united states',
+  'united states of america',
+  'the united states',
+  'usa',
+  'us',
+  'america',
+  'united states (us)',
+]);
+
 interface WeatherToday {
   tempHighF?: number;
   tempLowF?: number;
@@ -192,6 +202,12 @@ interface ProjectBriefing {
   todayTasks: SchedTask[];
   criticalCount: number;
   weather: WeatherToday | null;
+  /** Why `weather` is null, so the email names the real cause (2026-09-24:
+   *  it said "set the project address" for a job that had one when the
+   *  server key was missing or the fetch failed). */
+  weatherMissing?: 'no_address' | 'unavailable';
+  /** The job's address as typed — "Weather for …" names it. */
+  weatherPlace?: string;
   weatherRiskTasks: string[];   // titles of weather-sensitive tasks today
   yesterdayDfr: DfrRow | null;
   totalManpowerYesterday: number;
@@ -248,10 +264,12 @@ function renderDigestHtml(opts: {
     : briefings.map(b => {
         const weatherLine = b.weather
           ? `<p style="margin:0 0 6px;color:${b.weather.workable ? STONE : '#B45309'};font-size:13px;">
-               ${escapeHtml(b.weather.conditions ?? 'Weather')} · H${b.weather.tempHighF}° / L${b.weather.tempLowF}° · ${b.weather.precipPct}% precip · ${b.weather.windMph} mph wind
+               ${b.weatherPlace ? `Weather for ${escapeHtml(b.weatherPlace)}: ` : ''}${escapeHtml(b.weather.conditions ?? 'Weather')} · H${b.weather.tempHighF}° / L${b.weather.tempLowF}° · ${b.weather.precipPct}% precip · ${b.weather.windMph} mph wind
                ${b.weather.workable ? '' : ' · <strong>Not workable for weather-sensitive tasks</strong>'}
              </p>`
-          : `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">No weather available — set the project address to enable hyperlocal forecasts.</p>`;
+          : b.weatherMissing === 'unavailable'
+            ? `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">Weather for ${escapeHtml(b.weatherPlace ?? 'this job')} isn't available this morning — check the app later.</p>`
+            : `<p style="margin:0 0 6px;color:${FOG};font-size:12px;font-style:italic;">No weather — this job has no jobsite address. Add it in the app (open the job, tap Edit) to get the site forecast here.</p>`;
         // A closed day, a job that has not started and an undated schedule each
         // say what they are. None of them lists tasks: a list on a closed day
         // is how a sub gets called out to a locked site.
@@ -468,8 +486,18 @@ async function buildDigestForUser(
   for (const p of activeProjects) {
     const lat = p.location_latitude;
     const lng = p.location_longitude;
-    const weather = (lat != null && lng != null) ? await fetchTodayWeather(lat, lng) : null;
-    briefings.push(buildProjectBriefing(p, yesterdayDfrs, weather, todayIso));
+    // A country on its own ('United States') names no jobsite — its stored
+    // coordinates were the Kansas centroid (2026-09-24). Same list as
+    // utils/geocodeProject.ts COUNTRY_ONLY (scripts/validate-weather-location
+    // pins the two together).
+    const placeText = (p.location ?? '').trim();
+    const hasAddress = placeText.length >= 3 && !DIGEST_COUNTRY_ONLY.has(placeText.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' '));
+    const weather = (hasAddress && lat != null && lng != null) ? await fetchTodayWeather(lat, lng) : null;
+    briefings.push({
+      ...buildProjectBriefing(p, yesterdayDfrs, weather, todayIso),
+      weatherPlace: hasAddress ? placeText : undefined,
+      weatherMissing: weather ? undefined : hasAddress ? 'unavailable' : 'no_address',
+    });
   }
 
   let todayDateLabel: string;

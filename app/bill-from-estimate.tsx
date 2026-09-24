@@ -339,7 +339,13 @@ export default function BillFromEstimateScreen() {
         const item = src.item;
         const key = item.materialId || item.name;
         const effectivePrice = item.usesBulk ? item.bulkPrice : item.unitPrice;
-        const full = item.lineTotal;
+        // On the cent grid — the amount a 100% bill of this line actually
+        // charges (amountsByKey rounds to the cent). An estimate saved before
+        // the estimator's one-cent rule (utils/estimateMarkup cartLineSell)
+        // kept fractional-cent lines; billed in full they left a $0.00x
+        // "remaining" per row that summed to a visible "Remaining $0.01"
+        // beside "All lines on this estimate are fully billed".
+        const full = roundCents(item.lineTotal);
         const already = existingInvoices
           .filter(inv => inv.status !== 'draft')
           .flatMap(inv => {

@@ -1,3 +1,4 @@
+import { projectTypeLabel } from '@/utils/projectTypes';
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Platform,
@@ -109,7 +110,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
             <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}>
               <View style={styles.projectBanner}>
                 <Text style={styles.projectName}>{project.name}</Text>
-                <Text style={styles.projectMeta}>{project.type}{displayText(project.location) ? ` · ${displayText(project.location)}` : ''}</Text>
+                <Text style={styles.projectMeta}>{projectTypeLabel(project)}{displayText(project.location) ? ` · ${displayText(project.location)}` : ''}</Text>
               </View>
 
               <View style={styles.section}>

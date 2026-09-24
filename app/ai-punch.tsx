@@ -49,6 +49,7 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Expanded per code-review #8 to cover the trades
@@ -321,7 +322,8 @@ function AiPunchScreenInner() {
       const { items, meta } = await analyzePhotosForPunch({
         photoUrls: pickedPhotos.map(p => p.uri),
         projectName: project?.name,
-        projectType: project?.type,
+        // Q6: the AI reads the type's label (his words for Other), never the raw id.
+        projectType: projectTypeLabel(project) || undefined,
       });
       await recordAIUsage('smart', 'photoAnalysis');
       // Items come back with photoIndex remapped to the caller's

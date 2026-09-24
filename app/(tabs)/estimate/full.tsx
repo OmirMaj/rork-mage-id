@@ -29,8 +29,8 @@ import {
 } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
-import { useMaterialCart, type MaterialCartItem, type LaborCartItem, type AssemblyCartItem } from '@/contexts/MaterialCartContext';
-import { cartTotals } from '@/utils/estimateMarkup';
+import { useMaterialCart, type LaborCartItem, type AssemblyCartItem } from '@/contexts/MaterialCartContext';
+import { cartTotals, priceEstimatorCart, priceMaterialLine, priceLaborLine, priceAssemblyLine, popupCartAfter, popupUnitPrices, planCartReprice, round2 } from '@/utils/estimateMarkup';
 import MaterialAIEstimateModal from '@/components/MaterialAIEstimateModal';
 import { generateUUID } from '@/utils/generateId';
 import { findMaterials, type AIMaterialResult } from '@/utils/materialFinder';
@@ -139,6 +139,11 @@ interface OpportunityInsight {
 function getCategoryColor(category: string): string {
   return CATEGORY_META[category]?.color ?? Colors.primary;
 }
+
+/** The reprice question he answered "Keep" to, for this app session (see the
+ *  market-change note in EstimateScreen). Module scope so it survives the
+ *  screen being popped and pushed on the Estimate stack. */
+let keptRepriceMemory: string | null = null;
 
 export default function EstimateScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -434,7 +439,9 @@ export default function EstimateScreen() {
       category: aiMat.category.toLowerCase().replace(/[^a-z]/g, ''),
       unit: aiMat.unit,
       baseRetailPrice: aiMat.unitPrice,
-      baseBulkPrice: aiMat.unitPrice * 0.85,
+      // On the cent grid: a fractional-cent unit price made every line built
+      // from it land between cents before the line was even marked up.
+      baseBulkPrice: round2(aiMat.unitPrice * 0.85),
       bulkMinQty: 10,
       // A CONSTANT, never anything the model said. This was
       // `aiMat.brand || aiMat.priceSource || 'AI Found'`, and `priceSource` was
@@ -535,7 +542,7 @@ export default function EstimateScreen() {
       category: customCategory,
       unit: customUnit,
       baseRetailPrice: price,
-      baseBulkPrice: price * 0.9,
+      baseBulkPrice: round2(price * 0.9),
       bulkMinQty: 10,
       supplier: 'Custom',
       pricingModel: 'market',
@@ -590,44 +597,59 @@ export default function EstimateScreen() {
       category: recent.category,
       unit: recent.unit,
       baseRetailPrice: recent.unitPrice,
-      baseBulkPrice: recent.unitPrice * 0.85,
+      baseBulkPrice: round2(recent.unitPrice * 0.85),
       bulkMinQty: 10,
       supplier: recent.source === 'ai' ? 'AI Found' : recent.source === 'custom' ? 'Custom' : 'Built-in',
     };
     openItemPopupRef.current(materialItem);
   }, [materials]);
 
+  // ── A market change ASKS before it reprices the draft (founder, 2026-09-24)
+  //
+  // This effect used to re-snapshot every cart row through ctxReplaceCart on
+  // mount and on every location change, with no notice: picking "US average"
+  // on the Materials tab took 3/4" OSB from $37.02 to $38.97 in an estimate
+  // the GC had already priced, and nothing on the screen said so. Now the
+  // catalog list follows the market, and the cart is COMPARED against it:
+  // when rows are priced differently, the estimator shows "Reprice N lines
+  // for <market>? +$X" with Keep / Reprice, and nothing changes until he
+  // answers. A cart that already matches (every mount, in the normal case) is
+  // left alone — no write at all. The comparison is reactive rather than a
+  // one-shot on mount, so rows hydrated from storage after mount, rows added
+  // from the Materials tab at a browse-only market, and a catalog update
+  // shipped over the air are all caught the same way.
+  //
+  // (The 5-minute interval and the AppState resume refresh that used to live
+  // here stay gone — they drifted estimates by a cent on every return.)
+  useEffect(() => {
+    setMaterials(getCatalogPrices(locationMultiplier));
+    setLastUpdated(new Date());
+  }, [locationMultiplier]);
+
+  const repricePlan = useMemo(() => planCartReprice(cart, materials), [cart, materials]);
+  const [keptRepriceSignature, setKeptRepriceSignature] = useState<string | null>(() => keptRepriceMemory);
+  const showRepriceNotice = repricePlan.changedCount > 0 && repricePlan.signature !== keptRepriceSignature;
+  const applyReprice = useCallback(() => {
+    if (repricePlan.changedCount === 0) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    ctxReplaceCart(repricePlan.next);
+  }, [repricePlan, ctxReplaceCart]);
+  const keepCurrentPrices = useCallback(() => {
+    // Remembered for this app session against WHAT would change, so the same
+    // question is not re-asked on every visit, but a new difference is.
+    keptRepriceMemory = repricePlan.signature;
+    setKeptRepriceSignature(repricePlan.signature);
+  }, [repricePlan.signature]);
+
+  // The Refresh button — an explicit request, so it applies the reprice
+  // (the notice above would otherwise ask the same question).
   const refreshPrices = useCallback(() => {
-    // Prices only change when the location (market factor) changes.
     const newPrices = getCatalogPrices(locationMultiplier);
     setMaterials(newPrices);
     setLastUpdated(new Date());
-    // Re-price existing cart items against the new location multiplier. We
-    // do this through replaceCart (context's bulk-set) rather than per-item
-    // updates so it's a single atomic write.
-    const repriced: MaterialCartItem[] = cart.map(cartItem => {
-      const updated = newPrices.find(m => m.id === cartItem.material.id);
-      if (updated) return { ...cartItem, material: updated };
-      return cartItem;
-    });
-    ctxReplaceCart(repriced);
+    const plan = planCartReprice(cart, newPrices);
+    if (plan.staleCount > 0) ctxReplaceCart(plan.next);
   }, [locationMultiplier, cart, ctxReplaceCart]);
-
-  // Only re-price when location changes. Removed the 5-minute interval and the
-  // AppState resume refresh — those were causing estimates to drift by a cent
-  // every time the user left and came back.
-  //
-  // refreshPrices calls ctxReplaceCart, which mutates `cart`; `cart` is one of
-  // refreshPrices's deps, so refreshPrices gets a fresh identity after every
-  // run. Listing it in this effect's deps therefore created an infinite update
-  // loop (React's "Maximum update depth exceeded"). Fix: fire strictly on
-  // locationMultiplier and reach the latest refreshPrices through a ref, so the
-  // effect's own identity never churns when the cart changes.
-  const refreshPricesRef = useRef(refreshPrices);
-  useEffect(() => { refreshPricesRef.current = refreshPrices; }, [refreshPrices]);
-  useEffect(() => {
-    refreshPricesRef.current();
-  }, [locationMultiplier]);
 
   const filteredMaterials = useMemo(() => {
     let results = materials;
@@ -646,19 +668,22 @@ export default function EstimateScreen() {
     return results;
   }, [query, activeCategory, materials]);
 
-  const cartTotal = useMemo(() => cart.reduce((sum, item) => {
-    const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-    return sum + base * (1 + item.markup / 100) * item.quantity;
-  }, 0), [cart]);
+  // EVERY estimator figure comes from here: each row's cost and sell rounded
+  // to the cent ONCE (utils/estimateMarkup cartLineSell), every total the sum
+  // of those rows. Rows, footer, summary, pop-up, PDF, email and the linked
+  // estimate therefore print one set of cents — see the note on
+  // priceEstimatorCart for the "went up a cent" bug this closes.
+  const pricedCart = useMemo(
+    () => priceEstimatorCart(cart, laborCart, assemblyCart, globalMarkup),
+    [cart, laborCart, assemblyCart, globalMarkup],
+  );
+  const cartTotal = pricedCart.materialsSell;
 
   const regionalVisibleCount = useMemo(() => {
     return filteredMaterials.filter(item => item.pricingModel === 'regional_adjusted').length;
   }, [filteredMaterials]);
 
-  const cartBaseTotal = useMemo(() => cart.reduce((sum, item) => {
-    const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-    return sum + base * item.quantity;
-  }, 0), [cart]);
+  const cartBaseTotal = pricedCart.materialsCost;
 
   // Declared after the labor/assembly figures below, so it can be whole-job.
 
@@ -684,9 +709,9 @@ export default function EstimateScreen() {
   //
   // This is not the app inventing a markup: it applies the percentage HE set,
   // to the whole cost base, which is what he already believed it did.
-  const laborBaseTotal = useMemo(() => laborCart.reduce((sum, item) => sum + item.adjustedRate * item.hours, 0), [laborCart]);
+  const laborBaseTotal = pricedCart.laborCost;
   const laborHoursTotal = useMemo(() => laborCart.reduce((sum, item) => sum + item.hours, 0), [laborCart]);
-  const assemblyBaseTotal = useMemo(() => assemblyCart.reduce((sum, item) => sum + item.totalCost, 0), [assemblyCart]);
+  const assemblyBaseTotal = pricedCart.assembliesCost;
   // Sell-side. Named `laborTotal` / `assemblyTotal` because every display and
   // export below already treats them as siblings of `cartTotal`, which has
   // always been the marked-up materials figure — before this they were the one
@@ -703,6 +728,9 @@ export default function EstimateScreen() {
       materialsSell: cartTotal,
       laborCost: laborBaseTotal,
       assembliesCost: assemblyBaseTotal,
+      // The sums of the rows the screen prints, so the totals foot to them.
+      laborSell: pricedCart.laborSell,
+      assemblySell: pricedCart.assemblySell,
       markupPct: globalMarkup,
     });
   // The rate to PRINT on the markup row. Materials carry per-item markups, so
@@ -995,13 +1023,40 @@ export default function EstimateScreen() {
     setSelectedMaterial(null);
   }, [selectedMaterial, itemQty, cart, cartAnim, ctxAddToCart, ctxUpdateQuantity]);
 
-  const popupLineTotal = useMemo(() => {
-    if (!selectedMaterial) return 0;
-    const qty = parseInt(itemQty, 10) || 0;
-    const usesBulk = qty >= selectedMaterial.bulkMinQty;
-    const base = usesBulk ? selectedMaterial.baseBulkPrice : selectedMaterial.baseRetailPrice;
-    return base * (1 + globalMarkup / 100) * qty;
-  }, [selectedMaterial, itemQty, globalMarkup]);
+  // The pop-up previews THE CART AFTER THE PRESS, priced by the same function
+  // as the cart itself — so "Line total" is the row the cart will show and
+  // "Estimate total after adding" is the footer it will show. It used to
+  // preview at the GLOBAL markup (the cart keeps a row's own), parse the
+  // quantity with parseInt (the press commits parseLenientNumber — "2.5"
+  // previewed 2), count materials only, and round with toFixed where the
+  // footer used Intl: "$27.25" in the pop-up, "$27.26" on the bar after Add.
+  const popupPreview = useMemo(() => {
+    if (!selectedMaterial) return { lineTotal: 0, totalAfter: 0, usesBulk: false };
+    const { next, line } = popupCartAfter(cart, selectedMaterial, parseLenientNumber(itemQty), globalMarkup);
+    return {
+      lineTotal: line ? priceMaterialLine(line).sell : 0,
+      totalAfter: priceEstimatorCart(next, laborCart, assemblyCart, globalMarkup).grandTotal,
+      usesBulk: line ? line.usesBulk : false,
+    };
+  }, [selectedMaterial, itemQty, cart, laborCart, assemblyCart, globalMarkup]);
+  // The unit prices printed above that Line Total: an in-cart row's OWN
+  // snapshot (the price Update keeps), not the catalog's — see popupUnitPrices.
+  const popupPrices = useMemo(
+    () => (selectedMaterial ? popupUnitPrices(cart, selectedMaterial) : null),
+    [cart, selectedMaterial],
+  );
+
+  // The labor and assembly pop-ups preview the SELL their cart row will print
+  // (cost plus the global O&P, priced by the same functions as the row), with
+  // the cost kept visible under it. They used to print COST while the row
+  // prints sell: "$520.00" in the pop-up became a "$598.00" row after Add.
+  // Quantities are read with parseLenientNumber, as the Add press commits.
+  const laborPopupPreview = useMemo(() => {
+    const rate = parseLenientNumber(laborRateInput);
+    const hours = parseLenientNumber(laborHoursInput);
+    if (rate === null || rate <= 0 || hours === null || hours <= 0) return { cost: 0, sell: 0 };
+    return priceLaborLine({ adjustedRate: rate, hours }, globalMarkup);
+  }, [laborRateInput, laborHoursInput, globalMarkup]);
 
   // Delta-style qty update used by the +/- buttons inside the cart row.
   // The context's updateQuantity is absolute; we combine it with a lookup
@@ -1028,10 +1083,14 @@ export default function EstimateScreen() {
   }, [ctxRemoveFromCart]);
 
   const buildLinkedEstimate = useCallback((): LinkedEstimate => {
-    const materialItems: LinkedEstimateItem[] = cart.map(item => {
-      const usesBulk = item.quantity >= item.material.bulkMinQty;
-      const base = usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-      const lineTotal = base * (1 + item.markup / 100) * item.quantity;
+    // Every lineTotal is the row's cent-grid SELL from pricedCart — the figure
+    // the cart row printed — so Σ lineTotal === grandTotal exactly, and the
+    // PDF, portal, change orders, AIA and invoices read the GC's own cents.
+    // `usesBulk` / the base are the row's own (the ones the screen priced),
+    // not re-derived from the quantity here.
+    const materialItems: LinkedEstimateItem[] = cart.map((item, i) => {
+      const { base, sell: lineTotal } = pricedCart.materials[i];
+      const usesBulk = item.usesBulk;
       return {
         materialId: item.material.id,
         name: item.material.name,
@@ -1055,8 +1114,7 @@ export default function EstimateScreen() {
     // contractor's markup rides on `markup` and shows up in lineTotal, exactly
     // as it does for materials. It used to be hard-coded 0 here, which is why
     // a labor-heavy job silently carried a fraction of the margin he set.
-    const laborItems: LinkedEstimateItem[] = laborCart.map(item => {
-      const cost = item.adjustedRate * item.hours;
+    const laborItems: LinkedEstimateItem[] = laborCart.map((item, i) => {
       return {
         materialId: item.labor.id,
         name: item.labor.trade,
@@ -1067,14 +1125,14 @@ export default function EstimateScreen() {
         bulkPrice: item.adjustedRate,
         markup: globalMarkup,
         usesBulk: false,
-        lineTotal: cost * (1 + globalMarkup / 100),
+        lineTotal: pricedCart.labor[i].sell,
         supplier: item.labor.category,
       };
     });
     // Fold assemblies in the same way. An assembly's totalCost already bakes in
     // its material + labor costs at the chosen quantity, so it becomes a single
     // qty=1 line priced at that total.
-    const assemblyItems: LinkedEstimateItem[] = assemblyCart.map(item => ({
+    const assemblyItems: LinkedEstimateItem[] = assemblyCart.map((item, i) => ({
       materialId: item.assembly.id,
       name: item.assembly.name,
       category: 'Assemblies',
@@ -1084,7 +1142,7 @@ export default function EstimateScreen() {
       bulkPrice: item.totalCost,
       markup: globalMarkup,
       usesBulk: false,
-      lineTotal: item.totalCost * (1 + globalMarkup / 100),
+      lineTotal: pricedCart.assemblies[i].sell,
       supplier: `${item.quantity} ${item.assembly.unit}`,
     }));
     const items: LinkedEstimateItem[] = [...materialItems, ...laborItems, ...assemblyItems];
@@ -1102,7 +1160,7 @@ export default function EstimateScreen() {
       grandTotal,
       createdAt: new Date().toISOString(),
     };
-  }, [cart, laborCart, assemblyCart, globalMarkup, directCostTotal, markupTotal, grandTotal]);
+  }, [cart, laborCart, assemblyCart, globalMarkup, pricedCart, directCostTotal, markupTotal, grandTotal]);
 
   const handleSelectProject = useCallback(() => {
     if (!selectedProjectId) {
@@ -1137,9 +1195,11 @@ export default function EstimateScreen() {
     if (mode === 'merge' && pendingLinkProject.linkedEstimate) {
       const existing = pendingLinkProject.linkedEstimate;
       const mergedItems = [...existing.items, ...linkedEst.items];
-      const mergedBase = existing.baseTotal + linkedEst.baseTotal;
-      const mergedMarkup = existing.markupTotal + linkedEst.markupTotal;
-      const mergedGrand = existing.grandTotal + linkedEst.grandTotal;
+      // Snapped to the cent: two cent-grid totals added as floats can land at
+      // 27.250000000000004, which is a raw figure on every screen that reads it.
+      const mergedBase = round2(existing.baseTotal + linkedEst.baseTotal);
+      const mergedMarkup = round2(existing.markupTotal + linkedEst.markupTotal);
+      const mergedGrand = round2(existing.grandTotal + linkedEst.grandTotal);
       const mergedEstimate = { ...linkedEst, items: mergedItems, baseTotal: mergedBase, markupTotal: mergedMarkup, grandTotal: mergedGrand };
       updateProject(pendingLinkProject.id, { ...commitEstimatePatch(pendingLinkProject, mergedEstimate, { reason: 'pre_overwrite' }), status: 'estimated' });
     } else {
@@ -1262,7 +1322,7 @@ export default function EstimateScreen() {
 
       const result = await sendEmail({
         to: options.recipient.trim(),
-        subject: `Estimate: ${(() => { const v = grandTotal ?? 0; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} · ${options.fileName || 'Project'}`,
+        subject: `Estimate: ${(() => { const v = grandTotal ?? 0; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return formatMoney(v, 2); })()} · ${options.fileName || 'Project'}`,
         html: emailHtml,
         replyTo: branding.email || undefined,
         attachments: pdfUri ? [pdfUri] : undefined,
@@ -1371,23 +1431,20 @@ export default function EstimateScreen() {
     // totals are the ones cartTotals() sums: materials at their own markup,
     // labor and assemblies at the global markup.
     const rows: EmailEstimateRow[] = [
-      ...cart.map(item => {
-        const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-        return {
-          name: item.material.name,
-          qtyLabel: `Qty: ${item.quantity} ${item.material.unit}`,
-          lineTotal: base * (1 + item.markup / 100) * item.quantity,
-        };
-      }),
-      ...laborCart.map(item => ({
+      ...cart.map((item, i) => ({
+        name: item.material.name,
+        qtyLabel: `Qty: ${item.quantity} ${item.material.unit}`,
+        lineTotal: pricedCart.materials[i].sell,
+      })),
+      ...laborCart.map((item, i) => ({
         name: item.labor.trade,
         qtyLabel: `${item.hours} hrs`,
-        lineTotal: item.adjustedRate * item.hours * (1 + globalMarkup / 100),
+        lineTotal: pricedCart.labor[i].sell,
       })),
-      ...assemblyCart.map(item => ({
+      ...assemblyCart.map((item, i) => ({
         name: item.assembly.name,
         qtyLabel: `Qty: ${item.quantity} ${item.assembly.unit}`,
-        lineTotal: item.totalCost * (1 + globalMarkup / 100),
+        lineTotal: pricedCart.assemblies[i].sell,
       })),
     ];
     const text = buildEstimateEmailBody({
@@ -1403,7 +1460,7 @@ export default function EstimateScreen() {
     Linking.openURL(url).catch(() => {
       showAlert('Unable to open email', 'Please check your email app is configured.');
     });
-  }, [cart, laborCart, assemblyCart, globalMarkup, grandTotal, settings]);
+  }, [cart, laborCart, assemblyCart, pricedCart, grandTotal, settings]);
 
   const handleShareText = useCallback(() => {
     let body = 'MAGE ID Estimate\n';
@@ -1538,8 +1595,8 @@ export default function EstimateScreen() {
   }, [cartItemInList, openItemPopup, themeColors]);
 
   const renderCartItem = useCallback((item: CartItem) => {
-    const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-    const lineTotal = base * (1 + item.markup / 100) * item.quantity;
+    // The row's cent-grid sell — the same figure the footer sums.
+    const { base, sell: lineTotal } = priceMaterialLine(item);
     const isExpanded = expandedItem === item.material.id;
     const isCostExpanded = expandedCostBreakdown === item.material.id;
 
@@ -1572,7 +1629,7 @@ export default function EstimateScreen() {
             </Text>
           </View>
           <View style={styles.cartItemRight}>
-            <Text style={styles.cartItemTotal}>{formatMoney(lineTotal, 2)}</Text>
+            <Text style={styles.cartItemTotal} testID={`cart-line-total-${item.material.id}`}>{formatMoney(lineTotal, 2)}</Text>
             {isExpanded ? <ChevronUp size={16} color={Colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={16} color={Colors.textMuted} strokeWidth={1.75} />}
           </View>
         </TouchableOpacity>
@@ -2241,14 +2298,14 @@ export default function EstimateScreen() {
             {inCart && (
               <View style={styles.inCartRow}>
                 <CheckCircle size={13} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={styles.inCartText}>{inCart.hours} hrs · ${(inCart.adjustedRate * inCart.hours).toFixed(2)}</Text>
+                <Text style={styles.inCartText}>{inCart.hours} hrs · {formatMoney(priceLaborLine(inCart, globalMarkup).sell, 2)}</Text>
               </View>
             )}
           </View>
         </TouchableOpacity>
       </View>
     );
-  }, [laborCart, openLaborPopup, themeColors]);
+  }, [laborCart, openLaborPopup, themeColors, globalMarkup]);
 
   const renderAssemblyCard = useCallback(({ item }: { item: AssemblyItem }) => {
     const inCart = assemblyCart.find(i => i.assembly.id === item.id);
@@ -2488,9 +2545,56 @@ export default function EstimateScreen() {
     </View>
   ), [listHeaderComponent, templateCategory, filteredTemplates.length]);
 
+  // The market-change question (see planCartReprice). Rendered at the top of
+  // the estimator, in the Estimate sheet, and under the desktop header.
+  const repriceCount = repricePlan.changedCount;
+  const repriceNotice = showRepriceNotice ? (
+    <View style={styles.repriceBanner} testID="reprice-notice">
+      <RefreshCw size={14} color={Colors.infoLabel} strokeWidth={1.75} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.repriceText}>
+          {repriceCount === 1 ? '1 line in this estimate is' : `${repriceCount} lines in this estimate are`} priced
+          differently from the {regionLabel} price book. Reprice {repriceCount === 1 ? 'it' : 'them'} for {regionLabel}?{' '}
+          {repricePlan.sellDelta === 0 ? (
+            <Text style={styles.repriceDelta}>No change to the total.</Text>
+          ) : (
+            <>
+              <Text style={styles.repriceDelta}>
+                {repricePlan.sellDelta > 0 ? '+' : '−'}{formatMoney(Math.abs(repricePlan.sellDelta), 2)}
+              </Text>{' '}on the total.
+            </>
+          )}{' '}Nothing changes until you choose.
+        </Text>
+        <View style={styles.repriceBtnRow}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.repriceBtn}
+            onPress={keepCurrentPrices}
+            activeOpacity={0.8}
+            testID="reprice-keep"
+          >
+            <Text style={styles.repriceBtnText}>Keep current prices</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={[styles.repriceBtn, styles.repriceBtnPrimary]}
+            onPress={applyReprice}
+            activeOpacity={0.8}
+            testID="reprice-apply"
+          >
+            <Text style={styles.repriceBtnPrimaryText}>
+              Reprice {repriceCount === 1 ? '1 line' : `${repriceCount} lines`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  ) : null;
+
   if (layout.isDesktop) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
+        {repriceNotice}
         <View style={dStyles.desktopHeader}>
           <View>
             <Text style={[styles.headerTitle, { fontSize: 24 }]}>Estimator</Text>
@@ -2814,15 +2918,14 @@ export default function EstimateScreen() {
                           <View style={{ width: 32 }} />
                         </View>
                         {cart.map((item, idx) => {
-                          const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-                          const lineTotal = base * (1 + item.markup / 100) * item.quantity;
+                          const { base, sell: lineTotal } = pricedCart.materials[idx];
                           return (
                             <View key={item.material.id} style={[dStyles.wsTableRow, idx % 2 === 0 && dStyles.wsTableRowAlt]}>
                               <Text style={[dStyles.wsCell, { flex: 3, fontWeight: '500' as const }]} numberOfLines={1}>{item.material.name}</Text>
                               <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.quantity}</Text>
                               <Text style={[dStyles.wsCell, { flex: 1 }]}>${base.toFixed(2)}</Text>
                               <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.markup}%</Text>
-                              <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>${lineTotal.toFixed(2)}</Text>
+                              <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>{formatMoney(lineTotal, 2)}</Text>
                               <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeFromCart(item.material.id)} accessibilityRole="button" accessibilityLabel="Delete">
                                 <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                               </TouchableOpacity>
@@ -2840,6 +2943,7 @@ export default function EstimateScreen() {
                           <Text style={[dStyles.wsHeaderCell, { flex: 3 }]}>Trade</Text>
                           <Text style={[dStyles.wsHeaderCell, { flex: 1 }]}>Hours</Text>
                           <Text style={[dStyles.wsHeaderCell, { flex: 1 }]}>Rate</Text>
+                          <Text style={[dStyles.wsHeaderCell, { flex: 1 }]}>Markup</Text>
                           <Text style={[dStyles.wsHeaderCell, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
                           <View style={{ width: 32 }} />
                         </View>
@@ -2848,7 +2952,8 @@ export default function EstimateScreen() {
                             <Text style={[dStyles.wsCell, { flex: 3, fontWeight: '500' as const }]}>{item.labor.trade}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.hours}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>${item.adjustedRate.toFixed(2)}</Text>
-                            <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>${(item.adjustedRate * item.hours).toFixed(2)}</Text>
+                            <Text style={[dStyles.wsCell, { flex: 1 }]}>{globalMarkup}%</Text>
+                            <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>{formatMoney(pricedCart.labor[idx]?.sell ?? 0, 2)}</Text>
                             <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeLaborItem(item.labor.id)} accessibilityRole="button" accessibilityLabel="Delete">
                               <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                             </TouchableOpacity>
@@ -2866,6 +2971,7 @@ export default function EstimateScreen() {
                           <Text style={[dStyles.wsHeaderCell, { flex: 1 }]}>Qty</Text>
                           <Text style={[dStyles.wsHeaderCell, { flex: 1 }]}>Mat</Text>
                           <Text style={[dStyles.wsHeaderCell, { flex: 1 }]}>Lab</Text>
+                          <Text style={[dStyles.wsHeaderCell, { flex: 1 }]}>Markup</Text>
                           <Text style={[dStyles.wsHeaderCell, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
                           <View style={{ width: 32 }} />
                         </View>
@@ -2875,7 +2981,8 @@ export default function EstimateScreen() {
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.quantity}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>${item.materialsCost.toFixed(0)}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>${item.laborCost.toFixed(0)}</Text>
-                            <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>${item.totalCost.toFixed(2)}</Text>
+                            <Text style={[dStyles.wsCell, { flex: 1 }]}>{globalMarkup}%</Text>
+                            <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>{formatMoney(pricedCart.assemblies[idx]?.sell ?? 0, 2)}</Text>
                             <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeAssemblyItem(item.assembly.id)} accessibilityRole="button" accessibilityLabel="Delete">
                               <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                             </TouchableOpacity>
@@ -3041,7 +3148,7 @@ export default function EstimateScreen() {
                   </View>
                   <View style={styles.popupTotalRow}>
                     <Text style={styles.popupTotalLabel}>Line Total</Text>
-                    <Text style={styles.popupTotalValue}>{formatMoney(popupLineTotal, 2)}</Text>
+                    <Text style={styles.popupTotalValue} testID="popup-line-total">{formatMoney(popupPreview.lineTotal, 2)}</Text>
                   </View>
                   <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddFromPopup} activeOpacity={0.85}>
                     <ShoppingCart size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
@@ -3179,6 +3286,7 @@ export default function EstimateScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {repriceNotice}
       {activeTab === 'materials' && <FlatList
         {...fabScroll}
         data={filteredMaterials}
@@ -3265,7 +3373,7 @@ export default function EstimateScreen() {
             <ShoppingCart size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
             <Text style={styles.floatingCartItems}>{totalItemCount} items</Text>
           </View>
-          <Text style={styles.floatingCartTotal}>{formatMoney(grandTotal, 2)}</Text>
+          <Text style={styles.floatingCartTotal} testID="floating-cart-total">{formatMoney(grandTotal, 2)}</Text>
           <ArrowRight size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
         </TouchableOpacity>
       )}
@@ -3313,12 +3421,12 @@ export default function EstimateScreen() {
                 <View style={styles.popupPriceRow}>
                   <View style={styles.popupPriceBlock}>
                     <Text style={styles.popupPriceLabel}>Retail</Text>
-                    <Text style={styles.popupRetail}>${selectedMaterial.baseRetailPrice.toFixed(2)}</Text>
+                    <Text style={styles.popupRetail}>${(popupPrices?.material ?? selectedMaterial).baseRetailPrice.toFixed(2)}</Text>
                     <Text style={styles.popupPriceUnit}>/{selectedMaterial.unit}</Text>
                   </View>
                   <View style={styles.popupPriceBlock}>
                     <Text style={[styles.popupPriceLabel, { color: themeColors.successLabel }]}>Bulk</Text>
-                    <Text style={styles.popupBulk}>${selectedMaterial.baseBulkPrice.toFixed(2)}</Text>
+                    <Text style={styles.popupBulk}>${(popupPrices?.material ?? selectedMaterial).baseBulkPrice.toFixed(2)}</Text>
                     <Text style={styles.popupPriceUnit}>/{selectedMaterial.unit}</Text>
                   </View>
                 </View>
@@ -3351,7 +3459,7 @@ export default function EstimateScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {(parseInt(itemQty, 10) || 0) >= selectedMaterial.bulkMinQty && (
+                {popupPreview.usesBulk && (
                   <View style={styles.popupBulkBanner}>
                     <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
                     <Text style={styles.popupBulkText}>Bulk pricing applied!</Text>
@@ -3362,7 +3470,22 @@ export default function EstimateScreen() {
                     the MSRP to the current retail price, and what bulk buys you.
                     Users kept asking "why is this $615 and not $500?" — this is
                     the answer spelled out. */}
-                {(() => {
+                {popupPrices?.kept ? (
+                  // This row keeps the price it was added at (he chose Keep,
+                  // or has not answered the reprice question yet). The
+                  // breakdown below explains the CATALOG price from this
+                  // market's multiplier, which is not the price this line
+                  // uses — so say which price is used instead.
+                  <View style={styles.popupBreakdown} testID="popup-kept-price-note">
+                    <Text style={styles.popupBreakdownTitle}>Kept at its earlier price</Text>
+                    <Text style={styles.popupBreakdownLabel}>
+                      This line stays at the price it was added at: ${popupPrices.material.baseRetailPrice.toFixed(2)} retail,
+                      ${popupPrices.material.baseBulkPrice.toFixed(2)} bulk. The {regionLabel} price book reads
+                      ${popupPrices.catalog.baseRetailPrice.toFixed(2)} retail, ${popupPrices.catalog.baseBulkPrice.toFixed(2)} bulk.
+                      Updating the quantity keeps the earlier price.
+                    </Text>
+                  </View>
+                ) : (() => {
                   const mult = locationMultiplier || 1;
                   const msrp = selectedMaterial.baseRetailPrice / mult;
                   const regionDelta = selectedMaterial.baseRetailPrice - msrp;
@@ -3414,19 +3537,15 @@ export default function EstimateScreen() {
 
                 <View style={styles.popupTotalRow}>
                   <Text style={styles.popupTotalLabel}>Line Total</Text>
-                  <Text style={styles.popupTotalValue}>{formatMoney(popupLineTotal, 2)}</Text>
+                  <Text style={styles.popupTotalValue} testID="popup-line-total">{formatMoney(popupPreview.lineTotal, 2)}</Text>
                 </View>
 
                 <View style={styles.popupRunningRow}>
-                  <Text style={styles.popupRunningLabel}>Cart total after adding</Text>
-                  <Text style={styles.popupRunningValue}>
-                    ${(cartTotal - (cart.find(i => i.material.id === selectedMaterial.id)
-                      ? (() => {
-                          const existing = cart.find(i => i.material.id === selectedMaterial.id)!;
-                          const base = existing.usesBulk ? existing.material.baseBulkPrice : existing.material.baseRetailPrice;
-                          return base * (1 + existing.markup / 100) * existing.quantity;
-                        })()
-                      : 0) + popupLineTotal).toFixed(2)}
+                  <Text style={styles.popupRunningLabel}>
+                    {cart.some(i => i.material.id === selectedMaterial.id) ? 'Estimate total after update' : 'Estimate total after adding'}
+                  </Text>
+                  <Text style={styles.popupRunningValue} testID="popup-total-after">
+                    {formatMoney(popupPreview.totalAfter, 2)}
                   </Text>
                 </View>
 
@@ -3472,6 +3591,7 @@ export default function EstimateScreen() {
                 <X size={22} color={Colors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
+            {repriceNotice}
 
             {totalItemCount === 0 ? (
               <View style={styles.cartEmpty}>
@@ -3548,15 +3668,19 @@ export default function EstimateScreen() {
                     <>
                       <Text style={styles.cartSectionTitle}>Labor ({laborCart.length})</Text>
                       <View style={styles.cartList}>
-                        {laborCart.map(item => (
+                        {laborCart.map((item, idx) => (
                           <View key={item.labor.id} style={styles.cartItem}>
                             <View style={styles.cartItemHeader}>
                               <View style={styles.cartItemLeft}>
                                 <Text style={styles.cartItemName}>{item.labor.trade}</Text>
-                                <Text style={styles.cartItemSub}>${item.adjustedRate.toFixed(2)}/hr · {item.hours} hrs</Text>
+                                {/* Rows print SELL, like material rows, so the
+                                    rows add up to the Grand total below. The
+                                    cost rate stays visible, with the markup
+                                    the row carries on top of it. */}
+                                <Text style={styles.cartItemSub}>${item.adjustedRate.toFixed(2)}/hr · {item.hours} hrs{globalMarkup > 0 ? ` · +${globalMarkup}% O&P` : ''}</Text>
                               </View>
                               <View style={styles.cartItemRight}>
-                                <Text style={styles.cartItemTotal}>{formatMoney(item.adjustedRate * item.hours, 2)}</Text>
+                                <Text style={styles.cartItemTotal} testID={`cart-labor-total-${item.labor.id}`}>{formatMoney(pricedCart.labor[idx]?.sell ?? 0, 2)}</Text>
                                 <TouchableOpacity onPress={() => removeLaborItem(item.labor.id)} accessibilityRole="button" accessibilityLabel="Delete">
                                   <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                                 </TouchableOpacity>
@@ -3577,15 +3701,15 @@ export default function EstimateScreen() {
                     <>
                       <Text style={styles.cartSectionTitle}>Assemblies ({assemblyCart.length})</Text>
                       <View style={styles.cartList}>
-                        {assemblyCart.map(item => (
+                        {assemblyCart.map((item, idx) => (
                           <View key={item.assembly.id} style={styles.cartItem}>
                             <View style={styles.cartItemHeader}>
                               <View style={styles.cartItemLeft}>
                                 <Text style={styles.cartItemName}>{item.assembly.name}</Text>
-                                <Text style={styles.cartItemSub}>{item.quantity} {item.assembly.unit} · Mat: ${item.materialsCost.toFixed(0)} · Lab: ${item.laborCost.toFixed(0)}</Text>
+                                <Text style={styles.cartItemSub}>{item.quantity} {item.assembly.unit} · Mat: ${item.materialsCost.toFixed(0)} · Lab: ${item.laborCost.toFixed(0)}{globalMarkup > 0 ? ` · +${globalMarkup}% O&P` : ''}</Text>
                               </View>
                               <View style={styles.cartItemRight}>
-                                <Text style={styles.cartItemTotal}>{formatMoney(item.totalCost, 2)}</Text>
+                                <Text style={styles.cartItemTotal} testID={`cart-assembly-total-${item.assembly.id}`}>{formatMoney(pricedCart.assemblies[idx]?.sell ?? 0, 2)}</Text>
                                 <TouchableOpacity onPress={() => removeAssemblyItem(item.assembly.id)} accessibilityRole="button" accessibilityLabel="Delete">
                                   <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                                 </TouchableOpacity>
@@ -3642,7 +3766,7 @@ export default function EstimateScreen() {
                     <View style={styles.summaryDivider} />
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryTotal}>Grand Total</Text>
-                      <Text style={styles.summaryTotalValue}>{formatMoney(grandTotal, 2)}</Text>
+                      <Text style={styles.summaryTotalValue} testID="summary-grand-total">{formatMoney(grandTotal, 2)}</Text>
                     </View>
                     {cart.some(i => i.usesBulk) && (
                       <View style={styles.bulkNote}>
@@ -3660,7 +3784,7 @@ export default function EstimateScreen() {
                 <View style={[styles.cartFooter, { paddingBottom: insets.bottom + 12 }]}>
                   <View style={styles.cartFooterSummary}>
                     <Text style={styles.cartFooterLabel}>Grand total</Text>
-                    <Text style={styles.cartFooterValue}>{formatMoney(grandTotal, 2)}</Text>
+                    <Text style={styles.cartFooterValue} testID="cart-footer-total">{formatMoney(grandTotal, 2)}</Text>
                   </View>
 
                   <View style={styles.cartFooterBtnRow}>
@@ -3967,8 +4091,13 @@ export default function EstimateScreen() {
                 </View>
                 <View style={styles.popupTotalRow}>
                   <Text style={styles.popupTotalLabel}>Line Total</Text>
-                  <Text style={styles.popupTotalValue}>${((parseFloat(laborRateInput) || 0) * (parseFloat(laborHoursInput) || 0)).toFixed(2)}</Text>
+                  <Text style={styles.popupTotalValue} testID="labor-popup-line-total">{formatMoney(laborPopupPreview.sell, 2)}</Text>
                 </View>
+                {globalMarkup > 0 && (
+                  <Text style={[styles.supplierText, { textAlign: 'right' }]} testID="labor-popup-cost">
+                    Cost {formatMoney(laborPopupPreview.cost, 2)} · +{globalMarkup}% O&P
+                  </Text>
+                )}
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddLabor} activeOpacity={0.85}>
                   <HardHat size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                   <Text style={styles.popupAddBtnText}>
@@ -4027,8 +4156,11 @@ export default function EstimateScreen() {
                   </TouchableOpacity>
                 </View>
                 {(() => {
-                  const qty = parseFloat(assemblyQtyInput) || 0;
+                  const parsedQty = parseLenientNumber(assemblyQtyInput);
+                  const qty = parsedQty !== null && parsedQty > 0 ? parsedQty : 0;
                   const costs = calculateAssemblyCost(selectedAssembly, qty);
+                  // The same pricer the cart row uses, so Total === the row.
+                  const priced = priceAssemblyLine(costs, globalMarkup);
                   return (
                     <>
                       <View style={styles.popupRunningRow}>
@@ -4041,8 +4173,13 @@ export default function EstimateScreen() {
                       </View>
                       <View style={styles.popupTotalRow}>
                         <Text style={styles.popupTotalLabel}>Total</Text>
-                        <Text style={styles.popupTotalValue}>${costs.totalCost.toFixed(2)}</Text>
+                        <Text style={styles.popupTotalValue} testID="assembly-popup-total">{formatMoney(priced.sell, 2)}</Text>
                       </View>
+                      {globalMarkup > 0 && (
+                        <Text style={[styles.supplierText, { textAlign: 'right' }]} testID="assembly-popup-cost">
+                          Cost {formatMoney(priced.cost, 2)} · +{globalMarkup}% O&P
+                        </Text>
+                      )}
                     </>
                   );
                 })()}
@@ -4975,6 +5112,55 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: Colors.infoLabel,
     lineHeight: 18,
+  },
+  repriceBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.info + '14',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 6,
+    borderRadius: Tokens.radius.md,
+    padding: 12,
+  },
+  repriceText: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.text,
+    lineHeight: 18,
+  },
+  repriceDelta: {
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  repriceBtnRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  repriceBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.surface,
+  },
+  repriceBtnPrimary: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  repriceBtnText: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  repriceBtnPrimaryText: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
   },
   cartList: {
     padding: 16,

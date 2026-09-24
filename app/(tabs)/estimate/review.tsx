@@ -29,7 +29,7 @@ import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/ut
 import { buildShareUrl } from '@/utils/webAppOrigin';
 import type { LinkedEstimate, PaymentSplit } from '@/types';
 import { CATEGORY_META } from '@/constants/materials';
-import { cartTotals } from '@/utils/estimateMarkup';
+import { priceEstimatorCart } from '@/utils/estimateMarkup';
 import { formatMoney } from '@/utils/formatters';
 import { buildCostDatabase, lookupRate } from '@/utils/costDatabase';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -106,44 +106,21 @@ export default function EstimateReviewScreen() {
   // Scrolling down slides the FAB away so it stops covering division rows.
   const fabScroll = useBrainFabScroll();
 
-  // Labor and assemblies are COST here (`laborBaseTotal` / `assemblyBaseTotal`)
-  // and carry the contractor's markup on top, exactly as estimate/full.tsx
-  // totals them: grandTotal = (materials + labor + assemblies) each with
-  // markup. This file mirrors that arithmetic rather than importing it, so the
-  // two must be changed together — they were previously in agreement on the
-  // WRONG rule (markup on materials only), which meant a labor-heavy estimate
-  // showed a small fraction of the margin the contractor had set. See the
-  // long note on full.tsx's laborBaseTotal for why cost ≠ price on an
-  // already-loaded hourly rate.
-  const laborBaseTotal = useMemo(
-    () => laborCart.reduce((s, i) => s + i.adjustedRate * i.hours, 0), [laborCart]);
-  const assemblyBaseTotal = useMemo(
-    () => assemblyCart.reduce((s, i) => s + i.totalCost, 0), [assemblyCart]);
-
-  const { directCost, markups, itemCount, laborTotal, assemblyTotal } = useMemo(() => {
-    const base = cart.reduce((sum, item) => {
-      const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-      return sum + p * item.quantity;
-    }, 0);
-    const withMarkup = cart.reduce((sum, item) => {
-      const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-      return sum + p * (1 + item.markup / 100) * item.quantity;
-    }, 0);
-    // Same shared function estimate/full.tsx totals with, so the two screens
-    // cannot drift the way they previously agreed on the WRONG rule.
-    const t = cartTotals({
-      materialsCost: base, materialsSell: withMarkup,
-      laborCost: laborBaseTotal, assembliesCost: assemblyBaseTotal,
-      markupPct: globalMarkup,
-    });
-    return {
-      directCost: t.directCostTotal,
-      markups: t.markupTotal,
-      laborTotal: t.laborSell,
-      assemblyTotal: t.assemblySell,
-      itemCount: cart.length + laborCart.length + assemblyCart.length,
-    };
-  }, [cart, laborCart.length, assemblyCart.length, laborBaseTotal, assemblyBaseTotal, globalMarkup]);
+  // ONE PRICING FUNCTION with estimate/full.tsx (utils/estimateMarkup
+  // priceEstimatorCart): every row's sell rounded to the cent once, every total
+  // the sum of those rows, labor and assemblies carrying the global markup on
+  // top of their loaded cost. This screen used to re-type the estimator's raw
+  // formula and total the unrounded floats, so its rows and totals could land
+  // a cent away from the estimator's for the same cart.
+  const priced = useMemo(
+    () => priceEstimatorCart(cart, laborCart, assemblyCart, globalMarkup),
+    [cart, laborCart, assemblyCart, globalMarkup],
+  );
+  const directCost = priced.directCostTotal;
+  const markups = priced.markupTotal;
+  const laborTotal = priced.laborSell;
+  const assemblyTotal = priced.assemblySell;
+  const itemCount = cart.length + laborCart.length + assemblyCart.length;
 
   // The learned price book — only consulted for the CONTRACTOR view's
   // rate-provenance chips. See the divisions memo below for why it is gated.
@@ -162,9 +139,8 @@ export default function EstimateReviewScreen() {
   // never even computed, and RateProvenanceChip renders nothing without it.
   const divisions: DivisionRow[] = useMemo(() => {
     const contractorView = mode === 'contractor';
-    const rows = cart.map(item => {
-      const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
-      const total = p * (1 + item.markup / 100) * item.quantity;
+    const rows = cart.map((item, i) => {
+      const total = priced.materials[i].sell;
       const csi = classifyToCSIDivision(item.material.name)
         ?? classifyToCSIDivision(item.material.category)
         ?? undefined;
@@ -180,7 +156,7 @@ export default function EstimateReviewScreen() {
       key: g.division?.number ?? 'other',
       number: g.division?.number ?? null,
       title: g.division?.title ?? 'Other scope',
-      total: g.items.reduce((s, r) => s + r.total, 0),
+      total: Math.round(g.items.reduce((s, r) => s + r.total, 0) * 100) / 100,
       items: g.items.map(r => ({ name: r.name, qty: r.qty, unit: r.unit, total: r.total, rateEntry: r.rateEntry })),
     }));
     // Labor and assemblies are their own scope groups so the contractor scope
@@ -192,67 +168,66 @@ export default function EstimateReviewScreen() {
         key: 'labor', number: null, title: 'Labor', total: laborTotal,
         // Per-row totals carry the markup so the group's rows sum to the
         // group total, which sums to the grand total the header shows.
-        items: laborCart.map(l => ({ name: l.labor.trade, qty: l.hours, unit: 'hrs', total: l.adjustedRate * l.hours * (1 + globalMarkup / 100), rateEntry: null })),
+        items: laborCart.map((l, i) => ({ name: l.labor.trade, qty: l.hours, unit: 'hrs', total: priced.labor[i].sell, rateEntry: null })),
       });
     }
     if (assemblyCart.length) {
       extra.push({
         key: 'assemblies', number: null, title: 'Assemblies', total: assemblyTotal,
-        items: assemblyCart.map(a => ({ name: a.assembly.name, qty: 1, unit: a.assembly.unit, total: a.totalCost * (1 + globalMarkup / 100), rateEntry: null })),
+        items: assemblyCart.map((a, i) => ({ name: a.assembly.name, qty: 1, unit: a.assembly.unit, total: priced.assemblies[i].sell, rateEntry: null })),
       });
     }
     return [...materialGroups, ...extra];
-  }, [cart, costDb, mode, laborCart, assemblyCart, laborTotal, assemblyTotal, globalMarkup]);
+  }, [cart, costDb, mode, laborCart, assemblyCart, laborTotal, assemblyTotal, priced]);
 
   // Client-safe projection — build a LinkedEstimate from the cart (base line
   // totals + grand total) and run the validated transform. It strips every
   // internal number; the client view only ever sees what it returns.
   const clientView = useMemo(() => {
-    const items = cart.map(item => {
-      const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
+    // lineTotal is each row's SELL on the cent grid (priceEstimatorCart) — the
+    // same convention estimate/full.tsx writes into a linked estimate — so
+    // Σ lineTotal === grandTotal, toClientEstimateView's scale factor is
+    // exactly 1, and every scope group is the sum of the cents the contractor
+    // view shows for its rows. It used to hand the projection COST rows and
+    // let it spread the markup proportionally, which re-rounded every group.
+    const items: LinkedEstimate['items'] = cart.map((item, i) => {
       const csi = classifyToCSIDivision(item.material.name)
         ?? classifyToCSIDivision(item.material.category)
         ?? undefined;
       return {
         materialId: item.material.id, name: item.material.name, category: item.material.category,
-        unit: item.material.unit, quantity: item.quantity, unitPrice: base,
+        unit: item.material.unit, quantity: item.quantity, unitPrice: priced.materials[i].base,
         bulkPrice: item.material.baseBulkPrice, markup: item.markup, usesBulk: item.usesBulk,
-        lineTotal: base * item.quantity, supplier: item.material.supplier ?? '', csiDivision: csi,
+        lineTotal: priced.materials[i].sell, supplier: item.material.supplier ?? '', csiDivision: csi,
       };
     });
     // Fold labor and assemblies in the same shape estimate/full.tsx uses when it
-    // links an estimate to a project, so the client view and the estimator agree.
-    // `lineTotal` on EVERY row in this projection is the COST (materials above
-    // use `base * quantity`, unmarked-up); the markup lives on `markup` and is
-    // added once, at the bottom, as `grandTotal = directCost + markups`. So
-    // these two rows carry the contractor's markup on `markup` like the
-    // material rows do, and their lineTotal stays at cost like the material
-    // rows do. toClientEstimateView strips all of it before the client sees
-    // anything.
-    for (const l of laborCart) {
-      const lineTotal = l.adjustedRate * l.hours;
+    // links an estimate to a project, so the client view and the estimator
+    // agree. toClientEstimateView strips cost, markup and unit price before the
+    // client sees anything.
+    laborCart.forEach((l, i) => {
       items.push({
         materialId: l.labor.id, name: l.labor.trade, category: 'Labor',
         unit: 'hrs', quantity: l.hours, unitPrice: l.adjustedRate,
         bulkPrice: l.adjustedRate, markup: globalMarkup, usesBulk: false,
-        lineTotal, supplier: l.labor.category, csiDivision: undefined,
+        lineTotal: priced.labor[i].sell, supplier: l.labor.category, csiDivision: undefined,
       });
-    }
-    for (const a of assemblyCart) {
+    });
+    assemblyCart.forEach((a, i) => {
       items.push({
         materialId: a.assembly.id, name: a.assembly.name, category: 'Assemblies',
         unit: a.assembly.unit, quantity: 1, unitPrice: a.totalCost,
         bulkPrice: a.totalCost, markup: globalMarkup, usesBulk: false,
-        lineTotal: a.totalCost, supplier: '', csiDivision: undefined,
+        lineTotal: priced.assemblies[i].sell, supplier: '', csiDivision: undefined,
       });
-    }
-    const baseTotal = items.reduce((s, i) => s + i.lineTotal, 0);
-    const grandTotal = directCost + markups;
+    });
     const est: LinkedEstimate = {
-      id: 'live', items, globalMarkup, baseTotal, markupTotal: grandTotal - baseTotal, grandTotal, createdAt: '',
+      id: 'live', items, globalMarkup,
+      baseTotal: priced.directCostTotal, markupTotal: priced.markupTotal, grandTotal: priced.grandTotal,
+      createdAt: '',
     };
     return toClientEstimateView(est);
-  }, [cart, laborCart, assemblyCart, globalMarkup, directCost, markups]);
+  }, [cart, laborCart, assemblyCart, globalMarkup, priced]);
 
   // "Ask when it matters": the link prints a payment schedule, so it prints the
   // GC's OWN split — never a guessed 10% deposit. Resolved from his saved
@@ -502,7 +477,7 @@ export default function EstimateReviewScreen() {
             divisionCount={divisions.length}
             cost={directCost}
             markups={markups}
-            grandTotal={directCost + markups}
+            grandTotal={priced.grandTotal}
           />
         </View>
       )}

@@ -12,6 +12,7 @@ import { isValidStamp, sameSplit } from '@/utils/paymentTerms';
 import { invoiceIsSettled } from '@/utils/invoiceBilling';
 import { isFinancialsBlinded } from '@/utils/roleBlinding';
 import type { ProjectRole } from '@/utils/projectRole';
+import { projectTypeOtherColumn } from '@/utils/projectTypes';
 
 // ─── MONEY-F3 · rate coercion ────────────────────────────────────────────────
 
@@ -2748,6 +2749,7 @@ export function localOnlyOwnedProjectIds(input: {
 export function localOnlyProjectInsertRow(project: Project, userId: string): Record<string, unknown> {
   return {
     id: project.id, name: project.name, type: project.type,
+    project_type_other: projectTypeOtherColumn(project),
     location: project.location, square_footage: project.squareFootage, quality: project.quality,
     location_latitude: project.locationLatitude ?? null,
     location_longitude: project.locationLongitude ?? null,

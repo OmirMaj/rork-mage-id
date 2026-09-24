@@ -39,7 +39,9 @@
 //     customerEmail?: string,       // prefills the email field on checkout
 //     companyName?: string,         // for the line-item product name fallback
 //     recordType?: 'invoice' | 'aia_pay_app',
-//     stripeAccountId?: string,     // caller's OWN Connect account (verified)
+//     stripeAccountId?: string,     // optional cross-check only: the account
+//                                   // is ALWAYS read from the caller's profile
+//                                   // (Q4, 2026-09-24 — see resolvePayoutAccount)
 //     userTier?: string,            // IGNORED for pricing: the tier is resolved
 //                                   // server-side (audit EDGE-F8 / MONEY-F8)
 //   }
@@ -49,6 +51,8 @@
 //   { success: false, error: string }
 //   409 { success: false, error: 'payment_pending' } — a bank payment through
 //       the previous link is still settling (#83); no new link is minted.
+//   409 { success: false, code: 'not_connected', error: <sentence> } — the
+//       caller has no Stripe Connect account; no link is minted (Q4).
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 // EDGE-F8 / MONEY-F8: identity + tier are server-resolved (GoTrue-verified JWT,
@@ -106,11 +110,12 @@ interface CreatePaymentLinkBody {
    */
   recordType?: "invoice" | "aia_pay_app";
   /**
-   * The contractor's Stripe Connect Express account id (acct_xxx). When
-   * present, the Payment Link is created ON BEHALF OF that account, so
-   * money flows directly to the contractor's bank — not the platform's.
-   * Required for production use; absence falls back to platform-owned
-   * legacy mode (only useful during local Stripe testing).
+   * The contractor's Stripe Connect Express account id (acct_xxx), as the
+   * app believes it to be. A CROSS-CHECK only (Q4, 2026-09-24): the link is
+   * always created on the account stored on the caller's profile, so money
+   * goes to the contractor's bank, never the platform's. A value that is not
+   * that account is refused (403); leaving it out no longer mints a
+   * platform-owned link — without a connected account nothing is minted.
    */
   stripeAccountId?: string;
   /**
@@ -212,6 +217,35 @@ async function stripeFetch(path: string, body: Record<string, unknown>, stripeAc
   return { ok: res.ok, status: res.status, json };
 }
 
+// Q4 (2026-09-24): WHOSE Stripe account a link is minted on. The money of a
+// link goes to the account it is created under, so there is exactly one right
+// answer — the caller's own connected account, read from profiles
+// server-side — and no fallback. The body's stripeAccountId used to BE the
+// account: left out (a stale build, a direct API call), the link was minted on
+// the MAGE platform account with no application fee, and stripe-webhook would
+// credit the GC's invoice while the money sat in MAGE's balance. Now:
+//   - no connected account on the profile → 409 not_connected, nothing minted;
+//   - a body value that is not the caller's own account → 403 (unchanged);
+//   - otherwise the PROFILE's account is used, whatever the body said.
+// Pure (no I/O) so scripts/validate-financing-honesty.ts executes it.
+type PayoutAccountDecision =
+  | { ok: true; accountId: string }
+  | { ok: false; status: number; code: string; error: string };
+function resolvePayoutAccount(ownAccountId: string | null | undefined, requested: string | null | undefined): PayoutAccountDecision {
+  const own = typeof ownAccountId === "string" ? ownAccountId.trim() : "";
+  if (!own) {
+    return {
+      ok: false, status: 409, code: "not_connected",
+      error: "Payments are not connected: finish Stripe setup in Settings → Payments, then send the Pay link again",
+    };
+  }
+  const asked = typeof requested === "string" ? requested.trim() : "";
+  if (asked && asked !== own) {
+    return { ok: false, status: 403, code: "account_mismatch", error: "stripeAccountId does not belong to caller" };
+  }
+  return { ok: true, accountId: own };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
@@ -274,7 +308,8 @@ serve(async (req) => {
   //   4. Stripe webhook fires with metadata.invoice_id = B's id → MAGE marks B's invoice paid
   //   5. Attacker pocketed the money; victim B sees "paid in full" without receiving funds
   // Fix: verify the caller's JWT, confirm invoice.user_id === caller.sub AND
-  // profile.stripe_account_id === body.stripeAccountId (when provided).
+  // the link is minted on profile.stripe_account_id (and a body
+  // stripeAccountId that is not that account is refused).
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error("[create-payment-link] Supabase server config missing — cannot verify ownership");
     return jsonResponse({ success: false, error: "Server misconfigured" }, 500);
@@ -376,29 +411,32 @@ serve(async (req) => {
     console.error("[create-payment-link] ownership check exception:", e);
     return jsonResponse({ success: false, error: "Ownership check failed" }, 500);
   }
-  // If a Stripe Connect account is specified, verify it belongs to the caller.
-  // This blocks the attack where caller routes a victim's payment into someone
-  // else's Stripe account.
-  if (body.stripeAccountId) {
-    try {
-      const profRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(callerSub)}&select=stripe_account_id&limit=1`,
-        { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
-      );
-      if (!profRes.ok) {
-        console.error("[create-payment-link] profile lookup failed:", profRes.status);
-        return jsonResponse({ success: false, error: "Could not verify Stripe account ownership" }, 500);
-      }
-      const profRows = await profRes.json() as { stripe_account_id: string | null }[];
-      const ownAccountId = profRows[0]?.stripe_account_id ?? null;
-      if (!ownAccountId || ownAccountId !== body.stripeAccountId) {
-        console.warn("[create-payment-link] caller", callerSub, "tried to use stripeAccountId", body.stripeAccountId, "which is not theirs (own:", ownAccountId, ")");
-        return jsonResponse({ success: false, error: "stripeAccountId does not belong to caller" }, 403);
-      }
-    } catch (e) {
-      console.error("[create-payment-link] stripeAccountId check exception:", e);
-      return jsonResponse({ success: false, error: "Connect account check failed" }, 500);
+  // Q4: the account the link is minted on is ALWAYS the caller's own
+  // connected account, read here — never the body's value and never the
+  // platform account (resolvePayoutAccount above). This also still blocks the
+  // attack where a caller routes a victim's payment into someone else's
+  // Stripe account: a body value that is not the caller's own is refused.
+  let connectedAccountId: string;
+  try {
+    const profRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(callerSub)}&select=stripe_account_id&limit=1`,
+      { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+    );
+    if (!profRes.ok) {
+      console.error("[create-payment-link] profile lookup failed:", profRes.status);
+      return jsonResponse({ success: false, error: "Could not verify Stripe account ownership" }, 500);
     }
+    const profRows = await profRes.json() as { stripe_account_id: string | null }[];
+    const ownAccountId = profRows[0]?.stripe_account_id ?? null;
+    const decision = resolvePayoutAccount(ownAccountId, body.stripeAccountId);
+    if (!decision.ok) {
+      console.warn("[create-payment-link] refused for", callerSub, decision.code, "(asked:", body.stripeAccountId ?? "(none)", "own:", ownAccountId, ")");
+      return jsonResponse({ success: false, code: decision.code, error: decision.error }, decision.status);
+    }
+    connectedAccountId = decision.accountId;
+  } catch (e) {
+    console.error("[create-payment-link] stripeAccountId check exception:", e);
+    return jsonResponse({ success: false, error: "Connect account check failed" }, 500);
   }
 
   const currency = (body.currency || "usd").toLowerCase();
@@ -410,7 +448,7 @@ serve(async (req) => {
   // Step 1: Create a Price with inline product_data, ON BEHALF OF the
   // connected account if one was provided. This is the supported shortcut
   // that avoids having to create a separate Product first.
-  console.log("[create-payment-link] Creating price for invoice", body.invoiceId, "stripeAccount:", body.stripeAccountId ?? "(platform)");
+  console.log("[create-payment-link] Creating price for invoice", body.invoiceId, "stripeAccount:", connectedAccountId);
   const priceRes = await stripeFetch("/prices", {
     currency,
     unit_amount: Math.round(body.amountCents),
@@ -423,7 +461,7 @@ serve(async (req) => {
       invoice_number: String(body.invoiceNumber),
       project_name: body.projectName,
     },
-  }, body.stripeAccountId);
+  }, connectedAccountId);
 
   if (!priceRes.ok) {
     const err = priceRes.json.error as { message?: string; type?: string } | undefined;
@@ -449,9 +487,7 @@ serve(async (req) => {
   // = 300 cents. We round half-up so the fee never undercollects. Free stays
   // at 0 bps (top-of-funnel); Pro and up carry the take-rate.
   const feeBps = feeBpsForTier(auth.tier);
-  const applicationFeeAmount = body.stripeAccountId
-    ? Math.max(0, Math.round((body.amountCents * feeBps) / 10000))
-    : 0;
+  const applicationFeeAmount = Math.max(0, Math.round((body.amountCents * feeBps) / 10000));
   console.log(
     "[create-payment-link] tier=", auth.tier,
     "feeBps=", feeBps,
@@ -493,13 +529,13 @@ serve(async (req) => {
     after_completion: { type: "hosted_confirmation" },
   };
 
-  // Only attach an application fee when we're actually on a connected
-  // account. Stripe rejects application_fee_amount on non-Connect calls.
-  if (body.stripeAccountId && applicationFeeAmount > 0) {
+  // Every link is on a connected account now (there is no platform mode), so
+  // the fee is attached whenever the plan carries one.
+  if (applicationFeeAmount > 0) {
     linkParams.application_fee_amount = applicationFeeAmount;
   }
 
-  const linkRes = await stripeFetch("/payment_links", linkParams, body.stripeAccountId);
+  const linkRes = await stripeFetch("/payment_links", linkParams, connectedAccountId);
 
   if (!linkRes.ok) {
     const err = linkRes.json.error as { message?: string; type?: string } | undefined;
@@ -588,7 +624,7 @@ serve(async (req) => {
   // still hold the emailed URL. Best-effort; the new link is already the one
   // on the row. Same Stripe-Account the old link was minted under.
   if (previousLinkId && previousLinkId !== id) {
-    const offRes = await stripeFetch(`/payment_links/${encodeURIComponent(previousLinkId)}`, { active: false }, body.stripeAccountId);
+    const offRes = await stripeFetch(`/payment_links/${encodeURIComponent(previousLinkId)}`, { active: false }, connectedAccountId);
     if (offRes.ok) {
       console.log("[create-payment-link] Deactivated replaced link", previousLinkId);
     } else {

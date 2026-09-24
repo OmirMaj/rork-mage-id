@@ -20,6 +20,7 @@
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
 import type { Project } from '@/types';
+import { projectTypeLabel } from '@/utils/projectTypes';
 
 // ───────────────────────────────────────────────
 // RFI
@@ -35,7 +36,7 @@ const rfiPartialSchema = z.object({
 export type RFIPartial = z.infer<typeof rfiPartialSchema>;
 
 export async function parseRFIFromTranscript(transcript: string, project?: Project | null): Promise<RFIPartial> {
-  const ctx = project ? `Project: ${project.name}${project.type ? ` (${project.type})` : ''}` : 'No project context';
+  const ctx = project ? `Project: ${project.name}${project.type ? ` (${projectTypeLabel(project)})` : ''}` : 'No project context';
   const r = await mageAI({
     prompt: `Extract the fields for a Request for Information (RFI) from this dictation. The contractor is creating or editing an RFI form.
 
@@ -79,7 +80,7 @@ const coPartialSchema = z.object({
 export type COPartial = z.infer<typeof coPartialSchema>;
 
 export async function parseCOFromTranscript(transcript: string, project?: Project | null): Promise<COPartial> {
-  const ctx = project ? `Project: ${project.name}${project.type ? ` (${project.type})` : ''}` : 'No project context';
+  const ctx = project ? `Project: ${project.name}${project.type ? ` (${projectTypeLabel(project)})` : ''}` : 'No project context';
   const r = await mageAI({
     prompt: `Extract change-order fields from this dictation. The contractor is creating or editing a CO.
 
@@ -120,7 +121,7 @@ const submittalPartialSchema = z.object({
 export type SubmittalPartial = z.infer<typeof submittalPartialSchema>;
 
 export async function parseSubmittalFromTranscript(transcript: string, project?: Project | null): Promise<SubmittalPartial> {
-  const ctx = project ? `Project: ${project.name}${project.type ? ` (${project.type})` : ''}` : 'No project context';
+  const ctx = project ? `Project: ${project.name}${project.type ? ` (${projectTypeLabel(project)})` : ''}` : 'No project context';
   const r = await mageAI({
     prompt: `Extract submittal fields from this dictation.
 
@@ -153,7 +154,7 @@ const punchPartialSchema = z.object({
 export type PunchPartial = z.infer<typeof punchPartialSchema>;
 
 export async function parsePunchFromTranscript(transcript: string, project?: Project | null): Promise<PunchPartial> {
-  const ctx = project ? `Project: ${project.name}${project.type ? ` (${project.type})` : ''}` : 'No project context';
+  const ctx = project ? `Project: ${project.name}${project.type ? ` (${projectTypeLabel(project)})` : ''}` : 'No project context';
   const r = await mageAI({
     prompt: `Extract punch-list item fields from a contractor walking the site.
 
@@ -193,7 +194,7 @@ const invoicePartialSchema = z.object({
 export type InvoicePartial = z.infer<typeof invoicePartialSchema>;
 
 export async function parseInvoiceFromTranscript(transcript: string, project?: Project | null): Promise<InvoicePartial> {
-  const ctx = project ? `Project: ${project.name}${project.type ? ` (${project.type})` : ''}` : 'No project context';
+  const ctx = project ? `Project: ${project.name}${project.type ? ` (${projectTypeLabel(project)})` : ''}` : 'No project context';
   const r = await mageAI({
     prompt: `Extract invoice fields from this dictation.
 
@@ -218,9 +219,10 @@ TRANSCRIPT: ${transcript}`,
 
 const projectPartialSchema = z.object({
   name: z.string().default(''),
-  // Must match ProjectType in types/index.ts — see voiceActionParser
-  // for the full reasoning. Wrong values cause downstream crashes.
-  type: z.enum(['new_build','renovation','addition','remodel','commercial','landscape','roofing','flooring','painting','plumbing','electrical','concrete']).catch('renovation').default('renovation'),
+  // A type id, or the kind of job in his words when no type fits (Q6). The
+  // consumer (app/(tabs)/(home)/index.tsx) resolves it through
+  // projectTypeFromParsedType — only a ProjectType id reaches the form.
+  type: z.string().catch('renovation').default('renovation'),
   location: z.string().default(''),
   targetBudget: z.number().default(0),
   startDate: z.string().default(''),
@@ -234,7 +236,7 @@ export async function parseProjectFromTranscript(transcript: string): Promise<Pr
 
 OUTPUT RULES
 - name: short project name. If they say "Smith kitchen remodel", use that. Title-case.
-- type: one of new_build / renovation / addition / remodel / commercial / landscape / roofing / flooring / painting / plumbing / electrical / concrete. Pick the closest. ("Kitchen remodel" -> remodel. "Bathroom renovation" -> renovation. "ADU" or "new construction" -> new_build. "Deck" -> addition.)
+- type: one of new_build / renovation / addition / remodel / commercial / landscape / roofing / flooring / painting / plumbing / electrical / concrete. Pick the closest. ("Kitchen remodel" -> remodel. "Bathroom renovation" -> renovation. "ADU" or "new construction" -> new_build. "Deck" -> addition. "Repipe" -> plumbing. "Rewire" or "panel upgrade" -> electrical.) If NONE fits — e.g. an HVAC changeout, or windows & doors — write the kind of job in 2-5 of his words instead, e.g. "HVAC changeout".
 - location: street + city if stated.
 - targetBudget: dollar amount if stated. "Eighty thousand" -> 80000. 0 if not stated.
 - startDate: YYYY-MM-DD if a start date was mentioned; '' otherwise.

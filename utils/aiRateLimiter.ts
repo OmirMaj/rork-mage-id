@@ -14,8 +14,9 @@
 //      nextAiResetLabel(), never "at midnight" (audit #123/#128).
 //
 //   2. Free-tier lifetime cap (e.g. 3 quick estimates EVER on free)
-//      → "You've used your 3 free Quick Estimates. Upgrade to Pro for
-//         unlimited estimates."
+//      → "You've used your 3 free Quick Estimate trials. Pro includes 6
+//         advanced AI runs a day." (the allowance is read from LIMITS — no
+//         plan is uncapped, so the copy never promises one).
 //      Designed so a free user can DEMO the magic features once or twice,
 //      then must convert to keep using them. Avoids the all-you-can-eat
 //      trap that bleeds money on free riders.
@@ -122,6 +123,16 @@ interface LifetimeUsage {
 }
 
 async function getDailyUsage(): Promise<DailyUsage> {
+  return (await readDailyUsage()).usage;
+}
+
+/**
+ * getDailyUsage plus WHERE the number came from. `fromServer` is true only
+ * when ai_daily_usage_get answered — the counter the relay-side gate trusts.
+ * When it is false the count is this device's AsyncStorage cache alone, which
+ * a reinstall zeroes, so the Settings meter must not print it as "today".
+ */
+async function readDailyUsage(): Promise<{ usage: DailyUsage; fromServer: boolean }> {
   const today = new Date().toISOString().split('T')[0];
 
   // Local AsyncStorage cache. Used as the offline fallback and as a
@@ -140,7 +151,7 @@ async function getDailyUsage(): Promise<DailyUsage> {
   // closes the abuse vector. Server unreachable → fall back to local.
   const server = await fetchServerDailyUsage();
   if (!server) {
-    return local;
+    return { usage: local, fromServer: false };
   }
 
   // Server wins on both fast (total count) and smart counters. We
@@ -158,7 +169,7 @@ async function getDailyUsage(): Promise<DailyUsage> {
   // Best-effort cache write so a subsequent offline read still reflects
   // the server-known total.
   void AsyncStorage.setItem(RATE_KEY, JSON.stringify(merged));
-  return merged;
+  return { usage: merged, fromServer: true };
 }
 
 async function getLifetimeUsage(): Promise<LifetimeUsage> {
@@ -180,7 +191,7 @@ export async function checkAILimit(
     const usage = await getDailyUsage();
     const lifetime = feature ? await getLifetimeUsage() : {};
     const lifetimeUsed = feature ? (lifetime[feature] ?? 0) : 0;
-    return evaluateLimit(
+    const check = evaluateLimit(
       subscriptionTier,
       requestTier,
       feature,
@@ -191,6 +202,11 @@ export async function checkAILimit(
       // core stays pure.
       nextAiResetLabel().daily,
     );
+    // Every inline caller (Ask, RFI suggest, Project Memory, the briefing
+    // cards, UpgradeSheet…) prints limit.message as-is, and evaluateLimit only
+    // names the reset for Enterprise — so a Pro GC read "Upgrade to Business"
+    // with no word on when today's allowance comes back. Say it once, here.
+    return withDailyResetSentence(check, subscriptionTier, nextAiResetLabel().daily);
   } catch (err) {
     console.warn('[aiRateLimiter] checkAILimit read failed — failing open', err);
     return FAIL_OPEN_RESULT;
@@ -251,6 +267,9 @@ export async function recordAIUsage(
   }
 }
 
+/** Where getAIUsageStats' `used` numbers came from — see readDailyUsage. */
+export type AIUsageSource = 'server' | 'device';
+
 export async function getAIUsageStats(
   subscriptionTier: SubscriptionTierKey,
 ): Promise<{
@@ -260,8 +279,10 @@ export async function getAIUsageStats(
   smartLimit: number;
   /** Per-feature lifetime usage — useful for showing "2/3 free trials used" */
   lifetime: LifetimeUsage;
+  /** 'server' when ai_daily_usage_get answered; 'device' = local cache only. */
+  source: AIUsageSource;
 }> {
-  const usage = await getDailyUsage();
+  const { usage, fromServer } = await readDailyUsage();
   const lifetime = await getLifetimeUsage();
   return {
     used: usage.count,
@@ -269,7 +290,98 @@ export async function getAIUsageStats(
     smartUsed: usage.tier.smart,
     smartLimit: LIMITS[subscriptionTier].smart,
     lifetime,
+    source: fromServer ? 'server' : 'device',
   };
+}
+
+// ─── Display helpers (pure) ─────────────────────────────────────────────────
+//
+// Settings > AI USAGE used to open on `useState(10)` / `useState(3)` — the v1
+// free cap and a number no plan has ever had — and print them as real
+// ("Today: 0 of 10 requests") until the usage read resolved. When the read
+// threw, `.catch(() => {})` left them up for good, which is where the
+// founder's "I see you have 10 attempts" came from (2026-09-24). A tier that
+// changed mid-read could also let the older answer land last.
+//
+// The rule now: the meter shows numbers only when they are REAL — the caps
+// from LIMITS (the table the server's MONTHLY_CAPS.ai_text is 30x of) for the
+// tier being shown, and today's count from the server's own counter. Anything
+// else is a loading line or a visible "couldn't load" with a retry, never a
+// placeholder dressed as a measurement.
+
+export const AI_USAGE_LOADING_COPY = 'Loading today\u2019s AI usage\u2026';
+export const AI_USAGE_FAILED_COPY = 'Couldn\u2019t load today\u2019s AI usage.';
+
+/** "Your plan: 80 AI requests a day, 18 of them advanced." — read from LIMITS. */
+export function aiPlanAllowanceSentence(tier: SubscriptionTierKey): string {
+  const caps = LIMITS[tier] ?? LIMITS.free;
+  return caps.smart > 0
+    ? `Your plan: ${caps.daily} AI requests a day, ${caps.smart} of them advanced.`
+    : `Your plan: ${caps.daily} AI requests a day.`;
+}
+
+export type AIUsageCardView =
+  | { kind: 'loading'; message: string }
+  | { kind: 'unavailable'; message: string; allowance: string }
+  | { kind: 'ready'; used: number; limit: number; smartUsed: number; smartLimit: number };
+
+/**
+ * What the Settings AI USAGE block may show.
+ *
+ * @param tier    the tier the screen is showing right now
+ * @param loaded  the last usage read and the tier it was read FOR (null while
+ *                a read is in flight)
+ * @param failed  the last read threw
+ */
+export function describeAIUsageCard(input: {
+  tier: SubscriptionTierKey;
+  loaded: { tier: SubscriptionTierKey; stats: { used: number; smartUsed: number; source: AIUsageSource } } | null;
+  failed: boolean;
+}): AIUsageCardView {
+  const caps = LIMITS[input.tier] ?? LIMITS.free;
+  const unavailable: AIUsageCardView = {
+    kind: 'unavailable',
+    message: AI_USAGE_FAILED_COPY,
+    allowance: aiPlanAllowanceSentence(input.tier),
+  };
+  if (input.failed) return unavailable;
+  // No answer yet, or an answer for a tier the screen has since left.
+  if (!input.loaded || input.loaded.tier !== input.tier) {
+    return { kind: 'loading', message: AI_USAGE_LOADING_COPY };
+  }
+  // The server counter did not answer: the only number on hand is this
+  // device's cache, which a reinstall zeroes. Not "today's usage".
+  if (input.loaded.stats.source !== 'server') return unavailable;
+  return {
+    kind: 'ready',
+    used: input.loaded.stats.used,
+    limit: caps.daily,
+    smartUsed: input.loaded.stats.smartUsed,
+    smartLimit: caps.smart,
+  };
+}
+
+/**
+ * At a daily cap, the message says when the allowance comes back, in the
+ * reader's clock (`dailyResetLabel` = nextAiResetLabel().daily). The cap copy
+ * itself is untouched; the reset is appended.
+ *
+ * Only where waiting actually helps: daily_cap on any tier, smart_cap on a
+ * tier that HAS an advanced allowance. Not pro_only or lifetime_cap (those
+ * never reset), not Free's smart_cap (its advanced allowance is 0 — tomorrow
+ * brings nothing), and not a message that already names the reset
+ * (Enterprise's).
+ */
+export function withDailyResetSentence(
+  check: LimitCheck,
+  subscriptionTier: SubscriptionTierKey,
+  dailyResetLabel: string,
+): LimitCheck {
+  if (check.allowed || !check.message) return check;
+  const waitingHelps = check.reason === 'daily_cap'
+    || (check.reason === 'smart_cap' && (LIMITS[subscriptionTier]?.smart ?? 0) > 0);
+  if (!waitingHelps || /\bResets\b/i.test(check.message)) return check;
+  return { ...check, message: `${check.message} ${dailyResetLabel}.` };
 }
 
 /** Get the config for a feature — used by paywall UIs to show the right copy. */
@@ -279,7 +391,7 @@ export function getFeatureConfig(feature: AIFeature): FeatureConfig {
 
 /**
  * Get how many free trials remain for a given feature. Returns null if the
- * feature has no lifetime cap (i.e. paid tier or unlimited fast feature).
+ * feature has no lifetime cap (it is bounded by the daily quota instead).
  * UIs can use this to show a "2 free trials left" badge on the button.
  */
 export async function getFreeTrialsRemaining(feature: AIFeature): Promise<number | null> {

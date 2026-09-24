@@ -1,3 +1,4 @@
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { mageAI } from '@/utils/mageAI';
 import type { CalibrationReport } from '@/utils/estimateCalibration';
 import { z } from 'zod';
@@ -876,7 +877,7 @@ export async function generateWeeklySummary(projects: Project[]): Promise<Weekly
     const est = p.linkedEstimate ?? p.estimate;
     return {
       name: p.name,
-      type: p.type,
+      type: projectTypeLabel(p) || p.type,
       status: p.status,
       totalTasks: tasks.length,
       completedTasks: done,
@@ -1004,7 +1005,7 @@ export async function generateHomeBriefing(
     const projectInvoices = invoices.filter(inv => inv.projectId === p.id);
     const pendingInvoices = projectInvoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft');
     return `Project: ${p.name}
-  Type: ${p.type} | Status: ${p.status}
+  Type: ${projectTypeLabel(p)} | Status: ${p.status}
   Schedule health: ${schedule?.healthScore ?? 'N/A'}/100
   Tasks: ${tasks.length} total, ${done} done${overdue === null
     ? ' (this schedule has no start date — its day numbers carry no calendar position, so NOTHING on it is overdue and you must not say anything is)'
@@ -1413,7 +1414,7 @@ export async function generateProjectReport(
     prompt: `You are a senior construction project manager writing a professional project status report for stakeholders.
 
 PROJECT: ${project.name}
-Type: ${project.type} | Status: ${project.status}
+Type: ${projectTypeLabel(project)} | Status: ${project.status}
 Location: ${project.location}
 Square footage: ${project.squareFootage || 'N/A'}
 

@@ -24,6 +24,7 @@ import { Type } from '@/constants/typography';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import {
   INITIAL_SCOPE, TOTAL_SCOPE_STEPS, SCOPE_STEPS, stepCanAdvance, stepBlockReason,
+  scopeAnswerForProject,
   type WizardAnswers,
 } from '@/utils/scopeQuestions';
 
@@ -49,7 +50,14 @@ export default function ProjectScopeScreen() {
   useEffect(() => {
     if (project?.scope) {
       const { updatedAt: _updatedAt, ...rest } = project.scope;
-      setAnswers({ ...INITIAL_SCOPE, ...rest });
+      // Q6: a saved scope with no type answer opens on the job's own type.
+      const typeSeed = (rest.projectType ?? '').trim() ? rest.projectType : scopeAnswerForProject(project);
+      setAnswers({ ...INITIAL_SCOPE, ...rest, projectType: typeSeed });
+    } else if (project) {
+      // Q6: "Add scope" on a job typed Plumbing used to open step 1 blank with
+      // no Plumbing chip, so he picked "Bathroom Remodel" and the AI priced a
+      // bathroom. Open on the job's own type (his words for an Other job).
+      setAnswers({ ...INITIAL_SCOPE, projectType: scopeAnswerForProject(project) });
     }
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

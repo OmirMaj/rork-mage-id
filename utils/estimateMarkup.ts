@@ -376,6 +376,12 @@ export interface CartCostInput {
   assembliesCost: number;
   /** The contractor's global markup, percent of cost. */
   markupPct: number;
+  /** Σ of the labor rows' SELL, each already on the cent grid (cartLineSell).
+   *  When given it is used as-is, so the labor total is the sum of the rows
+   *  the screen prints; when absent it is round2(laborCost × factor). */
+  laborSell?: number;
+  /** Same, for assembly rows. */
+  assemblySell?: number;
 }
 
 export interface CartTotals {
@@ -421,15 +427,278 @@ export interface CartTotals {
  */
 export function cartTotals(input: CartCostInput): CartTotals {
   const f = 1 + (Number.isFinite(input.markupPct) ? input.markupPct : 0) / 100;
-  const laborSell = input.laborCost * f;
-  const assemblySell = input.assembliesCost * f;
-  const directCostTotal = input.materialsCost + input.laborCost + input.assembliesCost;
-  const grandTotal = input.materialsSell + laborSell + assemblySell;
-  const markupTotal = grandTotal - directCostTotal;
+  // ONE CENT RULE (founder, 2026-09-24: "went up a cent after I left a
+  // material"). Every figure this returns sits on the cent grid, and the
+  // totals are sums of figures that already do — never a raw float sum that a
+  // screen rounds on its own at the last moment. When the caller hands in the
+  // per-row sums (priceEstimatorCart does), the total is exactly the sum of
+  // the rows the screen prints, and cost + overhead & profit === grand total.
+  const laborSell = round2(input.laborSell ?? input.laborCost * f);
+  const assemblySell = round2(input.assemblySell ?? input.assembliesCost * f);
+  const directCostTotal = round2(input.materialsCost + input.laborCost + input.assembliesCost);
+  const grandTotal = round2(input.materialsSell + laborSell + assemblySell);
+  const markupTotal = round2(grandTotal - directCostTotal);
   const effectiveMarkupPct = directCostTotal > 0
     ? (markupTotal / directCostTotal) * 100
     : (f - 1) * 100;
   return { directCostTotal, laborSell, assemblySell, grandTotal, markupTotal, effectiveMarkupPct };
+}
+
+// ── The estimator cart, line by line, on the cent grid ─────────────────────
+//
+// WHY (founder, 2026-09-24): "Are estimates dynamic?? Went up a cent after I
+// left a material." Prices had not moved. The Full Estimator worked every line
+// out to fractions of a cent ($20.723), rounded each row on its own to print
+// it ($20.72), and rounded the RAW sum once for the footer ($6.532 + $20.723 =
+// $27.255 → $27.26). Adding a $20.72 row moved the footer $20.73. The PDF and
+// the email then nudged rows so they added up (a third rule), so the client
+// saw $20.73 where the GC saw $20.72; the pop-up's "cart total after adding"
+// used toFixed (a fourth), and said $27.25.
+//
+// THE RULE, the one the Quick Estimate wizard already used (pricedLine): each
+// line's SELL is rounded to the cent ONCE, here, and every total is the SUM of
+// those rounded lines. Then the rows on screen, the footer, the pop-up, the
+// PDF, the email, the portal and the linked estimate are one set of cents, and
+// adding or removing a row moves the total by exactly that row. The total can
+// differ from "the exact math, rounded once" by under a cent per line — the
+// way an invoice works — and that is the trade the founder chose.
+//
+// Keep the multiplication order (base × (1 + m/100) × qty): it is the order
+// every earlier screen used, so a line that was not on a half-cent before
+// lands on the same cents now.
+
+const finiteOr0 = (n: number): number => (Number.isFinite(n) ? n : 0);
+
+/** One estimator line's SELL, on the cent grid. THE cent rule. */
+export function cartLineSell(unitCost: number, quantity: number, markupPct: number): number {
+  return round2(finiteOr0(unitCost) * (1 + finiteOr0(markupPct) / 100) * finiteOr0(quantity));
+}
+
+/** One estimator line's COST, on the cent grid — the same figure lineCost()
+ *  reads back off the LinkedEstimate row this line becomes. */
+export function cartLineCost(unitCost: number, quantity: number): number {
+  return round2(finiteOr0(unitCost) * finiteOr0(quantity));
+}
+
+/** Σ of cent-grid figures, re-snapped to the grid so float addition cannot
+ *  leave a total at 27.250000000000004. */
+function sumCents(values: readonly number[]): number {
+  return round2(values.reduce((s, v) => s + v, 0));
+}
+
+/** The price fields of a catalog material — structural, so this module stays
+ *  importable by a bun validator without pulling in constants/materials. */
+export interface EstimatorPriceLike {
+  id: string;
+  baseRetailPrice: number;
+  baseBulkPrice: number;
+  bulkMinQty: number;
+}
+/** A material cart row (contexts/MaterialCartContext MaterialCartItem). */
+export interface EstimatorMaterialLine<M extends EstimatorPriceLike = EstimatorPriceLike> {
+  material: M;
+  quantity: number;
+  markup: number;
+  usesBulk: boolean;
+}
+/** A labor cart row: `adjustedRate` is the loaded COST of one hour. */
+export interface EstimatorLaborLine { adjustedRate: number; hours: number }
+/** An assembly cart row: `totalCost` is its all-in COST at the chosen qty. */
+export interface EstimatorAssemblyLine { totalCost: number }
+
+export interface PricedCartLine {
+  /** The unit COST the line is priced from (bulk or retail; rate; total). */
+  base: number;
+  /** base × qty on the cent grid. */
+  cost: number;
+  /** cartLineSell — what the row prints and what every total sums. */
+  sell: number;
+}
+
+/** The unit cost a material row is priced at: bulk when the row qualifies. */
+export function materialLineBase(item: Pick<EstimatorMaterialLine, 'material' | 'usesBulk'>): number {
+  return item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
+}
+
+export function priceMaterialLine(item: EstimatorMaterialLine): PricedCartLine {
+  const base = materialLineBase(item);
+  return { base, cost: cartLineCost(base, item.quantity), sell: cartLineSell(base, item.quantity, item.markup) };
+}
+
+/** Labor carries the GLOBAL markup (see cartTotals' note on why). */
+export function priceLaborLine(item: EstimatorLaborLine, markupPct: number): PricedCartLine {
+  return {
+    base: item.adjustedRate,
+    cost: cartLineCost(item.adjustedRate, item.hours),
+    sell: cartLineSell(item.adjustedRate, item.hours, markupPct),
+  };
+}
+
+/** An assembly is one qty-1 line priced at its total cost. */
+export function priceAssemblyLine(item: EstimatorAssemblyLine, markupPct: number): PricedCartLine {
+  return {
+    base: item.totalCost,
+    cost: cartLineCost(item.totalCost, 1),
+    sell: cartLineSell(item.totalCost, 1, markupPct),
+  };
+}
+
+export interface PricedEstimatorCart extends CartTotals {
+  /** Same order as the cart passed in. */
+  materials: PricedCartLine[];
+  labor: PricedCartLine[];
+  assemblies: PricedCartLine[];
+  /** Σ material rows' cost / sell, and Σ labor / assembly rows' cost. */
+  materialsCost: number;
+  materialsSell: number;
+  laborCost: number;
+  assembliesCost: number;
+}
+
+/**
+ * Price the whole estimator cart: every row on the cent grid, every total the
+ * sum of those rows. THE function app/(tabs)/estimate/full.tsx, review.tsx and
+ * components/EstimateComparison.tsx read their figures from, so no screen
+ * re-types `base * (1 + markup / 100) * qty` and rounds it its own way.
+ */
+export function priceEstimatorCart(
+  cart: readonly EstimatorMaterialLine[],
+  labor: readonly EstimatorLaborLine[],
+  assemblies: readonly EstimatorAssemblyLine[],
+  markupPct: number,
+): PricedEstimatorCart {
+  const materials = cart.map(priceMaterialLine);
+  const laborLines = labor.map(l => priceLaborLine(l, markupPct));
+  const assemblyLines = assemblies.map(a => priceAssemblyLine(a, markupPct));
+  const materialsCost = sumCents(materials.map(l => l.cost));
+  const materialsSell = sumCents(materials.map(l => l.sell));
+  const laborCost = sumCents(laborLines.map(l => l.cost));
+  const assembliesCost = sumCents(assemblyLines.map(l => l.cost));
+  const totals = cartTotals({
+    materialsCost, materialsSell, laborCost, assembliesCost, markupPct,
+    laborSell: sumCents(laborLines.map(l => l.sell)),
+    assemblySell: sumCents(assemblyLines.map(l => l.sell)),
+  });
+  return {
+    ...totals,
+    materials, labor: laborLines, assemblies: assemblyLines,
+    materialsCost, materialsSell, laborCost, assembliesCost,
+  };
+}
+
+/**
+ * The cart as it will be AFTER the item pop-up's Add / Update press — the
+ * same semantics MaterialCartContext applies: a row already in the cart gets
+ * the typed quantity set absolutely and KEEPS its own markup and its own price
+ * snapshot; a new row comes in at the global markup. The pop-up previews
+ * priceEstimatorCart() of this, so "Line total" and "Estimate total after
+ * adding" are the figures the cart shows after the press, not a second
+ * formula (the old preview used the global markup and parseInt, and counted
+ * materials only).
+ *
+ * `quantity` is what handleAddFromPopup will commit (parseLenientNumber); a
+ * null / non-positive quantity is refused there, so it previews no change.
+ */
+export function popupCartAfter<M extends EstimatorPriceLike, T extends EstimatorMaterialLine<M>>(
+  cart: readonly T[],
+  selected: M,
+  quantity: number | null,
+  globalMarkup: number,
+): { next: EstimatorMaterialLine<M>[]; line: EstimatorMaterialLine<M> | null } {
+  if (quantity === null || !Number.isFinite(quantity) || quantity <= 0) {
+    return { next: cart.slice(), line: null };
+  }
+  const existing = cart.find(i => i.material.id === selected.id);
+  if (existing) {
+    const line: EstimatorMaterialLine<M> = {
+      ...existing, quantity, usesBulk: quantity >= existing.material.bulkMinQty,
+    };
+    return { next: cart.map(i => (i === existing ? line : i)), line };
+  }
+  const line: EstimatorMaterialLine<M> = {
+    material: selected, quantity, markup: globalMarkup, usesBulk: quantity >= selected.bulkMinQty,
+  };
+  return { next: [...cart, line], line };
+}
+
+/**
+ * The unit prices the item pop-up prints above its Line Total. For an item
+ * already in the cart these are THAT ROW's price snapshot, because
+ * popupCartAfter (and MaterialCartContext) keep the row at its own snapshot
+ * on Update; printing the catalog's prices there showed "Retail $38.97" over
+ * a Line Total worked out at $37.02 whenever the GC had kept an earlier
+ * market's price. `kept` is true when that snapshot differs from the
+ * catalog, and `catalog` is the price book entry, so the pop-up can say so.
+ */
+export function popupUnitPrices<M extends EstimatorPriceLike, T extends EstimatorMaterialLine<M>>(
+  cart: readonly T[],
+  selected: M,
+): { material: M; kept: boolean; catalog: M } {
+  const existing = cart.find(i => i.material.id === selected.id);
+  if (!existing) return { material: selected, kept: false, catalog: selected };
+  const kept = existing.material.baseRetailPrice !== selected.baseRetailPrice
+    || existing.material.baseBulkPrice !== selected.baseBulkPrice;
+  return { material: existing.material, kept, catalog: selected };
+}
+
+/**
+ * What re-pricing the draft cart against a new catalog (a market change, or a
+ * catalog shipped over the air) WOULD do — computed, never applied here.
+ *
+ * Decision (founder, 2026-09-24): a market change must not silently reprice a
+ * draft estimate. The estimator used to swap every row's price snapshot on
+ * mount and on every location change, with no notice (Houston → US average
+ * took 3/4" OSB from $37.02 to $38.97). It now asks: "Reprice 3 lines for US
+ * average? +$4.12", Keep / Reprice. `sellDelta` is the change to the grand
+ * total — only material rows move, so it is the material sell delta.
+ *
+ * Rows with no catalog entry (AI-found, custom) are never touched. A row whose
+ * prices already match is kept by identity, so an unchanged cart plans zero
+ * changes and the screen skips the no-op write.
+ *
+ * `changedCount` counts only rows whose USED price moves (materialLineBase:
+ * bulk when the row qualifies, else retail) — a row priced at bulk whose
+ * retail price alone changed does not move the total, so it is not a "line
+ * priced differently" and does not raise the question ("Reprice 1 line …
+ * +$0.00" was the result). Such rows are still refreshed in `next` (and
+ * counted in `staleCount`), so a Reprice or Refresh leaves no stale unused
+ * price behind to surprise him when the row later crosses the bulk quantity.
+ */
+export interface CartRepricePlan<T> {
+  next: T[];
+  /** Rows whose used price — and so whose line total — would change. */
+  changedCount: number;
+  /** Rows whose snapshot differs at all (≥ changedCount). */
+  staleCount: number;
+  sellDelta: number;
+  /** Stable key of WHAT would change — a "Keep" answer is remembered against
+   *  it, so the same question is not asked twice but a new difference is. */
+  signature: string;
+}
+export function planCartReprice<M extends EstimatorPriceLike, T extends EstimatorMaterialLine<M>>(
+  cart: readonly T[],
+  catalog: readonly M[],
+): CartRepricePlan<T> {
+  const byId = new Map(catalog.map(m => [m.id, m]));
+  let changedCount = 0;
+  let staleCount = 0;
+  const keys: string[] = [];
+  const next = cart.map(item => {
+    const fresh = byId.get(item.material.id);
+    if (!fresh) return item;
+    if (fresh.baseRetailPrice === item.material.baseRetailPrice
+      && fresh.baseBulkPrice === item.material.baseBulkPrice) return item;
+    staleCount++;
+    const refreshed = { ...item, material: fresh };
+    if (materialLineBase(refreshed) !== materialLineBase(item)) {
+      changedCount++;
+      keys.push(`${fresh.id}:${item.usesBulk ? 'b' : 'r'}${materialLineBase(refreshed)}`);
+    }
+    return refreshed;
+  });
+  const before = sumCents(cart.map(i => priceMaterialLine(i).sell));
+  const after = sumCents(next.map(i => priceMaterialLine(i).sell));
+  return { next, changedCount, staleCount, sellDelta: round2(after - before), signature: keys.sort().join('|') };
 }
 
 

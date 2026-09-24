@@ -13,6 +13,8 @@ export interface NewProjectDraft {
   name?: string | null;
   /** ProjectType — kept loose (string) to stay pure here. */
   type?: string | null;
+  /** Q6: his words when type is 'other' ("HVAC changeout"). */
+  typeOther?: string | null;
   location?: string | null;
   squareFootage?: number | null;
   /** QualityTier — kept loose (string) to stay pure here. */
@@ -27,7 +29,13 @@ const TYPE_CHOICES: { label: string; value: string }[] = [
   { label: 'Addition', value: 'addition' },
   { label: 'Commercial', value: 'commercial' },
   { label: 'Roofing', value: 'roofing' },
+  // Q6: a repipe / rewire has its own box now.
+  { label: 'Plumbing', value: 'plumbing' },
+  { label: 'Electrical', value: 'electrical' },
 ];
+// No tap 'Other' on purpose: an Other job needs his words (a bare 'other'
+// would build a renovation). The shell's mic stays up on every question, and
+// mergeDraft turns "HVAC changeout" into Other + his words — the question says so.
 
 const QUALITY_CHOICES: { label: string; value: string; basis: string }[] = [
   { label: 'Economy', value: 'economy', basis: 'budget-conscious finishes' },
@@ -46,7 +54,7 @@ export function newProjectGaps(draft: NewProjectDraft, grounding: Grounding): Ga
     const def = g.usualType ?? 'renovation';
     gaps.push({
       field: 'type', impact: 0.55, kind: 'choice',
-      question: 'What kind of project is it?',
+      question: 'What kind of project is it? Something else — tap the mic and say it.',
       groundedDefault: {
         value: def,
         basis: g.usualType ? 'what you build most' : 'your most common job type',

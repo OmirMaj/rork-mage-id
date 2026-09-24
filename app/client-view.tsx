@@ -39,7 +39,7 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
-import { isFinancingAvailable } from '@/utils/financing';
+import { portalFinancingBlock, portalFinancingRedirectUrl, portalFinancingPreviewNote } from '@/utils/financingCore';
 import { linkState } from '@/utils/portalLinkExpiry';
 import { resolveContractSum, getPaidToDate, getInvoicedToDate } from '@/utils/projectFinancials';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
@@ -848,7 +848,22 @@ export default function ClientViewScreen() {
     );
   }, [approvalCO, localProject, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, esignConsent, updateChangeOrder, closeApprovalFlow]);
 
-  const financingEnabledForPortal = isFinancingAvailable(settings);
+  // Q4 (2026-09-24): whether the GC offers financing is the GC's decision, so
+  // it is read from the GC's side — never from the VIEWER's settings, which is
+  // what this used to do (a homeowner's settings never carry the GC's lender,
+  // so the button never appeared for the one person it is for). A homeowner
+  // reads the block the GC's app baked into the snapshot; the GC previewing his
+  // own portal reads his own settings, the same ones that bake that block.
+  const portalFinancing = localProject
+    ? portalFinancingBlock(settings)
+    : (remote.snapshot?.financing ?? undefined);
+  const portalFinancingUrl = portalFinancing
+    ? portalFinancingRedirectUrl(SUPABASE_FUNCTIONS_URL, {
+      projectId: project?.id,
+      portalId: typeof portalId === 'string' ? portalId : null,
+      accessToken: typeof accessTokenParam === 'string' ? accessTokenParam : null,
+    })
+    : null;
 
   // Budget metrics.
   //
@@ -1487,26 +1502,30 @@ export default function ClientViewScreen() {
                     homeowner's portal id + access key resolve (through
                     portal_project_for_token) to this exact project — without
                     them it falls back to the marketing site. So the link
-                    carries both, and the button is hidden where they are
-                    missing (the GC's own preview), rather than shown dead. */}
-                {financingEnabledForPortal && project?.id
-                  && typeof portalId === 'string' && portalId.length > 0
-                  && typeof accessTokenParam === 'string' && accessTokenParam.length > 0 && (
+                    carries both, and where they are missing (the GC's own
+                    preview) the button is not drawn — the GC is told what his
+                    client sees instead of being shown a dead button. */}
+                {portalFinancing && portalFinancingUrl ? (
                   <View style={{ marginTop: 14 }}>
                     <TouchableOpacity
                       style={{ backgroundColor: '#1F6FEB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center' }}
                       activeOpacity={0.8}
-                      onPress={() => {
-                        void Linking.openURL(`${SUPABASE_FUNCTIONS_URL}/financing-redirect?project=${encodeURIComponent(project.id)}&src=portal&portal=${encodeURIComponent(portalId)}&t=${encodeURIComponent(accessTokenParam)}`);
-                      }}
+                      accessibilityRole="link"
+                      accessibilityLabel={`Check financing options with ${portalFinancing.partnerName}`}
+                      testID="portal-financing-button"
+                      onPress={() => { void Linking.openURL(portalFinancingUrl); }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Finance this project</Text>
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Check financing options</Text>
                     </TouchableOpacity>
                     <Text style={[styles.budgetLabel, { marginTop: 6, textAlign: 'center' }]}>
-                      Financing is provided by a third party, subject to credit approval. MAGE ID is not a lender.
+                      {portalFinancing.disclosure}
                     </Text>
                   </View>
-                )}
+                ) : portalFinancing && localProject ? (
+                  <Text style={[styles.budgetLabel, { marginTop: 14, textAlign: 'center' }]} testID="portal-financing-preview-note">
+                    {portalFinancingPreviewNote(portalFinancing.partnerName)}
+                  </Text>
+                ) : null}
               </View>
             )}
           </View>

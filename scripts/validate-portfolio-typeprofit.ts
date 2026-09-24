@@ -143,7 +143,8 @@ console.log('\nTest 4: Empty input — never throws');
   let threw = false;
   try {
     const result = buildTypeProfitability([], [], []);
-    assert('returns 12 rows for all project types', result.rows.length === 12);
+    // Q6 added 'other' (labelled "Other (mixed)"), so 13 types.
+    assert('returns 13 rows for all project types (incl. Other)', result.rows.length === 13);
     assert('all rows gated (no data)', result.rows.every(r => r.gated));
   } catch {
     threw = true;

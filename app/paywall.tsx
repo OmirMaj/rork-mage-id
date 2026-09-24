@@ -153,8 +153,11 @@ interface FintechRow {
   enterprise: string;
 }
 const FINTECH_PERKS: FintechRow[] = [
-  { label: 'Platform fee on card payments', free: platformFeeLabel('free'), pro: platformFeeLabel('pro'), business: platformFeeLabel('business'), enterprise: platformFeeLabel('enterprise') },
-  { label: 'Client financing (Wisetack)',      free: '—',    pro: '—',   business: 'Early access', enterprise: 'Early access' },
+  { label: 'Platform fee per client payment (card or bank)', free: platformFeeLabel('free'), pro: platformFeeLabel('pro'), business: platformFeeLabel('business'), enterprise: platformFeeLabel('enterprise') },
+  // Q4 (2026-09-24): "bring your own lender" — MAGE ID has no lending partner
+  // (the old label named Wisetack, with which there is no deal) and the
+  // working feature (Payments → Client financing) has no plan gate.
+  { label: 'Client financing (bring your own lender)', free: 'Yes', pro: 'Yes', business: 'Yes', enterprise: 'Yes' },
   { label: 'Same-day invoice factoring',       free: '—',    pro: '—',   business: 'Early access', enterprise: 'Early access' },
   { label: 'COI / insurance marketplace',      free: '—',    pro: 'Watcher only', business: 'Early access',  enterprise: 'Early access' },
   { label: 'Mass sub-payouts + auto-1099',     free: '—',    pro: '—',   business: 'Early access',  enterprise: 'Early access' },

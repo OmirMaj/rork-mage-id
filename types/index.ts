@@ -18,7 +18,12 @@ export type ProjectType =
   | 'painting'
   | 'plumbing'
   | 'electrical'
-  | 'concrete';
+  | 'concrete'
+  // Q6: a job none of the above fits (a repipe typed under Other, HVAC,
+  // windows & doors). The contractor's own words live in
+  // Project.projectTypeOther and are what every surface prints — never the
+  // word "other". utils/projectTypes.ts projectTypeLabel is the one reader.
+  | 'other';
 
 export interface ProjectTypeInfo {
   id: ProjectType;
@@ -40,6 +45,7 @@ export const PROJECT_TYPES: ProjectTypeInfo[] = [
   { id: 'plumbing', label: 'Plumbing', icon: 'Droplets', description: 'Pipes & fixtures' },
   { id: 'electrical', label: 'Electrical', icon: 'Zap', description: 'Wiring & panels' },
   { id: 'concrete', label: 'Concrete', icon: 'Boxes', description: 'Foundation & flatwork' },
+  { id: 'other', label: 'Other', icon: 'Wrench', description: 'Describe the job' },
 ];
 
 export type QualityTier = 'economy' | 'standard' | 'premium' | 'luxury';
@@ -146,6 +152,14 @@ export interface Project {
   id: string;
   name: string;
   type: ProjectType;
+  /**
+   * Q6 · The contractor's own description when `type` is 'other' ("Whole-house
+   * repipe"). Column projects.project_type_other (nullable text, <= 60 chars,
+   * 20260924160600_project_type_other.sql). Meaningless for any other type:
+   * the write sends NULL unless type is 'other' (utils/projectTypes.ts
+   * projectTypeOtherColumn), and every display reads projectTypeLabel.
+   */
+  projectTypeOther?: string;
   location: string;
   /**
    * Geocoded coordinates for the project's `location` string. Set by the

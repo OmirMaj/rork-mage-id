@@ -290,9 +290,16 @@ console.log('\n#169 / #180 / #115 / #123 / #20:');
   ok('#169 presence name is the profile name, never an email', /name: presenceName/.test(sp) && !/\.email\) \?\? 'Collaborator'/.test(sp)
     && /if \(t && !t\.includes\('@'\)\) return t;/.test(sp));
   const cv = read('app/client-view.tsx');
+  // Q4 (2026-09-24): the link is built by utils/financingCore.
+  // portalFinancingRedirectUrl, which returns null without the portal id or
+  // the access key (executed in scripts/validate-financing-honesty.ts); the
+  // button is drawn only when that link exists.
+  const fc = read('utils/financingCore.ts');
   ok('#180 the financing link carries portal + t, and the button needs both',
-    /&src=portal&portal=\$\{encodeURIComponent\(portalId\)\}&t=\$\{encodeURIComponent\(accessTokenParam\)\}/.test(cv)
-    && /typeof accessTokenParam === 'string' && accessTokenParam\.length > 0 && \(/.test(cv));
+    /&src=portal&portal=\$\{encodeURIComponent\(portalId\)\}&t=\$\{encodeURIComponent\(accessToken\)\}/.test(fc)
+    && /if \(!functionsUrl \|\| !UUID_RE\.test\(projectId\) \|\| !portalId \|\| !accessToken\) return null;/.test(fc)
+    && /accessToken: typeof accessTokenParam === 'string' \? accessTokenParam : null,/.test(cv)
+    && /\{portalFinancing && portalFinancingUrl \? \(/.test(cv));
   const ai = read('utils/aiService.ts');
   const ev = ai.slice(ai.indexOf('export async function evaluateSubcontractor('), ai.indexOf('export const equipmentAdviceSchema'));
   ok('#115 the evaluator sends no untracked bid history / assigned projects', !/Bid history:/.test(ev) && !/Assigned projects:/.test(ev)

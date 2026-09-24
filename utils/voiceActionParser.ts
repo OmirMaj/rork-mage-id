@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
 import type { Project, ScheduleTask } from '@/types';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { isMicScheduleEditUtterance, scheduleEditHref } from '@/utils/copilot/intentTable';
 import { scheduleWritePathForRole } from '@/utils/fieldScheduleUpdate';
 
@@ -60,12 +61,16 @@ export const voiceActionSchema = z.object({
   // Note fields
   noteBody: z.string().default(''),
 
-  // Project create fields. projectType MUST match ProjectType in
-  // types/index.ts — otherwise PROJECT_TYPES.find(...).label resolves
-  // to undefined and the project-detail screen crashes with
-  // "Cannot read property 'charAt' of undefined".
+  // Project create fields. projectType is a type id OR, when no listed type
+  // fits (an HVAC changeout, windows & doors), the kind of job in his own
+  // words (Q6). It is NEVER written to a project as-is: the consumer
+  // (components/UniversalMicButton.tsx) resolves it through
+  // projectTypeFromParsedType, which only returns a ProjectType id (+ his
+  // words for 'other'), so an off-list value can't reach a screen that
+  // looks the type up. The schemaHint below is unchanged — projectType was
+  // already a string there — so the relay's inferred schema doesn't move.
   projectName: z.string().default(''),
-  projectType: z.enum(['new_build','renovation','addition','remodel','commercial','landscape','roofing','flooring','painting','plumbing','electrical','concrete']).catch('renovation').default('renovation'),
+  projectType: z.string().catch('renovation').default('renovation'),
   projectLocation: z.string().default(''),
   targetBudget: z.number().default(0),
 
@@ -144,7 +149,7 @@ export async function parseVoiceAction(opts: ParseOpts): Promise<VoiceActionResu
   const ctxLines: string[] = [];
   if (project) {
     ctxLines.push(`Project: ${project.name}`);
-    if (project.type) ctxLines.push(`Type: ${project.type}`);
+    if (project.type) ctxLines.push(`Type: ${projectTypeLabel(project)}`);
     if (project.location) ctxLines.push(`Location: ${project.location}`);
     const tasks: ScheduleTask[] = (project.schedule?.tasks ?? []).slice(0, 8);
     if (tasks.length) {
@@ -176,7 +181,7 @@ OUTPUT RULES
 - For rfi: subject (≤80 chars), question, priority (urgent/normal/low), assignedTo, dateRequired (YYYY-MM-DD if a deadline given).
 - For co: description (≤80 chars), reason, scheduleImpactDays, changeAmount (single $ if stated), lineItems (array of {name, description, quantity, unit, unitPrice, priceStated}). Set priceStated:true ONLY when the contractor explicitly said the dollar amount for that line; otherwise priceStated:false and unitPrice 0 — never guess a price. A single total he said for the whole change goes in changeAmount, not spread over the lines.
 - For note: noteBody.
-- For project: projectName, projectType (one of: new_build, renovation, addition, remodel, commercial, landscape, roofing, flooring, painting, plumbing, electrical, concrete — pick the closest. "Kitchen remodel" -> remodel; "bathroom renovation" -> renovation; "ADU" -> new_build; "deck" -> addition), projectLocation, targetBudget.
+- For project: projectName, projectType (one of: new_build, renovation, addition, remodel, commercial, landscape, roofing, flooring, painting, plumbing, electrical, concrete — pick the closest. "Kitchen remodel" -> remodel; "bathroom renovation" -> renovation; "ADU" -> new_build; "deck" -> addition; "repipe" -> plumbing; "rewire" or "panel upgrade" -> electrical. If NONE of them fits — e.g. an HVAC changeout, or windows & doors — write the kind of job in 2-5 of his words instead, e.g. "HVAC changeout"), projectLocation, targetBudget.
 - For punch: description (the issue), punchLocation, punchTrade ("Electrical","Plumbing","HVAC","Drywall","Painting","Flooring","Roofing","Concrete","Framing","Landscaping","General","Other"), punchPriority (low/medium/high).
 - For invoice: invoiceNotes, invoiceLineItems (array of {name, description, quantity, unit, unitPrice, priceStated}). Set priceStated:true ONLY when the contractor explicitly said the dollar amount; otherwise priceStated:false and unitPrice 0 — never guess a price; he fills it in on the invoice.
 - For submittal: submittalTitle, submittalSpecSection, submittalSubmittedBy, submittalRequiredDate.

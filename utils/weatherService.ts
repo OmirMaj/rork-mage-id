@@ -1,14 +1,21 @@
 // utils/weatherService.ts — jobsite weather.
 //
-// ┌─ REQUIRED ENV VAR ────────────────────────────────────────────────────┐
-// │  EXPO_PUBLIC_OPENWEATHER_API_KEY                                      │
+// ┌─ WHERE THE FORECAST COMES FROM ───────────────────────────────────────┐
+// │  1. EXPO_PUBLIC_OPENWEATHER_API_KEY set (native builds, from EAS):    │
+// │     the app calls OpenWeather directly.                               │
+// │  2. No client key (the web build — Netlify has none, and a key in the │
+// │     public bundle is readable by anyone): the app asks the            │
+// │     `weather-forecast` edge function, which holds the server's        │
+// │     OPENWEATHER_API_KEY secret. The client never sees that key.       │
+// │  3. Neither answers, or the job has no location: every day falls     │
+// │     back to getSimulatedForecast(), which invents conditions from the │
+// │     calendar date alone and is marked SIMULATED everywhere.           │
 // │                                                                       │
-// │  Without it there is NO live weather anywhere in the app. Every       │
-// │  forecast falls back to getSimulatedForecast(), which invents         │
-// │  conditions from the calendar date alone — it does not know, and      │
-// │  cannot know, where the jobsite is.                                   │
+// │  The LOCATION is the project's address text; coordinates saved for   │
+// │  it are preferred. Blank text or a country on its own ('United        │
+// │  States') is NO location, whatever coordinates it carries.            │
 // │                                                                       │
-// │  To enable live weather:                                              │
+// │  To enable direct live weather in a build:                            │
 // │    1. Create a free key at https://openweathermap.org/api  (the       │
 // │       "5 day / 3 hour forecast" endpoint is on the free tier).        │
 // │    2. Add to the repo-root `.env` (gitignored):                       │
@@ -136,7 +143,9 @@ export function getSimulatedForecast(startDate: Date, days: number, _region?: st
     const isWorkable = condition !== 'storm' && condition !== 'snow' && precipChance < 70 && windSpeed < 30;
 
     forecasts.push({
-      date: date.toISOString().split('T')[0],
+      // The device's calendar day, not the UTC one: `startDate` is usually
+      // "now", and at 9 PM in New York toISOString() is already tomorrow.
+      date: localCalendarDay(date),
       condition,
       tempHigh: Math.round(tempHigh),
       tempLow: Math.round(tempLow),
@@ -148,6 +157,15 @@ export function getSimulatedForecast(startDate: Date, days: number, _region?: st
     });
   }
   return forecasts;
+}
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+/** 'YYYY-MM-DD' of a Date in the device's own timezone. */
+export function localCalendarDay(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 export function getWeatherRiskForDate(date: string, forecasts: DayForecast[]): DayForecast | null {
@@ -194,7 +212,8 @@ export function findWeatherRisk(
 // below — do not parameterize without reading their care notes first.
 //
 // Free-tier endpoint returns 5 days at 3-hour steps. We condense to one
-// entry per day by picking the midday slot (12:00 local). If the caller
+// entry per day by picking the midday slot (12:00 at the JOBSITE — the
+// response's city.timezone, not UTC; see condenseToDaily). If the caller
 // asks for more days than the free tier returns, we pad the tail with
 // simulated data so the Gantt keeps rendering warnings for far-future
 // tasks. Swap to the paid endpoint later if longer real horizons matter.
@@ -222,7 +241,7 @@ function mapOpenWeatherMain(main: string, windMph: number): DayForecast['conditi
   return 'clear';
 }
 
-interface OpenWeatherListEntry {
+export interface OpenWeatherListEntry {
   dt: number;
   dt_txt: string;
   main: { temp_max: number; temp_min: number };
@@ -231,10 +250,12 @@ interface OpenWeatherListEntry {
   pop?: number; // probability of precipitation, 0..1
 }
 
-interface OpenWeatherResponse {
+export interface OpenWeatherResponse {
   cod: string | number;
   message?: string | number;
   list?: OpenWeatherListEntry[];
+  /** `timezone` is the jobsite's shift from UTC in SECONDS. */
+  city?: { name?: string; timezone?: number };
 }
 
 /**
@@ -243,11 +264,18 @@ interface OpenWeatherResponse {
  * the most relevant window for jobsite work and avoids overnight noise.
  * High/low across the whole day are taken from the 24h window, not just
  * the midday slot, so the temp range reflects actual daily extremes.
+ *
+ * Days and "midday" are the JOBSITE's (`tzOffsetSec`, OpenWeather's
+ * city.timezone). Bucketing in UTC put New York's 8 PM onward on tomorrow's
+ * date — the Today card showed tomorrow's weather as today's every evening —
+ * and picked 12:00 UTC, which is 8 AM Eastern, as "midday".
  */
-function condenseToDaily(list: OpenWeatherListEntry[], days: number): DayForecast[] {
+export function condenseToDaily(list: OpenWeatherListEntry[], days: number, tzOffsetSec = 0): DayForecast[] {
+  const shift = Number.isFinite(tzOffsetSec) ? tzOffsetSec : 0;
+  const siteTime = (e: OpenWeatherListEntry) => new Date((e.dt + shift) * 1000);
   const byDate = new Map<string, OpenWeatherListEntry[]>();
   for (const e of list) {
-    const iso = new Date(e.dt * 1000).toISOString().split('T')[0];
+    const iso = siteTime(e).toISOString().split('T')[0];
     const bucket = byDate.get(iso) ?? [];
     bucket.push(e);
     byDate.set(iso, bucket);
@@ -258,8 +286,8 @@ function condenseToDaily(list: OpenWeatherListEntry[], days: number): DayForecas
     const entries = byDate.get(iso) ?? [];
     if (entries.length === 0) continue;
     const midday = entries.reduce((best, cur) => {
-      const bestDist = Math.abs(new Date(best.dt * 1000).getUTCHours() - 12);
-      const curDist = Math.abs(new Date(cur.dt * 1000).getUTCHours() - 12);
+      const bestDist = Math.abs(siteTime(best).getUTCHours() - 12);
+      const curDist = Math.abs(siteTime(cur).getUTCHours() - 12);
       return curDist < bestDist ? cur : best;
     }, entries[0]);
     const tempHigh = Math.max(...entries.map((e) => e.main.temp_max));
@@ -299,13 +327,67 @@ function condenseToDaily(list: OpenWeatherListEntry[], days: number): DayForecas
  *   key is configured / the request failed. Callers should fall back to
  *   `getSimulatedForecast` on null.
  */
+export type WeatherQuery = { city: string } | { latitude: number; longitude: number };
+
+/** One OpenWeather 5-day/3-hour payload for a location, or null on failure. */
+export type WeatherTransport = (location: WeatherQuery) => Promise<OpenWeatherResponse | null>;
+
+/** Direct call with the client's own key (native builds). */
+async function directTransport(apiKey: string, location: WeatherQuery): Promise<OpenWeatherResponse | null> {
+  const params = new URLSearchParams({ appid: apiKey, units: 'imperial' });
+  if ('city' in location) params.set('q', location.city);
+  else {
+    params.set('lat', String(location.latitude));
+    params.set('lon', String(location.longitude));
+  }
+  const res = await fetch(`${OPENWEATHER_ENDPOINT}?${params.toString()}`);
+  if (!res.ok) {
+    console.log('[OpenWeather] non-OK response', res.status);
+    return null;
+  }
+  return (await res.json()) as OpenWeatherResponse;
+}
+
+/**
+ * The `weather-forecast` edge function: the same OpenWeather payload, fetched
+ * server-side with the server's OPENWEATHER_API_KEY. The client is required
+ * lazily, at call time, so this module keeps zero top-level runtime imports
+ * (bun validators import it and must never pull react-native in). A plain
+ * `require`, not `import()`: jest runs without --experimental-vm-modules and
+ * rejects a dynamic import at call time.
+ */
+async function relayTransport(location: WeatherQuery): Promise<OpenWeatherResponse | null> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { supabase } = require('@/lib/supabase') as typeof import('@/lib/supabase');
+  const { data, error } = await supabase.functions.invoke('weather-forecast', { body: location });
+  if (error || !data) {
+    console.log('[OpenWeather] relay failed', error?.message ?? 'no data');
+    return null;
+  }
+  return data as OpenWeatherResponse;
+}
+
+let transportOverride: WeatherTransport | null = null;
+/** Test seam: replace the network transport and clear the caches. */
+export function __setWeatherTransportForTests(t: WeatherTransport | null): void {
+  transportOverride = t;
+  weatherCache.clear();
+  weatherFailures.clear();
+}
+
+/** A failed location is not re-asked for this long — three surfaces mount at
+ *  once on the Schedule tab and would otherwise each retry a dead relay. */
+const WEATHER_FAILURE_TTL_MS = 60 * 1000;
+const weatherFailures = new Map<string, number>();
+
 export async function getOpenWeatherForecast(
-  location: { city: string } | { latitude: number; longitude: number },
+  location: WeatherQuery,
   startDate: Date,
   days: number,
 ): Promise<DayForecast[] | null> {
   const apiKey = getApiKey();
-  if (!apiKey) return null;
+  const transport: WeatherTransport =
+    transportOverride ?? (apiKey ? (loc) => directTransport(apiKey, loc) : relayTransport);
 
   const cacheKey =
     'city' in location
@@ -317,31 +399,24 @@ export async function getOpenWeatherForecast(
   if (cached && now - cached.fetchedAt < WEATHER_CACHE_TTL_MS) {
     return padWithSimulated(cached.forecast, startDate, days);
   }
-
-  const params = new URLSearchParams({ appid: apiKey, units: 'imperial' });
-  if ('city' in location) params.set('q', location.city);
-  else {
-    params.set('lat', String(location.latitude));
-    params.set('lon', String(location.longitude));
-  }
+  const failedAt = weatherFailures.get(cacheKey);
+  if (failedAt != null && now - failedAt < WEATHER_FAILURE_TTL_MS) return null;
 
   try {
-    const res = await fetch(`${OPENWEATHER_ENDPOINT}?${params.toString()}`);
-    if (!res.ok) {
-      console.log('[OpenWeather] non-OK response', res.status);
-      return null;
-    }
-    const data = (await res.json()) as OpenWeatherResponse;
+    const data = await transport(location);
     // OpenWeather signals errors via `cod` not the HTTP status in some cases.
-    if (String(data.cod) !== '200' || !data.list) {
-      console.log('[OpenWeather] payload error', data.cod, data.message);
+    if (!data || String(data.cod) !== '200' || !data.list) {
+      console.log('[OpenWeather] payload error', data?.cod, data?.message);
+      weatherFailures.set(cacheKey, now);
       return null;
     }
-    const daily = condenseToDaily(data.list, 5);
+    const daily = condenseToDaily(data.list, 5, data.city?.timezone ?? 0);
     weatherCache.set(cacheKey, { fetchedAt: now, forecast: daily });
+    weatherFailures.delete(cacheKey);
     return padWithSimulated(daily, startDate, days);
   } catch (err) {
     console.log('[OpenWeather] fetch failed', err);
+    weatherFailures.set(cacheKey, now);
     return null;
   }
 }
@@ -382,10 +457,13 @@ function padWithSimulated(
  *
  * The returned days are individually tagged (`source`), so a caller can always
  * tell what it got:
- *   • key set + request OK          → all 'live' (up to 5 days), tail padded
+ *   • request OK (client key or the weather-forecast relay)
+ *                                   → all 'live' (up to 5 days), tail padded
  *                                     with 'simulated'
- *   • no EXPO_PUBLIC_OPENWEATHER_API_KEY, no location, or request failed
+ *   • no location, or the request failed
  *                                   → all 'simulated'
+ * describeForecast() (utils/weatherProvenance.ts) turns the same location +
+ * days into "Weather for <place>" and the plain-words cause.
  *
  * Callers displaying these days MUST surface non-live ones (see
  * utils/weatherProvenance.ts: hasSimulatedDays / SIMULATED_WEATHER_HEADLINE).
@@ -395,17 +473,41 @@ export async function getForecastWithFallback(
   startDate: Date,
   days: number,
 ): Promise<DayForecast[]> {
-  const locArg =
-    location.latitude != null && location.longitude != null
-      ? { latitude: location.latitude, longitude: location.longitude }
-      : location.city && location.city.trim() !== ''
-      ? { city: location.city }
-      : null;
+  const locArg = await resolveWeatherQuery(location);
   if (locArg) {
     const real = await getOpenWeatherForecast(locArg, startDate, days);
     if (real) return real;
   }
   return getSimulatedForecast(startDate, days);
+}
+
+/**
+ * Which place to ask OpenWeather about — or null for "this job has no
+ * location". THE rule, for every surface:
+ *   • No usable address text (blank, or a country on its own like 'United
+ *     States') → null, and any stored coordinates are IGNORED: for those jobs
+ *     they are the country centroid in Kansas (2026-09-24).
+ *   • Saved coordinates → those.
+ *   • Otherwise geocode the text (throttled + cached in geocodeProject), and
+ *     only if that fails send the text as `q=` (which OpenWeather reads as a
+ *     city name).
+ */
+export async function resolveWeatherQuery(
+  location: { city?: string; latitude?: number; longitude?: number },
+): Promise<WeatherQuery | null> {
+  // Required at call time for the same reason as the relay above;
+  // geocodeProject is itself import-free.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const geo = require('./geocodeProject') as typeof import('./geocodeProject');
+  const text = geo.usableLocationText(location.city);
+  if (!text) return null;
+  if (location.latitude != null && location.longitude != null
+    && Number.isFinite(location.latitude) && Number.isFinite(location.longitude)) {
+    return { latitude: location.latitude, longitude: location.longitude };
+  }
+  const hit = await geo.geocodeProjectLocation(text);
+  if (hit) return { latitude: hit.latitude, longitude: hit.longitude };
+  return { city: text };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

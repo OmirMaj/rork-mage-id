@@ -1,6 +1,7 @@
 // utils/copilot/scheduleBuilder/buildAnswersPrompt.ts — builds the mageAI
 // generation prompt from the intake answers. Pure (no mageAI/RN) so a validator
 // can assert it carries the answers + the research-backed scheduling rules.
+import { projectTypeLabel } from '@/utils/projectTypes';
 import type { Project } from '@/types';
 import type { ScheduleBuilderAnswers } from './questions';
 import { paceFactsBlock } from './paceGrounding';
@@ -21,7 +22,7 @@ export function buildAnswersPrompt(
   const line = (label: string, v: unknown) => (v === null || v === undefined || v === '' ? null : `${label}: ${v}`);
   const facts = [
     line('PROJECT', project?.name),
-    line('TYPE', project?.type),
+    line('TYPE', projectTypeLabel(project)),
     line('LOCATION', project?.location),
     line('SCOPE', a.scope),
     line('SIZE (sq ft)', a.sizeSqft ?? project?.squareFootage),

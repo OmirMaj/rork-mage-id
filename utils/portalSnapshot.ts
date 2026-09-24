@@ -7,6 +7,7 @@
 // without any backend round-trip. The hash never leaves the client's browser,
 // so the snapshot stays private between GC and whoever has the link.
 
+import { projectTypeLabel } from '@/utils/projectTypes';
 import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
@@ -38,6 +39,7 @@ import {
 } from '@/utils/portalOwnerCore';
 import { ownerSharingFor, bakedSharingAllowed } from '@/utils/passport/ownerSharing';
 import { stripMoney } from '@/utils/passport/consumerPassport';
+import { portalFinancingBlock, type PortalFinancingBlock } from '@/utils/financingCore';
 
 /**
  * Per-item visibility gate. Undefined `portalState` is grandfathered as Sent
@@ -276,6 +278,14 @@ export interface PortalSnapshot {
   // Whether the client can 1-tap approve/decline change orders from the
   // portal. When false the CO list is read-only.
   coApprovalEnabled?: boolean;
+  // Client financing ("bring your own lender", Q4 2026-09-24). Present only
+  // when the GC has financing switched on with a lender name and an https
+  // prequalification link — decided from the GC's OWN settings here, at
+  // publish time. The portal used to decide from the VIEWER's settings, so a
+  // homeowner never saw it. Carries the lender's name and the disclosure only:
+  // the page builds the link from the portal id + access token, and
+  // financing-redirect reads the lender URL and referral code server-side.
+  financing?: PortalFinancingBlock;
   // Active project contract (when status >= 'sent'). Lets the homeowner
   // review + counter-sign their construction agreement directly in the
   // static portal. Nothing else fetches the row for the page: the page has
@@ -412,6 +422,10 @@ export interface PortalSnapshot {
     id: string;
     name: string;
     type?: string;
+    /** Q6 · what the homeowner reads for the type: his words for an Other job
+     *  ("Whole-house repipe"), else the type's label ("New Build") — never
+     *  the raw id. `type` stays the id (the page switches on 'commercial'). */
+    typeLabel?: string;
     address?: string;
     status?: string;
     // v2: a hero image URL chosen automatically from the most recent project
@@ -2399,6 +2413,10 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     submitBudget: clientCanSetBudget ? apiConfig : undefined,
     portalApi: apiConfig,
     coApprovalEnabled: !!portal.coApprovalEnabled,
+    // From the GC's settings, which BOTH snapshot writers pass (the lite
+    // writer refuses to publish before the profile has loaded — #104), so the
+    // key cannot flicker between the rich and the lite copy.
+    financing: portalFinancingBlock(settings),
     // Derived from `project` + `portal` only, for the same reason `proposal`
     // is: both snapshot writers must produce it identically.
     feedbackAsk: buildFeedbackAsk(project, portal),
@@ -2559,6 +2577,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       id: project.id,
       name: project.name,
       type: project.type,
+      typeLabel: projectTypeLabel(project) || undefined,
       address: project.location,
       status: project.status,
       heroPhotoUrl,

@@ -34,6 +34,7 @@ import { DID_FOR_YOU_KEY, parseDidForYouEntries, type DidForYouEntry } from '@/u
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { classifyProjectLocation } from '@/utils/geocodeProject';
 
 // Notification preferences mirror the prefKeys the notify edge function
 // dispatches under (every prefKey notify uses needs a row here, or the GC
@@ -369,10 +370,12 @@ export default function NotificationsSettingsScreen() {
     let textOnly = 0;
     let blank = 0;
     for (const p of activeProjects) {
-      const hasCoords = p.locationLatitude != null && p.locationLongitude != null;
-      const hasText = !!(p.location && p.location.trim().length >= 3);
-      if (hasCoords) geocoded += 1;
-      else if (hasText) textOnly += 1;
+      // A country on its own ('United States') is NO location, whatever
+      // coordinates it carries — those were the Kansas centroid (2026-09-24),
+      // and this card counted them as set.
+      const state = classifyProjectLocation(p);
+      if (state === 'geocoded') geocoded += 1;
+      else if (state === 'text_only') textOnly += 1;
       else blank += 1;
     }
     return { total, geocoded, textOnly, blank };

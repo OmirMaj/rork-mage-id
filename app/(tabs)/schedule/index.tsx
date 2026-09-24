@@ -92,8 +92,9 @@ import { appendAuditToAsyncStorage, buildAuditEntry } from '@/utils/scheduleAudi
 import {
   SimulatedWeatherBanner,
   SimulatedDayChip,
+  WeatherPlaceLine,
 } from '@/components/schedule/SimulatedWeatherNotice';
-import { geocodeProjectLocation, type GeocodeResult } from '@/utils/geocodeProject';
+import { describeForecast, weatherCheckMessage, type WeatherCheckTone } from '@/utils/weatherProvenance';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
@@ -498,13 +499,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const [quickAddCount, setQuickAddCount] = useState(0);
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
   const [showDepPicker, setShowDepPicker] = useState(false);
+  // The weather button's answer: the alerts it found and the sentence that
+  // says what it checked, where, or why it couldn't.
   const [weatherAlerts, setWeatherAlerts] = useState<{ taskName: string; date: string; condition: string }[]>([]);
-
-  // Cache geocoded project coords so the weather button doesn't re-hit Nominatim
-  // (rate-limited to 1 req/sec) on every press. Keyed by the exact location
-  // string that was geocoded; a project address edit invalidates naturally
-  // because the key no longer matches.
-  const geocodeCacheRef = useRef<Map<string, GeocodeResult>>(new Map());
+  const [weatherCheck, setWeatherCheck] = useState<{ tone: WeatherCheckTone; text: string } | null>(null);
 
   const [taskDraft, setTaskDraft] = useState<TaskDraft>({ ...EMPTY_DRAFT });
   const [showAdvancedTaskFields, setShowAdvancedTaskFields] = useState(false);
@@ -1004,7 +1002,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const now = new Date().toISOString();
     const newProject: Project = {
       id: createId('project'), name: 'Schedule Project', type: 'renovation',
-      location: 'United States', squareFootage: 0, quality: 'standard',
+      // Blank = no address, so no weather until he adds one — never the
+      // literal 'United States' (it geocoded to the Kansas centroid).
+      location: '', squareFootage: 0, quality: 'standard',
       description: 'Created from Schedule', createdAt: now, updatedAt: now,
       estimate: null,
       // Creation → anchor today unless the builder supplied a date.
@@ -1801,64 +1801,66 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     });
   }, []);
 
-  const fetchWeather = useCallback(async () => {
-    try {
-      // Default (New York) — used only when the project has no address or
-      // geocoding fails, so the button still returns *some* forecast rather
-      // than crashing or going blank.
-      let latitude = 40.71;
-      let longitude = -74.01;
-
-      const location = selectedProject?.location?.trim();
-      if (location && location.length >= 3) {
-        // Reuse a cached geocode for this exact address; only hit Nominatim
-        // the first time we see a given location string.
-        let coords = geocodeCacheRef.current.get(location) ?? null;
-        if (!coords) {
-          coords = await geocodeProjectLocation(location);
-          if (coords) geocodeCacheRef.current.set(location, coords);
-        }
-        if (coords) {
-          latitude = coords.latitude;
-          longitude = coords.longitude;
+  // THE WEATHER BUTTON. It used to query a second service (Open-Meteo) at a
+  // silent New York default whenever the job had no address or the lookup
+  // failed, and said nothing when there were no alerts (2026-09-24). Now it
+  // reads the SAME forecast, for the SAME place, as the Gantt / Today /
+  // Lookahead strips (ganttForecast above: saved coordinates, then the
+  // address), raises alerts only from LIVE days — a simulated day is invented
+  // and cannot put a task at risk — and always answers in words: the place,
+  // the result, or why nothing was checked.
+  const fetchWeather = useCallback(() => {
+    const { place } = describeForecast(
+      {
+        city: selectedProject?.location,
+        latitude: selectedProject?.locationLatitude,
+        longitude: selectedProject?.locationLongitude,
+      },
+      ganttForecast,
+    );
+    const liveDays = ganttForecast.filter((f) => f.source === 'live');
+    const weatherSensitiveTasks = sortedTasks.filter((t) => t.isWeatherSensitive);
+    const alerts: { taskName: string; date: string; condition: string }[] = [];
+    for (const day of liveDays) {
+      if (day.isWorkable) continue;
+      for (const task of weatherSensitiveTasks) {
+        const { start, end } = getTaskDateRange(task, projectStartDate, activeSchedule?.workingDaysPerWeek ?? 5);
+        // Calendar-day comparison (UX-F10): the task range is noon-anchored.
+        if (day.date >= toCalendarDayString(start) && day.date <= toCalendarDayString(end)) {
+          alerts.push({
+            taskName: task.title,
+            date: day.date,
+            condition: `${day.condition} · ${day.precipChance}% rain · ${day.windSpeed} mph wind`,
+          });
         }
       }
-
-      const response = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7`
-      );
-      const data = await response.json();
-      if (data.daily) {
-        const alerts: { taskName: string; date: string; condition: string }[] = [];
-        const weatherSensitiveTasks = sortedTasks.filter(t => t.isWeatherSensitive);
-        data.daily.time.forEach((date: string, idx: number) => {
-          const precip = data.daily.precipitation_probability_max[idx];
-          const wind = data.daily.wind_speed_10m_max[idx];
-          if (precip > 60 || wind > 40) {
-            weatherSensitiveTasks.forEach(task => {
-              const { start, end } = getTaskDateRange(task, projectStartDate, activeSchedule?.workingDaysPerWeek ?? 5);
-              // open-meteo's daily.time is a bare 'YYYY-MM-DD' (timezone=auto);
-              // the task range is noon-anchored — same UX-F10 class as the
-              // Weather Impact panel, same calendar-day comparison.
-              const forecastDay = parseCalendarDay(date);
-              const forecastKey = forecastDay ? toCalendarDayString(forecastDay) : '';
-              if (forecastKey && forecastKey >= toCalendarDayString(start) && forecastKey <= toCalendarDayString(end)) {
-                alerts.push({
-                  taskName: task.title,
-                  date,
-                  condition: precip > 60 ? `Rain likely (${precip}%)` : `High wind (${Math.round(wind)} km/h)`,
-                });
-              }
-            });
-          }
-        });
-        setWeatherAlerts(alerts);
-        console.log('[Schedule] Weather alerts:', alerts.length);
-      }
-    } catch (err) {
-      console.log('[Schedule] Weather fetch failed:', err);
     }
-  }, [sortedTasks, projectStartDate, activeSchedule, selectedProject?.location]);
+    setWeatherAlerts(alerts);
+    setWeatherCheck(weatherCheckMessage({
+      place,
+      loading: ganttForecast.length === 0,
+      liveDays: liveDays.length,
+      sensitiveTasks: weatherSensitiveTasks.length,
+      alertCount: alerts.length,
+    }));
+  }, [ganttForecast, sortedTasks, projectStartDate, activeSchedule, selectedProject?.location, selectedProject?.locationLatitude, selectedProject?.locationLongitude]);
+
+  // A different job's check is not this job's answer.
+  useEffect(() => {
+    setWeatherAlerts([]);
+    setWeatherCheck(null);
+  }, [selectedProject?.id]);
+
+  // "Weather for Park Slope, Brooklyn" above the Gantt, and the plain-words
+  // cause for any simulated days, from the same forecast the bars read.
+  const ganttWeatherDesc = useMemo(() => describeForecast(
+    {
+      city: selectedProject?.location,
+      latitude: selectedProject?.locationLatitude,
+      longitude: selectedProject?.locationLongitude,
+    },
+    ganttForecast,
+  ), [ganttForecast, selectedProject?.location, selectedProject?.locationLatitude, selectedProject?.locationLongitude]);
 
   const hasSchedule = sortedTasks.length > 0;
   const hasEstimate = !!selectedProject?.linkedEstimate || !!selectedProject?.estimate;
@@ -3044,10 +3046,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   onProgressUpdate={handleLiveProgressUpdate}
                   onTaskPress={openLiveTaskDetail}
                   location={selectedProject?.location}
+                  locationLatitude={selectedProject?.locationLatitude}
+                  locationLongitude={selectedProject?.locationLongitude}
                 />
               )}
               {viewMode === 'gantt' && (
                 <View style={styles.ganttWrapper}>
+                  <WeatherPlaceLine text={ganttWeatherDesc.placeLine ?? ganttWeatherDesc.cause} style={styles.ganttPlaceLine} />
                   <View style={styles.ganttControls}>
                     <TouchableOpacity style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]} onPress={() => setIsVerticalGantt(false)}>
                       <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
@@ -3455,13 +3460,29 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
         {hasScheduleData && activeSchedule && (
           <>
-            {weatherAlerts.length > 0 && (
-              <View style={styles.weatherBanner}>
-                <CloudRain size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.weatherBannerText}>
-                  {weatherAlerts.length} weather alert{weatherAlerts.length > 1 ? 's' : ''} for upcoming tasks
-                </Text>
-                <TouchableOpacity onPress={() => setWeatherAlerts([])} accessibilityRole="button" accessibilityLabel="Close">
+            {weatherCheck && (
+              <View style={[styles.weatherBanner, weatherCheck.tone !== 'alert' && styles.weatherBannerQuiet]} accessibilityRole={weatherCheck.tone === 'alert' ? 'alert' : undefined}>
+                {weatherCheck.tone === 'alert'
+                  ? <CloudRain size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  : <Cloud size={16} color={themeColors.info} strokeWidth={1.75} />}
+                <View style={styles.weatherBannerBody}>
+                  <Text style={[styles.weatherBannerText, weatherCheck.tone !== 'alert' && styles.weatherBannerTextQuiet]}>
+                    {weatherCheck.text}
+                  </Text>
+                  {weatherAlerts.slice(0, 3).map((a) => {
+                    const d = parseCalendarDay(a.date);
+                    const label = d ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : a.date;
+                    return (
+                      <Text key={`${a.taskName}-${a.date}`} style={styles.weatherBannerAlert} numberOfLines={1}>
+                        {a.taskName} — {label}: {a.condition}
+                      </Text>
+                    );
+                  })}
+                  {weatherAlerts.length > 3 && (
+                    <Text style={styles.weatherBannerAlert}>+{weatherAlerts.length - 3} more</Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => { setWeatherAlerts([]); setWeatherCheck(null); }} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -3549,7 +3570,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 })}
                 <TouchableOpacity
                   style={styles.weatherBtn}
-                  onPress={fetchWeather} accessibilityRole="button" accessibilityLabel="Cloud">
+                  onPress={fetchWeather} accessibilityRole="button" accessibilityLabel="Check the jobsite weather for weather-sensitive tasks">
                   <Cloud size={13} color={themeColors.info} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3630,11 +3651,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     onProgressUpdate={handleLiveProgressUpdate}
                     onTaskPress={openLiveTaskDetail}
                     location={selectedProject?.location}
+                    locationLatitude={selectedProject?.locationLatitude}
+                    locationLongitude={selectedProject?.locationLongitude}
                   />
                 )}
 
                 {viewMode === 'gantt' && activeSchedule && (
                   <View style={styles.ganttWrapper}>
+                    <WeatherPlaceLine text={ganttWeatherDesc.placeLine ?? ganttWeatherDesc.cause} style={styles.ganttPlaceLine} />
                     <View style={styles.ganttControls}>
                       <TouchableOpacity
                         style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]}
@@ -4243,7 +4267,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                           <Cloud size={14} color={themeColors.info} strokeWidth={1.75} />
                           <Text style={styles.weatherImpactTitle}>Weather Impact</Text>
                         </View>
-                        <SimulatedWeatherBanner days={shownDays} />
+                        <WeatherPlaceLine text={ganttWeatherDesc.placeLine} />
+                        <SimulatedWeatherBanner days={shownDays} cause={ganttWeatherDesc.cause} />
                         <View style={styles.weatherImpactForecastRow}>
                           {shownDays.map(f => {
                             const d = parseCalendarDay(f.date); // UX-F10: a calendar day, not an instant
@@ -4427,6 +4452,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptySchedule: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: 20, padding: 24, gap: 14, alignItems: 'center', borderWidth: 1, borderColor: themeColors.line },
   weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  // A check with nothing to warn about (no address, no alerts) is information,
+  // not an alarm: the neutral card, not the amber one.
+  weatherBannerQuiet: { backgroundColor: themeColors.surface, borderColor: themeColors.line },
+  weatherBannerBody: { flex: 1, gap: 2 },
+  weatherBannerAlert: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  weatherBannerTextQuiet: { color: themeColors.text, fontWeight: '500' as const },
+  ganttPlaceLine: { marginBottom: 6 },
 
   topBar: { ...cardSurface(themeColors, { radius: 'panel', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   // Prompt pills stay prompt-sized on a wide window (the Copilot column, 720).

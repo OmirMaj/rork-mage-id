@@ -22,6 +22,8 @@ import { todayCalendarDay } from '@/utils/calendarDate';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { matchFieldScheduleUpdates, parseVoiceAction, scheduleEditRouteForTranscript, type VoiceActionResult } from '@/utils/voiceActionParser';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
+import { projectTypeFromParsedType } from '@/utils/scopeQuestions';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
@@ -376,11 +378,17 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         }
         const newId = generateUUID();
         const now = new Date().toISOString();
+        // Q6: an id, a label or his words ("HVAC changeout") → a real type,
+        // with his words kept for Other. Nothing said → renovation, as before.
+        const voiceType = projectTypeFromParsedType(parsed.projectType) ?? { type: 'renovation' as const };
         ctx.addProject({
           id: newId,
           name: voiceName,
-          type: (parsed.projectType || 'renovation') as never,
-          location: parsed.projectLocation || 'United States',
+          type: voiceType.type,
+          ...(voiceType.projectTypeOther ? { projectTypeOther: voiceType.projectTypeOther } : {}),
+          // Blank = no address. 'United States' geocoded to the Kansas
+          // centroid and printed on every document as if it were a jobsite.
+          location: parsed.projectLocation || '',
           squareFootage: 0,
           quality: 'standard',
           description: parsed.reasoning || '',
@@ -818,7 +826,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                     <View style={styles.previewBody}>
                       <PreviewField label="Project name" value={parsed.projectName || '—'} />
                       <View style={styles.previewMetaRow}>
-                        <PreviewField label="Type" value={(parsed.projectType || 'renovation').replace(/_/g, ' ')} small />
+                        <PreviewField label="Type" value={projectTypeLabel(projectTypeFromParsedType(parsed.projectType) ?? { type: 'renovation' })} small />
                         <PreviewField label="Location" value={parsed.projectLocation || '—'} small />
                         <PreviewField label="Budget" value={parsed.targetBudget > 0 ? `$${parsed.targetBudget.toLocaleString()}` : '—'} small />
                       </View>

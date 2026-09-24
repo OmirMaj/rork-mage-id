@@ -3,6 +3,7 @@
 // contractor's OWN closed jobs — learned unit costs (costDatabase) and
 // per-category bid calibration — not a generic template. Competitors price from
 // national averages; we price from your history.
+import { projectTypeLabel } from '@/utils/projectTypes';
 import type { CopilotContext, Grounding } from '../types';
 import type { Project, Commitment, MaterialReceipt } from '@/types';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
@@ -69,7 +70,7 @@ export async function buildEstimateGrounding(c: CopilotContext, scope?: string):
 
   const facts: string[] = [];
   if (projectQuality || projectSqft) {
-    facts.push(`Project: ${projectSqft ? `${projectSqft} SF` : 'size unknown'}, ${projectQuality ?? 'standard'} quality${project?.type ? `, ${project.type}` : ''}.`);
+    facts.push(`Project: ${projectSqft ? `${projectSqft} SF` : 'size unknown'}, ${projectQuality ?? 'standard'} quality${project?.type ? `, ${projectTypeLabel(project)}` : ''}.`);
   }
 
   // Learned unit costs + bid calibration — best-effort so a cost-book error
@@ -79,7 +80,7 @@ export async function buildEstimateGrounding(c: CopilotContext, scope?: string):
   try {
     const db = buildCostDatabase(projects, commitments, receipts, laborSamples, seeds);
     costBookEntries = db.entries.length;
-    const matched = matchGroundingEntries(db.entries, { scope: scope ?? '', projectType: project?.type });
+    const matched = matchGroundingEntries(db.entries, { scope: scope ?? '', projectType: project?.type === 'other' ? projectTypeLabel(project) : project?.type });
     for (const e of matched) {
       groundingEntries.push({ trade: e.trade, provenance: e.provenance });
       // A seeded-only entry is a rate the contractor STATED. Phrasing it as

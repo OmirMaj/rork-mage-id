@@ -221,8 +221,11 @@ const PROJECT_TYPE_TRADES: ReadonlyArray<readonly [RegExp, readonly string[]]> =
   [/commercial|tenant|\bti\b|office|retail/i, ['demo', 'demolition', 'framing', 'frame', 'steel', 'drywall', 'ceiling', 'electric', 'lighting', 'plumb', 'hvac', 'mechanical', 'fire', 'sprinkler', 'floor', 'paint', 'finish', 'door', 'hardware', 'glazing', 'storefront']],
   [/paint/i, ['paint', 'finish', 'drywall', 'caulk', 'stain', 'trim']],
   [/floor/i, ['floor', 'tile', 'carpet', 'hardwood', 'vinyl', 'subfloor', 'trim', 'finish']],
-  [/plumb/i, ['plumb', 'fixture', 'water', 'sewer', 'drain', 'demo', 'demolition', 'drywall']],
-  [/electric/i, ['electric', 'lighting', 'panel', 'wiring', 'fixture', 'drywall']],
+  // Q6: a repipe is a plumbing job — "Whole-house repipe", "PEX repipe",
+  // "copper repipe" and the "Plumbing / Repipe" chip all reach the plumbing
+  // trades (they used to score Plumbing 0 and fall to the exposure top-N).
+  [/plumb|\bre-?pip|\bpex\b|\bcopper\b|\bpiping\b|\bwater (line|heater)|\bsewer\b|\bdrain line/i, ['plumb', 'fixture', 'water', 'sewer', 'drain', 'demo', 'demolition', 'drywall']],
+  [/electric|\bre-?wir|\bwiring\b|\bpanel (upgrade|swap|replace)|\bservice upgrade/i, ['electric', 'lighting', 'panel', 'wiring', 'fixture', 'drywall']],
   [/concrete|foundation|masonry/i, ['concrete', 'foundation', 'footing', 'masonry', 'rebar', 'excavat', 'grading', 'slab']],
   [/addition|adu|backyard|new.?build|new construction|ground.?up|full remodel|renovation|remodel/i, SHELL.concat(INTERIOR)],
 ];
@@ -265,10 +268,10 @@ function tradeStems(trade: string): string[] {
 const STEM_ALIASES: Readonly<Record<string, readonly string[]>> = {
   roofing: ['roof', 'reroof'],        // re-roof · reroof · roofer · roofs
   roof: ['reroof'],
-  electrical: ['electric'],           // electric · electrician
-  electrician: ['electric'],
-  plumbing: ['plumb'],                // plumber · plumb the island
-  plumber: ['plumb'],
+  electrical: ['electric', 'rewir', 're-wir', 'wiring'],  // electrician · rewire · re-wiring
+  electrician: ['electric', 'rewir', 're-wir', 'wiring'],
+  plumbing: ['plumb', 'repip', 're-pip', 'pipe', 'piping', 'pex'],  // plumber · repipe · PEX lines · new pipes
+  plumber: ['plumb', 'repip', 're-pip', 'pipe', 'piping', 'pex'],
   framing: ['frame'],                 // framer · frame the wall · framed
   framer: ['frame', 'framing'],
   painting: ['paint'],                // painter · paint the trim

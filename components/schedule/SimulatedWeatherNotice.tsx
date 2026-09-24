@@ -19,7 +19,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { CloudOff } from 'lucide-react-native';
+import { CloudOff, MapPin } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -49,6 +49,12 @@ export interface SimulatedWeatherBannerProps {
   days: readonly SourcedDay[];
   /** Layout only (margins/width). Never used to alter the warning treatment. */
   style?: StyleProp<ViewStyle>;
+  /**
+   * WHY these days are simulated, in plain words — from
+   * utils/weatherProvenance.describeForecast (no jobsite address vs live
+   * weather unreachable vs past the 5-day horizon). Appended to the body.
+   */
+  cause?: string | null;
 }
 
 /**
@@ -56,7 +62,7 @@ export interface SimulatedWeatherBannerProps {
  * weather it disclaims so the label and the data can't be seen apart.
  * Renders null when every displayed day is a real reading.
  */
-export function SimulatedWeatherBanner({ days, style }: SimulatedWeatherBannerProps) {
+export function SimulatedWeatherBanner({ days, style, cause }: SimulatedWeatherBannerProps) {
   const { colors: t } = useTheme();
   const s = useThemedStyles(makeStyles);
   if (!hasSimulatedDays(days)) return null;
@@ -71,11 +77,37 @@ export function SimulatedWeatherBanner({ days, style }: SimulatedWeatherBannerPr
       <View style={s.simBannerBody}>
         <Text style={s.simBannerTitle}>{SIMULATED_WEATHER_HEADLINE}</Text>
         <Text style={s.simBannerText}>
-          {allSimulated
+          {(allSimulated
             ? SIMULATED_WEATHER_BODY
-            : `${simulatedDayCount} of ${days.length} days shown are simulated (marked ${SIMULATED_DAY_LABEL}). ${SIMULATED_WEATHER_BODY}`}
+            : `${simulatedDayCount} of ${days.length} days shown are simulated (marked ${SIMULATED_DAY_LABEL}). ${SIMULATED_WEATHER_BODY}`)
+            + (cause ? ` ${cause}` : '')}
         </Text>
       </View>
+    </View>
+  );
+}
+
+export interface WeatherPlaceLineProps {
+  /** "Weather for Park Slope, Brooklyn" — describeForecast().placeLine (or,
+   *  over the Gantt, its `cause` when there is no place to name). */
+  text: string | null;
+  style?: StyleProp<ViewStyle>;
+}
+
+/**
+ * Names the place a forecast is for, directly above it. Two jobs addressed
+ * "United States" showed Kansas weather with nothing on screen to say where it
+ * was from (2026-09-24); a named place is checkable at a glance. Renders
+ * nothing when there is no live reading to attribute.
+ */
+export function WeatherPlaceLine({ text, style }: WeatherPlaceLineProps) {
+  const { colors: t } = useTheme();
+  const s = useThemedStyles(makeStyles);
+  if (!text) return null;
+  return (
+    <View style={[s.placeLine, style]}>
+      <MapPin size={11} color={t.textSecondary} strokeWidth={1.75} />
+      <Text style={s.placeLineText} numberOfLines={2}>{text}</Text>
     </View>
   );
 }
@@ -139,6 +171,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: t.textSecondary,
     lineHeight: 15,
+  },
+  placeLine: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+  },
+  placeLineText: {
+    flexShrink: 1,
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
   },
   simDayChip: {
     paddingHorizontal: 4,
