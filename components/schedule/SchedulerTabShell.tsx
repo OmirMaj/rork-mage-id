@@ -13,8 +13,14 @@
 // visible tabs (Timeline · Board · Overview) + a "Menu" button. "Menu" opens a
 // sheet grouped Plan / Track / Share — mirroring the desktop menu-bar taxonomy
 // (remaining views + shared actions). iOS convention.
+//
+// Wave 6c: `desktopChrome="toolbar"` hands the chrome to the Pro screen's own
+// toolbar — the shell then renders NEITHER the menu bar NOR SchedulerHeader
+// (together ~136 px of the 945 px the founder's MacBook has) and takes the
+// active view from the controlled `view` (viewToTab). The default, 'legacy',
+// is today's shell, byte for byte; the phone branch is untouched.
 
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, type Ref } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -24,13 +30,18 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { SchedulerProvider, type CpmResult as ContextCpmResult } from './SchedulerContext';
 import { SchedulerMenuBar, type SchedulerActions } from './SchedulerMenuBar';
 import { SchedulerHeader } from './SchedulerHeader';
-import { GanttTab, type GanttPaneMode } from './tabs/GanttTab';
+import { GanttTab, type GanttPaneMode, type GanttTabHandle } from './tabs/GanttTab';
 import { BoardTab } from './tabs/BoardTab';
 import { DashboardTab } from './tabs/DashboardTab';
 import { TabComingSoon } from './tabs/TabComingSoon';
 import { ListTab } from './tabs/ListTab';
 import { WorkloadTab } from './tabs/WorkloadTab';
 import { useResponsive } from '@/utils/useResponsive';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useSheetFrame } from '@/components/ui/Sheet';
+import { segmentedDesktop } from '@/components/ui/SegmentedControl';
+import { viewToTab, type Density, type ProView } from '@/utils/scheduleProLayout';
+import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
 import type { ProjectSchedule, ScheduleTask, ProjectResource } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
 
@@ -96,6 +107,30 @@ export interface SchedulerTabShellProps {
   onBulkSetPhase?: (ids: string[], phase: string) => void;
   onBulkSetCrew?: (ids: string[], crew: string) => void;
   onBulkAskAI?: (ids: string[]) => void;
+
+  // ---- Wave 6c desktop canvas (all optional; the defaults are today's shell) ----
+  /** 'legacy' (default): the Plan/Track/Share menu bar + SchedulerHeader.
+   *  'toolbar': neither — the screen's own toolbar owns views and actions. */
+  desktopChrome?: 'legacy' | 'toolbar';
+  /** Controlled view (read when desktopChrome is 'toolbar'). */
+  view?: ProView;
+  /** Called when the shell itself switches view (the legacy menu bar). */
+  onViewChange?: (v: ProView) => void;
+  /** Row density for the Timeline / List grids and bars. Omitted = legacy 56 px rows. */
+  density?: Density;
+  /** A right-hand pane (AI / inspector) is open over the work row — see GanttTab. */
+  paneOpen?: boolean;
+  /** A proposed change drawn on the Timeline (dashed outlines, never applied). */
+  preview?: SchedulePreviewOverlay | null;
+  /** zoomIn / zoomOut / fit / today / scrollToTask for the screen's toolbar. */
+  ganttRef?: Ref<GanttTabHandle>;
+  /** false hides the Overview's earned-value placeholder on desktop (no budget linked). */
+  hasBudget?: boolean;
+}
+
+/** The ProView a legacy tab key shows (for onViewChange). */
+function tabToView(k: SchedulerTabKey): ProView {
+  return k === 'timeline' ? 'split' : k;
 }
 
 export function SchedulerTabShell(props: SchedulerTabShellProps) {
@@ -125,11 +160,32 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
     );
   }
 
+  // 'toolbar' chrome: the screen's toolbar owns the view (controlled) and the
+  // actions, so the shell draws only the body.
+  if (props.desktopChrome === 'toolbar') {
+    const controlled = props.view ? viewToTab(props.view) : null;
+    const tab: SchedulerTabKey = controlled ? controlled.tab : active;
+    return (
+      <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
+        <View style={styles.shellRoot}>
+          <View style={styles.body}>
+            {renderTab(tab, props, controlled?.layout)}
+          </View>
+        </View>
+      </SchedulerProvider>
+    );
+  }
+
+  const selectView = (k: SchedulerTabKey) => {
+    setActive(k);
+    props.onViewChange?.(tabToView(k));
+  };
+
   return (
     <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
       <View style={styles.shellRoot}>
         {/* Plan / Track / Share menu bar — replaces the old 6-tab strip. */}
-        <SchedulerMenuBar active={active} onSelectView={setActive} actions={props.actions} />
+        <SchedulerMenuBar active={active} onSelectView={selectView} actions={props.actions} />
 
         <SchedulerHeader
           projectName={props.projectName}
@@ -154,7 +210,9 @@ interface PhoneTabBarProps {
 function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsiveLayout();
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const fOverflow = useSheetFrame('dialog', { visible: overflowOpen, animationType: 'slide' });
   const close = () => setOverflowOpen(false);
   const VISIBLE: { key: SchedulerTabKey; icon: string; label: string }[] = [
     { key: 'timeline',  icon: '⬚', label: 'Timeline' },
@@ -172,7 +230,7 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
           <Pressable
             key={t.key}
             onPress={() => onChange(t.key)}
-            style={styles.bottomTab}
+            style={[styles.bottomTab, isDesktop && segmentedDesktop.segment]}
             hitSlop={4}
             accessibilityRole="tab"
             accessibilityLabel={t.label}
@@ -185,7 +243,7 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
       })}
       <Pressable
         onPress={() => setOverflowOpen(true)}
-        style={styles.bottomTab}
+        style={[styles.bottomTab, isDesktop && segmentedDesktop.segment]}
         hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel="Menu"
@@ -197,12 +255,12 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
       <Modal
         visible={overflowOpen}
         transparent
-        animationType="slide"
+        animationType={fOverflow.animationType}
         onRequestClose={() => setOverflowOpen(false)}
       >
-        <Pressable style={styles.overflowBackdrop} onPress={() => setOverflowOpen(false)} />
-        <View style={[styles.overflowSheet, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.overflowHandle} />
+        <Pressable style={[styles.overflowBackdrop, fOverflow.isDesktop && StyleSheet.absoluteFill]} onPress={() => setOverflowOpen(false)} />
+        <View style={[styles.overflowSheet, { paddingBottom: insets.bottom + 16 }, fOverflow.card]}>
+          {fOverflow.showHandle && <View style={styles.overflowHandle} />}
           <Text style={styles.overflowGroup}>Plan</Text>
           <SheetRow label="List" active={active === 'list'} onPress={() => { onChange('list'); close(); }} />
           <SheetRow label="Add task" onPress={() => { actions.onAddTask(); close(); }} />
@@ -242,10 +300,11 @@ function SheetRow({ label, onPress, active }: { label: string; onPress: () => vo
   );
 }
 
-function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNode {
+function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps, layout?: GanttPaneMode): ReactNode {
   if (key === 'timeline') {
     return (
       <GanttTab
+        ref={props.ganttRef}
         projectStartDate={props.projectStartDate}
         workingDaysPerWeek={props.workingDaysPerWeek}
         nonWorkingDates={props.nonWorkingDates}
@@ -271,6 +330,10 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         onBulkSetPhase={props.onBulkSetPhase}
         onBulkSetCrew={props.onBulkSetCrew}
         onBulkAskAI={props.onBulkAskAI}
+        layout={layout}
+        density={props.density}
+        paneOpen={props.paneOpen}
+        preview={props.preview}
       />
     );
   }
@@ -293,6 +356,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         onBulkSetPhase={props.onBulkSetPhase}
         onBulkSetCrew={props.onBulkSetCrew}
         onBulkAskAI={props.onBulkAskAI}
+        density={props.density}
       />
     );
   }
@@ -317,7 +381,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
   }
 
   if (key === 'overview') {
-    return <DashboardTab />;
+    return <DashboardTab hasBudget={props.hasBudget} />;
   }
 
   // list, handled in later tasks — generic placeholder for now

@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Colors, type ThemeColors } from '@/constants/colors';
-import { ContentWidth } from '@/constants/designTokens';
+import { Layout } from '@/constants/designTokens';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -216,10 +216,11 @@ function formatDate(task: ScheduleTask): string {
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
-  // Four status columns, centred at ContentWidth.board on desktop web — full-
-  // bleed they were ~500px each with a single card lost in the middle
-  // (founder, 2026-09-23). 100% below the cap.
-  root: { flex: 1, flexDirection: 'row', padding: 10, gap: 10, width: '100%', maxWidth: ContentWidth.board, alignSelf: 'center' },
+  // Four status columns, centred at Layout.page.dashboard on desktop web —
+  // full-bleed they were ~500px each with a single card lost in the middle
+  // (founder, 2026-09-23). 100% below the cap. (Wave 6c: the same 1280 as
+  // before, now read from the Layout page widths.)
+  root: { flex: 1, flexDirection: 'row', padding: 10, gap: 10, width: '100%', maxWidth: Layout.page.dashboard, alignSelf: 'center' },
   col: { flex: 1, backgroundColor: t.surfaceAlt, borderRadius: 8 },
   colContent: { padding: 10, gap: 8 },
   colHeader: {
