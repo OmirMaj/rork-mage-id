@@ -53,7 +53,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  // supabase-js functions.invoke sends apikey + x-client-info as well as
+  // authorization. Leaving them out of the preflight answer made every browser
+  // call fail before it left the page ("Failed to send a request to the Edge
+  // Function") — linking Stripe on the web app never worked (2026-09-24).
+  // scripts/validate-edge-cors-headers.ts pins this for every invoked function.
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 interface ConnectOnboardingRequest {
