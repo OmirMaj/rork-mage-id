@@ -27,6 +27,7 @@ import { useTutorialProgress } from '@/utils/tutorial/progress';
 import { chipReturnTo } from '@/utils/tutorial/entryPoints';
 import { useGlobalSearchParams, usePathname } from 'expo-router';
 import { paywallPracticeOffer, restoredRunId, runBlocksPaywallOffer } from '@/utils/paywallPracticeOffer';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 // resumeTarget() needs a StartCtx only to build params; handlePracticeFirst
 // reads just whether it is null, so any fixed dates do.
@@ -302,6 +303,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
   const [period, setPeriod] = useState<BillingPeriod>('annual');
 
   // ── Monetization funnel: top-of-funnel impression ──
@@ -642,9 +644,9 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
           </View>
 
           {/* Monthly / Annual toggle */}
-          <View style={styles.toggleRow}>
+          <View style={[styles.toggleRow, isDesktop && segmentedDesktop.container]}>
             <TouchableOpacity
-              style={[styles.toggleBtn, period === 'monthly' && styles.toggleBtnActive]}
+              style={[styles.toggleBtn, isDesktop && segmentedDesktop.segment, period === 'monthly' && styles.toggleBtnActive]}
               onPress={() => setPeriod('monthly')}
               activeOpacity={0.8}
               testID="paywall-period-monthly"
@@ -652,7 +654,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
               <Text style={[styles.toggleText, period === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.toggleBtn, period === 'annual' && styles.toggleBtnActive]}
+              style={[styles.toggleBtn, isDesktop && segmentedDesktop.segment, period === 'annual' && styles.toggleBtnActive]}
               onPress={() => setPeriod('annual')}
               activeOpacity={0.8}
               testID="paywall-period-annual"

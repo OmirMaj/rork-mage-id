@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { usePathname, useRouter, type Href, type Route } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import {
   PieChart, LineChart, Coins, BellRing,
   Scale, ScanEye, ScanLine, Mic, FileSearch, Target, Zap, Upload,
   CalendarClock, Truck, Megaphone, Newspaper, BookOpen,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -26,6 +27,7 @@ import { useCoreData } from '@/contexts/ProjectContext';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useClaimedCrewProfile } from '@/hooks/useClaimedCrewProfile';
 import { featureFor, type FeatureId } from '@/utils/featureRegistry';
 import {
@@ -35,8 +37,9 @@ import { RowLink, routeHref, type RowLinkState } from '@/components/desktop/RowL
 import { JobSwitcher } from '@/components/desktop/JobSwitcher';
 import { CreateMenu } from '@/components/CreateMenu';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSidebarRail } from '@/hooks/useSidebarRail';
 
 interface NavItem {
   key: string;
@@ -94,11 +97,10 @@ interface NavItem {
 // Rows are 32 px (down from 38). Measured on the founder's 1512×945 MacBook,
 // where Chrome leaves a ~858 px viewport: the top block and all of THIS JOB
 // (plus its "More for this job" toggle) fit with room to spare, but the nav
-// scroll area ends near y=735, so WORKSPACE's last row (Construction News) is
-// clipped and BUSINESS / FINANCE / SETUP & TOOLS sit below the fold. Only a
-// true 945 px VIEWPORT shows all of WORKSPACE. Moving Construction News into
-// SETUP & TOOLS (once validate-w4-construction-news-client allows it) brings
-// WORKSPACE back to six rows — a wave 6c item. Every destination the old rail had is still
+// scroll area ends near y=735, so a seventh WORKSPACE row (Construction News,
+// until wave 6c) was clipped and BUSINESS / FINANCE / SETUP & TOOLS sit below
+// the fold. Wave 6c moved Construction News into SETUP & TOOLS: WORKSPACE is
+// six rows again and fully visible. Every destination the old rail had is still
 // here — scripts/validate-nav-coverage.ts pins the full route list — it is the
 // ORDER that changed, not the reach.
 //
@@ -180,12 +182,6 @@ const NAV_ITEMS: NavItem[] = [
   // place things addressed to you land. It moved up from ACCOUNT because it is
   // work, not settings.
   { key: 'notifications',     label: 'Inbox',            icon: Bell,            route: '/notifications-inbox',              section: 'WORKSPACE', feature: 'notifications' },
-  // Construction News — publisher-feed headlines (founder request 2026-09-22).
-  // Ungated. The wave-6b spec files it under SETUP & TOOLS;
-  // scripts/validate-w4-construction-news-client.ts pins this exact row in
-  // WORKSPACE, so it stays until that guard is relaxed (handoff).
-  { key: 'construction-news', label: 'Construction News', icon: Newspaper,
-    route: '/construction-news', section: 'WORKSPACE', feature: 'construction-news' },
 
   // ── BUSINESS — finding work and the people you do it with (collapsed)
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'BUSINESS', feature: 'leads' },
@@ -231,6 +227,11 @@ const NAV_ITEMS: NavItem[] = [
   // MAGE Copilot hub — the universal voice→build engine's front door.
   { key: 'copilot-hub',       label: 'MAGE Copilot',     icon: Mic,             route: '/copilot-hub',                      section: 'SETUP & TOOLS', feature: 'copilot-hub' },
   { key: 'construction-ai',   label: 'Construction AI',  icon: MageAIMark,      route: '/(tabs)/construction-ai',          section: 'SETUP & TOOLS', feature: 'construction-ai' },
+  // Construction News — publisher-feed headlines (founder request 2026-09-22).
+  // Ungated. Moved out of WORKSPACE in wave 6c, which brings WORKSPACE back to
+  // six rows and fully above the fold on the founder's 858 px viewport.
+  { key: 'construction-news', label: 'Construction News', icon: Newspaper,
+    route: '/construction-news', section: 'SETUP & TOOLS', feature: 'construction-news' },
 
   // ── ACCOUNT (pinned to bottom)
   { key: 'messages',          label: 'Messages',         icon: MessageCircle,   route: '/messages',                         section: 'ACCOUNT' },
@@ -267,9 +268,33 @@ const CLIENT_NAV_ITEMS: NavItem[] = [
 ];
 const CLIENT_SECTIONS = ['PROPERTY OWNER'];
 
+// ─── Property-manager sidebar (wave 6c, phase-0 D2) ───────────────────────
+// A property manager runs a portfolio of buildings, not RFPs: they got the
+// CLIENT rail (Post a Project, My Projects) until 6c, which is the homeowner's
+// flow. Their own set: the portfolio (Home) and their contacts, plus the same
+// account rows. Still minimal — no job switcher, no contractor tools.
+const PM_NAV_ITEMS: NavItem[] = [
+  { key: 'home',          label: 'Portfolio',      icon: Building2,     route: '/(tabs)/(home)', section: 'PROPERTY MANAGER', feature: 'projects' },
+  { key: 'contacts',      label: 'Contacts',       icon: Users,         route: '/contacts',      section: 'PROPERTY MANAGER', feature: 'contacts' },
+
+  { key: 'messages',      label: 'Messages',       icon: MessageCircle, route: '/messages',      section: 'ACCOUNT' },
+  { key: 'notifications', label: 'Notifications',  icon: Bell,          route: '/notifications-inbox', section: 'ACCOUNT', feature: 'notifications' },
+  { key: 'settings',      label: 'Settings',       icon: Settings,      route: '/(tabs)/settings', section: 'ACCOUNT', feature: 'settings' },
+];
+const PM_SECTIONS = ['PROPERTY MANAGER'];
+
+/** Pro Scheduler — where the Schedule row goes when there is a job and the
+ *  plan includes it (wave 6c). Not a NAV_ITEMS row: its registry entry is
+ *  'schedule-pro', and the row stays 'Schedule'. */
+const SCHEDULE_PRO_ROUTE: Route = '/schedule-pro';
+
 /** Does `pathname` (resolved, group-free) sit on this row's destination? */
 function isActiveRoute(pathname: string, item: NavItem): boolean {
   if (item.key === 'home') return pathname === '/' || pathname.includes('(home)');
+  // The Schedule row opens Pro when the plan has it, so it lights up there too.
+  if (item.key === 'schedule' && (pathname === SCHEDULE_PRO_ROUTE || pathname.startsWith(SCHEDULE_PRO_ROUTE + '/'))) {
+    return true;
+  }
   // Plain "bids" is the scraped public-bids tab; make sure the mage-id
   // route doesn't also light it up.
   if (item.key === 'bids') {
@@ -286,13 +311,16 @@ function isActiveRoute(pathname: string, item: NavItem): boolean {
 /** Paths where picking another job in the switcher should STAY on the tool
  *  and swap its job — every row that carries the job. Built once from the
  *  table, so a row that starts carrying the job is also a stay-put tool. */
-const JOB_TOOL_ROUTES: ReadonlyMap<string, Route> = new Map(
-  NAV_ITEMS.flatMap((item): [string, Route][] => {
+const JOB_TOOL_ROUTES: ReadonlyMap<string, Route> = new Map<string, Route>([
+  ...NAV_ITEMS.flatMap((item): [string, Route][] => {
     const scoped = item.feature ? featureFor(item.feature).projectScoped === true : false;
     if (item.jobRoute) return [[normalizeRoutePath(item.jobRoute), item.jobRoute]];
     return scoped ? [[normalizeRoutePath(item.route), item.route]] : [];
   }),
-);
+  // The Schedule row's Pro target (wave 6c): a job switch on Pro stays on Pro
+  // with the new ?projectId.
+  ['/schedule-pro', SCHEDULE_PRO_ROUTE],
+]);
 
 // The rail paints its own dark ground in BOTH themes (self-darkening chrome,
 // scripts/validate-theme-baking.ts), so its inks are white alphas rather than
@@ -311,6 +339,28 @@ interface DesktopSidebarProps {
   width: number;
 }
 
+/** A native tooltip on web: RN-web forwards no `title` prop, so the attribute
+ *  is set on the DOM node (and mirrored in data-title for tests). Native gets
+ *  a plain View; the label is on the control's accessibilityLabel either way. */
+function RailTip({ label, children }: { label: string; children: React.ReactNode }) {
+  const ref = useRef<View>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = ref.current as unknown as { setAttribute?: (k: string, v: string) => void } | null;
+    node?.setAttribute?.('title', label);
+  }, [label]);
+  return (
+    <View
+      ref={ref}
+      style={styles.railTip}
+      // RN's View type has no dataSet; RN-web renders it as data-title.
+      {...(Platform.OS === 'web' ? ({ dataSet: { title: label } } as object) : {})}
+    >
+      {children}
+    </View>
+  );
+}
+
 const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -322,20 +372,26 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const { userRole, projects } = useCoreData();
   const { activeProjectId, activeProject, recentProjectIds } = useActiveProject();
   const [createOpen, setCreateOpen] = useState(false);
+  // The 64 px icon rail (wave 6c): canvas routes (Schedule Pro, the plan
+  // viewer) default to it, Cmd/Ctrl+Backslash or the header button toggles
+  // it, remembered per kind of route (utils/sidebarRail).
+  const { collapsed, toggle: toggleRail } = useSidebarRail();
 
   // Mirror the tab bar's isMinimalPersona (app/(tabs)/_layout.tsx): both
   // client AND property_manager get the minimal nav. Previously the sidebar
   // only checked 'client', so a property manager saw the full contractor rail
   // on web while their phone showed the minimal one (CLAUDE.md: keep sidebar
-  // and tab bar in sync).
+  // and tab bar in sync). Since wave 6c each gets its OWN minimal set.
   const isMinimalPersona = userRole === 'client' || userRole === 'property_manager';
+  const isPropertyManager = userRole === 'property_manager';
   // Direct Hire + Messages belong to the same orphaned subsystem, gated
   // behind HIRE_ENABLED for launch. Hide their rail entries when it's off.
   const navItems = useMemo(
-    () => (isMinimalPersona ? CLIENT_NAV_ITEMS : NAV_ITEMS)
+    () => (isMinimalPersona ? (userRole === 'property_manager' ? PM_NAV_ITEMS : CLIENT_NAV_ITEMS) : NAV_ITEMS)
       .filter(item => HIRE_ENABLED || (item.key !== 'hire' && item.key !== 'messages')),
-    [isMinimalPersona],
+    [isMinimalPersona, userRole],
   );
+  const minimalSections = isPropertyManager ? PM_SECTIONS : CLIENT_SECTIONS;
   const itemsIn = useCallback(
     (section: string) => navItems.filter(item => item.section === section),
     [navItems],
@@ -366,16 +422,33 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       return next;
     });
   }, []);
+  // A group that holds the current page is shown open for context — and until
+  // 6c its header could not close it (the click saved "closed", the page kept
+  // it open). The click now forces it for THIS SESSION only: never saved, and
+  // cleared as soon as the page moves to another section.
+  const [forced, setForced] = useState<Record<string, boolean>>({});
+  useEffect(() => { setForced({}); }, [activeSection]);
   const isOpen = useCallback((toggle: string, members: readonly string[]) =>
-    !!savedOpen[toggle] || (activeSection !== null && members.includes(activeSection)),
-  [savedOpen, activeSection]);
+    forced[toggle] ?? (!!savedOpen[toggle] || (activeSection !== null && members.includes(activeSection))),
+  [forced, savedOpen, activeSection]);
+
+  // Pro Scheduler is the Schedule row's target when there is a job and the
+  // plan includes it (wave 6c); otherwise the row opens as before. Checked
+  // against the JOB (useProjectAccess), exactly as /schedule-pro gates it: an
+  // invited collaborator on a free plan, on a Pro GC's job, is let in there,
+  // so the row must send him there too (validate-collaborator-gates).
+  const jobAccess = useProjectAccess(jobId ?? undefined);
+  const proSchedule = jobAccess.canAccess('schedule_gantt_pdf');
 
   /** A row's href: the active job rides along on job-scoped rows only. */
   const hrefFor = useCallback((item: NavItem): Href => {
+    if (item.key === 'schedule' && jobId && proSchedule) {
+      return routeHref(SCHEDULE_PRO_ROUTE, { projectId: jobId });
+    }
     const projectScoped = item.feature ? featureFor(item.feature).projectScoped === true : false;
     const t = jobScopedTarget(item.route, { projectScoped, jobRoute: item.jobRoute, activeProjectId: jobId });
     return routeHref(t.pathname, t.params);
-  }, [jobId]);
+  }, [jobId, proSchedule]);
 
   /** Picking a job on a project tool stays on the tool; elsewhere it opens
    *  the job's Overview. */
@@ -393,6 +466,11 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
 
   const rowStyle = useCallback((active: boolean) => (s: RowLinkState) => [
     styles.navItem,
+    active ? { backgroundColor: colors.accentFill } : s.hovered ? styles.navItemHovered : null,
+  ], [colors.accentFill]);
+
+  const railRowStyle = useCallback((active: boolean) => (s: RowLinkState) => [
+    styles.railItem,
     active ? { backgroundColor: colors.accentFill } : s.hovered ? styles.navItemHovered : null,
   ], [colors.accentFill]);
 
@@ -446,10 +524,43 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     );
   }, [pathname, canAccess, claimedCrewWorker, hrefFor, rowStyle]);
 
-  const renderToggle = (toggle: string, label: string, open: boolean) => (
+  /** The collapsed rail's square: the icon alone, the label in the a11y
+   *  label and the web tooltip. Same href, gate and active state as the row. */
+  const renderRailItem = useCallback((item: NavItem) => {
+    const active = isActiveRoute(pathname, item);
+    const Icon = item.icon;
+    const requires = item.feature ? featureFor(item.feature).requires : undefined;
+    const asProfile = item.feature === 'crew' && claimedCrewWorker && !!requires && !canAccess(requires);
+    const locked = !asProfile && !!requires && !canAccess(requires);
+    const label = asProfile ? 'My Profile' : item.label;
+    return (
+      <RailTip key={item.key} label={`${label}${locked ? ' (requires upgrade)' : ''}`}>
+        <RowLink
+          href={hrefFor(item)}
+          style={railRowStyle(active)}
+          selected={active}
+          testID={`sidebar-${item.key}`}
+          accessibilityLabel={`${label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
+        >
+          {({ hovered }: RowLinkState) => (
+            <Icon size={18} color={active || hovered ? RAIL.ink : RAIL.label} strokeWidth={active ? 2.2 : 1.8} />
+          )}
+        </RowLink>
+      </RailTip>
+    );
+  }, [pathname, canAccess, claimedCrewWorker, hrefFor, railRowStyle]);
+
+  const renderToggle = (toggle: string, label: string, open: boolean, members: readonly string[]) => (
     <Pressable
       style={styles.sectionHeader}
-      onPress={() => toggleSection(toggle)}
+      onPress={() => {
+        // The group holding the current page: a session-only override.
+        if (activeSection !== null && members.includes(activeSection)) {
+          setForced(f => ({ ...f, [toggle]: !isOpen(toggle, members) }));
+        } else {
+          toggleSection(toggle);
+        }
+      }}
       accessibilityRole="button"
       accessibilityLabel={`${label}, ${open ? 'expanded' : 'collapsed'}`}
       accessibilityState={{ expanded: open }}
@@ -466,18 +577,149 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const moreOpen = isOpen(MORE_TOGGLE, MORE_JOB_SECTIONS);
   const overviewActive = !!activeProjectId && normalizeRoutePath(pathname) === '/project-detail';
 
+  const createMenu = !isMinimalPersona && (
+    <CreateMenu
+      visible={createOpen}
+      onClose={() => setCreateOpen(false)}
+      // "Project" opens Home's own create sheet (?openCreate=1, consumed by
+      // app/(tabs)/(home)/index.tsx) — one create-project flow, not two.
+      onCreateProject={() => {
+        setCreateOpen(false);
+        router.push(routeHref('/(tabs)/(home)', { openCreate: '1' }));
+      }}
+    />
+  );
+
+  // ── Collapsed: the 64 px icon rail ─────────────────────────────────────
+  // Brand, Search, + New, the job chip (expands), Overview + THIS JOB,
+  // WORKSPACE, and Settings + expand at the bottom. JobSwitcher, RECENT, the
+  // section labels, "More for this job" and BUSINESS / FINANCE / SETUP &
+  // TOOLS are one expand away.
+  if (collapsed) {
+    const settingsItem = accountItems.find(item => item.key === 'settings');
+    const jobInitial = activeProject?.name?.trim().charAt(0).toUpperCase() || null;
+    return (
+      <View
+        style={[styles.container, styles.containerRail, { width, paddingTop: insets.top + 10, paddingBottom: insets.bottom + 10 }]}
+        accessibilityRole={Platform.OS === 'web' ? ('navigation' as never) : undefined}
+        accessibilityLabel="Primary navigation"
+      >
+        <View style={[styles.brandSection, styles.brandSectionRail]}>
+          <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
+            <Wrench size={16} color={RAIL.ink} strokeWidth={1.75} />
+          </View>
+        </View>
+
+        <RailTip label="Search (⌘K)">
+          <Pressable
+            style={(s) => [styles.railItem, (s as RowLinkState).hovered && styles.navItemHovered]}
+            onPress={openSearch}
+            testID="sidebar-search"
+            accessibilityRole="button"
+            accessibilityLabel="Open universal search"
+          >
+            <Search size={18} color={RAIL.label} strokeWidth={1.8} />
+          </Pressable>
+        </RailTip>
+
+        {!isMinimalPersona && (
+          <RailTip label="New">
+            <Pressable
+              style={(s) => [styles.railItem, (s as RowLinkState).hovered && styles.navItemHovered]}
+              onPress={() => setCreateOpen(true)}
+              testID="sidebar-new"
+              accessibilityRole="button"
+              accessibilityLabel="New: create a project, estimate, RFI, invoice or anything else"
+            >
+              <Plus size={18} color={RAIL.ink} strokeWidth={2} />
+            </Pressable>
+          </RailTip>
+        )}
+
+        {!isMinimalPersona && jobInitial && (
+          <RailTip label={`${activeProject?.name ?? 'This job'}: expand to switch jobs`}>
+            <Pressable
+              style={[styles.jobChip, { backgroundColor: colors.accentFill }]}
+              onPress={toggleRail}
+              testID="sidebar-job-chip"
+              accessibilityRole="button"
+              accessibilityLabel={`Current job ${activeProject?.name ?? ''}. Expand the sidebar to switch jobs`}
+            >
+              <Text style={styles.jobChipText}>{jobInitial}</Text>
+            </Pressable>
+          </RailTip>
+        )}
+
+        <ScrollView style={[styles.navScroll, styles.railScrollView]} contentContainerStyle={styles.railScroll} showsVerticalScrollIndicator={false}>
+          {isMinimalPersona ? (
+            minimalSections.flatMap(section => itemsIn(section)).map(item => renderRailItem(item))
+          ) : (
+            <>
+              {activeProjectId ? (
+                <RailTip label="Overview">
+                  <RowLink
+                    href={routeHref('/project-detail', { id: activeProjectId })}
+                    style={railRowStyle(overviewActive)}
+                    selected={overviewActive}
+                    testID="sidebar-job-overview"
+                    accessibilityLabel={`Overview of ${activeProject?.name ?? 'this job'}${overviewActive ? ', current page' : ''}`}
+                  >
+                    {({ hovered }: RowLinkState) => (
+                      <LayoutDashboard size={18} color={overviewActive || hovered ? RAIL.ink : RAIL.label} strokeWidth={overviewActive ? 2.2 : 1.8} />
+                    )}
+                  </RowLink>
+                </RailTip>
+              ) : null}
+              {itemsIn(JOB_SECTION).map(item => renderRailItem(item))}
+              <View style={styles.railDivider} />
+              {itemsIn(WORKSPACE_SECTION).map(item => renderRailItem(item))}
+            </>
+          )}
+        </ScrollView>
+
+        <View style={styles.accountSection}>
+          <View style={styles.footerDivider} />
+          {settingsItem ? renderRailItem(settingsItem) : null}
+          <RailTip label="Expand sidebar (⌘\)">
+            <Pressable
+              style={(s) => [styles.railItem, (s as RowLinkState).hovered && styles.navItemHovered]}
+              onPress={toggleRail}
+              testID="sidebar-expand"
+              accessibilityRole="button"
+              accessibilityLabel="Expand sidebar"
+            >
+              <PanelLeftOpen size={18} color={RAIL.label} strokeWidth={1.8} />
+            </Pressable>
+          </RailTip>
+        </View>
+
+        {createMenu}
+      </View>
+    );
+  }
+
   return (
     <View
       style={[styles.container, { width, paddingTop: insets.top + 10, paddingBottom: insets.bottom + 10 }]}
       accessibilityRole={Platform.OS === 'web' ? ('navigation' as never) : undefined}
       accessibilityLabel="Primary navigation"
     >
-      {/* Brand — one 48 px row (was a 100 px stacked lockup). */}
+      {/* Brand — one 48 px row (was a 100 px stacked lockup), with the
+          collapse button on the right (wave 6c). */}
       <View style={styles.brandSection}>
         <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
           <Wrench size={16} color={RAIL.ink} strokeWidth={1.75} />
         </View>
         <Text style={styles.brandName}>MAGE ID</Text>
+        <Pressable
+          style={(s) => [styles.collapseButton, (s as RowLinkState).hovered && styles.navItemHovered]}
+          onPress={toggleRail}
+          testID="sidebar-collapse"
+          accessibilityRole="button"
+          accessibilityLabel="Collapse sidebar"
+        >
+          <PanelLeftClose size={16} color={RAIL.label} strokeWidth={1.8} />
+        </Pressable>
       </View>
 
       <Pressable
@@ -514,7 +756,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
 
       <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false}>
         {isMinimalPersona ? (
-          CLIENT_SECTIONS.map(section => (
+          minimalSections.map(section => (
             <View key={section} style={styles.navSection}>
               <Text style={[styles.sectionLabel, styles.staticLabel]}>{section}</Text>
               {itemsIn(section).map(item => renderNavItem(item))}
@@ -547,7 +789,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                 </RowLink>
               ) : null}
               {itemsIn(JOB_SECTION).map(item => renderNavItem(item))}
-              {renderToggle(MORE_TOGGLE, 'More for this job', moreOpen)}
+              {renderToggle(MORE_TOGGLE, 'More for this job', moreOpen, MORE_JOB_SECTIONS)}
               {moreOpen && MORE_JOB_SECTIONS.map(sub => (
                 <View key={sub} style={styles.subGroup}>
                   <Text style={styles.subLabel}>{sub}</Text>
@@ -598,7 +840,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
               const open = isOpen(section, [section]);
               return (
                 <View key={section} style={styles.navSection}>
-                  {renderToggle(section, section, open)}
+                  {renderToggle(section, section, open, [section])}
                   {open && items.map(item => renderNavItem(item))}
                 </View>
               );
@@ -622,18 +864,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         </View>
       )}
 
-      {!isMinimalPersona && (
-        <CreateMenu
-          visible={createOpen}
-          onClose={() => setCreateOpen(false)}
-          // "Project" opens Home's own create sheet (?openCreate=1, consumed by
-          // app/(tabs)/(home)/index.tsx) — one create-project flow, not two.
-          onCreateProject={() => {
-            setCreateOpen(false);
-            router.push(routeHref('/(tabs)/(home)', { openCreate: '1' }));
-          }}
-        />
-      )}
+      {createMenu}
     </View>
   );
 });
@@ -673,6 +904,61 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: RAIL.ink,
     letterSpacing: 1,
+  },
+  // The expanded header's collapse button, right-aligned (wave 6c).
+  collapseButton: {
+    marginLeft: 'auto' as const,
+    width: 32,
+    height: 32,
+    borderRadius: Tokens.radius.md,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  // ── The collapsed 64 px rail (wave 6c) ──
+  // 64 − 2 × 12 = the 40 px square (Layout.control.md).
+  containerRail: {
+    paddingHorizontal: (Layout.sidebar.rail - Layout.control.md) / 2,
+    alignItems: 'center' as const,
+  },
+  brandSectionRail: {
+    alignSelf: 'stretch' as const,
+    justifyContent: 'center' as const,
+    paddingHorizontal: 0,
+  },
+  railTip: {
+    marginBottom: 2,
+  },
+  railItem: {
+    width: Layout.control.md,
+    height: Layout.control.md,
+    borderRadius: Tokens.radius.md,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  railScroll: {
+    alignItems: 'center' as const,
+  },
+  railScrollView: {
+    alignSelf: 'stretch' as const,
+  },
+  railDivider: {
+    width: 24,
+    height: 1,
+    backgroundColor: RAIL.rule,
+    marginVertical: 8,
+  },
+  jobChip: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginVertical: 6,
+  },
+  jobChipText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: RAIL.ink,
   },
   topBlock: {
     marginTop: 6,

@@ -79,6 +79,7 @@ import { showAlert } from '@/utils/alert';
 import { buildEstimateEmailBody, type EmailEstimateRow } from '@/utils/estimateEmailBody';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { pdfFailureMessage } from '@/utils/platformFile';
+import { useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -2591,6 +2592,22 @@ export default function EstimateScreen() {
     </View>
   ) : null;
 
+  // Desktop sheets (wave 6c). Each popup exists in both branches below (the
+  // desktop page and the phone page); one frame per popup serves whichever
+  // branch renders. The cart is an opaque full-screen sheet: scope only.
+  const fItem = useSheetFrame('dialog', { visible: showItemPopup, animationType: 'fade' });
+  useSheetPrimaryHotkey(showItemPopup, handleAddFromPopup);
+  const fLabor = useSheetFrame('dialog', { visible: showLaborPopup, animationType: 'fade' });
+  useSheetPrimaryHotkey(showLaborPopup, handleAddLabor);
+  const fAssembly = useSheetFrame('dialog', { visible: showAssemblyPopup, animationType: 'fade' });
+  useSheetPrimaryHotkey(showAssemblyPopup, handleAddAssembly);
+  const fAddProj = useSheetFrame('form', { visible: showAddToProject, animationType: 'fade' });
+  useSheetPrimaryHotkey(showAddToProject, handleSelectProject);
+  const fConfirm = useSheetFrame('form', { visible: showConfirmLink, animationType: 'fade' });
+  const fCustom = useSheetFrame('dialog', { visible: showCustomForm, animationType: 'fade' });
+  useSheetPrimaryHotkey(showCustomForm, handleAddCustomMaterial);
+  useSheetDialogScope(showCart);
+
   if (layout.isDesktop) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -3124,10 +3141,10 @@ export default function EstimateScreen() {
           </View>
         </View>
 
-        <Modal visible={showItemPopup} transparent animationType="fade" onRequestClose={() => setShowItemPopup(false)}>
+        <Modal visible={showItemPopup} transparent animationType={fItem.animationType} onRequestClose={() => setShowItemPopup(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <Pressable style={styles.popupOverlay} onPress={() => setShowItemPopup(false)}>
-            <Pressable style={styles.popupCard} onPress={() => undefined}>
+          <Pressable style={[styles.popupOverlay, fItem.overlay]} onPress={() => setShowItemPopup(false)}>
+            <Pressable style={[styles.popupCard, fItem.card]} onPress={() => undefined}>
               {selectedMaterial && (
                 <>
                   <View style={styles.popupHeader}>
@@ -3160,10 +3177,10 @@ export default function EstimateScreen() {
           </Pressable>
           </KeyboardAvoidingView>
         </Modal>
-        <Modal visible={showLaborPopup} transparent animationType="fade" onRequestClose={() => setShowLaborPopup(false)}>
+        <Modal visible={showLaborPopup} transparent animationType={fLabor.animationType} onRequestClose={() => setShowLaborPopup(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <Pressable style={styles.popupOverlay} onPress={() => setShowLaborPopup(false)}>
-            <Pressable style={styles.popupCard} onPress={() => undefined}>
+          <Pressable style={[styles.popupOverlay, fLabor.overlay]} onPress={() => setShowLaborPopup(false)}>
+            <Pressable style={[styles.popupCard, fLabor.card]} onPress={() => undefined}>
               {selectedLabor && (
                 <>
                   <View style={styles.popupHeader}>
@@ -3185,10 +3202,10 @@ export default function EstimateScreen() {
           </Pressable>
           </KeyboardAvoidingView>
         </Modal>
-        <Modal visible={showAssemblyPopup} transparent animationType="fade" onRequestClose={() => setShowAssemblyPopup(false)}>
+        <Modal visible={showAssemblyPopup} transparent animationType={fAssembly.animationType} onRequestClose={() => setShowAssemblyPopup(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <Pressable style={styles.popupOverlay} onPress={() => setShowAssemblyPopup(false)}>
-            <Pressable style={styles.popupCard} onPress={() => undefined}>
+          <Pressable style={[styles.popupOverlay, fAssembly.overlay]} onPress={() => setShowAssemblyPopup(false)}>
+            <Pressable style={[styles.popupCard, fAssembly.card]} onPress={() => undefined}>
               {selectedAssembly && (
                 <>
                   <View style={styles.popupHeader}>
@@ -3208,9 +3225,9 @@ export default function EstimateScreen() {
           </Pressable>
           </KeyboardAvoidingView>
         </Modal>
-        <Modal visible={showAddToProject} transparent animationType="fade" onRequestClose={() => setShowAddToProject(false)}>
-          <Pressable style={styles.popupOverlay} onPress={() => setShowAddToProject(false)}>
-            <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
+        <Modal visible={showAddToProject} transparent animationType={fAddProj.animationType} onRequestClose={() => setShowAddToProject(false)}>
+          <Pressable style={[styles.popupOverlay, fAddProj.overlay]} onPress={() => setShowAddToProject(false)}>
+            <Pressable style={[styles.addToProjectCard, fAddProj.card]} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
                 <Text style={styles.addToProjectTitle}>Link to Project</Text>
                 <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3242,9 +3259,9 @@ export default function EstimateScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-        <Modal visible={showConfirmLink} transparent animationType="fade" onRequestClose={closeConfirmLink}>
-          <Pressable style={styles.popupOverlay} onPress={closeConfirmLink}>
-            <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
+        <Modal visible={showConfirmLink} transparent animationType={fConfirm.animationType} onRequestClose={closeConfirmLink}>
+          <Pressable style={[styles.popupOverlay, fConfirm.overlay]} onPress={closeConfirmLink}>
+            <Pressable style={[styles.addToProjectCard, fConfirm.card]} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
                 <Text style={styles.addToProjectTitle}>Confirm</Text>
                 <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -3382,12 +3399,12 @@ export default function EstimateScreen() {
       <Modal
         visible={showItemPopup}
         transparent
-        animationType="fade"
+        animationType={fItem.animationType}
         onRequestClose={() => setShowItemPopup(false)}
       >
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <Pressable style={styles.popupOverlay} onPress={() => setShowItemPopup(false)}>
-          <Pressable style={styles.popupCard} onPress={() => undefined}>
+        <Pressable style={[styles.popupOverlay, fItem.overlay]} onPress={() => setShowItemPopup(false)}>
+          <Pressable style={[styles.popupCard, fItem.card]} onPress={() => undefined}>
             {/* Wrap body in a ScrollView so tall content (price breakdown + quantity +
                 totals + Add button) is fully reachable on small screens / with the
                 keyboard raised. Previously the card just clipped to maxHeight 80% and
@@ -3861,11 +3878,11 @@ export default function EstimateScreen() {
       <Modal
         visible={showAddToProject}
         transparent
-        animationType="fade"
+        animationType={fAddProj.animationType}
         onRequestClose={() => setShowAddToProject(false)}
       >
-        <Pressable style={styles.popupOverlay} onPress={() => setShowAddToProject(false)}>
-          <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
+        <Pressable style={[styles.popupOverlay, fAddProj.overlay]} onPress={() => setShowAddToProject(false)}>
+          <Pressable style={[styles.addToProjectCard, fAddProj.card]} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
               <Text style={styles.addToProjectTitle}>Link to Project</Text>
               <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3947,11 +3964,11 @@ export default function EstimateScreen() {
       <Modal
         visible={showConfirmLink}
         transparent
-        animationType="fade"
+        animationType={fConfirm.animationType}
         onRequestClose={closeConfirmLink}
       >
-        <Pressable style={styles.popupOverlay} onPress={closeConfirmLink}>
-          <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
+        <Pressable style={[styles.popupOverlay, fConfirm.overlay]} onPress={closeConfirmLink}>
+          <Pressable style={[styles.addToProjectCard, fConfirm.card]} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
               <Text style={styles.addToProjectTitle}>Confirm Estimate Link</Text>
               <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close">
@@ -4053,10 +4070,10 @@ export default function EstimateScreen() {
       </Modal>
 
       {/* Labor Popup Modal */}
-      <Modal visible={showLaborPopup} transparent animationType="fade" onRequestClose={() => setShowLaborPopup(false)}>
+      <Modal visible={showLaborPopup} transparent animationType={fLabor.animationType} onRequestClose={() => setShowLaborPopup(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <Pressable style={styles.popupOverlay} onPress={() => setShowLaborPopup(false)}>
-          <Pressable style={styles.popupCard} onPress={() => undefined}>
+        <Pressable style={[styles.popupOverlay, fLabor.overlay]} onPress={() => setShowLaborPopup(false)}>
+          <Pressable style={[styles.popupCard, fLabor.card]} onPress={() => undefined}>
             {selectedLabor && (
               <>
                 <View style={styles.popupHeader}>
@@ -4112,10 +4129,10 @@ export default function EstimateScreen() {
       </Modal>
 
       {/* Assembly Popup Modal */}
-      <Modal visible={showAssemblyPopup} transparent animationType="fade" onRequestClose={() => setShowAssemblyPopup(false)}>
+      <Modal visible={showAssemblyPopup} transparent animationType={fAssembly.animationType} onRequestClose={() => setShowAssemblyPopup(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <Pressable style={styles.popupOverlay} onPress={() => setShowAssemblyPopup(false)}>
-          <Pressable style={styles.popupCard} onPress={() => undefined}>
+        <Pressable style={[styles.popupOverlay, fAssembly.overlay]} onPress={() => setShowAssemblyPopup(false)}>
+          <Pressable style={[styles.popupCard, fAssembly.card]} onPress={() => undefined}>
             {selectedAssembly && (
               <>
                 <View style={styles.popupHeader}>
@@ -4226,10 +4243,10 @@ export default function EstimateScreen() {
         currentGrandTotal={grandTotal}
       />
 
-      <Modal visible={showCustomForm} transparent animationType="fade" onRequestClose={() => setShowCustomForm(false)}>
+      <Modal visible={showCustomForm} transparent animationType={fCustom.animationType} onRequestClose={() => setShowCustomForm(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <Pressable style={styles.popupOverlay} onPress={() => setShowCustomForm(false)}>
-          <Pressable style={styles.popupCard} onPress={() => undefined}>
+        <Pressable style={[styles.popupOverlay, fCustom.overlay]} onPress={() => setShowCustomForm(false)}>
+          <Pressable style={[styles.popupCard, fCustom.card]} onPress={() => undefined}>
             <View style={styles.popupHeader}>
               <Text style={styles.popupTitle}>Add Custom Material</Text>
               <TouchableOpacity onPress={() => setShowCustomForm(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">

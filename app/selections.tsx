@@ -39,6 +39,7 @@ import type { SelectionCategory, SelectionOption, ProjectSchedule } from '@/type
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 export default function SelectionsScreen() {
   const { colors: themeColors } = useTheme();
@@ -706,10 +707,11 @@ function InstallTaskPickerModal({ category, schedule, selectedTaskId, onClose, o
     () => [...(schedule?.tasks ?? [])].sort((a, b) => a.startDay - b.startDay),
     [schedule],
   );
+  const fTask = useSheetFrame('form', { visible: category !== null, animationType: 'slide' });
   return (
-    <Modal visible={category !== null} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalCard, styles.taskModalCard]}>
+    <Modal visible={category !== null} animationType={fTask.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, fTask.overlay]}>
+        <View style={[styles.modalCard, styles.taskModalCard, fTask.card]}>
           <Text style={styles.modalTitle}>Which task installs {category?.category ?? 'this'}?</Text>
           <Text style={styles.modalBody}>
             The suggested pick-by date counts back from this task&apos;s start on your schedule.
@@ -829,11 +831,13 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
     }
     onAdd({ category: trimmedCat, budget: numericBudget, styleBrief: styleBrief.trim(), dueDate });
   };
+  const fAdd = useSheetFrame('form', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, handleAdd);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+    <Modal visible={visible} animationType={fAdd.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, fAdd.overlay]}>
+        <View style={[styles.modalCard, fAdd.card]}>
           <Text style={styles.modalTitle}>Add allowance</Text>
           <Text style={styles.modalBody}>
             Pick a category, set the homeowner's allowance, optionally describe the style. AI uses

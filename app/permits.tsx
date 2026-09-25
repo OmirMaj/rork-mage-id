@@ -62,7 +62,7 @@ import {
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
-import { Button, cardSurface } from '@/components/ui';
+import { Button, cardSurface, useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -1013,6 +1013,12 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
   const expiryBase = (editingPermit?.approvedDate && calendarDayOf(editingPermit.approvedDate)) || form.appliedDate;
   const expiryBaseLabel = editingPermit?.approvedDate && calendarDayOf(editingPermit.approvedDate) ? 'approval' : 'applied date';
 
+  // Desktop sheet (wave 6c): the permit form opens as a capped card centred in
+  // the content column; the scan viewer claims the dialog scope only.
+  const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
+  useSheetPrimaryHotkey(showForm, handleSave);
+  useSheetDialogScope(!!scanViewer);
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
@@ -1209,15 +1215,15 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
         </View>
       </ScrollView>
 
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={closeForm}>
+      <Modal visible={showForm} transparent animationType={fForm.animationType} onRequestClose={closeForm}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           {/* The overlay itself is inset from the top so that `flex-end` has
               nowhere above the safe area to push the card into — this is what
               keeps the header on screen when the keyboard shrinks the
               available height below `maxSheetHeight`. */}
-          <Pressable style={[styles.modalOverlay, { paddingTop: insets.top + 8 }]} onPress={closeForm}>
+          <Pressable style={[styles.modalOverlay, { paddingTop: insets.top + 8 }, fForm.overlay]} onPress={closeForm}>
             <Pressable
-              style={[styles.modalCard, { paddingTop: Platform.OS === 'web' ? insetTopWeb : 16, maxHeight: maxSheetHeight }]}
+              style={[styles.modalCard, { paddingTop: Platform.OS === 'web' ? insetTopWeb : 16, maxHeight: maxSheetHeight }, fForm.card]}
               onPress={() => undefined}
             >
               {/* Header and the save/delete row stay PINNED; everything between

@@ -31,6 +31,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { copyToClipboard } from '@/utils/clipboard';
 import { sendEmail } from '@/utils/emailService';
+import { segmentedDesktop, useIsDesktop, useSheetDialogScope } from '@/components/ui';
 
 export interface SendPortalLinkModalProps {
   visible: boolean;
@@ -148,6 +149,11 @@ export function SendPortalLinkModal({
     }
   };
 
+  // Desktop (wave 6c): already a capped card — the sheet only claims the
+  // shortcut registry's dialog scope, and Email | Text is a compact pair.
+  const isDesktop = useIsDesktop();
+  useSheetDialogScope(visible);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       {/* KeyboardAvoidingView lifts the modal above the soft keyboard so the
@@ -172,14 +178,14 @@ export function SendPortalLinkModal({
               <View style={styles.modeRow}>
                 <Pressable
                   onPress={() => { setMode('email'); setError(null); }}
-                  style={[styles.modeBtn, mode === 'email' && styles.modeBtnActive]}
+                  style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'email' && styles.modeBtnActive]}
                 >
                   <Mail size={14} color={mode === 'email' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'email' && styles.modeBtnTextActive]}>Email</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => { setMode('text'); setError(null); }}
-                  style={[styles.modeBtn, mode === 'text' && styles.modeBtnActive]}
+                  style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'text' && styles.modeBtnActive]}
                 >
                   <MessageSquare size={14} color={mode === 'text' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'text' && styles.modeBtnTextActive]}>Text</Text>

@@ -16,6 +16,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { registerAlertHost, type AlertRequest } from '@/utils/alert';
 import { cancelButtonIndex, type AlertButton } from '@/utils/alertCore';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 
 export default function AlertHost() {
   const { colors: t } = useTheme();
@@ -24,6 +25,12 @@ export default function AlertHost() {
   const [text, setText] = useState('');
 
   const current = queue[0] ?? null;
+  // An open alert is a DIALOG to the shortcut registry (wave 6c): Esc and
+  // every page / global key behind it go quiet, so the Esc that cancels a
+  // confirm does not also close the record it was asked over. RN-web's Modal
+  // still does the closing (onRequestClose → onDismiss). Called before the
+  // early return below; inert on a phone (useHotkeys is desktop-web only).
+  useSheetDialogScope(current !== null);
 
   useEffect(() => {
     registerAlertHost((req) => setQueue((q) => [...q, req]));

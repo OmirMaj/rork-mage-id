@@ -19,9 +19,11 @@
  */
 
 import React from 'react';
-import { Dimensions, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Dimensions, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, render, within } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
+import { renderRouter } from 'expo-router/testing-library';
+import { Slot } from 'expo-router';
 import { mountRouteChecked, primeSignedOut, primeWorld, type MountResult } from '@/__tests__/helpers/mountRoute';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Theme } from '@/constants/colors';
@@ -30,6 +32,11 @@ import { DesktopPageFrame } from '@/components/desktop/DesktopPageFrame';
 import { ShellDockHost, ShellDockProvider, useShellDock } from '@/components/desktop/ShellDock';
 import { clampSidePanelWidth } from '@/utils/splitViewLayout';
 import { ROUTE_PAGE_TYPE } from '@/utils/desktopPage';
+import TabLayout from '@/app/(tabs)/_layout';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useSidebarRail, useSidebarRailRouteSync } from '@/hooks/useSidebarRail';
+import { __resetSidebarRailForTests } from '@/utils/sidebarRailStore';
+import { SIDEBAR_RAIL_KEY } from '@/utils/sidebarRail';
 
 // ── Forcing the responsive hook and the platform ──────────────────────────
 // `mock`-prefixed so jest's hoisted factory may read it. null = the real hook.
@@ -61,6 +68,36 @@ jest.mock('@/utils/useResponsiveLayout', () => {
       return real;
     },
   };
+});
+
+// Section 5 (wave 6c) mounts the real TabLayout at 1512: the persona and the
+// attention count are forced; null = the real hook (sections 3–4).
+type MockCore = { userRole: string | null; projects: never[] };
+let mockCore: MockCore | null = null;
+jest.mock('@/contexts/ProjectContext', () => {
+  const actual = jest.requireActual('@/contexts/ProjectContext');
+  return {
+    ...actual,
+    useCoreData: () => (mockCore ? { userRole: mockCore.userRole, projects: mockCore.projects } : actual.useCoreData()),
+  };
+});
+let mockBrain: { total: number; sourceFailed: boolean } | null = null;
+jest.mock('@/hooks/useBrainWatch', () => {
+  const actual = jest.requireActual('@/hooks/useBrainWatch');
+  return {
+    ...actual,
+    useBrainWatch: () => (mockBrain
+      ? { items: [], total: mockBrain.total, byKind: {}, sourceFailed: mockBrain.sourceFailed }
+      : actual.useBrainWatch()),
+  };
+});
+// The rail's own content (a live attention feed) is not under test — only
+// WHERE it draws. Its real width is DesktopActionRail's RAIL_WIDTH, 300. It
+// never renders on a phone, so sections 3–4 are unaffected.
+jest.mock('@/components/DesktopActionRail', () => {
+  const R = jest.requireActual('react');
+  const { View: V } = jest.requireActual('react-native');
+  return { __esModule: true, default: ({ width = 300 }: { width?: number }) => R.createElement(V, { testID: 'desktop-action-rail', style: { width } }) };
 });
 
 // The unit renders (sections 1–2) use the real light palette WITHOUT
@@ -99,6 +136,13 @@ afterEach(() => {
   restoreOS = null;
   mockForcedLayout = null;
   mockFakeTheme = false;
+  mockCore = null;
+  mockBrain = null;
+  __resetSidebarRailForTests();
+  Dimensions.set({
+    window: { width: 390, height: 844, scale: 3, fontScale: 1 },
+    screen: { width: 390, height: 844, scale: 3, fontScale: 1 },
+  });
 });
 
 // 390 × 844 — an iPhone 15 — for every real-route mount below.
@@ -412,5 +456,134 @@ describe('dark-mode native headers follow the theme', () => {
     const header = (chrome(tree.toJSON()).find((x) => 'header' in (x as object)) as { header: Record<string, unknown> }).header;
     expect(header.backgroundColor).toBe(Theme.dark.bg);
     expect(header.titleColor).toBe(Theme.dark.text);
+  });
+});
+
+// ═══ 5. Wave 6c: the Home-only action rail and the 64 px sidebar rail ══════
+// At the founder's 1512 × 945 on desktop web, with the REAL responsive hook
+// (Dimensions set to 1512, Platform web — no forced layout), so the sidebar
+// width is the one the app computes from the rail store.
+
+const WINDOW = 1512;
+function desktopWeb1512() {
+  restoreOS?.();
+  restoreOS = jest.replaceProperty(Platform, 'OS', 'web').restore;
+  mockForcedLayout = null;
+  Dimensions.set({
+    window: { width: WINDOW, height: 945, scale: 2, fontScale: 1 },
+    screen: { width: WINDOW, height: 945, scale: 2, fontScale: 1 },
+  });
+}
+
+let mockDockOpen = false;
+function OpenDockOnMount() {
+  const dock = useShellDock();
+  React.useEffect(() => { if (mockDockOpen) dock.open(<Text testID="docked">docked</Text>, { title: 'Ask MAGE' }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+/** The shell's row, as RootLayoutNav draws it: the sidebar's width, the Stack,
+ *  and the dock slot on the right. */
+function ShellRoot() {
+  const layout = useResponsiveLayout();
+  useSidebarRailRouteSync();
+  const rail = useSidebarRail();
+  return (
+    <ShellDockProvider>
+      <OpenDockOnMount />
+      <View style={{ flexDirection: 'row', flex: 1 }}>
+        <View testID="shell-sidebar" style={{ width: layout.sidebarWidth }} />
+        <Pressable testID="rail-toggle" onPress={rail.toggle} accessibilityRole="button"><Text>toggle</Text></Pressable>
+        <View style={{ flex: 1 }}><Slot /></View>
+        <ShellDockHost visible />
+      </View>
+    </ShellDockProvider>
+  );
+}
+const TabStack = () => <Slot />;
+const TAB_NAMES = ['(home)', 'summary', 'discover', 'settings', 'estimate', 'materials', 'schedule', 'marketplace', 'subs', 'equipment', 'mage-id-bids', 'construction-ai'];
+const SHELL_TREE: Record<string, React.ComponentType> = {
+  '_layout': ShellRoot,
+  '(tabs)/_layout': TabLayout,
+  ...Object.fromEntries(TAB_NAMES.flatMap((n) => [[`(tabs)/${n}/_layout`, TabStack], [`(tabs)/${n}/index`, Probe]])),
+  'schedule-pro': Probe,
+  'plan-viewer': Probe,
+  'rfi': Probe,
+};
+
+async function shellAt(url: string) {
+  mockFakeTheme = true;
+  const tree = renderRouter(SHELL_TREE, { initialUrl: url });
+  await act(async () => { await Promise.resolve(); });
+  await act(async () => { await Promise.resolve(); });
+  const sidebar = flat(tree.getByTestId('shell-sidebar').props.style).width as number;
+  const railNode = tree.queryByTestId('desktop-action-rail');
+  const rail = railNode ? (flat(railNode.props.style).width as number) : 0;
+  const dockNode = tree.queryByLabelText('Ask MAGE');
+  const dock = dockNode ? (flat(dockNode.props.style).width as number) : 0;
+  return { tree, sidebar, rail, dock, dockStyle: dockNode ? flat(dockNode.props.style) : null, page: WINDOW - sidebar - rail - dock };
+}
+
+describe('wave 6c at 1512 desktop web: the action rail is Home-only', () => {
+  beforeEach(() => { mockDockOpen = false; mockBrain = { total: 3, sourceFailed: false }; });
+
+  it('Home (contractor) shows the 300 px action rail: the page gets 972', async () => {
+    desktopWeb1512();
+    mockCore = { userRole: 'contractor', projects: [] };
+    const r = await shellAt('/');
+    expect(r.sidebar).toBe(240);
+    expect(r.rail).toBe(300);
+    expect(r.page).toBe(972);
+  });
+
+  it.each(['/summary', '/settings', '/subs', '/discover', '/marketplace'])('%s shows no action rail: the page gets 1272', async (url) => {
+    desktopWeb1512();
+    mockCore = { userRole: 'contractor', projects: [] };
+    const r = await shellAt(url);
+    expect(r.tree.queryByTestId('desktop-action-rail')).toBeNull();
+    expect(r.page).toBe(1272);
+  });
+
+  it('Home for a property manager shows no action rail', async () => {
+    desktopWeb1512();
+    mockCore = { userRole: 'property_manager', projects: [] };
+    const r = await shellAt('/');
+    expect(r.tree.queryByTestId('desktop-action-rail')).toBeNull();
+  });
+
+  it('Home with the shell dock open: no action rail, a docked 440 panel, the page gets 832', async () => {
+    desktopWeb1512();
+    mockCore = { userRole: 'contractor', projects: [] };
+    mockDockOpen = true;
+    const r = await shellAt('/');
+    expect(r.tree.getByTestId('docked')).toBeTruthy();
+    expect(r.tree.queryByTestId('desktop-action-rail')).toBeNull();
+    expect(r.dock).toBe(440);
+    expect(r.dockStyle?.position).not.toBe('absolute');
+    expect(r.page).toBe(832);
+  });
+});
+
+describe('wave 6c at 1512 desktop web: canvas routes get the 64 px sidebar rail', () => {
+  beforeEach(() => { mockDockOpen = false; });
+  it.each(['/plan-viewer'])('%s: the sidebar is 64 and the page gets 1448', async (url) => {
+    desktopWeb1512();
+    const r = await shellAt(url);
+    expect(r.sidebar).toBe(64);
+    expect(r.page).toBe(1448);
+  });
+
+  it.each(['/rfi', '/schedule-pro'])('%s: a non-canvas route keeps the 240 sidebar (Pro is shell-exempt until lane DB)', async (url) => {
+    desktopWeb1512();
+    const r = await shellAt(url);
+    expect(r.sidebar).toBe(240);
+  });
+
+  it('the toggle expands the canvas sidebar and saves the choice under a mageid_ key', async () => {
+    desktopWeb1512();
+    const r = await shellAt('/plan-viewer');
+    expect(r.sidebar).toBe(64);
+    await act(async () => { fireEvent.press(r.tree.getByTestId('rail-toggle')); });
+    expect(flat(r.tree.getByTestId('shell-sidebar').props.style).width).toBe(240);
+    expect(JSON.parse((await AsyncStorage.getItem(SIDEBAR_RAIL_KEY)) ?? 'null')).toEqual({ canvas: false, workspace: false });
   });
 });

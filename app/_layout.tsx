@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandSplash from "@/components/BrandSplash";
 import CraneLoader from "@/components/CraneLoader";
 import DesktopSidebar from "@/components/DesktopSidebar";
+import { useSidebarRailRouteSync } from "@/hooks/useSidebarRail";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects, useProjectActions } from "@/contexts/ProjectContext";
@@ -777,6 +778,12 @@ function RootLayoutNav() {
     && userRole !== null
     && hasSeenOnboarding === true;
   const showDesktopShell = shellEligible && !isShellExempt;
+  // The sidebar's 64 px rail (wave 6c): reports the top segment to the rail
+  // store (canvas routes default to the rail) and binds Cmd/Ctrl+Backslash —
+  // here, in the always-focused root, so it works under pushed routes. A
+  // no-op on a phone. <DesktopSidebar width={layout.sidebarWidth}> below
+  // reads the result through useResponsiveLayout.
+  useSidebarRailRouteSync();
 
   // ── Native header + navigator theme, from the RESOLVED theme (wave 6b) ──
   // Built at render so a theme switch repaints every header. Three rules:

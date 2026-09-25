@@ -166,6 +166,7 @@ function fillContractTerms(
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 // Gate: contracts are a Pro billing tool alongside invoices, change orders,
 // and AIA pay apps — all of which hard-gate behind Pro. Previously the
@@ -2168,11 +2169,14 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
       setTypedName(defaultName);
     }
   }, [visible, defaultName]);
+  const fSign = useSheetFrame('form', { visible, animationType: 'slide' });
+  // Signs the contract: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
+  useSheetPrimaryHotkey(visible && !signing && paths.length > 0 && !!typedName.trim(), () => onSign(paths, typedName), { saveKey: false });
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+    <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={() => { if (!signing) onClose(); }}>
+      <View style={[styles.modalOverlay, fSign.overlay]}>
+        <View style={[styles.modalCard, fSign.card]}>
           <Text style={styles.modalTitle}>Sign & send</Text>
           <Text style={styles.modalBody}>
             Sign below + type your full legal name. The contract becomes binding when the
@@ -2261,11 +2265,14 @@ function RecordHomeownerSignatureModal({ visible, onClose, onRecord, recording }
     if (result.canceled || !result.assets?.[0]?.uri) return;
     setPhotoUri(result.assets[0].uri);
   }, []);
+  const fRecord = useSheetFrame('form', { visible, animationType: 'slide' });
+  // Records the signed contract: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
+  useSheetPrimaryHotkey(visible && !recording && !blockReason, () => onRecord(draft, method === 'paper' ? photoUri : null), { saveKey: false });
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard} testID="contract-record-signature-modal">
+    <Modal visible={visible} animationType={fRecord.animationType} transparent onRequestClose={() => { if (!recording) onClose(); }}>
+      <View style={[styles.modalOverlay, fRecord.overlay]}>
+        <View style={[styles.modalCard, fRecord.card]} testID="contract-record-signature-modal">
           <Text style={styles.modalTitle}>Record homeowner signature</Text>
           <View style={styles.modalActions}>
             <TouchableOpacity

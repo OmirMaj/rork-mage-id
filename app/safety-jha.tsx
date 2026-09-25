@@ -39,6 +39,7 @@ import {
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay } from '@/utils/calendarDate';
 import { safetyDateProblem, safetyDeleteBlockedReason, safetyWriteBlockedReason } from '@/utils/safety/osha';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 function getStatusConfig(t: ThemeColors, status: JHAStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -315,6 +316,13 @@ function SafetyJhaInner() {
     commitSignOff();
   }, [sigName, sigFlags, commitSignOff]);
 
+  // Desktop sheet (wave 6c): the form opens as a capped card centred in the
+  // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
+  const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
+  useSheetPrimaryHotkey(showForm, handleSave);
+  const fSign = useSheetFrame('dialog', { visible: signOffFor !== null, animationType: 'fade' });
+  useSheetPrimaryHotkey(signOffFor !== null, handleAddSignOff);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -430,11 +438,11 @@ function SafetyJhaInner() {
       </ScrollView>
 
       {/* JHA form — slide-up section modal */}
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); resetForm(); }}>
+      <Modal visible={showForm} transparent animationType={fForm.animationType} onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fForm.card]}>
                 <View style={styles.formHeader}>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
@@ -572,9 +580,9 @@ function SafetyJhaInner() {
       </Modal>
 
       {/* Sign-off capture — small centered modal */}
-      <Modal visible={signOffFor !== null} transparent animationType="fade" onRequestClose={() => setSignOffFor(null)}>
-        <View style={styles.signOverlay}>
-          <View style={styles.signCard}>
+      <Modal visible={signOffFor !== null} transparent animationType={fSign.animationType} onRequestClose={() => setSignOffFor(null)}>
+        <View style={[styles.signOverlay, fSign.overlay]}>
+          <View style={[styles.signCard, fSign.card]}>
             <View style={styles.formHeader}>
               <Text style={styles.signTitle}>Add sign-off</Text>
               <TouchableOpacity onPress={() => setSignOffFor(null)} accessibilityRole="button" accessibilityLabel="Close">

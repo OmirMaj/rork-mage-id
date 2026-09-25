@@ -32,13 +32,15 @@
 //   - a centred card: width min(Layout.sheet[size], column − 64), maxHeight
 //     85%, Radius.xl on all four corners, padding 24, Shadow.heavy, a fade
 //     instead of a slide, no drag handle;
-//   - the scrim starts at the sidebar's right edge, so the navigation stays
-//     visible (the sidebar is measured from the DOM — see desktop.ts);
+//   - the scrim covers the whole window, sidebar included (a click there
+//     dismisses, as on a phone), and the card centres in the CONTENT column
+//     (the sidebar is measured from the DOM — see desktop.ts);
 //   - footer buttons right-aligned (destructive far left, primary rightmost);
 //   - Esc closes (RN-web's Modal calls onRequestClose on Escape, so this holds
 //     for the hand-rolled sheets too, as long as they pass onRequestClose);
-//   - Cmd/Ctrl+Enter runs the primary action (<Sheet> does it; hand-rolled
-//     sheets call useSheetPrimaryHotkey);
+//   - Cmd/Ctrl+Enter and Cmd/Ctrl+S run the primary action (<Sheet> does it;
+//     hand-rolled sheets call useSheetPrimaryHotkey); with no primary, Cmd+S
+//     is still consumed so the browser's "Save page as…" never opens over it;
 //   - an open sheet is a DIALOG to the app's one shortcut registry
 //     (hooks/useHotkeys): while it is open, the page behind it hears no keys.
 //     Without that, Cmd+Enter typed in the sheet ran the PAGE's Save, and the
@@ -95,6 +97,9 @@ export interface SheetFrame {
   footer: ViewStyle | null;
   /** Each button in the action row. */
   footerButton: ViewStyle | null;
+  /** A flex:1 filler touchable beside the card: absoluteFill on desktop (the
+   *  scrim behind the centred card). null on a phone. */
+  backdrop: ViewStyle | null;
   /** Draw the drag handle? (phone only) */
   showHandle: boolean;
   /** 'fade' on desktop; the caller's own animation on a phone. */
@@ -127,6 +132,7 @@ export function useSheetFrame(
       card: null,
       footer: null,
       footerButton: null,
+      backdrop: null,
       showHandle: true,
       animationType: opts.animationType,
       transparent: undefined,
@@ -143,13 +149,33 @@ export function useSheetFrame(
 }
 
 /**
- * The Esc entry that makes an open sheet a dialog. It has NO handler on
- * purpose: it is a listing entry, and a mounted dialog-scope entry is what
- * makes the registry skip every page and global binding. The close itself
- * stays RN-web's Modal (it calls onRequestClose on Escape); a handler here that
- * called onClose would close the sheet twice.
+ * For sheets whose backdrop and card are DIRECT Modal children (pattern S):
+ * a phone gets the children as they are (a Fragment adds no host node, so the
+ * tree is identical); desktop wraps them in one full-window View carrying the
+ * frame's overlay, which centres the card in the content column.
  */
-const SHEET_DIALOG_BINDINGS: readonly HotkeyBinding[] = [{ combo: 'escape' }];
+export function SheetOverlay({ frame, children }: { frame: SheetFrame; children?: React.ReactNode }) {
+  if (!frame.isDesktop) return <>{children}</>;
+  return <View style={[{ flex: 1 }, frame.overlay]}>{children}</View>;
+}
+
+const NOOP = () => {};
+
+/**
+ * The entries that make an open sheet a dialog.
+ *  - Esc has NO handler on purpose: it is a listing entry, and a mounted
+ *    dialog-scope entry is what makes the registry skip every page and global
+ *    binding. The close itself stays RN-web's Modal (it calls onRequestClose
+ *    on Escape); a handler here that called onClose would close it twice.
+ *  - Cmd/Ctrl+S is a NOOP that CONSUMES the key: with the page's save
+ *    silenced behind the dialog, the browser's "Save page as…" would otherwise
+ *    open over the sheet. A sheet with a primary action outranks it
+ *    (useSheetPrimaryHotkey, priority 1).
+ */
+const SHEET_DIALOG_BINDINGS: readonly HotkeyBinding[] = [
+  { combo: 'escape' },
+  { combo: 'mod+s', handler: NOOP },
+];
 
 /** Register the open sheet as a dialog with the shortcut registry. */
 export function useSheetDialogScope(open: boolean): void {
@@ -157,20 +183,37 @@ export function useSheetDialogScope(open: boolean): void {
 }
 
 /**
- * Cmd/Ctrl+Enter → `onPrimary`, while `active`, on desktop web only. For the
- * hand-rolled sheets; <Sheet> wires it itself. A no-op on a phone.
+ * Cmd/Ctrl+Enter AND Cmd/Ctrl+S → `onPrimary`, while `active`, on desktop web
+ * only. For the hand-rolled sheets; <Sheet> wires it itself. A no-op on a
+ * phone.
+ *
+ * `{ saveKey: false }` binds Cmd/Ctrl+Enter ONLY. Pass it when the primary
+ * does something that leaves the app and cannot be taken back — it sends an
+ * email or invite, or signs / records a signature: Cmd+S pressed out of habit
+ * to "save" must never send the daily report to the owner (wave-6c
+ * integration review). The dialog's own Cmd+S noop (SHEET_DIALOG_BINDINGS)
+ * still swallows the key, so "Save page as…" never opens over the sheet.
  *
  * Registered in the DIALOG scope of hooks/useHotkeys, which reads keys typed
  * in a field in the capture phase (react-native-web's TextInput stops their
  * propagation) — so the shortcut works from inside the sheet's own fields, and
- * the page's Cmd+Enter behind it does not also run. Cmd/Ctrl+Shift+Enter and
- * plain Enter are not this binding (parseCombo: an unstated shift must be up).
+ * the page's save behind it does not also run. Priority 1 beats the dialog's
+ * own Cmd+S noop (SHEET_DIALOG_BINDINGS). Cmd/Ctrl+Shift+Enter and plain Enter
+ * are not this binding (parseCombo: an unstated shift must be up).
  */
-export function useSheetPrimaryHotkey(active: boolean, onPrimary: (() => void) | null | undefined) {
+export function useSheetPrimaryHotkey(
+  active: boolean,
+  onPrimary: (() => void) | null | undefined,
+  opts?: { saveKey?: boolean },
+) {
   const ref = useRef(onPrimary);
   ref.current = onPrimary;
+  const saveKey = opts?.saveKey !== false;
   useHotkeys(
-    [{ combo: 'mod+enter', handler: () => ref.current?.(), enabled: !!onPrimary }],
+    [
+      { combo: 'mod+enter', handler: () => ref.current?.(), enabled: !!onPrimary, priority: 1 },
+      { combo: 'mod+s', handler: () => ref.current?.(), enabled: !!onPrimary && saveKey, priority: 1 },
+    ],
     { scope: 'dialog', enabled: active },
   );
 }

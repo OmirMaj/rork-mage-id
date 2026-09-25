@@ -47,10 +47,11 @@ import { Type } from '@/constants/typography';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useHotkeys, type HotkeyScope } from '@/hooks/useHotkeys';
+import { isTypingTarget, targetWithin, useHotkeys, type HotkeyScope } from '@/hooks/useHotkeys';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import {
   SIDE_PANEL_DEFAULT,
+  SIDE_PANEL_OVERLAY_BELOW,
   clampSidePanelWidth,
   dragSidePanelWidth,
   sidePanelMode,
@@ -77,8 +78,12 @@ export interface SidePanelProps {
   panelId?: string;
   /** Initial width; clamped to 360–560. */
   defaultWidth?: number;
-  /** The width the page has (hooks/useContainerWidth). Under 1200 → overlay. */
+  /** The width the page has (hooks/useContainerWidth). Under `overlayBelow` → overlay. */
   containerWidth?: number;
+  /** The container width below which the panel overlays the page instead of
+   *  docking beside it. Default SIDE_PANEL_OVERLAY_BELOW (1200). A screen whose
+   *  own content needs more room (Schedule Pro's grid + Gantt) passes more. */
+  overlayBelow?: number;
   /** Extra header controls, left of the close button. */
   headerActions?: React.ReactNode;
   /** Default true: the body scrolls. False for a body that manages its own scroll (a chat). */
@@ -101,8 +106,8 @@ const RESIZE_CURSOR: ViewStyle | null = Platform.OS === 'web'
 export function SidePanel(props: SidePanelProps) {
   const {
     open, onClose, title, children, onToggle, toggleCombo = 'mod+j', tabs, activeTab, onTabChange,
-    panelId, defaultWidth = SIDE_PANEL_DEFAULT, containerWidth, headerActions, scroll = true, style, testID,
-    hotkeyScope = 'page', nativeID,
+    panelId, defaultWidth = SIDE_PANEL_DEFAULT, containerWidth, overlayBelow = SIDE_PANEL_OVERLAY_BELOW,
+    headerActions, scroll = true, style, testID, hotkeyScope = 'page', nativeID,
   } = props;
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -137,9 +142,15 @@ export function SidePanel(props: SidePanelProps) {
   }), [panelId]);
 
   // Mounted whether open or not, so the toggle key works while it is closed.
+  // A GLOBAL-scope panel (the shell dock) ignores an Esc typed in a PAGE
+  // field — that Esc belongs to the field and the page — but still closes on
+  // an Esc typed in its own field (wave 6c). Page-scope panels are unchanged.
+  const escWhen = hotkeyScope === 'global'
+    ? (ev: { target?: unknown }) => !isTypingTarget(ev.target) || (!!nativeID && targetWithin(ev.target, nativeID))
+    : undefined;
   useHotkeys(
     [
-      { combo: 'escape', label: `Close ${title}`, group: 'Panel', enabled: open, handler: onClose },
+      { combo: 'escape', label: `Close ${title}`, group: 'Panel', enabled: open, handler: onClose, ...(escWhen ? { when: escWhen } : {}) },
       ...(onToggle ? [{ combo: toggleCombo, label: `Show / hide ${title}`, group: 'Panel', handler: onToggle }] : []),
     ],
     { enabled: isDesktop, scope: hotkeyScope },
@@ -199,12 +210,19 @@ export function SidePanel(props: SidePanelProps) {
   }
 
   if (!open) return null;
-  const overlay = sidePanelMode(containerWidth) === 'overlay';
+  // sidePanelMode's rule (utils/splitViewLayout) at the caller's threshold:
+  // an unmeasured container docks; a measured one under `overlayBelow`
+  // overlays. At the default threshold this IS sidePanelMode(containerWidth).
+  const overlay = overlayBelow === SIDE_PANEL_OVERLAY_BELOW
+    ? sidePanelMode(containerWidth) === 'overlay'
+    : typeof containerWidth === 'number' && Number.isFinite(containerWidth) && containerWidth > 0 && containerWidth < overlayBelow;
   return (
     <View
       style={[styles.panel, { width }, overlay ? styles.overlay : null, style]}
       testID={testID}
       nativeID={nativeID}
+      // A landmark on web (<aside>-like), so a screen reader can jump to it.
+      role={Platform.OS === 'web' ? 'complementary' : undefined}
       accessibilityLabel={title}
     >
       <View

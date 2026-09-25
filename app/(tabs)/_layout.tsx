@@ -13,6 +13,8 @@ import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { Type } from '@/constants/typography';
 import { Tokens, Layout } from '@/constants/designTokens';
 import { pageTypeForTab } from '@/utils/desktopPage';
+import { actionRailVisible, attentionBadgeLabel } from '@/utils/sidebarRail';
+import { useShellDock } from '@/components/desktop/ShellDock';
 
 // Route-level recovery for everything under (tabs). expo-router wraps a module
 // that exports `ErrorBoundary` in its own <Try>, so a crash in a tab screen is
@@ -113,6 +115,30 @@ function DesktopTabColumn({ children }: { children: React.ReactNode }) {
   return <View style={[styles.desktopContentInner, { maxWidth }]}>{children}</View>;
 }
 
+/**
+ * The Home-only "Action Required" rail (wave 6c). It drew 300 px beside EVERY
+ * tab — Settings, Subs, Discover, the Marketplace — when it only means
+ * something on the contractor's Home; now utils/sidebarRail actionRailVisible
+ * decides (Home index, window >= 1280, not a client or property manager, and
+ * the shell dock empty — the dock takes the right-hand slot). A component of
+ * its own so only the desktop branch subscribes to useSegments and the dock.
+ */
+function DesktopHomeRail({ userRole }: { userRole: string | null | undefined }) {
+  const layout = useResponsiveLayout();
+  // Widened to string[]: at runtime segments[1] is the active tab, [2] its
+  // child route ('attention', …).
+  const segments: readonly string[] = useSegments();
+  const dock = useShellDock();
+  const visible = actionRailVisible({
+    isDesktop: layout.isDesktop,
+    width: layout.width,
+    segments,
+    userRole,
+    dockOpen: dock.content != null,
+  });
+  return visible ? <DesktopActionRail /> : null;
+}
+
 export default function TabLayout() {
   const layout = useResponsiveLayout();
   const { total: attentionCount, sourceFailed } = useBrainWatch();
@@ -140,10 +166,19 @@ export default function TabLayout() {
   // "Worth doing" #8, the site batch 1 could not reach). '!' is the honest
   // badge: something is unknown, not zero. The Brain Watch card and the
   // desktop rail below it already say WHY in words.
-  const attentionBadge = sourceFailed
+  //
+  // A property manager gets NO badge (wave 6c, phase-0 D2): the count is the
+  // GC's attention feed — RFIs, change orders, pay apps on jobs they run — and
+  // a PM's Home is their portfolio, where that number means nothing. Clients
+  // keep today's badge.
+  // Written out so the failed-read arm stays readable here (and pinned by
+  // validate-error-copy); for everyone but a PM it IS
+  // attentionBadgeLabel(attentionCount, sourceFailed).
+  const isPropertyManager = userRole === 'property_manager';
+  const attentionBadge = sourceFailed && !isPropertyManager
     ? '!'
-    : attentionCount > 0
-      ? (attentionCount > 99 ? '99+' : String(attentionCount))
+    : !isPropertyManager
+      ? attentionBadgeLabel(attentionCount, false)
       : undefined;
 
   // VoiceOver position labels, stated explicitly.
@@ -159,10 +194,9 @@ export default function TabLayout() {
   const tabA11yLabel = (label: string, position: number) =>
     `${label}, tab, ${position} of ${visibleTabCount}`;
 
-  // Right-rail "Action Required" column shows on wide desktops (>= 1280px
-  // viewport). Below that we don't have horizontal room for a clean three-
+  // Right-rail "Action Required" column: Home only, on wide desktops
+  // (DesktopHomeRail above). Below 1280 there is no room for a clean three-
   // column layout — the inline SmartInbox in the home tab takes over.
-  const showActionRail = layout.isDesktop && layout.width >= 1280;
 
   if (layout.showSidebar) {
     return (
@@ -170,7 +204,7 @@ export default function TabLayout() {
         {/* DesktopSidebar mounts ONCE at the root layout (app/_layout.tsx
             RootLayoutNav) so it persists across stack routes too — audit
             web#31. This layout only hides the tab bar on desktop and adds
-            the Action-Required rail on wide viewports. */}
+            the Action-Required rail on Home, on wide viewports. */}
         <View style={styles.desktopContent}>
           {/* Constrain routed content to a centered, readable column on wide
               displays instead of stretching full-bleed to the monitor edge —
@@ -204,7 +238,7 @@ export default function TabLayout() {
           </Tabs>
           </DesktopTabColumn>
         </View>
-        {showActionRail && <DesktopActionRail />}
+        <DesktopHomeRail userRole={userRole} />
       </View>
     );
   }
@@ -267,7 +301,7 @@ export default function TabLayout() {
           tabBarAccessibilityLabel: (isMinimalPersona
             ? tabA11yLabel('Home', 1)
             : tabA11yLabel('Your Projects', 2)
-          ) + (sourceFailed ? ", couldn't reach MAGE" : ''),
+          ) + (sourceFailed && !isPropertyManager ? ", couldn't reach MAGE" : ''),
           tabBarBadge: attentionBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (

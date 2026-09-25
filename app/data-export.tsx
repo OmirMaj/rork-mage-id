@@ -30,6 +30,7 @@ import { useSafety } from '@/contexts/SafetyContext';
 import { useProperties } from '@/contexts/PropertyContext';
 import { resolvePhotoUrls } from '@/utils/storage';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 type Scope = 'all' | 'project';
 
@@ -223,6 +224,8 @@ export default function DataExportScreen() {
     }
   }, []);
 
+  const isDesktop = useIsDesktop();
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
@@ -242,9 +245,9 @@ export default function DataExportScreen() {
         </View>
 
         <Text style={styles.sectionLabel}>SCOPE</Text>
-        <View style={styles.segment}>
+        <View style={[styles.segment, isDesktop && segmentedDesktop.container]}>
           <TouchableOpacity
-            style={[styles.segmentBtn, scope === 'all' && styles.segmentBtnActive]}
+            style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, scope === 'all' && styles.segmentBtnActive]}
             onPress={() => { setScope('all'); setProjectId(undefined); }}
             activeOpacity={0.8}
           >
@@ -252,7 +255,7 @@ export default function DataExportScreen() {
             <Text style={[styles.segmentTxt, scope === 'all' && styles.segmentTxtActive]}>All projects</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.segmentBtn, scope === 'project' && styles.segmentBtnActive]}
+            style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, scope === 'project' && styles.segmentBtnActive]}
             onPress={() => setScope('project')}
             activeOpacity={0.8}
           >
@@ -288,9 +291,9 @@ export default function DataExportScreen() {
         )}
 
         <Text style={styles.sectionLabel}>FORMAT</Text>
-        <View style={styles.segment}>
+        <View style={[styles.segment, isDesktop && segmentedDesktop.container]}>
           <TouchableOpacity
-            style={[styles.segmentBtn, format === 'json' && styles.segmentBtnActive]}
+            style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, format === 'json' && styles.segmentBtnActive]}
             onPress={() => setFormat('json')}
             activeOpacity={0.8}
           >
@@ -298,7 +301,7 @@ export default function DataExportScreen() {
             <Text style={[styles.segmentTxt, format === 'json' && styles.segmentTxtActive]}>JSON</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.segmentBtn, format === 'csv' && styles.segmentBtnActive]}
+            style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, format === 'csv' && styles.segmentBtnActive]}
             onPress={() => setFormat('csv')}
             activeOpacity={0.8}
           >
@@ -306,7 +309,7 @@ export default function DataExportScreen() {
             <Text style={[styles.segmentTxt, format === 'csv' && styles.segmentTxtActive]}>CSV</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.segmentBtn, format === 'both' && styles.segmentBtnActive]}
+            style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, format === 'both' && styles.segmentBtnActive]}
             onPress={() => setFormat('both')}
             activeOpacity={0.8}
           >

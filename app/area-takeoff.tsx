@@ -62,6 +62,7 @@ import {
   boxToImageNorm, imageNormToBox, planScaleStatus, stampImageFrame, usableCalibration,
   PLAN_SCALE_RECHECK_COPY, type ImageRect,
 } from '@/utils/planScale';
+import { segmentedDesktop, useIsDesktop, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 type Mode = 'calibrate' | 'draw';
 type Kind = 'area' | 'linear' | 'count';
@@ -523,6 +524,10 @@ function AreaTakeoffInner() {
     ? { x: imageNormToBox(labelNorm, imgRect).cx / canvasSize.w, y: imageNormToBox(labelNorm, imgRect).cy / canvasSize.h }
     : null;
 
+  // Desktop (wave 6c): the known-distance prompt is a small centred dialog.
+  const fDistance = useSheetFrame('dialog', { visible: distanceModal, animationType: 'fade' });
+  useSheetPrimaryHotkey(distanceModal, confirmDistance);
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -855,9 +860,9 @@ function AreaTakeoffInner() {
       )}
 
       {/* distance entry */}
-      <Modal visible={distanceModal} transparent animationType="fade" onRequestClose={() => setDistanceModal(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+      <Modal visible={distanceModal} transparent animationType={fDistance.animationType} onRequestClose={() => setDistanceModal(false)}>
+        <View style={[styles.modalBackdrop, fDistance.overlay]}>
+          <View style={[styles.modalCard, fDistance.card]}>
             <Text style={styles.modalTitle}>Known distance</Text>
             <Text style={styles.modalSub}>How far apart are those two points, in feet?</Text>
             <TextInput
@@ -902,8 +907,9 @@ function ModeBtn({ active, icon, label, onPress, disabled, t, styles }: {
   active: boolean; icon: React.ReactNode; label: string; onPress: () => void; disabled?: boolean;
   t: ThemeColors; styles: ReturnType<typeof makeStyles>;
 }) {
+  const isDesktop = useIsDesktop();
   return (
-    <TouchableOpacity style={[styles.modeBtn, active && { backgroundColor: t.accentFill, borderColor: t.accent }, disabled && { opacity: 0.4 }]} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
+    <TouchableOpacity style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, active && { backgroundColor: t.accentFill, borderColor: t.accent }, disabled && { opacity: 0.4 }]} onPress={onPress} disabled={disabled} activeOpacity={0.8}>
       {icon}
       <Text style={[styles.modeBtnText, active && { color: Colors.textOnAccent }]}>{label}</Text>
     </TouchableOpacity>

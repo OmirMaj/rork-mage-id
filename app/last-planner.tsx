@@ -64,6 +64,7 @@ import {
   resolveScheduleAnchor,
   UNDATED_SCHEDULE_BODY, UNDATED_SCHEDULE_CTA, UNDATED_SCHEDULE_TITLE,
 } from '@/utils/scheduleOps';
+import { segmentedDesktop, useIsDesktop, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 const haptic = () => { if (Platform.OS !== 'web') void Haptics.selectionAsync(); };
 
@@ -293,8 +294,9 @@ function LastPlannerInner() {
 
 // ─────────────────────────────────────────────────────────────────────
 function Segment({ label, active, onPress, t, styles }: { label: string; active: boolean; onPress: () => void; t: ThemeColors; styles: S }) {
+  const isDesktop = useIsDesktop();
   return (
-    <TouchableOpacity style={[styles.segment, active && { backgroundColor: t.accentFill }]} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.segment, isDesktop && segmentedDesktop.segment, active && { backgroundColor: t.accentFill }]} onPress={onPress} activeOpacity={0.85}>
       <Text style={[styles.segmentText, active && { color: Colors.textOnAccent }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -748,11 +750,13 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
   }
 
   const cats = Object.keys(CONSTRAINT_LABELS) as ConstraintCategory[];
+  const fConstraint = useSheetFrame('wide', { visible: !!task, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!task && !!description.trim(), () => task && onSave({ taskId: task.id, category, description, needBy: needBy.trim() || undefined, owner: owner.trim() || undefined }));
 
   return (
-    <Modal visible={!!task} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
+    <Modal visible={!!task} animationType={fConstraint.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, fConstraint.overlay]}>
+        <View style={[styles.modalSheet, fConstraint.card]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle} numberOfLines={1}>What's blocking {task?.title}?</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}><X size={20} color={t.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
@@ -801,11 +805,12 @@ function ReviewModal({ task, onClose, onReview, t, styles }: {
   const [loadedId, setLoadedId] = useState<string | null>(null);
   if (task && task.id !== loadedId) { setLoadedId(task.id); setMissed(false); setReason('prereq'); }
   const reasons = Object.keys(VARIANCE_LABELS) as VarianceReason[];
+  const fReview = useSheetFrame('wide', { visible: !!task, animationType: 'slide' });
 
   return (
-    <Modal visible={!!task} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
+    <Modal visible={!!task} animationType={fReview.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, fReview.overlay]}>
+        <View style={[styles.modalSheet, fReview.card]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle} numberOfLines={1}>Did "{task?.title}" get done?</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}><X size={20} color={t.textSecondary} strokeWidth={1.75} /></TouchableOpacity>

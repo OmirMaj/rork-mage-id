@@ -6,29 +6,23 @@
 // the job reads healthy and drifts off as margin risk climbs — then a compact
 // row of the numbers that move the finish: owed, schedule, open RFIs, punch.
 //
-// Self-contained: give it a project and it pulls the collections from context
-// and computes everything (computeLivingEstimate + computeMarginRisk). Renders
-// nothing when there's no margin basis yet (no budget = no financial pulse).
+// Fed by hooks/useProjectPulse (wave 6c): the screen reads the job's pulse
+// once — computeLivingEstimate + computeMarginRisk on the full cost streams,
+// the role, and THE one % complete — and hands it here. Renders nothing when
+// there's no margin basis yet (no budget = no financial pulse).
 // RN Animated only (no reanimated); theme + Type tokens (no raw hex / inline
 // fontSize).
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import type { Project } from '@/types';
-import { useProjects } from '@/contexts/ProjectContext';
-import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
-import { useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
-import { TIME_ENTRIES_MIRROR_QUERY_KEY } from '@/hooks/useTimeEntries';
-import type { JobCostActualSources } from '@/utils/jobCostEngine';
+import type { ProjectPulse } from '@/hooks/useProjectPulse';
 import { useTheme } from '@/contexts/ThemeContext';
 import LockedAccessCard from '@/components/LockedAccessCard';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
-import { computeLivingEstimate, type MarginHealth } from '@/utils/livingEstimate';
-import { computeMarginRisk, riskBandLabel } from '@/utils/marginRiskScore';
-import { getOutstandingBalance } from '@/utils/projectFinancials';
-import { useProjectRoleState } from '@/hooks/useProjectRole';
+import type { MarginHealth } from '@/utils/livingEstimate';
+import { riskBandLabel } from '@/utils/marginRiskScore';
 import { canViewFinancials } from '@/utils/roleBlinding';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -43,55 +37,29 @@ function fmtMoney(v: number): string {
 
 const HEALTH_LABEL: Record<MarginHealth, string> = { healthy: 'HEALTHY', watch: 'WATCH', critical: 'CRITICAL' };
 
-export default function ProjectHero({ project }: { project: Project }) {
+export default function ProjectHero({ project: _project, pulse }: { project: Project; pulse: ProjectPulse }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const {
-    getInvoicesForProject, getChangeOrdersForProject, getCommitmentsForProject, getRFIsForProject, getPunchItemsForProject,
-    equipment, permits, subcontractors,
-  } = useProjects();
-  // The cost streams Job Costing prices (audit round 2, #16). This hero is the
-  // first margin a GC sees on a job; without receipts and priced crew hours it
-  // counted a self-perform overrun up to the bid margin and labelled it
-  // HEALTHY while Job Costing, one tap away, showed the job over.
-  const { receipts, isLoading: receiptsLoading } = useMaterialReceipts();
-  const timeEntries = useTimeEntriesMirror();
-  const { rates: laborRates, overtimeMultiplier, overtimeRule, isLoading: ratesLoading } = useLaborRates();
-  const costSources = useMemo<JobCostActualSources>(() => ({
-    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
-  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
-  // Those stores default to [] / {} while AsyncStorage is read. For that beat
-  // a self-perform job priced at its bid margin and the hero COUNTED UP to it
-  // under a HEALTHY bracket, then snapped to the real number — a guess animated
-  // as a reading. Hold the number until they have loaded. The mirror hook has
-  // no loading flag, so read its cache entry; this component re-renders when
-  // it resolves because useTimeEntriesMirror subscribes.
-  const queryClient = useQueryClient();
-  const mirrorLoaded = queryClient.getQueryState(TIME_ENTRIES_MIRROR_QUERY_KEY)?.data !== undefined;
-  const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;
-  const { role, isError: roleError } = useProjectRoleState(project.id);
+  // Everything this card shows comes from hooks/useProjectPulse — the cost
+  // streams Job Costing prices (audit round 2, #16: without receipts and
+  // priced crew hours a self-perform overrun counted up to the bid margin and
+  // read HEALTHY), the role, and the job's one "% complete". project-detail
+  // reads the pulse once and hands it here, so this card and the desktop KPI
+  // strip can never print two different numbers for the same job.
+  const { living, risk, costSourcesReady, role, roleError } = pulse;
 
-  const invoices = getInvoicesForProject(project.id);
-  const changeOrders = getChangeOrdersForProject(project.id);
-  const commitments = getCommitmentsForProject(project.id);
-  const rfis = getRFIsForProject(project.id);
-  const punch = getPunchItemsForProject(project.id);
+  const marginPct = living ? living.projected.marginPct * 100 : 0;
+  const erosion = living ? living.marginErosionPoints : 0; // pts, negative = eroded from bid
+  const health: MarginHealth = living ? living.health : 'healthy';
+  const riskScore = risk ? risk.score : 0;
 
-  const { living, risk } = useMemo(() => ({
-    living: computeLivingEstimate({ project, changeOrders, commitments, invoices, costSources }),
-    risk: computeMarginRisk({ project, changeOrders, commitments, invoices, costSources }),
-  }), [project, changeOrders, commitments, invoices, costSources]);
-
-  const marginPct = living.projected.marginPct * 100;
-  const erosion = living.marginErosionPoints; // pts, negative = eroded from bid
-  const health = living.health;
-
-  const owed = getOutstandingBalance(invoices);
-  const openRfis = rfis.filter(r => r.status === 'open').length;
-  const openPunch = punch.filter(p => p.status !== 'closed').length;
-  const tasks = project.schedule?.tasks ?? [];
-  const doneTasks = tasks.filter(x => x.status === 'done').length;
-  const schedulePct = tasks.length ? Math.round((doneTasks / tasks.length) * 100) : null;
+  const owed = pulse.owed;
+  const openRfis = pulse.openRfis;
+  const openPunch = pulse.punch.open + pulse.punch.inProgress + pulse.punch.readyForReview;
+  // THE one % complete (utils/projectProgress via the pulse). This stat used
+  // to count done tasks while the hub's progress chip weighted by duration —
+  // two different "% complete" numbers on one screen.
+  const schedulePct = pulse.progress.hasSchedule ? pulse.progress.pct : null;
 
   // ── count the margin number up on mount ──
   const anim = useRef(new Animated.Value(0)).current;
@@ -112,8 +80,8 @@ export default function ProjectHero({ project }: { project: Project }) {
   useEffect(() => {
     if (!costSourcesReady) return;
     Animated.timing(bracket, { toValue: 1, duration: 900, delay: 250, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-    Animated.spring(bubble, { toValue: Math.max(0, Math.min(1, risk.score / 100)), friction: 5, tension: 40, delay: 350, useNativeDriver: true }).start();
-  }, [bracket, bubble, risk.score, costSourcesReady]);
+    Animated.spring(bubble, { toValue: Math.max(0, Math.min(1, riskScore / 100)), friction: 5, tension: 40, delay: 350, useNativeDriver: true }).start();
+  }, [bracket, bubble, riskScore, costSourcesReady]);
 
   // Field-role collaborators never see the money hero. canViewFinancials fails
   // CLOSED (null role while loading → hidden) so a margin never flashes before
@@ -138,7 +106,7 @@ export default function ProjectHero({ project }: { project: Project }) {
       </View>
     );
   }
-  if (!risk.hasBasis) return null;
+  if (!living || !risk || !risk.hasBasis) return null;
   if (!costSourcesReady) {
     return (
       <View

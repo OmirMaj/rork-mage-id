@@ -52,6 +52,7 @@ import {
   Button,
   SegmentedControl,
   Sheet,
+  SheetOverlay,
   useSheetFrame,
   ActionBar,
   ActionBarReadout,
@@ -278,11 +279,29 @@ describe('phone (390 native): byte-identical to today', () => {
     expect(f.card).toBeNull();
     expect(f.footer).toBeNull();
     expect(f.footerButton).toBeNull();
+    // Wave 6c: the filler-touchable scrim is desktop-only too.
+    expect(f.backdrop).toBeNull();
     expect(f.showHandle).toBe(true);
     expect(f.animationType).toBe('slide');
     expect(f.transparent).toBeUndefined();
     const sheet = { backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 };
     expect(StyleSheet.flatten([sheet, f.card])).toEqual(sheet);
+  });
+
+  it('SheetOverlay on a phone renders its children only — no wrapper node (wave 6c)', () => {
+    let frame: SheetFrame | null = null;
+    function Probe({ children }: { children?: React.ReactNode }) {
+      frame = useSheetFrame('form', { visible: true, animationType: 'slide' });
+      return <SheetOverlay frame={frame}>{children}</SheetOverlay>;
+    }
+    const kids = (
+      <>
+        <Pressable testID="scrim" style={{ flex: 1 }} onPress={() => {}} accessibilityRole="button" />
+        <View testID="card" style={{ padding: 20 }} />
+      </>
+    );
+    expect(serialize(<Probe>{kids}</Probe>)).toBe(serialize(kids));
+    expect((frame as unknown as SheetFrame).isDesktop).toBe(false);
   });
 
   it('segmentedDesktop behind `isDesktop &&` drops out on a phone', () => {
@@ -447,9 +466,36 @@ describe('desktop (1512 web): the desktop rules', () => {
     const f = frame as unknown as SheetFrame;
     expect(f.card).toMatchObject({ maxWidth: 560, maxHeight: '85%', borderBottomLeftRadius: 18, padding: 24 });
     expect(f.overlay).toMatchObject({ justifyContent: 'center', alignItems: 'center' });
+    // Wave 6c: the scrim covers the whole window; only the card is inset.
+    expect(f.overlay?.marginLeft).toBeUndefined();
+    expect(f.backdrop).toEqual({ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 });
     expect(f.showHandle).toBe(false);
     expect(f.animationType).toBe('fade');
     expect(f.transparent).toBe(true);
+  });
+
+  it('SheetOverlay on desktop: one flex:1 View carrying the frame overlay around both children', () => {
+    function Probe() {
+      const f = useSheetFrame('form', { visible: true, animationType: 'slide' });
+      return (
+        <SheetOverlay frame={f}>
+          <View testID="scrim" />
+          <View testID="card" />
+        </SheetOverlay>
+      );
+    }
+    type Node = { type: string; props: { style?: unknown; testID?: string }; children?: Node[] | null };
+    // The parent of the two children (below the test's SafeAreaProvider wrapper).
+    const find = (n: Node | null | undefined): Node | null => {
+      if (!n || typeof n !== 'object') return null;
+      if (n.children?.some((c) => c?.props?.testID === 'scrim')) return n;
+      for (const c of n.children ?? []) { const hit = find(c); if (hit) return hit; }
+      return null;
+    };
+    const root = find(tree(<Probe />) as unknown as Node) as Node;
+    expect(root.type).toBe('View');
+    expect(flat(root.props.style)).toMatchObject({ flex: 1, justifyContent: 'center', alignItems: 'center' });
+    expect((root.children ?? []).map((c) => c.props.testID)).toEqual(['scrim', 'card']);
   });
 
   it('Sheet: destructive far left, primary rightmost, card capped', () => {

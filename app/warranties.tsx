@@ -29,7 +29,7 @@ import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
-import { Button } from '@/components/ui';
+import { Button, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'general', label: 'General' },
@@ -468,6 +468,12 @@ function WarrantiesScreenInner() {
 
   const title_label = project ? `${project.name} · Warranties` : 'Warranties';
 
+  // Desktop sheets (wave 6c): capped cards centred in the content column.
+  const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
+  useSheetPrimaryHotkey(showForm, handleSave);
+  const fClaim = useSheetFrame('form', { visible: claimFor !== null, animationType: 'slide' });
+  useSheetPrimaryHotkey(claimFor !== null, handleSaveClaim);
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
@@ -634,10 +640,10 @@ function WarrantiesScreenInner() {
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
+      <Modal visible={showForm} transparent animationType={fForm.animationType} onRequestClose={() => setShowForm(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fForm.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fForm.card]}>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingId ? 'Edit Warranty' : 'New Warranty'}</Text>
@@ -739,10 +745,10 @@ function WarrantiesScreenInner() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={claimFor !== null} transparent animationType="slide" onRequestClose={() => setClaimFor(null)}>
+      <Modal visible={claimFor !== null} transparent animationType={fClaim.animationType} onRequestClose={() => setClaimFor(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fClaim.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fClaim.card]}>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Log a Claim</Text>

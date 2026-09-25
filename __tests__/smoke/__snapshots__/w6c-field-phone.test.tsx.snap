@@ -1,0 +1,288 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane H — components (golden, 390 phone) ContactPickerModal, open 1`] = `
+{
+  "lines": 63,
+  "sha256": "25ea45a6aa07fc53e3bc5d1e69fa328e1a3f8282ae6c29fa2a553151e143f091",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) area-takeoff 1`] = `
+{
+  "lines": 358,
+  "sha256": "4e04a3c501127284d67ca8f597fbd60e25ad81480b5c360519865a582c97f7e9",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) construction-ai 1`] = `
+{
+  "lines": 748,
+  "sha256": "4dfb0364d22b9ae301b8bca91201a8f40277b8575aa9f0e82ec2ab299d8deb7f",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) contract (signature sheets) 1`] = `
+{
+  "lines": 972,
+  "sha256": "6524e446b9394a5875c4ef05c2b42f8d1d07ba30a4315401542ea2751b26acdf",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-seed 1`] = `
+{
+  "lines": 446,
+  "sha256": "acee90da5e05c555b3cc36259f82ac5fb0775f9f47b69f90d5aea8253bcae5e4",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-xray 1`] = `
+{
+  "lines": 377,
+  "sha256": "2adea3844eea2378dfe5a72bcbe162ef4a035b58c4d1c44ffb6dac7bc19235e8",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
+{
+  "lines": 1132,
+  "sha256": "e6d67cf53e0d0d0ae54eaa410777f99ad1df58242960b48753432d9d11385da4",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) data-export 1`] = `
+{
+  "lines": 513,
+  "sha256": "890d67acbcfa1797104c72385e002e65372d508a499aae7815650b89352f18b1",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) deliveries (horizon row) 1`] = `
+{
+  "lines": 406,
+  "sha256": "d057f6f75694819a325aa275634b7dd33d36571ec90b1317c26738b32b8818e9",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) equipment 1`] = `
+{
+  "lines": 543,
+  "sha256": "36c90829eb2816e22d1b3e5a414bf99bb5f572a7b61aad2fb89e539c922a89c0",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/full (dialogs and forms) 1`] = `
+{
+  "lines": 3934,
+  "sha256": "59a4443d44d3f148710d464053a16c8f3585167f579e68944523358aca729633",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/review 1`] = `
+{
+  "lines": 625,
+  "sha256": "4f6734f62f6caf44c158073508d6033941be416bc2254a325954f3cade2e32ac",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) field-ticket (the job picker) 1`] = `
+{
+  "lines": 338,
+  "sha256": "8cf5dd9a5a14c7ee3997bee7ba7d184e832096d613bf6a85312d04d2c9764983",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) field-ticket: pick a job on a free plan -> the paywall / access view 1`] = `
+{
+  "lines": 462,
+  "sha256": "22a89ded9177bddb9f616836210b0d145d182428eead16e799a31d6815a56206",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) import-pipeline 1`] = `
+{
+  "lines": 352,
+  "sha256": "a76de13253c8fae870c424d3434ef69bf3a2e39ba8ef2ff226ecdf2fdb6af22b",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) job-costing 1`] = `
+{
+  "lines": 763,
+  "sha256": "33f1f6b064831615ce9aa0141acb59b362a5f3ef3c4d524b11ea3a5727c2accf",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) judges 1`] = `
+{
+  "lines": 441,
+  "sha256": "36334d8778ffd5e4502884f3734e4d8853c6233dc167c996b2cc42d1bdb0ad69",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) last-planner 1`] = `
+{
+  "lines": 335,
+  "sha256": "c1f564f7ad6c73cd9f167ade775ff7db1f8c73c2e4a9ad34ead6f6df5495520a",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) mage-id-bids 1`] = `
+{
+  "lines": 492,
+  "sha256": "e3bcba090d9b56d0f65e33a0b68bbd5470446f0d91c778a6d9d0ab5c7ef207c6",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) marketplace 1`] = `
+{
+  "lines": 1168,
+  "sha256": "c1436123b5c429d5ef6e6142356e7a870c6b477dc61062f74c404b62058784fe",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) payments (tab row) 1`] = `
+{
+  "lines": 394,
+  "sha256": "4b8ff2778564a6ebda4bb237942dc001200f1a63fa39bd95599e50db4c482e67",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) permits 1`] = `
+{
+  "lines": 805,
+  "sha256": "23dfba446fd7367f018c825247cd75532c80448df70b670d0e484347042d54b4",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) prequal-manager 1`] = `
+{
+  "lines": 418,
+  "sha256": "1cc4ed47e2e375f0fbaf7abf3042cf191d66c340516447cf46e2c511c77e58a8",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) punch-list (walk, filter and five more sheets) 1`] = `
+{
+  "lines": 1568,
+  "sha256": "1200c4457af0c4f7c0ac2a58e65de8f25c68abfa8baa2d9825438e8f0c12c23c",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) punch-walk (trade override, sub picker, all locations) 1`] = `
+{
+  "lines": 715,
+  "sha256": "ed264216402d3b1d2cd549a6332040bf96dde1526e8da49005ba5ca3a4e3db78",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) reports (tab row) 1`] = `
+{
+  "lines": 479,
+  "sha256": "8d01d71f65f5ca6b020e06a4aecba52c214f9d1d6dbca3703f7ebfa263b4b457",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) retention 1`] = `
+{
+  "lines": 476,
+  "sha256": "ee73f6e15f71f57acb66c03bfd8ec7fb3842ca35ccba0ff09b58acbbe328ae80",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-certifications 1`] = `
+{
+  "lines": 428,
+  "sha256": "8ab8e0c1d70d9a2342f20665400e87e052d22cfc7ecb2195e437115051f0dd4a",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-forms 1`] = `
+{
+  "lines": 383,
+  "sha256": "18643c0e36905bde38d06a4c52e5cd7d6d9cbee5cadbf1121212e67c7678c610",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-hazards 1`] = `
+{
+  "lines": 456,
+  "sha256": "2cca3c712cc0cbc779ae90d6086f4a74fff97240c4b9d748a99f6513371792cc",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-incidents (Report Incident) 1`] = `
+{
+  "lines": 528,
+  "sha256": "56c38cdddf0b666a93bb8ee4907b164c1b45b5930738852d9164a9098ce4a88a",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-inspections 1`] = `
+{
+  "lines": 375,
+  "sha256": "56874c25ba611e61e3d3f3f55a11a1da0b681c759b14bd2d1b3af17addaef152",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-jha 1`] = `
+{
+  "lines": 429,
+  "sha256": "5dbd7b2f3aba8143fc0bbb676a34e57cc86fc1ab7d04088ca9780bf271ba3b90",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) safety-toolbox 1`] = `
+{
+  "lines": 388,
+  "sha256": "63a7d87126118d98998cb50bbe6911dd4eade1ee9f179450ebebe7e032e97d1e",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) scan 1`] = `
+{
+  "lines": 339,
+  "sha256": "0f668b166c7c69c81efe187695084ade18d48019fff25ece435e51bbff5c3433",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) selections 1`] = `
+{
+  "lines": 884,
+  "sha256": "746a94a8163a2b012fb52939d1d0abdf33a569af0b86148fdc0671e04f04e182",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) sub-scorecard 1`] = `
+{
+  "lines": 341,
+  "sha256": "83ddc8fafc5182860924c20ff0650b5343bddd2f3dac55a63a448fc9001fe231",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) time-tracking (Live, six sheets) 1`] = `
+{
+  "lines": 615,
+  "sha256": "6fcd77d996ba97fabbeeab81a26a6d922e090ecf968c086e4d6234b08fecb197",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) time-tracking: the History tab 1`] = `
+{
+  "lines": 611,
+  "sha256": "a275f7bf18262db08b8e0af7b1fc54563b6957ebd99d9ef983c356bb43ffa37b",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) warranties 1`] = `
+{
+  "lines": 439,
+  "sha256": "56fe4818b923d317c92ebf8c2495eee426aec5fdc1963bdfdb60dfce67e56560",
+}
+`;
+
+exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) weekly-snapshot 1`] = `
+{
+  "lines": 475,
+  "sha256": "f79e89be63924b74dec48a2e8b6ebda9ca93e4370010957098974d4c885ada3b",
+}
+`;

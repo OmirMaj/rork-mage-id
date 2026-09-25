@@ -43,11 +43,12 @@ import { parseLenientNumber } from '@/utils/formatters';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { useSafety } from '@/contexts/SafetyContext';
 import { certFlagsForWorker, lapsedCertConfirmText, type CertFlag } from '@/utils/safety/crewCerts';
-import { StatusPill } from '@/components/ui';
+import { StatusPill, TileGrid, desktopCta, segmentedDesktop, useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCrew, useProjectCrew, type ProjectCrewMember } from '@/contexts/CrewContext';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
@@ -295,6 +296,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
+  // Input-modality words follow the browser, not the width: a native tablet is touch.
+  const isDesktopWeb = useIsDesktopWeb();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
@@ -1148,6 +1152,103 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     }
   }, [exportBlocked, exportSelection, overtimeRule, entries, teamEntries, exportPeriod, exportProjectName, exportOpenNote]);
 
+  // Desktop sheets (wave 6c): a capped card centred in the content column.
+  // Clock In has no single primary — the crew member IS the action.
+  const fClockIn = useSheetFrame('form', { visible: showClockInModal, animationType: 'slide' });
+  const fAlert = useSheetFrame('dialog', { visible: showAlertPicker, animationType: 'slide' });
+  const fRates = useSheetFrame('form', { visible: showRatesModal, animationType: 'slide' });
+  useSheetPrimaryHotkey(showRatesModal, commitRateDrafts);
+  const fCorrect = useSheetFrame('form', { visible: correcting !== null, animationType: 'slide' });
+  useSheetPrimaryHotkey(correcting !== null, handleSaveCorrection);
+  const fOut = useSheetFrame('dialog', { visible: outFor !== null, animationType: 'slide' });
+  useSheetPrimaryHotkey(outFor !== null, handleSaveOutTime);
+  const fExport = useSheetFrame('form', { visible: showExport, animationType: 'slide' });
+  useSheetPrimaryHotkey(showExport, () => { void handleExportCSV(); });
+
+  // History on desktop: one row per finished shift, sortable, searchable; a
+  // click opens the same correction sheet the phone's card does.
+  const historyColumns: DataTableColumn<HistoryRow>[] = useMemo(() => [
+    { key: 'worker', label: 'Worker', flex: 1, sortValue: (r) => r.entry.workerName, value: (r) => r.entry.workerName },
+    { key: 'trade', label: 'Trade', width: 140, hideBelow: 700, sortValue: (r) => r.entry.trade, value: (r) => r.entry.trade || null },
+    { key: 'job', label: 'Job', flex: 1, hideBelow: 560, sortValue: (r) => r.entry.projectName, value: (r) => r.entry.projectName || null },
+    {
+      key: 'day', label: 'Day', width: 120,
+      sortValue: (r) => `${timeEntryDay(r.entry)} ${r.entry.clockIn}`,
+      value: (r) => formatCalendarDay(timeEntryDay(r.entry), { weekday: 'short', month: 'short', day: 'numeric' }),
+    },
+    { key: 'hours', label: 'Hours', numeric: true, width: 80, sortValue: (r) => r.entry.totalHours, value: (r) => r.entry.totalHours.toFixed(1) },
+    {
+      key: 'ot', label: 'OT', numeric: true, width: 110,
+      sortValue: (r) => overtimeFor(overtime, r.entry.id),
+      value: (r) => {
+        const ot = overtimeFor(overtime, r.entry.id);
+        return ot > 0 ? `+${ot.toFixed(1)}${overtime.provisional.has(r.entry.id) ? ' so far' : ''}` : null;
+      },
+    },
+    { key: 'loggedBy', label: 'Logged by', width: 160, hideBelow: 900, value: (r) => (r.team ? r.loggedByName ?? null : 'You') },
+    {
+      key: 'flags', label: 'Flags', width: 160,
+      value: (r) => [isAdjustedEntry(r.entry) ? 'Adjusted' : null, !isUuid(r.entry.projectId) ? 'Not synced' : null].filter(Boolean).join(' · ') || null,
+    },
+  ], [overtime]);
+
+  // Today's phone card, moved verbatim — below the desktop gate DataTable
+  // renders exactly this, one per row.
+  const renderHistoryCard = ({ entry, loggedBy, loggedByName }: HistoryRow) => {
+              // #151: corrected hours that no longer match the punch stamps.
+              const adjusted = isAdjustedEntry(entry);
+              const punched = adjusted ? punchedHours(entry) : null;
+              return (
+              <TouchableOpacity
+                key={entry.id}
+                style={styles.historyCard}
+                onPress={() => openCorrection(entry, loggedByName)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`${entry.workerName}, ${entry.totalHours.toFixed(1)} hours on ${formatCalendarDay(timeEntryDay(entry))}${loggedBy ? `, ${loggedBy}` : ''}${adjusted ? ', adjusted' : ''}. Tap to correct${loggedBy ? '' : ' or delete'}.`}
+                testID={`time-entry-${entry.id}`}
+              >
+                <View style={styles.historyHeader}>
+                  <Text style={styles.historyName}>{entry.workerName}</Text>
+                  <Text style={styles.historyHours}>{entry.totalHours.toFixed(1)}h</Text>
+                </View>
+                <View style={styles.historyMeta}>
+                  <Text style={styles.historyTrade}>{entry.trade}</Text>
+                  <Text style={styles.historyDot}>·</Text>
+                  <Text style={styles.historyProject} numberOfLines={1}>{entry.projectName}</Text>
+                </View>
+                {loggedBy ? <Text style={styles.loggedByTag} testID={`time-entry-logged-by-${entry.id}`}>{loggedBy}</Text> : null}
+                {!isUuid(entry.projectId) ? (
+                  <Text style={styles.loggedByTag}>Not synced — logged with no job, so it stays on this phone.</Text>
+                ) : null}
+                <View style={styles.historyFooter}>
+                  <Text style={styles.historyDate}>
+                    {/* The local day the shift was worked, from its clock-in
+                        instant (field-ops #9): parsing the bare day with new Date read the
+                        bare day as UTC midnight and named the day before. */}
+                    {formatCalendarDay(timeEntryDay(entry), { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {adjusted && punched !== null ? (
+                      <View style={styles.adjustedBadge} testID={`time-entry-adjusted-${entry.id}`}>
+                        <Text style={styles.adjustedBadgeText}>Adjusted · punched {punched.toFixed(2)}h</Text>
+                      </View>
+                    ) : null}
+                    {/* Allocated by the GC's rule across the worker's week (#65);
+                        "so far" while that week is still open. */}
+                    {overtimeFor(overtime, entry.id) > 0 && (
+                      <View style={styles.otBadge}>
+                        <Text style={styles.otBadgeText}>
+                          +{overtimeFor(overtime, entry.id).toFixed(1)}h OT{overtime.provisional.has(entry.id) ? ' so far' : ''}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+              );
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
@@ -1159,7 +1260,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         // screen opened (the foreground re-pull is throttled to 5 minutes).
         refreshControl={<RefreshControl refreshing={userPulling} onRefresh={onPullToRefresh} tintColor={themeColors.accent} />}
       >
-        <View style={styles.statsRow}>
+        <TileGrid preset="kpi" phoneStyle={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.accent + '14' }]}>
               <Users size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -1186,14 +1287,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 the clock count at their hours so far (#152). */}
             <Text style={styles.statLabel} accessibilityLabel={`Overtime hours today so far, ${describeOvertimeRule(overtimeRule)}`}>OT so far</Text>
           </View>
-        </View>
+        </TileGrid>
 
         <View style={{ flexDirection: 'row', gap: 10, marginHorizontal: 16, marginVertical: 12 }}>
           {/* #155: with no job to file hours against, Clock In is shown but
               disabled, with the reason under it — never a row the server
               refuses. */}
           <TouchableOpacity
-            style={[styles.clockInButton, { flex: 1, marginHorizontal: 0, marginVertical: 0 }, clockInDisabledReason ? { opacity: 0.5 } : null]}
+            style={[styles.clockInButton, { flex: 1, marginHorizontal: 0, marginVertical: 0 }, isDesktop && desktopCta, clockInDisabledReason ? { opacity: 0.5 } : null]}
             onPress={openClockInSheet}
             disabled={!!clockInDisabledReason}
             accessibilityState={{ disabled: !!clockInDisabledReason }}
@@ -1309,9 +1410,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           </TouchableOpacity>
         ) : null}
 
-        <View style={styles.tabRow}>
+        <View style={[styles.tabRow, isDesktop && segmentedDesktop.container]}>
           <TouchableOpacity
-            style={[styles.tab, selectedTab === 'live' && styles.tabActive]}
+            style={[styles.tab, isDesktop && segmentedDesktop.segment, selectedTab === 'live' && styles.tabActive]}
             onPress={() => setSelectedTab('live')}
             activeOpacity={0.7}
           >
@@ -1320,7 +1421,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, selectedTab === 'history' && styles.tabActive]}
+            style={[styles.tab, isDesktop && segmentedDesktop.segment, selectedTab === 'history' && styles.tabActive]}
             onPress={() => setSelectedTab('history')}
             activeOpacity={0.7}
           >
@@ -1352,7 +1453,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               </Text>
             </View>
           ) : (
-            <View style={styles.listSection}>
+            <View style={[styles.listSection, isDesktop && styles.listSectionDesktop]}>
               {missedLiveRows.length > 0 ? (
                 <Text style={styles.listGroupTitle} testID="time-tracking-missed-group">
                   Missed clock-out ({missedLiveRows.length}) — enter when they left
@@ -1373,65 +1474,22 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           )
         ) : (
           <View style={styles.listSection}>
-            {historyRows.map(({ entry, loggedBy, loggedByName }) => {
-              // #151: corrected hours that no longer match the punch stamps.
-              const adjusted = isAdjustedEntry(entry);
-              const punched = adjusted ? punchedHours(entry) : null;
-              return (
-              <TouchableOpacity
-                key={entry.id}
-                style={styles.historyCard}
-                onPress={() => openCorrection(entry, loggedByName)}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={`${entry.workerName}, ${entry.totalHours.toFixed(1)} hours on ${formatCalendarDay(timeEntryDay(entry))}${loggedBy ? `, ${loggedBy}` : ''}${adjusted ? ', adjusted' : ''}. Tap to correct${loggedBy ? '' : ' or delete'}.`}
-                testID={`time-entry-${entry.id}`}
-              >
-                <View style={styles.historyHeader}>
-                  <Text style={styles.historyName}>{entry.workerName}</Text>
-                  <Text style={styles.historyHours}>{entry.totalHours.toFixed(1)}h</Text>
-                </View>
-                <View style={styles.historyMeta}>
-                  <Text style={styles.historyTrade}>{entry.trade}</Text>
-                  <Text style={styles.historyDot}>·</Text>
-                  <Text style={styles.historyProject} numberOfLines={1}>{entry.projectName}</Text>
-                </View>
-                {loggedBy ? <Text style={styles.loggedByTag} testID={`time-entry-logged-by-${entry.id}`}>{loggedBy}</Text> : null}
-                {!isUuid(entry.projectId) ? (
-                  <Text style={styles.loggedByTag}>Not synced — logged with no job, so it stays on this phone.</Text>
-                ) : null}
-                <View style={styles.historyFooter}>
-                  <Text style={styles.historyDate}>
-                    {/* The local day the shift was worked, from its clock-in
-                        instant (field-ops #9): parsing the bare day with new Date read the
-                        bare day as UTC midnight and named the day before. */}
-                    {formatCalendarDay(timeEntryDay(entry), { weekday: 'short', month: 'short', day: 'numeric' })}
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {adjusted && punched !== null ? (
-                      <View style={styles.adjustedBadge} testID={`time-entry-adjusted-${entry.id}`}>
-                        <Text style={styles.adjustedBadgeText}>Adjusted · punched {punched.toFixed(2)}h</Text>
-                      </View>
-                    ) : null}
-                    {/* Allocated by the GC's rule across the worker's week (#65);
-                        "so far" while that week is still open. */}
-                    {overtimeFor(overtime, entry.id) > 0 && (
-                      <View style={styles.otBadge}>
-                        <Text style={styles.otBadgeText}>
-                          +{overtimeFor(overtime, entry.id).toFixed(1)}h OT{overtime.provisional.has(entry.id) ? ' so far' : ''}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-              );
-            })}
+            <DataTable
+              tableId="time-history"
+              rows={historyRows}
+              columns={historyColumns}
+              rowKey={(r) => r.entry.id}
+              onRowOpen={(r) => openCorrection(r.entry, r.loggedByName)}
+              defaultSort={{ key: 'day', dir: 'desc' }}
+              searchText={(r) => [r.entry.workerName, r.entry.trade, r.entry.projectName, r.loggedByName ?? ''].join(' ')}
+              searchPlaceholder="Search shifts"
+              renderCard={renderHistoryCard}
+            />
             {historyRows.length > 0 && (
               // The row is a plain card; nothing about it says it is editable,
               // and a foreman is not going to speculatively tap a payroll
               // record. Say so once, under the list.
-              <Text style={styles.historyHint}>Tap an entry to correct its hours{historyRows.some(r => r.team) ? ' (delete is for your own clock-ins)' : ' or delete it'}.</Text>
+              <Text style={styles.historyHint}>{`${isDesktopWeb ? 'Click' : 'Tap'} an entry to correct its hours`}{historyRows.some(r => r.team) ? ' (delete is for your own clock-ins)' : ' or delete it'}.</Text>
             )}
             {historyRows.length === 0 ? (
               <Text style={styles.historyHint}>No finished shifts{viewProjectName ? ` on ${viewProjectName}` : ''} yet.</Text>
@@ -1440,9 +1498,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         )}
       </ScrollView>
 
-      <Modal visible={showClockInModal} transparent animationType="slide" onRequestClose={() => setShowClockInModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+      <Modal visible={showClockInModal} transparent animationType={fClockIn.animationType} onRequestClose={() => setShowClockInModal(false)}>
+        <View style={[styles.modalOverlay, fClockIn.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fClockIn.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock In</Text>
               <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1670,9 +1728,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           the other modals on this screen. Preset chips cover the common
           shift lengths; we deliberately don't expose minute-level granularity
           (a 7h-15m alert is overkill — the daily decision is whole hours). */}
-      <Modal visible={showAlertPicker} transparent animationType="slide" onRequestClose={() => setShowAlertPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+      <Modal visible={showAlertPicker} transparent animationType={fAlert.animationType} onRequestClose={() => setShowAlertPicker(false)}>
+        <View style={[styles.modalOverlay, fAlert.overlay]}>
+          <View style={[styles.modalCard, fAlert.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Shift alert</Text>
               <TouchableOpacity onPress={() => setShowAlertPicker(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1712,9 +1770,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       {/* Labor-rates editor. One loaded $/hr per trade — the GC's real
           payroll number (wages + burden), entered once. Blank = that
           trade's hours stay out of the cost book. */}
-      <Modal visible={showRatesModal} transparent animationType="slide" onRequestClose={commitRateDrafts}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+      <Modal visible={showRatesModal} transparent animationType={fRates.animationType} onRequestClose={commitRateDrafts}>
+        <View style={[styles.modalOverlay, fRates.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fRates.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Labor rates</Text>
               <TouchableOpacity onPress={commitRateDrafts} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Save and close">
@@ -1834,9 +1892,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
       {/* Correct a finished entry. See the openCorrection block above for why
           this edits hours rather than the clock stamps. */}
-      <Modal visible={correcting !== null} transparent animationType="slide" onRequestClose={() => setCorrecting(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+      <Modal visible={correcting !== null} transparent animationType={fCorrect.animationType} onRequestClose={() => setCorrecting(null)}>
+        <View style={[styles.modalOverlay, fCorrect.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fCorrect.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Correct entry</Text>
               <TouchableOpacity onPress={() => setCorrecting(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1954,9 +2012,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       {/* When did he actually leave? (#66 missed clock-out, #63 closing a
           shift the foreman logged). The time is on the clock-in day unless
           "next day" is on; it can't be before the clock-in or after now. */}
-      <Modal visible={outFor !== null} transparent animationType="slide" onRequestClose={() => setOutFor(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+      <Modal visible={outFor !== null} transparent animationType={fOut.animationType} onRequestClose={() => setOutFor(null)}>
+        <View style={[styles.modalOverlay, fOut.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fOut.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock-out time</Text>
               <TouchableOpacity onPress={() => setOutFor(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -2020,9 +2078,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       </Modal>
 
       {/* Payroll export: one pay period, one job or all (#64). */}
-      <Modal visible={showExport} transparent animationType="slide" onRequestClose={() => setShowExport(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+      <Modal visible={showExport} transparent animationType={fExport.animationType} onRequestClose={() => setShowExport(false)}>
+        <View style={[styles.modalOverlay, fExport.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fExport.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Export payroll CSV</Text>
               <TouchableOpacity onPress={() => setShowExport(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -2149,6 +2207,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tabText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.textMuted },
   tabTextActive: { color: t.text },
   listSection: { paddingHorizontal: 16 },
+  listSectionDesktop: { width: '100%', maxWidth: Layout.page.form },
   liveCard: {
     marginBottom: 10,
     borderRadius: Tokens.radius.lg,

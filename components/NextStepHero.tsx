@@ -31,7 +31,7 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Receipt, ShieldAlert, MessageSquareWarning,
@@ -75,7 +75,7 @@ export interface NextStepHeroProps {
   testID?: string;
 }
 
-interface NextStep {
+export interface NextStep {
   /** Stable id so AsyncStorage dismissal could dedupe (not yet used). */
   kind: string;
   /** Lead icon. */
@@ -88,12 +88,13 @@ interface NextStep {
   body: string;
   /** CTA label. */
   cta: string;
-  /** Tap → router.push this path (or an object with params). */
-  href: string | { pathname: string; params?: Record<string, string | number | undefined> };
+  /** Tap → router.push this path (or an object with params). A typed route
+   *  (expo-router Href), so a push needs no cast and a dead path is a tsc error. */
+  href: Href;
 }
 
 /** Compute the next step from current state. Returns null if all clear. */
-function chooseNextStep(input: NextStepHeroProps): NextStep | null {
+export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
   const { projects, invoices, rfis = [], subs = [], prequalPackets = [], punchItems, scopeToProjectId } = input;
 
   // Exclude the auto-seeded "Sample — …" demo projects from portfolio-wide
@@ -233,8 +234,10 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       body: 'Drop a deposit invoice or a progress bill. Pay button is auto-attached via Stripe.',
       cta: 'Create invoice',
       // invoice.tsx with just projectId opens the new-invoice screen for
-      // this project directly — the actual next action.
-      href: { pathname: '/invoice', params: { projectId: projectNoInvoice.id } },
+      // this project directly — the actual next action. `new: '1'` (wave 6c):
+      // on desktop web /invoice is the invoice LOG (lane G); the flag opens
+      // its editor. Every other surface ignores it.
+      href: { pathname: '/invoice', params: { projectId: projectNoInvoice.id, new: '1' } },
     };
   }
 
@@ -291,11 +294,7 @@ export function NextStepHero(props: NextStepHeroProps) {
 
   const onPress = () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (typeof step.href === 'string') {
-      router.push(step.href as never);
-    } else {
-      router.push(step.href as never);
-    }
+    router.push(step.href);
   };
 
   return (

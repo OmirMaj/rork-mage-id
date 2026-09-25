@@ -27,7 +27,16 @@ type Root = { render(node: React.ReactNode): void; unmount(): void };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createRoot } = require('react-dom/client') as { createRoot(el: Element): Root };
 
-jest.mock('@/utils/alert', () => ({ showAlert: jest.fn(), showPrompt: jest.fn() }));
+// showAlert / showPrompt are silenced for the components that call them; the
+// host plumbing stays REAL so the AlertHost case below can queue a confirm
+// through the actual module (realAlert.showAlert → registerAlertHost).
+jest.mock('@/utils/alert', () => ({ ...jest.requireActual('@/utils/alert'), showAlert: jest.fn(), showPrompt: jest.fn() }));
+// UniversalSearch's data hooks (the palette's KEYS are under test, not its results).
+jest.mock('@/hooks/useTierAccess', () => ({
+  useTierAccess: () => ({ tier: 'pro', isProOrAbove: true, isBusinessOrAbove: false, canAccess: () => true, requiredTierFor: () => 'pro' }),
+}));
+jest.mock('@/hooks/useUniversalSearch', () => ({ useUniversalSearch: () => ({ grouped: {}, isSearching: false }) }));
+jest.mock('@/hooks/useEntityNavigation', () => ({ useEntityNavigation: () => ({ navigateTo: () => {} }) }));
 jest.mock('expo-router', () => {
   const actual = jest.requireActual('expo-router');
   return { ...actual, useRouter: () => ({ navigate: jest.fn(), push: jest.fn(), setParams: jest.fn(), back: jest.fn() }) };
@@ -40,11 +49,16 @@ jest.mock('@/contexts/ActiveProjectContext', () => ({
 }));
 
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { Sheet, useSheetFrame } from '@/components/ui/Sheet';
+import { Sheet, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useHotkeys, usePrimaryAction } from '@/hooks/useHotkeys';
 import { ShellDockProvider, ShellDockHost, useShellDock } from '@/components/desktop/ShellDock';
 import { ToolbarActions } from '@/components/desktop/ToolbarActions';
 import { JobSwitcher } from '@/components/desktop/JobSwitcher';
+import AlertHost from '@/components/AlertHost';
+import UniversalSearch from '@/components/UniversalSearch';
+import { SearchProvider, useSearch } from '@/contexts/SearchContext';
+
+const realAlert = jest.requireActual('@/utils/alert') as typeof import('@/utils/alert');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -348,5 +362,161 @@ describe('the shell dock', () => {
     await press(document.body, { key: 'j', ctrlKey: true });
     expect(dockShown()).toBe(true);
     expect(document.body.textContent).toContain('Ask MAGE body');
+  });
+});
+
+// ── 4. Wave 6c: every dialog, not just <Sheet> ─────────────────────────────
+
+function PageRecord({ closeRecord, pageSave }: { closeRecord: () => void; pageSave?: () => void }) {
+  useHotkeys([{ combo: 'escape', handler: closeRecord, label: 'Close record' }], { scope: 'page' });
+  usePrimaryAction(pageSave ?? (() => {}), { label: 'Save record' });
+  return <View><Text>RFI-012</Text><TextInput testID="page-field" /></View>;
+}
+
+describe('wave 6c: the rest of the dialogs own the keyboard', () => {
+  it('Esc on a showAlert confirm over an open record: the alert goes, the record stays', async () => {
+    const closeRecord = jest.fn();
+    const cancel = jest.fn();
+    await mount(<View><PageRecord closeRecord={closeRecord} /><AlertHost /></View>);
+    await act(async () => {
+      realAlert.showAlert('Delete this RFI?', 'This cannot be undone.', [
+        { text: 'Cancel', style: 'cancel', onPress: cancel },
+        { text: 'Delete', style: 'destructive', onPress: () => {} },
+      ]);
+    });
+    await settle();
+    expect(document.body.textContent).toContain('Delete this RFI?');
+    blurAll();
+    await press(document.body, { key: 'Escape' });
+    await settle();
+    expect(document.body.textContent).not.toContain('Delete this RFI?');
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(closeRecord).toHaveBeenCalledTimes(0);
+    // …and with the alert gone, the record's Esc is live again.
+    await press(document.body, { key: 'Escape' });
+    expect(closeRecord).toHaveBeenCalledTimes(1);
+  });
+
+  it('Cmd+S inside an open <Sheet> with no primary: consumed (no "Save page as"), the page save never runs', async () => {
+    const pageSave = jest.fn();
+    await mount(
+      <View>
+        <PageRecord closeRecord={() => {}} pageSave={pageSave} />
+        <Sheet visible onClose={() => {}} title="Details"><TextInput testID="sheet-field" /></Sheet>
+      </View>,
+    );
+    const inField = await press(byTestId('sheet-field'), { key: 's', metaKey: true });
+    expect(inField.defaultPrevented).toBe(true);
+    blurAll();
+    const onBody = await press(document.body, { key: 's', ctrlKey: true });
+    expect(onBody.defaultPrevented).toBe(true);
+    expect(pageSave).toHaveBeenCalledTimes(0);
+  });
+
+  it('Cmd+S inside a hand-rolled useSheetFrame sheet: the same', async () => {
+    const pageSave = jest.fn();
+    function Page() {
+      usePrimaryAction(pageSave, { label: 'Save record' });
+      return <HandRolledOverPage pageEsc={() => {}} sheetClose={() => {}} visible />;
+    }
+    await mount(<Page />);
+    const inField = await press(byTestId('sheet-field'), { key: 's', metaKey: true });
+    expect(inField.defaultPrevented).toBe(true);
+    expect(pageSave).toHaveBeenCalledTimes(0);
+  });
+
+  it('Cmd+S with a sheet primary runs the SHEET primary, not the page save', async () => {
+    const pageSave = jest.fn();
+    const sheetSave = jest.fn();
+    await mount(
+      <View>
+        <PageRecord closeRecord={() => {}} pageSave={pageSave} />
+        <Sheet visible onClose={() => {}} title="Edit" primaryAction={{ label: 'Save', onPress: sheetSave }}>
+          <TextInput testID="sheet-field" />
+        </Sheet>
+      </View>,
+    );
+    const ev = await press(byTestId('sheet-field'), { key: 's', metaKey: true });
+    expect(ev.defaultPrevented).toBe(true);
+    expect(sheetSave).toHaveBeenCalledTimes(1);
+    expect(pageSave).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe('integration review r1: a sheet whose primary SENDS takes Cmd+Enter, never Cmd+S', () => {
+  function SendSheet({ send, pageSave }: { send: () => void; pageSave: () => void }) {
+    usePrimaryAction(pageSave, { label: 'Save record' });
+    const f = useSheetFrame('form', { visible: true, animationType: 'slide' });
+    useSheetPrimaryHotkey(true, send, { saveKey: false });
+    return (
+      <Modal visible transparent animationType={f.animationType} onRequestClose={() => {}}>
+        <View style={f.card}><TextInput testID="sheet-field" /></View>
+      </Modal>
+    );
+  }
+
+  it('Cmd+S is swallowed (no "Save page as", no page save) and sends nothing; Cmd+Enter sends', async () => {
+    const send = jest.fn(); const pageSave = jest.fn();
+    await mount(<SendSheet send={send} pageSave={pageSave} />);
+    const s = await press(byTestId('sheet-field'), { key: 's', metaKey: true });
+    expect(s.defaultPrevented).toBe(true);
+    expect(send).toHaveBeenCalledTimes(0);
+    expect(pageSave).toHaveBeenCalledTimes(0);
+    await press(byTestId('sheet-field'), { key: 'Enter', metaKey: true });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(pageSave).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe('wave 6c: the shell dock and a page field', () => {
+  it('an Esc typed in a PAGE field leaves the dock open', async () => {
+    await mount(shell(<View><TextInput testID="page-field" /></View>));
+    expect(dockShown()).toBe(true);
+    await press(byTestId('page-field'), { key: 'Escape' });
+    expect(dockShown()).toBe(true);
+  });
+
+  it('an Esc typed in the dock\'s own field closes it', async () => {
+    await mount(shell(<View><TextInput testID="page-field" /></View>));
+    await press(byTestId('dock-field'), { key: 'Escape' });
+    expect(dockShown()).toBe(false);
+  });
+});
+
+/** app/_layout's SearchHotkeyListener, reproduced (it is not exported): a raw
+ *  window Cmd/Ctrl+K listener that toggles the search palette. */
+function SearchHotkey() {
+  const { toggleSearch } = useSearch();
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); toggleSearch(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleSearch]);
+  return null;
+}
+
+describe('wave 6c: Cmd+K search is a dialog', () => {
+  it('Cmd+K then Esc: search closes, the record behind it stays open', async () => {
+    const closeRecord = jest.fn();
+    function Open() { const { isOpen } = useSearch(); return <Text testID="search-state">{isOpen ? 'open' : 'closed'}</Text>; }
+    await mount(
+      <SearchProvider>
+        <SearchHotkey />
+        <PageRecord closeRecord={closeRecord} />
+        <Open />
+        <UniversalSearch />
+      </SearchProvider>,
+    );
+    blurAll();
+    await press(document.body, { key: 'k', metaKey: true });
+    await settle();
+    expect(byTestId('search-state').textContent).toBe('open');
+    blurAll();
+    await press(document.body, { key: 'Escape' });
+    await settle();
+    expect(byTestId('search-state').textContent).toBe('closed');
+    expect(closeRecord).toHaveBeenCalledTimes(0);
   });
 });

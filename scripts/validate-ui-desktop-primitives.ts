@@ -60,6 +60,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const React = await import('react');
 const D = await import('../components/ui/desktop');
+const H = await import('../hooks/useHotkeys');
 const { Layout } = await import('../constants/designTokens');
 
 let failures = 0;
@@ -158,7 +159,16 @@ for (const size of Object.keys(Layout.sheet) as (keyof typeof Layout.sheet)[]) {
   ok('form card rounds ALL FOUR corners (callers set top-only radii)',
     [f.card?.borderTopLeftRadius, f.card?.borderTopRightRadius, f.card?.borderBottomLeftRadius, f.card?.borderBottomRightRadius].every((r) => r === 18));
   eq('form overlay centres', [f.overlay?.justifyContent, f.overlay?.alignItems], ['center', 'center']);
-  eq('overlay starts at the sidebar edge (scrim never covers nav)', f.overlay?.marginLeft, 240);
+  // Wave 6c (X0.1, the dead zone): the scrim covers the FULL window — the
+  // sidebar too, so a click there dismisses instead of navigating under the
+  // portaled Modal — and only the CARD is pushed into the content column:
+  // paddingLeft = 32 gutter + the 240 sidebar, and no marginLeft.
+  eq('form overlay pads the card into the column (paddingLeft 32 + 240)', f.overlay?.paddingLeft, 272);
+  eq('form overlay has NO marginLeft (the scrim covers the sidebar)', f.overlay?.marginLeft, undefined);
+  eq('form scrollContent carries the same inset (a scroll-wrapped sheet centres in the column)',
+    [f.scrollContent?.paddingLeft, f.scrollContent?.marginLeft], [272, undefined]);
+  eq('form backdrop is absoluteFill (a flex:1 filler becomes the full-window scrim)',
+    f.backdrop, { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 });
   // Appended AFTER a phone sheet: every padding longhand must be set, or the
   // phone's paddingHorizontal/paddingBottom wins over a bare `padding`.
   ok('card pads 24 on every longhand (beats the phone sheet it is appended to)',
@@ -172,18 +182,32 @@ for (const size of Object.keys(Layout.sheet) as (keyof typeof Layout.sheet)[]) {
   eq('panel docks right', p.overlay?.alignItems, 'flex-end');
   // The panel is the project-detail sections' frame: its scrim, too, must
   // start at the sidebar's right edge, not grey the navigation (mutant B1).
-  eq('panel overlay starts at the sidebar edge', D.desktopSheetFrame('panel', 'LINE', 240).overlay?.marginLeft, 240);
+  {
+    const p240 = D.desktopSheetFrame('panel', 'LINE', 240);
+    eq('panel overlay pads to the sidebar edge (paddingLeft 240, no marginLeft)',
+      [p240.overlay?.paddingLeft, p240.overlay?.marginLeft], [240, undefined]);
+    eq('panel scrollContent pads to the sidebar edge', p240.scrollContent?.paddingLeft, 240);
+    eq('panel backdrop is absoluteFill', p240.backdrop, { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 });
+  }
   eq('panel full height, 880 max', [p.card?.height, p.card?.maxWidth], ['100%', 880]);
   eq('panel square corners + left hairline in the theme line colour', [p.card?.borderTopLeftRadius, p.card?.borderLeftWidth, p.card?.borderLeftColor], [0, 1, 'LINE']);
 }
 
 // ── 4. Cmd/Ctrl+Enter ───────────────────────────────────────────────────────
+// Wave 6c: desktop.ts's isPrimaryHotkey is gone — the sheet's primary key is
+// the registry binding 'mod+enter' (components/ui/Sheet useSheetPrimaryHotkey),
+// so the same five cases now read hooks/useHotkeys, the one definition.
 
-ok('Cmd+Enter fires', D.isPrimaryHotkey({ key: 'Enter', metaKey: true }));
-ok('Ctrl+Enter fires', D.isPrimaryHotkey({ key: 'Enter', ctrlKey: true }));
-ok('plain Enter does NOT (it belongs to the field)', !D.isPrimaryHotkey({ key: 'Enter' }));
-ok('Cmd+Shift+Enter does not', !D.isPrimaryHotkey({ key: 'Enter', metaKey: true, shiftKey: true }));
-ok('Cmd+S does not', !D.isPrimaryHotkey({ key: 's', metaKey: true }));
+{
+  const primary = H.parseCombo('mod+enter')[0];
+  const fires = (ev: Parameters<typeof H.stepMatches>[1]) => H.stepMatches(primary, ev);
+  ok('Cmd+Enter fires', fires({ key: 'Enter', metaKey: true }));
+  ok('Ctrl+Enter fires', fires({ key: 'Enter', ctrlKey: true }));
+  ok('plain Enter does NOT (it belongs to the field)', !fires({ key: 'Enter' }));
+  ok('Cmd+Shift+Enter does not', !fires({ key: 'Enter', metaKey: true, shiftKey: true }));
+  ok('Cmd+S does not', !fires({ key: 's', metaKey: true }));
+  ok('desktop.ts no longer exports isPrimaryHotkey (one definition, in the registry)', !('isPrimaryHotkey' in D));
+}
 
 // ── 5. Sidebar inset ────────────────────────────────────────────────────────
 

@@ -40,6 +40,7 @@ import {
   pageTypeForRoute,
   pageTypeForTab,
 } from '../utils/desktopPage';
+import { CANVAS_ROUTES } from '../utils/sidebarRail';
 import { legacyChrome, Theme } from '../constants/colors';
 import {
   PRINT_CSS,
@@ -152,6 +153,9 @@ expectKind('form', ['rfi', 'contract', 'company-profile', 'field-ticket', 'submi
   'generative-setup', 'schedule-builder', 'schedule-import', 'copilot', 'copilot-hub', 'ask', 'quick-quote',
   'post-rfp', 'submit-bid-response', 'import-pipeline']);
 expectKind('table', ['wip-report', 'bid-leveling', 'buyout-package', 'aia-pay-app']);
+// Wave 6c: judges and scan are one-column flows; cost-xray stays a dashboard.
+expectKind('form', ['judges', 'scan']);
+expectKind('dashboard', ['cost-xray']);
 // construction-news was seeded 'reading', but its desktop layout is a two-up
 // card grid self-capped at 1100; a 760 column squeezed the cards (integration
 // round 1). It takes 'dashboard' so the screen's own cap governs.
@@ -165,6 +169,16 @@ ok('cost-xray, scan, judges and quick-quote have the sidebar back (not shell-exe
 ok('Ask and Copilot stay shell-exempt until the dock hosts them',
   DESKTOP_SHELL_EXEMPT.has('ask') && DESKTOP_SHELL_EXEMPT.has('copilot') && DESKTOP_SHELL_EXEMPT.has('copilot-hub'));
 ok('schedule-pro stays shell-exempt (its breakpoints assume the full window)', DESKTOP_SHELL_EXEMPT.has('schedule-pro'));
+// Every canvas route (the sidebar defaults to the 64 px rail there) is a real
+// route file that shows the sidebar — a rail on a page with no sidebar, or on
+// a typo, is a rule that never runs.
+{
+  const ghostCanvas = [...CANVAS_ROUTES].filter(r => !routeSet.has(r));
+  const exemptCanvas = [...CANVAS_ROUTES].filter(r => DESKTOP_SHELL_EXEMPT.has(r));
+  ok(`every CANVAS_ROUTES name is a real, non-exempt route (${CANVAS_ROUTES.size})`,
+    CANVAS_ROUTES.size > 0 && ghostCanvas.length === 0 && exemptCanvas.length === 0,
+    `ghost: ${ghostCanvas.join(', ')}; exempt: ${exemptCanvas.join(', ')}`);
+}
 // The owner's workspace sidebar must never draw on a page a stranger opens
 // (a homeowner's client-view, a sub's prequal form, a shared plan link) or on
 // the signed-out / first-run pages. Moving the set out of app/_layout.tsx left

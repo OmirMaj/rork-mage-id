@@ -56,6 +56,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
 
 interface CreateOption {
   /** Human label (plain English). */
@@ -158,6 +159,10 @@ const CATEGORY_LABELS: Record<CreateOption['category'], string> = {
   tools: 'Tools',
 };
 
+/** The list-first screens on desktop web (wave 6c, lanes G/H): a "New …"
+ *  from this menu adds `new=1` so the create form opens over the log. */
+const LIST_FIRST_HREFS: ReadonlySet<string> = new Set(['/rfi', '/submittal', '/change-order', '/invoice', '/daily-report']);
+
 export interface CreateMenuProps {
   visible: boolean;
   onClose: () => void;
@@ -230,17 +235,22 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
 
   // Route to a scoped screen with the chosen project. Close the sheet
   // first, then navigate after the 280ms iOS modal-gap.
+  // Desktop web only (wave 6c): the five project logs open LIST-first there
+  // (lanes G/H), so "New RFI" must say so — `new=1` opens the create form
+  // over the log. A phone keeps today's params exactly.
+  const desktopWeb = useIsDesktopWeb();
   const routeScoped = useCallback((opt: CreateOption, projectId: string) => {
     handleClose();
+    const opensCreate = desktopWeb && LIST_FIRST_HREFS.has(opt.href);
     setTimeout(() => {
       router.push({
         pathname: hrefFor(opt) as never,
         // Most screens read `projectId`; a few read `id`. Passing the
         // wrong name re-creates the exact dead-end the picker fixes.
-        params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}) },
+        params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}), ...(opensCreate ? { new: '1' } : {}) },
       } as never);
     }, 280);
-  }, [handleClose, router, hrefFor]);
+  }, [handleClose, router, hrefFor, desktopWeb]);
 
   const handleSelect = useCallback((opt: CreateOption) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();

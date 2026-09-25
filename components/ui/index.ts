@@ -34,6 +34,8 @@ export { SegmentedControl, segmentedDesktop, type SegmentedOption, type Segmente
 export {
   Sheet,
   useSheetFrame,
+  useSheetDialogScope,
+  SheetOverlay,
   useSheetPrimaryHotkey,
   desktopSheetFrame,
   type SheetFrame,
@@ -71,7 +73,6 @@ export {
   segmentBox,
   segmentedMaxWidth,
   sheetCardWidth,
-  isPrimaryHotkey,
   shellInsetFromRect,
   useDesktopShellInset,
   flattenElements,

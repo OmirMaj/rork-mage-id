@@ -23,7 +23,10 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, desktopCta, desktopToggle, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { usePrimaryAction } from '@/hooks/useHotkeys';
+import { DailyReportLog } from '@/components/logs/DailyReportLog';
+import { dfrManHours, dfrScreenMode } from '@/utils/dailyReportLog';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -59,7 +62,7 @@ import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
 import { nailIt, oops } from '@/components/animations/NailItToast';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
@@ -970,9 +973,13 @@ export default function DailyReportScreen() {
   // for months, which opened a fresh report for today instead of the one it
   // listed. The outbox now sends `reportId`; the alias stops any other stray
   // `id=` link from silently becoming a new report again.
-  const params = useLocalSearchParams<{ projectId?: string; reportId?: string; id?: string }>();
+  const params = useLocalSearchParams<{ projectId?: string; reportId?: string; id?: string; date?: string; fieldIssue?: string; new?: string }>();
   const reportId = params.reportId ?? params.id ?? null;
-  const { dailyReports, dailyReportsLoaded, projectsLoaded, retryRemoteReads, sourceFailed } = useProjects();
+  const { dailyReports, dailyReportsLoaded, projectsLoaded, retryRemoteReads, sourceFailed, getProject } = useProjects();
+  // Desktop WEB only (a native tablet at >= 1024 is isDesktop too, and keeps
+  // the editor): a bare ?projectId= opens the job's report LOG — every report
+  // filed, the open one read beside it (wave 6c, utils/dailyReportLog).
+  const desktopWeb = useIsDesktopWeb();
   const found = useMemo(
     () => (reportId ? dailyReports.find(r => r.id === reportId) ?? null : null),
     [reportId, dailyReports],
@@ -983,6 +990,17 @@ export default function DailyReportScreen() {
     reportsLoaded: dailyReportsLoaded,
     projectPending: !!params.projectId && !projectsLoaded,
   });
+  if (state !== 'loading' && dfrScreenMode({
+    desktopWeb,
+    projectId: params.projectId,
+    projectExists: !!(params.projectId && getProject(params.projectId)),
+    reportId,
+    date: params.date,
+    fieldIssue: params.fieldIssue,
+    isNew: params.new === '1',
+  }) === 'log') {
+    return <DailyReportLogRoute projectId={params.projectId!} />;
+  }
   if (state === 'editor') {
     // Keyed on the report so the editor re-mounts — and re-seeds every field
     // from the record — if the link changes underneath it. The report's own
@@ -1016,6 +1034,21 @@ export default function DailyReportScreen() {
   );
 }
 
+/**
+ * The log's author column says who filed each report exactly as the editor
+ * does (dfrFiledBy `.document`). Desktop web only — mounted by the gate above.
+ */
+function DailyReportLogRoute({ projectId }: { projectId: string }) {
+  const { user } = useAuth();
+  const { getProject } = useProjects();
+  const ownerUserId = getProject(projectId)?.ownerUserId;
+  const { collaborators: people } = useProjectCollaborators(projectId);
+  const filedBy = useCallback((r: DailyFieldReport) => dfrFiledBy({
+    filedByUserId: r.filedByUserId, viewerId: user?.id, viewerName: user?.name, ownerUserId, people,
+  }).document, [user?.id, user?.name, ownerUserId, people]);
+  return <DailyReportLog projectId={projectId} filedBy={filedBy} />;
+}
+
 function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; projectIdOverride?: string }) {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
@@ -1029,6 +1062,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
+  // Structural web-only switches (the job-picker hand-off to the log) — a
+  // native tablet at >= 1024 is isDesktop too and keeps today's editor.
+  const desktopWeb = useIsDesktopWeb();
   const hsStyles = useThemedStyles(makeHsStyles);
   const voiceStyles = useThemedStyles(makeVoiceStyles);
   const leakStyles = useThemedStyles(makeLeakStyles);
@@ -2675,9 +2711,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     return buckets;
   }, [manpower]);
 
-  const totalManHours = useMemo(() => {
-    return manpower.reduce((sum, m) => sum + (m.headcount * m.hoursWorked), 0);
-  }, [manpower]);
+  const totalManHours = useMemo(() => dfrManHours(manpower), [manpower]);
 
   /**
    * This screen's own record, once it exists — even when the route never
@@ -3817,6 +3851,23 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     );
   }, [isDirty, existingReport?.status, draftKey, goBack, handleSave, hsUpdateDirty, handleSaveHomeownerUpdate]);
 
+  // Desktop sheets (wave 6c): each Modal below keeps its phone styles; on
+  // desktop web the frame centres a capped card in the content column.
+  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide' });
+  // Sends email: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
+  useSheetPrimaryHotkey(showSendRecipient, handleConfirmSend, { saveKey: false });
+  const fTask = useSheetFrame('form', { visible: showTaskPicker, animationType: 'slide' });
+  const fCrew = useSheetFrame('form', { visible: showManpowerModal, animationType: 'slide' });
+  useSheetPrimaryHotkey(showManpowerModal, handleSaveManpower);
+  const fDelay = useSheetFrame('dialog', { visible: delayTaskPickerIdx !== null, animationType: 'fade' });
+  // Cmd/Ctrl+S and Cmd/Ctrl+Enter save a DRAFT — never Submit, which sends.
+  usePrimaryAction(() => handleSave('draft'), {
+    label: 'Save draft',
+    disabled: existingReport?.status === 'sent',
+    reason: 'This report was submitted — it is read-only.',
+    enabled: !!project,
+  });
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -3825,7 +3876,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           toolName="Daily Reports"
           message="Daily field reports (DFRs) log weather, manpower, and progress on one specific project."
           projects={projects}
-          onPick={setPickedProjectId}
+          onPick={(id) => {
+            // Desktop web: the pick goes into the URL, so the screen's gate
+            // re-renders into that job's report log (?projectId=).
+            if (desktopWeb) { router.setParams({ projectId: id }); return; }
+            setPickedProjectId(id);
+          }}
           staleProjectId={staleProjectId}
           icon={<MageDailyReport size={36} color={themeColors.accent} />}
           steps={[
@@ -3873,7 +3929,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             (filled primary) on the right. Matches the mock's top-right
             CTA pattern — "save vs submit" intent is explicit instead of
             buried in two buttons of similar weight at the bottom. */}
-        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.topBar, isDesktop && styles.topBarDesktop, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity
             onPress={handleBack}
             style={styles.topBarBack}
@@ -4282,12 +4338,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 {backfilledWeatherNotice(reportDayLabel)}
               </Text>
             )}
-            <View style={styles.weatherGrid}>
-              <View style={styles.weatherItem}>
+            <View style={[styles.weatherGrid, isDesktop && styles.weatherGridDesktop]}>
+              <View style={[styles.weatherItem, isDesktop && styles.weatherItemDesktop]}>
                 <Thermometer size={14} color={themeColors.accent} strokeWidth={1.75} />
                 {!isLocked ? (
                   <TextInput
-                    style={styles.weatherInput}
+                    style={[styles.weatherInput, isDesktop && styles.weatherInputXsDesktop]}
                     value={weather.temperature}
                     onChangeText={(v) => setWeather(prev => ({ ...prev, temperature: v, isManual: true }))}
                     placeholder="72°F"
@@ -4297,11 +4353,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   <Text style={styles.weatherValue}>{weather.temperature || 'N/A'}</Text>
                 )}
               </View>
-              <View style={styles.weatherItem}>
+              <View style={[styles.weatherItem, isDesktop && styles.weatherItemDesktop]}>
                 <Cloud size={14} color={themeColors.info} strokeWidth={1.75} />
                 {!isLocked ? (
                   <TextInput
-                    style={styles.weatherInput}
+                    style={[styles.weatherInput, isDesktop && styles.weatherInputSmDesktop]}
                     value={weather.conditions}
                     onChangeText={(v) => setWeather(prev => ({ ...prev, conditions: v, isManual: true }))}
                     placeholder="Sunny, Cloudy..."
@@ -4311,11 +4367,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   <Text style={styles.weatherValue}>{weather.conditions || 'N/A'}</Text>
                 )}
               </View>
-              <View style={styles.weatherItem}>
+              <View style={[styles.weatherItem, isDesktop && styles.weatherItemDesktop]}>
                 <Wind size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 {!isLocked ? (
                   <TextInput
-                    style={styles.weatherInput}
+                    style={[styles.weatherInput, isDesktop && styles.weatherInputSmDesktop]}
                     value={weather.wind}
                     onChangeText={(v) => setWeather(prev => ({ ...prev, wind: v, isManual: true }))}
                     placeholder="5 mph NW"
@@ -4536,7 +4592,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             {!isLocked && (
               <View style={styles.addMaterialRow}>
                 <TextInput
-                  style={styles.materialInput}
+                  style={[styles.materialInput, isDesktop && styles.inputMdDesktop]}
                   value={newMaterial}
                   onChangeText={setNewMaterial}
                   placeholder="Material received..."
@@ -4662,7 +4718,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[leakStyles.scanBtn, leakScanning && leakStyles.scanBtnDisabled]}
+              style={[leakStyles.scanBtn, isDesktop && desktopCta, leakScanning && leakStyles.scanBtnDisabled]}
               onPress={handleLeakScan}
               disabled={leakScanning}
               testID="leak-scan"
@@ -4690,7 +4746,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 the owner can still argue it at closeout; a T&M ticket signed
                 on site while the work is visible is what makes it stick. */}
             <TouchableOpacity
-              style={leakStyles.scanBtn}
+              style={[leakStyles.scanBtn, isDesktop && desktopCta]}
               onPress={() => router.push({
                 pathname: '/field-ticket',
                 params: {
@@ -4789,7 +4845,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </Text>
 
               <TouchableOpacity
-                style={[dcStyles.aiBtn, delayScanning && dcStyles.aiBtnDisabled]}
+                style={[dcStyles.aiBtn, isDesktop && desktopCta, delayScanning && dcStyles.aiBtnDisabled]}
                 onPress={handleDelayScan}
                 disabled={delayScanning}
                 testID="delay-scan"
@@ -4971,7 +5027,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
             {hsEditable && !hsTextLockedReason && (
               <TouchableOpacity
-                style={[hsStyles.aiBtn, hsGenerating && hsStyles.aiBtnDisabled]}
+                style={[hsStyles.aiBtn, isDesktop && desktopCta, hsGenerating && hsStyles.aiBtnDisabled]}
                 onPress={handleGenerateHomeownerSummary}
                 disabled={hsGenerating}
                 testID="hs-generate"
@@ -5100,7 +5156,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             {!isLocked ? (
               <>
                 <TouchableOpacity
-                  style={[styles.incidentToggle, incident.hasIncident && styles.incidentToggleActive]}
+                  style={[styles.incidentToggle, isDesktop && desktopToggle, incident.hasIncident && styles.incidentToggleActive]}
                   onPress={() => setIncident(p => ({ ...p, hasIncident: !p.hasIncident }))}
                   activeOpacity={0.85}
                 >
@@ -5214,7 +5270,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
                     <Text style={styles.incidentLabel}>People involved</Text>
                     <TextInput
-                      style={styles.textInput}
+                      style={[styles.textInput, isDesktop && styles.inputMdDesktop]}
                       value={incident.peopleInvolved ?? ''}
                       onChangeText={val => setIncident(p => ({ ...p, peopleInvolved: val }))}
                       placeholder="Names or roles"
@@ -5259,7 +5315,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                           <View style={styles.oshaDaysItem}>
                             <Text style={styles.incidentLabel}>Days away from work</Text>
                             <TextInput
-                              style={styles.textInput}
+                              style={[styles.textInput, isDesktop && styles.inputXsDesktop]}
                               value={incidentClass.daysAway}
                               onChangeText={val => setIncidentClass(p => ({ ...p, daysAway: val.replace(/[^0-9]/g, '') }))}
                               placeholder="0"
@@ -5272,7 +5328,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                           <View style={styles.oshaDaysItem}>
                             <Text style={styles.incidentLabel}>Days on restricted duty</Text>
                             <TextInput
-                              style={styles.textInput}
+                              style={[styles.textInput, isDesktop && styles.inputXsDesktop]}
                               value={incidentClass.daysRestricted}
                               onChangeText={val => setIncidentClass(p => ({ ...p, daysRestricted: val.replace(/[^0-9]/g, '') }))}
                               placeholder="0"
@@ -5358,7 +5414,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
                     <Text style={styles.incidentLabel}>Reported by</Text>
                     <TextInput
-                      style={styles.textInput}
+                      style={[styles.textInput, isDesktop && styles.inputMdDesktop]}
                       value={incident.reportedBy ?? ''}
                       onChangeText={val => setIncident(p => ({ ...p, reportedBy: val }))}
                       placeholder="Your name / role"
@@ -5574,10 +5630,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             top bar where the Apple-style mock places them. */}
       </KeyboardAvoidingView>
 
-      <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
+      <Modal visible={showSendRecipient} transparent animationType={fSend.animationType} onRequestClose={() => setShowSendRecipient(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fSend.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Report To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5734,9 +5790,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           project schedule that isn't already on the DFR; tapping one
           adds a chip seeded at the task's current progress. The user
           can adjust pct via a quick-step row (0/25/50/75/100). */}
-      <Modal visible={showTaskPicker} transparent animationType="slide" onRequestClose={() => setShowTaskPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+      <Modal visible={showTaskPicker} transparent animationType={fTask.animationType} onRequestClose={() => setShowTaskPicker(false)}>
+        <View style={[styles.modalOverlay, fTask.overlay]}>
+          <View style={[styles.modalCard, fTask.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Work Progress</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5812,10 +5868,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         </View>
       </Modal>
 
-      <Modal visible={showManpowerModal} transparent animationType="slide" onRequestClose={() => setShowManpowerModal(false)}>
+      <Modal visible={showManpowerModal} transparent animationType={fCrew.animationType} onRequestClose={() => setShowManpowerModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fCrew.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fCrew.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{mpEditingId ? 'Edit Crew' : 'Add Manpower'}</Text>
                 <TouchableOpacity onPress={() => setShowManpowerModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5917,9 +5973,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         </KeyboardAvoidingView>
       </Modal>
       {/* Delay-row task picker */}
-      <Modal visible={delayTaskPickerIdx !== null} transparent animationType="fade" onRequestClose={() => setDelayTaskPickerIdx(null)}>
-        <Pressable style={dcStyles.modalOverlay} onPress={() => setDelayTaskPickerIdx(null)}>
-          <Pressable style={dcStyles.taskPickerCard} onPress={() => undefined}>
+      <Modal visible={delayTaskPickerIdx !== null} transparent animationType={fDelay.animationType} onRequestClose={() => setDelayTaskPickerIdx(null)}>
+        <Pressable style={[dcStyles.modalOverlay, fDelay.overlay]} onPress={() => setDelayTaskPickerIdx(null)}>
+          <Pressable style={[dcStyles.taskPickerCard, fDelay.card]} onPress={() => undefined}>
             <View style={dcStyles.taskPickerHeader}>
               <Text style={dcStyles.taskPickerTitle}>Which task slipped?</Text>
               <TouchableOpacity onPress={() => setDelayTaskPickerIdx(null)} accessibilityRole="button" accessibilityLabel="Close">
@@ -6191,7 +6247,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   openGateText: { ...Type.subhead, color: themeColors.textSecondary, textAlign: 'center', maxWidth: 420 },
   // Long form + photo grid: widen for desktop but keep a cap so inputs and
   // labels don't drift apart across a 27" monitor.
-  contentDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' as const },
+  topBarDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
 
@@ -6317,7 +6374,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   weatherNotice: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17, marginBottom: 10 },
   weatherProvenance: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15, marginTop: 10 },
   weatherGrid: { gap: 10 },
+  weatherGridDesktop: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Layout.groupGap },
   weatherItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  weatherItemDesktop: { flexGrow: 0 },
+  // One row of Temperature / Conditions / Wind (~620 px) instead of three
+  // 1,000 px inputs. The longhands beat weatherInput's flex:1 (basis 0%).
+  weatherInputXsDesktop: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: Layout.field.xs },
+  weatherInputSmDesktop: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: Layout.field.sm },
+  // Single-line inputs on desktop web: no one-line field fills the 760 column.
+  inputMdDesktop: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', width: Layout.field.md },
+  inputXsDesktop: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: Layout.field.xs },
   weatherInput: { flex: 1, minHeight: 38, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
   weatherValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   addSmallBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: themeColors.accent + '15', alignItems: 'center', justifyContent: 'center' },
@@ -6419,7 +6485,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   photoTimestampOverlay: { position: 'absolute' as const, left: 0, right: 0, bottom: 0, backgroundColor: Colors.overlay, paddingHorizontal: 4, paddingVertical: 2 },
   photoTimestampOverlayText: { fontSize: 9, color: '#FFFFFF', fontWeight: '600' as const },
   photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: Tokens.radius.md, backgroundColor: themeColors.danger, alignItems: 'center', justifyContent: 'center' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   toggleRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

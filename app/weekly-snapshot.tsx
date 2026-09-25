@@ -376,7 +376,7 @@ export default function WeeklySnapshotScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionBtn}
-              onPress={() => router.push({ pathname: '/daily-report' as any, params: { projectId: project.id } })}
+              onPress={() => router.push({ pathname: '/daily-report' as any, params: { projectId: project.id, new: '1' } })}
               testID="snapshot-new-dfr"
             >
               <Text style={styles.actionBtnText}>+ New DFR</Text>

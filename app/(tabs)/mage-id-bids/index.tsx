@@ -43,6 +43,7 @@ import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import { RFP_BROWSE_ENABLED } from '@/constants/featureFlags';
+import { segmentedDesktop } from '@/components/ui';
 
 interface BrowseRow {
   id: string;
@@ -348,7 +349,7 @@ export default function MageIdBidsTabScreen() {
       <View style={styles.segmentRow}>
         {RFP_BROWSE_ENABLED ? (
           <TouchableOpacity
-            style={[styles.segment, mode === 'browse' && styles.segmentActive]}
+            style={[styles.segment, isDesktop && segmentedDesktop.segment, mode === 'browse' && styles.segmentActive]}
             onPress={() => setMode('browse')}
             testID="mageid-bids-browse-segment"
           >
@@ -359,7 +360,7 @@ export default function MageIdBidsTabScreen() {
           </TouchableOpacity>
         ) : (
           <View
-            style={[styles.segment, styles.segmentUnavailable]}
+            style={[styles.segment, isDesktop && segmentedDesktop.segment, styles.segmentUnavailable]}
             accessible
             accessibilityRole="text"
             accessibilityLabel="Browse nearby projects — not open yet"
@@ -370,7 +371,7 @@ export default function MageIdBidsTabScreen() {
           </View>
         )}
         <TouchableOpacity
-          style={[styles.segment, mode === 'mine' && styles.segmentActive]}
+          style={[styles.segment, isDesktop && segmentedDesktop.segment, mode === 'mine' && styles.segmentActive]}
           onPress={() => setMode('mine')}
         >
           <Layers size={13} color={mode === 'mine' ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />

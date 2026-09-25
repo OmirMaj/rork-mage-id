@@ -28,6 +28,7 @@ import { MOCK_SUPPLIERS, MOCK_LISTINGS, SUPPLIER_CATEGORIES } from '@/mocks/supp
 import type { Supplier, SupplierListing } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { segmentedDesktop, useIsDesktop, useSheetDialogScope, useSheetFrame } from '@/components/ui';
 
 type ViewMode = 'suppliers' | 'listings';
 
@@ -218,6 +219,12 @@ export default function MarketplaceScreen() {
     return (usesBulk ? selectedListing.bulkPrice : selectedListing.price) * qty;
   }, [selectedListing, orderQty]);
 
+  // Desktop (wave 6c): compact mode segments and a capped listing card; the
+  // supplier page is an opaque pageSheet — dialog scope only.
+  const isDesktop = useIsDesktop();
+  useSheetDialogScope(selectedSupplier !== null);
+  const fListing = useSheetFrame('dialog', { visible: selectedListing !== null, animationType: 'fade' });
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -285,7 +292,7 @@ export default function MarketplaceScreen() {
 
               <View style={styles.modeRow}>
                 <TouchableOpacity
-                  style={[styles.modeBtn, viewMode === 'suppliers' && styles.modeBtnActive]}
+                  style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, viewMode === 'suppliers' && styles.modeBtnActive]}
                   onPress={() => setViewMode('suppliers')}
                   activeOpacity={0.7}
                 >
@@ -293,7 +300,7 @@ export default function MarketplaceScreen() {
                   <Text style={[styles.modeBtnText, viewMode === 'suppliers' && styles.modeBtnTextActive]}>Suppliers</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modeBtn, viewMode === 'listings' && styles.modeBtnActive]}
+                  style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, viewMode === 'listings' && styles.modeBtnActive]}
                   onPress={() => setViewMode('listings')}
                   activeOpacity={0.7}
                 >
@@ -464,11 +471,11 @@ export default function MarketplaceScreen() {
       <Modal
         visible={selectedListing !== null}
         transparent
-        animationType="fade"
+        animationType={fListing.animationType}
         onRequestClose={() => setSelectedListing(null)}
       >
-        <Pressable style={styles.popupOverlay} onPress={() => setSelectedListing(null)}>
-          <Pressable style={styles.popupCard} onPress={() => undefined}>
+        <Pressable style={[styles.popupOverlay, fListing.overlay]} onPress={() => setSelectedListing(null)}>
+          <Pressable style={[styles.popupCard, fListing.card]} onPress={() => undefined}>
             {selectedListing && (() => {
               const supplier = getSupplier(selectedListing.supplierId);
               const qty = parseInt(orderQty, 10) || 0;

@@ -41,6 +41,7 @@ import { generateUUID } from '@/utils/generateId';
 import { parseMoneyInput, MONEY_FORMAT_HINT } from '@/utils/cashFlowEngine';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { segmentedDesktop, useIsDesktop, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 /**
  * Why a percentage target released nothing — read off the plan's own skips, not
@@ -300,6 +301,12 @@ export default function RetentionScreen() {
   }, [writeQueue, updateInvoice]);
 
   const scopedProject = scopeProjectId ? projects.find(p => p.id === scopeProjectId) : null;
+
+  // Desktop sheets (wave 6c): capped cards centred in the content column.
+  const isDesktop = useIsDesktop();
+  const fRelease = useSheetFrame('form', { visible: releaseRow != null, animationType: 'slide' });
+  useSheetPrimaryHotkey(releaseRow != null && !!plan && plan.allocations.length > 0, applyRelease);
+  const fSources = useSheetFrame('form', { visible: sourcesOpen, animationType: 'slide' });
 
   return (
     <View style={styles.container}>
@@ -619,12 +626,12 @@ export default function RetentionScreen() {
       <Modal
         visible={releaseRow != null}
         transparent
-        animationType="slide"
+        animationType={fRelease.animationType}
         onRequestClose={closeRelease}
       >
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fRelease.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRelease.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle} numberOfLines={1}>
                   Release Retainage{releaseRow ? ` · ${releaseRow.project.name}` : ''}
@@ -651,7 +658,7 @@ export default function RetentionScreen() {
                     {(['percent', 'amount'] as ReleaseMode[]).map(m => (
                       <TouchableOpacity
                         key={m}
-                        style={[styles.modeChip, releaseMode === m && styles.modeChipOn]}
+                        style={[styles.modeChip, isDesktop && segmentedDesktop.segment, releaseMode === m && styles.modeChipOn]}
                         onPress={() => setReleaseMode(m)}
                         activeOpacity={0.8}
                         accessibilityRole="button"
@@ -848,9 +855,9 @@ export default function RetentionScreen() {
              utils/retainage.RETAINAGE_SOURCES with a URL and the date it was
              read; nothing is stated from recall, and nothing here is applied
              to the job automatically. ───────────────────────────────────── */}
-      <Modal visible={sourcesOpen} transparent animationType="slide" onRequestClose={() => setSourcesOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+      <Modal visible={sourcesOpen} transparent animationType={fSources.animationType} onRequestClose={() => setSourcesOpen(false)}>
+        <View style={[styles.modalOverlay, fSources.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSources.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Retainage is not one event</Text>
               <TouchableOpacity onPress={() => setSourcesOpen(false)} accessibilityRole="button" accessibilityLabel="Close">

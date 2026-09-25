@@ -49,6 +49,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { segmentedDesktop } from '@/components/ui';
 
 const PLACEHOLDER =
   'Trade, Unit, Rate, Jobs\n' +
@@ -285,7 +286,7 @@ function CostSeedInner() {
           {/* Mode switch */}
           <View style={styles.segment}>
             <TouchableOpacity
-              style={[styles.segmentBtn, mode === 'paste' && styles.segmentBtnActive]}
+              style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, mode === 'paste' && styles.segmentBtnActive]}
               onPress={() => { setMode('paste'); setFormError(null); }}
               activeOpacity={0.8}
               accessibilityRole="button"
@@ -302,7 +303,7 @@ function CostSeedInner() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.segmentBtn, mode === 'manual' && styles.segmentBtnActive]}
+              style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, mode === 'manual' && styles.segmentBtnActive]}
               onPress={() => { setMode('manual'); setReview(null); }}
               activeOpacity={0.8}
               accessibilityRole="button"

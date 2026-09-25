@@ -12,6 +12,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { Contact, ContactRole } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetFrame } from '@/components/ui';
 
 interface ContactPickerModalProps {
   visible: boolean;
@@ -60,6 +61,7 @@ export default function ContactPickerModal({
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
+  const fSheet = useSheetFrame('form', { visible, animationType: 'slide' });
 
   const filtered = useMemo(() => {
     let list = contacts;
@@ -126,11 +128,11 @@ export default function ContactPickerModal({
   }, [handleSelect]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
-        <Pressable style={styles.overlayTouch} onPress={handleClose} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.handle} />
+    <Modal visible={visible} transparent animationType={fSheet.animationType} onRequestClose={handleClose}>
+      <View style={[styles.overlay, fSheet.overlay]}>
+        <Pressable style={[styles.overlayTouch, fSheet.isDesktop && StyleSheet.absoluteFill]} onPress={handleClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, fSheet.card]}>
+          {fSheet.showHandle && <View style={styles.handle} />}
 
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{title}</Text>

@@ -22,6 +22,7 @@ import { computeSubScorecards, type SubGrade, type SubScorecard } from '@/utils/
 import { computeSupplierScorecards } from '@/utils/supplierScorecard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 function colorForGrade(grade: SubGrade, t: ThemeColors): string {
   switch (grade) {
@@ -90,6 +91,7 @@ function SubScorecardInner() {
     [deliveries, deliveryReceipts],
   );
 
+  const isDesktop = useIsDesktop();
   // Only bail when there is nothing to show in EITHER mode — a GC with
   // deliveries but no subs still has suppliers worth grading.
   if (subcontractors.length === 0 && suppliers.length === 0) {
@@ -137,7 +139,7 @@ function SubScorecardInner() {
             <TouchableOpacity
               key={m}
               onPress={() => { setMode(m); setExpandedId(null); }}
-              style={[styles.segBtn, mode === m && styles.segBtnOn]}
+              style={[styles.segBtn, isDesktop && segmentedDesktop.segment, mode === m && styles.segBtnOn]}
               accessibilityRole="button"
               accessibilityState={{ selected: mode === m }}
               testID={`scorecard-mode-${m}`}

@@ -27,6 +27,7 @@ import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { paymentReceivedAt } from '@/utils/billingFlowCore';
 import { dayOrInstantDate } from '@/utils/calendarDate';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 function feeScheduleLabel(tier: string): string {
   return `${platformFeeLabel(tier)} + ${STRIPE_CARD_PROCESSING.percent}% + ${STRIPE_CARD_PROCESSING.fixedCents}¢`;
@@ -502,6 +503,8 @@ export default function PaymentsScreen() {
     );
   }, [invoices, projects]);
 
+  const isDesktop = useIsDesktop();
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Payments', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
@@ -591,14 +594,14 @@ export default function PaymentsScreen() {
             expected on iOS, and this segmented control is the same shape. The
             spoken label spells the count out — "All (3)" is read back as
             punctuation. */}
-        <View style={styles.tabRow}>
+        <View style={[styles.tabRow, isDesktop && segmentedDesktop.container]}>
           {(['all', 'pending', 'completed'] as const).map(tab => {
             const label = tab === 'all' ? `All (${payments.length})` : tab === 'pending' ? 'Pending' : 'Completed';
             const spoken = tab === 'all' ? `All payments, ${payments.length}` : `${label} payments`;
             return (
               <TouchableOpacity
                 key={tab}
-                style={[styles.tab, selectedTab === tab && styles.tabActive]}
+                style={[styles.tab, isDesktop && segmentedDesktop.segment, selectedTab === tab && styles.tabActive]}
                 onPress={() => setSelectedTab(tab)}
                 activeOpacity={0.7}
                 accessibilityRole="button"

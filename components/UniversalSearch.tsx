@@ -57,6 +57,7 @@ import {
 import type { EntityKind } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 
 // ---------------------------------------------------------------------------
 // Storage
@@ -172,6 +173,10 @@ export default function UniversalSearch() {
   const router = useRouter();
   const { tier, canAccess, requiredTierFor } = useTierAccess();
   const { userRole } = useCoreData();
+  // Open search is a dialog to the shortcut registry (listing only — the
+  // Modal's onRequestClose and the Esc listener below still close it), so a
+  // page-scope record behind it keeps its Esc (wave 6c).
+  useSheetDialogScope(isOpen);
 
   // MAGE Brain quick actions — the surface does more than navigate: ask it
   // (chat), speak to it (voice capture), get help. Close the search sheet

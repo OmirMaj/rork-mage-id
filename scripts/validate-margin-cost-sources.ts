@@ -317,7 +317,9 @@ console.log('\nEvery call site forwards costSources:');
 {
   const CALLERS = [
     'app/portfolio-margin.tsx', 'app/margin-alerts.tsx', 'app/margin-risk.tsx',
-    'app/living-estimate.tsx', 'components/ProjectHero.tsx', 'components/MarginAlertManager.tsx',
+    // ProjectHero's streams moved into hooks/useProjectPulse (wave 6c, lane E):
+    // the phone hero and the desktop KPI strip read ONE pulse.
+    'app/living-estimate.tsx', 'hooks/useProjectPulse.ts', 'components/MarginAlertManager.tsx',
     'utils/marginAlerts.ts', 'utils/marginRiskScore.ts', 'utils/oneMind/factBlocks.ts',
     'utils/judges/runJudges.ts',
   ];
@@ -355,7 +357,7 @@ console.log('\nEvery call site forwards costSources:');
   const STREAMS = ['receipts', 'timeEntries', 'laborRates', 'overtimeMultiplier', 'overtimeRule', 'equipment', 'permits', 'subcontractors'];
   for (const file of [
     'app/portfolio-margin.tsx', 'app/margin-alerts.tsx', 'app/margin-risk.tsx',
-    'app/living-estimate.tsx', 'components/ProjectHero.tsx', 'components/MarginAlertManager.tsx',
+    'app/living-estimate.tsx', 'hooks/useProjectPulse.ts', 'components/MarginAlertManager.tsx',
   ]) {
     const src = stripComments(read(file));
     const memo = /const costSources = useMemo<JobCostActualSources>\(\(\) => \(\{([^}]*)\}\)/.exec(src);
@@ -389,21 +391,25 @@ console.log('\nEvery call site forwards costSources:');
   // key, and branch to a loading state BEFORE the first number renders.
   const READY = /const costSourcesReady = !receiptsLoading && !ratesLoading && mirrorLoaded;/;
   const MIRROR = /const mirrorLoaded = queryClient\.getQueryState\(TIME_ENTRIES_MIRROR_QUERY_KEY\)\?\.data !== undefined;/;
-  const SURFACES: [file: string, testId: string, firstNumber: string][] = [
+  // The 4th element names where the READINESS is derived when that is not
+  // the drawing file: ProjectHero reads costSourcesReady from the pulse
+  // (hooks/useProjectPulse), and still draws its loading state first.
+  const SURFACES: [file: string, testId: string, firstNumber: string, readyFile?: string][] = [
     ['app/portfolio-margin.tsx', 'portfolio-margin-loading', '{formatMoney(totalRevenue)}'],
     ['app/margin-risk.tsx', 'margin-risk-loading', '{risk.score}'],
     ['app/living-estimate.tsx', 'living-estimate-loading', '{pct(snapshot.projected.marginPct)}'],
-    ['components/ProjectHero.tsx', 'project-hero-loading', '{shown.toFixed(1)}'],
+    ['components/ProjectHero.tsx', 'project-hero-loading', '{shown.toFixed(1)}', 'hooks/useProjectPulse.ts'],
   ];
-  for (const [file, testId, firstNumber] of SURFACES) {
+  for (const [file, testId, firstNumber, readyFile] of SURFACES) {
     const src = stripComments(read(file));
-    ok(`${file}: readiness covers receipts, rates AND the time-entry mirror`, READY.test(src) && MIRROR.test(src));
+    const readySrc = readyFile ? stripComments(read(readyFile)) : src;
+    ok(`${readyFile ?? file}: readiness covers receipts, rates AND the time-entry mirror`, READY.test(readySrc) && MIRROR.test(readySrc));
     const loadingAt = src.indexOf(`testID="${testId}"`);
     const numberAt = src.indexOf(firstNumber);
     ok(`${file}: shows a loading state before the first margin number`,
       loadingAt > 0 && numberAt > loadingAt, `loading ${loadingAt}, number ${numberAt}`);
   }
-  for (const file of [...SURFACES.map(s => s[0]), 'components/MarginAlertManager.tsx', 'app/margin-alerts.tsx', 'app/client-portal-setup.tsx']) {
+  for (const file of [...SURFACES.map(s => s[0]), 'hooks/useProjectPulse.ts', 'components/MarginAlertManager.tsx', 'app/margin-alerts.tsx', 'app/client-portal-setup.tsx']) {
     ok(`${file}: reads the mirror by the exported key, not a copied literal`,
       !/\['time-entries-mirror'\]/.test(stripComments(read(file))));
   }
@@ -414,6 +420,11 @@ console.log('\nEvery call site forwards costSources:');
     const hero = stripComments(read('components/ProjectHero.tsx'));
     ok('ProjectHero does not count up toward a partial reading',
       /useEffect\(\(\) => \{\s*if \(!costSourcesReady\) return;\s*const id = anim\.addListener/.test(hero));
+    // …and the readiness it waits on is the pulse's (the one derived above),
+    // not a second, looser copy of its own.
+    ok('ProjectHero takes costSourcesReady from the pulse and computes no margin of its own',
+      /const \{ living, risk, costSourcesReady, role, roleError \} = pulse;/.test(hero)
+      && !/\bcomputeLivingEstimate\(|\bcomputeMarginRisk\(|\bconst costSourcesReady\b/.test(hero));
   }
   // The client portal DISCLOSES this number: on a GMP / open-book job the rich
   // snapshot carries cost-to-date to the homeowner, and it auto-publishes to
