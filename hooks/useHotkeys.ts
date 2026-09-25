@@ -183,6 +183,14 @@ export function isTypingTarget(target: unknown): boolean {
   return false;
 }
 
+/** Is the key's target inside the DOM element with this id? Pure: it only
+ *  calls `closest` when the target has one (a DOM Element); anything else —
+ *  native, a test object, the window — is outside. */
+export function targetWithin(target: unknown, id: string): boolean {
+  const t = target as { closest?: (sel: string) => unknown } | null | undefined;
+  return typeof t?.closest === 'function' && !!t.closest('#' + id);
+}
+
 /** While typing, only Escape and Cmd/Ctrl chords reach the registry.
  *  `blockInInput` refuses even those (Cmd+A in a search box selects its text,
  *  not every row of the table). */
@@ -214,6 +222,11 @@ export interface HotkeyBinding {
   /** Within one scope, higher runs first (default 0). Only for a fixed
    *  precedence between two bindings of the same key — see the header. */
   priority?: number;
+  /** Extra per-keystroke condition (wave 6c): the binding is skipped — as if
+   *  it did not match — when this returns false. The shell dock's global Esc
+   *  uses it to ignore an Esc typed in a PAGE field while still closing on an
+   *  Esc typed in the dock's own field (targetWithin). */
+  when?: (ev: KeyLike) => boolean;
 }
 
 interface Entry {
@@ -315,6 +328,7 @@ export function createHotkeyRegistry(opts: { now?: () => number; warn?: (msg: st
           if (!prefix.every((p, i) => stepMatches(e.steps[i], p))) continue;
           if (!stepMatches(e.steps[stepIndex], ev)) continue;
           if (!passesTypingGuard(ev, e.binding.allowInInput, e.binding.blockInInput)) continue;
+          if (e.binding.when && !e.binding.when(ev)) continue;
           if (e.steps.length === stepIndex + 1) {
             pending = null;
             fire(e, ev);
@@ -335,6 +349,7 @@ export function createHotkeyRegistry(opts: { now?: () => number; warn?: (msg: st
         if (e.steps.length !== 1) continue;
         if (!stepMatches(e.steps[0], ev)) continue;
         if (!passesTypingGuard(ev, e.binding.allowInInput, e.binding.blockInInput)) continue;
+        if (e.binding.when && !e.binding.when(ev)) continue;
         fire(e, ev);
         return true;
       }
@@ -344,6 +359,7 @@ export function createHotkeyRegistry(opts: { now?: () => number; warn?: (msg: st
         if (e.steps.length < 2) continue;
         if (!stepMatches(e.steps[0], ev)) continue;
         if (!passesTypingGuard(ev, e.binding.allowInInput, e.binding.blockInInput)) continue;
+        if (e.binding.when && !e.binding.when(ev)) continue;
         pending = { prefix: [ev], at: t };
         return true;
       }
@@ -491,7 +507,7 @@ export function useHotkeys(bindings: readonly HotkeyBinding[], options: UseHotke
   const ref = useRef(bindings);
   ref.current = bindings;
   const signature = bindings
-    .map((b) => `${b.combo}|${b.label ?? ''}|${b.group ?? ''}|${b.enabled === false ? 0 : 1}|${b.allowInInput ? 1 : 0}|${b.blockInInput ? 1 : 0}|${b.preventDefault === false ? 0 : 1}|${b.handler ? 1 : 0}|${b.priority ?? 0}`)
+    .map((b) => `${b.combo}|${b.label ?? ''}|${b.group ?? ''}|${b.enabled === false ? 0 : 1}|${b.allowInInput ? 1 : 0}|${b.blockInInput ? 1 : 0}|${b.preventDefault === false ? 0 : 1}|${b.handler ? 1 : 0}|${b.priority ?? 0}|${b.when ? 1 : 0}`)
     .join('\n');
 
   useEffect(() => {
@@ -499,6 +515,9 @@ export function useHotkeys(bindings: readonly HotkeyBinding[], options: UseHotke
     const offs = ref.current.map((b, i) => hotkeys.register(scope, {
       ...b,
       handler: b.handler ? (ev) => ref.current[i]?.handler?.(ev) : undefined,
+      // Forwarded through the ref exactly like the handler: a fresh closure
+      // each render never re-registers (the signature only records presence).
+      when: b.when ? (ev) => ref.current[i]?.when?.(ev) ?? true : undefined,
     }));
     syncListener();
     return () => {

@@ -34,6 +34,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { SidePanel } from '@/components/desktop/SidePanel';
 
 export interface ShellDockOptions {
@@ -109,9 +110,12 @@ export function useShellDock(): ShellDockApi {
  */
 export function ShellDockHost({ visible = true }: { visible?: boolean }) {
   const { content, options, hidden, close, toggle } = useContext(ShellDockContext);
-  const { isDesktop, width, sidebarWidth } = useResponsiveLayout();
+  const { width, sidebarWidth } = useResponsiveLayout();
+  // Desktop WEB only (wave 6c): the dock is browser chrome. A native window
+  // >= 1024 (an Android tablet) is "desktop" for layout but never gets it.
+  const desktopWeb = useIsDesktopWeb();
 
-  if (!isDesktop || !visible || content == null) return null;
+  if (!desktopWeb || !visible || content == null) return null;
   return (
     <SidePanel
       open={!hidden}
@@ -121,7 +125,8 @@ export function ShellDockHost({ visible = true }: { visible?: boolean }) {
       panelId="shell-dock"
       defaultWidth={options.width}
       // The page's column: the window less the sidebar the shell is showing
-      // (visible === the shell is up). Under 1200 → overlay, not squeeze.
+      // (visible === the shell is up). sidebarWidth is rail-aware (64 on a
+      // canvas route, wave 6c). Under 1200 → overlay, not squeeze.
       containerWidth={width - sidebarWidth}
       // Docked content (a chat, a list) manages its own scroll.
       scroll={false}

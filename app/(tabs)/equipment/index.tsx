@@ -26,6 +26,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
+import { segmentedDesktop, useIsDesktop, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 type FilterType = 'all' | 'available' | 'in_use' | 'maintenance';
 
@@ -110,6 +111,12 @@ export default function EquipmentScreen() {
     setNewDailyRate('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [newName, newType, newCategory, newMake, newModel, newDailyRate, addEquipment]);
+
+  // Desktop (wave 6c): the add sheet is a capped card centred in the content
+  // column; Owned | Rented is a compact segmented pair.
+  const isDesktop = useIsDesktop();
+  const fAdd = useSheetFrame('form', { visible: showAddModal, animationType: 'slide' });
+  useSheetPrimaryHotkey(showAddModal, handleAdd);
 
   if (!canAccess('equipment_rental') || !isProOrAbove) {
     return (
@@ -246,10 +253,10 @@ export default function EquipmentScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
+      <Modal visible={showAddModal} transparent animationType={fAdd.animationType} onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.modalOverlay, fAdd.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fAdd.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Equipment</Text>
                 <TouchableOpacity onPress={() => setShowAddModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -268,13 +275,13 @@ export default function EquipmentScreen() {
 
               <View style={styles.typeRow}>
                 <TouchableOpacity
-                  style={[styles.typeChip, newType === 'owned' && styles.typeChipActive]}
+                  style={[styles.typeChip, isDesktop && segmentedDesktop.segment, newType === 'owned' && styles.typeChipActive]}
                   onPress={() => setNewType('owned')}
                 >
                   <Text style={[styles.typeChipText, newType === 'owned' && styles.typeChipTextActive]}>Owned</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.typeChip, newType === 'rented' && styles.typeChipActive]}
+                  style={[styles.typeChip, isDesktop && segmentedDesktop.segment, newType === 'rented' && styles.typeChipActive]}
                   onPress={() => setNewType('rented')}
                 >
                   <Text style={[styles.typeChipText, newType === 'rented' && styles.typeChipTextActive]}>Rented</Text>

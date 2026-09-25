@@ -110,7 +110,11 @@ for (const abs of files) {
  *  on their own, so a settled null already means "less", never a spinner. */
 const ROLE_USE_EXCEPTIONS: Record<string, string> = {
   'app/job-costing.tsx': 'money blinding — canViewFinancials(null) is false (fails closed), not a gate',
-  'components/ProjectHero.tsx': 'money blinding — canViewFinancials(null) is false (fails closed), not a gate',
+  // wave 6c (integration review r1): the money-blinding read moved out of
+  // components/ProjectHero.tsx into this hook. hooks/ is walked since then
+  // (below), so the old entry could no longer hide a stale excuse.
+  'hooks/useProjectPulse.ts': 'money blinding — canViewFinancials(null) is false (fails closed), not a gate',
+  'hooks/usePunchPinWriter.ts': 'not a gate: drawingPinRemovalFor(null) unlinks a pin, never deletes it (fails closed); the walk screen gates the write through pinWriteBlockedReason',
   'app/daily-report.tsx': 'publish / owner-only controls: dfrPublishAccess reads roleLoading; a settled null is "not the owner", disabled with the stated reason',
   // wave 5 (#53, closeout lane; documented by w5-join-screens): not a gate —
   // it picks which ROW TEXT an owner-only row shows. With no resolved role
@@ -122,9 +126,25 @@ const ROLE_USE_EXCEPTIONS: Record<string, string> = {
 /** Role readers whose settled-null handling is a post-chain handoff. */
 const KNOWN_ROLE_GAPS: Record<string, string> = {
 };
+// Role readers are not only screens: a hook that reads the role on a
+// screen's behalf (useProjectPulse, since wave 6c) is walked too.
+function walkHooks(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walkHooks(p, out);
+    else if (/\.tsx?$/.test(p)) out.push(p);
+  }
+  return out;
+}
+const roleFiles = [...files, ...walkHooks(join(ROOT, 'hooks'))];
+const staleRoleEx = Object.keys(ROLE_USE_EXCEPTIONS).filter(f => {
+  try { return !/useProjectRoleState\(/.test(readFileSync(join(ROOT, f), 'utf8')); } catch { return true; }
+});
+ok('every ROLE_USE_EXCEPTION still reads useProjectRoleState (a moved read takes its excuse with it)',
+  staleRoleEx.length === 0, staleRoleEx.join(', '));
 const noState: string[] = [];
 let checked = 0;
-for (const abs of files) {
+for (const abs of roleFiles) {
   const rel = relative(ROOT, abs);
   const src = readFileSync(abs, 'utf8');
   if (!/useProjectRoleState\(/.test(src) || rel === 'hooks/useProjectRole.ts') continue;

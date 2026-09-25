@@ -249,6 +249,9 @@ export const Layout = {
   segment: { height: 32, minWidth: 88, maxWidth: 200, controlMax: 640, numeric: 56 },
   chip:    { height: 32, maxWidth: 240 },
   field:   { xs: 120, sm: 200, md: 360, lg: 560, search: 480 },
+  // The desktop sidebar: the full rail, and the 64 px icon rail it collapses
+  // to (canvas routes default to it — utils/sidebarRail.ts). Wave 6c.
+  sidebar: { full: 240, rail: 64 },
   tile: {
     action:  { min: 200, maxCols: 6, gap: 10, minHeight: 56 },
     kpi:     { min: 220, maxCols: 4, gap: 12 },

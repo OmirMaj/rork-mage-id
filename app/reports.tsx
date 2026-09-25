@@ -53,6 +53,7 @@ import type { CompanyBranding } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 type Tab = 'wip' | 'profit' | 'aging';
 
@@ -432,8 +433,9 @@ export default function ReportsScreen() {
 function TabBtn({ label, icon: Icon, active, onPress }: { label: string; icon: typeof TrendingUp; active: boolean; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const isDesktop = useIsDesktop();
   return (
-    <TouchableOpacity style={[styles.tabBtn, active && styles.tabBtnActive]} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.tabBtn, isDesktop && segmentedDesktop.segment, active && styles.tabBtnActive]} onPress={onPress} activeOpacity={0.85}>
       <Icon size={14} color={active ? themeColors.accent : themeColors.textMuted} />
       <Text style={[styles.tabBtnText, active && styles.tabBtnTextActive]}>{label}</Text>
     </TouchableOpacity>

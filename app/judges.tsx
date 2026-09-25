@@ -42,13 +42,14 @@ import { PROJECT_TYPES } from '@/types';
 import { projectTypeLabel, projectTypeBlockReason, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
 import type { ProjectType } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import type { WizardAnswers } from '@/utils/scopeQuestions';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { resolveTargetMargin } from '@/utils/judges/targetMargin';
 import { MARKUP_CHOICES, marginOf } from '@/utils/estimateMarkup';
+import { ChipRail, desktopCta, segmentedDesktop } from '@/components/ui';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -358,7 +359,7 @@ function JudgesInner() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.header}>
+        <View style={[styles.header, isDesktop && styles.contentDesktop]}>
           <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
             <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -375,7 +376,7 @@ function JudgesInner() {
           showsVerticalScrollIndicator={false}
         >
           <VerdictCard result={result} marginSource={marginLabel} />
-          <TouchableOpacity style={styles.resetBtn} onPress={handleReset} activeOpacity={0.85}>
+          <TouchableOpacity style={[styles.resetBtn, isDesktop && desktopCta]} onPress={handleReset} activeOpacity={0.85}>
             <Text style={styles.resetBtnText}>Judge another</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -388,7 +389,7 @@ function JudgesInner() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isDesktop && styles.contentDesktop]}>
         <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -400,9 +401,9 @@ function JudgesInner() {
       </View>
 
       {/* Mode toggle */}
-      <View style={styles.modeRow}>
+      <View style={[styles.modeRow, isDesktop && styles.contentDesktop]}>
         <TouchableOpacity
-          style={[styles.modeBtn, mode === 'describe' && styles.modeBtnActive]}
+          style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'describe' && styles.modeBtnActive]}
           onPress={() => { setMode('describe'); setError(null); }}
           activeOpacity={0.8}
         >
@@ -410,7 +411,7 @@ function JudgesInner() {
           <Text style={[styles.modeBtnText, mode === 'describe' && styles.modeBtnTextActive]}>Describe job</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.modeBtn, mode === 'pick' && styles.modeBtnActive]}
+          style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'pick' && styles.modeBtnActive]}
           onPress={() => { setMode('pick'); setError(null); }}
           activeOpacity={0.8}
         >
@@ -447,7 +448,7 @@ function JudgesInner() {
             />
 
             <Text style={styles.sectionTitle}>Project type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+            <ChipRail contentContainerStyle={styles.chipsRow}>
               {PROJECT_TYPES.map(pt => (
                 <TouchableOpacity
                   key={pt.id}
@@ -458,7 +459,7 @@ function JudgesInner() {
                   <Text style={[styles.chipText, projectType === pt.id && styles.chipTextActive]}>{pt.id === 'other' ? 'Other (describe it)' : pt.label}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </ChipRail>
             {projectType === 'other' ? (
               <>
                 <Text style={styles.fieldLabel}>Describe the job</Text>
@@ -479,7 +480,7 @@ function JudgesInner() {
               <View style={styles.compactCol}>
                 <Text style={styles.fieldLabel}>Size (sqft)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isDesktop && styles.inputXsDesktop]}
                   value={sizeSqft}
                   onChangeText={setSizeSqft}
                   placeholder="e.g. 250"
@@ -491,7 +492,7 @@ function JudgesInner() {
               <View style={styles.compactCol}>
                 <Text style={styles.fieldLabel}>Timeline (weeks)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isDesktop && styles.inputXsDesktop]}
                   value={timelineWeeks}
                   onChangeText={setTimelineWeeks}
                   placeholder="e.g. 8"
@@ -521,7 +522,7 @@ function JudgesInner() {
             {markupRow}
 
             <TouchableOpacity
-              style={[styles.judgeBtn, (!scope.trim() || loading || markupUnset || !!typeBlock) && styles.judgeBtnDisabled]}
+              style={[styles.judgeBtn, isDesktop && desktopCta, (!scope.trim() || loading || markupUnset || !!typeBlock) && styles.judgeBtnDisabled]}
               onPress={handleDescribeJudge}
               disabled={!scope.trim() || loading || markupUnset || !!typeBlock}
               activeOpacity={0.85}
@@ -700,5 +701,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 12, alignItems: 'center' as const,
   },
   resetBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.accent },
-  contentDesktop: { width: '100%', maxWidth: 1200, alignSelf: 'center' as const },
+  // The form column (760): header, mode toggle and content share one left edge.
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' as const },
+  inputXsDesktop: { maxWidth: Layout.field.xs },
 });

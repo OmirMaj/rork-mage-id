@@ -46,7 +46,7 @@ import Paywall from '@/components/Paywall';
 import SignaturePad from '@/components/SignaturePad';
 import EmptyState from '@/components/EmptyState';
 import { Button } from '@/components/ui/Button';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
 import { generateUUID } from '@/utils/generateId';
@@ -703,7 +703,7 @@ export default function FieldTicketScreen() {
         projectName={project.name}
         requiredTier={requiredTierFor('change_orders_invoicing')}
         onRetry={refetchProjectRole}
-        onClose={() => (paramProjectId ? router.back() : setPickedProjectId(null))}
+        onClose={() => { if (Platform.OS === 'web' && pickedProjectId != null) { setPickedProjectId(null); router.setParams({ projectId: undefined }); return; } if (paramProjectId) router.back(); else setPickedProjectId(null); }}
       />
     );
   }
@@ -1295,7 +1295,10 @@ export default function FieldTicketScreen() {
           </ScrollView>
 
           {/* Sticky bottom bar — total + the one action that matters */}
-          <View style={[styles.stickyBar, { paddingBottom: insets.bottom + 10 }]}>
+          <View
+            style={[styles.stickyBar, { paddingBottom: insets.bottom + 10 }]}
+            {...(Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
+          >
             <View style={styles.stickyTotals}>
               <Text style={styles.stickyTotalValue}>{money(draftTotals.billableTotal)}</Text>
               <Text style={styles.stickyTotalLabel} numberOfLines={1}>
@@ -1604,11 +1607,13 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
     () => fieldTicketPriceChanges(ticket, { labor, materials, equipment: equipRows }).length,
     [ticket, labor, materials, equipRows],
   );
+  const fPrice = useSheetFrame('form', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible && changeCount > 0, () => onApply({ labor, materials, equipment: equipRows }));
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 10 }]}>
+    <Modal visible={visible} animationType={fPrice.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, fPrice.overlay]}>
+        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 10 }, fPrice.card]}>
           <Text style={styles.modalTitle}>Price this ticket</Text>
           <Text style={styles.modalAttest}>
             {ticket.authorization?.name ?? 'The signer'} signed for the hours and quantities below.
@@ -1780,11 +1785,14 @@ function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
   }, [visible]);
 
   const ready = name.trim().length > 0 && paths.length > 0;
+  const fSign = useSheetFrame('wide', { visible, animationType: 'slide' });
+  // Records a signature: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
+  useSheetPrimaryHotkey(visible && ready && !busy, () => onSign(name, title, role, paths), { saveKey: false });
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+    <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, fSign.overlay]}>
+        <View style={[styles.modalCard, fSign.card]}>
           {/* Only the WHO half scrolls. The signature pad drives its own
               PanResponder, and nesting that inside a ScrollView makes the two
               fight over the gesture — the drag either scrolls the sheet or

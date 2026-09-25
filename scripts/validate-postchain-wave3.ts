@@ -85,7 +85,7 @@ console.log('\n#65 WIP prices overtime by the GC\'s rule, never the stored per-s
     /const ot = computeOvertime\(timeEntries, overtimeRule\);/.test(src)
     && /priceLaborEntry\(\{ totalHours: e\.totalHours, overtimeHours: overtimeFor\(ot, e\.id\) \}, rate, overtimeMultiplier\)/.test(src)
     && !/priceLaborEntry\(e, rate, overtimeMultiplier\)/.test(src));
-  for (const f of ['app/ask.tsx', 'app/reports.tsx', 'app/margin-alerts.tsx', 'app/judges.tsx', 'app/wip-report.tsx', 'app/portfolio-margin.tsx', 'app/budget-dashboard.tsx', 'app/client-portal-setup.tsx', 'app/margin-risk.tsx', 'components/ProjectHero.tsx']) {
+  for (const f of ['app/ask.tsx', 'app/reports.tsx', 'app/margin-alerts.tsx', 'app/judges.tsx', 'app/wip-report.tsx', 'app/portfolio-margin.tsx', 'app/budget-dashboard.tsx', 'app/client-portal-setup.tsx', 'app/margin-risk.tsx', 'hooks/useProjectPulse.ts']) {
     const s = read(f);
     ok(`${f} hands the GC's rule to its cost sources`, /overtimeMultiplier, overtimeRule(, isLoading: ratesLoading)? \} = useLaborRates\(\)/.test(s) && (s.match(/overtimeMultiplier, overtimeRule, equipment/g) ?? []).length >= 2);
   }

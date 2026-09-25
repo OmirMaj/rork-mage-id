@@ -29,7 +29,7 @@ import {
   type PlanSharePayload,
 } from '../utils/planShareToken';
 import { zoneStateAsOf } from '../utils/planZoneStatus';
-import { DESKTOP_SHELL_EXEMPT } from '../utils/desktopPage';
+import { DESKTOP_SHELL_EXEMPT, frameKindForRoute, pageTypeForRoute } from '../utils/desktopPage';
 import type { PlanSheet, PlanZone, ScheduleTask, DrawingPin, ProjectPhoto } from '../types';
 
 let pass = 0, fail = 0;
@@ -417,9 +417,19 @@ console.log('\nplan share — route wiring:');
   // that the layout still consults it.
   ok('/shared-plan is exempt from the desktop nav shell (no account, no nav)',
     DESKTOP_SHELL_EXEMPT.has('shared-plan'));
-  ok('app/_layout.tsx still gates the shell on DESKTOP_SHELL_EXEMPT',
-    /import\s*\{[^}]*\bDESKTOP_SHELL_EXEMPT\b[^}]*\}\s*from\s*'@\/utils\/desktopPage'/.test(layout)
-      && /DESKTOP_SHELL_EXEMPT\.has\(/.test(layout));
+  ok('app/_layout.tsx still gates the shell on DESKTOP_SHELL_EXEMPT', layoutGatesOnExempt(layout));
+  // Wave 6c: the viewer paints its own full-bleed page — the shell's page
+  // frame must not wrap it (no DesktopPageFrame cap, no frame kind).
+  ok("/shared-plan is a 'bleed' page", pageTypeForRoute('shared-plan') === 'bleed');
+  ok('/shared-plan gets no desktop page frame', frameKindForRoute('shared-plan') === null);
+}
+
+/** The layout imports DESKTOP_SHELL_EXEMPT from utils/desktopPage and calls
+ *  .has() on it — in CODE, not in a comment (both are stripped first). */
+function layoutGatesOnExempt(src: string): boolean {
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  return /import\s*\{[^}]*\bDESKTOP_SHELL_EXEMPT\b[^}]*\}\s*from\s*'@\/utils\/desktopPage'/.test(code)
+    && /DESKTOP_SHELL_EXEMPT\.has\(/.test(code);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -428,6 +438,18 @@ console.log('\nplan share — route wiring:');
 // Feed each one something poisoned and require it to FAIL.
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\nplan share — NEGATIVE (the scanners must still bite):');
+{
+  const poisoned = [
+    "import { useResponsiveLayout } from '@/utils/useResponsiveLayout';",
+    "// import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';",
+    '/* the shell used to check DESKTOP_SHELL_EXEMPT.has(top) here */',
+    'const showDesktopShell = shellEligible;',
+  ].join('\n');
+  ok('NEGATIVE: a layout that names DESKTOP_SHELL_EXEMPT only in comments does NOT pass the shell-gate check',
+    !layoutGatesOnExempt(poisoned));
+  ok('NEGATIVE control: the same lines uncommented DO pass',
+    layoutGatesOnExempt("import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';\nconst x = DESKTOP_SHELL_EXEMPT.has(top);"));
+}
 {
   const poisoned = { ...payload, tasks: [{ id: 't', ph: 'Framing', s: 1, d: 2, unitCost: 118.4 }] };
   ok('NEGATIVE: key scanner catches a cost smuggled onto a task',

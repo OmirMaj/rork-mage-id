@@ -39,6 +39,7 @@ import {
 import type { DeliveryReceipt } from '@/utils/deliverySchedule';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 /** Today as YYYY-MM-DD in LOCAL time — toISOString() would roll the date over
  *  in the evening for anyone west of UTC. */
@@ -138,6 +139,7 @@ export default function DeliveriesScreen() {
     });
     setReceiving(null);
   }, [addDeliveryReceipt, updateDelivery]);
+  const isDesktop = useIsDesktop();
 
   if (!project) {
     return (
@@ -216,7 +218,7 @@ export default function DeliveriesScreen() {
             <TouchableOpacity
               key={d}
               onPress={() => setHorizon(d)}
-              style={[styles.horizonChip, horizon === d && styles.horizonChipOn]}
+              style={[styles.horizonChip, isDesktop && segmentedDesktop.segment, horizon === d && styles.horizonChipOn]}
               accessibilityRole="button"
               testID={`deliveries-horizon-${d}`}
             >

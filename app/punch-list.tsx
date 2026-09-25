@@ -44,7 +44,7 @@ import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface, Button, EyebrowLabel } from '@/components/ui';
+import { cardSurface, Button, EyebrowLabel, segmentedDesktop, useIsDesktop, useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 // Pin items (after the photo), Pin first (before it) and the edit sheet's pin
 // controls — founder, 2026-09-18: "pin the location of each item before and
 // after taking photos". The decisions are pure (utils/punchPinQueue); every
@@ -2309,6 +2309,20 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     [exportProjectName, exportHeaderRight],
   );
 
+  // Desktop sheets (wave 6c): capped cards centred in the content column.
+  const isDesktop = useIsDesktop();
+  const fWalk = useSheetFrame('form', { visible: showWalk, animationType: 'slide' });
+  useSheetPrimaryHotkey(showWalk && describedWalkShots.length > 0, () => fileWalkShots());
+  useSheetDialogScope(showForm);
+  const fTaskPick = useSheetFrame('dialog', { visible: showTaskPicker, animationType: 'fade' });
+  const fReject = useSheetFrame('dialog', { visible: showRejectModal !== null, animationType: 'fade' });
+  useSheetPrimaryHotkey(showRejectModal !== null, () => { if (showRejectModal) handleReject(showRejectModal); });
+  useSheetDialogScope(viewerItem !== null);
+  const fTemplates = useSheetFrame('form', { visible: showTemplates, animationType: 'slide' });
+  const fFilter = useSheetFrame('form', { visible: showFilterDrawer, animationType: 'slide' });
+  const fBulkSub = useSheetFrame('dialog', { visible: showBulkSubPicker, animationType: 'slide' });
+  const fBulkStatus = useSheetFrame('dialog', { visible: showBulkStatusPicker, animationType: 'slide' });
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -2372,7 +2386,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           The first thing on the screen, because it decides what every number
           below it means. Each side carries its open count so he can see the
           other list has work without switching to it. */}
-      <View style={styles.listSwitch} accessibilityRole="tablist">
+      <View style={[styles.listSwitch, isDesktop && segmentedDesktop.container]} accessibilityRole="tablist">
         {(['punch', 'crew'] as const).map(list => {
           const on = activeList === list;
           const stats = list === 'punch' ? punchStats : crewStats;
@@ -2381,6 +2395,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               key={list}
               style={[
                 styles.listSwitchSeg,
+                isDesktop && segmentedDesktop.segment,
                 on && (list === 'punch' ? styles.listSwitchSegPunchOn : styles.listSwitchSegCrewOn),
               ]}
               onPress={() => chooseList(list)}
@@ -3312,10 +3327,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           decisions, and asking for them here is what turns a five-minute walk
           back into an hour. Every item files as open / medium and gets sorted
           later from the list. */}
-      <Modal visible={showWalk} transparent animationType="slide" onRequestClose={() => setShowWalk(false)}>
+      <Modal visible={showWalk} transparent animationType={fWalk.animationType} onRequestClose={() => setShowWalk(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }]}>
+          <View style={[styles.modalOverlay, fWalk.overlay]}>
+            <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fWalk.card]}>
               <View style={styles.formHeader}>
                 <Text style={styles.formTitle}>Photo walk</Text>
                 <TouchableOpacity onPress={() => setShowWalk(false)} accessibilityRole="button" accessibilityLabel="Close photo walk" testID="close-photo-walk">
@@ -3492,9 +3507,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         />
       </Modal>
 
-      <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
-        <View style={styles.rejectOverlay}>
-          <View style={[styles.rejectCard, { maxHeight: '70%' as const }]}>
+      <Modal visible={showTaskPicker} transparent animationType={fTaskPick.animationType} onRequestClose={() => setShowTaskPicker(false)}>
+        <View style={[styles.rejectOverlay, fTaskPick.overlay]}>
+          <View style={[styles.rejectCard, { maxHeight: '70%' as const }, fTaskPick.card]}>
             <View style={styles.formHeader}>
               <Text style={styles.rejectTitle}>Link to Task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3521,9 +3536,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         </View>
       </Modal>
 
-      <Modal visible={showRejectModal !== null} transparent animationType="fade" onRequestClose={() => setShowRejectModal(null)}>
-        <View style={styles.rejectOverlay}>
-          <View style={styles.rejectCard}>
+      <Modal visible={showRejectModal !== null} transparent animationType={fReject.animationType} onRequestClose={() => setShowRejectModal(null)}>
+        <View style={[styles.rejectOverlay, fReject.overlay]}>
+          <View style={[styles.rejectCard, fReject.card]}>
             <Text style={styles.rejectTitle}>Reject Item</Text>
             <Text style={styles.rejectDesc}>Provide a reason for rejection:</Text>
             <TextInput
@@ -3604,9 +3619,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           list. We don't show item-level previews here because the
           contextual notes are short and the GC will see them all
           on the punch row regardless. */}
-      <Modal visible={showTemplates} transparent animationType="slide" onRequestClose={() => setShowTemplates(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '85%' }]}>
+      <Modal visible={showTemplates} transparent animationType={fTemplates.animationType} onRequestClose={() => setShowTemplates(false)}>
+        <View style={[styles.modalOverlay, fTemplates.overlay]}>
+          <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '85%' }, fTemplates.card]}>
             <View style={styles.formHeader}>
               <Text style={styles.formTitle}>Apply trade template</Text>
               <TouchableOpacity onPress={() => setShowTemplates(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3659,9 +3674,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {/* More-filters drawer — adds sub / priority / location to the
           status filter chips above. Drawn live from items so it picks
           up new subs without code changes. */}
-      <Modal visible={showFilterDrawer} transparent animationType="slide" onRequestClose={() => setShowFilterDrawer(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxHeight: '80%' as const }]}>
+      <Modal visible={showFilterDrawer} transparent animationType={fFilter.animationType} onRequestClose={() => setShowFilterDrawer(false)}>
+        <View style={[styles.modalOverlay, fFilter.overlay]}>
+          <View style={[styles.modalCard, { maxHeight: '80%' as const }, fFilter.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
               <TouchableOpacity onPress={() => setShowFilterDrawer(false)} style={{ padding: 4 }}>
@@ -3806,9 +3821,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           with no sub record), and the update writes a missing id as NULL
           (assigned_sub_id is a nullable TEXT column), so a reassigned item
           never keeps the previous sub's id. */}
-      <Modal visible={showBulkSubPicker} transparent animationType="slide" onRequestClose={() => setShowBulkSubPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxHeight: '80%' as const, paddingBottom: insets.bottom + 20 }]}>
+      <Modal visible={showBulkSubPicker} transparent animationType={fBulkSub.animationType} onRequestClose={() => setShowBulkSubPicker(false)}>
+        <View style={[styles.modalOverlay, fBulkSub.overlay]}>
+          <View style={[styles.modalCard, { maxHeight: '80%' as const, paddingBottom: insets.bottom + 20 }, fBulkSub.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Assign {selectedCount} item{selectedCount === 1 ? '' : 's'}</Text>
               <TouchableOpacity onPress={() => setShowBulkSubPicker(false)} style={{ padding: 4 }} accessibilityRole="button" accessibilityLabel="Close">
@@ -3859,9 +3874,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       </Modal>
 
       {/* ── Bulk: set status ─────────────────────────────────────────────── */}
-      <Modal visible={showBulkStatusPicker} transparent animationType="slide" onRequestClose={() => setShowBulkStatusPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+      <Modal visible={showBulkStatusPicker} transparent animationType={fBulkStatus.animationType} onRequestClose={() => setShowBulkStatusPicker(false)}>
+        <View style={[styles.modalOverlay, fBulkStatus.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fBulkStatus.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Move {selectedCount} item{selectedCount === 1 ? '' : 's'} to</Text>
               <TouchableOpacity onPress={() => setShowBulkStatusPicker(false)} style={{ padding: 4 }} accessibilityRole="button" accessibilityLabel="Close">

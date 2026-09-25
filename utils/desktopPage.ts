@@ -127,7 +127,7 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   // ── Self-capped screens (SELF_CAPPED_ROUTES): the frame passes them
   // through; the kind is the Layout token wave 6c swaps their literal for.
   'project-detail': 'dashboard', 'invoice': 'dashboard', 'change-order': 'dashboard',
-  'daily-report': 'dashboard', 'judges': 'dashboard', 'brief': 'dashboard',
+  'daily-report': 'dashboard', 'judges': 'form', 'brief': 'dashboard',
   'estimate-wizard': 'form', 'schedule-wizard': 'form', 'schedule-review': 'form',
   'cost-seed': 'form', 'widget-setup': 'form',
   'safety': 'dashboard', 'safety-certifications': 'dashboard', 'safety-forms': 'dashboard',
@@ -143,8 +143,10 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   // ── dashboard 1280 — lists, reports, hubs.
   // cost-xray and scan got the sidebar back in wave 6b; the audit asked for a
   // 1200 cap and dashboard (1280) is the nearest token, so one width source
-  // holds.
-  'cost-xray': 'dashboard', 'scan': 'dashboard', 'safety-jha': 'dashboard',
+  // holds. Wave 6c: scan (like judges) is a one-column flow — 'form' (lane H
+  // caps its content); cost-xray stays a dashboard.
+  'scan': 'form',
+  'cost-xray': 'dashboard', 'safety-jha': 'dashboard',
   'construction-news': 'dashboard',
   'activity-feed': 'dashboard', 'ai-punch': 'dashboard', 'bill-from-estimate': 'dashboard',
   'building-access': 'dashboard', 'buyout': 'dashboard', 'buyout-scope-gap': 'dashboard',

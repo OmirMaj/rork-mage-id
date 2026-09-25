@@ -33,6 +33,7 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 type Mode = 'paste' | 'contacts';
 
@@ -110,6 +111,8 @@ export default function ImportPipelineScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [contacts, addLead]);
 
+  const isDesktop = useIsDesktop();
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -127,14 +130,14 @@ export default function ImportPipelineScreen() {
       {/* Mode toggle */}
       <View style={styles.segmentRow}>
         <TouchableOpacity
-          style={[styles.segment, mode === 'paste' && styles.segmentActive]}
+          style={[styles.segment, isDesktop && segmentedDesktop.segment, mode === 'paste' && styles.segmentActive]}
           onPress={() => { setMode('paste'); setReviewing(false); }}
         >
           <ClipboardPaste size={14} color={mode === 'paste' ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.segmentText, mode === 'paste' && styles.segmentTextActive]}>Paste list</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.segment, mode === 'contacts' && styles.segmentActive]}
+          style={[styles.segment, isDesktop && segmentedDesktop.segment, mode === 'contacts' && styles.segmentActive]}
           onPress={() => { setMode('contacts'); setReviewing(false); }}
         >
           <Users size={14} color={mode === 'contacts' ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />

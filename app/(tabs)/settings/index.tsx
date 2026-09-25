@@ -1256,6 +1256,10 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Contractor-only (wave 6c, phase-0 D2): a property manager has no
+            estimates, PDFs, cost book or supplier listing to set up. A persona
+            gate, not a desktop one — contractor, client and 'both' unchanged. */}
+        {userRole !== 'property_manager' && (<>
         <Text style={styles.sectionHeader}>ESTIMATE DEFAULTS</Text>
         <Text style={styles.sectionSubtext}>
           Sales tax is applied to invoices and change orders. Contingency is added to every AI estimate at this percentage of the line items.
@@ -1328,11 +1332,13 @@ export default function SettingsScreen() {
           <Text style={styles.howYouGetPaidText}>{howYouGetPaidLabel}</Text>
         </TouchableOpacity>
 
+        </>)}
         {/* COMPANY BRANDING / LOGO / SIGNATURE moved to /company-profile.
             Settings now points at it via the tappable profile hero at
             the top of this screen. Shorter Settings + a focused place
             to manage everything that lands on the GC's PDFs. */}
 
+        {userRole !== 'property_manager' && (<>
         <Text style={styles.sectionHeader}>PDF NAMING</Text>
         <Text style={styles.sectionSubtext}>
           Automatically name all PDFs with a custom format and sequential numbering.
@@ -1517,6 +1523,7 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
+        </>)}
         <Text style={styles.sectionHeader}>APP THEME</Text>
         {/* The last sentence is honest, and temporary: 64 chrome sites across
             56 files still paint the brand hex directly (header tints, some
@@ -1760,6 +1767,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {userRole !== 'property_manager' && (<>
         {/* YOUR COSTS — the cold-start path. MAGE's whole pitch is "it learns
             your real costs", but it only learns from jobs closed here, so a
             veteran's day-one estimate was a beginner's. Seeding lets them bring
@@ -1799,6 +1807,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </>)}
         <Text style={styles.sectionHeader}>CONTACTS & EMAIL</Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1896,6 +1905,7 @@ export default function SettingsScreen() {
           </>
         )}
 
+        {userRole !== 'property_manager' && (<>
         <Text style={styles.sectionHeader}>SUPPLIER MARKETPLACE</Text>
         <Text style={styles.sectionSubtext}>
           Register as a supplier to list your materials on the MAGE ID Marketplace and sell directly to contractors.
@@ -1950,6 +1960,7 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        </>)}
         <Text style={styles.sectionHeader}>SUBSCRIPTION PLAN</Text>
         <Text style={styles.sectionSubtext}>
           {tier === 'free'

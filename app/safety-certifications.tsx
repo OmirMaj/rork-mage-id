@@ -31,6 +31,7 @@ import { edgeErrorCode } from '@/utils/edgeError';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 // Quick-pick common certification types. Free text is still allowed.
 const TYPE_QUICKPICKS = ['OSHA 10', 'OSHA 30', 'SST', 'CPR', 'First Aid'];
@@ -333,6 +334,11 @@ function SafetyCertificationsInner() {
     { key: 'valid', label: 'Valid' },
   ];
 
+  // Desktop sheet (wave 6c): the form opens as a capped card centred in the
+  // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
+  const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
+  useSheetPrimaryHotkey(showForm, handleSave);
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'Certifications' }} />
@@ -428,11 +434,11 @@ function SafetyCertificationsInner() {
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); resetForm(); }}>
+      <Modal visible={showForm} transparent animationType={fForm.animationType} onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }]}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
                   <Text style={styles.formTitle}>{editing ? 'Edit Certification' : 'New Certification'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">

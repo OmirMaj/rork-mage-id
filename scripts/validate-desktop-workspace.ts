@@ -105,6 +105,7 @@ import {
   parseCombo,
   passesTypingGuard,
   stepMatches,
+  targetWithin,
   type KeyLike,
 } from '../hooks/useHotkeys';
 import { isAppStorageKey } from '../utils/localCacheKeys';
@@ -449,6 +450,64 @@ ok('typing guard: plain key blocked in a field; Esc and Cmd chords pass; blockIn
   reg.handle(key('k', { metaKey: true }));
   ok('after the dialog closes, global keys work again', eq(log, ['dialog-esc', 'palette']));
 
+  // ── Wave 6c (X0.6): a HANDLER-LESS dialog entry is still a dialog. Every
+  // open sheet registers exactly that (components/ui/Sheet
+  // SHEET_DIALOG_BINDINGS: Esc with no handler — RN-web's Modal does the
+  // closing). The WS1 mutant (hasDialog counts only entries WITH a handler)
+  // let the page's j and the record's Esc fire behind every open sheet.
+  for (const [name, dialogEsc] of [
+    ['(a) handler-less', { combo: 'escape' }],
+    ['(b) handler-less AND disabled', { combo: 'escape', enabled: false }],
+  ] as const) {
+    const r = createHotkeyRegistry();
+    let page = 0; let global = 0;
+    r.register('page', { combo: 'j', handler: () => { page++; } });
+    r.register('global', { combo: 'escape', handler: () => { global++; } });
+    r.register('page', { combo: 'escape', handler: () => { page++; } });
+    r.register('dialog', dialogEsc);
+    const esc = key('Escape');
+    const fired = [r.handle(key('j')), r.handle(esc)];
+    ok(`${name} dialog Esc is still EXCLUSIVE: j and Esc fire nothing behind it`,
+      page === 0 && global === 0 && fired.every((f) => f === false) && !esc.prevented, `page ${page}, global ${global}`);
+  }
+  {
+    // (c) Cmd+S under an open sheet with no primary: the dialog's noop
+    // consumes it (one preventDefault — no "Save page as…"), the page save
+    // behind the dialog never runs.
+    const r = createHotkeyRegistry();
+    let saves = 0; let prevented = 0;
+    r.register('page', { combo: 'mod+s', handler: () => { saves++; } });
+    r.register('dialog', { combo: 'escape' });
+    r.register('dialog', { combo: 'mod+s', handler: () => {} });
+    const ev = { key: 's', metaKey: true, preventDefault: () => { prevented++; } } as KeyLike;
+    ok('(c) Cmd+S in a dialog with no primary: consumed once, the page save runs 0 times',
+      r.handle(ev) === true && prevented === 1 && saves === 0, `prevented ${prevented}, saves ${saves}`);
+    // …and a sheet WITH a primary outranks the noop (priority 1).
+    let primary = 0;
+    r.register('dialog', { combo: 'mod+s', priority: 1, handler: () => { primary++; } });
+    r.handle(key('s', { metaKey: true }));
+    ok('(c2) a sheet primary (priority 1) outranks the dialog Cmd+S noop', primary === 1 && saves === 0);
+  }
+  {
+    // (d) `when` (wave 6c): the shell dock's GLOBAL Esc skips an Esc typed in
+    // a page field — the page's own Esc (or nothing) gets it — but still fires
+    // for an Esc typed in the dock's own field.
+    const r = createHotkeyRegistry();
+    let dock = 0;
+    const DOCK_FIELD = { tagName: 'INPUT', type: 'text', closest: (sel: string) => (sel === '#shell-dock' ? {} : null) };
+    r.register('global', {
+      combo: 'escape', handler: () => { dock++; },
+      when: (ev) => !isTypingTarget(ev.target) || targetWithin(ev.target, 'shell-dock'),
+    });
+    const inPageField = key('Escape', { target: { tagName: 'INPUT', type: 'text', closest: () => null } });
+    ok('(d) when: an Esc typed in a PAGE field leaves the dock open (not fired, not prevented)',
+      r.handle(inPageField) === false && dock === 0 && !inPageField.prevented);
+    ok('(d) when: an Esc typed in the dock\'s own field closes it', r.handle(key('Escape', { target: DOCK_FIELD })) === true && dock === 1);
+    ok('(d) when: an Esc outside any field closes it', r.handle(key('Escape', { target: { tagName: 'DIV' } })) === true && dock === 2);
+    ok('targetWithin: only a DOM-like target with a matching closest()',
+      targetWithin(DOCK_FIELD, 'shell-dock') && !targetWithin(DOCK_FIELD, 'other') && !targetWithin(null, 'x') && !targetWithin({ tagName: 'DIV' }, 'x'));
+  }
+
   log.length = 0;
   const ev = key('j', { target: INPUT });
   reg.register('page', { combo: 'j', handler: () => log.push('j') });
@@ -605,6 +664,30 @@ ok('useIsScreenFocused: NavigationContext (never useIsFocused, which throws outs
   && /focusSnapshot\(nav\)/.test(hk) && !/useIsFocused\(/.test(hk));
 ok('useHotkeys: no react-native import (bun-executable, and a no-op without a DOM)', !/from 'react-native'/.test(hk) && /typeof g\.document === 'undefined'/.test(hk));
 ok('usePrimaryAction binds Cmd+Enter AND Cmd+S, and explains a blocked action', /combo: 'mod\+enter'/.test(hk) && /combo: 'mod\+s'/.test(hk) && /explainBlocked\(/.test(hk));
+ok('useHotkeys: `when` is forwarded through the ref and recorded in the signature',
+  /when: b\.when \? \(ev\) => ref\.current\[i\]\?\.when\?\.\(ev\)/.test(hk) && /\|\$\{b\.when \? 1 : 0\}/.test(hk)
+  && (hk.match(/if \(e\.binding\.when && !e\.binding\.when\(ev\)\) continue;/g) ?? []).length === 3);
+
+// ── Wave 6c (X0.6 §E): the dialog wiring the registry tests above assume.
+{
+  const sheet = strip(read('components/ui/Sheet.tsx'));
+  const bindings = /const SHEET_DIALOG_BINDINGS[^=]*=\s*\[([\s\S]*?)\];/.exec(sheet)?.[1] ?? '';
+  ok('Sheet: SHEET_DIALOG_BINDINGS = a handler-less Esc + a Cmd+S noop',
+    /\{\s*combo:\s*'escape'\s*\}/.test(bindings) && /\{\s*combo:\s*'mod\+s',\s*handler:\s*NOOP\s*\}/.test(bindings), bindings);
+  const primary = sheet.slice(sheet.indexOf('export function useSheetPrimaryHotkey'));
+  const primaryBody = primary.slice(0, primary.indexOf('\n}\n') + 2);
+  ok("Sheet: useSheetPrimaryHotkey binds 'mod+enter' AND 'mod+s' at priority 1 in scope 'dialog'",
+    /\{\s*combo:\s*'mod\+enter',[^}]*priority:\s*1\s*\}/.test(primaryBody)
+    && /\{\s*combo:\s*'mod\+s',[^}]*priority:\s*1\s*\}/.test(primaryBody)
+    && /scope:\s*'dialog'/.test(primaryBody), primaryBody.slice(0, 300));
+  const frameFn = sheet.slice(sheet.indexOf('export function useSheetFrame('), sheet.indexOf('export function SheetOverlay'));
+  ok('Sheet: useSheetFrame claims the dialog scope while visible === true',
+    /useSheetDialogScope\(opts\.visible === true\);/.test(frameFn) && frameFn.indexOf('useSheetDialogScope(') < frameFn.indexOf('if (!isDesktop)'));
+  const alertHost = strip(read('components/AlertHost.tsx'));
+  const scopeAt = alertHost.indexOf('useSheetDialogScope(current !== null)');
+  ok('AlertHost: an open alert is a dialog — useSheetDialogScope before the early return',
+    scopeAt > 0 && scopeAt < alertHost.indexOf('if (!current) return null'));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -47,6 +47,7 @@ import { showAlert } from '@/utils/alert';
 import {
   aiLimitAlertTitle, crewEmptyTitle, crewListNote, safetyAiBlockedReason, safetyAiServerRefusal,
 } from '@/utils/safety/safetyRefresh';
+import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
 
 const SCALE_OPTIONS: HazardScale[] = [1, 2, 3, 4, 5];
 
@@ -378,6 +379,11 @@ function SafetyHazardsInner() {
   const previewScore = computeRiskScore(severity, likelihood);
   const previewBand = riskBand(previewScore);
 
+  // Desktop sheet (wave 6c): the form opens as a capped card centred in the
+  // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
+  const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
+  useSheetPrimaryHotkey(showForm, handleSave);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -562,11 +568,11 @@ function SafetyHazardsInner() {
       </ScrollView>
 
       {/* Hazard form — slide-up section modal */}
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); resetForm(); }}>
+      <Modal visible={showForm} transparent animationType={fForm.animationType} onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fForm.card]}>
                 <View style={styles.formHeader}>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
@@ -633,7 +639,7 @@ function SafetyHazardsInner() {
                   {SCALE_OPTIONS.map(n => (
                     <TouchableOpacity
                       key={n}
-                      style={[styles.segBtn, severity === n ? styles.segBtnActive : null]}
+                      style={[styles.segBtn, isDesktop && segmentedDesktop.numericSegment, severity === n ? styles.segBtnActive : null]}
                       onPress={() => setSeverity(n)}
                     >
                       <Text style={[styles.segText, severity === n ? styles.segTextActive : null]}>{n}</Text>
@@ -646,7 +652,7 @@ function SafetyHazardsInner() {
                   {SCALE_OPTIONS.map(n => (
                     <TouchableOpacity
                       key={n}
-                      style={[styles.segBtn, likelihood === n ? styles.segBtnActive : null]}
+                      style={[styles.segBtn, isDesktop && segmentedDesktop.numericSegment, likelihood === n ? styles.segBtnActive : null]}
                       onPress={() => setLikelihood(n)}
                     >
                       <Text style={[styles.segText, likelihood === n ? styles.segTextActive : null]}>{n}</Text>
@@ -688,7 +694,7 @@ function SafetyHazardsInner() {
                       {(['open', 'mitigated', 'closed'] as HazardStatus[]).map(s => (
                         <TouchableOpacity
                           key={s}
-                          style={[styles.segBtn, status === s ? styles.segBtnActive : null]}
+                          style={[styles.segBtn, isDesktop && segmentedDesktop.segment, status === s ? styles.segBtnActive : null]}
                           onPress={() => setStatus(s)}
                         >
                           <Text style={[styles.segText, status === s ? styles.segTextActive : null]}>{getStatusConfig(themeColors, s).label}</Text>

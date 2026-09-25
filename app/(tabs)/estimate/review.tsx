@@ -24,7 +24,7 @@ import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import { PROFILE_FAILED_TITLE } from '@/utils/settingsLoadGuard';
 import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, segmentedDesktop } from '@/components/ui';
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
 import { buildShareUrl } from '@/utils/webAppOrigin';
 import type { LinkedEstimate, PaymentSplit } from '@/types';
@@ -338,12 +338,12 @@ export default function EstimateReviewScreen() {
           </View>
         ) : (
           <>
-            <View style={styles.toggle}>
+            <View style={[styles.toggle, isDesktop && segmentedDesktop.container]}>
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel="Contractor view"
                 aria-selected={mode === 'contractor'}
-                style={[styles.seg, mode === 'contractor' && styles.segOn]}
+                style={[styles.seg, isDesktop && segmentedDesktop.segment, mode === 'contractor' && styles.segOn]}
                 onPress={() => switchMode('contractor')}
                 activeOpacity={0.8}
                 testID="review-mode-contractor"
@@ -354,7 +354,7 @@ export default function EstimateReviewScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Client view"
                 aria-selected={mode === 'client'}
-                style={[styles.seg, mode === 'client' && styles.segOn]}
+                style={[styles.seg, isDesktop && segmentedDesktop.segment, mode === 'client' && styles.segOn]}
                 onPress={() => switchMode('client')}
                 activeOpacity={0.8}
                 testID="review-mode-client"

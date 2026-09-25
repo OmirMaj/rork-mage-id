@@ -102,6 +102,7 @@ import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { neutralInk, labelOn } from '@/components/ui/ink';
+import { segmentedDesktop, useIsDesktop, useSheetFrame } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
 import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import PlanPinStep from '@/components/punch/PlanPinStep';
@@ -999,6 +1000,13 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
     : draft.locationOrigin === 'gps' ? 'From photo GPS'
     : 'Location';
 
+  // Desktop sheets (wave 6c). The punch.modalUp sentinel below still lists
+  // exactly these three flags; nothing here adds a Modal.
+  const isDesktop = useIsDesktop();
+  const fTrade = useSheetFrame('dialog', { visible: showTradeOverride, animationType: 'slide' });
+  const fSub = useSheetFrame('dialog', { visible: showSubPicker, animationType: 'slide' });
+  const fRooms = useSheetFrame('form', { visible: showAllLocations, animationType: 'slide' });
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -1065,7 +1073,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 return (
                   <TouchableOpacity
                     key={l}
-                    style={[styles.listSeg, active && { backgroundColor: fill }]}
+                    style={[styles.listSeg, isDesktop && segmentedDesktop.segment, active && { backgroundColor: fill }]}
                     onPress={() => handlePickList(l)}
                     activeOpacity={0.85}
                     accessibilityRole="tab"
@@ -1551,9 +1559,9 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       />
 
       {/* Trade override sheet */}
-      <Modal visible={showTradeOverride} animationType="slide" transparent onRequestClose={() => setShowTradeOverride(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+      <Modal visible={showTradeOverride} animationType={fTrade.animationType} transparent onRequestClose={() => setShowTradeOverride(false)}>
+        <View style={[styles.modalOverlay, fTrade.overlay]}>
+          <View style={[styles.modalSheet, fTrade.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pick trade</Text>
               <TouchableOpacity onPress={() => setShowTradeOverride(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -1581,9 +1589,9 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       </Modal>
 
       {/* Sub picker — only subs on this job, plus "no sub". */}
-      <Modal visible={showSubPicker} animationType="slide" transparent onRequestClose={() => setShowSubPicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+      <Modal visible={showSubPicker} animationType={fSub.animationType} transparent onRequestClose={() => setShowSubPicker(false)}>
+        <View style={[styles.modalOverlay, fSub.overlay]}>
+          <View style={[styles.modalSheet, fSub.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Who fixes this?</Text>
               <TouchableOpacity onPress={() => setShowSubPicker(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -1625,9 +1633,9 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       {/* All-rooms sheet — the overflow behind the chip rail. Every location
           this job has, in the same order, with the counts spelled out so he
           can tell a room he has already worked from one he hasn't. */}
-      <Modal visible={showAllLocations} animationType="slide" transparent onRequestClose={() => setShowAllLocations(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+      <Modal visible={showAllLocations} animationType={fRooms.animationType} transparent onRequestClose={() => setShowAllLocations(false)}>
+        <View style={[styles.modalOverlay, fRooms.overlay]}>
+          <View style={[styles.modalSheet, fRooms.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Rooms on this job</Text>
               <TouchableOpacity onPress={() => setShowAllLocations(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">

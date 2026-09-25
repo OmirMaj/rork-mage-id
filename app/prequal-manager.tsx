@@ -59,6 +59,7 @@ import {
 } from '@/types';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor, isSideBranch } from '@/utils/workflowPipelines';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 /** Q5: sign the emails the GC sends with HIS company — they used to end
  *  "Thanks, MAGE ID", which reads as a vendor mailing the sub, not the GC. */
@@ -821,11 +822,21 @@ function InviteModal({ sub, renewal, onClose, onSend }: {
   const styles = useThemedStyles(makeStyles);
   const [email, setEmail] = useState<string>('');
   React.useEffect(() => { setEmail(renewal?.email || sub?.email || ''); }, [sub, renewal?.email]);
+  const fInvite = useSheetFrame('form', { visible: !!sub, animationType: 'slide' });
+  const send = () => {
+    if (!email.trim() || !email.includes('@')) {
+      showAlert('Email needed', 'Enter the sub\'s email address.');
+      return;
+    }
+    onSend(email.trim());
+  };
+  // Emails the sub an invite: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
+  useSheetPrimaryHotkey(!!sub, send, { saveKey: false });
 
   return (
-    <Modal visible={!!sub} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+    <Modal visible={!!sub} animationType={fInvite.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, fInvite.overlay]}>
+        <View style={[styles.modalCard, fInvite.card]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{renewal ? 'Send renewal to' : 'Invite'} {sub?.companyName ?? 'sub'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -851,13 +862,7 @@ function InviteModal({ sub, renewal, onClose, onSend }: {
               <Text style={styles.btnGhostText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => {
-                if (!email.trim() || !email.includes('@')) {
-                  showAlert('Email needed', 'Enter the sub\'s email address.');
-                  return;
-                }
-                onSend(email.trim());
-              }}
+              onPress={send}
               style={styles.btnPrimary}
             >
               <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
@@ -894,6 +899,7 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
   React.useEffect(() => { if (packet) setNote(packet.reviewerNotes ?? ''); }, [packet]);
 
   const review: PrequalReviewResult | null = useMemo(() => packet ? reviewPrequalPacket(packet) : null, [packet]);
+  const fReview = useSheetFrame('form', { visible: !!packet, animationType: 'slide' });
 
   if (!packet) return null;
 
@@ -916,9 +922,9 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
   const coiExpiryDisplay = formatPacketDate(packet.insurance.coiExpiry) ?? packet.insurance.coiExpiry ?? '—';
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { maxHeight: '92%' }]}>
+    <Modal visible animationType={fReview.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, fReview.overlay]}>
+        <View style={[styles.modalCard, { maxHeight: '92%' }, fReview.card]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{sub?.companyName ?? 'Packet'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>

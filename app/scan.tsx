@@ -65,8 +65,8 @@ import type {
   ScanDocType, ScanRecordKind, Contact, CertificateOfInsurance,
 } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { cardSurface, ChipRail, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
 
@@ -568,6 +568,10 @@ function ScanInner() {
   const showProjectPicker = projects.length > 1 || (!effectiveProjectId && projects.length > 0);
   const expiryRead = scanCalendarDay(editedFields.expiresDate);
 
+  // Desktop (wave 6c): the form column already caps the page at 760; inside
+  // it, buttons hug their labels, chip rails wrap and the field inputs cap.
+  const isDesktop = useIsDesktop();
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -594,7 +598,7 @@ function ScanInner() {
             explanation is the wall of text this pass exists to avoid. */}
         {projects.length > 0 && captures.length === 0 && !result && !saved && (
           <View style={styles.intro}>
-            <Text style={styles.introText}>
+            <Text style={[styles.introText, isDesktop && desktopProse]}>
               Photograph any document — a sub&apos;s invoice, a COI, a permit, a business
               card. MAGE reads it, tells you what it found, and files it to the right
               job. Nothing is filed without your OK.
@@ -607,13 +611,13 @@ function ScanInner() {
         {showProjectPicker && (
           <View style={styles.pickerWrap}>
             <Text style={styles.pickerLabel}>Project</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            <ChipRail contentContainerStyle={{ gap: 8 }}>
               {projects.map(p => (
                 <TouchableOpacity key={p.id} onPress={() => pickProject(p.id)} style={[styles.chip, effectiveProjectId === p.id && styles.chipOn]}>
                   <Text style={[styles.chipText, effectiveProjectId === p.id && styles.chipTextOn]} numberOfLines={1}>{p.name}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </ChipRail>
           </View>
         )}
 
@@ -653,12 +657,12 @@ function ScanInner() {
         )}
 
         {!result && !saved && projects.length > 0 && (
-          <View style={styles.captureRow}>
-            <TouchableOpacity style={styles.captureBtn} onPress={() => addCapture('camera')} activeOpacity={0.85} testID="scan-camera">
+          <View style={[styles.captureRow, isDesktop && styles.captureRowDesktop]}>
+            <TouchableOpacity style={[styles.captureBtn, isDesktop && styles.captureBtnDesktop]} onPress={() => addCapture('camera')} activeOpacity={0.85} testID="scan-camera">
               <Camera size={22} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.captureText}>{captures.length ? 'Add shot' : 'Capture'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.captureBtn} onPress={() => addCapture('library')} activeOpacity={0.85} testID="scan-library">
+            <TouchableOpacity style={[styles.captureBtn, isDesktop && styles.captureBtnDesktop]} onPress={() => addCapture('library')} activeOpacity={0.85} testID="scan-library">
               <ImagePlus size={22} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.captureText}>From library</Text>
             </TouchableOpacity>
@@ -667,7 +671,7 @@ function ScanInner() {
 
         {/* Scan CTA */}
         {captures.length > 0 && !result && (
-          <TouchableOpacity style={[styles.aiBtn, busy && { opacity: 0.7 }]} onPress={runScan} disabled={busy} activeOpacity={0.85} testID="scan-run">
+          <TouchableOpacity style={[styles.aiBtn, isDesktop && desktopCta, busy && { opacity: 0.7 }]} onPress={runScan} disabled={busy} activeOpacity={0.85} testID="scan-run">
             {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <MageAIMark size={16} color={Colors.textOnAccent} />}
             <Text style={styles.aiBtnText}>{busy ? 'Reading the document…' : 'Scan & auto-file'}</Text>
           </TouchableOpacity>
@@ -687,7 +691,7 @@ function ScanInner() {
           </View>
         )}
         {saved && (
-          <TouchableOpacity style={styles.secondaryBtn} onPress={scanAnother} activeOpacity={0.85} testID="scan-another">
+          <TouchableOpacity style={[styles.secondaryBtn, isDesktop && desktopCta]} onPress={scanAnother} activeOpacity={0.85} testID="scan-another">
             <ScanLine size={16} color={t.accent} strokeWidth={1.75} />
             <Text style={styles.secondaryBtnText}>Scan another</Text>
           </TouchableOpacity>
@@ -695,7 +699,7 @@ function ScanInner() {
         {/* #64 partial filing: the way out the refusals above name. The pages
             that landed stay in Project Files; nothing is re-uploaded. */}
         {!saved && landedCount > 0 && (
-          <TouchableOpacity style={styles.secondaryBtn} onPress={scanAnother} activeOpacity={0.85} testID="scan-start-over" accessibilityRole="button" accessibilityLabel="Start over — the filed pages stay in Project Files">
+          <TouchableOpacity style={[styles.secondaryBtn, isDesktop && desktopCta]} onPress={scanAnother} activeOpacity={0.85} testID="scan-start-over" accessibilityRole="button" accessibilityLabel="Start over — the filed pages stay in Project Files">
             <ScanLine size={16} color={t.accent} strokeWidth={1.75} />
             <Text style={styles.secondaryBtnText}>Start over</Text>
           </TouchableOpacity>
@@ -712,7 +716,7 @@ function ScanInner() {
               Use the crew ID scan — it asks the person's consent, verifies the ID, and never stores the number.
               Government IDs aren&apos;t filed here.
             </Text>
-            <TouchableOpacity style={styles.aiBtn} onPress={() => router.push('/crew')} activeOpacity={0.85} testID="scan-goto-crew">
+            <TouchableOpacity style={[styles.aiBtn, isDesktop && desktopCta]} onPress={() => router.push('/crew')} activeOpacity={0.85} testID="scan-goto-crew">
               <Text style={styles.aiBtnText}>Go to crew ID scan</Text>
               <ArrowRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -755,7 +759,7 @@ function ScanInner() {
               <View style={styles.pickerWrap} testID="scan-coi-sub-picker">
                 <Text style={styles.pickerLabel}>Link to subcontractor (needed to file as compliance)</Text>
                 {coiSubs.subs.length > 0 ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  <ChipRail contentContainerStyle={{ gap: 8 }}>
                     <TouchableOpacity onPress={() => setSubPick('')} style={[styles.chip, !effectiveSubId && styles.chipOn]}>
                       <Text style={[styles.chipText, !effectiveSubId && styles.chipTextOn]}>None</Text>
                     </TouchableOpacity>
@@ -766,7 +770,7 @@ function ScanInner() {
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </ScrollView>
+                  </ChipRail>
                 ) : (
                   <View style={styles.helpRow}>
                     <Text style={styles.helpText}>No subs yet — add one in Subs to file this as compliance. Until then it files as a plain document.</Text>
@@ -791,7 +795,7 @@ function ScanInner() {
                 <Text style={styles.pickerLabel}>Pays against</Text>
                 {linkable.length > 0 ? (
                   <>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    <ChipRail contentContainerStyle={{ gap: 8 }}>
                       <TouchableOpacity onPress={() => setCommitmentPick('')} style={[styles.chip, !effectiveCommitmentId && styles.chipOn]}>
                         <Text style={[styles.chipText, !effectiveCommitmentId && styles.chipTextOn]}>None — direct cost</Text>
                       </TouchableOpacity>
@@ -803,7 +807,7 @@ function ScanInner() {
                           </Text>
                         </TouchableOpacity>
                       ))}
-                    </ScrollView>
+                    </ChipRail>
                     <Text style={styles.helpText}>
                       {effectiveCommitmentId
                         ? 'Counts against that PO or subcontract in job costing, so the same dollars are not counted twice.'
@@ -834,7 +838,7 @@ function ScanInner() {
                     <TextInput
                       value={str(editedFields[key])}
                       onChangeText={v => patchField(key, v)}
-                      style={styles.field}
+                      style={[styles.field, isDesktop && styles.fieldDesktop]}
                       placeholderTextColor={t.textMuted}
                     />
                   </View>
@@ -908,6 +912,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
 
   captureRow: { flexDirection: 'row' as const, gap: 12, marginBottom: 12 },
+  captureRowDesktop: { gap: Layout.rowGap },
+  // A photo tile, not a text CTA: it keeps its padding (desktopCta's fixed
+  // 40 px height would crush the icon over the label) and caps at 200 px.
+  captureBtnDesktop: { maxWidth: Layout.field.sm },
+  fieldDesktop: { maxWidth: Layout.field.md },
   captureBtn: {
     flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
     backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line,

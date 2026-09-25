@@ -15,7 +15,7 @@
 // (they would not survive the green rebrand) and no typography.
 //
 // It is also the home of the primitives' PURE maths (tile columns, segment
-// sizing, sheet widths, the Cmd/Ctrl+Enter test, the sidebar inset). They live
+// sizing, sheet widths, the sidebar inset). They live
 // here, not in the .tsx files, so scripts/validate-ui-desktop-primitives.ts can
 // import them under bun without dragging in lucide / expo-haptics / contexts.
 // The only runtime imports are react, react-native (Platform, for the web
@@ -226,6 +226,10 @@ export interface SheetFrameStyles {
   card: ViewStyle | null;
   footer: ViewStyle | null;
   footerButton: ViewStyle | null;
+  /** For a flex:1 filler touchable beside the card (the "F" sheets): on
+   *  desktop it fills the whole Modal as the scrim, so the centred card sits
+   *  on top of it and a click anywhere around the card dismisses. */
+  backdrop: ViewStyle | null;
 }
 
 /** The desktop frame for a size. Pure apart from the theme line colour and the
@@ -264,10 +268,19 @@ export function desktopSheetFrame(size: SheetSize, line: string, shellInset: num
     height: Layout.control.md,
     paddingHorizontal: 20,
   };
+  // THE DEAD ZONE (wave 6c, X0.1). The scrim covers the FULL window — the
+  // sidebar included — and only the card is pushed into the content column
+  // (paddingLeft = gutter + the measured sidebar). 6b used marginLeft, which
+  // shrank the scrim itself: the sidebar stayed live under an open sheet, so
+  // a sidebar click navigated while the portaled Modal stayed mounted over the
+  // next route. A phone-style scrim over the sidebar dismisses, as before 6b.
+  // (pointerEvents 'box-none' was rejected for the same reason.)
+  // paddingLeft goes AFTER the pad() spread so it wins.
+  const backdrop: ViewStyle = { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 };
   if (size === 'panel') {
     return {
-      overlay: { alignItems: 'flex-end', justifyContent: 'flex-start', ...pad(0), marginLeft: shellInset },
-      scrollContent: { flexGrow: 1, alignItems: 'flex-end', justifyContent: 'flex-start' },
+      overlay: { alignItems: 'flex-end', justifyContent: 'flex-start', ...pad(0), paddingLeft: shellInset },
+      scrollContent: { flexGrow: 1, alignItems: 'flex-end', justifyContent: 'flex-start', paddingLeft: shellInset },
       card: {
         width: '100%',
         height: '100%',
@@ -282,12 +295,14 @@ export function desktopSheetFrame(size: SheetSize, line: string, shellInset: num
       },
       footer,
       footerButton,
+      backdrop,
     };
   }
   return {
-    overlay: { justifyContent: 'center', alignItems: 'center', ...pad(SHEET_GUTTER), marginLeft: shellInset },
-    // flexGrow so a ScrollView's content box is tall enough to centre in.
-    scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
+    overlay: { justifyContent: 'center', alignItems: 'center', ...pad(SHEET_GUTTER), paddingLeft: SHEET_GUTTER + shellInset },
+    // flexGrow so a ScrollView's content box is tall enough to centre in; the
+    // same inset as the overlay, or a scroll-wrapped sheet centres on the window.
+    scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', ...pad(SHEET_GUTTER), paddingLeft: SHEET_GUTTER + shellInset },
     card: {
       width: '100%',
       maxWidth: Layout.sheet[size],
@@ -299,18 +314,18 @@ export function desktopSheetFrame(size: SheetSize, line: string, shellInset: num
     },
     footer,
     footerButton,
+    backdrop,
   };
 }
 
-/** Cmd+Enter (mac) / Ctrl+Enter (everything else) runs a sheet's primary
- *  action. Plain Enter never does — it belongs to the focused field (a
- *  textarea newline, a picker's own choice). */
-export function isPrimaryHotkey(e: { key?: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; shiftKey?: boolean }): boolean {
-  return e.key === 'Enter' && (!!e.metaKey || !!e.ctrlKey) && !e.altKey && !e.shiftKey;
-}
+// isPrimaryHotkey was deleted in wave 6c: Cmd/Ctrl+Enter is a registry binding
+// (hooks/useHotkeys, combo 'mod+enter' — parseCombo / stepMatches), one
+// definition instead of two that could disagree.
 
 /**
- * The left inset a desktop overlay keeps so its scrim never covers the sidebar.
+ * The sidebar's right edge: how far a desktop sheet's CARD is pushed right so
+ * it centres in the content column (the scrim itself covers the full window —
+ * see the dead-zone note in desktopSheetFrame).
  *
  * RN-web mounts every Modal position:fixed over the WHOLE window
  * (react-native-web ModalContent.js), sidebar included. The sidebar's

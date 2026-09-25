@@ -32,7 +32,6 @@ import { COScheduleReflowPreviewModal } from '@/components/schedule/COScheduleRe
 import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import BidConfidenceBadge from '@/components/BidConfidenceBadge';
-import { computeProjectProgress } from '@/utils/projectProgress';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -107,12 +106,29 @@ import { toClientEstimateView } from '@/utils/clientEstimateView';
 import { nextProposalStamp, proposalTermsState, splitLabel } from '@/utils/paymentTerms';
 import { syncPortalSnapshotLite } from '@/utils/portalLiteSync';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { daysUntilCalendarDay, dayOrInstantDate, calendarDayOf } from '@/utils/calendarDate';
 import { pdfFailureMessage } from '@/utils/platformFile';
+// Wave 6c, lane E — the desktop workspace (see the render's `isDesktop ?`).
+import { tileGridColumns, useIsDesktopWeb } from '@/components/ui/desktop';
+import { TileGrid } from '@/components/ui/TileGrid';
+import { segmentedDesktop } from '@/components/ui/SegmentedControl';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { SidePanel } from '@/components/desktop/SidePanel';
+import { RowLink, routeHref } from '@/components/desktop/RowLink';
+import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { useProjectPulse } from '@/hooks/useProjectPulse';
+import { ProjectWorkspaceHeader } from '@/components/project/ProjectWorkspaceHeader';
+import { ProjectKpiStrip } from '@/components/project/ProjectKpiStrip';
+import { ProjectOverviewColumns } from '@/components/project/ProjectOverviewColumns';
+import { PROJECT_STAGES, STAGE_LABELS, STAGE_TO_STATUS, stageForStatus, type ProjectStage } from '@/utils/projectStage';
+import {
+  LIST_SECTION_ROUTES, isListSection, isPanelSection, sectionIndexHref, sectionTitle,
+} from '@/utils/projectWorkspaceLayout';
 // Learn-by-doing tutorials (utils/tutorial): every hub tile and group header is
 // a spotlight target — each tutorial ends by lighting the tile its result
 // landed on ("Daily Reports · 5"). Idle cost: a View and a Map write each.
@@ -141,7 +157,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries' | 'safety';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries' | 'safety' | 'aiReport';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -168,27 +184,18 @@ const PORTAL_INLINE_TOGGLES: { key: 'showSchedule' | 'showBudgetSummary' | 'show
   { key: 'showDocuments',     label: 'Documents' },
 ];
 
-// ─── Lifecycle stages (Pre-Con / Construction / Post-Con / Closeout) ──
+// ─── Lifecycle stages ──
 // The 4-stage construction lifecycle, mapped onto the 5 underlying
-// Project.status values. Tapping a chip advances the project to that
-// stage (with a confirm). Read on every render — no extra state.
-type LifecycleStage = 'precon' | 'construction' | 'postcon' | 'closeout';
+// Project.status values. The table is utils/projectStage — one source for this
+// page's chips, the desktop stage switch and Home's stage filter (wave 6c).
+// Tapping a chip advances the project to that stage (with a confirm), landing
+// on the most "settled" status in it (STAGE_TO_STATUS). Read on every render.
+type LifecycleStage = ProjectStage;
+const LIFECYCLE_STAGES = PROJECT_STAGES.map(key => ({ key, ...STAGE_LABELS[key] }));
+const statusToStage = stageForStatus;
 
-const LIFECYCLE_STAGES: { key: LifecycleStage; label: string; short: string }[] = [
-  { key: 'precon',       label: 'Pre-Con',      short: 'Pre' },
-  { key: 'construction', label: 'Construction', short: 'Con' },
-  { key: 'postcon',      label: 'Post-Con',     short: 'Post' },
-  { key: 'closeout',     label: 'Closeout',     short: 'Done' },
-];
-
-// Stage → underlying status. We pick the most "settled" status in each
-// stage so manual advancement lands on a non-ambiguous bucket.
-const STAGE_TO_STATUS: Record<LifecycleStage, 'estimated' | 'in_progress' | 'completed' | 'closed'> = {
-  precon: 'estimated',
-  construction: 'in_progress',
-  postcon: 'completed',
-  closeout: 'closed',
-};
+/** A hub tile (the phone grid and the desktop section index draw the same list). */
+type Tile = { key: SectionKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; count: number | null };
 
 // ── Pure hub rules ───────────────────────────────────────────────────────
 // Module-level and free of React so scripts/validate-project-hub-rules.ts can
@@ -361,17 +368,6 @@ function leaveFailureMessage(r: { reached: boolean; serverError: string | null; 
   return null;
 }
 
-function statusToStage(s: string | undefined): LifecycleStage {
-  switch (s) {
-    case 'in_progress': return 'construction';
-    case 'completed':   return 'postcon';
-    case 'closed':      return 'closeout';
-    case 'draft':
-    case 'estimated':
-    default:            return 'precon';
-  }
-}
-
 export default function ProjectDetailScreen() {
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
@@ -380,6 +376,11 @@ export default function ProjectDetailScreen() {
   // So the tutorial coach can scroll a tile into view (TutorialScrollAnchor).
   const hubScrollRef = useRef<ScrollView>(null);
   const layout = useResponsiveLayout();
+  // Wave 6c: `isDesktop` gates LAYOUT (web >= 900 CSS px, or any platform
+  // >= 1024 — an iPhone never). `deskWeb` gates what only a browser has: the
+  // URL (?tile=) and list-first routing to the logs.
+  const isDesktop = layout.isDesktop;
+  const deskWeb = useIsDesktopWeb();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -739,6 +740,8 @@ export default function ProjectDetailScreen() {
     timeTracking: false,
     projectFiles: false,
     scope: false,
+    // Desktop-only section (the ⋯ menu's AI project report) — flag never read.
+    aiReport: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -805,6 +808,39 @@ export default function ProjectDetailScreen() {
       },
     );
   }, [id, project, termsGate, updateProject]);
+
+  // ── Wave 6c: the desktop workspace ────────────────────────────────────
+  // The job becomes the active one (the sidebar's Recent list, the project
+  // tools' default job). Desktop only: the phone has no sidebar.
+  const { setActiveProject } = useActiveProject();
+  useEffect(() => {
+    if (isDesktop && project?.id) setActiveProject(project.id);
+  }, [isDesktop, project?.id, setActiveProject]);
+  // ONE predicate for "pending" (#39) — the CO chip, its list and the pulse.
+  const pendingCOs = useMemo(() => changeOrders.filter(isPendingCO), [changeOrders]);
+  // The job's numbers, read once: ProjectHero (phone) and the KPI strip /
+  // overview (desktop) show the same margin, the same one % complete.
+  const pulse = useProjectPulse(project ?? null, { contract: portalBadgeContract ?? null, pendingChangeOrders: pendingCOs });
+  // Open / close a section. Desktop web: the URL holds it (?tile=), so Back, a
+  // reload and a shared link reopen it — the follow effect below applies it.
+  // Everywhere else: local state, exactly as before.
+  const openSection = useCallback((key: SectionKey) => {
+    if (deskWeb) router.setParams({ tile: key });
+    else setActiveTile(key);
+  }, [deskWeb, router]);
+  const closeSection = useCallback(() => {
+    if (deskWeb) router.setParams({ tile: undefined });
+    else setActiveTile(null);
+  }, [deskWeb, router]);
+  // The root row's width (the side panel docks at >= 1200, overlays below)
+  // and the section index's (its rows are sized to the index's columns).
+  const panelRow = useContainerWidth();
+  const indexBox = useContainerWidth();
+  // The three transparent card sheets (share, edit, note) centre as dialogs
+  // on desktop; on a phone each frame is inert (null styles, own animation).
+  const fShare = useSheetFrame('dialog', { visible: showShareModal, animationType: 'fade' });
+  const fEdit = useSheetFrame('form', { visible: showEditModal, animationType: 'slide' });
+  const fNote = useSheetFrame('dialog', { visible: showNoteModal, animationType: 'slide' });
   // Photos filter — 'all' or a normalized tag. The chip row defaults to 'all'
   // and we derive the chip set from photos at render-time so new tags appear
   // automatically without code changes.
@@ -908,14 +944,16 @@ export default function ProjectDetailScreen() {
   // it's still presented, the new screen mounts BEHIND the sheet — the classic
   // "press back and the new screen appears" bug. Dismiss the sheet first,
   // then navigate after iOS finishes the dismiss animation (~300ms).
+  // Desktop (wave 6c): the section is a side panel, not a sheet — it stays
+  // open (and ?tile= stays in the URL), so Back returns to it.
   const navigateFromTile = useCallback((route: string | { pathname: string; params?: Record<string, string | number | undefined> }, mode: 'push' | 'replace' = 'push') => {
-    setActiveTile(null);
-    const delay = Platform.OS === 'ios' ? 350 : 0;
+    if (!isDesktop) setActiveTile(null);
+    const delay = isDesktop ? 0 : (Platform.OS === 'ios' ? 350 : 0);
     setTimeout(() => {
       if (mode === 'replace') router.replace(route as any);
       else router.push(route as any);
     }, delay);
-  }, [router]);
+  }, [router, isDesktop]);
 
   const openEditModal = useCallback(() => {
     if (!project) return;
@@ -966,7 +1004,8 @@ export default function ProjectDetailScreen() {
       requestEdit();
       return;
     }
-    if (tileParam) {
+    // Desktop web follows ?tile= for as long as it is in the URL (below).
+    if (tileParam && !deskWeb) {
       // A link into a section this role doesn't get (#92) lands on the grid.
       if (!hubTileVisible(tileParam, hubPerms)) {
         if (roleState.isLoading && hubRole == null) return;
@@ -976,7 +1015,34 @@ export default function ProjectDetailScreen() {
       deepLinkConsumed.current = true;
       setActiveTile(tileParam as SectionKey);
     }
-  }, [project, editParam, tileParam, requestEdit, roleState.isLoading, hubRole, hubPerms]);
+  }, [project, editParam, tileParam, requestEdit, roleState.isLoading, hubRole, hubPerms, deskWeb]);
+
+  // Desktop web: ?tile= IS the open section. A log section (RFIs, invoices…)
+  // is not drawn here — the URL is handed to its log (lanes G/H) and dropped
+  // from this page's entry, so Back lands on the job. A side-panel section
+  // this role may see opens; one it may not waits for the role, then closes.
+  const followPid = project?.id;
+  const followedList = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deskWeb || !followPid) return;
+    const key = typeof tileParam === 'string' && tileParam ? tileParam : null;
+    if (key && isListSection(key)) {
+      if (followedList.current === key) return;
+      followedList.current = key;
+      router.setParams({ tile: undefined });
+      router.push(routeHref(LIST_SECTION_ROUTES[key], { projectId: followPid }));
+      return;
+    }
+    followedList.current = null;
+    if (key && isPanelSection(key)) {
+      if (hubTileVisible(key, hubPerms)) {
+        setActiveTile(prev => (prev === key ? prev : key));
+        return;
+      }
+      if (roleState.isLoading && hubRole == null) return;
+    }
+    setActiveTile(prev => (prev === null ? prev : null));
+  }, [deskWeb, followPid, tileParam, hubPerms, roleState.isLoading, hubRole, router]);
 
   const currentStage: LifecycleStage = useMemo(
     () => statusToStage(project?.status),
@@ -1191,10 +1257,11 @@ export default function ProjectDetailScreen() {
   const [portalPaywallOpen, setPortalPaywallOpen] = useState(false);
   const openPortalPaywall = useCallback(() => {
     // Close the tile sheet first: a modal opened from inside the iOS
-    // pageSheet mounts behind it (same reason as navigateFromTile).
-    setActiveTile(null);
-    setTimeout(() => setPortalPaywallOpen(true), Platform.OS === 'ios' ? 350 : 0);
-  }, []);
+    // pageSheet mounts behind it (same reason as navigateFromTile). The
+    // desktop side panel is not a sheet: it stays open beside the paywall.
+    if (!isDesktop) setActiveTile(null);
+    setTimeout(() => setPortalPaywallOpen(true), isDesktop ? 0 : (Platform.OS === 'ios' ? 350 : 0));
+  }, [isDesktop]);
 
   const handleCopyPortalLink = useCallback(async () => {
     if (!portalEntitled) { openPortalPaywall(); return; }
@@ -2100,6 +2167,44 @@ export default function ProjectDetailScreen() {
   // Both hooks live ABOVE the `if (!project) return` early-exit so the hook
   // call order stays stable across renders (rules-of-hooks). They tolerate
   // a missing project via the optional chain in the title fallback.
+  // A section tile's press — the phone grid's push chain, moved here verbatim
+  // so the desktop section index runs the same one (the tile's final
+  // setActiveTile is now openSection: the URL on desktop web). On
+  // desktop web a log section opens its log first (lanes G/H: RFIs,
+  // submittals, change orders, invoices, daily reports; the punch list).
+  const pressTile = useCallback((tile: { key: SectionKey }) => {
+    if (deskWeb && isListSection(tile.key)) { router.push(routeHref(LIST_SECTION_ROUTES[tile.key], { projectId: id ?? '' })); return; }
+    if (tile.key === 'activity') { router.push({ pathname: '/activity-feed' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'calendar') { void handleExportCalendar(); return; }
+    if (tile.key === 'plans') { router.push({ pathname: '/plans' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'permits') { router.push({ pathname: '/permits' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'contract') { router.push({ pathname: '/contract' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'selections') { router.push({ pathname: '/selections' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'lienWaivers') { router.push({ pathname: '/lien-waivers' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'safety') { router.push({ pathname: '/safety' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'fieldTickets') { router.push({ pathname: '/field-ticket' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'deliveries') { router.push({ pathname: '/deliveries', params: { projectId: id } }); return; }
+    if (tile.key === 'projectFiles') { router.push({ pathname: '/project-files' as any, params: { projectId: id } }); return; }
+    if (tile.key === 'scope') { router.push({ pathname: '/project-scope', params: { id } } as never); return; }
+    openSection(tile.key);
+  }, [deskWeb, router, id, handleExportCalendar, openSection]);
+  // The schedule, from the KPI strip and the overview: the existing push
+  // (router.replace + the focus nonce — MobileScheduleScreen otherwise keeps
+  // whichever job it last showed). Lane DC sends Pro tiers on desktop web on
+  // to Schedule Pro.
+  const openSchedule = useCallback(() => {
+    router.replace(routeHref('/(tabs)/schedule', { projectId: id ?? '', focus: String(Date.now()) }));
+  }, [router, id]);
+  const buildSchedule = useCallback(() => { router.replace(routeHref('/(tabs)/discover/schedule')); }, [router]);
+  // Cmd/Ctrl+Enter (and Cmd+S) save the edit and note sheets on desktop web.
+  useSheetPrimaryHotkey(showEditModal, handleSaveEdit);
+  const saveNoteDraft = useCallback(() => { submitNote(noteDraft); setShowNoteModal(false); }, [submitNote, noteDraft]);
+  useSheetPrimaryHotkey(showNoteModal, noteDraft.trim() ? saveNoteDraft : null);
+
   const headerRight = useCallback(
     () => (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -2128,9 +2233,11 @@ export default function ProjectDetailScreen() {
     ),
     [router, themeColors.accent],
   );
+  // Desktop: the workspace header carries the name and the actions, so the
+  // stack header is hidden (the title still names the browser tab).
   const stackScreenOptions = useMemo(
-    () => ({ title: project?.name || 'Project Details', headerRight, ...(canGoBack ? {} : { headerLeft }) }),
-    [project?.name, headerRight, canGoBack, headerLeft],
+    () => ({ title: project?.name || 'Project Details', headerRight, ...(canGoBack ? {} : { headerLeft }), ...(isDesktop ? { headerShown: false } : {}) }),
+    [project?.name, headerRight, canGoBack, headerLeft, isDesktop],
   );
 
   if (!project) {
@@ -2188,626 +2295,110 @@ export default function ProjectDetailScreen() {
   const hasAnyEstimate = !!(linkedEstimate && linkedItems.length > 0) || !!estimate;
 
   const heroTotal = effectiveEstimateTotal(project);
-  const heroProgress = computeProjectProgress(project);
+  // THE one % complete (utils/projectProgress, via the pulse).
+  const heroProgress = pulse.progress;
   const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
 
-  return (
-    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={stackScreenOptions} />
-      <ScrollView
-        ref={hubScrollRef}
-        {...fabScroll}
-        contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, layout.isDesktop && { maxWidth: 1400, alignSelf: 'center' as const, width: '100%' as any }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <TutorialScrollAnchor scrollRef={hubScrollRef}>
-        {/* The hero card unrolls like a blueprint when the project opens. */}
-        <BlueprintReveal>
-        <View style={styles.heroCard}>
-          <View style={styles.heroHeader}>
-            <View style={styles.heroTitleBlock}>
-              <Text style={styles.heroName}>{project.name}</Text>
-              <View style={styles.heroMeta}>
-                <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.heroMetaText}>{displayText(project.location, 'No location set')}</Text>
-              </View>
-              {displayText(project.description) ? (
-                <Text style={styles.heroDesc}>{displayText(project.description)}</Text>
-              ) : null}
-            </View>
-          </View>
+  // ── The hub's tiles: the phone grid and the desktop section index ──
+  // Tile icons are intentionally NEUTRAL (themeColors.textSecondary).
+  // Color earns its way onto the screen by communicating STATE,
+  // not by decorating workflow categories. The status badge under
+  // each tile is the only colored thing — that's what the user
+  // should scan for "what needs me right now?". Group headers keep
+  // their soft category tint to differentiate workflow domains.
+  const NEUTRAL = themeColors.textSecondary;
+  // Tile color = group color. May 2026: replaced a 24-color
+  // bespoke palette (the audit called it a sticker-sheet rainbow
+  // — "color carried no meaning, just noise"). Now every tile
+  // inherits the color of its group header. Color SIGNALS which
+  // workflow domain the tile belongs to (Field / Money / Docs /
+  // People) instead of being decorative.
+  //
+  // Same 4 colors used by the group headers below. Defined here
+  // because `allTiles` is built before `groups` and needs the
+  // per-tile color at construction time.
+  const FIELD_COLOR  = themeColors.accent;   // orange
+  const MONEY_COLOR  = themeColors.success;  // green
+  const DOCS_COLOR   = themeColors.info;     // blue
+  const PEOPLE_COLOR = themeColors.info;     // blue (same as docs)
+  const GROUP_BY_KEY: Partial<Record<SectionKey, string>> = {
+    // field
+    dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR, deliveries: FIELD_COLOR, safety: FIELD_COLOR,
+    punchList: FIELD_COLOR, photos: FIELD_COLOR,
+    plans: FIELD_COLOR, schedule: FIELD_COLOR,
+    // money
+    budget: MONEY_COLOR, contract: MONEY_COLOR, selections: MONEY_COLOR,
+    linkedEstimate: MONEY_COLOR, changeOrders: MONEY_COLOR,
+    invoices: MONEY_COLOR, lienWaivers: MONEY_COLOR,
+    closeoutBinder: MONEY_COLOR, handover: MONEY_COLOR,
+    // docs
+    rfis: DOCS_COLOR, submittals: DOCS_COLOR, permits: DOCS_COLOR,
+    projectFiles: DOCS_COLOR, activity: DOCS_COLOR, calendar: DOCS_COLOR,
+    scope: DOCS_COLOR,
+    // people
+    collaborators: PEOPLE_COLOR, clientPortal: PEOPLE_COLOR,
+    oacMeetings: PEOPLE_COLOR, communications: PEOPLE_COLOR,
+  };
+  const colorFor = (k: SectionKey): string => GROUP_BY_KEY[k] ?? NEUTRAL;
+  const allTiles: Tile[] = [
+    ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: MageEstimate, color: colorFor('linkedEstimate'), count: linkedItems.length || estimate?.materials.length || 0 }] : []),
+    ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: MageSchedule, color: colorFor('schedule'), count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
+    // #173: no number while the roster is loading / failed, or for a
+    // collaborator (who can read only his own row) — never a guessed 1.
+    { key: 'collaborators', label: teamCount ? `Team (${teamCount})` : 'Team', icon: Users, color: colorFor('collaborators'), count: null as number | null },
+    { key: 'contract', label: 'Contract', icon: MageContract, color: colorFor('contract'), count: null as number | null },
+    { key: 'selections', label: 'Selections', icon: PenTool, color: colorFor('selections'), count: null as number | null },
+    { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: colorFor('lienWaivers'), count: null as number | null },
+    { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: colorFor('closeoutBinder'), count: null as number | null },
+    { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: colorFor('handover'), count: null as number | null },
+    { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, color: colorFor('changeOrders'), count: changeOrders.length },
+    { key: 'invoices', label: 'Invoices', icon: MageInvoice, color: colorFor('invoices'), count: projectInvoices.length },
+    { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, color: colorFor('dailyReports'), count: dailyReports.length },
+    // T&M ticket — extra work signed for on site. The badge counts
+    // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
+    // has already earned and not yet asked for.
+    { key: 'fieldTickets', label: 'T&M Tickets', icon: FileSignature, color: colorFor('fieldTickets'), count: projectFieldTickets.filter(x => x.status === 'signed').length },
+    // PRODUCT-F4 / UX-F16: Deliveries had no entry point on iPhone at all.
+    { key: 'deliveries', label: 'Deliveries', icon: Truck, color: colorFor('deliveries'), count: null as number | null },
+    { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
+    // #81: Safety had no way in from the job. The hub and its project
+    // picker are app/safety.tsx's; this only opens it on this job.
+    { key: 'safety', label: 'Safety', icon: HardHat, color: colorFor('safety'), count: null as number | null },
+    { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
+    { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
+    { key: 'submittals', label: 'Submittals', icon: MageSubmittal, color: colorFor('submittals'), count: projectSubmittals.length },
+    { key: 'oacMeetings', label: 'OAC Meetings', icon: Presentation, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
+    { key: 'permits', label: 'Permits', icon: Shield, color: colorFor('permits'), count: projectPermits.length },
+    { key: 'projectFiles', label: 'Project Files', icon: Archive, color: colorFor('projectFiles'), count: null as number | null },
+    { key: 'scope', label: 'Scope', icon: ClipboardList, color: colorFor('scope'), count: null as number | null },
+    ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: MageMargin, color: colorFor('budget'), count: null as number | null }] : []),
+    { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
+    { key: 'plans', label: 'Plans', icon: MagePlans, color: colorFor('plans'), count: projectPlans.length },
+    { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
+    { key: 'communications', label: 'Communications', icon: Mail, color: colorFor('communications'), count: commEvents.length },
+    { key: 'activity', label: 'Activity', icon: Activity, color: colorFor('activity'), count: null as number | null },
+    { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: colorFor('calendar'), count: null as number | null },
+  ];
 
-          {hasAnyEstimate && (
-            <View style={styles.heroStats}>
-              {/* The breakdown modal is computed ENTIRELY from the legacy
-                  project.estimate (materialTotal / laborTotal / permits /
-                  overhead), while heroTotal comes from effectiveEstimateTotal,
-                  which prefers linkedEstimate. When a project carries both,
-                  opening it puts stale legacy figures under a headline derived
-                  from the linked grandTotal — two numbers on one card that
-                  disagree. So the tap is only offered when the legacy estimate
-                  IS the headline. Residual of PR #81; PR #116 restored the
-                  sibling gate below but not this one. */}
-              <TouchableOpacity
-                style={styles.heroStatMain}
-                onPress={() => estimate && !linkedEstimate ? openDetail('total') : undefined}
-                activeOpacity={estimate && !linkedEstimate ? 0.7 : 1}
-                testID="hero-total-tap"
-              >
-                <Text style={styles.heroStatLabel}>Total Estimate</Text>
-                {/* The estimate total rolls up like a tape measure unrolling —
-                    helps the number land instead of just appearing. */}
-                <TapeRollNumber
-                  value={heroTotal}
-                  formatter={(n) => formatMoney(Math.round(n))}
-                  style={styles.heroStatValue}
-                  duration={900}
-                />
-                <Text style={styles.heroTapHint}>{heroLabel}{estimate && !linkedEstimate ? ' · Tap for breakdown' : ''}</Text>
-              </TouchableOpacity>
-              <View style={{ marginTop: 10, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <BidConfidenceBadge project={project} variant="light" />
-                {heroProgress.hasSchedule && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
-                    <View style={{ width: 44, height: 6, borderRadius: 3, backgroundColor: themeColors.line, overflow: 'hidden' }}>
-                      <View style={{ width: `${heroProgress.pct}%`, height: 6, backgroundColor: themeColors.accent }} />
-                    </View>
-                    <Text style={{ color: themeColors.text, fontSize: 12, fontWeight: '800' }}>{heroProgress.pct}% done</Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.heroStatsRow}>
-                {/* Legacy estimate sub-stats ONLY when no linkedEstimate drives the
-                    headline (effectiveEstimateTotal prefers linkedEstimate). Otherwise
-                    per-sqft / duration / bulk-savings are stale legacy figures sitting
-                    directly under a headline computed from the linked grandTotal — two
-                    numbers on one card that disagree. Restored from PR #81. */}
-                {estimate && !linkedEstimate && (
-                  <>
-                    <View style={styles.heroStatSmall}>
-                      <Text style={styles.smallStatLabel}>Per Sq Ft</Text>
-                      <Text style={styles.smallStatValue}>${estimate.pricePerSqFt.toFixed(2)}</Text>
-                    </View>
-                    <View style={styles.heroStatSmall}>
-                      <Text style={styles.smallStatLabel}>Duration</Text>
-                      <Text style={styles.smallStatValue}>{estimate.estimatedDuration}</Text>
-                    </View>
-                    {showBulkSavings ? (
-                      <TouchableOpacity
-                        style={styles.heroStatSmall}
-                        onPress={() => openDetail('savings')}
-                        activeOpacity={0.7}
-                        testID="hero-savings-tap"
-                      >
-                        <Text style={styles.smallStatLabel}>Bulk Savings</Text>
-                        <Text style={[styles.smallStatValue, { color: themeColors.success }]}>
-                          {formatMoney(totalBulkSavings)}
-                        </Text>
-                        <ArrowDownRight size={10} color={themeColors.textMuted} strokeWidth={1.75} />
-                      </TouchableOpacity>
-                    ) : null}
-                  </>
-                )}
-                {/* `linkedEstimate &&`, NOT `!estimate && linkedEstimate &&`.
-                    With both present the legacy block above is off (its
-                    !linkedEstimate guard) — so gating this one on !estimate too
-                    left the row rendering NOTHING for exactly the projects that
-                    have both, which is every project that had a legacy estimate
-                    before one was attached (commitEstimatePatch sets
-                    linkedEstimate and never clears project.estimate). The
-                    linked estimate is the authoritative one whenever it exists,
-                    so it owns the row. */}
-                {linkedEstimate && (
-                  <>
-                    <View style={styles.heroStatSmall}>
-                      <Text style={styles.smallStatLabel}>Markup</Text>
-                      <Text style={styles.smallStatValue}>{linkedEstimate.globalMarkup}%</Text>
-                    </View>
-                    <View style={styles.heroStatSmall}>
-                      <Text style={styles.smallStatLabel}>Base Cost</Text>
-                      <Text style={styles.smallStatValue}>{formatMoney(linkedEstimate.baseTotal)}</Text>
-                    </View>
-                    <View style={styles.heroStatSmall}>
-                      <Text style={styles.smallStatLabel}>+ Markup</Text>
-                      <Text style={[styles.smallStatValue, { color: themeColors.accent }]}>
-                        {formatMoney(linkedEstimate.markupTotal)}
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </View>
-            </View>
-          )}
-        </View>
-        </BlueprintReveal>
+  const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
+    { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
+    { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
+    { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
+    { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
+  ];
 
-        {/* Financial pulse — projected margin as the hero number, a margin-risk
-            spirit level, and the numbers that move the finish. Renders nothing
-            until the project has a margin basis (a budget). */}
-        <ProjectHero project={project} />
+  // #92: the tiles follow the role. Money (and Financial Health) only
+  // for a role that may see money — hidden, not zeroed: "Invoices (0)"
+  // to a foreman is a guess shown as fact. The Client Portal is the
+  // owner's alone. Anyone else reaching these tiles met screens that
+  // either blinded him or silently failed his writes.
+  const visibleTiles = allTiles.filter(t => hubTileVisible(t.key, hubPerms));
+  const tileByKey = new Map<SectionKey, Tile>(visibleTiles.map(t => [t.key, t]));
 
-        {/* NextStepHero — scoped to this project. Tells the user the
-            single most-important action for this project alone: add
-            scope, build estimate, send invoice, chase stale RFIs, etc.
-            Hidden when nothing is pending — keep the project page calm
-            once the GC is in the rhythm of the work. */}
-        <NextStepHero
-          projects={project ? [project] : []}
-          invoices={projectInvoices}
-          rfis={projectRFIs}
-          punchItems={punchItems}
-          scopeToProjectId={project?.id}
-          testID="project-next-step"
-        />
-
-        {/* Lifecycle stage strip — Pre-Con → Construction → Post-Con → Closeout.
-            Tapping a stage prompts to advance project.status.
-            The 4 stages map onto the 5 underlying status values (draft+estimated
-            collapse into Pre-Con). */}
-        <View style={styles.stageStrip}>
-          <View style={styles.stageHeaderRow}>
-            <Text style={styles.stageHeaderLabel}>Project Stage</Text>
-            <Text style={styles.stageHeaderCount}>
-              {LIFECYCLE_STAGES.findIndex(s => s.key === currentStage) + 1} of {LIFECYCLE_STAGES.length}
-            </Text>
-          </View>
-          <View style={styles.stageChipsRow}>
-            {LIFECYCLE_STAGES.map((stage, idx) => {
-              const isActive = stage.key === currentStage;
-              const stageIdx = LIFECYCLE_STAGES.findIndex(s => s.key === currentStage);
-              const isPast = idx < stageIdx;
-              return (
-                <TouchableOpacity
-                  key={stage.key}
-                  onPress={() => handleStageTap(stage.key)}
-                  activeOpacity={0.75}
-                  style={[
-                    styles.stageChip,
-                    isActive && styles.stageChipActive,
-                    !isActive && isPast && styles.stageChipPast,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Stage: ${stage.label}${isActive ? ' (current)' : ''}`}
-                  testID={`stage-chip-${stage.key}`}
-                >
-                  <Text
-                    style={[
-                      styles.stageChipText,
-                      isActive && styles.stageChipTextActive,
-                      !isActive && isPast && styles.stageChipTextPast,
-                    ]}
-                    numberOfLines={1}
-                    // Shrink before ellipsizing. A stage label read at 10pt is
-                    // still a stage label; "Constru…" is not.
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    {stage.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={styles.stageProgressTrack}>
-            <View
-              style={[
-                styles.stageProgressFill,
-                {
-                  width: `${((LIFECYCLE_STAGES.findIndex(s => s.key === currentStage) + 1) / LIFECYCLE_STAGES.length) * 100}%`,
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        {/* Universal MAGE Copilot — say what you need, it routes to the right
-            interview. The one entry a contractor never has to hunt for. */}
-        <TouchableOpacity
-          style={styles.copilotHubBtn}
-          onPress={() => router.push({ pathname: '/copilot-hub', params: { projectId: id ?? '' } } as any)}
-          activeOpacity={0.85}
-          testID="project-copilot-hub-btn"
-        >
-          <View style={styles.copilotHubIcon}>
-            <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.copilotHubTitle}>Ask MAGE to do anything</Text>
-            <Text style={styles.copilotHubSub}>Say it — daily report, RFI, change order, estimate…</Text>
-          </View>
-          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-        </TouchableOpacity>
-
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => router.push({ pathname: '/weekly-snapshot' as any, params: { projectId: id } })}
-            activeOpacity={0.7}
-            testID="project-weekly-snapshot-btn"
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <CalendarDays size={18} color={themeColors.accent} strokeWidth={1.75} />
-            </View>
-            <Text style={styles.quickActionLabel}>This Week</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => router.push({ pathname: '/cash-flow' as any, params: { projectId: id } })}
-            activeOpacity={0.7}
-            testID="project-cash-flow-btn"
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.success + '15' }]}>
-              <Wallet size={18} color={themeColors.success} strokeWidth={1.75} />
-            </View>
-            <Text style={styles.quickActionLabel}>Cash Flow</Text>
-          </TouchableOpacity>
-          {!hasAnyEstimate && (
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => router.push({ pathname: '/estimate-wizard', params: { projectId: id ?? '' } } as never)}
-              activeOpacity={0.7}
-              testID="project-create-estimate-btn"
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
-              </View>
-              <Text style={styles.quickActionLabel}>Estimate</Text>
-            </TouchableOpacity>
-          )}
-          {!project.schedule && (
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => router.replace('/(tabs)/discover/schedule' as any)}
-              activeOpacity={0.7}
-              testID="project-create-schedule-btn"
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
-                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
-              </View>
-              <Text style={styles.quickActionLabel}>Schedule</Text>
-            </TouchableOpacity>
-          )}
-          {project.schedule && (
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              // Carry the project. Without projectId + the `focus` nonce,
-              // MobileScheduleScreen keeps whichever project was last active
-              // there and its effect returns early — the P0 context drop the
-              // comment at :2335 already names and fixes for one call site.
-              onPress={() => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any)}
-              activeOpacity={0.7}
-              testID="project-view-schedule-btn"
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
-                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
-              </View>
-              <Text style={styles.quickActionLabel}>Schedule</Text>
-            </TouchableOpacity>
-          )}
-          {hasAnyEstimate && (
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => router.replace({ pathname: '/(tabs)/estimate/full', params: { projectId: id ?? '' } } as any)}
-              activeOpacity={0.7}
-              testID="project-view-estimate-btn"
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
-              </View>
-              <Text style={styles.quickActionLabel}>Estimate</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => router.push({ pathname: '/payment-predictions' as any, params: { projectId: id } })}
-            activeOpacity={0.7}
-            testID="project-payment-forecast-btn"
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <TrendingDown size={18} color={themeColors.accent} strokeWidth={1.75} />
-            </View>
-            <Text style={styles.quickActionLabel}>Forecast</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickActionBtn, styles.quickActionBtnFull, generatingCloseout && { opacity: 0.5 }]}
-            onPress={handleGenerateCloseoutPacket}
-            activeOpacity={0.7}
-            disabled={generatingCloseout}
-            testID="project-closeout-packet-btn"
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <Archive size={18} color={themeColors.accent} strokeWidth={1.75} />
-            </View>
-            <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
-            {/* Concrete-pour progress bar appears under the button while
-                generation is in flight. Indeterminate-ish — we don't have
-                a real % from the PDF generator, so we show a slow ramp to
-                ~85% and finish on success. */}
-            {generatingCloseout && (
-              <ConcretePour value={0.85} height={3} fillColor={themeColors.accent} duration={2400} hideShine={false} style={{ marginTop: 6, width: '100%' }} />
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Section tile groups — collapsible, organized by workflow domain.
-            Field & Money default-expanded (most-used). Documentation & People
-            default-collapsed (lower frequency). Group header shows the sum of
-            tile counts so you can spot a busy section without expanding it. */}
-        {(() => {
-          type Tile = { key: SectionKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; count: number | null };
-          // Tile icons are intentionally NEUTRAL (themeColors.textSecondary).
-          // Color earns its way onto the screen by communicating STATE,
-          // not by decorating workflow categories. The status badge under
-          // each tile is the only colored thing — that's what the user
-          // should scan for "what needs me right now?". Group headers keep
-          // their soft category tint to differentiate workflow domains.
-          const NEUTRAL = themeColors.textSecondary;
-          // Tile color = group color. May 2026: replaced a 24-color
-          // bespoke palette (the audit called it a sticker-sheet rainbow
-          // — "color carried no meaning, just noise"). Now every tile
-          // inherits the color of its group header. Color SIGNALS which
-          // workflow domain the tile belongs to (Field / Money / Docs /
-          // People) instead of being decorative.
-          //
-          // Same 4 colors used by the group headers below. Defined here
-          // because `allTiles` is built before `groups` and needs the
-          // per-tile color at construction time.
-          const FIELD_COLOR  = themeColors.accent;   // orange
-          const MONEY_COLOR  = themeColors.success;  // green
-          const DOCS_COLOR   = themeColors.info;     // blue
-          const PEOPLE_COLOR = themeColors.info;     // blue (same as docs)
-          const GROUP_BY_KEY: Partial<Record<SectionKey, string>> = {
-            // field
-            dailyReports: FIELD_COLOR, timeTracking: FIELD_COLOR, fieldTickets: FIELD_COLOR, deliveries: FIELD_COLOR, safety: FIELD_COLOR,
-            punchList: FIELD_COLOR, photos: FIELD_COLOR,
-            plans: FIELD_COLOR, schedule: FIELD_COLOR,
-            // money
-            budget: MONEY_COLOR, contract: MONEY_COLOR, selections: MONEY_COLOR,
-            linkedEstimate: MONEY_COLOR, changeOrders: MONEY_COLOR,
-            invoices: MONEY_COLOR, lienWaivers: MONEY_COLOR,
-            closeoutBinder: MONEY_COLOR, handover: MONEY_COLOR,
-            // docs
-            rfis: DOCS_COLOR, submittals: DOCS_COLOR, permits: DOCS_COLOR,
-            projectFiles: DOCS_COLOR, activity: DOCS_COLOR, calendar: DOCS_COLOR,
-            scope: DOCS_COLOR,
-            // people
-            collaborators: PEOPLE_COLOR, clientPortal: PEOPLE_COLOR,
-            oacMeetings: PEOPLE_COLOR, communications: PEOPLE_COLOR,
-          };
-          const colorFor = (k: SectionKey): string => GROUP_BY_KEY[k] ?? NEUTRAL;
-          const allTiles: Tile[] = [
-            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: MageEstimate, color: colorFor('linkedEstimate'), count: linkedItems.length || estimate?.materials.length || 0 }] : []),
-            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: MageSchedule, color: colorFor('schedule'), count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
-            // #173: no number while the roster is loading / failed, or for a
-            // collaborator (who can read only his own row) — never a guessed 1.
-            { key: 'collaborators', label: teamCount ? `Team (${teamCount})` : 'Team', icon: Users, color: colorFor('collaborators'), count: null as number | null },
-            { key: 'contract', label: 'Contract', icon: MageContract, color: colorFor('contract'), count: null as number | null },
-            { key: 'selections', label: 'Selections', icon: PenTool, color: colorFor('selections'), count: null as number | null },
-            { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: colorFor('lienWaivers'), count: null as number | null },
-            { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: colorFor('closeoutBinder'), count: null as number | null },
-            { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: colorFor('handover'), count: null as number | null },
-            { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, color: colorFor('changeOrders'), count: changeOrders.length },
-            { key: 'invoices', label: 'Invoices', icon: MageInvoice, color: colorFor('invoices'), count: projectInvoices.length },
-            { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, color: colorFor('dailyReports'), count: dailyReports.length },
-            // T&M ticket — extra work signed for on site. The badge counts
-            // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
-            // has already earned and not yet asked for.
-            { key: 'fieldTickets', label: 'T&M Tickets', icon: FileSignature, color: colorFor('fieldTickets'), count: projectFieldTickets.filter(x => x.status === 'signed').length },
-            // PRODUCT-F4 / UX-F16: Deliveries had no entry point on iPhone at all.
-            { key: 'deliveries', label: 'Deliveries', icon: Truck, color: colorFor('deliveries'), count: null as number | null },
-            { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
-            // #81: Safety had no way in from the job. The hub and its project
-            // picker are app/safety.tsx's; this only opens it on this job.
-            { key: 'safety', label: 'Safety', icon: HardHat, color: colorFor('safety'), count: null as number | null },
-            { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
-            { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
-            { key: 'submittals', label: 'Submittals', icon: MageSubmittal, color: colorFor('submittals'), count: projectSubmittals.length },
-            { key: 'oacMeetings', label: 'OAC Meetings', icon: Presentation, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
-            { key: 'permits', label: 'Permits', icon: Shield, color: colorFor('permits'), count: projectPermits.length },
-            { key: 'projectFiles', label: 'Project Files', icon: Archive, color: colorFor('projectFiles'), count: null as number | null },
-            { key: 'scope', label: 'Scope', icon: ClipboardList, color: colorFor('scope'), count: null as number | null },
-            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: MageMargin, color: colorFor('budget'), count: null as number | null }] : []),
-            { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
-            { key: 'plans', label: 'Plans', icon: MagePlans, color: colorFor('plans'), count: projectPlans.length },
-            { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
-            { key: 'communications', label: 'Communications', icon: Mail, color: colorFor('communications'), count: commEvents.length },
-            { key: 'activity', label: 'Activity', icon: Activity, color: colorFor('activity'), count: null as number | null },
-            { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: colorFor('calendar'), count: null as number | null },
-          ];
-
-          const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
-            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
-            { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
-            { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
-            { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
-          ];
-
-          // #92: the tiles follow the role. Money (and Financial Health) only
-          // for a role that may see money — hidden, not zeroed: "Invoices (0)"
-          // to a foreman is a guess shown as fact. The Client Portal is the
-          // owner's alone. Anyone else reaching these tiles met screens that
-          // either blinded him or silently failed his writes.
-          const visibleTiles = allTiles.filter(t => hubTileVisible(t.key, hubPerms));
-          const tileByKey = new Map<SectionKey, Tile>(visibleTiles.map(t => [t.key, t]));
-
-          const renderTile = (tile: Tile) => {
-            // Desktop lays the tiles out as a wrapping grid; phone keeps the
-            // one-per-row stack.
-            const TileIcon = tile.icon;
-            const isLocked = lockedTileKeys.has(tile.key);
-            const lockFeature = TILE_LOCK_FEATURE[tile.key];
-            const lockReason = isLocked
-              ? tileLockReason(tile.key, hubRole, lockFeature ? requiredTierFor(lockFeature as Parameters<typeof requiredTierFor>[0]) : null)
-              : null;
-            // VoiceOver label: name + item count + locked state, so a
-            // screen-reader user hears the tile is a button, how many items
-            // it holds, and whether it's gated before opening it.
-            const a11yLabel = `${tile.label}`
-              + (tile.count != null ? `, ${tile.count} ${tile.count === 1 ? 'item' : 'items'}` : '')
-              + (lockReason ? `, locked, ${lockReason}` : '');
-            // The tutorial target wraps the tile; the tile's styles
-            // (sectionTileDesktop included) stay on the HardHatTap, which puts
-            // them on its INNER Animated.View inside an unstyled Pressable.
-            // Phone: the body is a stretching column, so an unstyled wrapper is
-            // neutral. Desktop: the body is a row-wrap grid that STRETCHES its
-            // items to the line height, and the tile's flexGrow:1 filled the
-            // stretched Pressable — equal-height tiles per row. An unstyled
-            // (column) wrapper would stretch while the Pressable inside kept
-            // its content height; a ROW wrapper stretches the Pressable on its
-            // cross axis again, and its width stays the Pressable's own content
-            // width, exactly as when the Pressable was the grid item.
-            return (
-              <TutorialTarget key={tile.key} id={`hub.tile.${tile.key}`} style={layout.isDesktop ? styles.tileTargetDesktop : undefined}>
-              <HardHatTap
-                style={layout.isDesktop ? [styles.sectionTile, styles.sectionTileDesktop] : styles.sectionTile}
-                hatColor={tile.color}
-                accessibilityRole="button"
-                accessibilityLabel={a11yLabel}
-                accessibilityState={{ disabled: false }}
-                hitSlop={6}
-                onPress={() => {
-                  if (tile.key === 'activity') { router.push({ pathname: '/activity-feed' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'calendar') { void handleExportCalendar(); return; }
-                  if (tile.key === 'plans') { router.push({ pathname: '/plans' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'permits') { router.push({ pathname: '/permits' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'contract') { router.push({ pathname: '/contract' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'selections') { router.push({ pathname: '/selections' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'lienWaivers') { router.push({ pathname: '/lien-waivers' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'safety') { router.push({ pathname: '/safety' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'fieldTickets') { router.push({ pathname: '/field-ticket' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'deliveries') { router.push({ pathname: '/deliveries', params: { projectId: id } }); return; }
-                  if (tile.key === 'projectFiles') { router.push({ pathname: '/project-files' as any, params: { projectId: id } }); return; }
-                  if (tile.key === 'scope') { router.push({ pathname: '/project-scope', params: { id } } as never); return; }
-                  setActiveTile(tile.key);
-                }}
-                testID={`section-tile-${tile.key}`}
-              >
-                <View style={[styles.sectionTileIcon, { backgroundColor: tile.color + '15' }]}>
-                  <TileIcon size={20} color={tile.color} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
-                  {tileBadges[tile.key] ? (
-                    <Text
-                      style={[styles.sectionTileStatus, { color: STATUS_TONES[tileBadges[tile.key]!.tone].color }]}
-                      numberOfLines={1}
-                    >
-                      {tileBadges[tile.key]!.label}
-                    </Text>
-                  ) : lockReason ? (
-                    <Text style={[styles.sectionTileStatus, { color: themeColors.textMuted }]} numberOfLines={1} testID={`section-tile-lock-reason-${tile.key}`}>
-                      {lockReason}
-                    </Text>
-                  ) : null}
-                </View>
-                {tile.count !== null && tile.count !== undefined && (
-                  <View style={styles.sectionTileBadge}>
-                    <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
-                  </View>
-                )}
-                {lockedTileKeys.has(tile.key) && (
-                  <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 4 }} />
-                )}
-                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-              </HardHatTap>
-              </TutorialTarget>
-            );
-          };
-
-          return (
-            <View style={styles.sectionGroups}>
-              {groups.map(group => {
-                const groupTiles = group.tileKeys.map(k => tileByKey.get(k)).filter((t): t is Tile => t !== undefined);
-                if (groupTiles.length === 0) return null;
-                const groupCountSum = groupTiles.reduce((acc, t) => acc + (t.count ?? 0), 0);
-                const collapsed = collapsedGroups.has(group.key);
-                const GroupIcon = group.icon;
-                return (
-                  <View key={group.key} style={styles.tileGroup}>
-                    <TutorialTarget id={`hub.group.${group.key}`}>
-                    <TouchableOpacity
-                      style={styles.tileGroupHeader}
-                      onPress={() => toggleGroup(group.key)}
-                      activeOpacity={0.7}
-                      testID={`tile-group-${group.key}`}
-                    >
-                      <View style={[styles.tileGroupHeaderIcon, { backgroundColor: group.color + '15' }]}>
-                        <GroupIcon size={18} color={group.color} />
-                      </View>
-                      <Text style={styles.tileGroupHeaderLabel}>{group.label}</Text>
-                      {groupCountSum > 0 && (
-                        <View style={styles.tileGroupBadge}>
-                          <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
-                        </View>
-                      )}
-                      {collapsed ? <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
-                    </TouchableOpacity>
-                    </TutorialTarget>
-                    {/* No wrapper — conditional render only. LayoutAnimation
-                        in toggleGroup() handles the smooth open/close.
-                        SawCutReveal had a bug where it kept the body mounted
-                        at opacity 0 after collapse, leaving phantom height
-                        ("the gap that won't go away"). */}
-                    {!collapsed && (
-                      <View style={[styles.tileGroupBody, layout.isDesktop && styles.tileGroupBodyDesktop]}>
-                        {groupTiles.map(renderTile)}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          );
-        })()}
-
-        <Modal
-          visible={activeTile !== null}
-          animationType="slide"
-          presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
-          onRequestClose={() => setActiveTile(null)}
-        >
-          <View style={{ flex: 1, backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
-            <View style={styles.sectionModalHeader}>
-              <TouchableOpacity
-                onPress={() => setActiveTile(null)}
-                style={styles.sectionModalBack}
-                activeOpacity={0.7}
-                testID="section-modal-back"
-              >
-                <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
-                <Text style={styles.sectionModalBackText}>Back</Text>
-              </TouchableOpacity>
-              <Text style={styles.sectionModalTitle} numberOfLines={1}>
-                {activeTile === 'linkedEstimate' ? 'Estimate Items'
-                  : activeTile === 'schedule' ? 'Schedule'
-                  : activeTile === 'materials' ? 'Materials'
-                  : activeTile === 'labor' ? 'Labor'
-                  : activeTile === 'summary' ? 'Cost Summary'
-                  : activeTile === 'notes' ? 'Tips & Notes'
-                  : activeTile === 'collaborators' ? 'Team'
-                  : activeTile === 'changeOrders' ? 'Change Orders'
-                  : activeTile === 'invoices' ? 'Invoices'
-                  : activeTile === 'dailyReports' ? 'Daily Reports'
-                  : activeTile === 'punchList' ? 'Punch List'
-                  : activeTile === 'rfis' ? 'RFIs'
-                  : activeTile === 'submittals' ? 'Submittals'
-                  : activeTile === 'budget' ? 'Financial Health'
-                  : activeTile === 'photos' ? 'Photos'
-                  : activeTile === 'clientPortal' ? 'Client Portal'
-                  : activeTile === 'communications' ? 'Communications'
-                  : ''}
-              </Text>
-              <View style={{ width: 72 }} />
-            </View>
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 4 }}
-              showsVerticalScrollIndicator={false}
-            >
+  // Every section's body, drawn once: the phone's section sheet and the
+  // desktop side panel host the same JSX (moved here verbatim, wave 6c).
+  const sectionBody = (
+    <>
 
         {linkedEstimate && linkedItems.length > 0 && activeTile === 'linkedEstimate' && (
           <View style={styles.section}>
@@ -3425,7 +3016,7 @@ export default function ProjectDetailScreen() {
                   The project owner manages who else is on this job.
                 </Text>
               ) : (
-                <CollaboratorsManager projectId={project.id} />
+                <CollaboratorsManager projectId={project.id} onOpenClientPortal={() => openSection('clientPortal')} />
               )}
             </View>
           )}
@@ -3608,7 +3199,7 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id, new: '1' } })}
                 activeOpacity={0.7}
                 testID="add-change-order-btn"
               >
@@ -3725,7 +3316,7 @@ export default function ProjectDetailScreen() {
                     onPress={() => navigateFromTile({ pathname: '/invoice' as any, params: { projectId: id, invoiceId: inv.id } })}
                     onLongPress={() => {
                       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setActiveTile(null);
+                      if (!isDesktop) setActiveTile(null);
                       const delay = Platform.OS === 'ios' ? 350 : 0;
                       setTimeout(() => {
                         setActionSheetRef({ kind: 'invoice', id: inv.id, projectId: id });
@@ -3787,7 +3378,7 @@ export default function ProjectDetailScreen() {
                     against estimate line items. */}
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
-                  onPress={() => navigateFromTile({ pathname: '/invoice' as any, params: { projectId: id, type: 'quick' } })}
+                  onPress={() => navigateFromTile({ pathname: '/invoice' as any, params: { projectId: id, type: 'quick', new: '1' } })}
                   activeOpacity={0.7}
                   testID="add-quick-invoice-btn"
                 >
@@ -3949,7 +3540,7 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id, new: '1' } })}
                 activeOpacity={0.7}
                 testID="add-daily-report-btn"
               >
@@ -4148,12 +3739,12 @@ export default function ProjectDetailScreen() {
                     onPress={() =>
                       navigateTo(
                         { kind: 'rfi', id: rfi.id, projectId: id },
-                        { fromSheet: true, onBeforeNavigate: () => setActiveTile(null) },
+                        { fromSheet: true, onBeforeNavigate: () => { if (!isDesktop) setActiveTile(null); } },
                       )
                     }
                     onLongPress={() => {
                       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setActiveTile(null);
+                      if (!isDesktop) setActiveTile(null);
                       const delay = Platform.OS === 'ios' ? 350 : 0;
                       setTimeout(() => {
                         setActionSheetRef({ kind: 'rfi', id: rfi.id, projectId: id });
@@ -4194,7 +3785,7 @@ export default function ProjectDetailScreen() {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
-                  onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id } })}
+                  onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id, new: '1' } })}
                   activeOpacity={0.7}
                   testID="add-rfi-btn"
                 >
@@ -4278,7 +3869,7 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id, new: '1' } })}
                 activeOpacity={0.7}
                 testID="add-submittal-btn"
               >
@@ -4941,13 +4532,723 @@ export default function ProjectDetailScreen() {
           )}
         </View>
         )}
+        {activeTile === 'aiReport' && (
+          <View style={{ paddingHorizontal: 20 }}>
+            <AIProjectReport
+              project={project}
+              invoices={allInvoices}
+              changeOrders={allChangeOrders}
+              subscriptionTier={tier as any}
+            />
+          </View>
+        )}
+    </>
+  );
+
+  // The desktop section index: each column's row width (rows fill their
+  // column; see indexRowsDesktop), and a row's words for a screen reader —
+  // the phone tile's label, word for word.
+  const indexRowWidth = indexBox.measured ? tileGridColumns(indexBox.width, Layout.tile.kpi).width : Layout.tile.kpi.min;
+  const tileLockText = (tile: Tile): string | null => {
+    if (!lockedTileKeys.has(tile.key)) return null;
+    const lockFeature = TILE_LOCK_FEATURE[tile.key];
+    return tileLockReason(tile.key, hubRole, lockFeature ? requiredTierFor(lockFeature as Parameters<typeof requiredTierFor>[0]) : null);
+  };
+  const tileA11yLabel = (tile: Tile, lockReason: string | null): string => `${tile.label}`
+    + (tile.count != null ? `, ${tile.count} ${tile.count === 1 ? 'item' : 'items'}` : '')
+    + (lockReason ? `, locked, ${lockReason}` : '');
+
+  return (
+    // Desktop: a ROW — the page, and the section side panel docked beside it.
+    // (A ternary, not `isDesktop && …`, so a phone's style array is exactly
+    // the two entries it always had.)
+    <View
+      style={isDesktop ? [styles.container, { backgroundColor: themeColors.bg }, styles.containerDesktop] : [styles.container, { backgroundColor: themeColors.bg }]}
+      onLayout={isDesktop ? panelRow.onLayout : undefined}
+    >
+      <Stack.Screen options={stackScreenOptions} />
+      <ScrollView
+        ref={hubScrollRef}
+        {...fabScroll}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.pageDesktop]}
+        showsVerticalScrollIndicator={false}
+      >
+        <TutorialScrollAnchor scrollRef={hubScrollRef}>
+        {isDesktop ? (
+          // ── The desktop workspace (wave 6c): one screen at 1512 x 945 ──
+          <View style={isDesktop && styles.workspaceDesktop} testID="project-workspace">
+            <ProjectWorkspaceHeader
+              project={project}
+              currentStage={currentStage}
+              onStageChange={handleStageTap}
+              invoices={projectInvoices}
+              rfis={projectRFIs}
+              punchItems={punchItems}
+              roleError={pulse.roleError}
+              onOpenTile={(key) => pressTile({ key: key as SectionKey })}
+              hasAnyEstimate={hasAnyEstimate}
+              onShare={() => setShowShareModal(true)}
+              onEdit={requestEdit}
+              editBlockedReason={hubPerms.editBlockedReason}
+              generatingCloseout={generatingCloseout}
+              onCloseoutPacket={handleGenerateCloseoutPacket}
+              onAIReport={() => openSection('aiReport')}
+              onExportCalendar={handleExportCalendar}
+              canDelete={hubPerms.canDelete}
+              canLeave={hubPerms.canLeave}
+              onDelete={handleDelete}
+              onLeave={handleLeave}
+              leaveBusyReason={leaving ? 'Leaving…' : checkingLeave ? 'Sending unsynced changes…' : null}
+            />
+            <ProjectKpiStrip
+              projectId={project.id}
+              pulse={pulse}
+              onOpenSchedule={openSchedule}
+              listLinks={deskWeb}
+              onOpenSection={openSection}
+            />
+            {/* One row of quick actions. Closeout lives in the header's ⋯. */}
+            <TileGrid preset="action" phoneStyle={styles.quickActions} desktopStyle={isDesktop && styles.quickActionsDesktop}>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, isDesktop && styles.quickActionBtnDesktop]}
+                onPress={() => router.push(routeHref('/weekly-snapshot', { projectId: project.id }))}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                testID="project-weekly-snapshot-btn"
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                  <CalendarDays size={18} color={themeColors.accent} strokeWidth={1.75} />
+                </View>
+                <Text style={styles.quickActionLabel}>This Week</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, isDesktop && styles.quickActionBtnDesktop]}
+                onPress={() => router.push(routeHref('/cash-flow', { projectId: project.id }))}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                testID="project-cash-flow-btn"
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.success + '15' }]}>
+                  <Wallet size={18} color={themeColors.success} strokeWidth={1.75} />
+                </View>
+                <Text style={styles.quickActionLabel}>Cash Flow</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, isDesktop && styles.quickActionBtnDesktop]}
+                onPress={() => (hasAnyEstimate
+                  ? router.replace(routeHref('/(tabs)/estimate/full', { projectId: project.id }))
+                  : router.push(routeHref('/estimate-wizard', { projectId: project.id })))}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                testID={hasAnyEstimate ? 'project-view-estimate-btn' : 'project-create-estimate-btn'}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                  <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
+                </View>
+                <Text style={styles.quickActionLabel}>Estimate</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, isDesktop && styles.quickActionBtnDesktop]}
+                onPress={project.schedule ? openSchedule : buildSchedule}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                testID={project.schedule ? 'project-view-schedule-btn' : 'project-create-schedule-btn'}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
+                  <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
+                </View>
+                <Text style={styles.quickActionLabel}>Schedule</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, isDesktop && styles.quickActionBtnDesktop]}
+                onPress={() => router.push(routeHref('/payment-predictions', { projectId: project.id }))}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                testID="project-payment-forecast-btn"
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                  <TrendingDown size={18} color={themeColors.accent} strokeWidth={1.75} />
+                </View>
+                <Text style={styles.quickActionLabel}>Forecast</Text>
+              </TouchableOpacity>
+            </TileGrid>
+            <ProjectOverviewColumns
+              projectId={project.id}
+              pulse={pulse}
+              listLinks={deskWeb}
+              onOpenSection={openSection}
+              onOpenSchedule={openSchedule}
+              onBuildSchedule={buildSchedule}
+            />
+            {/* The index of every section: four columns (Field, Money,
+                Documentation, People), every group open — collapsing is a
+                phone idea. Rendered HERE, not in a components/project file:
+                the tutorial registry names this file for the hub.tile.* /
+                hub.group.* targets, and the tutorial finales light
+                hub.tile.dailyReports / invoices / punchList. A row is a real
+                link where it leaves the page (a log on desktop web, or a
+                screen of its own), a button where it opens the side panel. */}
+            <View onLayout={indexBox.onLayout} testID="project-section-index">
+              <TileGrid preset="kpi">
+                {groups.map(group => {
+                  const groupTiles = group.tileKeys.map(k => tileByKey.get(k)).filter((t): t is Tile => t !== undefined);
+                  if (groupTiles.length === 0) return null;
+                  const groupCountSum = groupTiles.reduce((acc, t) => acc + (t.count ?? 0), 0);
+                  const GroupIcon = group.icon;
+                  return (
+                    <View key={group.key} style={isDesktop && styles.indexColDesktop}>
+                      <TutorialTarget id={`hub.group.${group.key}`}>
+                        <View style={isDesktop && styles.indexHeadDesktop} testID={`tile-group-${group.key}`} accessibilityRole="header">
+                          <GroupIcon size={16} color={group.color} />
+                          <Text style={styles.indexHeadLabel} numberOfLines={1}>{group.label}</Text>
+                          {groupCountSum > 0 ? <Text style={styles.indexCount}>{groupCountSum}</Text> : null}
+                        </View>
+                      </TutorialTarget>
+                      {/* Row-wrap, so each row's tutorial wrapper stretches it
+                          exactly as the grid would (tutorial-target-layout's
+                          desktop rule); the rows are sized to the column. */}
+                      <View style={isDesktop && styles.indexRowsDesktop}>
+                        {groupTiles.map(tile => {
+                          const TileIcon = tile.icon;
+                          const lockReason = tileLockText(tile);
+                          const a11yLabel = tileA11yLabel(tile, lockReason);
+                          const href = sectionIndexHref(tile.key, project.id, deskWeb);
+                          const badge = tileBadges[tile.key];
+                          const rowStyle = [isDesktop && styles.indexRowDesktop, { width: indexRowWidth }];
+                          const body = (
+                            <>
+                              <TileIcon size={16} color={tile.color} />
+                              <Text style={styles.indexRowLabel} numberOfLines={1}>{tile.label}</Text>
+                              <View style={styles.indexRowTrail}>
+                                {lockReason ? (
+                                  <>
+                                    <Lock size={12} color={themeColors.textMuted} strokeWidth={2.5} />
+                                    <Text style={styles.indexRowNote} numberOfLines={1} testID={`section-tile-lock-reason-${tile.key}`}>{lockReason}</Text>
+                                  </>
+                                ) : tile.count != null ? (
+                                  <Text style={styles.indexCount}>{tile.count}</Text>
+                                ) : badge ? (
+                                  <Text style={[styles.indexRowNote, { color: STATUS_TONES[badge.tone].color }]} numberOfLines={1}>{badge.label}</Text>
+                                ) : null}
+                              </View>
+                            </>
+                          );
+                          return (
+                            <TutorialTarget key={tile.key} id={`hub.tile.${tile.key}`} style={isDesktop ? styles.tileTargetDesktop : undefined}>
+                              {href ? (
+                                <RowLink href={href} style={rowStyle} accessibilityLabel={a11yLabel} testID={`section-tile-${tile.key}`}>
+                                  {body}
+                                </RowLink>
+                              ) : (
+                                <Pressable
+                                  onPress={() => pressTile(tile)}
+                                  style={rowStyle}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={a11yLabel}
+                                  testID={`section-tile-${tile.key}`}
+                                >
+                                  {body}
+                                </Pressable>
+                              )}
+                            </TutorialTarget>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })}
+              </TileGrid>
+            </View>
+          </View>
+        ) : (
+        <>
+        {/* The hero card unrolls like a blueprint when the project opens. */}
+        <BlueprintReveal>
+        <View style={styles.heroCard}>
+          <View style={styles.heroHeader}>
+            <View style={styles.heroTitleBlock}>
+              <Text style={styles.heroName}>{project.name}</Text>
+              <View style={styles.heroMeta}>
+                <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.heroMetaText}>{displayText(project.location, 'No location set')}</Text>
+              </View>
+              {displayText(project.description) ? (
+                <Text style={styles.heroDesc}>{displayText(project.description)}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          {hasAnyEstimate && (
+            <View style={styles.heroStats}>
+              {/* The breakdown modal is computed ENTIRELY from the legacy
+                  project.estimate (materialTotal / laborTotal / permits /
+                  overhead), while heroTotal comes from effectiveEstimateTotal,
+                  which prefers linkedEstimate. When a project carries both,
+                  opening it puts stale legacy figures under a headline derived
+                  from the linked grandTotal — two numbers on one card that
+                  disagree. So the tap is only offered when the legacy estimate
+                  IS the headline. Residual of PR #81; PR #116 restored the
+                  sibling gate below but not this one. */}
+              <TouchableOpacity
+                style={styles.heroStatMain}
+                onPress={() => estimate && !linkedEstimate ? openDetail('total') : undefined}
+                activeOpacity={estimate && !linkedEstimate ? 0.7 : 1}
+                testID="hero-total-tap"
+              >
+                <Text style={styles.heroStatLabel}>Total Estimate</Text>
+                {/* The estimate total rolls up like a tape measure unrolling —
+                    helps the number land instead of just appearing. */}
+                <TapeRollNumber
+                  value={heroTotal}
+                  formatter={(n) => formatMoney(Math.round(n))}
+                  style={styles.heroStatValue}
+                  duration={900}
+                />
+                <Text style={styles.heroTapHint}>{heroLabel}{estimate && !linkedEstimate ? ' · Tap for breakdown' : ''}</Text>
+              </TouchableOpacity>
+              <View style={{ marginTop: 10, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <BidConfidenceBadge project={project} variant="light" />
+                {heroProgress.hasSchedule && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
+                    <View style={{ width: 44, height: 6, borderRadius: 3, backgroundColor: themeColors.line, overflow: 'hidden' }}>
+                      <View style={{ width: `${heroProgress.pct}%`, height: 6, backgroundColor: themeColors.accent }} />
+                    </View>
+                    <Text style={{ color: themeColors.text, fontSize: 12, fontWeight: '800' }}>{heroProgress.pct}% done</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.heroStatsRow}>
+                {/* Legacy estimate sub-stats ONLY when no linkedEstimate drives the
+                    headline (effectiveEstimateTotal prefers linkedEstimate). Otherwise
+                    per-sqft / duration / bulk-savings are stale legacy figures sitting
+                    directly under a headline computed from the linked grandTotal — two
+                    numbers on one card that disagree. Restored from PR #81. */}
+                {estimate && !linkedEstimate && (
+                  <>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Per Sq Ft</Text>
+                      <Text style={styles.smallStatValue}>${estimate.pricePerSqFt.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Duration</Text>
+                      <Text style={styles.smallStatValue}>{estimate.estimatedDuration}</Text>
+                    </View>
+                    {showBulkSavings ? (
+                      <TouchableOpacity
+                        style={styles.heroStatSmall}
+                        onPress={() => openDetail('savings')}
+                        activeOpacity={0.7}
+                        testID="hero-savings-tap"
+                      >
+                        <Text style={styles.smallStatLabel}>Bulk Savings</Text>
+                        <Text style={[styles.smallStatValue, { color: themeColors.success }]}>
+                          {formatMoney(totalBulkSavings)}
+                        </Text>
+                        <ArrowDownRight size={10} color={themeColors.textMuted} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </>
+                )}
+                {/* `linkedEstimate &&`, NOT `!estimate && linkedEstimate &&`.
+                    With both present the legacy block above is off (its
+                    !linkedEstimate guard) — so gating this one on !estimate too
+                    left the row rendering NOTHING for exactly the projects that
+                    have both, which is every project that had a legacy estimate
+                    before one was attached (commitEstimatePatch sets
+                    linkedEstimate and never clears project.estimate). The
+                    linked estimate is the authoritative one whenever it exists,
+                    so it owns the row. */}
+                {linkedEstimate && (
+                  <>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Markup</Text>
+                      <Text style={styles.smallStatValue}>{linkedEstimate.globalMarkup}%</Text>
+                    </View>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Base Cost</Text>
+                      <Text style={styles.smallStatValue}>{formatMoney(linkedEstimate.baseTotal)}</Text>
+                    </View>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>+ Markup</Text>
+                      <Text style={[styles.smallStatValue, { color: themeColors.accent }]}>
+                        {formatMoney(linkedEstimate.markupTotal)}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          )}
+        </View>
+        </BlueprintReveal>
+
+        {/* Financial pulse — projected margin as the hero number, a margin-risk
+            spirit level, and the numbers that move the finish. Renders nothing
+            until the project has a margin basis (a budget). */}
+        <ProjectHero project={project} pulse={pulse} />
+
+        {/* NextStepHero — scoped to this project. Tells the user the
+            single most-important action for this project alone: add
+            scope, build estimate, send invoice, chase stale RFIs, etc.
+            Hidden when nothing is pending — keep the project page calm
+            once the GC is in the rhythm of the work. */}
+        <NextStepHero
+          projects={project ? [project] : []}
+          invoices={projectInvoices}
+          rfis={projectRFIs}
+          punchItems={punchItems}
+          scopeToProjectId={project?.id}
+          testID="project-next-step"
+        />
+
+        {/* Lifecycle stage strip — Pre-Con → Construction → Post-Con → Closeout.
+            Tapping a stage prompts to advance project.status.
+            The 4 stages map onto the 5 underlying status values (draft+estimated
+            collapse into Pre-Con). */}
+        <View style={styles.stageStrip}>
+          <View style={styles.stageHeaderRow}>
+            <Text style={styles.stageHeaderLabel}>Project Stage</Text>
+            <Text style={styles.stageHeaderCount}>
+              {LIFECYCLE_STAGES.findIndex(s => s.key === currentStage) + 1} of {LIFECYCLE_STAGES.length}
+            </Text>
+          </View>
+          <View style={styles.stageChipsRow}>
+            {LIFECYCLE_STAGES.map((stage, idx) => {
+              const isActive = stage.key === currentStage;
+              const stageIdx = LIFECYCLE_STAGES.findIndex(s => s.key === currentStage);
+              const isPast = idx < stageIdx;
+              return (
+                <TouchableOpacity
+                  key={stage.key}
+                  onPress={() => handleStageTap(stage.key)}
+                  activeOpacity={0.75}
+                  style={[
+                    styles.stageChip,
+                    isActive && styles.stageChipActive,
+                    !isActive && isPast && styles.stageChipPast,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Stage: ${stage.label}${isActive ? ' (current)' : ''}`}
+                  testID={`stage-chip-${stage.key}`}
+                >
+                  <Text
+                    style={[
+                      styles.stageChipText,
+                      isActive && styles.stageChipTextActive,
+                      !isActive && isPast && styles.stageChipTextPast,
+                    ]}
+                    numberOfLines={1}
+                    // Shrink before ellipsizing. A stage label read at 10pt is
+                    // still a stage label; "Constru…" is not.
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {stage.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.stageProgressTrack}>
+            <View
+              style={[
+                styles.stageProgressFill,
+                {
+                  width: `${((LIFECYCLE_STAGES.findIndex(s => s.key === currentStage) + 1) / LIFECYCLE_STAGES.length) * 100}%`,
+                },
+              ]}
+            />
+          </View>
+        </View>
+
+        {/* Universal MAGE Copilot — say what you need, it routes to the right
+            interview. The one entry a contractor never has to hunt for. */}
+        <TouchableOpacity
+          style={styles.copilotHubBtn}
+          onPress={() => router.push({ pathname: '/copilot-hub', params: { projectId: id ?? '' } } as any)}
+          activeOpacity={0.85}
+          testID="project-copilot-hub-btn"
+        >
+          <View style={styles.copilotHubIcon}>
+            <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.copilotHubTitle}>Ask MAGE to do anything</Text>
+            <Text style={styles.copilotHubSub}>Say it — daily report, RFI, change order, estimate…</Text>
+          </View>
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+        </TouchableOpacity>
+
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push({ pathname: '/weekly-snapshot' as any, params: { projectId: id } })}
+            activeOpacity={0.7}
+            testID="project-weekly-snapshot-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+              <CalendarDays size={18} color={themeColors.accent} strokeWidth={1.75} />
+            </View>
+            <Text style={styles.quickActionLabel}>This Week</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push({ pathname: '/cash-flow' as any, params: { projectId: id } })}
+            activeOpacity={0.7}
+            testID="project-cash-flow-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.success + '15' }]}>
+              <Wallet size={18} color={themeColors.success} strokeWidth={1.75} />
+            </View>
+            <Text style={styles.quickActionLabel}>Cash Flow</Text>
+          </TouchableOpacity>
+          {!hasAnyEstimate && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.push({ pathname: '/estimate-wizard', params: { projectId: id ?? '' } } as never)}
+              activeOpacity={0.7}
+              testID="project-create-estimate-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
+              </View>
+              <Text style={styles.quickActionLabel}>Estimate</Text>
+            </TouchableOpacity>
+          )}
+          {!project.schedule && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.replace('/(tabs)/discover/schedule' as any)}
+              activeOpacity={0.7}
+              testID="project-create-schedule-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
+                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
+              </View>
+              <Text style={styles.quickActionLabel}>Schedule</Text>
+            </TouchableOpacity>
+          )}
+          {project.schedule && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              // Carry the project. Without projectId + the `focus` nonce,
+              // MobileScheduleScreen keeps whichever project was last active
+              // there and its effect returns early — the P0 context drop the
+              // comment at :2335 already names and fixes for one call site.
+              onPress={() => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any)}
+              activeOpacity={0.7}
+              testID="project-view-schedule-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
+                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
+              </View>
+              <Text style={styles.quickActionLabel}>Schedule</Text>
+            </TouchableOpacity>
+          )}
+          {hasAnyEstimate && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.replace({ pathname: '/(tabs)/estimate/full', params: { projectId: id ?? '' } } as any)}
+              activeOpacity={0.7}
+              testID="project-view-estimate-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
+              </View>
+              <Text style={styles.quickActionLabel}>Estimate</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push({ pathname: '/payment-predictions' as any, params: { projectId: id } })}
+            activeOpacity={0.7}
+            testID="project-payment-forecast-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+              <TrendingDown size={18} color={themeColors.accent} strokeWidth={1.75} />
+            </View>
+            <Text style={styles.quickActionLabel}>Forecast</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickActionBtn, !isDesktop && styles.quickActionBtnFull, generatingCloseout && { opacity: 0.5 }]}
+            onPress={handleGenerateCloseoutPacket}
+            activeOpacity={0.7}
+            disabled={generatingCloseout}
+            testID="project-closeout-packet-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+              <Archive size={18} color={themeColors.accent} strokeWidth={1.75} />
+            </View>
+            <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
+            {/* Concrete-pour progress bar appears under the button while
+                generation is in flight. Indeterminate-ish — we don't have
+                a real % from the PDF generator, so we show a slow ramp to
+                ~85% and finish on success. */}
+            {generatingCloseout && (
+              <ConcretePour value={0.85} height={3} fillColor={themeColors.accent} duration={2400} hideShine={false} style={{ marginTop: 6, width: '100%' }} />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Section tile groups — collapsible, organized by workflow domain.
+            Field & Money default-expanded (most-used). Documentation & People
+            default-collapsed (lower frequency). Group header shows the sum of
+            tile counts so you can spot a busy section without expanding it. */}
+        {(() => {
+
+          const renderTile = (tile: Tile) => {
+            // The phone's one-per-row stack (desktop draws the section index).
+            const TileIcon = tile.icon;
+            const isLocked = lockedTileKeys.has(tile.key);
+            const lockFeature = TILE_LOCK_FEATURE[tile.key];
+            const lockReason = isLocked
+              ? tileLockReason(tile.key, hubRole, lockFeature ? requiredTierFor(lockFeature as Parameters<typeof requiredTierFor>[0]) : null)
+              : null;
+            // VoiceOver label: name + item count + locked state, so a
+            // screen-reader user hears the tile is a button, how many items
+            // it holds, and whether it's gated before opening it.
+            const a11yLabel = `${tile.label}`
+              + (tile.count != null ? `, ${tile.count} ${tile.count === 1 ? 'item' : 'items'}` : '')
+              + (lockReason ? `, locked, ${lockReason}` : '');
+            // The tutorial target wraps the tile; the tile's styles stay on
+            // the HardHatTap, which puts them on its INNER Animated.View inside
+            // an unstyled Pressable. The body is a stretching column, so an
+            // unstyled wrapper is neutral. (Since wave 6c this grid is phone
+            // only; the row-only desktop wrapper lives on in the desktop
+            // section index above.)
+            return (
+              <TutorialTarget key={tile.key} id={`hub.tile.${tile.key}`} style={layout.isDesktop ? styles.tileTargetDesktop : undefined}>
+              <HardHatTap
+                style={styles.sectionTile}
+                hatColor={tile.color}
+                accessibilityRole="button"
+                accessibilityLabel={a11yLabel}
+                accessibilityState={{ disabled: false }}
+                hitSlop={6}
+                onPress={() => pressTile(tile)}
+                testID={`section-tile-${tile.key}`}
+              >
+                <View style={[styles.sectionTileIcon, { backgroundColor: tile.color + '15' }]}>
+                  <TileIcon size={20} color={tile.color} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
+                  {tileBadges[tile.key] ? (
+                    <Text
+                      style={[styles.sectionTileStatus, { color: STATUS_TONES[tileBadges[tile.key]!.tone].color }]}
+                      numberOfLines={1}
+                    >
+                      {tileBadges[tile.key]!.label}
+                    </Text>
+                  ) : lockReason ? (
+                    <Text style={[styles.sectionTileStatus, { color: themeColors.textMuted }]} numberOfLines={1} testID={`section-tile-lock-reason-${tile.key}`}>
+                      {lockReason}
+                    </Text>
+                  ) : null}
+                </View>
+                {tile.count !== null && tile.count !== undefined && (
+                  <View style={styles.sectionTileBadge}>
+                    <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
+                  </View>
+                )}
+                {lockedTileKeys.has(tile.key) && (
+                  <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 4 }} />
+                )}
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </HardHatTap>
+              </TutorialTarget>
+            );
+          };
+
+          return (
+            <View style={styles.sectionGroups}>
+              {groups.map(group => {
+                const groupTiles = group.tileKeys.map(k => tileByKey.get(k)).filter((t): t is Tile => t !== undefined);
+                if (groupTiles.length === 0) return null;
+                const groupCountSum = groupTiles.reduce((acc, t) => acc + (t.count ?? 0), 0);
+                const collapsed = collapsedGroups.has(group.key);
+                const GroupIcon = group.icon;
+                return (
+                  <View key={group.key} style={styles.tileGroup}>
+                    <TutorialTarget id={`hub.group.${group.key}`}>
+                    <TouchableOpacity
+                      style={styles.tileGroupHeader}
+                      onPress={() => toggleGroup(group.key)}
+                      activeOpacity={0.7}
+                      testID={`tile-group-${group.key}`}
+                    >
+                      <View style={[styles.tileGroupHeaderIcon, { backgroundColor: group.color + '15' }]}>
+                        <GroupIcon size={18} color={group.color} />
+                      </View>
+                      <Text style={styles.tileGroupHeaderLabel}>{group.label}</Text>
+                      {groupCountSum > 0 && (
+                        <View style={styles.tileGroupBadge}>
+                          <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
+                        </View>
+                      )}
+                      {collapsed ? <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
+                    </TouchableOpacity>
+                    </TutorialTarget>
+                    {/* No wrapper — conditional render only. LayoutAnimation
+                        in toggleGroup() handles the smooth open/close.
+                        SawCutReveal had a bug where it kept the body mounted
+                        at opacity 0 after collapse, leaving phantom height
+                        ("the gap that won't go away"). */}
+                    {!collapsed && (
+                      <View style={[styles.tileGroupBody, layout.isDesktop && styles.tileGroupBodyDesktop]}>
+                        {groupTiles.map(renderTile)}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
+        </>
+        )}
+
+        {!isDesktop && (
+        <Modal
+          visible={activeTile !== null}
+          animationType="slide"
+          presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+          onRequestClose={closeSection}
+        >
+          <View style={{ flex: 1, backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
+            <View style={styles.sectionModalHeader}>
+              <TouchableOpacity
+                onPress={closeSection}
+                style={styles.sectionModalBack}
+                activeOpacity={0.7}
+                testID="section-modal-back"
+              >
+                <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
+                <Text style={styles.sectionModalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.sectionModalTitle} numberOfLines={1}>
+                {sectionTitle(activeTile)}
+              </Text>
+              <View style={{ width: 72 }} />
+            </View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 4 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {sectionBody}
             </ScrollView>
           </View>
           {/* Inside the tile sheet: on iOS a Modal presents from the topmost
               one, and the Client Portal row that opens it lives in here. */}
           <ClientDocumentAskSheet {...termsGate.sheet} />
         </Modal>
+        )}
 
+        {/* Phone only: desktop has Share / Edit / Delete-Leave in the header
+            toolbar, and the AI report in its ⋯ menu (the side panel). */}
+        {!isDesktop && (
+        <>
         {hasAnyEstimate && (
           <View style={styles.shareSection}>
             <Text style={styles.shareSectionTitle}>Share</Text>
@@ -5028,8 +5329,28 @@ export default function ProjectDetailScreen() {
             <Text style={styles.deleteButtonText}>{leaving ? 'Leaving…' : checkingLeave ? 'Sending unsynced changes…' : 'Leave project'}</Text>
           </TouchableOpacity>
         ) : null}
+        </>
+        )}
         </TutorialScrollAnchor>
       </ScrollView>
+
+      {/* Desktop: sections open in a side panel BESIDE the page (docked at a
+          1200+ px row, over its right edge below that) — never a full-window
+          sheet, so the sidebar and the page stay live. No onToggle: Cmd+J
+          stays the shell's. */}
+      {isDesktop && (
+        <SidePanel
+          open={activeTile !== null}
+          onClose={closeSection}
+          title={sectionTitle(activeTile)}
+          panelId="project-section"
+          containerWidth={panelRow.width}
+          testID="project-section-panel"
+        >
+          {sectionBody}
+        </SidePanel>
+      )}
+      {isDesktop && <ClientDocumentAskSheet {...termsGate.sheet} />}
 
       <Paywall
         visible={portalPaywallOpen}
@@ -5116,9 +5437,9 @@ export default function ProjectDetailScreen() {
                 </View>
 
                 {/* Tab row */}
-                <View style={styles.revDetailTabRow}>
+                <View style={[styles.revDetailTabRow, isDesktop && segmentedDesktop.container]}>
                   <TouchableOpacity
-                    style={[styles.revDetailTab, revDetailView === 'delta' && styles.revDetailTabActive]}
+                    style={[styles.revDetailTab, revDetailView === 'delta' && styles.revDetailTabActive, isDesktop && segmentedDesktop.segment]}
                     onPress={() => setRevDetailView('delta')}
                     activeOpacity={0.7}
                   >
@@ -5127,7 +5448,7 @@ export default function ProjectDetailScreen() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.revDetailTab, revDetailView === 'items' && styles.revDetailTabActive]}
+                    style={[styles.revDetailTab, revDetailView === 'items' && styles.revDetailTabActive, isDesktop && segmentedDesktop.segment]}
                     onPress={() => setRevDetailView('items')}
                     activeOpacity={0.7}
                   >
@@ -5229,11 +5550,11 @@ export default function ProjectDetailScreen() {
       <Modal
         visible={showShareModal}
         transparent
-        animationType="fade"
+        animationType={fShare.animationType}
         onRequestClose={() => setShowShareModal(false)}
       >
-        <Pressable style={styles.shareModalOverlay} onPress={() => setShowShareModal(false)}>
-          <Pressable style={styles.shareModalCard} onPress={() => undefined}>
+        <Pressable style={[styles.shareModalOverlay, fShare.overlay]} onPress={() => setShowShareModal(false)}>
+          <Pressable style={[styles.shareModalCard, fShare.card]} onPress={() => undefined}>
             <View style={styles.shareModalHeader}>
               <Text style={styles.shareModalTitle}>Share Estimate</Text>
               <TouchableOpacity onPress={() => setShowShareModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5293,17 +5614,17 @@ export default function ProjectDetailScreen() {
       <Modal
         visible={showEditModal}
         transparent
-        animationType="slide"
+        animationType={fEdit.animationType}
         onRequestClose={() => setShowEditModal(false)}
       >
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.inviteModalOverlay}>
             <ScrollView
               style={{ flex: 1 }}
-              contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }}
+              contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fEdit.scrollContent]}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }, fEdit.card]}>
                 <View style={styles.inviteModalHeader}>
                   <Text style={styles.inviteModalTitle}>Edit Project</Text>
                   <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5552,17 +5873,17 @@ export default function ProjectDetailScreen() {
       <Modal
         visible={showNoteModal}
         transparent
-        animationType="slide"
+        animationType={fNote.animationType}
         onRequestClose={() => setShowNoteModal(false)}
       >
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.inviteModalOverlay}>
             <ScrollView
               style={{ flex: 1 }}
-              contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }}
+              contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fNote.scrollContent]}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }, fNote.card]}>
                 <View style={styles.inviteModalHeader}>
                   <Text style={styles.inviteModalTitle}>Internal Note</Text>
                   <TouchableOpacity onPress={() => setShowNoteModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -6251,6 +6572,30 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
   quickActionBtnFull: { flexBasis: '100%' as const },
+  // ── Wave 6c desktop workspace (layout only; colours stay on the phone styles) ──
+  containerDesktop: { flexDirection: 'row' as const },
+  pageDesktop: {
+    maxWidth: Layout.page.dashboard,
+    alignSelf: 'center' as const,
+    width: '100%' as const,
+    paddingHorizontal: Layout.gutter,
+    paddingTop: Layout.groupGap,
+    paddingBottom: Layout.sectionGap,
+  },
+  workspaceDesktop: { gap: 12 },
+  quickActionsDesktop: { paddingHorizontal: 0, marginTop: 0 },
+  quickActionBtnDesktop: { minHeight: Layout.tile.action.minHeight, paddingVertical: 0 },
+  // The section index: a column per group, 28 px header and rows, no padding
+  // (the tallest group — 9 rows — is 280 px, the one-screen budget).
+  indexColDesktop: { gap: 0 },
+  indexHeadDesktop: { height: 28, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 6 },
+  indexRowsDesktop: { flexDirection: 'row' as const, flexWrap: 'wrap' as const },
+  indexRowDesktop: { height: 28, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 6, borderRadius: Tokens.radius.sm },
+  indexHeadLabel: { flexShrink: 1, fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  indexRowLabel: { flexShrink: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
+  indexRowTrail: { marginLeft: 'auto' as const, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, flexShrink: 1, minWidth: 0 },
+  indexCount: { marginLeft: 'auto' as const, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, fontVariant: ['tabular-nums' as const] },
+  indexRowNote: { maxWidth: 120, fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
   quickActionIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
   quickActionLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, flexShrink: 1 },
   sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
@@ -6265,11 +6610,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   tileGroupBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
   tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
   tileGroupBody: { gap: 8 },
-  // Desktop: a full-width 1400px row per tile wastes the viewport — wrap them
-  // into columns instead. flexBasis picks the column count.
+  // Unreachable since wave 6c (the phone grid only renders when !isDesktop;
+  // desktop draws the section index). Kept, with its `layout.isDesktop &&`
+  // use, so the phone's style array stays byte-identical to the golden
+  // snapshot (__tests__/smoke/project-workspace-desktop.test.tsx).
   tileGroupBodyDesktop: { flexDirection: 'row' as const, flexWrap: 'wrap' as const },
-  sectionTileDesktop: { flexGrow: 1, flexBasis: 240, maxWidth: 400 },
-  // The hub.tile.* tutorial wrapper on the desktop grid (see renderTile).
+  // The hub.tile.* tutorial wrapper in the desktop section index (row-only,
+  // so the row-wrap list stretches it as it would the row itself).
   tileTargetDesktop: { flexDirection: 'row' as const },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },

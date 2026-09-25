@@ -185,8 +185,10 @@ ok('Discover ▸ Tools has a Construction News tile (phone door)',
 ok('the Tools tile opens its own route when it has no registry row',
   /row\.feature \? featureFor\(row\.feature\)\.route : row\.route/.test(tools) && /if \(!row\.feature\) return undefined;/.test(tools));
 const sidebar = read('components/DesktopSidebar.tsx');
+// Wave 6c moved the row from WORKSPACE into SETUP & TOOLS (WORKSPACE back to
+// six rows above the fold on the founder's 858 px viewport); either is a door.
 ok('DesktopSidebar has a Construction News row (desktop door, same label)',
-  /\{ key: 'construction-news', label: 'Construction News', icon: Newspaper,\s+route: '\/construction-news',\s+section: 'WORKSPACE'(, feature: 'construction-news')? \}/.test(sidebar));
+  /\{ key: 'construction-news', label: 'Construction News', icon: Newspaper,\s+route: '\/construction-news',\s+section: '(?:WORKSPACE|SETUP & TOOLS)'(, feature: 'construction-news')? \}/.test(sidebar));
 // Integration round 1: the ⌘K registry row landed (validate-feature-search
 // requires every sidebar route to be searchable), so the row names it.
 ok('the registry has a construction-news row on the same route, ungated',

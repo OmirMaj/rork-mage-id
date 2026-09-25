@@ -49,7 +49,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, segmentedDesktop, useIsDesktop, useSheetDialogScope } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import CodeCheckLoader from '@/components/CodeCheckLoader';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
@@ -1042,6 +1042,12 @@ Never invent a section number you are unsure of — leave section empty and desc
   const canUpsellCap = tier === 'free' || tier === 'pro';
   const upsellCapTier: 'pro' | 'business' = tier === 'free' ? 'pro' : 'business';
 
+  // Desktop (wave 6c): the mode toggle becomes a compact segmented control;
+  // the two review sheets are opaque pageSheets — dialog scope only.
+  const isDesktop = useIsDesktop();
+  useSheetDialogScope(showInspectionSheet);
+  useSheetDialogScope(!!pendingResult);
+
   if (overLimit) {
     return canUpsellCap ? (
       <Paywall
@@ -1125,9 +1131,9 @@ Never invent a section number you are unsure of — leave section empty and desc
         />
 
         {/* ── Mode toggle ── */}
-        <View style={styles.modeToggleBar}>
+        <View style={[styles.modeToggleBar, isDesktop && segmentedDesktop.container]}>
           <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'code' && styles.modeToggleBtnActive]}
+            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'code' && styles.modeToggleBtnActive]}
             onPress={() => setMode('code')}
             activeOpacity={0.8}
             testID="mode-toggle-code"
@@ -1136,7 +1142,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Code Check</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'roadmap' && styles.modeToggleBtnActive]}
+            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'roadmap' && styles.modeToggleBtnActive]}
             onPress={() => setMode('roadmap')}
             activeOpacity={0.8}
             testID="mode-toggle-roadmap"
@@ -1145,7 +1151,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Project Roadmap</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'plan' && styles.modeToggleBtnActive]}
+            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'plan' && styles.modeToggleBtnActive]}
             onPress={() => setMode('plan')}
             activeOpacity={0.8}
             testID="mode-toggle-plan"
@@ -1154,7 +1160,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]} numberOfLines={2} ellipsizeMode="tail">Plan Review</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'ask' && styles.modeToggleBtnActive]}
+            style={[styles.modeToggleBtn, isDesktop && segmentedDesktop.segment, mode === 'ask' && styles.modeToggleBtnActive]}
             onPress={() => setMode('ask')}
             activeOpacity={0.8}
             testID="mode-toggle-ask"
@@ -2448,6 +2454,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
     setOpenCode(cur => (cur === key ? null : key));
     if (openCode !== key) void loadDetail(c);
   }, [openCode, loadDetail]);
+  useSheetDialogScope(visible && !!result);
 
   if (!result) return null;
 

@@ -21,6 +21,7 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import type { SafetyFormTemplate, SafetyFormField, SafetyFormFieldType } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey, segmentedDesktop } from '@/components/ui';
 
 const FIELD_TYPES: SafetyFormFieldType[] = ['text', 'checkbox', 'select', 'signature', 'photo'];
 
@@ -145,6 +146,11 @@ function SafetyFormsInner() {
     ]);
   }, [deleteTemplate]);
 
+  // Desktop sheet (wave 6c): the form opens as a capped card centred in the
+  // content column; Cmd/Ctrl+Enter or Cmd/Ctrl+S saves it.
+  const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
+  useSheetPrimaryHotkey(showForm, handleSave);
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'Forms Library' }} />
@@ -181,11 +187,11 @@ function SafetyFormsInner() {
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); resetForm(); }}>
+      <Modal visible={showForm} transparent animationType={fForm.animationType} onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }]}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
                   <Text style={styles.formTitle}>{editing ? 'Edit Form' : 'New Form'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
@@ -204,7 +210,7 @@ function SafetyFormsInner() {
                       return (
                         <TouchableOpacity
                           key={cat}
-                          style={[styles.segment, active && styles.segmentActive]}
+                          style={[styles.segment, isDesktop && segmentedDesktop.segment, active && styles.segmentActive]}
                           onPress={() => setCategory(cat)}
                         >
                           <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{CATEGORY_LABEL[cat]}</Text>

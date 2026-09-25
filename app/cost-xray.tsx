@@ -61,10 +61,11 @@ import type {
   LinkedEstimate, LinkedEstimateItem, CostXrayMeta, XrayCategory,
 } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
 import { projectTypeLabel } from '@/utils/projectTypes';
+import { ActionBar, ActionBarReadout, ChipRail, TileGrid, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
 
 // A captured photo (id === the saved ProjectPhoto.id so tell provenance lines up).
 interface CapturedPhoto { id: string; uri: string; timestamp: string }
@@ -488,6 +489,10 @@ export default function CostXrayScreen() {
     );
   }, [accepted, project, updateProject, addPunchItem, router]);
 
+  // Desktop (wave 6c): the pre-result blocks sit in the 760 form column, the
+  // tells tile three across, and the apply bar lines up with the page.
+  const isDesktop = useIsDesktop();
+
   if (locked) {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -515,7 +520,7 @@ export default function CostXrayScreen() {
             </View>
           </View>
           <TouchableOpacity
-            style={styles.aiBtn}
+            style={[styles.aiBtn, isDesktop && desktopCta]}
             onPress={() => setShowUpgrade(true)}
             activeOpacity={0.85}
             accessibilityRole="button"
@@ -553,9 +558,9 @@ export default function CostXrayScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Project picker */}
         {projects.length > 1 && !hasReviews && (
-          <View style={styles.pickerWrap}>
+          <View style={[styles.pickerWrap, isDesktop && styles.formColumnDesktop]}>
             <Text style={styles.pickerLabel}>Project</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            <ChipRail contentContainerStyle={{ gap: 8 }}>
               {projects.map(p => (
                 <TouchableOpacity
                   key={p.id}
@@ -565,16 +570,16 @@ export default function CostXrayScreen() {
                   <Text style={[styles.chipText, projectId === p.id && styles.chipTextOn]} numberOfLines={1}>{p.name}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </ChipRail>
           </View>
         )}
 
         {/* Intro */}
         {photos.length === 0 && (
-          <View style={styles.introCard}>
+          <View style={[styles.introCard, isDesktop && styles.formColumnDesktop]}>
             <ScanSearch size={20} color={t.accent} strokeWidth={1.75} />
             <View style={{ flex: 1, gap: 10 }}>
-              <Text style={styles.introText}>
+              <Text style={[styles.introText, isDesktop && desktopProse]}>
                 Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> learned costs — before you commit a number.
               </Text>
               <View style={styles.tipsBox}>
@@ -587,7 +592,7 @@ export default function CostXrayScreen() {
                 ] as const).map((tip) => (
                   <View key={tip} style={styles.tipRow}>
                     <View style={styles.tipDot} />
-                    <Text style={styles.tipText}>{tip}</Text>
+                    <Text style={[styles.tipText, isDesktop && desktopProse]}>{tip}</Text>
                   </View>
                 ))}
               </View>
@@ -597,7 +602,7 @@ export default function CostXrayScreen() {
 
         {/* Captured thumbnails */}
         {photos.length > 0 && (
-          <View style={styles.thumbsRow}>
+          <View style={[styles.thumbsRow, isDesktop && styles.formColumnDesktop]}>
             {photos.map(p => (
               <View key={p.id} style={styles.thumbWrap}>
                 <Image source={{ uri: p.uri }} style={styles.thumb} resizeMode="cover" />
@@ -613,16 +618,16 @@ export default function CostXrayScreen() {
 
         {/* Capture buttons + count badge */}
         {!hasReviews && (
-          <View style={{ gap: 8 }}>
+          <View style={[{ gap: 8 }, isDesktop && styles.formColumnDesktop]}>
             <View style={styles.captureHeaderRow}>
               <Text style={styles.photoCountBadge}>{photos.length}/{MAX_PHOTOS} photos</Text>
               {photos.length >= MAX_PHOTOS && (
                 <Text style={styles.photoCountMax}>Maximum reached</Text>
               )}
             </View>
-            <View style={[styles.captureRow, photos.length >= MAX_PHOTOS && { opacity: 0.38 }]}>
+            <View style={[styles.captureRow, isDesktop && styles.captureRowDesktop, photos.length >= MAX_PHOTOS && { opacity: 0.38 }]}>
               <TouchableOpacity
-                style={styles.captureBtn}
+                style={[styles.captureBtn, isDesktop && styles.captureBtnDesktop]}
                 onPress={() => capture('camera')}
                 activeOpacity={0.85}
                 disabled={photos.length >= MAX_PHOTOS}
@@ -632,7 +637,7 @@ export default function CostXrayScreen() {
                 <Text style={[styles.captureText, photos.length >= MAX_PHOTOS && { color: t.textMuted }]}>Take photo</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.captureBtn}
+                style={[styles.captureBtn, isDesktop && styles.captureBtnDesktop]}
                 onPress={() => capture('library')}
                 activeOpacity={0.85}
                 disabled={photos.length >= MAX_PHOTOS}
@@ -647,7 +652,7 @@ export default function CostXrayScreen() {
 
         {/* Scan CTA */}
         {photos.length > 0 && !hasReviews && (
-          <TouchableOpacity style={[styles.aiBtn, busy && { opacity: 0.7 }]} onPress={detect} disabled={busy} activeOpacity={0.85} testID="xray-scan">
+          <TouchableOpacity style={[styles.aiBtn, isDesktop && desktopCta, busy && { opacity: 0.7 }]} onPress={detect} disabled={busy} activeOpacity={0.85} testID="xray-scan">
             {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <ScanSearch size={16} color={Colors.textOnAccent} strokeWidth={2} />}
             <Text style={styles.aiBtnText}>{busy ? 'Analyzing — this can take ~20 seconds…' : pending ? 'Retry scan' : 'Scan for hidden costs'}</Text>
           </TouchableOpacity>
@@ -655,7 +660,7 @@ export default function CostXrayScreen() {
 
         {/* Pending / offline */}
         {pending && error && (
-          <View style={styles.warn}>
+          <View style={[styles.warn, isDesktop && styles.formColumnDesktop]}>
             <WifiOff size={15} color={t.accentHot} strokeWidth={1.75} />
             <Text style={styles.warnText}>{error}</Text>
           </View>
@@ -663,7 +668,7 @@ export default function CostXrayScreen() {
 
         {/* Error (non-pending) */}
         {!pending && error && (
-          <View style={styles.warn}>
+          <View style={[styles.warn, isDesktop && styles.formColumnDesktop]}>
             <AlertTriangle size={15} color={t.danger} strokeWidth={1.75} />
             <Text style={styles.warnText}>{error}</Text>
           </View>
@@ -679,6 +684,7 @@ export default function CostXrayScreen() {
                 : 'Accept the ones worth carrying. Every accepted tell spawns a field-verify task. This project has no estimate yet, so priced tells can\u2019t be added as lines — build one first.'}
             </Text>
 
+            <TileGrid preset="content" phoneStyle={undefined}>
             {reviews.map((r) => {
               const Icon = CAT_ICON[r.category];
               const band = effectiveBand(r);
@@ -731,7 +737,7 @@ export default function CostXrayScreen() {
                                 value={String(r.qty)}
                                 onChangeText={v => patchReview(r.id, { qty: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
                                 keyboardType="decimal-pad"
-                                style={styles.editField}
+                                style={[styles.editField, isDesktop && styles.editFieldDesktop]}
                               />
                             </View>
                             <View style={styles.editCol}>
@@ -740,7 +746,7 @@ export default function CostXrayScreen() {
                                 value={String(r.unitPrice)}
                                 onChangeText={v => patchReview(r.id, { unitPrice: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
                                 keyboardType="decimal-pad"
-                                style={styles.editField}
+                                style={[styles.editField, isDesktop && styles.editFieldDesktop]}
                               />
                             </View>
                             <View style={[styles.editCol, { alignItems: 'flex-end' }]}>
@@ -796,19 +802,20 @@ export default function CostXrayScreen() {
                 </View>
               );
             })}
+            </TileGrid>
           </View>
         )}
       </ScrollView>
 
       {/* Apply bar */}
       {hasReviews && (
-        <View style={[styles.applyBar, { paddingBottom: 12 + insets.bottom }]}>
-          <View style={{ flex: 1 }}>
+        <ActionBar style={[styles.applyBar, { paddingBottom: 12 + insets.bottom }]} width="dashboard">
+          <ActionBarReadout style={{ flex: 1 }}>
             <Text style={styles.applyCount}>{accepted.length} accepted</Text>
             {acceptedContingency > 0 && (canPrice
               ? <Text style={styles.applySub}>{formatMoney(acceptedContingency)} contingency</Text>
               : <Text style={styles.applySub} testID="xray-no-estimate">No estimate on this project — contingency won&apos;t be added</Text>)}
-          </View>
+          </ActionBarReadout>
           <TouchableOpacity
             style={[styles.applyBtn, accepted.length === 0 && styles.applyBtnDisabled]}
             onPress={applyToEstimate}
@@ -823,7 +830,7 @@ export default function CostXrayScreen() {
                 : `Create ${accepted.length} verify task${accepted.length === 1 ? '' : 's'}`}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ActionBar>
       )}
     </View>
   );
@@ -874,6 +881,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
 
   captureRow: { flexDirection: 'row' as const, gap: 12, marginBottom: 12 },
+  captureRowDesktop: { gap: Layout.rowGap },
+  // A photo tile, not a text CTA: it keeps its padding (desktopCta's fixed
+  // 40 px height would crush the icon over the label) and caps at 200 px.
+  captureBtnDesktop: { maxWidth: Layout.field.sm },
+  // The pre-result blocks (picker, intro, thumbs, capture, CTA, warnings)
+  // stay in the 760 form column; the tells below use the whole page.
+  formColumnDesktop: { width: '100%', maxWidth: Layout.page.form },
+  editFieldDesktop: { maxWidth: Layout.field.xs },
   captureBtn: {
     flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
     backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line,

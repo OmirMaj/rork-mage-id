@@ -62,6 +62,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
+import { segmentedDesktop, useIsDesktop } from '@/components/ui';
 
 // ─────────────────────────────────────────────────────────────
 // Root
@@ -860,6 +861,7 @@ interface CommitmentEditorProps {
 function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: CommitmentEditorProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const isDesktop = useIsDesktop();
   const { subcontractors } = useProjects();
   const [number, setNumber] = useState<string>('');
   const [type, setType] = useState<CommitmentType>('subcontract');
@@ -978,12 +980,12 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
           </View>
 
           <ScrollView style={{ maxHeight: 500 }}>
-            <View style={styles.segWrap}>
+            <View style={[styles.segWrap, isDesktop && segmentedDesktop.container]}>
               {(['subcontract', 'purchase_order'] as CommitmentType[]).map(t => (
                 <TouchableOpacity
                   key={t}
                   onPress={() => setType(t)}
-                  style={[styles.segBtn, type === t && styles.segBtnActive]}
+                  style={[styles.segBtn, isDesktop && segmentedDesktop.segment, type === t && styles.segBtnActive]}
                 >
                   <Text style={[styles.segBtnText, type === t && styles.segBtnTextActive]}>
                     {t === 'subcontract' ? 'Subcontract' : 'Purchase order'}

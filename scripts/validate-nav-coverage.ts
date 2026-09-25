@@ -379,7 +379,9 @@ for (const route of ['/post-bid', '/smart-proposal']) {
     /\{[^}]*\bactiveProjectId\b[^}]*\}\s*=\s*useActiveProject\(\)/.test(sidebarSrc)
     && /const jobId\s*=\s*isMinimalPersona\s*\?\s*null\s*:\s*activeProjectId\s*;/.test(sidebarSrc)
     && /jobScopedTarget\(item\.route,\s*\{[^}]*\bactiveProjectId:\s*jobId\s*\}/.test(sidebarSrc)
-    && /\}, \[jobId\]\);/.test(sidebarSrc),
+    // Wave 6c: hrefFor also depends on the Pro-scheduler gate (the Schedule
+    // row opens /schedule-pro when the plan has it) — jobId must still lead.
+    && /\}, \[jobId(?:, [\w.]+)*\]\);/.test(sidebarSrc),
     'hrefFor must pass `activeProjectId: jobId`, with `const jobId = isMinimalPersona ? null : activeProjectId` '
     + 'read from useActiveProject() and jobId in its deps — otherwise every THIS JOB row opens bare.');
   const rowLinkSrc = read(join('components', 'desktop', 'RowLink.tsx'));
