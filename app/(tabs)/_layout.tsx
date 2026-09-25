@@ -11,7 +11,8 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopActionRail from '@/components/DesktopActionRail';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { Type } from '@/constants/typography';
-import { Tokens, Layout } from '@/constants/designTokens';
+import { Tokens, Layout, Motion } from '@/constants/designTokens';
+import { nativeDriver, useReducedMotion, webMotion } from '@/components/ui';
 import { pageTypeForTab } from '@/utils/desktopPage';
 import { actionRailVisible, attentionBadgeLabel } from '@/utils/sidebarRail';
 import { useShellDock } from '@/components/desktop/ShellDock';
@@ -33,26 +34,20 @@ export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary'
 function TabIcon({
   Icon, color, focused,
 }: { Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>; color: string; focused: boolean }) {
-  // Two animated values now: a pill that fades behind the icon when
-  // active, and a tiny scale bounce on transition. Together they make
-  // the active state feel premium ("pill morphs in") instead of just
-  // a color change.
+  // Two animated values: a pill that fades behind the icon when active, and
+  // the icon's own scale. The scale used to overshoot to 1.08 and spring back
+  // with bounciness 6 on every focus — a bounce the smoothness pass retired
+  // (springs with a tiny overshoot at most, never bouncy). `bounce` stays a
+  // static 1 so the tree (and every golden) is unchanged.
   const focus = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const bounce = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    Animated.timing(focus, {
+    Animated.spring(focus, {
       toValue: focused ? 1 : 0,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      ...Motion.spring.rise,
+      useNativeDriver: nativeDriver,
     }).start();
-    if (focused) {
-      Animated.sequence([
-        Animated.timing(bounce, { toValue: 1.08, duration: 130, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.spring(bounce, { toValue: 1, speed: 40, bounciness: 6, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [focused, focus, bounce]);
+  }, [focused, focus]);
   return (
     <View style={tabIconStyles.wrap}>
       <Animated.View
@@ -144,6 +139,9 @@ export default function TabLayout() {
   const { total: attentionCount, sourceFailed } = useBrainWatch();
   const { colors: themeColors } = useTheme();
   const { userRole } = useCoreData();
+  // Reduce Motion as state: flips the tab fade (phone) and the page fade-in
+  // (desktop web) off and on without a relaunch.
+  const reduced = useReducedMotion();
   // Non-contractor personas get a stripped-down tab bar. The original
   // product surface (Summary, Discover with public-bid search + supplier
   // marketplace) is contractor-shaped — a property owner posting renovations,
@@ -215,6 +213,10 @@ export default function TabLayout() {
             screenOptions={{
               headerShown: false,
               tabBarStyle: { display: 'none' },
+              // A sidebar tab switch fades the page in (CSS keyframe, opacity
+              // only; null under Reduce Motion — `reduced` above re-renders
+              // this on a toggle so the class comes and goes with it).
+              sceneStyle: (reduced ? null : webMotion('fadeIn')) ?? undefined,
             }}
           >
             {/* Client persona hides the contractor-only top-level tabs.
@@ -259,6 +261,17 @@ export default function TabLayout() {
       }}
       screenOptions={{
         headerShown: false,
+        // Switching tabs cross-fades the scene (bottom-tabs drives it with RN
+        // Animated + the native driver — no reanimated). The stock FadeSpec is
+        // 150 ms LINEAR; this is the app's swap duration with an ease-out.
+        // `animation` stays 'fade' under Reduce Motion (a 0 ms fade): switching
+        // it to 'none' swaps the iOS scene container type, which remounts every
+        // tab and loses its scroll, open sheets and typed input.
+        animation: 'fade',
+        transitionSpec: {
+          animation: 'timing',
+          config: { duration: reduced ? 0 : Motion.duration.swap, easing: Easing.out(Easing.cubic) },
+        },
         tabBarActiveTintColor: themeColors.accent,
         tabBarInactiveTintColor: themeColors.textSecondary,
         tabBarStyle: {

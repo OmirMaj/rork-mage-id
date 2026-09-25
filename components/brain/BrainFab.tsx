@@ -10,20 +10,23 @@
 // Geometry mirrors the old AICopilot FAB (56pt circle, bottom-right, lifted
 // above the tab bar) so it lands where users already reach for it.
 //
-// Look & motion: a warm two-tone gradient (accentHot → accent) under a soft
-// ambient glow, with a slow "breathing" pulse so it reads as a live assistant
-// rather than a flat button, and a snappy spring on press that matches the
-// app's Button physics. All on the native driver (transform/opacity), no new
-// dependency — expo-linear-gradient is already used elsewhere.
+// Look & motion: a warm two-tone gradient (accentHot → accent) on the app's
+// neutral floating elevation (Shadow.medium — the accent glow and the idle
+// "breathing" pulse were retired in the smoothness pass: no glows, nothing that
+// moves on its own), a critically-damped spring on press that matches the app's
+// Button physics, a spring on hide/show, and a glide (not a one-frame jump)
+// when a screen's sticky footer lifts it. All on the native driver
+// (transform/opacity), no new dependency.
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Pressable, StyleSheet, Platform, Animated, Easing } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Pressable, StyleSheet, Platform, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments, useRouter, useGlobalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Motion, Shadow } from '@/constants/designTokens';
+import { nativeDriver, reducedMotion } from '@/components/ui';
 import { MageAIMark } from '@/components/icons';
 import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain/brainFabState';
 import { useTutorialCoachVisible } from '@/utils/tutorial/store';
@@ -62,7 +65,9 @@ export function BrainFab() {
   const routeKey = segments.join('/');
   useEffect(() => { resetBrainFabScroll(); }, [routeKey]);
 
-  // hide/show (opacity + slide + shrink), breathing (idle pulse), press (spring).
+  // hide/show (opacity + slide + shrink) and press (spring). `breathe` is a
+  // static 1 now — the idle pulse is gone (it also re-rendered every web page
+  // on every frame, forever) — kept so the transform structure is unchanged.
   const anim = useRef(new Animated.Value(1)).current;
   const breathe = useRef(new Animated.Value(1)).current;
   const press = useRef(new Animated.Value(1)).current;
@@ -70,32 +75,42 @@ export function BrainFab() {
   const pulseScale = useMemo(() => Animated.multiply(breathe, press), [breathe, press]);
 
   useEffect(() => {
-    Animated.timing(anim, {
-      toValue: hidden ? 0 : 1,
-      duration: 180,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    const toValue = hidden ? 0 : 1;
+    if (reducedMotion()) { anim.setValue(toValue); return; }
+    Animated.spring(anim, { toValue, ...Motion.spring.rise, useNativeDriver: nativeDriver }).start();
   }, [hidden, anim]);
 
-  // Slow, subtle breath (≈3.4s round trip, 6% swing) — enough to feel alive,
-  // gentle enough to ignore. Runs on the native driver so it never janks.
+  // A screen registering a sticky footer raises `lift`, and `bottom` below
+  // takes the new resting place in one frame. To glide instead, the offset is
+  // taken up by a translateY the same frame (so nothing visibly moves yet) and
+  // then springs to 0. It rests at 0, so a still screen is unchanged.
+  // A lift that changes again mid-glide (estimate/full: 16, then the cart
+  // bar's measured height a frame later) adds to the offset still in flight
+  // rather than replacing it, so the FAB never jumps. `liftNow` follows the
+  // value through a listener (native-driven values report each frame to it).
+  const liftOffset = useRef(new Animated.Value(0)).current;
+  const liftNow = useRef(0);
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breathe, { toValue: 1.09, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [breathe]);
+    const id = liftOffset.addListener(({ value }) => { liftNow.current = value; });
+    return () => liftOffset.removeListener(id);
+  }, [liftOffset]);
+  const prevLift = useRef(lift);
+  useLayoutEffect(() => {
+    const delta = lift - prevLift.current;
+    prevLift.current = lift;
+    if (delta === 0 || reducedMotion()) return;
+    liftOffset.stopAnimation();
+    liftOffset.setValue(liftNow.current + delta);
+    Animated.spring(liftOffset, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }).start();
+  }, [lift, liftOffset]);
 
   const onPressIn = useCallback(() => {
-    Animated.spring(press, { toValue: 0.9, friction: 5, tension: 300, useNativeDriver: true }).start();
+    if (reducedMotion()) return;
+    Animated.spring(press, { toValue: 0.94, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
   }, [press]);
   const onPressOut = useCallback(() => {
-    Animated.spring(press, { toValue: 1, friction: 5, tension: 300, useNativeDriver: true }).start();
+    if (reducedMotion()) { press.setValue(1); return; }
+    Animated.spring(press, { toValue: 1, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
   }, [press]);
   const handlePress = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -129,11 +144,10 @@ export function BrainFab() {
         styles.fabWrap,
         {
           bottom: insets.bottom + 70 + lift + (Platform.OS === 'web' ? 48 : 0),
-          shadowColor: colors.accent,
           opacity: anim,
           transform: [
-            { translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [96, 0] }) },
-            { scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.75, 1] }) },
+            { translateY: Animated.add(anim.interpolate({ inputRange: [0, 1], outputRange: [48, 0] }), liftOffset) },
+            { scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
           ],
         },
       ]}
@@ -163,17 +177,18 @@ export function BrainFab() {
 }
 
 const styles = StyleSheet.create({
-  // Positioning + the softened ambient glow + hide/lift live on the wrapper.
-  // The button (gradient circle) breathes and springs inside it.
+  // Positioning + the neutral floating elevation + hide/lift live on the
+  // wrapper. The button (gradient circle) springs inside it.
   fabWrap: {
     position: 'absolute',
     right: 20,
     width: 56,
     height: 56,
     borderRadius: Tokens.radius.full,
-    shadowOffset: { width: 0, height: 9 },
-    shadowOpacity: 0.55,
-    shadowRadius: 22,
+    // The app's neutral lift, not an accent-coloured glow (the founder: "no
+    // glows"). Android keeps elevation 12: there it also decides draw order
+    // against root-level siblings, and its shadow is the token's black.
+    ...Shadow.medium,
     elevation: 12,
     zIndex: 40,
   },

@@ -21,15 +21,27 @@
 // Reference implementations already built this way: estimate/full's
 // desktopTabRow (maxWidth 560) and GanttTab's layoutBar (alignSelf flex-start).
 
-import React from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Layout, Tokens } from '@/constants/designTokens';
+import { Layout, Motion, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { cardSurface } from './Card';
+import { nativeDriver, reducedMotion } from './motion';
 import {
   resolveSegmentedVariant,
   segmentBox,
@@ -144,6 +156,56 @@ export interface SegmentedControlProps<T extends string = string> {
   testID?: string;
 }
 
+/** A segment's box, from its onLayout, relative to the row (or the phone
+ *  ScrollView's content container) the indicator is absolutely placed in. */
+export type SegRect = { x: number; y: number; w: number; h: number };
+
+type SpringConfig = { damping: number; stiffness: number; mass: number };
+
+export interface SegmentGlide {
+  from: SegRect;
+  to: SegRect;
+  movingRight: boolean;
+  /** The spring for each EDGE. The edge on the side of travel is the lead:
+   *  stiff and near-critical, so it runs ahead; the other edge trails on a
+   *  softer spring and catches up. That gap is the stretch, and it settles
+   *  back to the target's exact width. */
+  leftSpring: SpringConfig;
+  rightSpring: SpringConfig;
+}
+
+/**
+ * The selection indicator's plan for a value change, or null when the change
+ * should stay today's instant swap: Reduce Motion is on, either segment has not
+ * been measured (or measured zero), or the two sit on different lines (a
+ * wrapped desktop underline row gets no cross-line travel).
+ */
+export function planSegmentGlide(
+  from: SegRect | undefined,
+  to: SegRect | undefined,
+  reduced: boolean,
+): SegmentGlide | null {
+  if (reduced || !from || !to) return null;
+  if (!(from.w > 0 && from.h > 0 && to.w > 0 && to.h > 0)) return null;
+  if (from.y !== to.y) return null;
+  const movingRight = to.x > from.x;
+  return { from, to, movingRight, ...edgeSprings(movingRight) };
+}
+
+/** Moving right, the right edge leads and the left trails; moving left, the
+ *  reverse. */
+export function edgeSprings(movingRight: boolean): { leftSpring: SpringConfig; rightSpring: SpringConfig } {
+  return movingRight
+    ? { leftSpring: Motion.spring.glideTrail, rightSpring: Motion.spring.glideLead }
+    : { leftSpring: Motion.spring.glideLead, rightSpring: Motion.spring.glideTrail };
+}
+
+/** Did a segment's box move? (A desktop segment is intrinsic width, so the
+ *  target's label turning bold can re-measure it mid-glide.) */
+export function sameRect(a: SegRect, b: SegRect): boolean {
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
 export function SegmentedControl<T extends string = string>({
   options,
   value,
@@ -161,6 +223,117 @@ export function SegmentedControl<T extends string = string>({
   const underline = look === 'underline';
   const numeric = look === 'numeric';
 
+  // ── The gliding indicator ────────────────────────────────────────────────
+  // At rest there is none: the selected segment paints its own fill (segOn) or
+  // underline, exactly as before. On a value change ONE indicator mounts at the
+  // old segment and runs its two edges to the new one on separate springs (the
+  // leading edge ahead of the trailing one), then unmounts on the frame the
+  // target paints its own identical fill. L and R are the edges' x.
+  const rects = useRef<Record<string, SegRect>>({});
+  const L = useRef(new Animated.Value(0)).current;
+  const R = useRef(new Animated.Value(0)).current;
+  const [glide, setGlide] = useState<null | { w0: number; to: SegRect }>(null);
+  const prevValue = useRef(value);
+  // The glide in flight (its target and direction), or null at rest.
+  const flight = useRef<{ to: SegRect; movingRight: boolean } | null>(null);
+
+  const launch = (to: SegRect, movingRight: boolean) => {
+    const springs = edgeSprings(movingRight);
+    flight.current = { to, movingRight };
+    setGlide({ w0: to.w, to });
+    Animated.parallel([
+      Animated.spring(L, { toValue: to.x, ...springs.leftSpring, useNativeDriver: nativeDriver }),
+      Animated.spring(R, { toValue: to.x + to.w, ...springs.rightSpring, useNativeDriver: nativeDriver }),
+    ]).start(({ finished }) => {
+      if (!finished) return; // superseded by a newer glide, which clears it
+      flight.current = null;
+      setGlide(null);
+    });
+  };
+
+  // A layout effect, so the frame that would paint the target's own fill is
+  // replaced by the indicator before anything reaches the screen.
+  useLayoutEffect(() => {
+    const prev = prevValue.current;
+    prevValue.current = value;
+    if (prev === value) return; // first mount, or a re-render with no change
+    const plan = planSegmentGlide(rects.current[prev], rects.current[value], reducedMotion());
+    if (!plan) {
+      if (flight.current) {
+        flight.current = null;
+        L.stopAnimation();
+        R.stopAnimation();
+        setGlide(null);
+      }
+      return;
+    }
+    if (flight.current) {
+      // Mid-flight: carry on from wherever the edges are now.
+      L.stopAnimation();
+      R.stopAnimation();
+    } else {
+      L.setValue(plan.from.x);
+      R.setValue(plan.from.x + plan.from.w);
+    }
+    launch(plan.to, plan.movingRight);
+    // `launch` only closes over refs and a state setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, L, R]);
+
+  useEffect(() => () => {
+    L.stopAnimation();
+    R.stopAnimation();
+  }, [L, R]);
+
+  const measure = (key: string) => (e: LayoutChangeEvent) => {
+    const { x, y, width, height } = e.nativeEvent.layout;
+    const r: SegRect = { x, y, w: width, h: height };
+    rects.current[key] = r;
+    // The target re-measured mid-glide (its label turned bold, a count
+    // changed): aim at where it is now, so the hand-off has no jump.
+    const f = flight.current;
+    if (f && key === prevValue.current && !sameRect(f.to, r) && r.w > 0 && r.h > 0 && r.y === f.to.y) {
+      launch(r, f.movingRight);
+    }
+  };
+
+  // The box is [L, R]: centre it at (L + R) / 2 and scale a w0-wide view to
+  // R - L. At rest R - L === w0, so scaleX is exactly 1 and the radius exact;
+  // the stretch only distorts mid-flight. All four are native-driver nodes.
+  const glideW0 = glide?.w0 ?? 0;
+  const glideTransform = useMemo(
+    () => (glideW0 > 0
+      ? [
+          { translateX: Animated.subtract(Animated.multiply(Animated.add(L, R), 0.5), glideW0 / 2) },
+          { scaleX: Animated.divide(Animated.subtract(R, L), glideW0) },
+        ]
+      : null),
+    [L, R, glideW0],
+  );
+
+  const indicator = glide && glideTransform ? (
+    <Animated.View
+      key="glide-indicator"
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[
+        underline ? styles.indicatorBar : styles.indicatorPill,
+        {
+          position: 'absolute',
+          left: 0,
+          width: glide.w0,
+          // The bar sits on the target segment's own bottom edge, not the
+          // container's: a wrapped desktop underline row has two lines.
+          top: underline ? glide.to.y + glide.to.h - 2 : glide.to.y,
+          height: underline ? 2 : glide.to.h,
+          transform: glideTransform,
+        },
+      ]}
+    />
+  ) : null;
+
+
   const press = (next: T) => {
     if (next === value) return;
     if (Platform.OS === 'ios') Haptics.selectionAsync().catch(() => {});
@@ -175,6 +348,7 @@ export function SegmentedControl<T extends string = string>({
       <Pressable
         key={opt.value}
         onPress={() => press(opt.value)}
+        onLayout={measure(opt.value)}
         disabled={opt.disabled}
         accessibilityRole="tab"
         accessibilityState={{ selected: on, disabled: !!opt.disabled }}
@@ -184,14 +358,14 @@ export function SegmentedControl<T extends string = string>({
           underline ? styles.underlineSeg : styles.seg,
           !underline && !isDesktop && (size === 'sm' ? styles.segSm : styles.segMd),
           numeric && !isDesktop && styles.segNumericPhone,
-          !underline && on && styles.segOn,
-          underline && on && { borderBottomColor: colors.accent },
+          !underline && on && !glide && styles.segOn,
+          underline && on && !glide && { borderBottomColor: colors.accent },
           opt.disabled && styles.segDisabled,
           isDesktop && (underline
             ? segmentedDesktop.underlineSegment
             : numeric ? segmentedDesktop.numericSegment : segmentedDesktop.segment),
           // The underline colour must survive the desktop object's transparent reset.
-          isDesktop && underline && on && { borderBottomColor: colors.accent },
+          isDesktop && underline && on && !glide && { borderBottomColor: colors.accent },
         ]}
       >
         {Icon ? <Icon size={15} color={tint} strokeWidth={on ? 2.2 : 1.8} /> : null}
@@ -219,6 +393,7 @@ export function SegmentedControl<T extends string = string>({
         accessibilityLabel={accessibilityLabel}
         testID={testID}
       >
+        {indicator}
         {segments}
       </ScrollView>
     );
@@ -235,6 +410,7 @@ export function SegmentedControl<T extends string = string>({
       accessibilityLabel={accessibilityLabel}
       testID={testID}
     >
+      {indicator}
       {segments}
     </View>
   );
@@ -272,6 +448,13 @@ const makeStyles = (t: ThemeColors) =>
       ...cardSurface(t, { radius: 'sm', pad: 'none', bordered: false }),
       ...Tokens.shadow.subtle,
     },
+    // The gliding indicator reuses segOn's recipe exactly, so the frame it
+    // unmounts on and the target's own fill are the same pixels.
+    indicatorPill: {
+      ...cardSurface(t, { radius: 'sm', pad: 'none', bordered: false }),
+      ...Tokens.shadow.subtle,
+    },
+    indicatorBar: { backgroundColor: t.accent },
     segDisabled: { opacity: 0.45 },
     underlineSeg: {
       flexDirection: 'row',

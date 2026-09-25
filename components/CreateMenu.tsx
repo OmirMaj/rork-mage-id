@@ -28,9 +28,9 @@
 // /scope-sheet, /schedule-wizard?scratch=1, /copilot?capabilityId=…) that are
 // modes of a screen rather than destinations of their own.
 
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform,
+  Animated, Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -57,6 +57,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useRiseOnOpen, useSwapFade, webMotion } from '@/components/ui';
 
 interface CreateOption {
   /** Human label (plain English). */
@@ -163,6 +164,19 @@ const CATEGORY_LABELS: Record<CreateOption['category'], string> = {
  *  from this menu adds `new=1` so the create form opens over the log. */
 const LIST_FIRST_HREFS: ReadonlySet<string> = new Set(['/rfi', '/submittal', '/change-order', '/invoice', '/daily-report']);
 
+/** The routes this menu can open that app/_layout.tsx presents as
+ *  `presentation: 'modal'`. iOS cannot present one while this sheet is still
+ *  dismissing, so only these wait for the sheet to go (onDismiss on iOS, the
+ *  old 280 ms gap elsewhere); every other row navigates at once, with no dead
+ *  beat. scripts/validate-smooth-shell.ts keeps this in step with the layout. */
+const MODAL_ROUTES: ReadonlySet<string> = new Set(['/estimate-wizard', '/schedule-wizard', '/copilot', '/quick-quote']);
+
+/** The route path of an href, without its query string. */
+function routePath(href: string): string {
+  const q = href.indexOf('?');
+  return q === -1 ? href : href.slice(0, q);
+}
+
 export interface CreateMenuProps {
   visible: boolean;
   onClose: () => void;
@@ -233,24 +247,46 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
     onClose();
   }, [onClose]);
 
-  // Route to a scoped screen with the chosen project. Close the sheet
-  // first, then navigate after the 280ms iOS modal-gap.
+  // Navigation that must wait for the sheet to finish dismissing (a modal
+  // route, or the host's own create-project Modal). Run exactly once, by
+  // whichever comes first: the Modal's onDismiss (iOS; RN-web too) or the
+  // timeout (Android has no onDismiss; on iOS it is only a backstop).
+  const pendingNav = useRef<(() => void) | null>(null);
+  const runPending = useCallback(() => {
+    const nav = pendingNav.current;
+    pendingNav.current = null;
+    nav?.();
+  }, []);
+  const go = useCallback((presentsModal: boolean, nav: () => void) => {
+    if (!presentsModal) {
+      // A pushed screen slides in under the fading sheet: no dead beat.
+      nav();
+      handleClose();
+      return;
+    }
+    pendingNav.current = nav;
+    handleClose();
+    setTimeout(runPending, Platform.OS === 'ios' ? 600 : 280);
+  }, [handleClose, runPending]);
+
+  // Route to a scoped screen with the chosen project (go() above decides
+  // whether it waits for the sheet to dismiss).
   // Desktop web only (wave 6c): the five project logs open LIST-first there
   // (lanes G/H), so "New RFI" must say so — `new=1` opens the create form
   // over the log. A phone keeps today's params exactly.
   const desktopWeb = useIsDesktopWeb();
   const routeScoped = useCallback((opt: CreateOption, projectId: string) => {
-    handleClose();
     const opensCreate = desktopWeb && LIST_FIRST_HREFS.has(opt.href);
-    setTimeout(() => {
+    const href = hrefFor(opt);
+    go(MODAL_ROUTES.has(routePath(href)), () => {
       router.push({
-        pathname: hrefFor(opt) as never,
+        pathname: href as never,
         // Most screens read `projectId`; a few read `id`. Passing the
         // wrong name re-creates the exact dead-end the picker fixes.
         params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}), ...(opensCreate ? { new: '1' } : {}) },
       } as never);
-    }, 280);
-  }, [handleClose, router, hrefFor, desktopWeb]);
+    });
+  }, [go, router, hrefFor, desktopWeb]);
 
   const handleSelect = useCallback((opt: CreateOption) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -287,30 +323,41 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
       return;
     }
 
-    handleClose();
     // "Project" routes via callback when a host provides one (typically
     // the home tab passing its own setShowCreateModal). Everything else
-    // routes through expo-router after the sheet animates closed (iOS
-    // can't present two modals back-to-back without a gap).
-    setTimeout(() => {
+    // routes through expo-router. Both "Project" doors end in a Modal (the
+    // host's, or the home tab's ?openCreate=1) and a modal route can't be
+    // presented while this sheet dismisses (iOS), so those wait; the rest
+    // go now.
+    const href = hrefFor(opt);
+    go(opt.label === 'Project' || MODAL_ROUTES.has(routePath(href)), () => {
       if (opt.label === 'Project' && onCreateProject) {
         onCreateProject();
       } else {
-        router.push(hrefFor(opt) as never);
+        router.push(href as never);
       }
-    }, 280);
-  }, [handleClose, router, onCreateProject, projects, routeScoped, hrefFor]);
+    });
+  }, [handleClose, go, router, onCreateProject, projects, routeScoped, hrefFor]);
+
+  // The scrim fades (never slides up with the card); the card rises the last
+  // few points into place on a phone and pops in on desktop web, and the
+  // list ↔ project-picker swap crossfades. All null at rest and under Reduce
+  // Motion (rise is null on web; swap is opacity only, so it cannot clash
+  // with rise's translateY).
+  const rise = useRiseOnOpen(visible);
+  const swap = useSwapFade(pickFor?.label ?? 'list');
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={handleClose}
+      onDismiss={runPending}
       statusBarTranslucent
     >
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+      <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, desktopWeb ? webMotion('popIn') : rise, swap]}>
         <View style={styles.handle} />
 
         {pickFor ? (
@@ -426,7 +473,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
             </ScrollView>
           </>
         )}
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

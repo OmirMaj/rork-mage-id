@@ -93,6 +93,7 @@ import { TileGrid } from '@/components/ui/TileGrid';
 import { Button } from '@/components/ui/Button';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useIsDesktopWeb, desktopToggle } from '@/components/ui/desktop';
+import { layoutNext } from '@/components/ui/motion';
 import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
 import { PortfolioHomeLayout } from '@/components/portfolio/PortfolioHomeLayout';
 import { buildPortfolioRows } from '@/utils/portfolio/portfolioRow';
@@ -479,6 +480,13 @@ export default function HomeScreen() {
   const pickStatusFilter = useCallback((next: StatusFilter) => {
     dispatchStatusFilter({ type: 'pick', filter: next });
   }, []);
+  // True once the job list has painted with jobs in it. Read at render time by
+  // renderProject: the first paint cascades in, a later filter change does not
+  // replay the entrance on the cards it brings back.
+  const listPaintedRef = useRef(false);
+  useEffect(() => {
+    if (projects.length > 0) listPaintedRef.current = true;
+  }, [projects.length]);
 
   // FF1-A: /?openCreate=1 is pushed by the global "+" "Project" row,
   // the zero-project fallback, and the onboarding checklist's #1 row,
@@ -721,6 +729,10 @@ export default function HomeScreen() {
     <ProjectCard
       project={item}
       index={index}
+      // Only the first paint cascades in. A card a stage chip brings back is
+      // newly keyed, and replaying its entrance beside cards that are gliding
+      // (layoutNext) read as a half-animated mix.
+      skipEntrance={listPaintedRef.current}
       // Primitives, not the map entry: ProjectCard is memoized, and a number
       // changing is what makes it re-render when an invoice lands (#151).
       invoicedToDate={burnByProject.get(item.id)?.invoicedToDate}
@@ -1340,6 +1352,8 @@ export default function HomeScreen() {
                         key={chip.key}
                         onPress={() => {
                           if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                          // Leaving cards fade, staying cards glide to their new rows.
+                          layoutNext();
                           pickStatusFilter(chip.key);
                         }}
                         activeOpacity={0.85}
