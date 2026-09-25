@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -10,12 +10,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { useCoreData, useFinancialsData } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton, SkeletonCard } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { getContractValue } from '@/utils/projectFinancials';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { fourWeekCashPosition } from '@/utils/cashFlowEngine';
 import { loadCashFlowSettings, type CashFlowSettings } from '@/utils/cashFlowStorage';
@@ -32,6 +33,10 @@ import { NeedsYou } from '@/components/summary/NeedsYou';
 import { ToolsSheet } from '@/components/summary/ToolsSheet';
 import StatusBarMask from '@/components/StatusBarMask';
 import PendingInvitesCard from '@/components/collaborators/PendingInvitesCard';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { canOpenSchedulePro, proFitsWindow, scheduleDestination, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';
+import { getSidebarRail } from '@/utils/sidebarRailStore';
 
 // Summary tab — the "Morning Briefing". A glanceable, portfolio-wide login
 // dashboard: greeting hero + today's on-site schedule + this-week load +
@@ -55,7 +60,9 @@ export default function SummaryScreen() {
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { isDesktop } = useResponsiveLayout();
+  const { isDesktop, width } = useResponsiveLayout();
+  const isDesktopWeb = useIsDesktopWeb();
+  const { canAccess } = useTierAccess();
   const [toolsOpen, setToolsOpen] = useState(false);
 
   const active = useMemo(
@@ -99,9 +106,25 @@ export default function SummaryScreen() {
   );
   const jobCount = useMemo(() => new Set(today.map(t => t.projectId)).size, [today]);
 
-  const budget = useMemo(
-    () => active.reduce((sum, p) => sum + effectiveEstimateTotal(p), 0),
-    [active],
+  // MONEY (C2, wave 6c). 'Budget' summed the estimate of every open job —
+  // drafts and unsold bids included — and the hero's 'N active' counted them
+  // too. Now: CONTRACT = what the jobs actually running are worth (estimate +
+  // approved change orders, per job — getContractValue does not filter change
+  // orders by project, so each job is handed only its own), and the unsold
+  // estimates are named separately as pipeline.
+  const inProgress = useMemo(() => projects.filter(p => p.status === 'in_progress'), [projects]);
+  const contractInProgress = useMemo(
+    () => inProgress.reduce(
+      (sum, p) => sum + getContractValue(p, changeOrders.filter(co => co.projectId === p.id)),
+      0,
+    ),
+    [inProgress, changeOrders],
+  );
+  const pipeline = useMemo(
+    () => projects
+      .filter(p => p.status === 'draft' || p.status === 'estimated')
+      .reduce((sum, p) => sum + effectiveEstimateTotal(p), 0),
+    [projects],
   );
   const outstanding = useMemo(
     () => invoices
@@ -175,6 +198,27 @@ export default function SummaryScreen() {
       params: { projectId, focus: String(Date.now()) },
     } as any);
   }, [router]);
+
+  // Desktop web (wave 6c): a task row opens THAT task — in Schedule Pro when
+  // Pro's own gate opens the job (own tier or the collaborator grant) and its
+  // grid fits the window, otherwise on the classic tab with its detail sheet
+  // open (both read taskId). Anywhere else it is the job page, as it always was.
+  const proRoute = useCallback((projectId: string) => ({
+    canPro: canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE), projects.find(p => p.id === projectId)?.myRole),
+    proFits: proFitsWindow(width, isDesktopWeb, getSidebarRail().pref),
+  }), [canAccess, projects, width, isDesktopWeb]);
+  const openTodayTask = useCallback((projectId: string, taskId: string) => {
+    if (!isDesktopWeb) { openProject(projectId); return; }
+    router.push(scheduleDestination({
+      projectId, webDesktop: true, ...proRoute(projectId), taskId, focus: String(Date.now()),
+    }));
+  }, [isDesktopWeb, openProject, router, proRoute]);
+  // A grouped job card's '+K more': that job's schedule (the same split).
+  const openJobSchedule = useCallback((projectId: string) => {
+    router.push(scheduleDestination({
+      projectId, webDesktop: isDesktopWeb, ...proRoute(projectId), focus: String(Date.now()),
+    }));
+  }, [isDesktopWeb, router, proRoute]);
 
   const onAttention = useCallback((item: AttentionItem) => {
     if (!item.route) return; // guard: never push an empty route into a dead-end
@@ -252,6 +296,138 @@ export default function SummaryScreen() {
     );
   }
 
+  // Cached projects, failing reads. The briefing below is composed from
+  // whatever this device last stored — "Nothing scheduled on site today" is
+  // then a statement about the cache, not about the day, so it gets said above
+  // the hero rather than left implied.
+  const unreachableRow = sourceFailed && (
+    <TouchableOpacity
+      style={styles.unreachableRow}
+      activeOpacity={0.75}
+      onPress={retryRemoteReads}
+      accessibilityRole="button"
+      accessibilityLabel={`${unreachableLine}. Tap to try again.`}
+      testID="summary-unreachable"
+    >
+      <CloudOff size={14} color={themeColors.warningLabel} strokeWidth={2} />
+      <Text style={styles.unreachableText}>{unreachableLine}</Text>
+      <Text style={styles.unreachableRetry}>Try again</Text>
+    </TouchableOpacity>
+  );
+  // An undated schedule has real day numbers and no calendar position, so it
+  // cannot appear in TODAY or THIS WEEK. Saying that plainly is the whole
+  // point: without this row, "Nothing scheduled on site today" reads as "no
+  // work" on a job with 20 open tasks (runtime audit MISS-01). One tap goes to
+  // the schedule, whose banner opens the start-date picker.
+  const undatedCard = (extra?: StyleProp<ViewStyle>) => week.undated.length > 0 && (
+    <View style={[styles.undatedCard, extra]} testID="summary-undated-schedules">
+      <View style={styles.undatedHead}>
+        <CalendarOff size={15} color={themeColors.warningLabel} strokeWidth={1.9} />
+        <Text style={styles.undatedTitle}>
+          {week.undated.length === 1
+            ? '1 schedule has no start date'
+            : `${week.undated.length} schedules have no start date`}
+        </Text>
+      </View>
+      <Text style={styles.undatedBody}>
+        Their tasks have day numbers but no calendar days, so they are not counted above. Set a start date to place them.
+      </Text>
+      {week.undated.map((u) => (
+        <TouchableOpacity
+          key={u.projectId}
+          style={styles.undatedRow}
+          activeOpacity={0.75}
+          onPress={() => openSchedule(u.projectId)}
+          accessibilityRole="button"
+          accessibilityLabel={`Set a start date for ${u.projectName}`}
+        >
+          <Text style={styles.undatedName} numberOfLines={1}>{u.projectName}</Text>
+          <Text style={styles.undatedCount}>{u.openTasks} open</Text>
+          <ChevronRight size={14} color={themeColors.textSecondary} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+  // Your Business strip — one row max (plan spec B6).
+  const businessStrip = (extra?: StyleProp<ViewStyle>) => (
+    <TouchableOpacity
+      style={[styles.businessStrip, extra]}
+      onPress={() => router.push('/business')}
+      activeOpacity={0.75}
+    >
+      <Briefcase size={16} color={themeColors.accent} />
+      <Text style={styles.businessStripText}>Your Business</Text>
+      <Text style={styles.businessStripSub}>margins · pipeline · clients · weather</Text>
+      <ChevronRight size={14} color={themeColors.textSecondary} />
+    </TouchableOpacity>
+  );
+
+  // DESKTOP (wave 6c): two columns. At 1512 the single column put 32 task rows
+  // above MONEY and NEEDS YOU, both off the 945 px screen. Left: TODAY ON SITE
+  // grouped by job. Right, 340–440: what needs him, money, the week, the
+  // undated schedules, the business link. No ••• Tools: the sidebar carries
+  // them. The phone keeps today's single column in today's order, below.
+  if (isDesktop) {
+    return (
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
+        <ScrollView
+          {...fabScroll}
+          contentContainerStyle={[
+            { paddingTop: insets.top + 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE },
+            styles.contentDesktop,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {unreachableRow}
+          <View style={{ marginHorizontal: 16 }}>
+            <PendingInvitesCard />
+          </View>
+          <BriefingHero
+            greetingName={greetingName}
+            attentionCount={attention.length}
+            activeCount={inProgress.length}
+          />
+          <View style={styles.columnsDesktop} testID="summary-columns">
+            <View style={styles.leftColumnDesktop} testID="summary-left-column">
+              <TodayOnSite
+                tasks={today}
+                jobCount={jobCount}
+                onPressTask={openTodayTask}
+                onPressJob={openJobSchedule}
+                grouped
+                style={styles.cardFlushDesktop}
+              />
+            </View>
+            <View style={styles.rightColumnDesktop} testID="summary-right-column">
+              <NeedsYou
+                items={attention}
+                onPressItem={onAttention}
+                max={6}
+                // /attention is lane F's route (app/(tabs)/(home)/attention.tsx).
+                onSeeAll={() => router.push('/attention')}
+                style={styles.cardFlushDesktop}
+              />
+              <MoneyStrip
+                contractInProgress={contractInProgress}
+                pipeline={pipeline}
+                outstanding={outstanding}
+                cash4wk={cash4wk}
+                cashAsOf={cashAsOf}
+                onPressOutstanding={() => router.push({ pathname: '/reports', params: { tab: 'aging' } })}
+                onPressCash={() => router.push('/cash-flow')}
+                style={styles.cardFlushDesktop}
+              />
+              <WeekAheadStrip week={week} style={styles.cardFlushDesktop} />
+              {undatedCard(styles.cardFlushDesktop)}
+              {businessStrip(styles.cardFlushDesktop)}
+            </View>
+          </View>
+        </ScrollView>
+        <StatusBarMask />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <ScrollView
@@ -262,24 +438,7 @@ export default function SummaryScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Cached projects, failing reads. The briefing below is composed from
-            whatever this device last stored — "Nothing scheduled on site
-            today" is then a statement about the cache, not about the day, so
-            it gets said above the hero rather than left implied. */}
-        {sourceFailed && (
-          <TouchableOpacity
-            style={styles.unreachableRow}
-            activeOpacity={0.75}
-            onPress={retryRemoteReads}
-            accessibilityRole="button"
-            accessibilityLabel={`${unreachableLine}. Tap to try again.`}
-            testID="summary-unreachable"
-          >
-            <CloudOff size={14} color={themeColors.warningLabel} strokeWidth={2} />
-            <Text style={styles.unreachableText}>{unreachableLine}</Text>
-            <Text style={styles.unreachableRetry}>Try again</Text>
-          </TouchableOpacity>
-        )}
+        {unreachableRow}
         {/* Same card on a populated Summary: a GC invited onto another
             contractor's job still lands here after sign-in. */}
         <View style={{ marginHorizontal: 16 }}>
@@ -288,48 +447,15 @@ export default function SummaryScreen() {
         <BriefingHero
           greetingName={greetingName}
           attentionCount={attention.length}
-          activeCount={active.length}
+          activeCount={inProgress.length}
           onOpenTools={() => setToolsOpen(true)}
         />
         <TodayOnSite tasks={today} jobCount={jobCount} onPressTask={openProject} />
         <WeekAheadStrip week={week} />
-        {/* An undated schedule has real day numbers and no calendar position,
-            so it cannot appear in TODAY or THIS WEEK above. Saying that
-            plainly is the whole point: without this row, "Nothing scheduled
-            on site today" reads as "no work" on a job with 20 open tasks
-            (runtime audit MISS-01). One tap goes to the schedule, whose
-            banner opens the start-date picker. */}
-        {week.undated.length > 0 && (
-          <View style={styles.undatedCard} testID="summary-undated-schedules">
-            <View style={styles.undatedHead}>
-              <CalendarOff size={15} color={themeColors.warningLabel} strokeWidth={1.9} />
-              <Text style={styles.undatedTitle}>
-                {week.undated.length === 1
-                  ? '1 schedule has no start date'
-                  : `${week.undated.length} schedules have no start date`}
-              </Text>
-            </View>
-            <Text style={styles.undatedBody}>
-              Their tasks have day numbers but no calendar days, so they are not counted above. Set a start date to place them.
-            </Text>
-            {week.undated.map((u) => (
-              <TouchableOpacity
-                key={u.projectId}
-                style={styles.undatedRow}
-                activeOpacity={0.75}
-                onPress={() => openSchedule(u.projectId)}
-                accessibilityRole="button"
-                accessibilityLabel={`Set a start date for ${u.projectName}`}
-              >
-                <Text style={styles.undatedName} numberOfLines={1}>{u.projectName}</Text>
-                <Text style={styles.undatedCount}>{u.openTasks} open</Text>
-                <ChevronRight size={14} color={themeColors.textSecondary} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {undatedCard()}
         <MoneyStrip
-          budget={budget}
+          contractInProgress={contractInProgress}
+          pipeline={pipeline}
           outstanding={outstanding}
           cash4wk={cash4wk}
           cashAsOf={cashAsOf}
@@ -339,17 +465,7 @@ export default function SummaryScreen() {
           onPressCash={() => router.push('/cash-flow' as any)}
         />
         <NeedsYou items={attention} onPressItem={onAttention} />
-        {/* Your Business strip — one row max (plan spec B6) */}
-        <TouchableOpacity
-          style={styles.businessStrip}
-          onPress={() => router.push('/business' as any)}
-          activeOpacity={0.75}
-        >
-          <Briefcase size={16} color={themeColors.accent} />
-          <Text style={styles.businessStripText}>Your Business</Text>
-          <Text style={styles.businessStripSub}>margins · pipeline · clients · weather</Text>
-          <ChevronRight size={14} color={themeColors.textSecondary} />
-        </TouchableOpacity>
+        {businessStrip()}
       </ScrollView>
 
       {/* Safe-area padding lives in the scroll CONTENT above, so scrolled
@@ -363,8 +479,14 @@ export default function SummaryScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  // Dashboard of full-bleed strips — wide is correct on desktop.
-  contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const },
+  // ── Desktop (wave 6c) — the (tabs) frame already caps the page at
+  // Layout.page.dashboard; the literal 1400 cap here is gone.
+  contentDesktop: { paddingHorizontal: Layout.gutter },
+  columnsDesktop: { flexDirection: 'row' as const, gap: Layout.groupGap, alignItems: 'flex-start' as const },
+  leftColumnDesktop: { flex: 2, minWidth: 0 },
+  rightColumnDesktop: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto' as const, minWidth: 340, maxWidth: 440 },
+  // Cards inside the columns sit flush with the column edges.
+  cardFlushDesktop: { marginHorizontal: 0 },
   heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
   // Your Business entry strip — one compact row at the bottom of Summary
   businessStrip: {

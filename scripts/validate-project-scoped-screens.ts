@@ -175,7 +175,9 @@ ok('ToolProjectPicker draws no grid/rule backdrop',
 console.log('\nschedule-pro width gate precedes the picker:');
 {
   const src = read('app/schedule-pro.tsx');
-  const widthAt = src.indexOf('if (width < GRID_BREAKPOINT)');
+  // Wave 6c: the gate compares the CONTENT width (window − the shell's rail /
+  // sidebar), not the window.
+  const widthAt = src.indexOf('if (contentWidth < GRID_BREAKPOINT)');
   const pickerAt = src.indexOf('<ToolProjectPicker');
   ok('narrow-screen gate runs before the project gate', widthAt !== -1 && widthAt < pickerAt,
     'Schedule Pro is unusable on a phone — redirect to the classic schedule ' +

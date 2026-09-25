@@ -19,6 +19,7 @@ import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
 } from 'react-native';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, ArrowRight, CalendarClock, Info, Check } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -89,16 +90,27 @@ export function COScheduleReflowPreviewModal(props: {
   // cannot move anything would be a button that does nothing.
   const confirmDisabled = intent === 'place' && !isReady;
 
+  // Desktop (wave 6c): a centred 720 card. Cmd/Ctrl+Enter confirms when the
+  // confirm is enabled; never Cmd+S — approving a change order is a decision
+  // with money on it, not a save. All-null on a phone. (Also rendered by
+  // project-detail and change-order: the props are unchanged.)
+  const frame = useSheetFrame('wide', { visible: props.visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(
+    props.visible,
+    confirmDisabled ? null : () => props.onConfirm(pickedAnchorId ?? plan.anchorTaskId ?? undefined),
+    { saveKey: false },
+  );
+
   return (
     <Modal
       visible={props.visible}
       transparent
-      animationType="slide"
+      animationType={frame.animationType}
       onRequestClose={props.onClose}
     >
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.modalHandle} />
+      <View style={[styles.modalBackdrop, frame.overlay]}>
+        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
+          {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>
               {intent === 'place'

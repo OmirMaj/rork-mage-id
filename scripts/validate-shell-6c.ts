@@ -94,17 +94,17 @@ for (const bad of [null, undefined, '', '{', 'null', '[]', '42', '{"canvas":1,"w
 ok('parseRailPref reads a well-formed pref', eq(parseRailPref('{"canvas":false,"workspace":true}'), { canvas: false, workspace: true }));
 ok('the default: canvases collapsed, everything else full', eq(DEFAULT_RAIL_PREF, { canvas: true, workspace: false }));
 
-ok("railCollapsed('schedule-pro', default) is false (shell-exempt until lane DB)", railCollapsed('schedule-pro', DEFAULT_RAIL_PREF) === false);
+ok("railCollapsed('schedule-pro', default) is true", railCollapsed('schedule-pro', DEFAULT_RAIL_PREF) === true);
 ok("railCollapsed('plan-viewer', default) is true", railCollapsed('plan-viewer', DEFAULT_RAIL_PREF) === true);
 ok("railCollapsed('rfi', default) is false", railCollapsed('rfi', DEFAULT_RAIL_PREF) === false);
 ok("railCollapsed('(tabs)', default) is false", railCollapsed('(tabs)', DEFAULT_RAIL_PREF) === false);
 ok('an unknown / empty top segment is a workspace route', !isCanvasRoute('') && !isCanvasRoute(null) && !isCanvasRoute(undefined));
 
-ok('toggledPref on a canvas flips ONLY canvas', eq(toggledPref('plan-viewer', DEFAULT_RAIL_PREF), { canvas: false, workspace: false }));
+ok('toggledPref on a canvas flips ONLY canvas', eq(toggledPref('schedule-pro', DEFAULT_RAIL_PREF), { canvas: false, workspace: false }));
 ok('toggledPref on a workspace route flips ONLY workspace', eq(toggledPref('rfi', DEFAULT_RAIL_PREF), { canvas: true, workspace: true }));
 ok('toggledPref twice is the identity', eq(toggledPref('rfi', toggledPref('rfi', DEFAULT_RAIL_PREF)), DEFAULT_RAIL_PREF));
-ok('collapsing on the plan viewer does not collapse the RFI screen',
-  railCollapsed('rfi', toggledPref('plan-viewer', { canvas: false, workspace: false })) === false);
+ok('collapsing on Pro does not collapse the RFI log',
+  railCollapsed('rfi', toggledPref('schedule-pro', { canvas: false, workspace: false })) === false);
 
 {
   const tokens = read('constants/designTokens.ts');
@@ -114,8 +114,8 @@ ok('collapsing on the plan viewer does not collapse the RFI screen',
     !!m && Number(m[1]) === SIDEBAR_FULL && Number(m[2]) === SIDEBAR_RAIL && SIDEBAR_FULL === 240 && SIDEBAR_RAIL === 64,
     m ? `tokens ${m[1]}/${m[2]}, rail module ${SIDEBAR_FULL}/${SIDEBAR_RAIL}` : '');
   ok('sidebarWidthFor: collapsed 64, expanded 240', sidebarWidthFor(true) === 64 && sidebarWidthFor(false) === 240);
-  ok('sidebarWidthForRoute: plan viewer 64, RFI 240 under the default',
-    sidebarWidthForRoute('plan-viewer', DEFAULT_RAIL_PREF) === 64 && sidebarWidthForRoute('rfi', DEFAULT_RAIL_PREF) === 240);
+  ok('sidebarWidthForRoute: Pro 64, RFI 240 under the default',
+    sidebarWidthForRoute('schedule-pro', DEFAULT_RAIL_PREF) === 64 && sidebarWidthForRoute('rfi', DEFAULT_RAIL_PREF) === 240);
 }
 ok(`SIDEBAR_RAIL_KEY '${SIDEBAR_RAIL_KEY}' is a mageid_ key the sign-out sweep clears`,
   SIDEBAR_RAIL_KEY.startsWith('mageid_') && isAppStorageKey(SIDEBAR_RAIL_KEY));
@@ -175,13 +175,12 @@ ok(`SIDEBAR_RAIL_KEY '${SIDEBAR_RAIL_KEY}' is a mageid_ key the sign-out sweep c
 console.log('\n2. the route map');
 // ─────────────────────────────────────────────────────────────────────────────
 
-ok("'schedule-pro' is still in DESKTOP_SHELL_EXEMPT and is not a canvas (Pro gets the sidebar with lane DB)",
-  DESKTOP_SHELL_EXEMPT.has('schedule-pro') && !isCanvasRoute('schedule-pro'));
+ok("'schedule-pro' is not in DESKTOP_SHELL_EXEMPT (Pro has the sidebar again)", !DESKTOP_SHELL_EXEMPT.has('schedule-pro'));
 {
   const ghost = [...CANVAS_ROUTES].filter((r) => !existsSync(join(ROOT, 'app', `${r}.tsx`)));
   const exempt = [...CANVAS_ROUTES].filter((r) => DESKTOP_SHELL_EXEMPT.has(r));
   ok(`CANVAS_ROUTES are real route files that show the sidebar (${[...CANVAS_ROUTES].join(', ')})`,
-    CANVAS_ROUTES.size === 1 && ghost.length === 0 && exempt.length === 0, `ghost ${ghost.join(',')} exempt ${exempt.join(',')}`);
+    CANVAS_ROUTES.size === 2 && ghost.length === 0 && exempt.length === 0, `ghost ${ghost.join(',')} exempt ${exempt.join(',')}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { DollarSign } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -10,7 +10,16 @@ import { formatMoneyShort } from '@/utils/formatters';
 import { cashBalanceTone } from '@/utils/cashFlowEngine';
 
 interface MoneyStripProps {
-  budget: number;
+  /**
+   * CONTRACT: the contract value of the jobs IN PROGRESS — each job's
+   * estimate plus its approved change orders (utils/projectFinancials
+   * getContractValue). This card used to print BUDGET, the estimate total of
+   * every open job, drafts and unsold bids included (wave 6c, C2).
+   */
+  contractInProgress: number;
+  /** Estimates not yet sold (draft + estimated jobs), shown muted under the
+   *  contract figure as '+$X pipeline' when there is any. */
+  pipeline: number;
   outstanding: number;
   /** null = cash flow not set up → renders '—'. */
   cash4wk: number | null;
@@ -18,6 +27,8 @@ interface MoneyStripProps {
   cashAsOf?: string | null;
   onPressOutstanding: () => void;
   onPressCash: () => void;
+  /** Appended LAST to the card style. Undefined on the phone. */
+  style?: StyleProp<ViewStyle>;
 }
 
 /** "as of Sep 1" — the balance date is an instant the GC stamped, so a local
@@ -29,7 +40,7 @@ function cashAsOfLabel(iso: string | null | undefined): string | null {
   return `bal. as of ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
-export function MoneyStrip({ budget, outstanding, cash4wk, cashAsOf, onPressOutstanding, onPressCash }: MoneyStripProps) {
+export function MoneyStrip({ contractInProgress, pipeline, outstanding, cash4wk, cashAsOf, onPressOutstanding, onPressCash, style }: MoneyStripProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const tone = cashBalanceTone(cash4wk);
@@ -37,19 +48,22 @@ export function MoneyStrip({ budget, outstanding, cash4wk, cashAsOf, onPressOuts
   const asOf = cashAsOfLabel(cashAsOf);
 
   return (
-    <View style={styles.card} testID="summary-money">
+    <View style={[styles.card, style]} testID="summary-money">
       <View style={styles.header}>
         <View style={[styles.iconSq, { backgroundColor: colors.success + '1A' }]}>
           <DollarSign size={15} color={colors.success} strokeWidth={2.2} />
         </View>
         <Text style={styles.headerLabel}>MONEY</Text>
-        <Text style={styles.headerMeta}>across all jobs</Text>
+        <Text style={styles.headerMeta}>jobs in progress</Text>
       </View>
 
       <View style={styles.strip}>
         <View style={styles.cell}>
-          <Text style={[styles.val, { color: colors.text }]} numberOfLines={1}>{formatMoneyShort(budget)}</Text>
-          <Text style={styles.lbl}>BUDGET</Text>
+          <Text style={[styles.val, { color: colors.text }]} numberOfLines={1}>{formatMoneyShort(contractInProgress)}</Text>
+          <Text style={styles.lbl}>CONTRACT</Text>
+          {pipeline > 0 ? (
+            <Text style={styles.asOf} numberOfLines={1}>+{formatMoneyShort(pipeline)} pipeline</Text>
+          ) : null}
         </View>
         <TouchableOpacity
           style={[styles.cell, styles.cellBorder]}

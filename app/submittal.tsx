@@ -38,7 +38,17 @@ import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline'
 import { parseSubmittalFromTranscript, pickIfEmpty } from '@/utils/voiceFormParsers';
 import type { Submittal, SubmittalStatus } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+// Wave 6c (lane G): the desktop-web log + record split, and the desktop caps.
+// Phone-identical: useIsDesktopWeb() is false on a phone (logRouteMode →
+// 'phone'); the rest are `isDesktop && …` appends and frames that are null
+// on a phone.
+import { useIsDesktop, useIsDesktopWeb, desktopCta, desktopField } from '@/components/ui/desktop';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { usePrimaryAction } from '@/hooks/useHotkeys';
+import { SubmittalLog } from '@/components/logs/SubmittalLog';
+import { useLogAwareRouter, useLogRecordDirty } from '@/components/logs/LogRecordHost';
+import { logRouteMode } from '@/utils/logs/logRoutes';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
@@ -282,7 +292,9 @@ function SubmittalGateView({ state, message, onRetry }: {
  */
 function SubmittalScreenInner() {
   const { projectId, submittalId } = useLocalSearchParams<{ projectId?: string; submittalId?: string }>();
-  const { submittals } = useProjects();
+  const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
+  const desktopWeb = useIsDesktopWeb();
+  const { submittals, getProject } = useProjects();
   const qc = useQueryClient();
   // #55: fresh copy on open and on every return to the foreground.
   useRefetchCollectionOnOpen('submittals');
@@ -295,6 +307,24 @@ function SubmittalScreenInner() {
     settled: settled.settled,
     failed: settled.failed,
   });
+  // Desktop web: a bare ?projectId opens the submittal log; ?submittalId opens
+  // that submittal beside it. Phone (and a native tablet): 'phone' — nothing
+  // below changes.
+  const logProjectId = projectId || found?.projectId || '';
+  const mode = logRouteMode('submittal', routeParams, { desktopWeb, projectKnown: !!getProject(logProjectId) });
+  if (mode === 'log') return <SubmittalLog projectId={logProjectId} />;
+  if (mode === 'split') {
+    return (
+      <SubmittalLog
+        projectId={logProjectId}
+        openId={submittalId}
+        detail={gate === 'loading' ? <SubmittalGateView state="loading" />
+          : gate === 'missing' ? <SubmittalGateView state="missing" message="This submittal no longer exists, or it isn't shared with you. Ask the project owner if you expected to see it." />
+          : gate === 'error' ? <SubmittalGateView state="error" message="Couldn't load this submittal. Check your connection and try again." onRetry={() => { void qc.invalidateQueries({ queryKey: ['submittals'] }); }} />
+          : <SubmittalForm key={found?.id ?? 'new'} />}
+      />
+    );
+  }
   if (gate === 'loading') return <SubmittalGateView state="loading" />;
   if (gate === 'missing') {
     return <SubmittalGateView state="missing" message="This submittal no longer exists, or it isn't shared with you. Ask the project owner if you expected to see it." />;
@@ -316,7 +346,10 @@ function SubmittalForm() {
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
-  const router = useRouter();
+  // Beside the submittal log (desktop web) back() closes the record; everywhere
+  // else this IS useRouter().
+  const router = useLogAwareRouter();
+  const isDesktop = useIsDesktop();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // prefill* params come from the floating-mic flow when the GC
@@ -452,6 +485,8 @@ function SubmittalForm() {
   const allowLeave = useRef(false);
   const dirtyRef = useRef(isDirty);
   dirtyRef.current = isDirty;
+  // The log's open-another-row / j/k / Esc ask first while this has edits.
+  useLogRecordDirty(() => dirtyRef.current);
   useEffect(() => navigation.addListener('beforeRemove', (e) => {
     if (allowLeave.current || !dirtyRef.current) return;
     e.preventDefault();
@@ -849,6 +884,14 @@ function SubmittalForm() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [existingSubmittal, openCycle, openCycleNo, newReviewer, newCycleStatus, newCycleComments, newCycleSent, newCycleReturned, addReviewCycle]);
 
+  // Desktop: the sheets centre in the content column; Cmd+Enter sends (never
+  // Cmd+S — a send leaves the app); Cmd+S / Cmd+Enter on the form saves.
+  // All no-ops on a phone (null frame styles, the original animation).
+  const fTask = useSheetFrame('dialog', { visible: showTaskPicker, animationType: 'fade' });
+  const fEmail = useSheetFrame('form', { visible: showEmailSend, animationType: 'slide' });
+  useSheetPrimaryHotkey(showEmailSend, sending || !!packageGate.blocked ? null : () => void handleSendEmail(), { saveKey: false });
+  usePrimaryAction(existingSubmittal ? handleSaveInPlace : handleSave, { label: 'Save submittal', enabled: isDesktop });
+
   if (!project && !existingSubmittal) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
@@ -876,7 +919,7 @@ function SubmittalForm() {
       <ScrollView
         {...fabScroll}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
         keyboardShouldPersistTaps="handled"
       >
         {!existingSubmittal && (
@@ -935,7 +978,7 @@ function SubmittalForm() {
 
         <Text style={styles.fieldLabel}>Title *</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isDesktop && styles.inputSearchDesktop]}
           value={title}
           onChangeText={setTitle}
           placeholder="Submittal title"
@@ -945,7 +988,7 @@ function SubmittalForm() {
 
         <Text style={styles.fieldLabel}>Spec Section</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isDesktop && styles.inputSmDesktop]}
           value={specSection}
           onChangeText={setSpecSection}
           placeholder="e.g. 03300 - Cast-in-Place Concrete"
@@ -954,7 +997,7 @@ function SubmittalForm() {
 
         <Text style={styles.fieldLabel}>Submitted By</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isDesktop && styles.inputMdDesktop]}
           value={submittedBy}
           onChangeText={setSubmittedBy}
           placeholder="Subcontractor name"
@@ -963,7 +1006,7 @@ function SubmittalForm() {
 
         <Text style={styles.fieldLabel}>Required Date</Text>
         <TouchableOpacity
-          style={styles.pickerBtn}
+          style={[styles.pickerBtn, isDesktop && desktopField('sm')]}
           onPress={() => setShowDatePicker(true)}
           activeOpacity={0.7}
           testID="submittal-required-date"
@@ -1254,7 +1297,7 @@ function SubmittalForm() {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">
+        <TouchableOpacity style={[styles.saveBtn, isDesktop && desktopCta]} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">
           <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
         </TouchableOpacity>
@@ -1288,9 +1331,9 @@ function SubmittalForm() {
         )}
       </ScrollView>
 
-      <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowTaskPicker(false)}>
-          <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
+      <Modal visible={showTaskPicker} transparent animationType={fTask.animationType} onRequestClose={() => setShowTaskPicker(false)}>
+        <Pressable style={[styles.modalOverlay, fTask.overlay]} onPress={() => setShowTaskPicker(false)}>
+          <Pressable style={[styles.taskPickerCard, fTask.card]} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -1316,10 +1359,10 @@ function SubmittalForm() {
       {/* Email-send modal — recipient + optional message. After send,
           we auto-add a review cycle so the submittal's status reflects
           that it's been routed out for review. */}
-      <Modal visible={showEmailSend} transparent animationType="slide" onRequestClose={() => setShowEmailSend(false)}>
+      <Modal visible={showEmailSend} transparent animationType={fEmail.animationType} onRequestClose={() => setShowEmailSend(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <Pressable style={styles.modalOverlay} onPress={() => setShowEmailSend(false)}>
-            <Pressable style={styles.emailModalCard} onPress={() => undefined}>
+          <Pressable style={[styles.modalOverlay, fEmail.overlay]} onPress={() => setShowEmailSend(false)}>
+            <Pressable style={[styles.emailModalCard, fEmail.card]} onPress={() => undefined}>
               <View style={styles.emailModalHeader}>
                 <Text style={styles.emailModalTitle}>Send Submittal</Text>
                 <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close" accessibilityRole="button" accessibilityLabel="Close">
@@ -1395,6 +1438,14 @@ function SubmittalForm() {
 }
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  // Desktop only: the editor sits in the 760 form column, centred; the 24 px
+  // gutter keeps a multiline field at 712.
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center', paddingHorizontal: Layout.gutter },
+  // Desktop only: a short input stops at its field width (TextStyle-typed,
+  // so a TextInput takes it; desktopField() returns a ViewStyle).
+  inputSearchDesktop: { width: '100%', maxWidth: Layout.field.search, alignSelf: 'flex-start' },
+  inputMdDesktop: { width: '100%', maxWidth: Layout.field.md, alignSelf: 'flex-start' },
+  inputSmDesktop: { width: '100%', maxWidth: Layout.field.sm, alignSelf: 'flex-start' },
   container: {
     flex: 1,
     backgroundColor: themeColors.bg,

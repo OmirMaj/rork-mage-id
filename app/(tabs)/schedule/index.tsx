@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Switch, KeyboardAvoidingView, ActivityIndicator, Image, FlatList,
+  type LayoutChangeEvent, type TextStyle,
 } from 'react-native';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,8 +99,14 @@ import { describeForecast, weatherCheckMessage, type WeatherCheckTone } from '@/
 import AIScheduleRisk from '@/components/AIScheduleRisk';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
-import { ContentWidth, Tokens } from '@/constants/designTokens';
-import { cardSurface, taskStatusInk, labelOn } from '@/components/ui';
+import { Layout, Tokens } from '@/constants/designTokens';
+import {
+  cardSurface, taskStatusInk, labelOn,
+  Button, SegmentedControl, TileGrid, useSheetFrame, useSheetPrimaryHotkey, useIsDesktopWeb,
+  desktopCta, desktopField, tileGridForPreset, type SegmentedOption,
+} from '@/components/ui';
+import { canOpenSchedulePro, chunkBoardRows, classicRedirect, proFitsWindow, routedTaskKey, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';
+import { getSidebarRail } from '@/utils/sidebarRailStore';
 import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 import { claimScheduleEditSeed, MODAL_DISMISS_DELAY_MS } from '@/utils/copilot/intentTable';
@@ -149,6 +156,22 @@ interface TaskDraft {
 }
 
 type ScheduleViewMode = 'today' | 'lookahead' | 'board' | 'gantt' | 'resources' | 'summary';
+
+/** The desktop header's view segments (wave 6c) — the same four views, in the
+ *  same order, as the tablet's tab row. */
+const DESKTOP_VIEW_OPTIONS: SegmentedOption<ScheduleViewMode>[] = [
+  { value: 'today', label: 'Today', icon: CalendarDays },
+  { value: 'lookahead', label: 'Lookahead', icon: ChevronRight },
+  { value: 'board', label: 'Board', icon: LayoutGrid },
+  { value: 'gantt', label: 'Gantt', icon: BarChart3 },
+];
+
+/** The task-detail sheet's desktop progress quick-picks. */
+const PROGRESS_OPTIONS: SegmentedOption[] = [0, 25, 50, 75, 100].map((val) => ({
+  value: String(val),
+  label: val === 100 ? 'Done' : `${val}%`,
+  accessibilityLabel: val === 100 ? 'Done, 100%' : `${val}% done`,
+}));
 type FilterMode = 'all' | 'critical' | 'milestones' | 'overdue';
 
 /**
@@ -436,6 +459,8 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   // while sticky tab params from an old visit never override a manual switch.
   const { projectId: routeProjectId, focus: routeFocus, editSeed: routeEditSeed } =
     useLocalSearchParams<{ projectId?: string; focus?: string; editSeed?: string }>();
+  // Summary's task rows (wave 6c) name a task: the desktop branch opens it.
+  const { taskId: routeTaskId } = useLocalSearchParams<{ taskId?: string }>();
   const navigation = useNavigation();
   // Shared with the sibling surface via the parent wrapper so an already-
   // consumed nonce stays consumed across a phone<->desktop breakpoint remount
@@ -2029,7 +2054,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     }
     return (
       <TouchableOpacity
-        style={[styles.phaseHeader, !item.isFirst && styles.phaseHeaderSpaced]}
+        style={[styles.phaseHeader, !item.isFirst && styles.phaseHeaderSpaced, layout.isDesktop && desktopStyles.phaseHeaderDesktop]}
         onPress={() => togglePhaseCollapse(item.phase)}
         activeOpacity={0.7}
       >
@@ -2053,7 +2078,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         </View>
       </TouchableOpacity>
     );
-  }, [renderTaskCard, togglePhaseCollapse, styles, themeColors]);
+  }, [renderTaskCard, togglePhaseCollapse, styles, themeColors, layout.isDesktop, desktopStyles]);
 
   const boardFilterBar = (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
@@ -2364,6 +2389,74 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     );
   }, [sortedTasks, healthScore, daysRemaining]);
 
+  // ── Desktop (wave 6c) ─────────────────────────────────────────────────────
+  // The four sheets the desktop branch owns (Select Project, Quick Add, the
+  // task detail, Edit Task) become centred cards in the content column instead
+  // of 2,056 px bottom sheets. useSheetFrame is all-null on a phone and on the
+  // tablet branch, so their sheets flatten to exactly what they were. The two
+  // with a save take Cmd/Ctrl+Enter and Cmd/Ctrl+S (desktop web only).
+  const fPicker = useSheetFrame('dialog', { visible: isProjectPickerOpen, animationType: 'fade' });
+  const fQuickAdd = useSheetFrame('form', { visible: isQuickAddOpen, animationType: 'slide' });
+  const fDetail = useSheetFrame('form', { visible: taskDetailModal !== null, animationType: 'fade' });
+  const fEdit = useSheetFrame('form', { visible: isEditModalOpen, animationType: 'slide' });
+  useSheetPrimaryHotkey(isQuickAddOpen, handleQuickAdd);
+  useSheetPrimaryHotkey(isEditModalOpen, handleEditSave);
+
+  // Summary's task tap on desktop (wave 6c): ?taskId opens THAT task's detail
+  // sheet, once per arrival (projectId:focus:taskId), after the routed job is
+  // the selected one. An id this schedule does not have is ignored — the GC
+  // still lands on the job's schedule. Opened as LIVE: Summary lists the live
+  // plan's tasks.
+  const consumedTaskRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (layout.isDesktop && routeProjectId && routeTaskId && selectedProjectId === routeProjectId) {
+      const key = routedTaskKey(routeProjectId, routeFocus, routeTaskId);
+      if (consumedTaskRef.current === key) return;
+      const task = activeSchedule?.tasks.find((t) => t.id === routeTaskId);
+      if (!task) return;
+      consumedTaskRef.current = key;
+      openLiveTaskDetail(task);
+    }
+  }, [layout.isDesktop, routeProjectId, routeFocus, routeTaskId, selectedProjectId, activeSchedule, openLiveTaskDetail]);
+
+  // The desktop main panel's measured width: the Board's cards-per-row and the
+  // Gantt's px-per-day are sized from it (0 until the first layout).
+  const [mainPanelW, setMainPanelW] = useState(0);
+  const onMainPanelLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = Math.floor(e.nativeEvent.layout.width);
+    setMainPanelW((prev) => (prev === w ? prev : w));
+  }, []);
+  // Board on desktop: one phase's cards in rows of TileGrid 'content' columns
+  // (three ~400 px cards at 1,232) — the row inset (phaseTaskRow, 16 a side)
+  // comes off first, as TileGrid itself does.
+  const boardCols = tileGridForPreset(Math.max(0, mainPanelW - 32), 'content').cols;
+  // The FlatList still windows over boardRows, one item per row (so a
+  // 1,000-task import mounts no more than before): the FIRST task of each
+  // chunk draws the chunk's row of cards, and the others draw nothing.
+  const desktopBoardChunks = useMemo(() => {
+    const lead = new Map<string, BoardRow[]>();
+    for (const c of chunkBoardRows(boardRows, boardCols)) {
+      if (c.kind === 'tasks') lead.set(c.rows[0].key, c.rows);
+    }
+    return lead;
+  }, [boardRows, boardCols]);
+  const renderDesktopBoardRow = useCallback(({ item }: { item: BoardRow }) => {
+    if (item.kind === 'task') {
+      const chunk = desktopBoardChunks.get(item.key);
+      if (!chunk) return null; // drawn in its row's first card's grid
+      return (
+        <TileGrid
+          preset="content"
+          phoneStyle={styles.phaseTaskRow}
+          desktopStyle={layout.isDesktop && desktopStyles.boardChunkDesktop}
+        >
+          {chunk.map((r) => (r.kind === 'task' ? <View key={r.key}>{renderTaskCard(r.task)}</View> : null))}
+        </TileGrid>
+      );
+    }
+    return renderBoardRow({ item });
+  }, [desktopBoardChunks, renderBoardRow, renderTaskCard, styles, desktopStyles, layout.isDesktop]);
+
   // Shared modals rendered in both desktop and mobile branches. Previously only the
   // mobile branch's return tree contained these modals, so on desktop, tapping
   // "Edit", "AI Builder", "Templates", "What-If Scenarios", or a dep-picker
@@ -2372,12 +2465,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const extraModals = (
     <>
       {/* Edit Task Modal */}
-      <Modal visible={isEditModalOpen} transparent animationType="slide" onRequestClose={() => setIsEditModalOpen(false)}>
+      <Modal visible={isEditModalOpen} transparent animationType={fEdit.animationType} onRequestClose={() => setIsEditModalOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.bottomSheetOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-                <View style={styles.bottomSheetHandle} />
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fEdit.scrollContent]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }, fEdit.card]}>
+                {fEdit.showHandle && <View style={styles.bottomSheetHandle} />}
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'New Task'}</Text>
                   <TouchableOpacity onPress={() => setIsEditModalOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -2541,11 +2634,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 <View style={styles.dualRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Duration (days)</Text>
-                    <TextInput style={styles.input} value={taskDraft.durationDays} onChangeText={val => setTaskDraft(p => ({ ...p, durationDays: val }))} keyboardType="number-pad" />
+                    <TextInput style={[styles.input, layout.isDesktop && (desktopField('xs') as TextStyle)]} value={taskDraft.durationDays} onChangeText={val => setTaskDraft(p => ({ ...p, durationDays: val }))} keyboardType="number-pad" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Crew Size</Text>
-                    <TextInput style={styles.input} value={taskDraft.crewSize} onChangeText={val => setTaskDraft(p => ({ ...p, crewSize: val }))} keyboardType="number-pad" placeholder="# people" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={[styles.input, layout.isDesktop && (desktopField('xs') as TextStyle)]} value={taskDraft.crewSize} onChangeText={val => setTaskDraft(p => ({ ...p, crewSize: val }))} keyboardType="number-pad" placeholder="# people" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
@@ -2680,11 +2773,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   </View>
                 )}
 
-                <View style={styles.editActionRow}>
-                  <TouchableOpacity style={styles.editCancelBtn} onPress={() => setIsEditModalOpen(false)}>
+                <View style={[styles.editActionRow, fEdit.footer]}>
+                  <TouchableOpacity style={[styles.editCancelBtn, fEdit.footerButton]} onPress={() => setIsEditModalOpen(false)}>
                     <Text style={styles.editCancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.editSaveBtn} onPress={handleEditSave}>
+                  <TouchableOpacity style={[styles.editSaveBtn, fEdit.footerButton]} onPress={handleEditSave}>
                     <Text style={styles.editSaveBtnText}>Save</Text>
                   </TouchableOpacity>
                 </View>
@@ -2849,70 +2942,31 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <View style={desktopStyles.desktopHeader}>
-          {/* Desktop ribbon: project chips on the left half, view tabs
-              on the right half — both scrollable so they don't fight
-              each other on narrow widths. Mirrors MS Project's
-              file-tab + view-tab convention. */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={desktopStyles.desktopHeaderLeft}
-            contentContainerStyle={{ alignItems: 'center', gap: 6 }}
+          {/* Desktop ribbon (wave 6c): a project switcher that opens the
+              Select Project dialog (it was a 260 px chip strip that showed
+              one and a half projects), the four views as a segmented control
+              left-aligned beside it (was a flex:1 row of tabs across the
+              window), then Pro and '+ Task' on the right (was a 56 px phone
+              FAB). */}
+          <Pressable
+            style={desktopStyles.projectSwitcher}
+            onPress={() => setIsProjectPickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Project: ${selectedProject?.name ?? 'none'}. Switch project`}
+            testID="schedule-project-switcher"
           >
-            {sortedProjectChips.map(p => {
-              const active = p.id === selectedProjectId;
-              const dotColor = p.status === 'in_progress' ? themeColors.success
-                : p.status === 'estimated' ? themeColors.accent
-                : p.status === 'draft' ? themeColors.accent
-                : themeColors.textMuted;
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.projectChip, active && styles.projectChipActive]}
-                  onPress={() => setSelectedProjectId(p.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.projectChipDot, { backgroundColor: dotColor }]} />
-                  <Text style={[styles.projectChipText, active && styles.projectChipTextActive]} numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-            <View style={styles.viewTabBar}>
-              {/* Audit found 6 view modes was too many for a phone
-                  (Apple segmented-control standard is 3-4 max). The 4
-                  below are the modes a GC reaches for daily. The
-                  retired modes (`resources`/Crew, `summary`) remain
-                  in the underlying type + render switch so we can
-                  re-add them behind a "More" overflow pill later if
-                  user research shows demand — for now their entry
-                  points are removed and the rendering paths are
-                  unreachable through this UI. */}
-              {([
-                { key: 'today' as const, label: 'Today', icon: CalendarDays },
-                { key: 'lookahead' as const, label: 'Lookahead', icon: ChevronRight },
-                { key: 'board' as const, label: 'Board', icon: LayoutGrid },
-                { key: 'gantt' as const, label: 'Gantt', icon: BarChart3 },
-              ]).map(tab => {
-                const Icon = tab.icon;
-                const active = viewMode === tab.key;
-                return (
-                  <TouchableOpacity
-                    key={tab.key}
-                    style={[styles.viewTab, active && styles.viewTabActive]}
-                    onPress={() => { setViewMode(tab.key); setIsFieldMode(false); }}
-                    activeOpacity={0.7}
-                  >
-                    <Icon size={14} color={active ? "#FFFFFF" : themeColors.textSecondary} />
-                    <Text style={[styles.viewTabText, active && styles.viewTabTextActive]}>{tab.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
+            <View style={[styles.projectChipDot, { backgroundColor: selectedProject?.status === 'in_progress' ? themeColors.success : selectedProject?.status === 'estimated' || selectedProject?.status === 'draft' ? themeColors.accent : themeColors.textMuted }]} />
+            <Text style={desktopStyles.projectSwitcherText} numberOfLines={1}>{selectedProject?.name ?? 'Select project'}</Text>
+            <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+          </Pressable>
+          <SegmentedControl
+            options={DESKTOP_VIEW_OPTIONS}
+            value={viewMode}
+            onChange={(v) => { setViewMode(v); setIsFieldMode(false); }}
+            accessibilityLabel="Schedule view"
+            testID="schedule-view-tabs"
+          />
+          <View style={desktopStyles.headerSpacer} />
           {/* Open in Schedule Pro — MS-Project-style grid + CPM, web/iPad only.
               Only rendered when a project is selected; routes to /schedule-pro. */}
           {selectedProjectId && (
@@ -2933,12 +2987,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               )}
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={styles.fab}
+          <Button
+            label="+ Task"
+            size="md"
             onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setQuickAddCount(0); setIsQuickAddOpen(true); }}
-            activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add">
-            <Plus size={18} color="#FFF" strokeWidth={1.75} />
-          </TouchableOpacity>
+            style={desktopCta}
+            testID="schedule-add-task"
+          />
         </View>
 
         {/* WHAT YOUR ACCESS SAVES ON THIS SCREEN (#25) — stated before he
@@ -2953,16 +3008,14 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         )}
 
         {activeSchedule && (
-          // Card views sit in the centred reading column on desktop web; the
-          // start bar rides in it too so its edges line up with the cards
-          // under it. The Gantt keeps the full width (its timeline is wide).
-          <View style={viewMode !== 'gantt' ? desktopStyles.readingColumn : null}>
+          // Hugs its content on desktop (it was a 1,040 px bar holding a date
+          // and a 'Change' link).
           <View
             /* SCHED-NO-ANCHOR: this row is the disclosure. Undated, it must not
                print today's date as if it were the plan's start — every date on
                the grid below is then a preview that moves forward one day per
                calendar day, and one tap here fixes it for good. */
-            style={[styles.projectStartBar, isUndated ? styles.projectStartBarUndated : null]}
+            style={[styles.projectStartBar, isUndated ? styles.projectStartBarUndated : null, desktopStyles.projectStartBarDesktop]}
           >
             {isUndated
               ? <CalendarOff size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
@@ -2986,15 +3039,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               </Text>
             </TouchableOpacity>
           </View>
-          </View>
         )}
 
         <View style={desktopStyles.splitContainer}>
           {viewMode === 'gantt' && renderDesktopTaskListPanel()}
-          <View style={desktopStyles.mainPanel}>
-            {savedPlanBanner && (
-              <View style={viewMode !== 'gantt' ? desktopStyles.readingColumn : null}>{savedPlanBanner}</View>
-            )}
+          <View style={desktopStyles.mainPanel} onLayout={onMainPanelLayout} testID="schedule-main-panel">
+            {savedPlanBanner}
             {viewMode === 'board' ? (
               // Board owns the scroll container in board mode. It cannot be a
               // child of the ScrollView below: a FlatList nested in a same-axis
@@ -3003,12 +3053,13 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               <FlatList
                 data={boardRows}
                 keyExtractor={boardRowKey}
-                renderItem={renderBoardRow}
-                extraData={renderBoardRow}
+                renderItem={renderDesktopBoardRow}
+                extraData={renderDesktopBoardRow}
                 ListHeaderComponent={boardFilterBar}
-                // Board rows are one card per task: a reading column, not
-                // 1,300px-wide strips (founder, 2026-09-23).
-                contentContainerStyle={[{ paddingBottom: 60 }, desktopStyles.readingColumn]}
+                // Board rows are rows of task cards, three across at 1,232
+                // (TileGrid 'content'), not 1,300px-wide strips (founder,
+                // 2026-09-23).
+                contentContainerStyle={{ paddingBottom: 60 }}
                 showsVerticalScrollIndicator={false}
                 initialNumToRender={12}
                 maxToRenderPerBatch={12}
@@ -3017,10 +3068,10 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
               />
             ) : (
             <ScrollView
-              // Today / Lookahead / Resources / Summary are stacked cards —
-              // centred at ContentWidth.reading instead of stretched across
-              // the window. The Gantt keeps the full width.
-              contentContainerStyle={[{ paddingBottom: 60 }, viewMode !== 'gantt' ? desktopStyles.readingColumn : null]}
+              // Today is two columns and Lookahead a row of week cards
+              // (wave 6c), inside the (tabs) frame's dashboard cap; the Gantt
+              // is sized to this panel.
+              contentContainerStyle={{ paddingBottom: 60 }}
               showsVerticalScrollIndicator={false}
             >
               {viewMode === 'today' && (
@@ -3036,6 +3087,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   location={selectedProject?.location}
                   locationLatitude={selectedProject?.locationLatitude}
                   locationLongitude={selectedProject?.locationLongitude}
+                  layout="desktop"
                 />
               )}
               {viewMode === 'lookahead' && (
@@ -3048,6 +3100,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   location={selectedProject?.location}
                   locationLatitude={selectedProject?.locationLatitude}
                   locationLongitude={selectedProject?.locationLongitude}
+                  layout="desktop"
                 />
               )}
               {viewMode === 'gantt' && (
@@ -3082,7 +3135,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   {isVerticalGantt ? (
                     <VerticalGantt schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
                   ) : (
-                    <GanttChart schedule={ganttSchedule ?? activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
+                    <GanttChart schedule={ganttSchedule ?? activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} viewportWidth={mainPanelW > 32 ? mainPanelW - 32 : undefined} />
                   )}
                 </View>
               )}
@@ -3095,9 +3148,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
         {renderDesktopStatusBar()}
 
-        <Modal visible={isProjectPickerOpen} transparent animationType="fade" onRequestClose={() => setIsProjectPickerOpen(false)}>
-          <Pressable style={styles.modalOverlay} onPress={() => setIsProjectPickerOpen(false)}>
-            <Pressable style={styles.modalCard} onPress={() => undefined}>
+        <Modal visible={isProjectPickerOpen} transparent animationType={fPicker.animationType} onRequestClose={() => setIsProjectPickerOpen(false)}>
+          <Pressable style={[styles.modalOverlay, fPicker.overlay]} onPress={() => setIsProjectPickerOpen(false)}>
+            <Pressable style={[styles.modalCard, fPicker.card]} onPress={() => undefined} testID="schedule-project-picker">
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Project</Text>
                 <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3105,7 +3158,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 </TouchableOpacity>
               </View>
               <ScrollView style={{ maxHeight: 400 }}>
-                {projects.map(project => (
+                {sortedProjectChips.map(project => (
                   <TouchableOpacity
                     key={project.id}
                     style={[styles.pickerOption, selectedProjectId === project.id && styles.pickerOptionSelected]}
@@ -3164,12 +3217,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           </Pressable>
         </Modal>
 
-        <Modal visible={isQuickAddOpen} transparent animationType="slide" onRequestClose={() => setIsQuickAddOpen(false)}>
+        <Modal visible={isQuickAddOpen} transparent animationType={fQuickAdd.animationType} onRequestClose={() => setIsQuickAddOpen(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={styles.bottomSheetOverlay}>
-              <Pressable style={{ flex: 1 }} onPress={() => setIsQuickAddOpen(false)} />
-              <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-                <View style={styles.bottomSheetHandle} />
+            <View style={[styles.bottomSheetOverlay, fQuickAdd.overlay]}>
+              <Pressable style={[{ flex: 1 }, fQuickAdd.backdrop]} onPress={() => setIsQuickAddOpen(false)} accessibilityRole="button" accessibilityLabel="Close" />
+              <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }, fQuickAdd.card]} testID="schedule-quick-add-sheet">
+                {fQuickAdd.showHandle && <View style={styles.bottomSheetHandle} />}
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Quick Add Task</Text>
                 </View>
@@ -3251,7 +3304,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   <View style={styles.quickAddField}>
                     <Text style={styles.quickAddFieldLabel}>Custom date</Text>
                     <TextInput
-                      style={styles.quickAddSmallInput}
+                      style={[styles.quickAddSmallInput, layout.isDesktop && (desktopField('sm') as TextStyle)]}
                       value={taskDraft.startDateOverride}
                       onChangeText={(text) => setTaskDraft(prev => ({ ...prev, startDateOverride: text }))}
                       placeholder="YYYY-MM-DD"
@@ -3264,7 +3317,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   <View style={styles.quickAddField}>
                     <Text style={styles.quickAddFieldLabel}>Duration (days)</Text>
                     <TextInput
-                      style={styles.quickAddSmallInput}
+                      style={[styles.quickAddSmallInput, layout.isDesktop && (desktopField('xs') as TextStyle)]}
                       value={taskDraft.durationDays}
                       onChangeText={(text) => setTaskDraft(prev => ({ ...prev, durationDays: text.replace(/[^0-9]/g, '') }))}
                       placeholder="5"
@@ -3278,17 +3331,19 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                     ? UNDATED_QUICK_ADD_HINT
                     : `Project starts ${projectStartDate.toLocaleDateString()} · leave custom date blank to chain after the last task`}
                 </Text>
-                <TouchableOpacity style={styles.addTaskBtn} onPress={handleQuickAdd} activeOpacity={0.85}>
-                  <Plus size={16} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.addTaskBtnText}>Add Task</Text>
-                </TouchableOpacity>
+                <View style={[desktopStyles.quickAddActions, fQuickAdd.footer]}>
+                  <TouchableOpacity style={[styles.addTaskBtn, fQuickAdd.footerButton]} onPress={handleQuickAdd} activeOpacity={0.85}>
+                    <Plus size={16} color="#FFF" strokeWidth={1.75} />
+                    <Text style={styles.addTaskBtnText}>Add Task</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </KeyboardAvoidingView>
         </Modal>
-        <Modal visible={taskDetailModal !== null} transparent animationType="fade" onRequestClose={() => setTaskDetailModal(null)}>
-          <Pressable style={styles.modalOverlay} onPress={() => setTaskDetailModal(null)}>
-            <Pressable style={[styles.modalCard, { maxHeight: '85%' }]} onPress={() => undefined}>
+        <Modal visible={taskDetailModal !== null} transparent animationType={fDetail.animationType} onRequestClose={() => setTaskDetailModal(null)}>
+          <Pressable style={[styles.modalOverlay, fDetail.overlay]} onPress={() => setTaskDetailModal(null)}>
+            <Pressable style={[styles.modalCard, { maxHeight: '85%' }, fDetail.card]} onPress={() => undefined} testID="schedule-task-detail-sheet">
               {taskDetailModal && (() => {
                 const task = taskDetailModal;
                 // statusInk, not getStatusColor — see renderTaskCard.
@@ -3301,19 +3356,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                         <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
-                    <View style={styles.detailProgressRow}>
-                      {[0, 25, 50, 75, 100].map(val => (
-                        <TouchableOpacity
-                          key={val}
-                          style={[styles.detailProgressBtn, task.progress === val && styles.detailProgressBtnActive]}
-                          onPress={() => { (taskDetailLive ? handleLiveProgressUpdate : handleProgressUpdate)(task, val); setTaskDetailModal({ ...task, progress: val, status: val >= 100 ? 'done' : val > 0 ? 'in_progress' : 'not_started' }); }}
-                        >
-                          <Text style={[styles.detailProgressBtnText, task.progress === val && styles.detailProgressBtnTextActive]}>
-                            {val === 100 ? 'Done' : `${val}%`}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    {/* Desktop: the five quick-picks are one numeric segmented
+                        control (56 px segments), not five 180 px buttons. */}
+                    <SegmentedControl
+                      variant="numeric"
+                      options={PROGRESS_OPTIONS}
+                      value={String(task.progress)}
+                      onChange={(v) => { const val = Number(v); (taskDetailLive ? handleLiveProgressUpdate : handleProgressUpdate)(task, val); setTaskDetailModal({ ...task, progress: val, status: val >= 100 ? 'done' : val > 0 ? 'in_progress' : 'not_started' }); }}
+                      accessibilityLabel="Progress"
+                      style={desktopStyles.detailProgressDesktop}
+                      testID="schedule-detail-progress"
+                    />
                     <View style={styles.detailActions}>
                       <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task, taskDetailLive)}>
                         <Text style={styles.detailEditBtnText}>Edit Task</Text>
@@ -3449,7 +3502,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
         )}
 
         {selectedProject && !hasScheduleData && (
-          <View style={styles.emptySchedule}>
+          <View style={[styles.emptySchedule, layout.isDesktop && desktopStyles.emptyScheduleDesktop]}>
             <ScheduleOnRamp
               hasEstimate={hasEstimate}
               canBuildByVoice={true}
@@ -3489,7 +3542,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             )}
 
             <View style={styles.topBar}>
-              <View style={styles.topBarStats}>
+              <View style={[styles.topBarStats, layout.isDesktop && desktopStyles.topBarStatsDesktop]}>
                 <View style={styles.topBarStat}>
                   <Text style={styles.topBarStatValue}>{totalProgress}%</Text>
                   <Text style={styles.topBarStatLabel}>Done</Text>
@@ -4880,9 +4933,43 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
     opacity: 0.85,
     letterSpacing: 0.2,
   },
-  desktopHeaderLeft: {
-    width: 260,
+  // The project switcher (wave 6c): one button naming the job, 200–360 wide
+  // and 36 high, that opens the Select Project dialog. It replaced a 260 px
+  // horizontal chip strip that showed one and a half jobs at a time.
+  projectSwitcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: Layout.field.sm,
+    maxWidth: Layout.field.md,
+    height: Layout.control.sm + 4,
+    paddingHorizontal: 12,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    backgroundColor: themeColors.surfaceAlt,
   },
+  projectSwitcherText: {
+    flexShrink: 1,
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.text,
+  },
+  headerSpacer: { flex: 1 },
+  // The start bar and the stats hug their content instead of spanning the
+  // column (a date and a 'Change' link in a 1,040 px bar).
+  projectStartBarDesktop: { alignSelf: 'flex-start', gap: Layout.gutter + 8 },
+  topBarStatsDesktop: { alignSelf: 'flex-start', gap: Layout.gutter + 8 },
+  // No card chrome around the on-ramp on desktop: its own tiles are the cards.
+  emptyScheduleDesktop: { backgroundColor: 'transparent', borderWidth: 0 },
+  // A phase header's progress sits next to its name, not 1,000 px away.
+  phaseHeaderDesktop: { justifyContent: 'flex-start', gap: Layout.groupGap },
+  // A row of Board cards: the grid's own gap between rows of cards.
+  boardChunkDesktop: { paddingBottom: Layout.groupGap },
+  detailProgressDesktop: { marginBottom: 14 },
+  // Quick Add's action row (this sheet only renders in the desktop branch):
+  // the frame's footer right-aligns 'Add Task' in it.
+  quickAddActions: { alignSelf: 'stretch' },
   splitContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -4960,14 +5047,6 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
   mainPanel: {
     flex: 1,
   },
-  // The centred card column for desktop web (see ContentWidth in
-  // constants/designTokens). width 100% below the cap, so nothing narrower
-  // than it changes.
-  readingColumn: {
-    width: '100%' as const,
-    maxWidth: ContentWidth.reading,
-    alignSelf: 'center' as const,
-  },
   statusBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -5000,9 +5079,47 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
 // would mount the sibling fresh with a null ref, which then re-consumes the
 // still-present route params and snaps the selection back to the CTA's
 // projectId — yanking away whatever project the user had manually cycled to.
+//
+// DESKTOP WEB, PRO TIER (wave 6c): an arrival that names a job
+// (?projectId&focus) is handed to Schedule Pro — the screen a Pro GC at a
+// desk actually works in — with its taskId / editSeed / focus. It stays here
+// when Pro's own "Today & lookahead (classic)" link sent it (?classic=<the
+// same focus>), when Pro's own gate would not open the job (canOpenSchedulePro:
+// own tier or the collaborator grant), when Pro's grid does not fit the window
+// (proFitsWindow — Pro's narrow gate sends the GC straight back here, so a
+// redirect there was a loop), and everywhere that is not desktop web
+// (utils/scheduleRoute.classicRedirect). Once per arrival: the tab stays
+// mounted with its sticky params, and coming back to it must not bounce the GC
+// to Pro again. A phone never gets here with a redirect — useIsDesktopWeb() is
+// false on every phone — and still gets MobileScheduleScreen first.
 export default function ScheduleTabRoute() {
   const layout = useResponsiveLayout();
   const consumedFocusRef = useRef<string | null>(null);
+  const webDesktop = useIsDesktopWeb();
+  const { canAccess } = useTierAccess();
+  const { projects } = useProjects();
+  const { projectId, focus, classic, taskId, editSeed } =
+    useLocalSearchParams<{ projectId?: string; focus?: string; classic?: string; taskId?: string; editSeed?: string }>();
+  // The arrival already handed to Pro. <Redirect> replaces on EVERY focus (and
+  // only once navigation has loaded, a render after it mounts), so it stays
+  // mounted until this tab loses focus — which is the redirect having happened
+  // — and the arrival is then marked done: if the tab is ever focused again
+  // with the same sticky params, it shows the classic screen.
+  const [redirected, setRedirected] = useState<string | null>(null);
+  const pro = classicRedirect({
+    routeProjectId: projectId,
+    routeFocus: focus,
+    classic,
+    webDesktop,
+    canPro: canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE), projects.find(p => p.id === projectId)?.myRole),
+    proFits: proFitsWindow(layout.width, webDesktop, getSidebarRail().pref),
+    taskId,
+    editSeed,
+  });
+  const arrival = `${projectId ?? ''}:${focus ?? ''}`;
+  const toPro = pro !== null && redirected !== arrival;
+  useFocusEffect(useCallback(() => () => { if (toPro) setRedirected(arrival); }, [toPro, arrival]));
+  if (toPro && pro) return <Redirect href={pro} />;
   return layout.isPhone
     ? <MobileScheduleScreen consumedFocusRef={consumedFocusRef} />
     : <ScheduleScreen consumedFocusRef={consumedFocusRef} />;

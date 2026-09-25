@@ -79,6 +79,12 @@ export interface CopilotContext {
   commitTasks?: (producer: (prev: import('@/types').ScheduleTask[]) => import('@/types').ScheduleTask[]) => CommitOutcome;
   currentTasks?: import('@/types').ScheduleTask[];
   cpmOptions?: import('@/utils/cpm').RunCpmOptions;
+  /** Injected by a host that can DRAW the proposal (Schedule Pro's docked
+   *  editor, wave 6c): the review hands it the proposed change as a Gantt
+   *  overlay, and null when the review goes away (applied, discarded, closed).
+   *  Optional — the phone, the classic tab and the daily report never set it,
+   *  and the review renders exactly as before without it. */
+  onPreview?: (overlay: import('@/utils/schedulePreviewOverlay').SchedulePreviewOverlay | null) => void;
   tier: string;
 }
 

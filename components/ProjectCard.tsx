@@ -13,18 +13,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { EyebrowLabel } from '@/components/ui/EyebrowLabel';
+// Wave 6c (C2): the badge speaks utils/projectStage's words — the same ones as
+// the Home chips and the job page ('Construction', 'Post-Con', 'Closeout').
+import { statusLabel as stageStatusLabel } from '@/utils/projectStage';
 import type { ThemeColors } from '@/constants/colors';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes, Wrench,
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  estimated: 'Estimated',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  closed: 'Closed',
 };
 
 const STATUS_BADGE_TONE: Record<string, BadgeTone> = {
@@ -75,7 +70,7 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate,
   const burnAnim = useRef(new Animated.Value(0)).current;
 
   const IconComponent = getTypeIcon(project.type);
-  const statusLabel = STATUS_LABEL[project.status] ?? 'Draft';
+  const statusLabel = stageStatusLabel(project.status);
   const statusTone: BadgeTone = STATUS_BADGE_TONE[project.status] ?? 'neutral';
 
   const linkedEstimate = project.linkedEstimate;

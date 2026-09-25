@@ -27,7 +27,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import type { SubScheduleUpdate, ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { todayCalendarDay } from '@/utils/calendarDate';
 
 export interface SubUpdatesPanelProps {
@@ -39,6 +40,12 @@ export interface SubUpdatesPanelProps {
    *  force a re-read of AsyncStorage when an update was just posted
    *  on the GC's device too. */
   refreshKey?: unknown;
+  /** 'card' (default): today's tile. 'chip' (Schedule Pro's desktop signals
+   *  row, wave 6c): a 32 px chip that opens the same sheet. */
+  variant?: 'card' | 'chip';
+  /** Told whether there is anything to show (the signals row collapses to
+   *  0 px when no chip has anything to say). */
+  onPresenceChange?: (present: boolean) => void;
 }
 
 function timeAgo(iso: string): string {
@@ -52,12 +59,15 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: SubUpdatesPanelProps) {
+function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, variant = 'card', onPresenceChange }: SubUpdatesPanelProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [updates, setUpdates] = useState<SubScheduleUpdate[]>([]);
   const [open, setOpen] = useState(false);
+  const fSub = useSheetFrame('form', { visible: open, animationType: 'slide' });
+  const present = updates.length > 0;
+  useEffect(() => { onPresenceChange?.(present); }, [present, onPresenceChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +94,21 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
 
   return (
     <>
+      {variant === 'chip' ? (
+        <TouchableOpacity
+          style={styles.chip}
+          onPress={() => setOpen(true)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Sub updates: ${todayUpdates.length} today${blockerCount > 0 ? `, ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}` : ''}`}
+          testID="sub-updates-chip"
+        >
+          <Activity size={12} color={themeColors.accent} strokeWidth={1.75} />
+          <Text style={styles.chipText} numberOfLines={1}>
+            Sub updates · {todayUpdates.length} today{blockerCount > 0 ? ` · ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}` : ''}
+          </Text>
+        </TouchableOpacity>
+      ) : (
       <TouchableOpacity
         style={styles.tile}
         onPress={() => {
@@ -112,11 +137,12 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
         )}
         <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
+      )}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 12 }]}>
-            <View style={styles.modalHandle} />
+      <Modal visible={open} transparent animationType={fSub.animationType} onRequestClose={() => setOpen(false)}>
+        <View style={[styles.modalBackdrop, fSub.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 12 }, fSub.card]}>
+            {fSub.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>Sub Schedule Collab</Text>
@@ -270,6 +296,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.danger + '30',
   },
   blockerBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.danger },
+  // The desktop signals-row chip: one line, 32 high, never wider than 240.
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    height: Layout.chip.height, maxWidth: Layout.chip.maxWidth, flexShrink: 0,
+    paddingHorizontal: 12, borderRadius: Tokens.radius.full,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+  },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {

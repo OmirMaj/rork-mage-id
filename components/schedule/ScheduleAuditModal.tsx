@@ -23,6 +23,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
 } from 'react-native';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -81,11 +82,15 @@ export function ScheduleAuditModal(props: {
 
   const days = entries && entries.length > 0 ? groupAuditByDay(entries) : [];
 
+  // Desktop (wave 6c): a centred 560 card in the content column. All-null on
+  // a phone.
+  const frame = useSheetFrame('form', { visible: props.visible, animationType: 'slide' });
+
   return (
-    <Modal visible={props.visible} transparent animationType="slide" onRequestClose={props.onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.modalHandle} />
+    <Modal visible={props.visible} transparent animationType={frame.animationType} onRequestClose={props.onClose}>
+      <View style={[styles.modalBackdrop, frame.overlay]}>
+        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
+          {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>History</Text>
             <TouchableOpacity onPress={props.onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">

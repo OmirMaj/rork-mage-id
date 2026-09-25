@@ -21,7 +21,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { formatMoneyCompact, performanceTone, type ScheduleEvSnapshot } from '@/utils/scheduleEarnedValue';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { useSheetFrame } from '@/components/ui/Sheet';
 
 const TONE_COLOR: Record<'good' | 'warn' | 'bad', string> = {
   good: "#2E7D44",
@@ -32,13 +33,18 @@ const TONE_COLOR: Record<'good' | 'warn' | 'bad', string> = {
 export interface EarnedValuePanelProps {
   snapshot: ScheduleEvSnapshot;
   tasks: ScheduleTask[];
+  /** 'card' (default): today's tile. 'chip' (Schedule Pro's desktop signals
+   *  row, wave 6c): a 32 px chip "SPI 0.92 · CPI 1.04" that opens the same
+   *  sheet. */
+  variant?: 'card' | 'chip';
 }
 
-function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
+function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValuePanelProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
+  const fEv = useSheetFrame('wide', { visible: open, animationType: 'slide' });
   const spiTone = performanceTone(snapshot.spi);
   const cpiTone = snapshot.cpi != null ? performanceTone(snapshot.cpi) : null;
   const SpiIcon = snapshot.spi >= 1 ? TrendingUp : TrendingDown;
@@ -49,6 +55,21 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
 
   return (
     <>
+      {variant === 'chip' ? (
+        <TouchableOpacity
+          style={styles.chip}
+          onPress={() => setOpen(true)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Earned value: SPI ${snapshot.spi.toFixed(2)}${snapshot.cpi != null ? `, CPI ${snapshot.cpi.toFixed(2)}` : ', CPI not available'}`}
+          testID="ev-chip"
+        >
+          <SpiIcon size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
+          <Text style={styles.chipText} numberOfLines={1}>
+            SPI {snapshot.spi.toFixed(2)} · CPI {snapshot.cpi != null ? snapshot.cpi.toFixed(2) : '—'}
+          </Text>
+        </TouchableOpacity>
+      ) : (
       <TouchableOpacity
         style={styles.tile}
         onPress={() => {
@@ -76,11 +97,12 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
           </View>
         </View>
       </TouchableOpacity>
+      )}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
-            <View style={styles.modalHandle} />
+      <Modal visible={open} transparent animationType={fEv.animationType} onRequestClose={() => setOpen(false)}>
+        <View style={[styles.modalBackdrop, fEv.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fEv.card]}>
+            {fEv.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Money on the schedule</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -213,6 +235,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tileSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 14 },
   spiPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full },
   spiText: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.2 },
+  // The desktop signals-row chip: one line, 32 high, never wider than 240.
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    height: Layout.chip.height, maxWidth: Layout.chip.maxWidth, flexShrink: 0,
+    paddingHorizontal: 12, borderRadius: Tokens.radius.full,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+  },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {

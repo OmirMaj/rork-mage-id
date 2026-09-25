@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { CloudRain, X, ArrowRight, CheckCircle2, CloudOff } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import type { WeatherRescheduleResult } from '@/utils/weatherReschedule';
 import { getConditionIcon, type DayForecast } from '@/utils/weatherService';
 import {
@@ -53,8 +54,11 @@ export default function WeatherRescheduleModal({
 }: WeatherRescheduleModalProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const fW = useSheetFrame('dialog', { visible, animationType: 'fade' });
 
   const hasImpact = !!result && result.impacts.length > 0;
+  // Cmd/Ctrl+Enter (and Cmd+S) = Apply reschedule, only when there is one.
+  useSheetPrimaryHotkey(visible, hasImpact ? onApply : null);
   const slip = result?.projectSlipDays ?? 0;
 
   // Provenance of the forecast that produced this proposal. Applying a
@@ -66,9 +70,9 @@ export default function WeatherRescheduleModal({
   const isPartlySimulated = hasImpact && forecastSource === 'mixed';
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity activeOpacity={1} style={styles.backdrop} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
+    <Modal visible={visible} transparent animationType={fW.animationType} onRequestClose={onClose}>
+      <TouchableOpacity activeOpacity={1} style={[styles.backdrop, fW.overlay]} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={[styles.card, fW.card]} onPress={() => {}}>
           <View style={styles.header}>
             <CloudRain size={16} color={t.accent} strokeWidth={1.75} />
             <Text style={styles.title}>Weather reschedule</Text>
@@ -164,12 +168,12 @@ export default function WeatherRescheduleModal({
             </>
           )}
 
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.btnGhost} onPress={onClose} activeOpacity={0.7}>
+          <View style={[styles.footer, fW.footer]}>
+            <TouchableOpacity style={[styles.btnGhost, fW.footerButton]} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.btnGhostText}>{hasImpact ? 'Not now' : 'Close'}</Text>
             </TouchableOpacity>
             {hasImpact && (
-              <TouchableOpacity style={styles.btnPrimary} onPress={onApply} activeOpacity={0.7}>
+              <TouchableOpacity style={[styles.btnPrimary, fW.footerButton]} onPress={onApply} activeOpacity={0.7}>
                 <Text style={styles.btnPrimaryText}>Apply reschedule</Text>
               </TouchableOpacity>
             )}

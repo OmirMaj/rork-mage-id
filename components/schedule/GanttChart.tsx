@@ -21,6 +21,7 @@ import { findWeatherRisk, type DayForecast } from '@/utils/weatherService';
 import { SimulatedWeatherBanner } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { ganttPxPerDay, GANTT_CHROME } from '@/utils/scheduleRoute';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -38,15 +39,26 @@ interface GanttChartProps {
    * they compute for the schedule screen so both views stay consistent.
    */
   forecast?: DayForecast[];
+  /**
+   * The width the chart really has (wave 6c): the classic tab's DESKTOP branch
+   * passes its measured main panel, and the timeline is sized to it —
+   * clamp((viewportWidth − 200) / totalDays, 8, 24) px a day — instead of 1.5×
+   * the whole window. Omitted (the tablet branch, every other caller), the
+   * width formula below is exactly the one it always was.
+   */
+  viewportWidth?: number;
 }
 
-function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseline, forecast }: GanttChartProps) {
+function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseline, forecast, viewportWidth }: GanttChartProps) {
   // Built per theme: the chart's gutter, grid rules and date ink baked their
   // Colors.borderLight/textMuted/surfaceAlt/text at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
   const totalDays = schedule.totalDurationDays;
-  const ganttWidth = Math.max(SCREEN_WIDTH * 1.5, totalDays * 14 + 200);
+  const fitPxPerDay = ganttPxPerDay(viewportWidth, totalDays);
+  const ganttWidth = fitPxPerDay === null
+    ? Math.max(SCREEN_WIDTH * 1.5, totalDays * 14 + 200)
+    : Math.round(totalDays * fitPxPerDay + GANTT_CHROME);
 
   const phaseGroups = useMemo(() => {
     const groups: Record<string, ScheduleTask[]> = {};

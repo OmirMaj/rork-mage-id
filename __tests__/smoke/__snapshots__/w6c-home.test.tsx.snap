@@ -1,0 +1,50 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane F — /attention on the phone (390 iOS) /attention, empty world — the rail's all-clear, scoped 1`] = `
+{
+  "lines": 472,
+  "sha256": "048e4ee425a127466c980e802fd0840e4867ffe1272ca99dda8f3298915f4741",
+}
+`;
+
+exports[`lane F — /attention on the phone (390 iOS) /attention, populated world 1`] = `
+{
+  "lines": 483,
+  "sha256": "9f08b45d258f5aaaa4d8c1a93dd6a03b3d1a75d018b063b90a2a91b6f11e0851",
+}
+`;
+
+exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs (the stage chips render) 1`] = `
+{
+  "lines": 1996,
+  "sha256": "1b9da18a1db81efd70abf99af93e5648a6c919bd985f19ebd02236eb98ae93e5",
+}
+`;
+
+exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs on site today (Today on site: four rows and "+2 more") 1`] = `
+{
+  "lines": 2415,
+  "sha256": "776d0745a4df2b183e15477c4be842d79ca0a2e2e5b3abc6e78965dcd0a3d685",
+}
+`;
+
+exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs, a chip tapped (Closed / Closeout bucket) 1`] = `
+{
+  "lines": 1941,
+  "sha256": "11d67569899386be28ae973de8c079d33fae37b16f30f9ad1ba5ad6f41dc5005",
+}
+`;
+
+exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, the fixture world (one job on site) 1`] = `
+{
+  "lines": 1907,
+  "sha256": "e592c412b3b7d13a389e4c4bf40b1999f6f85ea8b2d6d0d080736ff003365908",
+}
+`;
+
+exports[`lane F — the tablet Home keeps the ProjectRow table (golden, 820 iOS) Home, six jobs, tablet 1`] = `
+{
+  "lines": 1991,
+  "sha256": "425a13f8c7a5b4858263cb84183423db9d776c91583ab6eb00ecfbe372538200",
+}
+`;

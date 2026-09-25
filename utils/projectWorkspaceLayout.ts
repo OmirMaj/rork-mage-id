@@ -31,12 +31,9 @@ import { buildScheduledStartDays, taskWindow, type TaskWindowCalendar } from '@/
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Sections whose body is drawn in the desktop side panel (the in-page
- *  sections that have no screen of their own). Until their log lane ships
- *  (wave 6c G) RFIs, submittals, change orders and invoices are drawn here
- *  too — today's section bodies, not a blank create form. */
+ *  sections that have no screen of their own). */
 export const PANEL_SECTION_KEYS = [
   'linkedEstimate', 'schedule', 'collaborators', 'budget', 'photos', 'clientPortal', 'communications', 'aiReport',
-  'rfis', 'submittals', 'changeOrders', 'invoices',
 ] as const;
 export type PanelSectionKey = typeof PANEL_SECTION_KEYS[number];
 
@@ -51,6 +48,10 @@ export type PanelSectionKey = typeof PANEL_SECTION_KEYS[number];
  * the overview rows then open the section in the side panel.
  */
 export const LIST_SECTION_ROUTES = {
+  rfis: '/rfi',
+  submittals: '/submittal',
+  changeOrders: '/change-order',
+  invoices: '/invoice',
   dailyReports: '/daily-report',
   punchList: '/punch-list',
 } as const satisfies Readonly<Partial<Record<LogSectionKey, Route>>>;

@@ -13,7 +13,8 @@
 
 import { mageAI } from '@/utils/mageAI';
 import type { ScheduleTask } from '@/types';
-import type { CpmResult } from '@/utils/cpm';
+import type { CpmResult, DayScaleOptions } from '@/utils/cpm';
+import { calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { createId } from '@/utils/scheduleEngine';
 import { paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { stableHash } from '@/utils/stableHash';
@@ -23,9 +24,37 @@ import { stableHash } from '@/utils/stableHash';
 const SCHEDULE_AI_FEATURE = 'scheduleCopilot';
 
 // ---------------------------------------------------------------------------
+// The SCHEDULED start (wave 6c, lane DB).
+// ---------------------------------------------------------------------------
+// `task.startDay` is only the PIN the planner typed: a task pinned to day 1
+// behind a 10-day predecessor is scheduled on day 11, and CPM (not the pin)
+// decides where the bar sits. The AI used to be shown the pin, so it reasoned
+// about — and "moved" — tasks from a start that was not on the screen, and an
+// echo of a task's real start came back as a change. Every prompt now carries
+// the start the engine scheduled, on the WORKING-day scale the pin uses:
+//   - a CPM row and a dated schedule → its early start (a CALENDAR index)
+//     converted to a working ordinal on the schedule's own calendar;
+//   - a CPM row, no start date (raw-day mode) → its early start as-is (the
+//     engine's two scales coincide there);
+//   - no CPM row (a cycle) → the pin.
+/** The calendar the CPM ran on: the same start / week / closures as runCpm. */
+export type ScheduleAIDayScale = DayScaleOptions;
+
+export function scheduledStartOrdinal(
+  task: Pick<ScheduleTask, 'id' | 'startDay'>,
+  cpm: Pick<CpmResult, 'perTask'>,
+  dayScale?: ScheduleAIDayScale,
+): number {
+  const row = cpm.perTask.get(task.id);
+  if (row && dayScale?.scheduleStartDate) return calendarIndexToWorkingOrdinal(row.es, dayScale);
+  if (row) return row.es;
+  return task.startDay;
+}
+
+// ---------------------------------------------------------------------------
 // Serializer — turns the schedule into a string Gemini can read cheaply.
 // ---------------------------------------------------------------------------
-function serializeSchedule(tasks: ScheduleTask[], cpm: CpmResult): string {
+function serializeSchedule(tasks: ScheduleTask[], cpm: CpmResult, dayScale?: ScheduleAIDayScale): string {
   const lines: string[] = [];
   // Map internal ids to human-readable aliases so the AI can cite them.
   const aliasById = new Map<string, string>();
@@ -35,7 +64,7 @@ function serializeSchedule(tasks: ScheduleTask[], cpm: CpmResult): string {
   lines.push(`Total tasks: ${tasks.length}`);
   lines.push(`Critical path: ${cpm.criticalPath.map(id => aliasById.get(id)).join(' → ')}`);
   lines.push('');
-  lines.push('Tasks (alias | name | start | duration | crew | deps | status | progress):');
+  lines.push('Tasks (alias | name | start = scheduled working day | duration | crew | deps | status | progress):');
 
   for (const t of tasks) {
     const alias = aliasById.get(t.id)!;
@@ -43,12 +72,12 @@ function serializeSchedule(tasks: ScheduleTask[], cpm: CpmResult): string {
     const cpmRow = cpm.perTask.get(t.id);
     const float = cpmRow ? ` float=${cpmRow.totalFloat}` : '';
     // Actuals are CALENDAR days (weekends count, like "Project finish" above);
-    // `start` is a WORKING-day number. Named so the model does not subtract one
-    // from the other.
+    // `start` is the SCHEDULED working-day number (scheduledStartOrdinal), not
+    // the typed pin. Named so the model does not subtract one from the other.
     const actual = t.actualStartDay != null
       ? ` actualStartCalendarDay=${t.actualStartDay}${t.actualEndDay != null ? ` actualEndCalendarDay=${t.actualEndDay}` : ''}`
       : '';
-    lines.push(`${alias} | ${t.title} | start=${t.startDay} | dur=${t.durationDays}d | ${t.crew || '-'} | deps=[${deps}] | ${t.status} | ${t.progress}%${float}${actual}`);
+    lines.push(`${alias} | ${t.title} | start=${scheduledStartOrdinal(t, cpm, dayScale)} | dur=${t.durationDays}d | ${t.crew || '-'} | deps=[${deps}] | ${t.status} | ${t.progress}%${float}${actual}`);
   }
   return lines.join('\n');
 }
@@ -89,9 +118,9 @@ export interface AIRiskResult {
   cached?: boolean;
 }
 
-export async function aiDetectRisks(tasks: ScheduleTask[], cpm: CpmResult): Promise<AIRiskResult> {
+export async function aiDetectRisks(tasks: ScheduleTask[], cpm: CpmResult, dayScale?: ScheduleAIDayScale): Promise<AIRiskResult> {
   const { byAlias } = buildAliasMap(tasks);
-  const serialized = serializeSchedule(tasks, cpm);
+  const serialized = serializeSchedule(tasks, cpm, dayScale);
   const schemaHint = {
     summary: 'one-line overall health read',
     findings: [
@@ -171,14 +200,14 @@ export interface AIOptimizationIdea {
   action: 'parallelize' | 'overlap' | 'resource' | 'split' | 'other';
 }
 
-export async function aiOptimizeSchedule(tasks: ScheduleTask[], cpm: CpmResult): Promise<{
+export async function aiOptimizeSchedule(tasks: ScheduleTask[], cpm: CpmResult, dayScale?: ScheduleAIDayScale): Promise<{
   ok: boolean;
   ideas: AIOptimizationIdea[];
   summary: string;
   cached?: boolean;
 }> {
   const { byAlias } = buildAliasMap(tasks);
-  const serialized = serializeSchedule(tasks, cpm);
+  const serialized = serializeSchedule(tasks, cpm, dayScale);
 
   const schemaHint = {
     summary: 'one-line takeaway',
@@ -311,6 +340,7 @@ export async function aiDelayImpact(
   cpm: CpmResult,
   taskId: string,
   daysDelay: number,
+  dayScale?: ScheduleAIDayScale,
 ): Promise<{ explanation: string; projectFinishDelta: number; cached?: boolean }> {
   const t = tasks.find(x => x.id === taskId);
   const row = cpm.perTask.get(taskId);
@@ -320,7 +350,7 @@ export async function aiDelayImpact(
   // by (delay - float).
   const hardDelay = Math.max(0, daysDelay - Math.max(0, row.totalFloat));
 
-  const serialized = serializeSchedule(tasks, cpm);
+  const serialized = serializeSchedule(tasks, cpm, dayScale);
   const prompt = `A delay of ${daysDelay} day(s) on "${t.title}" is being considered.
 This task has ${row.totalFloat} day(s) of float, so the project finish would slip
 by ${hardDelay} day(s). Given the full schedule below, explain in PLAIN ENGLISH
@@ -352,8 +382,9 @@ export async function aiAskSchedule(
   cpm: CpmResult,
   question: string,
   projectStartDate: Date,
+  dayScale?: ScheduleAIDayScale,
 ): Promise<{ ok: boolean; answer: string; cached?: boolean }> {
-  const serialized = serializeSchedule(tasks, cpm);
+  const serialized = serializeSchedule(tasks, cpm, dayScale);
   const startStr = projectStartDate.toISOString().slice(0, 10);
   const prompt = `Answer the user's question using ONLY the schedule data below.
 Be concrete — cite task names, day numbers, and actual calendar dates (project
@@ -814,6 +845,9 @@ export function mergeBulkUpdates(
   updates: RawBulkUpdate[],
   byAlias: Map<string, string>,
   selSet: Set<string>,
+  /** Each task's SCHEDULED start (scheduledStartOrdinal) — what the prompt
+   *  showed. A startDay equal to it changes nothing. Omitted = the pin. */
+  startById?: Map<string, number>,
 ): AIBulkPatch[] {
   const out: AIBulkPatch[] = [];
   for (const u of updates) {
@@ -826,7 +860,7 @@ export function mergeBulkUpdates(
     if (typeof u.durationDays === 'number' && u.durationDays >= 0 && Math.round(u.durationDays) !== t.durationDays) {
       patch.durationDays = Math.round(u.durationDays);
     }
-    if (typeof u.startDay === 'number' && u.startDay >= 1 && Math.round(u.startDay) !== t.startDay) {
+    if (typeof u.startDay === 'number' && u.startDay >= 1 && Math.round(u.startDay) !== (startById?.get(id) ?? t.startDay)) {
       patch.startDay = Math.round(u.startDay);
     }
     const crew = namedBulkValue(u.crew);
@@ -854,6 +888,7 @@ export async function aiBulkEdit(
   cpm: CpmResult,
   selectedIds: string[],
   instruction: string,
+  dayScale?: ScheduleAIDayScale,
 ): Promise<{
   ok: boolean;
   patches: AIBulkPatch[];
@@ -876,10 +911,13 @@ export async function aiBulkEdit(
   // attention on them. Keep the full alias map so it doesn't hallucinate new
   // ids, and include the full schedule summary so it can reason about
   // downstream effects without proposing changes there.
-  const fullContext = serializeSchedule(tasks, cpm);
+  const fullContext = serializeSchedule(tasks, cpm, dayScale);
+  // The start each task is SCHEDULED on — the prompt shows it, and an update
+  // that restates it is not a move.
+  const startById = new Map(tasks.map(t => [t.id, scheduledStartOrdinal(t, cpm, dayScale)] as const));
   const selectedLines = selected.map(t => {
     const alias = byId.get(t.id) ?? t.id;
-    return `${alias}: ${t.title} | start=${t.startDay} | dur=${t.durationDays}d | crew=${t.crew || '-'} | phase=${t.phase || '-'} | progress=${t.progress}%`;
+    return `${alias}: ${t.title} | start=${startById.get(t.id) ?? t.startDay} | dur=${t.durationDays}d | crew=${t.crew || '-'} | phase=${t.phase || '-'} | progress=${t.progress}%`;
   }).join('\n');
 
   const schemaHint = BULK_EDIT_SCHEMA_HINT;
@@ -897,7 +935,8 @@ Rules:
 - Leave a field unset in your reply if you are not changing it (so the UI
   only shows actual deltas).
 - Keep durations >= 0.
-- Keep startDay >= 1.
+- Keep startDay >= 1. "start=" above is the WORKING day each task is
+  scheduled on now; send startDay only to move a task off it.
 - Never add or remove tasks — only edit the listed ones. If the instruction
   asks to ADD or CREATE tasks, return updates: [] and say in summary that
   new tasks are added from "Tell me what to change".
@@ -941,7 +980,7 @@ Rules:
     }[];
   };
 
-  const patches = mergeBulkUpdates(tasks, raw.updates ?? [], byAlias, selSet);
+  const patches = mergeBulkUpdates(tasks, raw.updates ?? [], byAlias, selSet, startById);
 
   return {
     // A 'validation' partial is still a usable, token-spending success (some

@@ -1,0 +1,71 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane DB — golden (recorded on the untouched base) /copilot?capabilityId=schedule at 390 (CopilotShell, no autoSubmitSeed) 1`] = `
+{
+  "lines": 71,
+  "sha256": "77c39bea6e35e5d8cfadb84a79d9b493b86bb32f1469fed6212a481d54e9a013",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) /schedule at 390 with the "Tell me what to change" sheet open (ScheduleEditPanel, modal) 1`] = `
+{
+  "lines": 739,
+  "sha256": "05cc4aa462efef052a52a91834e9437085c8c5b1b696297d7bf8061b1660f834",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) /schedule-pro at native 1000 × 700 (the legacy branch) 1`] = `
+{
+  "lines": 400,
+  "sha256": "c9cfdefe2a1500e73a65e78cfc277b2d7d6dbd08d57abdef16052be0d17fd10c",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) /schedule-pro?projectId at 390 iOS: the narrow gate 1`] = `
+{
+  "lines": 49,
+  "sha256": "3a2b2e47366ede602ca308da08b7aa87725296139d97850c096137f61f7fe24d",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) EarnedValuePanel card + its sheet 1`] = `
+{
+  "lines": 132,
+  "sha256": "1e2e0967e3592b68568f839420965524461ba4fc8effcb306f5eff06fd4463b2",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) ScheduleShareSheet, open (full and by trade) 1`] = `
+{
+  "lines": 53,
+  "sha256": "96784bcd8e6de70cf7a4cca420ca08f7f98ac2af2ebe3263a264699283355cf5",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) ScheduleShareSheet, open (full and by trade) 2`] = `
+{
+  "lines": 88,
+  "sha256": "4b41fa7cf94390c5a786e4660a5bbbdf9c8fa967c3df38a83e71d9cc6a64f2b0",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) SubUpdatesPanel card + its sheet 1`] = `
+{
+  "lines": 118,
+  "sha256": "6d668553c68b80aeedf9ae22abb0cd8aa214f201786fff4402f4e6b7e353fb21",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) WeatherRescheduleModal, open 1`] = `
+{
+  "lines": 88,
+  "sha256": "c22a8847fbab3103834d16d51a9202b0eab2832f55c55c8b5b37cae5e2a4fb30",
+}
+`;
+
+exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) WeatherReschedulePrompt banner + its sheet 1`] = `
+{
+  "lines": 108,
+  "sha256": "736060e55acdabb6eec5b64948d576725fb19347d587c9e572e42d6b26073aee",
+}
+`;

@@ -225,7 +225,7 @@ function OnboardingChecklistImpl({
       // contradiction — seeded sample invoices used to produce exactly that.
       done: invoiceCount > 0 && projectCount > 0,
       Icon: Receipt,
-      href: '/invoice',
+      href: '/invoice?new=1',
       cta: 'New invoice',
       // Invoices live inside a project — /invoice renders "No projects yet" for
       // an account with none. Handing a brand-new user a tappable "New invoice"

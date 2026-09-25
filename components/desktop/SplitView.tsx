@@ -46,7 +46,7 @@
 // scripts/validate-desktop-workspace.ts).
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { PanResponder, Platform, Pressable, StyleSheet, Text, View, type DimensionValue, type StyleProp, type ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
@@ -150,6 +150,13 @@ export interface SplitViewProps {
   /** Shown beside the list when nothing is open (desktop split only). */
   emptyDetail?: React.ReactNode;
   backLabel?: string;
+  /** Split mode with NO record open: the list takes the whole width and the
+   *  divider and the "pick a row" pane are not drawn (a log that opens on its
+   *  table, not on a half-empty page). Opening a record brings them back; the
+   *  list stays the first child of the same root, so it is restyled, never
+   *  remounted (search, sort and scroll survive). Default false: today's
+   *  empty-detail pane. */
+  collapseWhenEmpty?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -161,7 +168,7 @@ export function SplitView(props: SplitViewProps) {
 }
 
 function DesktopSplitView({
-  splitId, list, detail, openId, onClose, emptyDetail, backLabel = 'Back to list', style, testID,
+  splitId, list, detail, openId, onClose, emptyDetail, backLabel = 'Back to list', collapseWhenEmpty = false, style, testID,
 }: SplitViewProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -205,7 +212,10 @@ function DesktopSplitView({
   );
 
   const single = mode === 'single';
-  const listWidth = single ? 0 : splitWidths(width, ratio).listWidth;
+  // collapseWhenEmpty: split mode, nothing open → the list alone, full width
+  // ('100%' of the row, not a measured number: exact on the first paint).
+  const collapsed = collapseWhenEmpty && !single && !hasRecord;
+  const listWidth: DimensionValue = single ? 0 : collapsed ? '100%' : splitWidths(width, ratio).listWidth;
 
   // ONE TREE FOR BOTH MODES. The list is ALWAYS the first child of the same
   // root View, so crossing 1100 px (he opens the 440 px AI dock on his 1512
@@ -246,10 +256,12 @@ function DesktopSplitView({
             <Text style={styles.backText}>{backLabel}</Text>
           </Pressable>
         ) : null
-      ) : (
+      ) : collapsed ? null : (
         <View
           key="divider"
           {...pan.panHandlers}
+          // Print (Cmd+P): the drag handle is chrome, not the record.
+          {...(Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
           style={[styles.divider, RESIZE_CURSOR]}
           accessibilityRole="adjustable"
           accessibilityLabel="Resize the list"
@@ -258,7 +270,7 @@ function DesktopSplitView({
           <View style={styles.dividerLine} />
         </View>
       )}
-      {single && !hasRecord ? null : (
+      {(single && !hasRecord) || collapsed ? null : (
         <View style={single ? styles.pane : styles.detailPane} testID={testID ? `${testID}-${single ? 'record' : 'detail'}` : undefined}>
           {hasRecord ? detail : (emptyDetail ?? (
             <View style={styles.emptyDetail}>

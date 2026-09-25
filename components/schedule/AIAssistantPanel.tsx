@@ -59,6 +59,7 @@ import {
   type AIOptimizationIdea,
   type AIAsBuiltPatch,
   type AIBulkPatch,
+  type ScheduleAIDayScale,
 } from '@/utils/scheduleAI';
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,18 @@ export interface AIAssistantPanelProps {
    *  rows it is shown; answering an add here reported "1 change(s) proposed"
    *  for the selected row and added nothing. */
   onHandOffToEditor?: (seed: string) => void;
+  /** Wave 6c — Schedule Pro's docked pane (Ask tab). No overlay, backdrop,
+   *  panel frame or header (the pane has its own), and no jump to Bulk when a
+   *  selection exists (the pane's Change tab owns selected rows). Default
+   *  false: today's drawer. */
+  embedded?: boolean;
+  /** A question typed in the Pro toolbar: switches to Ask and asks it, once
+   *  per nonce. Default: none. */
+  askSeed?: { text: string; nonce: number } | null;
+  /** The calendar the CPM ran on (start date, week, closures), so every
+   *  prompt shows each task's SCHEDULED start on the working-day scale.
+   *  Omitted: raw-day mode (utils/scheduleAI scheduledStartOrdinal). */
+  dayScale?: ScheduleAIDayScale;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +120,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const {
     visible, onClose, tasks, cpm, projectStartDate, todayDayNumber,
     onApplyPatch, onApplyBulkPatches, onReplaceAll, onFocusTasks, selectedIds,
-    linkedEstimate, onHandOffToEditor,
+    linkedEstimate, onHandOffToEditor, embedded = false, askSeed, dayScale,
   } = props;
   const [mode, setMode] = useState<Mode>('home');
   const [busy, setBusy] = useState(false);
@@ -155,10 +168,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   // That's almost always what the user wants after clicking "Ask AI" on the
   // bulk bar — zero extra clicks to start typing their instruction.
   React.useEffect(() => {
+    if (embedded) return;
     if (visible && selectedIds && selectedIds.size > 0 && mode === 'home') {
       setMode('bulk');
     }
-  }, [visible, selectedIds, mode]);
+  }, [visible, selectedIds, mode, embedded]);
 
   const selectedCount = selectedIds?.size ?? 0;
   const selectedTaskTitles = useMemo(() => {
@@ -196,7 +210,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     if (handOffIfAdd(instruction)) { setBulkDraft(''); return; }
     run(async () => {
       if (!(await gateCopilot())) return;
-      const res = await aiBulkEdit(tasks, cpm, Array.from(selectedIds), instruction);
+      const res = await aiBulkEdit(tasks, cpm, Array.from(selectedIds), instruction, dayScale);
       setCallStats(s => ({ total: s.total + 1, cached: s.cached + (res.fromCache ? 1 : 0) }));
       // Surface timeout / network / http failures as the panel error banner so
       // the user sees a distinct message rather than an empty result card.
@@ -226,7 +240,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     });
   // run is intentionally omitted (declared below); it is a stable useCallback.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bulkDraft, selectedIds, tasks, cpm, gateCopilot, handOffIfAdd]);
+  }, [bulkDraft, selectedIds, tasks, cpm, gateCopilot, handOffIfAdd, dayScale]);
 
   const handleBulkApplyAll = useCallback(() => {
     if (!bulkResult) return;
@@ -277,7 +291,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     setMode('risks');
     run(async () => {
       if (!(await gateCopilot())) return;
-      const res = await aiDetectRisks(tasks, cpm);
+      const res = await aiDetectRisks(tasks, cpm, dayScale);
       setRiskResult({ summary: res.summary, findings: res.findings });
       // aiDetectRisks returns a fallback summary on failure instead of throwing;
       // only meter a genuine result.
@@ -285,20 +299,20 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [tasks, cpm, run, gateCopilot]);
+  }, [tasks, cpm, run, gateCopilot, dayScale]);
 
   const handleOptimize = useCallback(() => {
     setMode('optimize');
     run(async () => {
       if (!(await gateCopilot())) return;
-      const res = await aiOptimizeSchedule(tasks, cpm);
+      const res = await aiOptimizeSchedule(tasks, cpm, dayScale);
       setOptResult({ summary: res.summary, ideas: res.ideas });
       // Fallback summary on failure (helper never throws) — don't meter it.
       if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [tasks, cpm, run, gateCopilot]);
+  }, [tasks, cpm, run, gateCopilot, dayScale]);
 
   const handleExplain = useCallback(() => {
     setMode('explain');
@@ -313,14 +327,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     });
   }, [tasks, cpm, run, gateCopilot]);
 
-  const handleAsk = useCallback(() => {
-    if (!chatDraft.trim()) return;
-    const question = chatDraft.trim();
+  const askQuestion = useCallback((raw: string) => {
+    const question = raw.trim();
+    if (!question) return;
     if (handOffIfAdd(question)) { setChatDraft(''); return; }
     run(async () => {
       if (!(await gateCopilot())) return;
       setChatDraft('');
-      const res = await aiAskSchedule(tasks, cpm, question, projectStartDate);
+      const res = await aiAskSchedule(tasks, cpm, question, projectStartDate, dayScale);
       setChatHistory(h => [...h, { q: question, a: res.answer }]);
       // 'No answer.' is the helper's empty-response fallback — only meter a
       // real answer.
@@ -328,7 +342,19 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [chatDraft, tasks, cpm, projectStartDate, run, gateCopilot, handOffIfAdd]);
+  }, [tasks, cpm, projectStartDate, run, gateCopilot, handOffIfAdd, dayScale]);
+  const handleAsk = useCallback(() => { askQuestion(chatDraft); }, [askQuestion, chatDraft]);
+
+  // A question from the Pro toolbar: open Ask and ask it — once per nonce, so
+  // a re-render (or the same words sent again with a new nonce) never repeats
+  // or swallows a question.
+  const askedNonce = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!askSeed || !askSeed.text.trim() || askedNonce.current === askSeed.nonce) return;
+    askedNonce.current = askSeed.nonce;
+    setMode('ask');
+    askQuestion(askSeed.text);
+  }, [askSeed, askQuestion]);
 
   const handleAsBuiltParse = useCallback(() => {
     if (!asBuiltDraft.trim()) return;
@@ -416,11 +442,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
 
   if (!visible) return null;
 
-  return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-      <View style={styles.panel}>
-        {/* Header */}
+  const header = (
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.headerIconWrap}>
@@ -437,7 +459,10 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         </View>
+  );
 
+  const content = (
+    <>
         {/* Mode switcher (always visible) */}
         <ScrollView
           horizontal
@@ -774,6 +799,22 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
             busy={busy}
           />
         )}
+    </>
+  );
+
+  // Docked in Schedule Pro's pane (wave 6c): the pane draws the frame, the
+  // title and the close; this is only the assistant itself.
+  if (embedded) {
+    return <View style={styles.embedded} testID="ai-assistant-embedded">{content}</View>;
+  }
+
+  return (
+    <View style={styles.overlay} pointerEvents="box-none">
+      <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+      <View style={styles.panel}>
+        {/* Header */}
+        {header}
+        {content}
       </View>
     </View>
   );
@@ -1005,6 +1046,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'column',
   },
 
+  // Inside Schedule Pro's docked pane: fills it, no frame of its own.
+  embedded: { flex: 1, flexDirection: 'column' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

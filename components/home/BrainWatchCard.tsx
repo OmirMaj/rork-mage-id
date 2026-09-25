@@ -55,6 +55,8 @@ import { useCoreData, useDocsData } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { rfiAttention, submittalAttention, type AttnKind, type AttnSeverity } from '@/utils/brainWatch';
+import { RowLink, routeHref } from '@/components/desktop/RowLink';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -98,6 +100,7 @@ export default function BrainWatchCard() {
   // hero pill and the Your-Projects tab badge, so every "needs attention"
   // number in the app is the same number (sim-audit #15).
   const { items, total, sourceFailed } = useBrainWatch();
+  const { isDesktop } = useResponsiveLayout();
   const { accuracyReport } = useBrainGrading();
   const { canAccess } = useTierAccess();
 
@@ -250,12 +253,21 @@ export default function BrainWatchCard() {
         })}
       </View>
 
-      {/* Overflow hint */}
-      {items.length > MAX_VISIBLE && (
+      {/* Overflow hint. Desktop (wave 6c): a real link to /attention, the
+          page that lists all of them; the phone keeps today's plain line. */}
+      {items.length > MAX_VISIBLE && (isDesktop ? (
+        <RowLink
+          href={routeHref('/attention')}
+          accessibilityLabel={`See all ${items.length} items that need attention`}
+          testID="brain-watch-see-all"
+        >
+          <Text style={styles.overflowHint}>See all {items.length}</Text>
+        </RowLink>
+      ) : (
         <Text style={styles.overflowHint}>
           +{items.length - MAX_VISIBLE} more — open each screen to review
         </Text>
-      )}
+      ))}
 
       {/* Accuracy chip — Business+, only when at least one kind has n ≥ 3 */}
       {canAccess('brain_accuracy') && accuracyReport.hasEnoughData && (

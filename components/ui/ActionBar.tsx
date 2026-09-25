@@ -25,7 +25,7 @@
 // reordering would also reorder keyboard focus.
 
 import React, { createContext, useContext } from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Layout } from '@/constants/designTokens';
 import { flattenElements, useIsDesktop } from './desktop';
 
@@ -100,8 +100,10 @@ export function ActionBar({ style, width = 'form', children, testID, onLayout }:
     });
   });
 
+  // Printing an editor from the desktop (a CO, an invoice) prints the page,
+  // not its Save / Send bar: the web print sheet hides [data-print="hide"].
   return (
-    <View style={style} testID={testID} onLayout={onLayout}>
+    <View style={style} testID={testID} onLayout={onLayout} {...(Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}>
       <View style={[innerRowDesktop, { maxWidth: Layout.page[width] }]}>
         <ActionBarContext.Provider value>{kids}</ActionBarContext.Provider>
       </View>

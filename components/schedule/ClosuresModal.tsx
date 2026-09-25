@@ -21,6 +21,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform,
 } from 'react-native';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -109,10 +110,15 @@ export default function ClosuresModal({
 
   const apply = () => onApply(Array.from(draft).sort());
 
+  // Desktop (wave 6c): a centred 560 card; Cmd/Ctrl+Enter or Cmd/Ctrl+S
+  // applies. All-null on a phone.
+  const frame = useSheetFrame('form', { visible, animationType: 'fade' });
+  useSheetPrimaryHotkey(visible, apply);
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity activeOpacity={1} style={styles.backdrop} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
+    <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onClose}>
+      <TouchableOpacity activeOpacity={1} style={[styles.backdrop, frame.overlay]} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={[styles.card, frame.card]} onPress={() => {}}>
           <View style={styles.header}>
             <CalendarX size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.title}>Closures</Text>
@@ -219,11 +225,11 @@ export default function ClosuresModal({
             </View>
           </View>
 
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.btnGhost} onPress={onClose} activeOpacity={0.7}>
+          <View style={[styles.footer, frame.footer]}>
+            <TouchableOpacity style={[styles.btnGhost, frame.footerButton]} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.btnGhostText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnPrimary} onPress={apply} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.btnPrimary, frame.footerButton]} onPress={apply} activeOpacity={0.7}>
               <Text style={styles.btnPrimaryText}>Apply ({sorted.length})</Text>
             </TouchableOpacity>
           </View>

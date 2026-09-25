@@ -9,6 +9,7 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronRight,
@@ -119,12 +120,18 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
     onClose();
   }, [onClose]);
 
+  // Desktop (wave 6c): a centred 560 card; the flex:1 filler becomes the scrim
+  // behind it (pattern F). On the last step Cmd/Ctrl+Enter or Cmd/Ctrl+S
+  // creates. All-null on a phone.
+  const frame = useSheetFrame('form', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, step === 3 && selectedTemplate ? handleCreate : null);
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={s.overlay}>
-        <Pressable style={{ flex: 1 }} onPress={handleClose} />
-        <View style={s.sheet}>
-          <View style={s.handle} />
+    <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={handleClose}>
+      <View style={[s.overlay, frame.overlay]}>
+        <Pressable style={[{ flex: 1 }, frame.backdrop]} onPress={handleClose} />
+        <View style={[s.sheet, frame.card]}>
+          {frame.showHandle && <View style={s.handle} />}
           <View style={s.header}>
             <View style={s.headerLeft}>
               <MageAIMark size={20} color={Colors.accent} />

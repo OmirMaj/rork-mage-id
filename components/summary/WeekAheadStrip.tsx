@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { BarChart3, AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -14,11 +14,13 @@ import type { WeekLoad } from '@/utils/summaryBriefing';
 interface WeekAheadStripProps {
   week: WeekLoad;
   onPress?: () => void;
+  /** Appended LAST to the card style. Undefined on the phone. */
+  style?: StyleProp<ViewStyle>;
 }
 
 const TRACK_H = 64; // px height of the chart area
 
-export function WeekAheadStrip({ week, onPress }: WeekAheadStripProps) {
+export function WeekAheadStrip({ week, onPress, style }: WeekAheadStripProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const maxCount = Math.max(1, ...week.days.map((d) => d.count));
@@ -105,13 +107,13 @@ export function WeekAheadStrip({ week, onPress }: WeekAheadStripProps) {
 
   if (onPress) {
     return (
-      <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={onPress} testID="summary-week">
+      <TouchableOpacity style={[styles.card, style]} activeOpacity={0.85} onPress={onPress} testID="summary-week">
         {headerAndChart}
       </TouchableOpacity>
     );
   }
   return (
-    <View style={styles.card} testID="summary-week">
+    <View style={[styles.card, style]} testID="summary-week">
       {headerAndChart}
     </View>
   );

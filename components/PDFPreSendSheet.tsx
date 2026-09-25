@@ -16,6 +16,10 @@ import type { Contact, PDFNamingSettings } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+// Wave 6c (lane G): the desktop frame — a centred 560 card in the content
+// column instead of a bottom sheet across the window. Null styles and the
+// original 'slide' on a phone (pattern F: the filler becomes the scrim).
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 export type PDFDocumentType = 'estimate' | 'invoice' | 'change_order' | 'schedule' | 'daily_report' | 'status_report' | 'closeout';
 
@@ -227,18 +231,23 @@ export default function PDFPreSendSheet({
 
   const docLabel = useMemo(() => getDocTypeLabel(documentType), [documentType]);
 
+  const f = useSheetFrame('form', { visible, animationType: 'slide' });
+  // Cmd+Enter sends (by email when there is a recipient, else the share
+  // sheet). Never Cmd+S: this send leaves the app.
+  useSheetPrimaryHotkey(visible && !showContactPicker, () => handleSend(recipient.trim() ? 'email' : 'share'), { saveKey: false });
+
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={f.animationType}
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.overlay}>
-          <Pressable style={styles.overlayTouch} onPress={onClose} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-            <View style={styles.handle} />
+        <View style={[styles.overlay, f.overlay]}>
+          <Pressable style={[styles.overlayTouch, f.backdrop]} onPress={onClose} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, f.card]}>
+            {f.showHandle && <View style={styles.handle} />}
 
             <View style={styles.header}>
               <View>

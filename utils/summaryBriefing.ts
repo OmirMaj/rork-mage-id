@@ -35,9 +35,27 @@ export interface TodayTask {
   projectId: string;
   projectName: string;
   projectColor: string;
+  /** The schedule task's own id, so a tap can open THAT task (wave 6c). */
+  taskId: string;
   taskTitle: string;
   isCritical: boolean;
   context: string; // crew or assigned sub; '' when none
+}
+
+/**
+ * One job's share of TODAY ON SITE (the desktop Summary groups the day by job:
+ * 32 flat rows pushed Money and Needs You off a 945 px screen).
+ */
+export interface TodayJobGroup {
+  projectId: string;
+  projectName: string;
+  projectColor: string;
+  tasks: TodayTask[];
+  /** How many of `tasks` are on the critical path. */
+  critCount: number;
+  /** Who is on site for this job: each task's crew / sub, de-duped, blanks
+   *  dropped, in first-seen order. */
+  crews: string[];
 }
 
 export interface WeekDay {
@@ -153,6 +171,7 @@ export function computeTodayTasks(projects: Project[], now: Date = new Date()): 
         projectId: p.id,
         projectName: p.name,
         projectColor: projectColor(p.id),
+        taskId: t.id,
         taskTitle: t.title,
         isCritical: !!t.isCriticalPath,
         context: (t.crew || t.assignedSubName || '').trim(),
@@ -160,6 +179,42 @@ export function computeTodayTasks(projects: Project[], now: Date = new Date()): 
     }
   }
   return out.sort((a, b) => Number(b.isCritical) - Number(a.isCritical));
+}
+
+/**
+ * TODAY ON SITE, grouped by job. Order: jobs with a critical task first, then
+ * the busiest job (most tasks today), then the order the jobs first appear in
+ * `tasks` — a stable sort, so equal jobs never swap between renders. Nothing
+ * here reads a timestamp: the order is a fact about today's work, not about
+ * when a record was made.
+ */
+export function groupTodayByJob(tasks: TodayTask[]): TodayJobGroup[] {
+  const byId = new Map<string, TodayJobGroup & { first: number }>();
+  tasks.forEach((t, i) => {
+    let g = byId.get(t.projectId);
+    if (!g) {
+      g = {
+        projectId: t.projectId,
+        projectName: t.projectName,
+        projectColor: t.projectColor,
+        tasks: [],
+        critCount: 0,
+        crews: [],
+        first: i,
+      };
+      byId.set(t.projectId, g);
+    }
+    g.tasks.push(t);
+    if (t.isCritical) g.critCount += 1;
+    const crew = (t.context ?? '').trim();
+    if (crew && !g.crews.includes(crew)) g.crews.push(crew);
+  });
+  return [...byId.values()]
+    .sort((a, b) =>
+      Number(b.critCount > 0) - Number(a.critCount > 0)
+      || b.tasks.length - a.tasks.length
+      || a.first - b.first)
+    .map(({ first: _first, ...g }) => g);
 }
 
 export function computeWeekLoad(projects: Project[], now: Date = new Date()): WeekLoad {

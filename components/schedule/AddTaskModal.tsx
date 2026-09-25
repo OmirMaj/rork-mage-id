@@ -20,6 +20,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Modal, Pressable, TextInput, Platform, StyleSheet } from 'react-native';
+import { useSheetFrame, useSheetDialogScope, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { Check } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -161,10 +162,17 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
     });
   };
 
+  // Desktop (wave 6c): a centred 560 card in the content column; Cmd/Ctrl+Enter
+  // or Cmd/Ctrl+S creates. All-null on a phone. The trade list is a popover
+  // inside it: a dialog to the shortcut registry, its own 320 cap kept.
+  const frame = useSheetFrame('form', { visible, animationType: 'fade' });
+  useSheetDialogScope(visible && tradeOpen);
+  useSheetPrimaryHotkey(visible, submit);
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel}>
-        <Pressable style={styles.sheet} onPress={() => { /* swallow taps inside */ }}>
+    <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onCancel}>
+      <Pressable style={[styles.backdrop, frame.overlay]} onPress={onCancel}>
+        <Pressable style={[styles.sheet, frame.card]} onPress={() => { /* swallow taps inside */ }}>
           <Text style={styles.title}>Add task</Text>
           <Text style={styles.sub}>Fill in what you know — you can edit anything later.</Text>
 
@@ -292,11 +300,11 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <View style={styles.actions}>
-            <Pressable onPress={onCancel} style={styles.cancelBtn} testID="add-task-cancel">
+          <View style={[styles.actions, frame.footer]}>
+            <Pressable onPress={onCancel} style={[styles.cancelBtn, frame.footerButton]} testID="add-task-cancel">
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
-            <Pressable onPress={submit} style={styles.submitBtn} testID="add-task-submit">
+            <Pressable onPress={submit} style={[styles.submitBtn, frame.footerButton]} testID="add-task-submit">
               <Text style={styles.submitText}>Create task</Text>
             </Pressable>
           </View>

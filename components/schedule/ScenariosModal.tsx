@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, TextInput, Platform,
 } from 'react-native';
+import { useSheetFrame, useSheetDialogScope, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -171,6 +172,15 @@ export default function ScenariosModal({
     [scenarios, activeId, onScheduleChange],
   );
 
+  // Desktop (wave 6c). The two full-screen pageSheets (locked, and the list)
+  // are opaque: each only claims the shortcut registry's dialog scope while it
+  // is up. The "Save this plan" dialog is a centred 440 card; Cmd/Ctrl+Enter
+  // or Cmd/Ctrl+S saves it. All no-ops on a phone.
+  useSheetDialogScope(visible && !hasAccess);
+  useSheetDialogScope(visible && hasAccess);
+  const createFrame = useSheetFrame('dialog', { visible: showCreate, animationType: 'fade' });
+  useSheetPrimaryHotkey(visible && showCreate, handleCreate);
+
   if (!hasAccess) {
     return (
       <Modal
@@ -317,11 +327,11 @@ export default function ScenariosModal({
         <Modal
           visible={showCreate}
           transparent
-          animationType="fade"
+          animationType={createFrame.animationType}
           onRequestClose={() => setShowCreate(false)}
         >
-          <View style={styles.createOverlay}>
-            <View style={styles.createCard}>
+          <View style={[styles.createOverlay, createFrame.overlay]}>
+            <View style={[styles.createCard, createFrame.card]}>
               <Text style={styles.createTitle}>Save this plan</Text>
               <Text style={styles.createHint}>
                 Saves a frozen copy of the schedule as it is now. The copy can{"'"}t

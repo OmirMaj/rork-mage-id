@@ -29,8 +29,9 @@
 //     Phase 7 — snapshot-URL pattern already proven with the client portal.
 
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal, ActivityIndicator, AppState } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal, ActivityIndicator, AppState, type TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Undo2, Redo2, Download, Mic } from 'lucide-react-native';
@@ -93,8 +94,27 @@ import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
 import { PlanZoneEditor } from '@/components/schedule/mobile/PlanZoneEditor';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
-import { runCpm, workingDaysBetween, dateToCalendarDay, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch, type CpmResult } from '@/utils/cpm';
+import { runCpm, workingDaysBetween, dateToCalendarDay, stampCriticalPath, previewStartDayBasisMigration, startDayBasisAnswerPatch, calendarIndexToWorkingOrdinal, calendarDayToDate, type CpmResult } from '@/utils/cpm';
 import { StartDayBasisNotice } from '@/components/schedule/StartDayBasisNotice';
+import {
+  GRID_BREAKPOINT, scheduleProContentWidth, proPanes, isScheduleQuestion,
+  DENSITY_STORAGE_KEY, DEFAULT_DESKTOP_DENSITY, parseDensity,
+  type Density, type ProView,
+} from '@/utils/scheduleProLayout';
+import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
+import type { GanttTabHandle } from '@/components/schedule/tabs/GanttTab';
+import { ScheduleProToolbar } from '@/components/schedule/desktop/ScheduleProToolbar';
+import { ScheduleSignals } from '@/components/schedule/desktop/ScheduleSignals';
+import { ScheduleAiPane, paneTabOnTaskSelect, type SchedulePaneTab } from '@/components/schedule/desktop/ScheduleAiPane';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { useHotkeys } from '@/hooks/useHotkeys';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { useHideBrainFab } from '@/components/brain/brainFabState';
+import { claimScheduleEditSeed } from '@/utils/copilot/intentTable';
+import { editorSeedFor } from '@/utils/copilot/scheduleEdit/addIntent';
+import { scheduleVerdict } from '@/utils/scheduleVerdict';
 import {
   emptyHistory,
   pushHistory,
@@ -144,7 +164,7 @@ import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import { supabase } from '@/lib/supabase';
 import type { Project, ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { copyToClipboard } from '@/utils/clipboard';
 /** A server copy as Schedule Pro adopts it: ScheduleCopy plus the active
@@ -158,18 +178,11 @@ const FIELD_KEY_LABEL: Record<string, string> = {
   actualEndDate: 'actual finish', actualEndDay: 'actual finish',
 };
 
-// Desktop/tablet-landscape breakpoint. Below this we send users to the
-// classic mobile experience — the grid is genuinely unusable under 900px.
-// These breakpoints compare useWindowDimensions().width, which is only honest
-// because this route is in DESKTOP_SHELL_EXEMPT (app/_layout.tsx) and renders
-// full-bleed — window width === content width. Keep it exempt (it's a
-// full-takeover editor with its own Back header), or convert these gates to
-// effective content width (window − sidebar) before un-exempting.
-const GRID_BREAKPOINT = 900;
-// Above this we auto-open the split view (grid + gantt side by side). Below,
-// we default to grid alone because 1200px of timeline next to a 1170px grid
-// means the gantt gets ~30px of width — useless.
-const SPLIT_BREAKPOINT = 1600;
+// The width gate (GRID_BREAKPOINT, 900) lives in utils/scheduleProLayout and
+// is compared with the CONTENT width — the window minus the sidebar / rail the
+// shell draws beside this route on a desktop browser (wave 6c: schedule-pro is
+// no longer shell-exempt; it gets the 64 px rail). On a phone the sidebar is 0
+// and the number is the window width, exactly as before.
 
 /** The sub daily-update rollup on a task list: a task's progress rises to
  *  the highest progress a sub reported, never falls. Returns `tasks` itself
@@ -266,8 +279,21 @@ function ScheduleProScreenInner() {
   // hooks/useSafeBack.ts (audit UX-F18).
   const goBack = useSafeBack();
   const { width } = useWindowDimensions();
-  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const {
+    projectId: paramProjectId, taskId: paramTaskId, editSeed: paramEditSeed, focus: paramFocus,
+  } = useLocalSearchParams<{ projectId?: string; taskId?: string; editSeed?: string; focus?: string }>();
   const { user } = useAuth();
+  // Wave 6c: the desktop layout gate, and the web-only one for browser
+  // behaviour (hotkeys, the Brain FAB). isDesktop is also true on native at
+  // >= 1024 (an Android tablet); the portrait-locked iPhone never is.
+  const layout = useResponsiveLayout();
+  const { isDesktop } = layout;
+  const isDesktopWeb = useIsDesktopWeb();
+  // The rail / sidebar the shell draws beside this route on a desktop browser.
+  const showShell = Platform.OS === 'web' && layout.showSidebar;
+  // Schedule Pro is a canvas: the floating Brain FAB would sit on the Gantt.
+  // false on the phone, so nothing changes there.
+  useHideBrainFab(isDesktopWeb);
 
   const {
     projects,
@@ -289,6 +315,9 @@ function ScheduleProScreenInner() {
   // A pick outranks the param so a STALE id in the URL — deleted project,
   // shared link — can't make the picker inert.
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  // A new ?projectId (the sidebar's job switcher writes one) wins over a stale
+  // local pick — the 6b "onPick" handoff.
+  useEffect(() => { if (paramProjectId) setPickedProjectId(null); }, [paramProjectId]);
   const projectId = pickedProjectId ?? paramProjectId ?? '';
   // Re-read access inside the inner so the PDF handler can guard on the
   // narrower `schedule_gantt_pdf` feature flag directly (the outer gate covers
@@ -619,6 +648,66 @@ function ScheduleProScreenInner() {
   // button (and any other onAddTask caller).
   const [showAddTask, setShowAddTask] = useState(false);
   const [showLivingPlanEditor, setShowLivingPlanEditor] = useState(false);
+  // The Living Plan editor is an opaque full-screen Modal: a dialog to the
+  // shortcut registry while it is up.
+  useSheetDialogScope(showLivingPlanEditor);
+
+  // ── Wave 6c desktop canvas state ──────────────────────────────────────
+  // The toolbar's view (the shell is controlled), the row density (saved per
+  // browser), and the docked pane: Change (editOpen) / Ask (showAI) / Task.
+  const [view, setView] = useState<ProView>('split');
+  const [density, setDensityState] = useState<Density>(DEFAULT_DESKTOP_DENSITY);
+  useEffect(() => {
+    if (!isDesktop) return undefined;
+    let alive = true;
+    AsyncStorage.getItem(DENSITY_STORAGE_KEY)
+      .then((raw) => { const d = parseDensity(raw); if (alive && d && d !== 'legacy') setDensityState(d); })
+      .catch(() => { /* default density */ });
+    return () => { alive = false; };
+  }, [isDesktop]);
+  const setDensity = useCallback((d: Density) => {
+    setDensityState(d);
+    AsyncStorage.setItem(DENSITY_STORAGE_KEY, d).catch(() => { /* not saved */ });
+  }, []);
+  const [paneTab, setPaneTab] = useState<SchedulePaneTab>('change');
+  const [taskOpen, setTaskOpen] = useState(false);
+  // Bumped on every open of the Change tab: a fresh editor each time (and a
+  // retry after a refused open) — the pattern every other editor host uses.
+  const [editNonce, setEditNonce] = useState(0);
+  const [autoSubmitSeed, setAutoSubmitSeed] = useState<string | undefined>(undefined);
+  const [askSeed, setAskSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const askNonceRef = React.useRef(0);
+  // The proposal the Change tab's review is showing, drawn on the Gantt.
+  const [pendingPreview, setPendingPreview] = useState<SchedulePreviewOverlay | null>(null);
+  const [subPresent, setSubPresent] = useState(false);
+  const [weatherPresent, setWeatherPresent] = useState(false);
+  const ganttTabRef = React.useRef<GanttTabHandle | null>(null);
+  const commandRef = React.useRef<TextInput | null>(null);
+  const work = useContainerWidth();
+  const paneOpen = editOpen || showAI || taskOpen;
+  const openChange = useCallback((seed?: string, opts?: { autoSubmit?: boolean }) => {
+    setEditSeed(seed);
+    setAutoSubmitSeed(opts?.autoSubmit && seed ? seed : undefined);
+    setPaneTab('change');
+    setEditNonce((n) => n + 1);
+    setEditOpen(true);
+  }, []);
+  const openAsk = useCallback((question?: string) => {
+    if (question && question.trim()) {
+      askNonceRef.current += 1;
+      setAskSeed({ text: question.trim(), nonce: askNonceRef.current });
+    }
+    setPaneTab('ask');
+    setShowAI(true);
+  }, []);
+  const closePane = useCallback(() => {
+    setEditOpen(false);
+    setEditSeed(undefined);
+    setAutoSubmitSeed(undefined);
+    setShowAI(false);
+    setTaskOpen(false);
+    setPendingPreview(null);
+  }, []);
 
   // Named baselines captured over the life of the schedule. Persisted into
   // `project.schedule.baselines` so variance comparisons survive reloads;
@@ -1990,8 +2079,16 @@ function ScheduleProScreenInner() {
     // Selection is already parent state; just open the drawer — the panel
     // reads selectedIds via its own prop and scopes ops to it.
     setSelectedIds(new Set(ids));
+    if (isDesktop) {
+      // Desktop (wave 6c): the pane's Change tab, seeded with the selected
+      // rows — the editor both edits them and adds after them; the old Bulk
+      // drawer could only edit.
+      const idSet = new Set(ids);
+      openChange(editorSeedFor('', workingTasks.filter(t => idSet.has(t.id)).map(t => t.title)).trim());
+      return;
+    }
     setShowAI(true);
-  }, []);
+  }, [isDesktop, openChange, workingTasks]);
 
   // -------------------------------------------------------------------------
   // Reflow from actuals — cascade observed variance to successors
@@ -2454,7 +2551,11 @@ function ScheduleProScreenInner() {
   // We deliberately skip single-key shortcuts. The grid has native text
   // inputs; fighting those for Delete/Escape is a minefield we don't need
   // to wade into tonight.
+  //
+  // Wave 6c: on a desktop layout these are registry bindings (useHotkeys,
+  // below); the raw window listeners are the LEGACY branch's only.
   useEffect(() => {
+    if (isDesktop) return;
     if (Platform.OS !== 'web') return;
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
@@ -2484,12 +2585,13 @@ function ScheduleProScreenInner() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo, handleExportCsv, handleShare]);
+  }, [isDesktop, handleUndo, handleRedo, handleExportCsv, handleShare]);
 
   // Escape clears task-path focus. Separate effect because it's single-key
   // (no mod required) and must skip input fields so typing Escape while
   // editing a cell doesn't double-dismiss.
   useEffect(() => {
+    if (isDesktop) return;
     if (Platform.OS !== 'web') return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -2503,7 +2605,90 @@ function ScheduleProScreenInner() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, [isDesktop, focusedTaskId]);
+
+  // ── Wave 6c: the desktop keys, the pane and the arrival params ──────────
+  // Selecting a task opens the pane on Task only when the pane is closed or
+  // already on Task: an AI review in flight on Change / Ask is never yanked.
+  const handleFocusTask = useCallback((id: string | null) => {
+    setFocusedTaskId(id);
+    if (!id || !isDesktop) return;
+    if (paneTabOnTaskSelect(paneOpen, paneTab)) {
+      setPaneTab('task');
+      setTaskOpen(true);
+    }
+  }, [isDesktop, paneOpen, paneTab]);
+  // Focus cleared: the Task tab goes with it.
+  useEffect(() => {
+    if (focusedTaskId) return;
+    setTaskOpen(false);
+    setPaneTab((tab) => (tab === 'task' ? (showAI && !editOpen ? 'ask' : 'change') : tab));
+  // Runs when focus clears; the open flags are read at that moment.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedTaskId]);
+  const handlePaneTab = useCallback((tab: SchedulePaneTab) => {
+    if (tab === 'change' && !editOpen) { openChange(); return; }
+    setPaneTab(tab);
+    if (tab === 'ask') setShowAI(true);
+    if (tab === 'task') setTaskOpen(true);
+  }, [editOpen, openChange]);
+  /** The toolbar's command field: a question asks, anything else changes. */
+  const handleCommand = useCallback((text: string) => {
+    if (isScheduleQuestion(text)) { openAsk(text); return; }
+    const titles = workingTasks.filter(t => selectedIds.has(t.id)).map(t => t.title);
+    openChange(editorSeedFor(text, titles), { autoSubmit: true });
+  }, [openAsk, openChange, workingTasks, selectedIds]);
+  const focusCommand = useCallback(() => {
+    commandRef.current?.focus();
+    if (!paneOpen) openChange();
+  }, [paneOpen, openChange]);
+  useHotkeys([
+    { combo: 'mod+z', handler: handleUndo, blockInInput: true, label: 'Undo', group: 'Schedule' },
+    { combo: 'mod+shift+z', handler: handleRedo, blockInInput: true, label: 'Redo', group: 'Schedule' },
+    { combo: 'mod+y', handler: handleRedo, blockInInput: true, label: 'Redo', group: 'Schedule' },
+    { combo: 'mod+e', handler: handleExportCsv, label: 'Export CSV', group: 'Schedule' },
+    { combo: 'mod+shift+s', handler: () => { void handleShare(); }, label: 'Copy share link', group: 'Schedule' },
+    { combo: 'mod+j', handler: focusCommand, label: 'Ask or change the schedule', group: 'Schedule' },
+    // The pane's own Esc (SidePanel) closes it; with it closed, Esc clears focus.
+    { combo: 'escape', handler: () => setFocusedTaskId(null), blockInInput: true, enabled: !!focusedTaskId && !paneOpen, label: 'Clear task focus', group: 'Schedule' },
+  ], { enabled: isDesktopWeb });
+
+  // Pro renders at all (the width gate below): the arrival params wait for it,
+  // so on a phone — where only the narrow gate ever renders — they are no-ops.
+  const canRenderPro = scheduleProContentWidth(width, showShell ? layout.sidebarWidth : 0) >= GRID_BREAKPOINT;
+  // ?taskId= — open on that task: focus it, the pane on Task, the row in view.
+  // Once per project + task.
+  const arrivedTaskRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!canRenderPro || !paramTaskId || !project?.id) return;
+    const key = `${project.id}:${paramTaskId}`;
+    if (arrivedTaskRef.current === key) return;
+    if (!workingTasks.some(t => t.id === paramTaskId)) return;
+    arrivedTaskRef.current = key;
+    setFocusedTaskId(paramTaskId);
+    if (isDesktop) { setPaneTab('task'); setTaskOpen(true); }
+    setTimeout(() => ganttTabRef.current?.scrollToTask(paramTaskId), 0);
+  }, [canRenderPro, paramTaskId, project?.id, workingTasks, isDesktop]);
+
+  // ?editSeed= (+ focus nonce) — the Copilot hub / mic sending a change here.
+  // Claimed once (a sticky route param never re-opens it), refused up front
+  // exactly as commitEditorBatch would refuse the write (a field or view-only
+  // seat), then the Change tab opens and sends it.
+  useEffect(() => {
+    if (!canRenderPro || !paramEditSeed || !project?.id) return;
+    if (!claimScheduleEditSeed(`${project.id}:${paramFocus ?? ''}:${paramEditSeed}`)) return;
+    const seed = String(paramEditSeed);
+    router.setParams({ editSeed: '' });
+    if (writePath !== 'row') {
+      const reason = writePath === 'field_rpc'
+        ? 'Not saved: field access saves progress, status, notes and actual start/finish only — adding, removing or moving tasks needs editor access from the project owner.'
+        : 'Not saved: you have view-only access to this project. Ask the project owner for editor access.';
+      setFieldNotice(reason);
+      if (writePath !== 'field_rpc') showAlert('Schedule not changed', reason);
+      return;
+    }
+    openChange(seed, { autoSubmit: true });
+  }, [canRenderPro, paramEditSeed, paramFocus, project?.id, writePath, openChange, router]);
 
   // -------------------------------------------------------------------------
   // Early returns — screen too narrow, or no project
@@ -2520,7 +2705,10 @@ function ScheduleProScreenInner() {
   // native header (title 'Schedule Pro'), which already sits under the status
   // bar. Adding insets.top on top of it pushed the message a further ~59pt down
   // an otherwise blank screen.
-  if (width < GRID_BREAKPOINT) {
+  // The CONTENT width (window − the shell's rail / sidebar on a desktop
+  // browser): on a phone the sidebar is 0 and this is the window, as before.
+  const contentWidth = scheduleProContentWidth(width, showShell ? layout.sidebarWidth : 0);
+  if (contentWidth < GRID_BREAKPOINT) {
     return (
       <View style={[styles.container, styles.narrowGate, { paddingTop: 28 }]}>
         <Stack.Screen options={{ title: 'Schedule Pro' }} />
@@ -2573,6 +2761,8 @@ function ScheduleProScreenInner() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
+        {/* Desktop: the picker sits in the form column, not across 1448 px. */}
+        <DesktopFormColumn isDesktop={isDesktop}>
         <ToolHeader eyebrow="SCHEDULE PRO · MAGE ID" title="Schedule Pro" />
         <ToolProjectPicker
           toolName="Schedule Pro"
@@ -2587,6 +2777,7 @@ function ScheduleProScreenInner() {
             'Open Schedule Pro to set dependencies, float and baselines.',
           ]}
         />
+        </DesktopFormColumn>
       </View>
     );
   }
@@ -2595,6 +2786,8 @@ function ScheduleProScreenInner() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
+        {/* Desktop: the on-ramp sits in the form column, not across 1448 px. */}
+        <DesktopFormColumn isDesktop={isDesktop}>
         <View style={styles.header}>
           <TouchableOpacity onPress={goBack} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <ChevronLeft size={20} color={themeColors.accent} strokeWidth={1.75} />
@@ -2644,6 +2837,7 @@ function ScheduleProScreenInner() {
             }
           }}
         />
+        </DesktopFormColumn>
       </View>
     );
   }
@@ -2658,6 +2852,514 @@ function ScheduleProScreenInner() {
     finish: cpm.projectFinish,
     conflicts: cpm.conflicts.length,
   };
+
+  // The finish the SchedulerHeader / Overview print. They count WORKING days
+  // from the start (addWorkingDays), and cpm.projectFinish is a CALENDAR index
+  // — handed over raw it was counted twice over every weekend: A 10d → B 5d
+  // from Mon Mar 2 read Thu Mar 26 instead of Fri Mar 20. Raw-day mode (no
+  // start date) has one scale, so it goes through unchanged.
+  const totalDurationDays = scheduleStartIso
+    ? calendarIndexToWorkingOrdinal(cpm.projectFinish, summaryScale)
+    : cpm.projectFinish;
+
+  // The screen-level sheets, for the desktop tree (the legacy tree below
+  // keeps its own copy verbatim). Same handlers, same state.
+  const renderScreenModals = () => (
+    <>
+        {/* Closures (non-working dates) editor. */}
+        <ClosuresModal
+          visible={showClosures}
+          value={project?.schedule?.nonWorkingDates ?? []}
+          scheduleStartIso={project?.schedule?.startDate}
+          workingDaysPerWeek={workingDaysPerWeek}
+          onClose={() => setShowClosures(false)}
+          onApply={(next) => {
+            if (!project) return;
+            updateProject(project.id, {
+              schedule: {
+                ...(project.schedule as ProjectSchedule),
+                nonWorkingDates: next,
+              },
+            });
+            setShowClosures(false);
+          }}
+        />
+
+        {/* Weather-driven reschedule — preview the forecast's impact on
+            weather-sensitive tasks + cascade, then apply in one tap. */}
+        <WeatherRescheduleModal
+          visible={showWeather}
+          result={weatherResult}
+          projectStartDate={projectStartDate}
+          onClose={() => setShowWeather(false)}
+          onApply={applyWeatherReschedule}
+        />
+
+        {/* Fix overloads — preview the resource-leveling shifts, apply undoably. */}
+        {levelingPreview !== null && (
+          <LevelingPreviewModal
+            visible
+            summary={levelingPreview.summary}
+            projectFinishDelta={levelingPreview.finishDelta}
+            onApply={applyLeveling}
+            onClose={() => setLevelingPreview(null)}
+          />
+        )}
+
+        {/* Schedule health score detail. Tap a flagged task → opens it
+            in the inspector. (Inspector wiring uses an existing dispatch
+            to setSelectedTaskId, hooked elsewhere — passing a no-op for
+            now keeps the modal self-contained.) */}
+        <ScheduleHealthDetail
+          visible={showHealth}
+          onClose={() => setShowHealth(false)}
+          result={healthScore}
+        />
+
+        {/* Critical-path / float explanation — replaces the old raw "Schedule
+            analysis" Alert. Says, per task, "on the critical path" or "can slip
+            N days". Building the explanation each render is a cheap pure map. */}
+        <CriticalPathPanel
+          visible={showCriticalPath}
+          explanation={buildCriticalPathExplanation(cpm, rolledTasks)}
+          projectStartDate={projectStartDate}
+          onClose={() => setShowCriticalPath(false)}
+        />
+
+        {/* Schedule audit-log viewer — read UI over the append-only history
+            written on every CPM-affecting edit. Grouped by day, newest first. */}
+        <ScheduleAuditModal
+          visible={showAudit}
+          projectId={project?.id ?? ''}
+          onClose={() => setShowAudit(false)}
+        />
+
+        {/* Multi-baseline manager — capture, switch, compare named baselines.
+            P6 / Asta parity replacing the old "tap to capture / long-press to
+            compare against latest" affordance which only allowed a single
+            baseline workflow. */}
+        <BaselineManagerModal
+          visible={showBaselineManager}
+          onClose={() => setShowBaselineManager(false)}
+          baselines={namedBaselines}
+          workingTasks={workingTasks}
+          dayScale={summaryScale}
+          activeBaselineId={activeBaseline?.id ?? null}
+          onBaselinesChange={(next) => {
+            // Deleting the ACTIVE baseline clears the id and makes the newest
+            // remaining one the yardstick — and its dates must go back on the
+            // tasks, or the ghost bars keep measuring from the deleted one.
+            const prevList = baselinesRef.current;
+            const after = activeBaselineAfterChange(activeBaselineIdRef.current, prevList, next);
+            baselinesRef.current = next;
+            setNamedBaselines(next);
+            setActiveBaselineId(after.activeBaselineId);
+            // A capture (the list grew) is followed by onActivate(snap), which
+            // re-stamps the tasks itself — only a DELETE re-applies here.
+            if (after.reapply && next.length < prevList.length) {
+              // Tasks + baselines + id go out together through the persist.
+              commit(prev => reapplyBaselineToTasks(prev, after.active));
+              return;
+            }
+            // No commit here — baselines aren't tasks; the commit happens
+            // through the persist debounce that picks up baselinesRef.
+            if (project) {
+              updateProject(project.id, {
+                schedule: withActiveBaselineId({
+                  ...(project.schedule as ProjectSchedule),
+                  baselines: next,
+                }, after.activeBaselineId),
+              });
+            }
+          }}
+          onActivate={(baseline) => {
+            // ONE save: the id rides the same debounced persist as the task
+            // baselines this commit writes, so the chip, the slip and the ghost
+            // bars can never be left pointing at two baselines.
+            setActiveBaselineId(baseline.id);
+            commit(prev => reapplyBaselineToTasks(prev, baseline));
+          }}
+        />
+
+        {/* Schedule settings (critical threshold + working days per week). */}
+        <ScheduleSettingsMenu
+          visible={showSettings}
+          criticalFloatThresholdDays={criticalFloatThresholdDays}
+          workingDaysPerWeek={workingDaysPerWeek}
+          startDate={project?.schedule?.startDate}
+          onClose={() => setShowSettings(false)}
+          onApply={(patch) => {
+            if (!project) return;
+            const prevStart = project.schedule?.startDate;
+            const nextStart = patch.startDate ?? prevStart;
+            // NO rebaseRawToCalendar here any more, and that is the fix, not an
+            // omission.
+            //
+            // That helper existed to survive the CPM "mode flip": a schedule with
+            // no startDate ran the engine in raw-day mode where startDay is a
+            // working-day ordinal, and the moment a startDate appeared the engine
+            // re-read those same numbers as CALENDAR indices — the 2026-07-12
+            // finish-jump bug. Its compensation was to rewrite every startDay from
+            // ordinal to calendar index at the transition.
+            //
+            // The engine no longer misreads them: forwardPass converts the stored
+            // working ordinal to a calendar index itself, in both modes (the
+            // converter is the identity with no startDate). So the ordinals now
+            // survive the transition untouched — and re-mapping them first would
+            // make the engine convert an already-converted number. Measured on
+            // A(10)->B(10)->C(5) chained at ordinals 1/11/21 from Mon 2026-03-02
+            // on a 5-day week: without the rebase the finish is Fri Apr 3, exactly
+            // as it was before this change; WITH it the finish inflates to Wed
+            // Apr 15, twelve calendar days late.
+            //
+            // See handoff notes — the same call still needs removing from
+            // app/(tabs)/schedule/index.tsx and
+            // components/schedule/mobile/MobileScheduleScreen.tsx.
+            // Eager ref write: the rebase commit above schedules a debounced
+            // persist whose closure may predate the updateProject below —
+            // without this it would write the OLD (undefined) anchor back.
+            startDateRef.current = nextStart;
+            updateProject(project.id, {
+              schedule: {
+                ...(project.schedule as ProjectSchedule),
+                criticalFloatThresholdDays: patch.criticalFloatThresholdDays,
+                workingDaysPerWeek: patch.workingDaysPerWeek,
+                startDate: nextStart,
+              },
+            });
+            setShowSettings(false);
+          }}
+        />
+
+        {/* Export sheet — five-option bottom sheet (PDF / CSV / Share / iCal / Print).
+            PDF/CSV/Share reuse existing handlers; iCal + AirPrint wired in tasks 16-17. */}
+        <ExportSheet
+          visible={exportSheetOpen}
+          onClose={() => setExportSheetOpen(false)}
+          onExportPdf={() => { void handleExportPdf(); }}
+          onExportCsv={handleExportCsv}
+          onShareLink={handleShare}
+          onExportIcal={() => { void handleExportIcs(); }}
+          onAirPrint={() => { void handleAirPrint(); }}
+        />
+
+        {/* Add Task modal — opens from any onAddTask caller (toolbar
+            button, GridPane footer, phone FAB). */}
+        <AddTaskModal
+          visible={showAddTask}
+          onCancel={() => { setShowAddTask(false); setPrefillStart(undefined); }}
+          onCreate={(values) => { handleCommitAddTask(values); setPrefillStart(undefined); }}
+          tasks={workingTasks}
+          defaultStartDate={prefillStart}
+        />
+
+        {/* Living Plan zone editor (full-screen modal) */}
+        {showLivingPlanEditor && (() => {
+          const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
+          const firstSheet = planSheets[0] ?? null;
+          if (!firstSheet) return null;
+          return (
+            <Modal visible animationType="slide" onRequestClose={() => setShowLivingPlanEditor(false)}>
+              <PlanZoneEditor
+                project={project}
+                planSheetId={firstSheet.id}
+                imageUri={firstSheet.imageUri}
+                imageW={firstSheet.width}
+                imageH={firstSheet.height}
+                onClose={() => setShowLivingPlanEditor(false)}
+              />
+            </Modal>
+          );
+        })()}
+    </>
+  );
+
+  // ═══ Desktop (wave 6c): two toolbar rows, the signals row, the canvas and
+  // the docked pane. The legacy tree below is the native 900-1023 layout (an
+  // Android tablet in landscape) — the iPhone never gets past the width gate.
+  if (isDesktop) {
+    const panes = proPanes(work.width, { paneOpen });
+    const docked = paneOpen && panes.paneMode === 'dock';
+    // Row 1's finish: the engine's calendar index as a date (a plain date
+    // add — calendarDayToDate), the same day the last Gantt bar ends on.
+    const finishDate = calendarDayToDate(projectStartDate, cpm.projectFinish);
+    const finishLabel = scheduleStartIso
+      ? `finish ${finishDate.toLocaleDateString('en-US', { weekday: 'short' })} ${finishDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      : `finish day ${cpm.projectFinish}`;
+    const meta = `${stats.total} task${stats.total === 1 ? '' : 's'} · ${stats.critical} critical · ${finishLabel}`;
+    const verdict = scheduleVerdict({
+      slipDaysVsBaseline: contextCpm.slipDaysVsBaseline,
+      finishDateLabel: scheduleStartIso ? finishDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+      overdueCount: 0,
+    });
+    const shellSchedule: ProjectSchedule = {
+      ...(project?.schedule ?? {} as ProjectSchedule),
+      id: project?.schedule?.id ?? project?.id ?? '',
+      projectId: project?.id ?? '',
+      name: project?.schedule?.name ?? project?.name ?? 'Schedule',
+      tasks: rolledTasks,
+      startDate: project?.schedule?.startDate ?? projectStartDate.toISOString().slice(0, 10),
+      totalDurationDays,
+      healthScore: healthScore.score,
+    };
+    const openClassicSchedule = () => {
+      const n = String(Date.now());
+      router.push({ pathname: '/(tabs)/schedule', params: { projectId: project.id, focus: n, classic: n } });
+    };
+    const desktopActions = {
+      onAddTask: handleAddTask,
+      onImport: () => router.push(`/schedule-import?projectId=${project.id}`),
+      onReflow: handleReflow,
+      onClosures: () => setShowClosures(true),
+      onCriticalPath: showCpmAnalysis,
+      onLevelResources: handleFixOverloads,
+      onHistory: () => setShowAudit(true),
+      onBaseline: () => setShowBaselineManager(true),
+      onWeather: openWeatherReschedule,
+      onExport: () => setExportSheetOpen(true),
+      onShare: handleShare,
+      onAI: () => openAsk(),
+      openClassic: openClassicSchedule,
+    };
+    const applyBulkPatches = (patches: { taskId: string; patch: Partial<ScheduleTask> }[]) => {
+      // One undoable, audited commit; patches for one task MERGE (as the drawer's).
+      const patchMap = new Map<string, Partial<ScheduleTask>>();
+      for (const p of patches) patchMap.set(p.taskId, { ...(patchMap.get(p.taskId) ?? {}), ...p.patch });
+      commitAiBatch(prev => prev.map(t => {
+        const patch = patchMap.get(t.id);
+        return patch ? { ...t, ...patch } : t;
+      }), 'AI bulk edit');
+    };
+    const focusFromSignal = (id: string) => {
+      handleFocusTask(id);
+      ganttTabRef.current?.scrollToTask(id);
+    };
+    const desktopShell = (
+      <SchedulerTabShell
+        schedule={shellSchedule}
+        contextCpm={contextCpm}
+        projectName={project?.name ?? 'Schedule'}
+        onExportPress={() => setExportSheetOpen(true)}
+        onBaselinePress={() => setShowBaselineManager(true)}
+        actions={desktopActions}
+        initialLayout="split"
+        renderLanes={() => (
+          <View style={styles.body}>
+            <View style={styles.paneFull}>
+              <ResourceSwimlanes
+                tasks={rolledTasks}
+                resources={project?.schedule?.resources}
+                projectStartDate={projectStartDate}
+                projectName={project?.name}
+              />
+            </View>
+          </View>
+        )}
+        renderLiving={() => {
+          const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
+          const firstSheet = planSheets[0] ?? null;
+          const zones = getPlanZonesForProject(project.id).filter(
+            (z) => firstSheet ? z.planSheetId === firstSheet.id : false,
+          );
+          const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
+          const photos = getPhotosForProject(project.id);
+          const photoById = (photoId: string) => { const p = photos.find((ph) => ph.id === photoId); return p ? { uri: p.uri, createdAt: p.createdAt } : undefined; };
+          return (
+            <View style={styles.body}>
+              <View style={styles.paneFull}>
+                <LivingFloorPlan
+                  tasks={project.schedule?.tasks ?? []}
+                  scheduleStartDate={project.schedule?.startDate}
+                  planSheetId={firstSheet?.id ?? ''}
+                  zones={zones}
+                  pins={pins}
+                  photoById={photoById}
+                  imageUri={firstSheet?.imageUri ?? ''}
+                  imageW={firstSheet?.width}
+                  imageH={firstSheet?.height}
+                  onEdit={() => setShowLivingPlanEditor(true)}
+                  onAddPlan={() => router.push('/plans')}
+                />
+              </View>
+            </View>
+          );
+        }}
+        projectStartDate={projectStartDate}
+        workingDaysPerWeek={workingDaysPerWeek}
+        nonWorkingDates={project?.schedule?.nonWorkingDates}
+        utilsCpm={cpm}
+        resources={project?.schedule?.resources}
+        onFixOverloads={handleFixOverloads}
+        onEdit={handleEdit}
+        onAddTask={handleAddTask}
+        onAddTasks={handleAddTasks}
+        onAddTaskAtDay={handleAddTaskAtDay}
+        onDeleteTask={handleDeleteTask}
+        onOutline={handleOutline}
+        onReorder={handleReorder}
+        onDependencyCreate={handleDependencyCreate}
+        focusedTaskId={focusedTaskId}
+        onFocusTask={handleFocusTask}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        onBulkDelete={handleBulkDelete}
+        onBulkDuplicate={handleBulkDuplicate}
+        onBulkShiftDays={handleBulkShiftDays}
+        onBulkSetPhase={handleBulkSetPhase}
+        onBulkSetCrew={handleBulkSetCrew}
+        onBulkAskAI={handleBulkAskAI}
+        desktopChrome="toolbar"
+        view={view}
+        onViewChange={setView}
+        density={density}
+        paneOpen={docked}
+        preview={pendingPreview}
+        ganttRef={ganttTabRef}
+        hasBudget={evSnapshot.totalBudget > 0}
+      />
+    );
+    const aiPaneProps = {
+      open: paneOpen,
+      tab: paneTab,
+      onTabChange: handlePaneTab,
+      onClose: closePane,
+      containerWidth: work.width,
+      // The split view leaves a 440 px slot for the docked pane: draw over it.
+      overSlot: docked && view === 'split',
+      editNonce,
+      projectId: project.id,
+      tasks: workingTasks,
+      commit: commitEditorBatch,
+      cpmOptions: editCpmOptions,
+      seed: editSeed,
+      autoSubmitSeed,
+      onPreview: setPendingPreview,
+      assistant: {
+        onClose: closePane,
+        tasks: workingTasks,
+        cpm,
+        projectStartDate,
+        todayDayNumber,
+        selectedIds,
+        dayScale: summaryScale,
+        askSeed,
+        linkedEstimate: project?.linkedEstimate ?? null,
+        onApplyPatch: handleEdit,
+        onApplyBulkPatches: applyBulkPatches,
+        onReplaceAll: handleReplaceAll,
+        onHandOffToEditor: (seed: string) => openChange(seed),
+      },
+      focusedTask: focusedTaskId ? rolledTasks.find(t => t.id === focusedTaskId) ?? null : null,
+      allTasks: rolledTasks,
+      cpm,
+      projectStartDate,
+      onEditTask: handleEdit,
+      onCloseTask: () => setFocusedTaskId(null),
+    };
+
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]} testID="schedule-pro-desktop">
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScheduleProToolbar
+          projectName={project.name}
+          meta={meta}
+          verdictTone={verdict.tone}
+          health={healthScore}
+          onHealthPress={() => setShowHealth(true)}
+          onBack={goBack}
+          commandRef={commandRef}
+          onCommand={handleCommand}
+          canUndo={canUndo(hist)}
+          canRedo={canRedo(hist)}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onExport={() => setExportSheetOpen(true)}
+          view={view}
+          onView={setView}
+          zoom={{
+            zoomIn: () => ganttTabRef.current?.zoomIn(),
+            zoomOut: () => ganttTabRef.current?.zoomOut(),
+            fit: () => ganttTabRef.current?.fit(),
+            today: () => ganttTabRef.current?.today(),
+          }}
+          density={density}
+          onDensity={setDensity}
+          actions={desktopActions}
+        />
+        <ScheduleSignals
+          projectId={project.id}
+          tasks={rolledTasks}
+          evSnapshot={evSnapshot}
+          staleRefCount={staleEstimateRefCount}
+          onCleanupStaleRefs={handleCleanupStaleRefs}
+          conflicts={cpm.conflicts}
+          onFocusTask={focusFromSignal}
+          weather={{
+            forecasts: forecast,
+            projectStartDate,
+            onPushTasks: handleWeatherPush,
+            dailyReports: projectId ? getDailyReportsForProject(projectId) : undefined,
+          }}
+          subPresent={subPresent}
+          weatherPresent={weatherPresent}
+          onSubPresence={setSubPresent}
+          onWeatherPresence={setWeatherPresent}
+        />
+        {/* The notices that are about THIS seat's writes, in the form column. */}
+        <View style={styles.noticeColumn}>
+          {schedulePeers.length > 0 ? (
+            <View style={{ paddingHorizontal: 16, paddingVertical: 6, alignItems: 'flex-end' }}>
+              <PresenceBar peers={schedulePeers} taskTitleById={taskTitleById} />
+            </View>
+          ) : null}
+          {writePath === 'field_rpc' ? (
+            fieldNotice ? (
+              <LockedAccessCard
+                what="Date and task editing"
+                detail={fieldNotice}
+                style={{ marginHorizontal: 16, marginTop: 8 }}
+              />
+            ) : (
+              <Text style={[styles.headerBtnHint, { marginHorizontal: 16, marginTop: 8 }]} testID="schedule-field-access-hint">
+                Field access: progress, status, notes and actual start/finish save. Moving dates or changing tasks needs editor access.
+              </Text>
+            )
+          ) : null}
+          {writePath === 'field_rpc' && fieldFailureShown ? (
+            <FieldSendFailureBanner
+              message={fieldFailureShown.message}
+              onRetry={fieldFailureShown.retryable ? retryFieldSend : undefined}
+              onDismiss={dismissFieldFailure}
+              autoRetrying={fieldFailureShown.offline}
+              style={{ marginHorizontal: 16, marginTop: 8 }}
+            />
+          ) : null}
+          {writePath === 'row' && fieldConflictNotice ? (
+            <View style={styles.fieldConflict} testID="schedule-field-conflict-notice" accessibilityRole="alert">
+              <Text style={styles.fieldConflictText}>{fieldConflictNotice}</Text>
+              <TouchableOpacity onPress={() => setFieldConflictNotice(null)} accessibilityRole="button" accessibilityLabel="Dismiss notice" hitSlop={8}>
+                <Text style={styles.fieldConflictDismiss}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          <StartDayBasisNotice
+            preview={startDayBasisPreview}
+            projectStartDate={project?.schedule?.startDate ? projectStartDate : null}
+            onAnswer={answerStartDayBasis}
+            style={{ marginHorizontal: 16, marginTop: 8 }}
+          />
+        </View>
+        {/* The work row: the canvas and the pane — exactly two children. The
+            pane is drawn over GanttTab's slot (split, docked) or beside /
+            over the canvas; the shell is never narrowed twice. */}
+        <View style={styles.tabShellBody} onLayout={work.onLayout} testID="schedule-pro-work-row">
+          <GanttStampBasis.Provider value={scheduleStartIso}>{desktopShell}</GanttStampBasis.Provider>
+          <ScheduleAiPane {...aiPaneProps} />
+        </View>
+        {renderScreenModals()}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -2820,7 +3522,7 @@ function ScheduleProScreenInner() {
               // a schedule exists but has no explicit startDate set.
               startDate: project?.schedule?.startDate
                 ?? projectStartDate.toISOString().slice(0, 10),
-              totalDurationDays: cpm.projectFinish,
+              totalDurationDays,
               healthScore: healthScore.score,
             }}
             contextCpm={contextCpm}
@@ -3120,6 +3822,7 @@ function ScheduleProScreenInner() {
         projectStartDate={projectStartDate}
         todayDayNumber={todayDayNumber}
         selectedIds={selectedIds}
+        dayScale={summaryScale}
         linkedEstimate={project?.linkedEstimate ?? null}
         onApplyPatch={handleEdit}
         onApplyBulkPatches={(patches) => {
@@ -3183,6 +3886,13 @@ function ScheduleProScreenInner() {
       })()}
     </View>
   );
+}
+
+/** Desktop (wave 6c): the picker / on-ramp in the form column. Anywhere else
+ *  a Fragment — no host node, so those trees are exactly today's. */
+function DesktopFormColumn({ isDesktop, children }: { isDesktop: boolean; children: React.ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
+  return isDesktop ? <View style={isDesktop && styles.formColumnDesktop}>{children}</View> : <>{children}</>;
 }
 
 // ---------------------------------------------------------------------------
@@ -3329,6 +4039,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
   },
   paneFull: { flex: 1 },
+  // Wave 6c desktop: the picker / on-ramp in the form column, and the
+  // write-access notices above the canvas in the same column.
+  formColumnDesktop: { flex: 1, width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' },
+  noticeColumn: { maxWidth: Layout.page.form, marginHorizontal: Layout.cardPad },
   // Split-view ratios. The grid's compact column set is ~900px wide at its
   // natural size; the gantt (now without a duplicated task column) benefits
   // from extra room for the timeline, so we bias a little wider to the right.
