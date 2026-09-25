@@ -21,13 +21,20 @@
 //     optional;
 //   - every Change-tab open bumps the editor key; the desktop tree mounts no
 //     SchedulerMenuBar bar, no 720 pill, no overlay drawer, no side inspector.
+// Wave 6d (lane V2):
+//   - toolbar row 2 collapses instead of overflowing (row2Plan, executed at
+//     1448 / 1216 / 1040 / 900 / 0 and every boundary), and the toolbar plans
+//     from its own measured width;
+//   - Cmd+E and Cmd+Shift+S are blocked while typing (C7);
+//   - the Living Plan editor is one LivingPlanEditorModal; TaskInspector's
+//     trade picker is a framed dialog (C2).
 //
 // Run: bun run scripts/validate-schedule-pro-screen.ts
 
 import { readFileSync } from 'node:fs';
 import { runCpm, calendarIndexToWorkingOrdinal, calendarDayToDate } from '../utils/cpm';
 import { addWorkingDays } from '../utils/scheduleEngine';
-import { PANE_DOCK_MIN, proPanes } from '../utils/scheduleProLayout';
+import { ALL_VIEWS, MORE_VIEWS, PANE_DOCK_MIN, PRIMARY_VIEWS, ROW2_NEEDS, proPanes, row2Plan } from '../utils/scheduleProLayout';
 import type { ScheduleTask } from '../types';
 
 let pass = 0, fail = 0;
@@ -149,6 +156,82 @@ console.log('\nkeys:');
   ok('undo / redo are blocked while typing', /combo: 'mod\+z', handler: handleUndo, blockInInput: true/.test(hk) && /combo: 'mod\+shift\+z', handler: handleRedo, blockInInput: true/.test(hk));
   ok('Esc clears focus only while the pane is closed (its own Esc closes it)', /combo: 'escape'[^}]*enabled: !!focusedTaskId && !paneOpen/.test(hk));
   ok('the bindings are desktop-web only', /\], \{ enabled: isDesktopWeb \}\);/.test(pro));
+  // Wave 6d (C7): Cmd+E / Cmd+Shift+S typed in a grid cell or the command
+  // field must not download a CSV or copy a share link.
+  ok('export CSV (mod+e) is blocked while typing', /combo: 'mod\+e', handler: handleExportCsv, blockInInput: true/.test(hk));
+  ok('copy share link (mod+shift+s) is blocked while typing', /combo: 'mod\+shift\+s', handler: \(\) => \{ void handleShare\(\); \}, blockInInput: true/.test(hk));
+}
+
+console.log('\ntoolbar row 2 collapses instead of overflowing (wave 6d, C4):');
+{
+  type Plan = ReturnType<typeof row2Plan>;
+  const shape = (p: Plan) => `${p.rowsLabel ? 'rows' : 'norows'}/${p.density}/${p.primary.join(',')}/${p.zoomLabels ? 'words' : 'icons'}`;
+  const FULL = `rows/segmented/${PRIMARY_VIEWS.join(',')}/words`;
+  const TOGGLE = `norows/toggle/${PRIMARY_VIEWS.join(',')}/words`;
+  const THREE = 'norows/toggle/split,gantt,list/words';
+  const ICONS = 'norows/toggle/split,gantt,list/icons';
+  const cases: [number, string, string][] = [
+    [1448, FULL, '1512 window, 64 rail'],
+    [1216, TOGGLE, '1280 window, 64 rail'],
+    [1040, THREE, '1280 window, sidebar pinned'],
+    [900, ICONS, '964 window, 64 rail (GRID_BREAKPOINT)'],
+    [0, FULL, 'unmeasured'],
+    [NaN, FULL, 'not a number'],
+    [ROW2_NEEDS.full, FULL, 'exactly full'],
+    [ROW2_NEEDS.full - 1, TOGGLE, 'one under full'],
+    [ROW2_NEEDS.noRowsLabel, TOGGLE, 'exactly noRowsLabel'],
+    [ROW2_NEEDS.noRowsLabel - 1, THREE, 'one under noRowsLabel'],
+    [ROW2_NEEDS.twoViewsInMore, THREE, 'exactly twoViewsInMore'],
+    [ROW2_NEEDS.twoViewsInMore - 1, ICONS, 'one under twoViewsInMore'],
+    [1126, TOGGLE, '1366 window, sidebar pinned'],
+    [1302, FULL, '1366 window, 64 rail'],
+  ];
+  for (const [w, want, why] of cases) ok(`row2Plan(${w}) — ${why}: ${want}`, shape(row2Plan(w)) === want, shape(row2Plan(w)));
+  ok('the steps are ordered and derived (1236 − 240 + 112 = 1108; 1108 − 2 × 90 = 928)',
+    ROW2_NEEDS.full === 1236 && ROW2_NEEDS.noRowsLabel === ROW2_NEEDS.full - 240 + 112 && ROW2_NEEDS.twoViewsInMore === ROW2_NEEDS.noRowsLabel - 2 * 90);
+  ok('every view is reachable at every width (primary ∪ More = all nine, no repeats)',
+    [0, 900, 1040, 1216, 1448].every((w) => {
+      const prim = row2Plan(w).primary;
+      const more = ALL_VIEWS.filter((v) => !prim.includes(v));
+      return new Set([...prim, ...more]).size === ALL_VIEWS.length && prim.length + more.length === ALL_VIEWS.length;
+    }) && ALL_VIEWS.length === PRIMARY_VIEWS.length + MORE_VIEWS.length);
+  const bar = code('components/schedule/desktop/ScheduleProToolbar.tsx');
+  ok('the toolbar measures its own root (useContainerWidth) and plans from it (0 until measured)',
+    /const \{ width: barW, measured: barMeasured, onLayout: onBarLayout \} = useContainerWidth\(\);/.test(bar)
+      && /const plan = row2Plan\(barMeasured \? barW : 0\);/.test(bar)
+      && /<View style=\{styles\.root\} testID="schedule-pro-toolbar" onLayout=\{onBarLayout\}>/.test(bar));
+  ok('the segmented control shows plan.primary; More ▾ lists every other view',
+    /plan\.primary\.map\(viewOption\)/.test(bar) && /ALL_VIEWS\.filter\(\(v\) => !plan\.primary\.includes\(v\)\)/.test(bar)
+      && /const moreActive = moreViews\.includes\(p\.view\);/.test(bar) && /\{moreViews\.map\(\(v\) => \(/.test(bar)
+      && !/PRIMARY_VIEWS\.map|MORE_VIEWS\.map|MORE_VIEWS\.includes/.test(bar));
+  ok('the density toggle keeps testID schedule-density and flips to the other value',
+    (bar.match(/testID="schedule-density"/g) ?? []).length === 2 && /onPress=\{\(\) => p\.onDensity\(densityNext\)\}/.test(bar)
+      && /const densityNext: 'compact' \| 'comfortable' = densityNow === 'compact' \? 'comfortable' : 'compact';/.test(bar));
+  ok('Fit / Today become Maximize2 / CalendarDays icons with the same labels and testIDs',
+    /plan\.zoomLabels\s*\?\s*<Text style=\{styles\.textBtnLabel\}>Fit<\/Text>\s*:\s*<Maximize2 /.test(bar)
+      && /plan\.zoomLabels\s*\?\s*<Text style=\{styles\.textBtnLabel\}>Today<\/Text>\s*:\s*<CalendarDays /.test(bar)
+      && /testID="schedule-zoom-fit"/.test(bar) && /testID="schedule-zoom-today"/.test(bar));
+  ok('the "Rows" label renders only when the plan keeps it', /\{plan\.rowsLabel \? <Text style=\{styles\.groupLabel\}>Rows<\/Text> : null\}/.test(bar));
+  ok('no numeric maxWidth literal in the toolbar', !/maxWidth:\s*\d/.test(bar));
+}
+
+console.log('\nsheets (wave 6d, batch C):');
+{
+  const lp = (() => { const a = pro.indexOf('function LivingPlanEditorModal('); return a < 0 ? '' : pro.slice(a, pro.indexOf('\n}\n', a)); })();
+  ok('LivingPlanEditorModal: first current sheet, a dialog scope only when there is one, the full-window Modal',
+    /const sheet = getPlanSheetsForProject\(project\.id\)\.filter\(\(s\) => !s\.superseded\)\[0\] \?\? null;/.test(lp)
+      && /useSheetDialogScope\(!!sheet\);\s*if \(!sheet\) return null;/.test(lp)
+      && /<Modal visible animationType="slide" onRequestClose=\{onClose\}>\s*<PlanZoneEditor/.test(lp));
+  ok('…both trees mount it, and the old screen-level scope and IIFEs are gone',
+    (pro.match(/\{showLivingPlanEditor && <LivingPlanEditorModal project=\{project\} onClose=\{\(\) => setShowLivingPlanEditor\(false\)\} \/>\}/g) ?? []).length === 2
+      && !/useSheetDialogScope\(showLivingPlanEditor\)/.test(pro) && (pro.match(/<PlanZoneEditor\b/g) ?? []).length === 1);
+  const ti = code('components/schedule/TaskInspector.tsx');
+  ok("TaskInspector's trade picker is a framed dialog (C2: its Esc never reaches the pane)",
+    /const fTrade = useSheetFrame\('dialog', \{ visible: tradeDropdownOpen, animationType: 'fade' \}\);/.test(ti)
+      && ti.indexOf('const fTrade = useSheetFrame(') < ti.indexOf('if (!task) return null;')
+      && /animationType=\{fTrade\.animationType\}/.test(ti)
+      && /\[styles\.dropdownOverlay, fTrade\.overlay\]/.test(ti) && /\[styles\.dropdownBackdrop, fTrade\.backdrop\]/.test(ti)
+      && /\[styles\.dropdownSheet, fTrade\.card\]/.test(ti));
 }
 
 console.log('\nthe finish date:');

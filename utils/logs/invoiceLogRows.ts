@@ -9,6 +9,7 @@
 import type { Invoice, InvoiceStatus } from '@/types';
 import { netBalanceDue } from '@/utils/invoiceBilling';
 import { getDaysPastDue, getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+import { dueDateForTerms } from '@/utils/retainage';
 
 /** The status the app shows everywhere (a sent invoice past due reads overdue). */
 export function invoiceLogStatus(inv: Invoice): InvoiceStatus {
@@ -113,4 +114,57 @@ export function invoiceSearchText(inv: Pick<Invoice, 'number' | 'notes' | 'type'
   return [`INV-${String(inv.number ?? '').padStart(3, '0')}`, String(inv.number ?? ''), inv.type, inv.notes ?? '']
     .filter((x) => typeof x === 'string' && x.length > 0)
     .join(' ');
+}
+
+// ── Bulk "Mark sent" (wave 6d, lane V3) ─────────────────────────────────────
+// The log's bulk action writes one invoice at a time through the context's
+// updateInvoice (the offline queue), with EXACTLY the patch the invoice
+// screen's status pipeline writes for "Mark sent" on a draft (app/invoice.tsx
+// onAdvance): status sent, issued today, due today + its terms. It emails
+// nobody. scripts/validate-log-bulk.ts runs that handler beside this function
+// on the same invoice and clock and requires the same patch.
+
+/** The "Mark sent" patch for a draft; null for anything already out. */
+export function markSentPatch(
+  inv: Pick<Invoice, 'status' | 'paymentTerms'>,
+  nowIso: string,
+): Pick<Invoice, 'status' | 'issueDate' | 'dueDate'> | null {
+  if (inv.status !== 'draft') return null;
+  return { status: 'sent', issueDate: nowIso, dueDate: dueDateForTerms(nowIso, inv.paymentTerms) };
+}
+
+export const MARK_SENT_SKIP = {
+  sent: 'already sent',
+  paid: 'paid',
+  sample: 'sample job — sends only reach you',
+} as const;
+
+export interface InvoiceBulkMarkSentPlan {
+  mark: { id: string; patch: Pick<Invoice, 'status' | 'issueDate' | 'dueDate'> }[];
+  skipped: { number: number; reason: string }[];
+}
+
+/** Which of the picked invoices "Mark sent" writes, and why the rest are
+ *  left alone: anything past draft (paid, or already sent), and a draft on
+ *  the sample job. */
+export function invoiceBulkMarkSentPlan(
+  invs: readonly Invoice[],
+  nowIso: string,
+  isSample: (projectId: string) => boolean,
+): InvoiceBulkMarkSentPlan {
+  const out: InvoiceBulkMarkSentPlan = { mark: [], skipped: [] };
+  for (const inv of invs) {
+    const patch = markSentPatch(inv, nowIso);
+    if (!patch) {
+      const paid = inv.status === 'paid' || getEffectiveInvoiceStatus(inv) === 'paid';
+      out.skipped.push({ number: inv.number, reason: paid ? MARK_SENT_SKIP.paid : MARK_SENT_SKIP.sent });
+      continue;
+    }
+    if (isSample(inv.projectId)) {
+      out.skipped.push({ number: inv.number, reason: MARK_SENT_SKIP.sample });
+      continue;
+    }
+    out.mark.push({ id: inv.id, patch });
+  }
+  return out;
 }

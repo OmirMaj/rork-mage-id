@@ -65,6 +65,12 @@ const ROOT = join(__dirname, '..');
 // Wave-6c phase B integration (orchestrator): pageWidthLiterals 50 → 45,
 //   stretchedSegments 5 → 4, unframedTransparentModalFiles 47 → 32,
 //   hiddenScrollbarRails 111 → 109 — measured on the phase-B tree.
+// Wave-6d P0 (orchestrator): unframedTransparentModalFiles 32 → 28 — the
+//   counter now skips SHEET_EXEMPT, and the phone-only schedule sheets and
+//   SidePanel's phone branch joined it. The rest re-measured unchanged.
+// Wave-6d phase 1 integration (orchestrator): stretchedButtons 5 → 0 (a flex:1
+//   Button inside an <ActionBar> no longer counts), unframedTransparentModalFiles
+//   28 → 24, pageSheetModals 27 → 23; 12 files reached sheet parity.
 const CEILING = {
   /** Numeric `maxWidth` literals ≥ 700 in app/ + components/ — page and
    *  column caps that should each be a Layout token. */
@@ -74,10 +80,11 @@ const CEILING = {
    *  Excludes components/schedule/mobile and `…Phone` styles. */
   stretchedSegments: 4,
   /** Files with a transparent <Modal> and no desktop frame (no Sheet /
-   *  useSheetFrame, no maxWidth anywhere in the file). */
-  unframedTransparentModalFiles: 32,
+   *  useSheetFrame, no maxWidth anywhere in the file). SHEET_EXEMPT files are
+   *  skipped (wave 6d): they never render a desktop sheet. */
+  unframedTransparentModalFiles: 24,
   /** Non-transparent pageSheet <Modal>s (full-window on web). */
-  pageSheetModals: 27,
+  pageSheetModals: 23,
   /** Percent-width tile literals (width / flexBasis / minWidth of 22–25%,
    *  30–33% or 45–49%) — tiles sized from the row, not from a minimum. */
   percentTileLiterals: 26,
@@ -89,7 +96,7 @@ const CEILING = {
   hiddenScrollbarRails: 109,
   /** `<Button style={{ flex: 1 }}>` — a stretched button; containerStyle is
    *  the replacement. */
-  stretchedButtons: 5,
+  stretchedButtons: 0,
 };
 
 // ═══ B. Baselined gate exceptions — `file::ref`, as found when this landed.
@@ -186,6 +193,34 @@ function openingTag(src: string, at: number): string {
 const tagsOf = (src: string, name: string) =>
   [...src.matchAll(new RegExp(`<${name}\\b`, 'g'))].map((m) => openingTag(src, m.index!));
 
+/** `<ActionBar …>…</ActionBar>` index spans (nesting-aware; a self-closing
+ *  `<ActionBar … />` has no children and no span). ActionBar's desktop branch
+ *  clones every child with flexGrow/flexShrink/flexBasis longhands, so a
+ *  `style={{ flex: 1 }}` Button inside one is the phone's half-width split and
+ *  a hugging 40 px button on desktop — not a stretched button. Wave 6d. */
+function actionBarSpans(src: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  const stack: number[] = [];
+  const tok = /<ActionBar\b|<\/ActionBar>/g;
+  for (let m = tok.exec(src); m; m = tok.exec(src)) {
+    if (m[0] === '</ActionBar>') {
+      const start = stack.pop();
+      if (start !== undefined) spans.push([start, m.index + m[0].length]);
+      continue;
+    }
+    if (!/\/>$/.test(openingTag(src, m.index))) stack.push(m.index);
+  }
+  return spans;
+}
+/** `<Button … style={{ flex: 1 }}>` tags that are NOT inside an ActionBar. */
+function stretchedButtonTags(src: string): string[] {
+  const spans = actionBarSpans(src);
+  return [...src.matchAll(/<Button\b/g)]
+    .filter((m) => !spans.some(([a, b]) => m.index! > a && m.index! < b))
+    .map((m) => openingTag(src, m.index!))
+    .filter((t) => /\sstyle=\{\{\s*flex:\s*1\s*\}\}/.test(t));
+}
+
 /** Split an expression on its top-level commas. */
 function topLevelParts(expr: string): string[] {
   const parts: string[] = [];
@@ -239,6 +274,20 @@ export function isSegmentBoxName(name: string): boolean {
   return words.some((w) => SEGMENT_WORDS.has(w)) && !SEGMENT_PART_WORDS.has(words[words.length - 1]);
 }
 
+/** B2 sheet adoption — permanent: a Modal here is not a desktop sheet, and
+ *  never becomes one. Declared here (not in B2) because the A. measure loop
+ *  below skips these files in unframedTransparentModalFiles too (wave 6d). */
+const SHEET_EXEMPT: ReadonlyMap<string, string> = new Map([
+  ['components/punch/PlanPinStep.tsx', 'the tutorial layer host: a full-screen plan canvas the tutorial draws over, not a sheet'],
+  ['components/PersonaSwitchOverlay.tsx', 'a full-window persona transition animation, not a dialog'],
+  ['app/dev-ar-measure.tsx', 'the owner-only AR measurement dev harness'],
+  // Wave 6d: phone-only. The B2 pins below keep the reason true.
+  ['components/schedule/mobile/MobileScheduleScreen.tsx', 'phone-only: rendered only under layout.isPhone (app/(tabs)/schedule/index.tsx), so a desktop frame can never reach it'],
+  ['components/schedule/mobile/TaskDetailSheet.tsx', 'phone-only: rendered only under layout.isPhone (app/(tabs)/schedule/index.tsx), so a desktop frame can never reach it'],
+  ['components/schedule/mobile/MonthCalendarSheet.tsx', 'phone-only: rendered only under layout.isPhone (app/(tabs)/schedule/index.tsx), so a desktop frame can never reach it'],
+  ['components/desktop/SidePanel.tsx', 'its Modal is the phone branch (!isDesktop), where the hotkey registry never runs; the desktop panel is not a Modal'],
+]);
+
 for (const [file, src] of code) {
   for (const m of src.matchAll(/\bmaxWidth:\s*(\d+)\b/g)) if (Number(m[1]) >= 700) counts.pageWidthLiterals++;
 
@@ -254,7 +303,8 @@ for (const [file, src] of code) {
   }
 
   const modals = tagsOf(src, 'Modal');
-  if (modals.some((t) => /\btransparent\b/.test(t)) && !/\buseSheetFrame\b|<Sheet\b/.test(src) && !/\bmaxWidth\b/.test(src)) {
+  if (!SHEET_EXEMPT.has(file)
+    && modals.some((t) => /\btransparent\b/.test(t)) && !/\buseSheetFrame\b|<Sheet\b/.test(src) && !/\bmaxWidth\b/.test(src)) {
     counts.unframedTransparentModalFiles++;
   }
   for (const tag of modals) if (/pageSheet/.test(tag) && !/\btransparent\b/.test(tag)) counts.pageSheetModals++;
@@ -270,7 +320,7 @@ for (const [file, src] of code) {
   }
 
   counts.hiddenScrollbarRails += (src.match(/showsHorizontalScrollIndicator=\{false\}/g) ?? []).length;
-  counts.stretchedButtons += tagsOf(src, 'Button').filter((t) => /\sstyle=\{\{\s*flex:\s*1\s*\}\}/.test(t)).length;
+  counts.stretchedButtons += stretchedButtonTags(src).length;
 }
 
 // Self-test: the segment-name filter (wave 6c X0.5a).
@@ -281,6 +331,17 @@ for (const [file, src] of code) {
     ['segmentLabels', false], ['tabPhone', false], ['headerRow', false],
   ];
   for (const [name, want] of cases) ok(`segment-name self-test — ${name}: ${want ? 'a box' : 'not counted'}`, isSegmentBoxName(name) === want);
+}
+
+// Self-test: the stretched-button scanner skips ActionBar children (wave 6d).
+{
+  const inside = '<ActionBar style={s.row} width="form"><Button label="Save" onPress={() => save()} style={{ flex: 1 }} /></ActionBar>';
+  const outside = '<View style={s.row}><Button label="Send" style={{ flex: 1 }} /></View>';
+  ok('stretched-button self-test — a flex:1 Button inside an <ActionBar> is not counted', stretchedButtonTags(inside).length === 0);
+  ok('stretched-button self-test — a flex:1 Button outside one is counted', stretchedButtonTags(outside).length === 1);
+  ok('stretched-button self-test — one inside and one after the bar: only the one after counts', stretchedButtonTags(inside + outside).length === 1);
+  ok('stretched-button self-test — a self-closing <ActionBar /> opens no span', stretchedButtonTags('<ActionBar />' + outside).length === 1);
+  ok('stretched-button self-test — <ActionBarReadout> is not a bar', stretchedButtonTags('<ActionBarReadout><Button style={{ flex: 1 }} /></ActionBarReadout>').length === 1);
 }
 
 console.log('\ndesktop layout — ceilings (may only go down):');
@@ -563,15 +624,24 @@ if (fixedBaseline.length) note(`gated now — delete from UNGATED_BASELINE: ${fi
 //   SA1  every useSheetFrame( call passes `visible` and `animationType`;
 //   SA2  in a file that uses a frame, every <Modal> has onRequestClose (RN-web
 //        closes on Esc through it);
-//   SA3  no `transparent={X.transparent}` outside Sheet.tsx (phase 2 only — on
-//        a phone it turns a transparent sheet opaque);
+//   SA3  `transparent={…X.transparent…}` outside Sheet.tsx only when X is a
+//        `useSheetFrame('panel'` frame AND the expression is exactly
+//        `X.transparent` on a <Modal> that carries presentationStyle= (a phone
+//        keeps its native page sheet), or exactly `X.transparent ?? false`.
+//        Anything else turns a transparent phone sheet opaque (wave 6d);
 //   SA4  X.overlay / card / backdrop / scrollContent / footer / footerButton
 //        only as a NON-first element of a style array (`[styles.a, X.card]`),
 //        never bare — the phone style must come first so a phone is unchanged;
 //   SA5  X.showHandle only as a render condition (`X.showHandle && …` / `? :`);
-//   SA6  parity: a file's `<Modal` count ≤ its useSheetFrame( +
-//        useSheetDialogScope( + `<Sheet ` count, unless the file is in
-//        SHEET_PENDING (not converted yet) or SHEET_EXEMPT (never).
+//   SA6  consumed-frame parity (wave 6d): a <Modal> carrying
+//        `animationType={F.animationType}` for a `const F = useSheetFrame(` is
+//        framed; the rest must fit the budget useSheetDialogScope( + `<Sheet `
+//        + the useSheetFrame( calls no tag consumes — unless the file is in
+//        SHEET_PENDING (not converted yet) or SHEET_EXEMPT (never). Never
+//        stricter than the 6c count rule, because framed ≥ consumed frames;
+//   SA7  a frame consumed by 2+ <Modal>s: every one's `visible={E}` equals the
+//        frame's `visible: E` (whitespace-normalised) — the frame's visible is
+//        what claims the dialog scope and measures the inset.
 
 /** Files that were short of parity on the wave-6c base (77c00f3d, measured
  *  mechanically: every app/ + components/ file whose `<Modal` count exceeded
@@ -580,11 +650,12 @@ if (fixedBaseline.length) note(`gated now — delete from UNGATED_BASELINE: ${fi
  *  seed is the other 140). The 6c lanes
  *  convert them; one that reaches parity prints "delete from SHEET_PENDING".
  *  NEVER ADD A FILE — a new Modal adopts the frame when it lands. Lanes do not
- *  edit this block; the orchestrator trims it at integration. */
+ *  edit this block; the orchestrator trims it at integration.
+ *  Wave 6d P0: 91 → 86 — estimate/full reached parity under consumed-frame
+ *  SA6; the three phone-only schedule sheets and SidePanel moved to
+ *  SHEET_EXEMPT. */
 const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
-  'app/(tabs)/construction-ai/index.tsx',
   'app/(tabs)/discover/bids.tsx',
-  'app/(tabs)/estimate/full.tsx',
   'app/(tabs)/materials/[category].tsx',
   'app/(tabs)/schedule/index.tsx',
   'app/(tabs)/settings/index.tsx',
@@ -597,9 +668,7 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/client-view.tsx',
   'app/company-profile.tsx',
   'app/contacts.tsx',
-  'app/copilot.tsx',
   'app/crew.tsx',
-  'app/delay-events.tsx',
   'app/deliveries.tsx',
   'app/equipment-detail.tsx',
   'app/estimate-wizard.tsx',
@@ -612,9 +681,7 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/plan-intelligence.tsx',
   'app/plan-viewer.tsx',
   'app/plans.tsx',
-  'app/project-detail.tsx',
   'app/qbo-review.tsx',
-  'app/schedule-pro.tsx',
   'app/shared-schedule.tsx',
   'app/wip-report.tsx',
   'app/work-order.tsx',
@@ -629,7 +696,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/ClientPaywall.tsx',
   'components/ConfirmEmailModal.tsx',
   'components/CreateMenu.tsx',
-  'components/DatePickerModal.tsx',
   'components/DemoSeedPickerModal.tsx',
   'components/EntityActionSheet.tsx',
   'components/EstimateComparison.tsx',
@@ -655,35 +721,61 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/TakeoffPageInspector.tsx',
   'components/UniversalMicButton.tsx',
   'components/UpgradeSheet.tsx',
-  'components/VoiceCaptureModal.tsx',
   'components/VoiceCommandModal.tsx',
   'components/copilot/ScheduleEditPanel.tsx',
   'components/desktop/JobSwitcher.tsx',
-  'components/desktop/SidePanel.tsx',
   'components/desktop/ToolbarActions.tsx',
   'components/estimate/RateProvenanceChip.tsx',
   'components/punch/PunchExportSheet.tsx',
   'components/punch/PunchPhotoViewer.tsx',
-  'components/schedule/ScheduleRowMenu.tsx',
-  'components/schedule/SchedulerMenuBar.tsx',
-  'components/schedule/TaskInspector.tsx',
-  'components/schedule/mobile/LivingFloorPlan.tsx',
-  'components/schedule/mobile/MobileScheduleScreen.tsx',
-  'components/schedule/mobile/MonthCalendarSheet.tsx',
-  'components/schedule/mobile/PlanZoneEditor.tsx',
-  'components/schedule/mobile/TaskDetailSheet.tsx',
   'components/summary/ToolsSheet.tsx',
-]);
-
-/** Permanent: a Modal here is not a sheet, and never becomes one. */
-const SHEET_EXEMPT: ReadonlyMap<string, string> = new Map([
-  ['components/punch/PlanPinStep.tsx', 'the tutorial layer host: a full-screen plan canvas the tutorial draws over, not a sheet'],
-  ['components/PersonaSwitchOverlay.tsx', 'a full-window persona transition animation, not a dialog'],
-  ['app/dev-ar-measure.tsx', 'the owner-only AR measurement dev harness'],
 ]);
 
 const FRAME_PARTS = /^(?:overlay|card|backdrop|scrollContent|footer|footerButton)$/;
 const countOf = (src: string, re: RegExp) => (src.match(re) ?? []).length;
+const noWs = (s: string) => s.replace(/\s+/g, '');
+
+/** Every `const F = useSheetFrame(…)`: where it is, its argument list and its
+ *  `visible` expression (whitespace-stripped; shorthand `visible` is `visible`).
+ *  A file may declare the same name in several components (schedule-wizard has
+ *  three `f`s), so a frame is a DECLARATION, not a name. */
+type FrameDecl = { name: string; at: number; args: string; visible: string | null };
+function sheetFrameDecls(src: string): FrameDecl[] {
+  const out: FrameDecl[] = [];
+  for (const m of src.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*useSheetFrame\(/g)) {
+    const args = balanced(src, m.index! + m[0].length - 1);
+    const opts = topLevelParts(args.slice(1, -1))[1] ?? '';
+    let visible: string | null = null;
+    if (opts.startsWith('{')) {
+      for (const part of topLevelParts(opts.slice(1, -1))) {
+        const v = /^visible\s*(?::([\s\S]+))?$/.exec(part);
+        if (v) { visible = noWs(v[1] ?? 'visible'); break; }
+      }
+    }
+    out.push({ name: m[1], at: m.index!, args, visible });
+  }
+  return out;
+}
+/** The declaration of `name` in scope at `at`: the nearest one before it (the
+ *  hook sits above the JSX it frames), else the first one. */
+function declAt(decls: FrameDecl[], name: string, at: number): FrameDecl | null {
+  const same = decls.filter((d) => d.name === name);
+  return [...same].reverse().find((d) => d.at < at) ?? same[0] ?? null;
+}
+/** Every <Modal> opening tag with its offset. */
+const modalTagsAt = (src: string) =>
+  [...src.matchAll(/<Modal\b/g)].map((m) => ({ at: m.index!, tag: openingTag(src, m.index!) }));
+/** The frame a <Modal> opening tag consumes (`animationType={F.animationType}`). */
+function consumedFrame(tag: string, at: number, decls: FrameDecl[]): FrameDecl | null {
+  const name = /\banimationType=\{\s*([A-Za-z_$][\w$]*)\.animationType\s*\}/.exec(tag)?.[1];
+  return name ? declAt(decls, name, at) : null;
+}
+/** A tag's `visible={E}` (whitespace-stripped), `true` for a bare `visible`. */
+function tagVisible(tag: string): string | null {
+  const m = /\svisible=\{/.exec(tag);
+  if (m) return noWs(balanced(tag, m.index + m[0].length - 1).slice(1, -1));
+  return /\svisible(?=[\s/>])/.test(tag) ? 'true' : null;
+}
 
 /** The SA1–SA5 violations in one (comment-stripped) file. Exported for the
  *  self-test below. */
@@ -708,9 +800,25 @@ export function sheetAdoptionErrors(file: string, src: string): string[] {
   // SA3
   // Sheet.tsx is the primitive itself (its own footer <Button>s have no phone
   // style to come first; its pageSheet branch is what SA3 reserves for it).
+  // Elsewhere only a 'panel' frame may drive transparent, in one of two exact
+  // forms (wave 6d): `X.transparent` beside presentationStyle= (a phone keeps
+  // its native page sheet), or `X.transparent ?? false`.
   const isPrimitive = file === 'components/ui/Sheet.tsx';
-  if (!isPrimitive && /\btransparent=\{\s*[A-Za-z_$][\w$]*\.transparent\s*\}/.test(src)) {
-    errs.push(`SA3 ${file}: transparent={X.transparent} is Sheet.tsx-only (a phone would turn opaque)`);
+  const decls = sheetFrameDecls(src);
+  if (!isPrimitive) {
+    const modals = modalTagsAt(src);
+    for (const m of src.matchAll(/(?<![\w$])transparent=\{/g)) {
+      const expr = balanced(src, m.index! + m[0].length - 1).slice(1, -1).trim().replace(/\s+/g, ' ');
+      const x = /([A-Za-z_$][\w$]*)\s*\??\.\s*transparent\b/.exec(expr)?.[1];
+      if (!x) continue;
+      const decl = declAt(decls, x, m.index!);
+      const tag = modals.find((t) => m.index! > t.at && m.index! < t.at + t.tag.length)?.tag ?? '';
+      const legal = decl !== null && /^\(\s*['"]panel['"]/.test(decl.args)
+        && ((expr === `${x}.transparent` && /\spresentationStyle=/.test(tag)) || expr === `${x}.transparent ?? false`);
+      if (!legal) {
+        errs.push(`SA3 ${file}: transparent={${expr}} — only a useSheetFrame('panel') frame, as X.transparent beside presentationStyle= or X.transparent ?? false (a phone would turn opaque)`);
+      }
+    }
   }
   for (const f of isPrimitive ? [] : frames) {
     // SA4 — every style prop that names a frame part
@@ -731,14 +839,39 @@ export function sheetAdoptionErrors(file: string, src: string): string[] {
       if (!/^\s*(?:&&|\?(?![.?]))/.test(after)) errs.push(`SA5 ${file}: ${f}.showHandle is a render condition only`);
     }
   }
+  // SA7 — a frame shared by 2+ Modals: each one opens on the frame's visible.
+  const consumers = new Map<FrameDecl, string[]>();
+  for (const { at, tag } of modalTagsAt(src)) {
+    const d = consumedFrame(tag, at, decls);
+    if (d) consumers.set(d, [...(consumers.get(d) ?? []), tag]);
+  }
+  for (const [d, tags] of consumers) {
+    if (tags.length < 2) continue;
+    const want = d.visible;
+    for (const tag of tags) {
+      const got = tagVisible(tag);
+      if (want === null || got !== want) {
+        errs.push(`SA7 ${file}: ${d.name} frames ${tags.length} <Modal>s, so each one's visible={…} must be the frame's visible (${want ?? 'none'}), not ${got ?? 'none'}`);
+      }
+    }
+  }
   return errs;
 }
 
-/** SA6: is this file short of parity? */
+/** SA6: is this file short of consumed-frame parity? `modals` is the <Modal>
+ *  count, `adopted` the framed tags plus the budget. */
 export function sheetParityShort(src: string): { modals: number; adopted: number } | null {
-  const modals = countOf(src, /<Modal\b/g);
-  const adopted = countOf(src, /\buseSheetFrame\(/g) + countOf(src, /\buseSheetDialogScope\(/g) + countOf(src, /<Sheet[\s>/]/g);
-  return modals > adopted ? { modals, adopted } : null;
+  const tags = modalTagsAt(src);
+  const decls = sheetFrameDecls(src);
+  const consumed = new Set<FrameDecl>();
+  let framed = 0;
+  for (const { at, tag } of tags) {
+    const d = consumedFrame(tag, at, decls);
+    if (d) { framed++; consumed.add(d); }
+  }
+  const unconsumed = countOf(src, /\buseSheetFrame\(/g) - consumed.size;
+  const budget = countOf(src, /\buseSheetDialogScope\(/g) + countOf(src, /<Sheet[\s>/]/g) + unconsumed;
+  return tags.length - framed > budget ? { modals: tags.length, adopted: framed + budget } : null;
 }
 
 // Self-test: each rule goes red on its mutant and stays green on the canonical
@@ -750,6 +883,15 @@ export function sheetParityShort(src: string): { modals: number; adopted: number
     <View style={[styles.overlay, fX.overlay]}><View style={[styles.card, fX.card]}>{fX.showHandle && <View />}</View></View>
   </Modal>);
 }`;
+  const PANEL = GOOD.replace("useSheetFrame('form'", "useSheetFrame('panel'");
+  const TWO = (visible2: string) => `function S({ open, other }) {
+  const fX = useSheetFrame('form', { visible: open, animationType: 'slide' });
+  return (<>
+    <Modal visible={open} transparent animationType={fX.animationType} onRequestClose={close}><View /></Modal>
+    <Modal visible={${visible2}} transparent animationType={fX.animationType} onRequestClose={close}><View /></Modal>
+  </>);
+}`;
+  const RAW = `<Modal visible={other} transparent onRequestClose={close}><View /></Modal>`;
   const cases: Array<[string, string, string | null]> = [
     ['the canonical adoption passes', GOOD, null],
     ['SA1: no animationType', GOOD.replace(", animationType: 'slide'", ''), 'SA1'],
@@ -759,6 +901,16 @@ export function sheetParityShort(src: string): { modals: number; adopted: number
     ['SA4: a bare frame style', GOOD.replace('style={[styles.card, fX.card]}', 'style={fX.card}'), 'SA4'],
     ['SA4: the frame style first', GOOD.replace('[styles.overlay, fX.overlay]', '[fX.overlay, styles.overlay]'), 'SA4'],
     ['SA5: showHandle used as a value', GOOD.replace('{fX.showHandle && <View />}', '<View hidden={fX.showHandle} />'), 'SA5'],
+    // Wave 6d SA3: only a 'panel' frame, in one of two exact forms.
+    ['SA3: panel + pageSheet passes', PANEL.replace('transparent animationType', 'transparent={fX.transparent} presentationStyle="pageSheet" animationType'), null],
+    ['SA3: panel + ?? false passes', PANEL.replace('transparent animationType', 'transparent={fX.transparent ?? false} animationType'), null],
+    ['SA3: form frame + pageSheet', GOOD.replace('transparent animationType', 'transparent={fX.transparent} presentationStyle="pageSheet" animationType'), 'SA3'],
+    ['SA3: panel + a bare tag without presentationStyle', PANEL.replace('transparent animationType', 'transparent={fX.transparent} animationType'), 'SA3'],
+    ['SA3: panel + ?? true', PANEL.replace('transparent animationType', 'transparent={fX.transparent ?? true} animationType'), 'SA3'],
+    // Wave 6d SA7: a frame shared by two Modals opens both on its own visible.
+    ['SA7: two tags sharing one frame with the same visible pass', TWO('open'), null],
+    ['SA7: the same visible, spaced differently, passes', TWO(' open '), null],
+    ['SA7: two tags sharing one frame with different visible', TWO('other'), 'SA7'],
   ];
   for (const [name, src, want] of cases) {
     const errs = sheetAdoptionErrors('self-test.tsx', src);
@@ -769,6 +921,15 @@ export function sheetParityShort(src: string): { modals: number; adopted: number
     && sheetParityShort('<Modal a /><Modal b />useSheetFrame(x)useSheetDialogScope(y)') === null
     && sheetParityShort('<Modal a /><SheetOverlay frame={f}>') !== null
     && sheetParityShort('<Modal a /><Sheet visible>') === null);
+  // Wave 6d SA6: consumed-frame parity.
+  ok('sheet adoption self-test — SA6: two tags sharing one frame with the same visible is not short',
+    sheetParityShort(TWO('open')) === null);
+  ok('sheet adoption self-test — SA6: one frame consumed plus one raw tag is short',
+    sheetParityShort(GOOD + RAW) !== null);
+  ok('sheet adoption self-test — SA7: one name declared in two components is two frames (schedule-wizard)',
+    sheetAdoptionErrors('self-test.tsx', GOOD + GOOD.replace('function S(', 'function T(').replace(/\bopen\b/g, 'shown')).length === 0);
+  ok('sheet adoption self-test — SA6: one declared frame no tag consumes plus one raw tag is not short',
+    sheetParityShort(`const fX = useSheetFrame('form', { visible: open, animationType: 'slide' });` + RAW) === null);
 }
 
 console.log('\ndesktop layout — sheet adoption (B2):');
@@ -781,11 +942,23 @@ for (const [file, src] of code) {
   if (gap && !SHEET_PENDING.has(file)) short.push(`${file} (${gap.modals} <Modal, ${gap.adopted} adopted)`);
   if (!gap && SHEET_PENDING.has(file)) note(`${file} reached sheet parity — delete from SHEET_PENDING.`);
 }
-ok('SA1–SA5: every useSheetFrame adoption follows the Sheet.tsx pattern', adoptionErrors.length === 0,
+ok('SA1–SA5, SA7: every useSheetFrame adoption follows the Sheet.tsx pattern', adoptionErrors.length === 0,
   adoptionErrors.join('\n        '));
 ok(`SA6: every <Modal> is a framed or dialog-scoped sheet (${SHEET_PENDING.size} pending, ${SHEET_EXEMPT.size} exempt)`, short.length === 0,
   'Adopt useSheetFrame (a hand-rolled sheet), useSheetDialogScope (an opaque pageSheet / viewer) or <Sheet>:\n        '
   + short.join('\n        '));
+// The phone-only SHEET_EXEMPT entries (wave 6d) stay phone-only.
+{
+  const tab = code.get('app/(tabs)/schedule/index.tsx') ?? '';
+  ok('SHEET_EXEMPT pin — the schedule tab renders MobileScheduleScreen only under layout.isPhone',
+    /layout\.isPhone\s*\?\s*<MobileScheduleScreen/.test(tab));
+  for (const sheet of ['TaskDetailSheet', 'MonthCalendarSheet']) {
+    const importRe = new RegExp(`(?:\\bfrom|\\bimport\\(|\\brequire\\()\\s*['"][^'"]*\\b${sheet}['"]`);
+    const importers = [...code].filter(([f, s]) => !f.endsWith(`/${sheet}.tsx`) && importRe.test(s)).map(([f]) => f);
+    ok(`SHEET_EXEMPT pin — ${sheet} is imported only by MobileScheduleScreen`,
+      importers.length === 1 && importers[0] === 'components/schedule/mobile/MobileScheduleScreen.tsx', importers.join(', ') || 'no importer');
+  }
+}
 const ghostSheet = [...SHEET_PENDING, ...SHEET_EXEMPT.keys()].filter((f) => !code.has(f));
 if (ghostSheet.length) note(`no longer in the tree — delete from SHEET_PENDING / SHEET_EXEMPT: ${ghostSheet.join(', ')}`);
 

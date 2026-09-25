@@ -11,6 +11,9 @@
 //   • Home decides the rail with lane S's actionRailVisible, and carries no
 //     private `width >= 1280` literal (one rule, not two);
 //   • the rail links 'See all' to /attention, and its sections use railSection.
+//   • wave 6d, lane V3 (runtime fix C6): on desktop the 'bill' and 'logs'
+//     views say 'Loading…', with no segment count, until changeOrdersLoaded /
+//     dailyReportsLoaded — the phone render is untouched (`isDesktop &&`).
 // The rail truth table itself is lane S's (scripts/validate-shell-6c.ts).
 //
 // Run: bun run scripts/validate-attention-rows.ts
@@ -167,6 +170,19 @@ console.log('\nsource pins:');
   ok('/attention keeps the rail\'s three empty states', /All caught up/.test(page)
     && /Nothing overdue on schedules, invoices, permits or certs\./.test(page)
     && /\/waiting-on/.test(page) && /Couldn't reach MAGE/.test(page));
+  // Wave 6d, lane V3 (C6): the two loading branches, desktop only.
+  ok("/attention: 'bill' waits for changeOrdersLoaded and 'logs' for dailyReportsLoaded — desktop only (isDesktop &&)",
+    /const \{[^}]*\bprojectsLoaded, changeOrdersLoaded, dailyReportsLoaded \} = useProjects\(\);/.test(page)
+    && /const \{ isDesktop \} = useResponsiveLayout\(\);/.test(page)
+    && /const billLoading = isDesktop && !\(projectsLoaded && changeOrdersLoaded\);/.test(page)
+    && /const logsLoading = isDesktop && !\(projectsLoaded && dailyReportsLoaded\);/.test(page));
+  ok("/attention: a loading view's body is the 'Loading…' line, ahead of its own (untouched) branch",
+    /\} else if \(view === 'bill' && billLoading\) \{\s*body = loadingLine;\s*\} else if \(view === 'bill'\) \{\s*body = ready\.rows\.length === 0 \? emptyLine\('No change orders are drafted and waiting to be sent\.'\)/.test(page)
+    && /\} else if \(view === 'logs' && logsLoading\) \{\s*body = loadingLine;\s*\} else if \(view === 'logs'\) \{\s*body = logRows\.length === 0 \? emptyLine\(/.test(page)
+    && /<Text style=\{styles\.emptySubtitle\}>Loading…<\/Text>/.test(page));
+  ok("/attention: a loading view's segment shows no count (undefined), never 0",
+    /bill: billLoading \? undefined : ready\.rows\.length,/.test(page) && /logs: logsLoading \? undefined : logRows\.length,/.test(page)
+    && /count: counts\[v\],/.test(page));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

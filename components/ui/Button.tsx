@@ -13,9 +13,13 @@
 // LAYOUT: `style` lands on the inner Pressable (the painted pill), so a
 // layout key there — `flex: 1`, `alignSelf` — acts INSIDE the animated
 // wrapper, not in the caller's row. That is why `style={{ flex: 1 }}` never
-// split change-order's or contract's rows. Layout keys belong on
-// `containerStyle`, which is applied to the wrapper. (The existing flex:1 call
-// sites are left alone: on a phone they render the way they always have.)
+// split change-order's or contract's rows on their own. Every remaining
+// `style={{ flex: 1 }}` call site now sits inside an <ActionBar>, which
+// neutralises it on desktop (flexGrow/Shrink/Basis longhands, a 40 px row
+// right-aligned to the form) and leaves the phone exactly as it was; the
+// validate-desktop-layout stretchedButtons count fails one outside a bar. A
+// NEW layout key goes on `containerStyle` (the wrapper) behind a desktop gate,
+// or the row goes through ActionBar.
 //
 // DESKTOP WEB (wave 6b). The wrapper had no width, so on web it stretched
 // with its column and `fullWidth={false}` still drew a 1,360 px button. Behind

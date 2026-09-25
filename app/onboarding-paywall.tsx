@@ -30,6 +30,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
 import { useProjects } from '@/contexts/ProjectContext';
+import { INCLUDED_ADMIN_SEATS } from '@/utils/seatModel';
 
 /**
  * Onboarding-style paywall — single-screen, trial-narrative, big-CTA
@@ -471,7 +472,7 @@ export default function OnboardingPaywallScreen() {
           />
           <PlanCard
             label="Business"
-            tagline="Teams & unlimited"
+            tagline={`Teams · ${INCLUDED_ADMIN_SEATS.business} office seats`}
             priceTop={
               selectedPeriod === 'annual'
                 ? pricing.businessAnnualPerMonth

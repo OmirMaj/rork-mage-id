@@ -263,9 +263,15 @@ console.log('\n3. source pins');
 
 {
   const rl = code(read('utils/useResponsiveLayout.ts'));
-  ok('useResponsiveLayout reads the rail store (rail-aware sidebarWidth, 0 below desktop)',
-    /useSyncExternalStore\(subscribeSidebarRail, getSidebarRail, getSidebarRail\)/.test(rl)
-    && /sidebarWidth: isDesktop \? sidebarWidthForRoute\(rail\.topSegment, rail\.pref\) : 0,/.test(rl));
+  // Wave 6d r2: it subscribes to a PRIMITIVE key (width + the pref's two
+  // bits), not the store's snapshot object, which setSidebarRoute replaces on
+  // every top-level navigation — re-rendering every layout consumer.
+  ok('useResponsiveLayout reads the rail store through a primitive key (rail-aware sidebarWidth, 0 below desktop)',
+    /function railLayoutKey\(\): string \{\s*const \{ topSegment, pref \} = getSidebarRail\(\);\s*return `\$\{sidebarWidthForRoute\(topSegment, pref\)\}:\$\{pref\.canvas \? 1 : 0\}\$\{pref\.workspace \? 1 : 0\}`;\s*\}/.test(rl)
+    && /const railKey = useSyncExternalStore\(subscribeSidebarRail, railLayoutKey, railLayoutKey\);/.test(rl)
+    && /sidebarWidth: isDesktop \? railWidth : 0,/.test(rl)
+    && /\}, \[width, height, isWeb, railKey\]\);/.test(rl)
+    && !/useSyncExternalStore\(subscribeSidebarRail, getSidebarRail/.test(rl));
 }
 {
   const hook = code(read('hooks/useSidebarRail.ts'));
@@ -333,13 +339,20 @@ console.log('\n3. source pins');
   ok('SidePanel: overlayBelow defaults to SIDE_PANEL_OVERLAY_BELOW and drives the overlay decision',
     /overlayBelow\?: number;/.test(panel) && /overlayBelow = SIDE_PANEL_OVERLAY_BELOW,/.test(panel)
     && /containerWidth < overlayBelow/.test(panel));
-  ok("SidePanel: the Esc `when` applies to a GLOBAL-scope panel only",
-    /const escWhen = hotkeyScope === 'global'\s*\?/.test(panel) && /targetWithin\(ev\.target, nativeID\)/.test(panel)
-    && /\.\.\.\(escWhen \? \{ when: escWhen \} : \{\}\)/.test(panel));
+  // Wave 6d (C1): the 6c pin here encoded the bug — it required the `when`
+  // on GLOBAL-scope panels only, so an Esc typed in any page field closed a
+  // page-scope panel (Schedule Pro's pane, with the AI review in it).
+  ok("SidePanel: every panel's Esc ignores an Esc typed in a field outside it",
+    /const domId = nativeID \?\? \(panelId \? `side-panel-\$\{panelId\}` : autoId\);/.test(panel)
+    && /const escWhen = \(ev: \{ target\?: unknown \}\) => !isTypingTarget\(ev\.target\) \|\| \(!!domId && targetWithin\(ev\.target, domId\)\);/.test(panel)
+    && /\{ combo: 'escape', label: `Close \$\{title\}`, group: 'Panel', enabled: open, handler: onClose, when: escWhen \}/.test(panel)
+    && !/hotkeyScope === 'global'/.test(panel) && /nativeID=\{domId\}/.test(panel));
+  ok('SidePanel: a panel with neither nativeID nor panelId still gets a DOM id (side-panel-<n>)',
+    /let SIDE_PANEL_SEQ = 0;/.test(panel) && /const autoId = useRef\(`side-panel-\$\{\+\+SIDE_PANEL_SEQ\}`\)\.current;/.test(panel));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\nCmd+S never sends or signs (integration review, round 1)');
+console.log('\nCmd+S never sends, signs, releases or approves (integration review, round 1; wave 6d r2)');
 // ─────────────────────────────────────────────────────────────────────────────
 // useSheetPrimaryHotkey binds Cmd+S as well as Cmd+Enter, so a sheet whose
 // primary emails someone or signs a document must opt out of Cmd+S: pressed
@@ -359,21 +372,55 @@ console.log('\nCmd+S never sends or signs (integration review, round 1)');
     ['app/field-ticket.tsx', /useSheetPrimaryHotkey\([^;]*onSign\(name, title, role, paths\), \{ saveKey: false \}\);/],
     ['app/contract.tsx', /useSheetPrimaryHotkey\([^;]*onSign\(paths, typedName\), \{ saveKey: false \}\);/],
     ['app/contract.tsx', /useSheetPrimaryHotkey\([^;]*onRecord\(draft, [^;]*\), \{ saveKey: false \}\);/],
+    // Wave 6d r2 (D5): a crew sign-off is permanent; a retention release
+    // reopens settled invoices and restarts their payment clocks.
+    ['app/safety-jha.tsx', /useSheetPrimaryHotkey\(signOffFor !== null, handleAddSignOff, \{ saveKey: false \}\);/],
+    ['app/retention.tsx', /useSheetPrimaryHotkey\(releaseRow != null && !!plan && plan\.allocations\.length > 0, applyRelease, \{ saveKey: false \}\);/],
   ];
   for (const [file, re] of SEND_OR_SIGN) {
     ok(`${file}: its send/sign sheet binds Cmd+Enter only (${re.source.slice(0, 48)}…)`, re.test(code(read(file))));
   }
-  // Any OTHER primary, anywhere in app/ or components/, whose handler name
-  // says send/sign must opt out too.
+  // Any OTHER primary, anywhere in app/ or components/, whose arguments say
+  // it commits must opt out too. Wave 6d r2 (R15): matched by WORDS, not
+  // handler NAMES — the 6c name list (send|onSend|…|onRecord) missed
+  // handleAddSignOff and applyRelease. Each call's argument text is split into
+  // camelCase words; a commit word without the trailing opt-out is flagged.
+  const COMMIT_WORDS: ReadonlySet<string> = new Set(['send', 'sign', 'release', 'approve', 'share', 'paid', 'certify', 'dispatch', 'record']);
+  const OPT_OUT = /\{\s*saveKey:\s*false\s*\}\s*,?\s*$/;
+  const looseCalls = (src: string): string[] => {
+    const out: string[] = [];
+    for (const m of src.matchAll(/useSheetPrimaryHotkey\(([^;]*)\);/g)) {
+      const words = (m[1].match(/[A-Za-z][a-z]*|[A-Z]+(?![a-z])/g) ?? []).map((w) => w.toLowerCase());
+      if (words.some((w) => COMMIT_WORDS.has(w)) && !OPT_OUT.test(m[1])) out.push(m[0].replace(/\s+/g, ' ').slice(0, 110));
+    }
+    return out;
+  };
+  // Self-test over synthetic sources: the rule, not just today's tree.
+  const FLAGGED = [
+    'useSheetPrimaryHotkey(open, applyRelease);',
+    'useSheetPrimaryHotkey(x !== null, handleAddSignOff);',
+    'useSheetPrimaryHotkey(open, () => handleApprove(id));',
+  ];
+  const PASSES = [
+    ...FLAGGED.map((c) => c.replace(/\);$/, ', { saveKey: false });')),
+    'useSheetPrimaryHotkey(\n    open,\n    () => onSend(draft),\n    { saveKey: false },\n  );',
+    'useSheetPrimaryHotkey(showAddPayment && screenFocused, canAddPayment ? handleAddPayment : null);',
+    'useSheetPrimaryHotkey(visible, handleSubmit);',
+    'useSheetPrimaryHotkey(open, assignTask);',
+  ];
+  for (const c of FLAGGED) ok(`Cmd+S scan self-test — flags \`${c}\``, looseCalls(c).length === 1);
+  for (const c of PASSES) ok(`Cmd+S scan self-test — passes \`${c.replace(/\s+/g, ' ')}\``, looseCalls(c).length === 0);
   const walkTsx = (dir: string): string[] => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? walkTsx(`${dir}/${e.name}`) : e.name.endsWith('.tsx') ? [`${dir}/${e.name}`] : []);
   const loose: string[] = [];
+  let calls = 0;
   for (const file of [...walkTsx('app'), ...walkTsx('components')]) {
-    for (const m of code(read(file)).matchAll(/useSheetPrimaryHotkey\(([^;]*)\);/g)) {
-      if (/\b(send|onSend|handleConfirmSend|onSign|onRecord)\b/.test(m[1]) && !/\{ saveKey: false \}$/.test(m[1])) loose.push(`${file}: ${m[0].slice(0, 90)}`);
-    }
+    const src = code(read(file));
+    calls += (src.match(/useSheetPrimaryHotkey\(([^;]*)\);/g) ?? []).length;
+    for (const hit of looseCalls(src)) loose.push(`${file}: ${hit}`);
   }
-  ok('no send/sign primary in those files still takes Cmd+S', loose.length === 0, loose.join('\n     '));
+  ok(`no send / sign / release / approve / share / paid / certify / dispatch / record primary still takes Cmd+S (${calls} calls read)`,
+    calls > 0 && loose.length === 0, loose.join('\n     '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -38,6 +38,7 @@ import { cardSurface } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import CopilotShell from '@/components/copilot/CopilotShell';
+import { useSheetFrame, SheetOverlay, SheetScrim } from '@/components/ui/Sheet';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { copilotPrecondition, pickableProjects, PROJECT_FREE, WARRANTY_OWNER_ONLY_COPY } from '@/utils/copilot/projectScope';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
@@ -79,6 +80,10 @@ export default function CopilotScreen() {
   // disappears mid-interview surfaces as a Build error with "Pick a job"
   // (draft kept) instead of silently unmounting what he has said.
   const [started, setStarted] = useState(false);
+  // Wave 6d (sheet batch I): the "Pick a job" sheet over a running interview
+  // docks as a right-hand panel on desktop; inert on a phone (the original
+  // slide, `transparent` left at false). Above the gate's early return.
+  const fPick = useSheetFrame('panel', { visible: overlayPicker, animationType: 'slide' });
 
   const projectFree = PROJECT_FREE.has(capabilityId);
   const candidates = useMemo(() => pickableProjects<Project>(projectsCtx.projects), [projectsCtx.projects]);
@@ -204,11 +209,14 @@ export default function CopilotScreen() {
         onPickProject={projectFree ? undefined : () => setOverlayPicker(true)}
         onBuildEstimate={project ? buildEstimateFirst : undefined}
       />
-      <Modal visible={overlayPicker} animationType="slide" transparent={false} onRequestClose={() => setOverlayPicker(false)}>
-        <View style={[styles.root, { paddingTop: insets.top }]}>
+      <Modal visible={overlayPicker} animationType={fPick.animationType} transparent={fPick.transparent ?? false} onRequestClose={() => setOverlayPicker(false)}>
+        <SheetOverlay frame={fPick}>
+        <SheetScrim frame={fPick} onPress={() => setOverlayPicker(false)} />
+        <View style={[styles.root, { paddingTop: insets.top }, fPick.card]}>
           <GateTopbar styles={styles} colors={colors} onClose={() => setOverlayPicker(false)} />
           <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>{picker}</ScrollView>
         </View>
+        </SheetOverlay>
       </Modal>
     </View>
   );

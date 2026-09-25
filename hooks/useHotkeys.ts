@@ -254,6 +254,10 @@ export interface HotkeyRegistry {
   list(): ListedHotkey[];
   subscribe(fn: () => void): () => void;
   size(): number;
+  /** Is a dialog open? Dialog-scope hooks unregister when they close, so ANY
+   *  dialog entry means one is open (wave 6d, D3). A raw window key or paste
+   *  listener outside the registry (GridPane's) bails while this is true. */
+  hasDialog(): boolean;
 }
 
 export function createHotkeyRegistry(opts: { now?: () => number; warn?: (msg: string) => void } = {}): HotkeyRegistry {
@@ -392,6 +396,8 @@ export function createHotkeyRegistry(opts: { now?: () => number; warn?: (msg: st
     },
 
     size() { return entries.length; },
+
+    hasDialog() { return entries.some((e) => e.scope === 'dialog'); },
   };
 }
 
@@ -563,7 +569,7 @@ export function bindingsLive(requested: boolean, isDesktop: boolean, screenFocus
  *  useIsFocused(), because useIsFocused THROWS outside a navigator; the
  *  context is simply undefined there. Lazy-required so this module stays
  *  bun-executable. Always called, so the hook order never changes. */
-function useIsScreenFocused(): boolean {
+export function useIsScreenFocused(): boolean {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { NavigationContext } = require('@react-navigation/native') as typeof import('@react-navigation/native');
   const nav = useContext(NavigationContext) as FocusSource | undefined;

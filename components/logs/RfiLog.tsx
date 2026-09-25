@@ -2,12 +2,19 @@
 // (wave 6c, lane G). DESKTOP WEB ONLY: app/rfi.tsx renders this only when
 // utils/logs/logRoutes.logRouteMode says 'log' or 'split'.
 //
-// Nothing here writes. The record pane is the RFI screen's own form
-// (RFIForm), which saves through the context and the offline queue as always.
+// The record pane is the RFI screen's own form (RFIForm), which saves through
+// the context and the offline queue as always. The one write here is the bulk
+// "Close" (wave 6d, lane V3): answered RFIs only, behind a confirm, one RFI at
+// a time through updateRFI with persistForm's exact patch (rfiBulkClosePlan).
+//
+// Until the RFI read has settled the empty table says "Loading RFIs…", never
+// "No RFIs on this job yet" (a hard refresh on a slow network used to); a
+// failed read says so, with a retry.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { MessageSquareText } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -23,11 +30,15 @@ import { LogShell } from '@/components/logs/LogShell';
 import { LogCard } from '@/components/logs/LogCard';
 import { RecordContextStrip } from '@/components/logs/RecordContextStrip';
 import { rowsToCsv } from '@/utils/dataTable';
+import { showAlert } from '@/utils/alert';
+import {
+  rfiBallAfterSave, rfiRegressionReason, useCollectionSettled,
+} from '@/hooks/useCollectionSettled';
 import { deliverTextFile } from '@/utils/platformFile';
 import { logCsvFileName, logDayKey, logDayLabel, logNumberLabel } from '@/utils/logs/logRoutes';
 import {
-  RFI_LOG_FILTERS, defaultLogFilter, rfiBallLabel, rfiDaysOpen, rfiLogChipCounts, rfiLogFilter,
-  rfiOverdueDays, rfiPriorityLabel, rfiSearchText, rfiStatusLabel, type RfiLogFilter,
+  RFI_LOG_FILTERS, defaultLogFilter, logBulkSkippedLine, rfiBallLabel, rfiBulkClosePlan, rfiDaysOpen, rfiLogChipCounts,
+  rfiLogFilter, rfiOverdueDays, rfiPriorityLabel, rfiSearchText, rfiStatusLabel, type RfiLogFilter,
 } from '@/utils/logs/rfiLogRows';
 import type { RFI } from '@/types';
 
@@ -49,9 +60,21 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
   const router = useRouter();
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { getRFIsForProject, getProject } = useProjects();
+  const qc = useQueryClient();
+  const { getRFIsForProject, getProject, updateRFI } = useProjects();
   const project = getProject(projectId);
   const all = useMemo(() => getRFIsForProject(projectId), [getRFIsForProject, projectId]);
+  // The collection's react-query read: the empty state waits for it, and the
+  // bulk Close plans on the live copy. The host (app/rfi.tsx RFIScreenInner)
+  // already refetches it on open and on foreground; a second call here would
+  // cancel the host's request and start another.
+  const settle = useCollectionSettled('rfis', undefined);
+  // Nothing on this device and the read not back yet: no empty copy, no counts.
+  // Settled once, a background refetch (react-query 'fetching') is not
+  // "loading": an empty job keeps its empty copy instead of flickering.
+  const [settledOnce, setSettledOnce] = useState(settle.settled);
+  useEffect(() => { if (settle.settled) setSettledOnce(true); }, [settle.settled]);
+  const loading = all.length === 0 && !settle.settled && !settledOnce;
   const now = useMemo(() => new Date(), [all]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => rfiLogChipCounts(all, now), [all, now]);
@@ -100,6 +123,31 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
   }, [rows, csvColumns, project?.name]);
 
   const newRfi = useCallback(() => router.push(routeHref('/rfi', { projectId, new: '1' })), [router, projectId]);
+  const retryRead = useCallback(() => { void qc.invalidateQueries({ queryKey: ['rfis'] }); }, [qc]);
+
+  // Bulk Close: answered RFIs only, each with the patch persistForm writes.
+  // It confirms first, names what it skips, and emails nobody.
+  const closeSelected = useCallback((ids: string[]) => {
+    const picked = all.filter((r) => ids.includes(r.id));
+    const plan = rfiBulkClosePlan(picked, new Date().toISOString(), {
+      ballAfterSave: rfiBallAfterSave,
+      regressionReason: rfiRegressionReason,
+    });
+    const skippedLine = logBulkSkippedLine(plan.skipped);
+    const n = plan.close.length;
+    if (n === 0) {
+      showAlert('Nothing to close', skippedLine || 'Pick answered RFIs to close them.', [{ text: 'OK' }]);
+      return;
+    }
+    showAlert(
+      `Close ${n} answered RFI${n === 1 ? '' : 's'}?`,
+      `Each is marked Closed and the ball goes to "closed", logged as "RFI closed by GC".${skippedLine ? `\n\n${skippedLine}` : ''}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: `Close ${n}`, onPress: () => plan.close.forEach((c) => updateRFI(c.id, c.patch)) },
+      ],
+    );
+  }, [all, updateRFI]);
 
   const open = openId ? all.find((r) => r.id === openId) ?? null : null;
 
@@ -146,19 +194,28 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
                 testID="rfi-log-chip"
                 value={filter}
                 onChange={setPicked}
-                chips={RFI_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: counts[f.key] }))}
+                chips={RFI_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: loading ? undefined : counts[f.key] }))}
               />
             )}
             bulkActions={[
               { key: 'csv', label: 'Export CSV', run: exportSelected },
-              {
-                key: 'close',
-                label: 'Close',
-                run: () => {},
-                disabledReason: 'Close each RFI from its record — closing hands the ball to "closed" and logs it, one RFI at a time.',
-              },
+              { key: 'close', label: 'Close', run: closeSelected },
             ]}
-            emptyState={(
+            emptyState={loading ? (
+              <EmptyState
+                icon={<MessageSquareText size={28} color={t.accent} />}
+                title="Loading RFIs…"
+                message="This job's RFIs appear here once they load."
+              />
+            ) : all.length === 0 && settle.failed ? (
+              <EmptyState
+                icon={<MessageSquareText size={28} color={t.accent} />}
+                title="Couldn't load RFIs. Check your connection."
+                message="Nothing on this device yet, and the read from MAGE failed."
+                actionLabel="Try again"
+                onAction={retryRead}
+              />
+            ) : (
               <EmptyState
                 icon={<MessageSquareText size={28} color={t.accent} />}
                 title={all.length === 0 ? 'No RFIs on this job yet' : 'Nothing under this filter'}

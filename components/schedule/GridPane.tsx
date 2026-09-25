@@ -62,6 +62,7 @@ import { parsePastedRows } from '@/utils/pasteRows';
 import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction, type RowMenuAnchor } from '@/components/schedule/ScheduleRowMenu';
 import { GRID_GHOST_ROW_H, SPLIT_NAME_MIN, splitGridColumns } from '@/utils/scheduleProLayout';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { hotkeys, useIsScreenFocused } from '@/hooks/useHotkeys';
 import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor, Pencil } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
@@ -336,6 +337,14 @@ export default function GridPane({
 }: GridPaneProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // The raw window key / paste listeners below are not on the shortcut
+  // registry, so they gate themselves (wave 6d, D3): expo-router keeps Pro
+  // mounted behind display:none under a pushed route, where Cmd+D used to
+  // duplicate tasks on the hidden schedule, and a paste behind an open sheet
+  // overwrote rows. Read through a ref so the listeners never re-subscribe.
+  const screenFocused = useIsScreenFocused();
+  const liveRef = useRef(true);
+  liveRef.current = screenFocused;
 
   // Excel-style column widths. Stored as a key→px override map. We seed
   // from the COLUMNS defaults, hydrate from AsyncStorage on mount, and
@@ -493,6 +502,7 @@ export default function GridPane({
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const handler = (e: ClipboardEvent) => {
+      if (!liveRef.current || hotkeys.hasDialog()) return;
       if (!ghostFocusedRef.current && editing?.col !== 'name') return;
       const text = e.clipboardData?.getData('text/plain') ?? '';
       if (!text || text.indexOf('\n') < 0) return; // single-line → browser default
@@ -1437,6 +1447,7 @@ export default function GridPane({
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const handler = (e: KeyboardEvent) => {
+      if (!liveRef.current || hotkeys.hasDialog()) return;
       if (editing) return; // defer to the in-cell TextInput
       const target = e.target as HTMLElement | null;
       const inInput = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
@@ -1480,6 +1491,7 @@ export default function GridPane({
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const handler = (e: ClipboardEvent) => {
+      if (!liveRef.current || hotkeys.hasDialog()) return;
       if (editing) return;
       const target = e.target as HTMLElement | null;
       const inInput = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);

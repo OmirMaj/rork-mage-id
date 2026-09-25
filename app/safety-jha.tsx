@@ -321,7 +321,8 @@ function SafetyJhaInner() {
   const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
   useSheetPrimaryHotkey(showForm, handleSave);
   const fSign = useSheetFrame('dialog', { visible: signOffFor !== null, animationType: 'fade' });
-  useSheetPrimaryHotkey(signOffFor !== null, handleAddSignOff);
+  // D5: a crew sign-off is permanent, so Cmd+Enter only — Cmd+S never signs.
+  useSheetPrimaryHotkey(signOffFor !== null, handleAddSignOff, { saveKey: false });
 
   if (!project) {
     return (

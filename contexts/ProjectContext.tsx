@@ -11036,15 +11036,21 @@ function useCtx<T>(c: React.Context<T | null>, name: string): T {
 }
 
 export function useProjects() {
-  return {
-    ...useCtx(CoreDataContext, 'CoreDataContext'),
-    ...useCtx(FinancialsDataContext, 'FinancialsDataContext'),
-    ...useCtx(FieldDataContext, 'FieldDataContext'),
-    ...useCtx(PreconDataContext, 'PreconDataContext'),
-    ...useCtx(DocsDataContext, 'DocsDataContext'),
-    ...useCtx(StableActionsContext, 'StableActionsContext'),
-    ...useCtx(CrossDomainContext, 'CrossDomainContext'),
-  };
+  // Identity-stable (wave 6d, contract D17): the merged object changes only
+  // when one of the seven memoised slices does, so a consumer's
+  // useMemo/useEffect keyed on it no longer re-runs on every render. The
+  // spread order is unchanged, so key precedence is identical.
+  const core = useCtx(CoreDataContext, 'CoreDataContext');
+  const fin = useCtx(FinancialsDataContext, 'FinancialsDataContext');
+  const field = useCtx(FieldDataContext, 'FieldDataContext');
+  const precon = useCtx(PreconDataContext, 'PreconDataContext');
+  const docs = useCtx(DocsDataContext, 'DocsDataContext');
+  const stable = useCtx(StableActionsContext, 'StableActionsContext');
+  const cross = useCtx(CrossDomainContext, 'CrossDomainContext');
+  return useMemo(
+    () => ({ ...core, ...fin, ...field, ...precon, ...docs, ...stable, ...cross }),
+    [core, fin, field, precon, docs, stable, cross],
+  );
 }
 
 /** The deleted-project signal for provider-siblings that own their own

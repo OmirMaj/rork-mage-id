@@ -35,6 +35,7 @@ import { Tokens } from '@/constants/designTokens';
 import { TRADE_KEYS, tradeKeyForTask, tradeLabel, type TradeKey } from '@/utils/scheduleColors';
 import { showAlert } from '@/utils/alert';
 import { taskStatusInk, CHIP_TINT_SUFFIX } from '@/components/ui/ink';
+import { useSheetFrame } from '@/components/ui/Sheet';
 
 interface TaskInspectorProps {
   task: ScheduleTask | null;
@@ -82,6 +83,11 @@ export default function TaskInspector({
   const statusInk = taskStatusInk(themeColors);
   const [subscriberDraft, setSubscriberDraft] = useState('');
   const [tradeDropdownOpen, setTradeDropdownOpen] = useState(false);
+  // The trade picker is a framed dialog (wave 6d, C2): on desktop a centred
+  // card, and while it is open it owns the keyboard, so the Esc that closes
+  // it never reaches the Schedule Pro pane (a SidePanel) it sits in. On a
+  // phone every frame style is null — today's bottom sheet.
+  const fTrade = useSheetFrame('dialog', { visible: tradeDropdownOpen, animationType: 'fade' });
 
   // Photo capture — camera + library, both fall through to handleEdit
   // appending to the photos array. iOS handles HEIC→JPEG natively at the
@@ -420,12 +426,12 @@ export default function TaskInspector({
       <Modal
         visible={tradeDropdownOpen}
         transparent
-        animationType="fade"
+        animationType={fTrade.animationType}
         onRequestClose={() => setTradeDropdownOpen(false)}
       >
-        <View style={styles.dropdownOverlay}>
-          <Pressable style={styles.dropdownBackdrop} onPress={() => setTradeDropdownOpen(false)} />
-          <View style={styles.dropdownSheet}>
+        <View style={[styles.dropdownOverlay, fTrade.overlay]}>
+          <Pressable style={[styles.dropdownBackdrop, fTrade.backdrop]} onPress={() => setTradeDropdownOpen(false)} />
+          <View style={[styles.dropdownSheet, fTrade.card]}>
             <Text style={styles.dropdownSheetTitle}>Trade</Text>
             {TRADE_KEYS.map((k: TradeKey) => (
               <TouchableOpacity

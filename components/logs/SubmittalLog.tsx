@@ -3,12 +3,17 @@
 // this only when utils/logs/logRoutes.logRouteMode says 'log' or 'split'.
 //
 // Nothing here writes; the record pane is the submittal screen's own form.
+// Until the submittal read has settled the empty table says "Loading
+// submittals…", never "No submittals on this job yet" (wave 6d, lane V3); a
+// failed read says so, with a retry.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { FileCheck2 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useCollectionSettled } from '@/hooks/useCollectionSettled';
 import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
 import { routeHref } from '@/components/desktop/RowLink';
 import FilterChipRow from '@/components/FilterChipRow';
@@ -48,10 +53,18 @@ const leadDaysOf = (s: Submittal): number | null => (typeof s.leadDays === 'numb
 export function SubmittalLog({ projectId, openId, detail }: SubmittalLogProps) {
   const router = useRouter();
   const { colors: t } = useTheme();
+  const qc = useQueryClient();
   const { getSubmittalsForProject, getProject } = useProjects();
+  const settle = useCollectionSettled('submittals', undefined);
   const project = getProject(projectId);
   const all = useMemo(() => getSubmittalsForProject(projectId), [getSubmittalsForProject, projectId]);
   const now = useMemo(() => new Date(), [all]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Nothing on this device and the read not back yet: no empty copy, no counts.
+  // Settled once, a background refetch (react-query 'fetching') is not
+  // "loading": an empty job keeps its empty copy instead of flickering.
+  const [settledOnce, setSettledOnce] = useState(settle.settled);
+  useEffect(() => { if (settle.settled) setSettledOnce(true); }, [settle.settled]);
+  const loading = all.length === 0 && !settle.settled && !settledOnce;
 
   const counts = useMemo(() => submittalLogChipCounts(all, now), [all, now]);
   const [picked, setPicked] = useState<SubmittalLogFilter | null>(null);
@@ -94,6 +107,7 @@ export function SubmittalLog({ projectId, openId, detail }: SubmittalLogProps) {
   }, [rows, csvColumns, project?.name]);
 
   const newSubmittal = useCallback(() => router.push(routeHref('/submittal', { projectId, new: '1' })), [router, projectId]);
+  const retryRead = useCallback(() => { void qc.invalidateQueries({ queryKey: ['submittals'] }); }, [qc]);
 
   const open = openId ? all.find((s) => s.id === openId) ?? null : null;
   const strip = open ? (
@@ -138,11 +152,25 @@ export function SubmittalLog({ projectId, openId, detail }: SubmittalLogProps) {
               testID="submittal-log-chip"
               value={filter}
               onChange={setPicked}
-              chips={SUBMITTAL_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: counts[f.key] }))}
+              chips={SUBMITTAL_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: loading ? undefined : counts[f.key] }))}
             />
           )}
           bulkActions={[{ key: 'csv', label: 'Export CSV', run: exportSelected }]}
-          emptyState={(
+          emptyState={loading ? (
+            <EmptyState
+              icon={<FileCheck2 size={28} color={t.accent} />}
+              title="Loading submittals…"
+              message="This job's submittals appear here once they load."
+            />
+          ) : all.length === 0 && settle.failed ? (
+            <EmptyState
+              icon={<FileCheck2 size={28} color={t.accent} />}
+              title="Couldn't load submittals. Check your connection."
+              message="Nothing on this device yet, and the read from MAGE failed."
+              actionLabel="Try again"
+              onAction={retryRead}
+            />
+          ) : (
             <EmptyState
               icon={<FileCheck2 size={28} color={t.accent} />}
               title={all.length === 0 ? 'No submittals on this job yet' : 'Nothing under this filter'}

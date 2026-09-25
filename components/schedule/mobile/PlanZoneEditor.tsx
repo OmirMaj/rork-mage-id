@@ -36,6 +36,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Project, PlanZone } from '@/types';
+import { SheetOverlay, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -213,6 +214,16 @@ export function PlanZoneEditor({
   }, []);
 
   // -------------------------------------------------------------------------
+  // Sheet frames (wave 6d): on desktop the name prompt is a centred dialog
+  // (Cmd+Enter / Cmd+S add the zone) and the zone sheet a centred form card;
+  // on a phone every frame style is null, so both are today's sheets.
+  // -------------------------------------------------------------------------
+
+  const fName = useSheetFrame('dialog', { visible: !!pendingRect, animationType: 'fade' });
+  const fZoneEdit = useSheetFrame('form', { visible: !!editingZone, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!pendingRect, confirmNewZone);
+
+  // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
 
@@ -296,11 +307,11 @@ export function PlanZoneEditor({
       <Modal
         visible={!!pendingRect}
         transparent
-        animationType="fade"
+        animationType={fName.animationType}
         onRequestClose={() => setPendingRect(null)}
       >
-        <View style={styles.promptOverlay}>
-          <View style={[styles.promptBox, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.promptOverlay, fName.overlay]}>
+          <View style={[styles.promptBox, { paddingBottom: insets.bottom + 12 }, fName.card]}>
             <Text style={styles.promptTitle}>Name this zone</Text>
             <TextInput
               style={styles.promptInput}
@@ -312,11 +323,11 @@ export function PlanZoneEditor({
               returnKeyType="done"
               onSubmitEditing={confirmNewZone}
             />
-            <View style={styles.promptBtns}>
-              <TouchableOpacity style={styles.promptCancel} onPress={() => setPendingRect(null)}>
+            <View style={[styles.promptBtns, fName.footer]}>
+              <TouchableOpacity style={[styles.promptCancel, fName.footerButton]} onPress={() => setPendingRect(null)}>
                 <Text style={styles.promptCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.promptConfirm, { backgroundColor: colors.accentFill }]} onPress={confirmNewZone}>
+              <TouchableOpacity style={[styles.promptConfirm, { backgroundColor: colors.accentFill }, fName.footerButton]} onPress={confirmNewZone}>
                 <Text style={styles.promptConfirmText}>Add Zone</Text>
               </TouchableOpacity>
             </View>
@@ -330,15 +341,16 @@ export function PlanZoneEditor({
       <Modal
         visible={!!editingZone}
         transparent
-        animationType="slide"
+        animationType={fZoneEdit.animationType}
         onRequestClose={() => setEditingZone(null)}
       >
+        <SheetOverlay frame={fZoneEdit}>
         <TouchableOpacity
-          style={styles.backdrop}
+          style={[styles.backdrop, fZoneEdit.backdrop]}
           activeOpacity={1}
           onPress={() => setEditingZone(null)}
         />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fZoneEdit.card]}>
           {/* Sheet header */}
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Edit Zone</Text>
@@ -399,6 +411,7 @@ export function PlanZoneEditor({
             </TouchableOpacity>
           )}
         </View>
+        </SheetOverlay>
       </Modal>
     </View>
   );

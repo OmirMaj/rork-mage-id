@@ -119,7 +119,12 @@ export function ScheduleAiPane(p: ScheduleAiPaneProps) {
       open={p.open}
       onClose={p.onClose}
       title="Schedule assistant"
-      panelId="schedule-pro-ai"
+      // Fixed at PANE (440) in every view, with no drag edge and no stored
+      // width: GanttTab's Split slot reserves exactly 440, and a dragged width
+      // made the pane jump between views (wave 6d, C5). No panelId: SidePanel
+      // still gives it a DOM id, so an Esc in its own Change field closes it.
+      resizable={false}
+      defaultWidth={PANE}
       tabs={schedulePaneTabs(hasTask)}
       activeTab={tab}
       onTabChange={onTab}

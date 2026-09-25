@@ -1,0 +1,43 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot (default capability: the gate) 1`] = `
+{
+  "lines": 655,
+  "sha256": "0f2dbb25da3e6701c9e0d700ca7c85647cbca6561efa85b274620810c822d068",
+}
+`;
+
+exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot new_project (project-free: the shell) 1`] = `
+{
+  "lines": 655,
+  "sha256": "5d0928796eaed52a7f6d36fc16e157e0f255b41422dfeedf0aa1a5d6f40d8978",
+}
+`;
+
+exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) copilot rfi (the shell + the job-picker sheet) 1`] = `
+{
+  "lines": 655,
+  "sha256": "6267378a9155fbcfcf4ae775ddd56f865693caf098d806b5a28112703262cf25",
+}
+`;
+
+exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) delay-events (log, event, evidence, notice-period, notice-form sheets) 1`] = `
+{
+  "lines": 690,
+  "sha256": "6c78449f783f8b27d6520db58f0ffd0a46ac7f25d22a0681eff885d1384d0588",
+}
+`;
+
+exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) delay-events: a logged delay, its event sheet and the notice form 1`] = `
+{
+  "lines": 806,
+  "sha256": "de548b25c1622a3e42582e767eec684966d2410bfc72ff588e74eb961b27bb0b",
+}
+`;
+
+exports[`lane V4 — the phone is unchanged (golden, 390 × 844 iOS) project-detail (the hub with the cost and revision sheets) 1`] = `
+{
+  "lines": 1459,
+  "sha256": "ee86f021cfe3c3538eee7fdc9d1313ec99c7400627c509a8a0f96074143165a7",
+}
+`;

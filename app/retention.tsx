@@ -305,7 +305,8 @@ export default function RetentionScreen() {
   // Desktop sheets (wave 6c): capped cards centred in the content column.
   const isDesktop = useIsDesktop();
   const fRelease = useSheetFrame('form', { visible: releaseRow != null, animationType: 'slide' });
-  useSheetPrimaryHotkey(releaseRow != null && !!plan && plan.allocations.length > 0, applyRelease);
+  // D5: a release reopens settled invoices (money), so Cmd+Enter only — Cmd+S never releases.
+  useSheetPrimaryHotkey(releaseRow != null && !!plan && plan.allocations.length > 0, applyRelease, { saveKey: false });
   const fSources = useSheetFrame('form', { visible: sourcesOpen, animationType: 'slide' });
 
   return (

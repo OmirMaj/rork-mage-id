@@ -25,6 +25,17 @@ export interface ResponsiveLayout {
   // widths and gaps live in constants/designTokens.ts Layout.
 }
 
+/** What layout reads from the rail store, as a string: this route's sidebar width plus the saved pref's two bits.
+ *  useSyncExternalStore compares snapshots with Object.is, so a navigation that keeps both re-renders nobody.
+ *  (Subscribing to the store's snapshot OBJECT re-rendered every mounted layout consumer on every top-level
+ *  navigation, because setSidebarRoute replaces it — wave 6d, r2.) The pref bits are in the key because four
+ *  screens read getSidebarRail().pref during render (whether Schedule Pro fits), and the saved pref loads
+ *  asynchronously: a load that flips only the other kind of route's bit keeps the width but must re-render them. */
+function railLayoutKey(): string {
+  const { topSegment, pref } = getSidebarRail();
+  return `${sidebarWidthForRoute(topSegment, pref)}:${pref.canvas ? 1 : 0}${pref.workspace ? 1 : 0}`;
+}
+
 /**
  * The one breakpoint reader.
  *
@@ -40,7 +51,7 @@ export interface ResponsiveLayout {
  */
 export function useResponsiveLayout(): ResponsiveLayout {
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
-  const rail = useSyncExternalStore(subscribeSidebarRail, getSidebarRail, getSidebarRail);
+  const railKey = useSyncExternalStore(subscribeSidebarRail, railLayoutKey, railLayoutKey);
 
   useEffect(() => {
     const handler = ({ window }: { window: ScaledSize; screen: ScaledSize }) => {
@@ -54,6 +65,7 @@ export function useResponsiveLayout(): ResponsiveLayout {
   const isWeb = Platform.OS === 'web';
 
   return useMemo(() => {
+    const railWidth = parseInt(railKey, 10);
     let screenSize: ScreenSize = 'phone';
     if (width >= 1024 || (isWeb && width >= 900)) {
       screenSize = 'desktop';
@@ -73,9 +85,9 @@ export function useResponsiveLayout(): ResponsiveLayout {
       width,
       height,
       contentMaxWidth: isDesktop ? Layout.page.dashboard : isTablet ? 900 : width,
-      sidebarWidth: isDesktop ? sidebarWidthForRoute(rail.topSegment, rail.pref) : 0,
+      sidebarWidth: isDesktop ? railWidth : 0,
       showSidebar: isDesktop,
       ganttRowHeight: isDesktop ? 40 : isTablet ? 36 : 32,
     };
-  }, [width, height, isWeb, rail]);
+  }, [width, height, isWeb, railKey]);
 }

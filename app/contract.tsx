@@ -166,7 +166,7 @@ function fillContractTerms(
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { ActionBar, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 // Gate: contracts are a Pro billing tool alongside invoices, change orders,
 // and AIA pay apps — all of which hard-gate behind Pro. Previously the
@@ -1792,7 +1792,7 @@ function ContractScreenInner() {
 
         {/* Action bar */}
         {contract.status === 'draft' && (
-          <View style={styles.actionRow}>
+          <ActionBar style={styles.actionRow} width="form">
             <Button
               label="Save draft"
               onPress={handleSaveDraft}
@@ -1808,7 +1808,7 @@ function ContractScreenInner() {
               iconLeft={<FileSignature size={16} color="#FFF" strokeWidth={1.75} />}
               style={{ flex: 1 }}
             />
-          </View>
+          </ActionBar>
         )}
 
         {contract.status === 'sent' && (

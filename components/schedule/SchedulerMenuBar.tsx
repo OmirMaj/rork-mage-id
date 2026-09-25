@@ -15,7 +15,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Layout, Shadow, Tokens } from '@/constants/designTokens';
-import { useHotkeys, type HotkeyBinding } from '@/hooks/useHotkeys';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 import type { SchedulerTabKey } from './SchedulerTabShell';
 
 export interface SchedulerActions {
@@ -78,10 +78,6 @@ export function menuDropdownPosition(
 /** Before a trigger has been measured: just under a toolbar-height bar. */
 const UNMEASURED_DROPDOWN = { top: Layout.control.toolbar + Layout.menu.offset, left: 12 };
 
-/** An open menu is a dialog to the shortcut registry. No handler: RN-web's
- *  Modal closes on Escape through onRequestClose. */
-const MENU_ESC: readonly HotkeyBinding[] = [{ combo: 'escape' }];
-
 export function SchedulerMenuBar({ active, onSelectView, actions, actionsOnly, inline }: {
   /** The current view. Optional with `actionsOnly` (no view items to mark). */
   active?: SchedulerTabKey;
@@ -102,7 +98,10 @@ export function SchedulerMenuBar({ active, onSelectView, actions, actionsOnly, i
   // back after the open has rendered).
   const [pos, setPos] = useState<{ key: string; top: number; left: number } | null>(null);
   const triggers = useRef<Record<string, View | null>>({});
-  useHotkeys(MENU_ESC, { scope: 'dialog', enabled: open !== null });
+  // An open menu is a dialog to the shortcut registry (the page behind it
+  // hears no keys, and Cmd+S never opens "Save page as…" over it). RN-web's
+  // Modal closes it on Escape through onRequestClose.
+  useSheetDialogScope(open !== null);
   // With `actionsOnly` no menu holds a view any more, so none is highlighted
   // as the active group (Plan / Track would otherwise stay accent-coloured).
   const activeMenu = actionsOnly || active == null ? undefined : MENUS.find(m => m.items.some(i => i.view === active));

@@ -116,7 +116,9 @@ import { pdfFailureMessage } from '@/utils/platformFile';
 import { tileGridColumns, useIsDesktopWeb } from '@/components/ui/desktop';
 import { TileGrid } from '@/components/ui/TileGrid';
 import { segmentedDesktop } from '@/components/ui/SegmentedControl';
-import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { useSheetFrame, useSheetPrimaryHotkey, useSheetDialogScope, SheetOverlay, SheetScrim } from '@/components/ui/Sheet';
+import { canOpenSchedulePro, proFitsWindow, scheduleDestination, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';
+import { getSidebarRail } from '@/utils/sidebarRailStore';
 import { SidePanel } from '@/components/desktop/SidePanel';
 import { RowLink, routeHref } from '@/components/desktop/RowLink';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
@@ -841,6 +843,14 @@ export default function ProjectDetailScreen() {
   const fShare = useSheetFrame('dialog', { visible: showShareModal, animationType: 'fade' });
   const fEdit = useSheetFrame('form', { visible: showEditModal, animationType: 'slide' });
   const fNote = useSheetFrame('dialog', { visible: showNoteModal, animationType: 'slide' });
+  // Wave 6d (sheet batch I): the opaque cost-breakdown sheet docks as a
+  // right-hand panel on desktop (fRev, the revision sheet, sits below its
+  // state). On a phone the frame is inert: null styles, the original slide,
+  // `transparent` undefined — the pageSheet stands as it was.
+  const fCost = useSheetFrame('panel', { visible: detailModal !== null, animationType: 'slide' });
+  // The phone section sheet (a pageSheet the desktop never mounts) is a
+  // dialog to the shortcut registry while it is up; no style change.
+  useSheetDialogScope(!isDesktop && activeTile !== null);
   // Photos filter — 'all' or a normalized tag. The chip row defaults to 'all'
   // and we derive the chip set from photos at render-time so new tags appear
   // automatically without code changes.
@@ -866,6 +876,9 @@ export default function ProjectDetailScreen() {
   const [coReflowPreview, setCoReflowPreview] = useState<ChangeOrder | null>(null);
   // Estimate revision detail modal — stores the revision being inspected, or null when closed.
   const [selectedRevision, setSelectedRevision] = useState<EstimateRevision | null>(null);
+  const fRev = useSheetFrame('panel', { visible: selectedRevision !== null, animationType: 'slide' });
+  // The photo lightbox is a full-window viewer: a dialog while it is open.
+  useSheetDialogScope(lightboxPhoto !== null);
   // Revision detail sub-view: null = summary+delta, 'items' = line-items list.
   const [revDetailView, setRevDetailView] = useState<'delta' | 'items'>('delta');
 
@@ -2196,9 +2209,25 @@ export default function ProjectDetailScreen() {
   // (router.replace + the focus nonce — MobileScheduleScreen otherwise keeps
   // whichever job it last showed). Lane DC sends Pro tiers on desktop web on
   // to Schedule Pro.
+  //
+  // Wave 6d (F8): on desktop web the link is scheduleDestination's (the one
+  // answer to "which schedule screen"), and Schedule Pro is PUSHED, so Back
+  // returns to this job page. It used to replace to the classic tab, which
+  // then <Redirect>ed to Pro — two replaces, and Back skipped the job. The
+  // phone line below is unchanged.
   const openSchedule = useCallback(() => {
+    if (deskWeb) {
+      const href = scheduleDestination({
+        projectId: id ?? '',
+        webDesktop: true,
+        canPro: canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE), project?.myRole),
+        proFits: proFitsWindow(layout.width, true, getSidebarRail().pref),
+      });
+      if (href.pathname === '/schedule-pro') router.push(href); else router.replace(href);
+      return;
+    }
     router.replace(routeHref('/(tabs)/schedule', { projectId: id ?? '', focus: String(Date.now()) }));
-  }, [router, id]);
+  }, [router, id, deskWeb, canAccess, project?.myRole, layout.width]);
   const buildSchedule = useCallback(() => { router.replace(routeHref('/(tabs)/discover/schedule')); }, [router]);
   // Cmd/Ctrl+Enter (and Cmd+S) save the edit and note sheets on desktop web.
   useSheetPrimaryHotkey(showEditModal, handleSaveEdit);
@@ -5361,12 +5390,15 @@ export default function ProjectDetailScreen() {
 
       <Modal
         visible={detailModal !== null}
-        animationType="slide"
+        animationType={fCost.animationType}
         presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        transparent={fCost.transparent}
         onRequestClose={() => setDetailModal(null)}
       >
-        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
-          <View style={detailStyles.modalHandle} />
+        <SheetOverlay frame={fCost}>
+        <SheetScrim frame={fCost} onPress={() => setDetailModal(null)} />
+        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }, fCost.card]}>
+          {fCost.showHandle && <View style={detailStyles.modalHandle} />}
           <View style={detailStyles.modalHeader}>
             <Text style={detailStyles.modalTitle}>
               {detailModal === 'total' ? 'Cost Breakdown' : 'Savings Detail'}
@@ -5382,15 +5414,19 @@ export default function ProjectDetailScreen() {
           {detailModal === 'total' && renderTotalDetailModal()}
           {detailModal === 'savings' && renderSavingsDetailModal()}
         </View>
+        </SheetOverlay>
       </Modal>
 
       {/* ── Revision Detail Modal ── */}
       <Modal
         visible={selectedRevision !== null}
-        animationType="slide"
+        animationType={fRev.animationType}
         presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        transparent={fRev.transparent}
         onRequestClose={() => setSelectedRevision(null)}
       >
+        <SheetOverlay frame={fRev}>
+        <SheetScrim frame={fRev} onPress={() => setSelectedRevision(null)} />
         {selectedRevision && (() => {
           // Chronological list (oldest first) for delta calc.
           const chronological = (project.estimateVersions ?? []).slice().sort(
@@ -5402,7 +5438,7 @@ export default function ProjectDetailScreen() {
             ? diffEstimates(olderRev.snapshot, selectedRevision.snapshot)
             : null;
           return (
-            <View style={{ flex: 1, backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
+            <View style={[{ flex: 1, backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }, fRev.card]}>
               <View style={styles.sectionModalHeader}>
                 <TouchableOpacity
                   onPress={() => setSelectedRevision(null)}
@@ -5545,6 +5581,7 @@ export default function ProjectDetailScreen() {
             </View>
           );
         })()}
+        </SheetOverlay>
       </Modal>
 
       <Modal

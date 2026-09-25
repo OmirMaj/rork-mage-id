@@ -303,11 +303,17 @@ console.log('\nsource pins — the old behaviour cannot come back:');
     && /dropdownUnplaced:\s*\{[^}]*opacity:\s*0/.test(menu));
   ok('GridPane: the floating bulk bar takes its shadow from the Shadow token (no hex)',
     /bulkBarFloat:\s*\{[^}]*\.\.\.Shadow\.medium/.test(grid) && !/bulkBarFloat:\s*\{[^}]*#[0-9a-fA-F]{3}/.test(grid));
-  ok('SchedulerMenuBar: a handler-less dialog-scope Esc entry', /useHotkeys\(\s*[A-Z_]+\s*,\s*\{\s*scope:\s*'dialog'/.test(menu));
+  // Wave 6d (sheet batch C, R-POP): the private handler-less Esc entry became
+  // the shared dialog scope, which also consumes Cmd+S.
+  ok('SchedulerMenuBar: an open menu claims the dialog scope', /useSheetDialogScope\(\s*open !== null\s*\)/.test(menu));
   const row = code('components/schedule/ScheduleRowMenu.tsx');
   ok("ScheduleRowMenu: the popover reads Layout.menu", /Layout\.menu\.minWidth/.test(row) && /Layout\.menu\.maxWidth/.test(row));
   ok('ScheduleRowMenu: the popover is desktop-web only and keeps the iOS ActionSheet', /useIsDesktopWeb\(\)/.test(row) && /ActionSheetIOS\.showActionSheetWithOptions/.test(row));
-  ok('ScheduleRowMenu: a handler-less dialog-scope Esc entry', /useHotkeys\(\s*[A-Z_]+\s*,\s*\{\s*scope:\s*'dialog',\s*enabled:\s*visible/.test(row));
+  ok('ScheduleRowMenu: the popover claims the dialog scope', /useSheetDialogScope\(\s*visible && isDesktopWeb && !!anchor\s*\)/.test(row));
+  ok('ScheduleRowMenu: the sheet (no anchor) is framed, above the anchor return',
+    /const fMenu = useSheetFrame\('dialog', \{ visible: visible && !\(isDesktopWeb && anchor\), animationType: 'fade' \}\);/.test(row)
+    && row.indexOf('const fMenu = useSheetFrame(') < row.indexOf('if (isDesktopWeb && anchor)')
+    && /animationType=\{fMenu\.animationType\}/.test(row) && /\[styles\.sheet, fMenu\.card\]/.test(row));
   // Integration round 1: the split's leading set fits INSIDE the grid's 1 px
   // container border; the split's Task Name has no (dead) resize handle; an
   // actions-only menu bar highlights no group; the two new surfaces spread

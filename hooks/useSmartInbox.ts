@@ -144,6 +144,16 @@ export function useSmartInbox(): SmartInboxResult {
     return () => { dismissedSubscribers.delete(handler); };
   }, []);
 
+  // A minute tick. useProjects() is identity-stable (wave 6d), so allItems
+  // below re-runs only on a data change — and its `new Date()` ("Lead waiting
+  // 3h", a permit's days to expiry) would freeze. The tick re-reads the clock
+  // once a minute; it is cleared on unmount.
+  const [minute, setMinute] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setMinute(m => m + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const dismiss = useCallback((id: string) => {
     if (dismissedStore.has(id)) return;
     dismissedStore = new Set(dismissedStore);
@@ -488,7 +498,10 @@ export function useSmartInbox(): SmartInboxResult {
     });
 
     return out;
-  }, [store]);
+    // `minute` is the clock tick above: the memo reads the clock (`new Date()`),
+    // not the counter, so the rule cannot see why it is a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, minute]);
 
   const items = useMemo(() => allItems.filter(i => !dismissedIds.has(i.id)), [allItems, dismissedIds]);
 

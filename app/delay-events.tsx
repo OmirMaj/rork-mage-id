@@ -38,6 +38,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, SheetOverlay, SheetScrim } from '@/components/ui/Sheet';
 import { generateUUID } from '@/utils/generateId';
 import {
   loadAuditFromAsyncStorage, loadScheduleAudit, findScheduleAuditEntries,
@@ -279,6 +280,12 @@ export default function DelayEventsScreen() {
     () => events.find((e) => e.id === openEventId) ?? null,
     [events, openEventId],
   );
+  // Wave 6d (sheet batch I): the three full-window sheets dock as right-hand
+  // panels on desktop; on a phone each frame is inert (null styles, the
+  // original slide, `transparent` left at false).
+  const fLog = useSheetFrame('panel', { visible: showLogModal, animationType: 'slide' });
+  const fEvent = useSheetFrame('panel', { visible: openEvent !== null && !showLogModal, animationType: 'slide' });
+  const fEvidence = useSheetFrame('panel', { visible: showEvidencePicker, animationType: 'slide' });
 
   // ── The log-a-delay form ──────────────────────────────────────────────────
   const [formCause, setFormCause] = useState<DelayCause>('other');
@@ -696,8 +703,10 @@ export default function DelayEventsScreen() {
       />
 
       {/* ── Log a delay ───────────────────────────────────────────────────── */}
-      <Modal visible={showLogModal} animationType="slide" transparent={false} onRequestClose={() => setShowLogModal(false)}>
-        <View style={[styles.root, { paddingTop: insets.top }]}>
+      <Modal visible={showLogModal} animationType={fLog.animationType} transparent={fLog.transparent ?? false} onRequestClose={() => setShowLogModal(false)}>
+        <SheetOverlay frame={fLog}>
+        <SheetScrim frame={fLog} onPress={() => setShowLogModal(false)} />
+        <View style={[styles.root, { paddingTop: insets.top }, fLog.card]}>
           <View style={styles.headerBar}>
             <TouchableOpacity style={styles.backBtn} onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
               <ChevronLeft size={22} color={t.text} strokeWidth={2} />
@@ -796,12 +805,15 @@ export default function DelayEventsScreen() {
             </View>
           </ScrollView>
         </View>
+        </SheetOverlay>
       </Modal>
 
       {/* ── Event detail ──────────────────────────────────────────────────── */}
-      <Modal visible={openEvent !== null && !showLogModal} animationType="slide" transparent={false} onRequestClose={() => setOpenEventId(null)}>
+      <Modal visible={openEvent !== null && !showLogModal} animationType={fEvent.animationType} transparent={fEvent.transparent ?? false} onRequestClose={() => setOpenEventId(null)}>
+        <SheetOverlay frame={fEvent}>
+        <SheetScrim frame={fEvent} onPress={() => setOpenEventId(null)} />
         {openEvent && (
-          <View style={[styles.root, { paddingTop: insets.top }]}>
+          <View style={[styles.root, { paddingTop: insets.top }, fEvent.card]}>
             <View style={styles.headerBar}>
               <TouchableOpacity style={styles.backBtn} onPress={() => setOpenEventId(null)} accessibilityRole="button" accessibilityLabel="Close">
                 <ChevronLeft size={22} color={t.text} strokeWidth={2} />
@@ -910,6 +922,7 @@ export default function DelayEventsScreen() {
             </ScrollView>
           </View>
         )}
+        </SheetOverlay>
       </Modal>
 
       {/* ── Record a notice ───────────────────────────────────────────────── */}
@@ -928,8 +941,10 @@ export default function DelayEventsScreen() {
       />
 
       {/* ── Attach evidence ───────────────────────────────────────────────── */}
-      <Modal visible={showEvidencePicker} animationType="slide" transparent={false} onRequestClose={() => setShowEvidencePicker(false)}>
-        <View style={[styles.root, { paddingTop: insets.top }]}>
+      <Modal visible={showEvidencePicker} animationType={fEvidence.animationType} transparent={fEvidence.transparent ?? false} onRequestClose={() => setShowEvidencePicker(false)}>
+        <SheetOverlay frame={fEvidence}>
+        <SheetScrim frame={fEvidence} onPress={() => setShowEvidencePicker(false)} />
+        <View style={[styles.root, { paddingTop: insets.top }, fEvidence.card]}>
           <View style={styles.headerBar}>
             <TouchableOpacity style={styles.backBtn} onPress={() => setShowEvidencePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
               <ChevronLeft size={22} color={t.text} strokeWidth={2} />
@@ -980,6 +995,7 @@ export default function DelayEventsScreen() {
             </View>
           </ScrollView>
         </View>
+        </SheetOverlay>
       </Modal>
     </View>
   );
@@ -1002,11 +1018,12 @@ function NoticePeriodModal({
 }) {
   const [custom, setCustom] = useState('');
   const current = effectiveNoticePeriod(project);
+  const fPeriod = useSheetFrame('form', { visible, animationType: 'slide' });
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.sheetBackdrop}>
-        <View style={styles.sheet}>
+    <Modal visible={visible} animationType={fPeriod.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.sheetBackdrop, fPeriod.overlay]}>
+        <View style={[styles.sheet, fPeriod.card]}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle} numberOfLines={1}>Written-notice period</Text>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}>
@@ -1146,6 +1163,7 @@ function NoticeFormModal({
   };
   const violations = noticeViolations(draft);
   const methodWarn = noticeMethodWarning(requiredMethod, method);
+  const fNotice = useSheetFrame('panel', { visible, animationType: 'slide' });
 
   const save = () => {
     if (violations.length > 0) {
@@ -1160,8 +1178,10 @@ function NoticeFormModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={[styles.root, { paddingTop: insetTop }]}>
+    <Modal visible={visible} animationType={fNotice.animationType} transparent={fNotice.transparent ?? false} onRequestClose={onClose}>
+      <SheetOverlay frame={fNotice}>
+      <SheetScrim frame={fNotice} onPress={onClose} />
+      <View style={[styles.root, { paddingTop: insetTop }, fNotice.card]}>
         <View style={styles.headerBar}>
           <TouchableOpacity style={styles.backBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
             <ChevronLeft size={22} color={t.text} strokeWidth={2} />
@@ -1296,6 +1316,7 @@ function NoticeFormModal({
           </View>
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

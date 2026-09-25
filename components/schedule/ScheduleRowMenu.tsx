@@ -21,7 +21,7 @@ import { Type } from '@/constants/typography';
 import { Layout, Shadow, Tokens } from '@/constants/designTokens';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { cardSurface } from '@/components/ui';
-import { useHotkeys, type HotkeyBinding } from '@/hooks/useHotkeys';
+import { SheetOverlay, useSheetDialogScope, useSheetFrame } from '@/components/ui/Sheet';
 
 export interface RowMenuAction { key: string; label: string; destructive?: boolean; onPress: () => void }
 
@@ -48,11 +48,6 @@ export function useScheduleRowMenu() {
     return false; // caller should open the modal instead
   };
 }
-
-/** The open menu is a dialog to the shortcut registry: while it is up, the
- *  page behind it hears no keys. No handler — RN-web's Modal already closes
- *  on Escape through onRequestClose; a handler here would close it twice. */
-const ROW_MENU_ESC: readonly HotkeyBinding[] = [{ combo: 'escape' }];
 
 /** Title row + one row per action, before the popover has measured itself. */
 const POPOVER_TITLE_H = 32;
@@ -89,7 +84,13 @@ export function ScheduleRowMenu({ visible, title, actions, onClose, anchor }: {
   const styles = useThemedStyles(makeStyles);
   const isDesktopWeb = useIsDesktopWeb();
   const [measuredH, setMeasuredH] = useState<number | null>(null);
-  useHotkeys(ROW_MENU_ESC, { scope: 'dialog', enabled: visible });
+  // The open menu is a dialog to the shortcut registry: while it is up, the
+  // page behind it hears no keys. The popover claims it here; the sheet (no
+  // anchor) claims it through its frame, which on desktop also centres it as
+  // a dialog card instead of a full-width strip. RN-web's Modal closes both on
+  // Escape through onRequestClose.
+  useSheetDialogScope(visible && isDesktopWeb && !!anchor);
+  const fMenu = useSheetFrame('dialog', { visible: visible && !(isDesktopWeb && anchor), animationType: 'fade' });
 
   if (isDesktopWeb && anchor) {
     const h = measuredH ?? POPOVER_TITLE_H + actions.length * POPOVER_ITEM_H + 12;
@@ -133,9 +134,10 @@ export function ScheduleRowMenu({ visible, title, actions, onClose, anchor }: {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
+    <Modal visible={visible} transparent animationType={fMenu.animationType} onRequestClose={onClose}>
+      <SheetOverlay frame={fMenu}>
+      <Pressable style={[styles.backdrop, fMenu.backdrop]} onPress={onClose} />
+      <View style={[styles.sheet, fMenu.card]}>
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         {actions.map(a => (
           <Pressable key={a.key} style={styles.item} onPress={() => { onClose(); a.onPress(); }}>
@@ -143,6 +145,7 @@ export function ScheduleRowMenu({ visible, title, actions, onClose, anchor }: {
           </Pressable>
         ))}
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

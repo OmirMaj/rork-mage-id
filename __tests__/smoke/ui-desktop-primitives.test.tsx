@@ -47,12 +47,13 @@ import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import {
   Button,
   SegmentedControl,
   Sheet,
   SheetOverlay,
+  SheetScrim,
   useSheetFrame,
   ActionBar,
   ActionBarReadout,
@@ -304,6 +305,19 @@ describe('phone (390 native): byte-identical to today', () => {
     expect((frame as unknown as SheetFrame).isDesktop).toBe(false);
   });
 
+  it('SheetScrim on a phone renders null — no host node (wave 6d)', () => {
+    let frame: SheetFrame | null = null;
+    function Probe() {
+      frame = useSheetFrame('form', { visible: true, animationType: 'slide' });
+      return <SheetScrim frame={frame} onPress={noop} />;
+    }
+    function Empty() {
+      return null;
+    }
+    expect(serialize(<Probe />)).toBe(serialize(<Empty />));
+    expect((frame as unknown as SheetFrame).isDesktop).toBe(false);
+  });
+
   it('segmentedDesktop behind `isDesktop &&` drops out on a phone', () => {
     const isDesktop = false;
     const seg = { flex: 1, minHeight: 44 };
@@ -496,6 +510,22 @@ describe('desktop (1512 web): the desktop rules', () => {
     expect(root.type).toBe('View');
     expect(flat(root.props.style)).toMatchObject({ flex: 1, justifyContent: 'center', alignItems: 'center' });
     expect((root.children ?? []).map((c) => c.props.testID)).toEqual(['scrim', 'card']);
+  });
+
+  it('SheetScrim on desktop: an absoluteFill Pressable in Colors.overlay (wave 6d)', () => {
+    const onPress = jest.fn();
+    function Probe() {
+      const f = useSheetFrame('form', { visible: true, animationType: 'slide' });
+      return <SheetScrim frame={f} onPress={onPress} label="Close sheet" />;
+    }
+    const r = render(<Wrap><Probe /></Wrap>);
+    const scrim = r.getByLabelText('Close sheet');
+    expect(scrim.props.accessibilityRole).toBe('button');
+    expect(flat(scrim.props.style)).toEqual({
+      backgroundColor: Colors.overlay, position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+    });
+    fireEvent.press(scrim);
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 
   it('Sheet: destructive far left, primary rightmost, card capped', () => {

@@ -11,15 +11,20 @@
 //               38 tasks · 9 critical · finish Fri Mar 20 ●
 //   Row 2 (40)  [Split|Gantt|List|Board|Overview] More ▾      − Fit Today +   Rows [Compact|Comfortable]   Plan ▾ Track ▾ Share ▾
 //
+// Row 2 needs ~1236 px. Narrower, it collapses step by step instead of running
+// past the right edge (row2Plan in utils/scheduleProLayout): the "Rows" label
+// goes and density becomes one toggle; then Board and Overview move into
+// More ▾; then Fit and Today become icons.
+//
 // The command field is the one front door to the AI: a question ("what's
 // driving the finish?") opens the pane's Ask tab and asks it; anything else
 // ("push paint 2 days") opens the Change tab and sends it as his first turn.
 //
 // Desktop only — the screen renders this in its desktop tree.
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, Modal, StyleSheet, useWindowDimensions } from 'react-native';
-import { ChevronLeft, Undo2, Redo2, Download, Minus, Plus, ChevronDown } from 'lucide-react-native';
+import { ChevronLeft, Undo2, Redo2, Download, Minus, Plus, ChevronDown, Maximize2, CalendarDays } from 'lucide-react-native';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/SegmentedControl';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { SchedulerMenuBar, type SchedulerActions } from '@/components/schedule/SchedulerMenuBar';
@@ -29,8 +34,9 @@ import { Type } from '@/constants/typography';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
 import {
-  MORE_VIEWS, PRIMARY_VIEWS, VIEW_LABEL, type Density, type ProView,
+  ALL_VIEWS, VIEW_LABEL, row2Plan, type Density, type ProView,
 } from '@/utils/scheduleProLayout';
 import type { VerdictTone } from '@/utils/scheduleVerdict';
 
@@ -72,11 +78,12 @@ export function zoomEnabledFor(view: ProView): boolean {
   return view === 'split' || view === 'gantt';
 }
 
-const VIEW_OPTIONS: SegmentedOption<ProView>[] = PRIMARY_VIEWS.map((v) => ({ value: v, label: VIEW_LABEL[v], testID: `schedule-view-${v}` }));
+const viewOption = (v: ProView): SegmentedOption<ProView> => ({ value: v, label: VIEW_LABEL[v], testID: `schedule-view-${v}` });
 const DENSITY_OPTIONS: SegmentedOption<Density>[] = [
   { value: 'compact', label: 'Compact', testID: 'schedule-density-compact' },
   { value: 'comfortable', label: 'Comfortable', testID: 'schedule-density-comfortable' },
 ];
+const DENSITY_LABEL: Readonly<Record<'compact' | 'comfortable', string>> = { compact: 'Compact', comfortable: 'Comfortable' };
 
 export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
   const { colors: t } = useTheme();
@@ -96,8 +103,19 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
   const zoomOn = zoomEnabledFor(p.view);
   const zoomReason = zoomOn ? undefined : 'Zoom works on the Split and Gantt views';
 
-  // "More ▾": the four views that are not on the segmented control.
+  // "More ▾": every view that is not on the segmented control (four, or six
+  // once a narrow row 2 moves Board and Overview in).
   const { width: windowWidth } = useWindowDimensions();
+  // Row 2 collapses instead of overflowing (wave 6d, C4): the plan follows the
+  // toolbar's OWN measured width. Unmeasured (the first frame, and any
+  // renderer with no layout) reads 0, which row2Plan treats as "everything".
+  // The dropdown's `left` clamp below stays on the window: it is a fixed Modal.
+  const { width: barW, measured: barMeasured, onLayout: onBarLayout } = useContainerWidth();
+  const plan = row2Plan(barMeasured ? barW : 0);
+  const viewOptions = useMemo(() => plan.primary.map(viewOption), [plan.primary]);
+  const moreViews = useMemo(() => ALL_VIEWS.filter((v) => !plan.primary.includes(v)), [plan.primary]);
+  const densityNow: 'compact' | 'comfortable' = p.density === 'comfortable' ? 'comfortable' : 'compact';
+  const densityNext: 'compact' | 'comfortable' = densityNow === 'compact' ? 'comfortable' : 'compact';
   const [moreOpen, setMoreOpen] = useState(false);
   const [morePos, setMorePos] = useState<{ top: number; left: number } | null>(null);
   const moreRef = useRef<View | null>(null);
@@ -113,10 +131,10 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
         : { top: Layout.control.toolbar * 2, left: Layout.gutter });
     });
   };
-  const moreActive = MORE_VIEWS.includes(p.view);
+  const moreActive = moreViews.includes(p.view);
 
   return (
-    <View style={styles.root} testID="schedule-pro-toolbar">
+    <View style={styles.root} testID="schedule-pro-toolbar" onLayout={onBarLayout}>
       {/* ── Row 1 ─────────────────────────────────────────────────────── */}
       <View style={styles.row1} testID="schedule-toolbar-row1">
         <Pressable onPress={p.onBack} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Back" hitSlop={4}>
@@ -174,7 +192,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
       {/* ── Row 2 ─────────────────────────────────────────────────────── */}
       <View style={styles.row2} testID="schedule-toolbar-row2">
         <SegmentedControl
-          options={VIEW_OPTIONS}
+          options={viewOptions}
           value={p.view}
           onChange={p.onView}
           variant="pill"
@@ -198,28 +216,44 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           <Pressable onPress={p.zoom.zoomOut} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom out' : `Zoom out — ${zoomReason}`} testID="schedule-zoom-out">
             <Minus size={14} color={t.textSecondary} strokeWidth={1.75} />
           </Pressable>
-          <Pressable onPress={p.zoom.fit} disabled={!zoomOn} style={[styles.textBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Fit the whole project' : `Fit — ${zoomReason}`} testID="schedule-zoom-fit">
-            <Text style={styles.textBtnLabel}>Fit</Text>
+          <Pressable onPress={p.zoom.fit} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Fit the whole project' : `Fit — ${zoomReason}`} testID="schedule-zoom-fit">
+            {plan.zoomLabels
+              ? <Text style={styles.textBtnLabel}>Fit</Text>
+              : <Maximize2 size={14} color={t.textSecondary} strokeWidth={1.75} />}
           </Pressable>
-          <Pressable onPress={p.zoom.today} disabled={!zoomOn} style={[styles.textBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Scroll to today' : `Today — ${zoomReason}`} testID="schedule-zoom-today">
-            <Text style={styles.textBtnLabel}>Today</Text>
+          <Pressable onPress={p.zoom.today} disabled={!zoomOn} style={[plan.zoomLabels ? styles.textBtn : styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Scroll to today' : `Today — ${zoomReason}`} testID="schedule-zoom-today">
+            {plan.zoomLabels
+              ? <Text style={styles.textBtnLabel}>Today</Text>
+              : <CalendarDays size={14} color={t.textSecondary} strokeWidth={1.75} />}
           </Pressable>
           <Pressable onPress={p.zoom.zoomIn} disabled={!zoomOn} style={[styles.iconBtn, !zoomOn && styles.disabled]} accessibilityRole="button" accessibilityLabel={zoomOn ? 'Zoom in' : `Zoom in — ${zoomReason}`} testID="schedule-zoom-in">
             <Plus size={14} color={t.textSecondary} strokeWidth={1.75} />
           </Pressable>
         </View>
-        <View style={styles.group}>
-          <Text style={styles.groupLabel}>Rows</Text>
-          <SegmentedControl
-            options={DENSITY_OPTIONS}
-            value={p.density === 'comfortable' ? 'comfortable' : 'compact'}
-            onChange={p.onDensity}
-            variant="pill"
-            size="sm"
-            accessibilityLabel="Row density"
+        {plan.density === 'segmented' ? (
+          <View style={styles.group}>
+            {plan.rowsLabel ? <Text style={styles.groupLabel}>Rows</Text> : null}
+            <SegmentedControl
+              options={DENSITY_OPTIONS}
+              value={densityNow}
+              onChange={p.onDensity}
+              variant="pill"
+              size="sm"
+              accessibilityLabel="Row density"
+              testID="schedule-density"
+            />
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => p.onDensity(densityNext)}
+            style={styles.textBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`Row density: ${DENSITY_LABEL[densityNow]}. Switch to ${DENSITY_LABEL[densityNext]}`}
             testID="schedule-density"
-          />
-        </View>
+          >
+            <Text style={styles.textBtnLabel}>{DENSITY_LABEL[densityNow]}</Text>
+          </Pressable>
+        )}
         <SchedulerMenuBar actionsOnly inline actions={p.actions} />
       </View>
 
@@ -230,7 +264,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           accessibilityRole="menu"
           testID="schedule-view-more-menu"
         >
-          {MORE_VIEWS.map((v) => (
+          {moreViews.map((v) => (
             <Pressable
               key={v}
               style={styles.menuItem}

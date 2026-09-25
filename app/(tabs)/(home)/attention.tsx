@@ -22,6 +22,14 @@
 // the action rail is off here (actionRailVisible: segments[2] === 'attention').
 // On a phone DataTable renders the simple cards, so a deep link works; no
 // phone entry point is added.
+//
+// LOADING (wave 6d, lane V3 — runtime fix C6). The boot gate waits only for
+// projects, settings, onboarding and role; change orders and daily reports land
+// after it. On desktop the 'bill' view says 'Loading…' until changeOrdersLoaded
+// and 'logs' until dailyReportsLoaded, and their segments show no count — a
+// hard refresh used to say "No change orders are drafted" and paint every job
+// as owing a log. Desktop only (billLoading / logsLoading are `isDesktop &&`),
+// so the phone deep-link render is byte-identical (w6d-v3-phone golden).
 
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
@@ -51,6 +59,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -120,7 +129,11 @@ export default function AttentionScreen() {
   const [severity, setSeverity] = useState<SeverityFilter>('all');
 
   const { items, sourceFailed } = useBrainWatch();
-  const { projects, rfis, submittals, changeOrders, dailyReports, settings } = useProjects();
+  const { projects, rfis, submittals, changeOrders, dailyReports, settings, projectsLoaded, changeOrdersLoaded, dailyReportsLoaded } = useProjects();
+  const { isDesktop } = useResponsiveLayout();
+  // Desktop only: the phone render must not change by one node.
+  const billLoading = isDesktop && !(projectsLoaded && changeOrdersLoaded);
+  const logsLoading = isDesktop && !(projectsLoaded && dailyReportsLoaded);
 
   // The rail's inline check, kept inline as the rail keeps it: RFIs and
   // submittals the canonical set does not count gate the all-clear sentence.
@@ -158,10 +171,11 @@ export default function AttentionScreen() {
     [projects, warrantyMonths],
   );
 
-  const counts: Record<AttentionView, number> = {
+  // An unloaded list has no count (never a 0 it has not earned).
+  const counts: Record<AttentionView, number | undefined> = {
     needs: items.length,
-    bill: ready.rows.length,
-    logs: logRows.length,
+    bill: billLoading ? undefined : ready.rows.length,
+    logs: logsLoading ? undefined : logRows.length,
     warranty: walks.length,
   };
 
@@ -239,6 +253,12 @@ export default function AttentionScreen() {
     </View>
   );
 
+  const loadingLine = (
+    <View style={styles.empty} testID={`attention-${view}-loading`}>
+      <Text style={styles.emptySubtitle}>Loading…</Text>
+    </View>
+  );
+
   let body: React.ReactNode;
   if (view === 'needs') {
     body = items.length === 0 ? (
@@ -309,6 +329,8 @@ export default function AttentionScreen() {
         />
       </>
     );
+  } else if (view === 'bill' && billLoading) {
+    body = loadingLine;
   } else if (view === 'bill') {
     body = ready.rows.length === 0 ? emptyLine('No change orders are drafted and waiting to be sent.') : (
       <DataTable<DraftedCORow>
@@ -325,6 +347,8 @@ export default function AttentionScreen() {
         testID="attention-bill-table"
       />
     );
+  } else if (view === 'logs' && logsLoading) {
+    body = loadingLine;
   } else if (view === 'logs') {
     body = logRows.length === 0 ? emptyLine('No active job owes a daily log, and none has a gap in the last 30 days.') : (
       <DataTable<DailyLogGapRow>
