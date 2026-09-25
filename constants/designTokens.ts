@@ -152,6 +152,10 @@ export const Motion = {
     page: 350,
     /** Long: full-screen state changes (rare). */
     slow: 500,
+    /** Content swap cross-fade (useSwapFade): a tab or segment body. */
+    swap: 160,
+    /** LayoutAnimation commit (layoutNext): a list row added / removed. */
+    layout: 240,
   },
   /** Bezier curves — only ease-out for entries, ease-in for exits. */
   easing: {
@@ -159,16 +163,30 @@ export const Motion = {
     decelerate: [0.0, 0.0, 0.2, 1] as const,  // ease-out (entries)
     accelerate: [0.4, 0.0, 1, 1] as const,    // ease-in (exits)
   },
-  /** Reanimated spring presets — use these instead of timings on press
-   *  states. Apple iOS feels-spring-physics is what makes things feel
-   *  alive vs canned. */
+  /** RN Animated.spring configs (stiffness/damping/mass only; never
+   *  bounciness/friction). Use these instead of timings on press states.
+   *  Every preset keeps the damping ratio ζ = damping / (2·√(stiffness·mass))
+   *  inside [0.75, 1.05] — a tiny overshoot at most, never a bounce;
+   *  scripts/validate-motion.ts fails the build on one outside it. */
   spring: {
-    /** Tap feedback on a button — fast, snappy. */
-    snap: { damping: 14, stiffness: 220, mass: 0.8 },
+    /** Tap feedback on a button — fast, snappy. ζ≈0.83: under 1% overshoot,
+     *  settled in ~180 ms (was ζ≈0.53, a visible wobble on release). */
+    snap: { damping: 34, stiffness: 420, mass: 1 },
     /** Modal / sheet — settled, deliberate. */
     settled: { damping: 22, stiffness: 180, mass: 1 },
     /** Heavy element (card flip, big drawer). */
     heavy: { damping: 28, stiffness: 140, mass: 1.4 },
+    /** A sheet card rising into place on open (useRiseOnOpen). ζ≈0.96. */
+    rise: { damping: 31, stiffness: 260, mass: 1 },
+    /** A gliding indicator's leading edge — quick. ζ≈0.96. */
+    glideLead: { damping: 44, stiffness: 520, mass: 1 },
+    /** A gliding indicator's trailing edge — a beat behind. ζ≈0.97. */
+    glideTrail: { damping: 30, stiffness: 240, mass: 1 },
+  },
+  /** Web CSS timing functions (react-native-web passthrough). */
+  css: {
+    /** Entries and hover glides: fast out, long settle. */
+    easeOut: 'cubic-bezier(0.2, 0, 0, 1)',
   },
 } as const;
 

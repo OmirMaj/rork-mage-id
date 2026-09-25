@@ -53,6 +53,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useInActionBar } from './ActionBar';
 import { useIsDesktopWeb } from './desktop';
+import { nativeDriver, reducedMotion } from './motion';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -115,17 +116,21 @@ export function Button({
   const sz = SIZE_MAP[size];
   const isDisabled = disabled || loading;
 
+  // Motion.spring.snap is ζ≈0.83: the press settles with no wobble on
+  // release. Reduce Motion: no press scale at all (the value stays at 1).
   const handlePressIn = () => {
+    if (reducedMotion()) return;
     Animated.spring(scale, {
       toValue: 0.97,
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
       ...Tokens.motion.spring.snap,
     }).start();
   };
   const handlePressOut = () => {
+    if (reducedMotion()) { scale.setValue(1); return; }
     Animated.spring(scale, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
       ...Tokens.motion.spring.snap,
     }).start();
   };
@@ -140,15 +145,29 @@ export function Button({
   // fullWidth only outside an ActionBar (the bar owns the size there).
   const dsz = DESKTOP_SIZE_MAP[inBar ? 'md' : size];
   const stretch = fullWidth && !(desktop && inBar);
-  const pressableStyle: StyleProp<ViewStyle> = desktop
-    ? [
-        styles.base,
-        styles[variant],
-        { height: dsz.height, paddingHorizontal: dsz.px, minWidth: dsz.minWidth },
-        stretch && styles.fullWidth,
-        isDisabled && styles.disabled,
-        style,
-      ]
+  //
+  // Desktop web only, the style is a function of RN-web's hover state: a
+  // filled button darkens a touch, a quiet one takes a soft fill, and the
+  // global CSS in components/desktop/webDocument.ts (MOTION_CSS) glides the
+  // colour over 120 ms. At rest it returns the plain desktop array itself —
+  // no trailing entry — so an un-hovered tree is unchanged.
+  const desktopArray: StyleProp<ViewStyle> = [
+    styles.base,
+    styles[variant],
+    { height: dsz.height, paddingHorizontal: dsz.px, minWidth: dsz.minWidth },
+    stretch && styles.fullWidth,
+    isDisabled && styles.disabled,
+    style,
+  ];
+  const hoverStyle =
+    variant === 'primary' || variant === 'destructive'
+      ? styles.hoverFill
+      : variant === 'ghost'
+        ? styles.hoverGhost
+        : styles.hoverQuiet;
+  const pressableStyle: React.ComponentProps<typeof Pressable>['style'] = desktop
+    ? (state) =>
+        (state as { hovered?: boolean }).hovered && !isDisabled ? [desktopArray, hoverStyle] : desktopArray
     : [
         styles.base,
         styles[variant],
@@ -194,16 +213,27 @@ export function Button({
         accessibilityRole="button"
         accessibilityState={{ disabled: isDisabled }}
       >
-        {loading ? (
+        {loading && !desktop ? (
           <ActivityIndicator color={textColor} />
         ) : (
-          <View style={styles.row}>
-            {iconLeft ? <View style={styles.iconLeft}>{iconLeft}</View> : null}
-            <Text style={[styles.label, { fontSize: sz.fontSize, color: textColor }]}>
-              {label}
-            </Text>
-            {iconRight ? <View style={styles.iconRight}>{iconRight}</View> : null}
-          </View>
+          // Desktop web: loading keeps the label row (invisible) so the button
+          // holds its width, and the spinner sits over it — a hugging button
+          // no longer shrinks to a spinner and back. The phone keeps today's
+          // swap (ui-desktop-primitives proves it against the old Button).
+          <>
+            <View style={loading ? [styles.row, styles.labelHidden] : styles.row}>
+              {iconLeft ? <View style={styles.iconLeft}>{iconLeft}</View> : null}
+              <Text style={[styles.label, { fontSize: sz.fontSize, color: textColor }]}>
+                {label}
+              </Text>
+              {iconRight ? <View style={styles.iconRight}>{iconRight}</View> : null}
+            </View>
+            {loading ? (
+              <View pointerEvents="none" style={styles.spinnerOverlay}>
+                <ActivityIndicator color={textColor} />
+              </View>
+            ) : null}
+          </>
         )}
       </Pressable>
     </Animated.View>
@@ -249,6 +279,16 @@ const makeStyles = (t: ThemeColors) =>
       letterSpacing: -0.15,
     },
     row: { flexDirection: 'row', alignItems: 'center' },
+    labelHidden: { opacity: 0 },
+    spinnerOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Desktop-web hover (see pressableStyle).
+    hoverFill: { filter: 'brightness(0.94)' },
+    hoverQuiet: { backgroundColor: t.surfaceAlt },
+    hoverGhost: { backgroundColor: t.neutralSoft },
     iconLeft: { marginRight: 8 },
     iconRight: { marginLeft: 8 },
   });
