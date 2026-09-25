@@ -58,6 +58,8 @@ import type { EntityKind } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useReducedMotion, webMotion } from '@/components/ui';
 
 // ---------------------------------------------------------------------------
 // Storage
@@ -177,6 +179,9 @@ export default function UniversalSearch() {
   // Modal's onRequestClose and the Esc listener below still close it), so a
   // page-scope record behind it keeps its Esc (wave 6c).
   useSheetDialogScope(isOpen);
+  const desktopWeb = useIsDesktopWeb();
+  // Read as state so the pop-in class follows a Reduce Motion toggle.
+  const reduceMotion = useReducedMotion();
 
   // MAGE Brain quick actions — the surface does more than navigate: ask it
   // (chat), speak to it (voice capture), get help. Close the search sheet
@@ -346,10 +351,14 @@ export default function UniversalSearch() {
     );
   };
 
+  // Desktop web (Cmd+K): the palette fades and pops in instead of sliding up
+  // from the bottom of a 945 px window. The phone is unchanged.
+  const popIn = desktopWeb && !reduceMotion ? webMotion('popIn') : null;
+
   return (
     <Modal
       visible={isOpen}
-      animationType="slide"
+      animationType={desktopWeb ? 'fade' : 'slide'}
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
       transparent={Platform.OS !== 'ios'}
       onRequestClose={closeSearch}
@@ -357,6 +366,7 @@ export default function UniversalSearch() {
       <View style={[
         styles.container,
         Platform.OS !== 'ios' && { paddingTop: insets.top },
+        ...(popIn ? [popIn] : []),
       ]}>
         {/* Header */}
         <View style={styles.header}>

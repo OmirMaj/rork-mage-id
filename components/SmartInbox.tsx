@@ -28,6 +28,7 @@ import { useSmartInbox, type InboxItem, type InboxCategory } from '@/hooks/useSm
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { layoutNext } from '@/components/ui/motion';
 
 type FilterKey = 'all' | InboxCategory;
 
@@ -72,6 +73,8 @@ export default function SmartInbox() {
 
   const onRowDismiss = useCallback((item: InboxItem) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // The row fades out and the ones below slide up into its place.
+    layoutNext();
     dismiss(item.id);
   }, [dismiss]);
 
@@ -158,7 +161,10 @@ export default function SmartInbox() {
 
       {hiddenCount > 0 && (
         <TouchableOpacity
-          onPress={() => setExpanded(true)}
+          onPress={() => {
+            layoutNext();
+            setExpanded(true);
+          }}
           style={styles.showAllBtn}
           activeOpacity={0.7}
           testID="inbox-show-all"
@@ -169,7 +175,10 @@ export default function SmartInbox() {
       )}
       {expanded && visible.length > DEFAULT_TOP && (
         <TouchableOpacity
-          onPress={() => setExpanded(false)}
+          onPress={() => {
+            layoutNext();
+            setExpanded(false);
+          }}
           style={styles.showAllBtn}
           activeOpacity={0.7}
           testID="inbox-collapse"

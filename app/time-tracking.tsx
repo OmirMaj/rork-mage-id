@@ -1154,15 +1154,15 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
   // Desktop sheets (wave 6c): a capped card centred in the content column.
   // Clock In has no single primary — the crew member IS the action.
-  const fClockIn = useSheetFrame('form', { visible: showClockInModal, animationType: 'slide' });
-  const fAlert = useSheetFrame('dialog', { visible: showAlertPicker, animationType: 'slide' });
-  const fRates = useSheetFrame('form', { visible: showRatesModal, animationType: 'slide' });
+  const fClockIn = useSheetFrame('form', { visible: showClockInModal, animationType: 'slide', rise: true });
+  const fAlert = useSheetFrame('dialog', { visible: showAlertPicker, animationType: 'slide', rise: true });
+  const fRates = useSheetFrame('form', { visible: showRatesModal, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(showRatesModal, commitRateDrafts);
-  const fCorrect = useSheetFrame('form', { visible: correcting !== null, animationType: 'slide' });
+  const fCorrect = useSheetFrame('form', { visible: correcting !== null, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(correcting !== null, handleSaveCorrection);
-  const fOut = useSheetFrame('dialog', { visible: outFor !== null, animationType: 'slide' });
+  const fOut = useSheetFrame('dialog', { visible: outFor !== null, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(outFor !== null, handleSaveOutTime);
-  const fExport = useSheetFrame('form', { visible: showExport, animationType: 'slide' });
+  const fExport = useSheetFrame('form', { visible: showExport, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(showExport, () => { void handleExportCSV(); });
 
   // History on desktop: one row per finished shift, sortable, searchable; a
@@ -1500,7 +1500,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
       <Modal visible={showClockInModal} transparent animationType={fClockIn.animationType} onRequestClose={() => setShowClockInModal(false)}>
         <View style={[styles.modalOverlay, fClockIn.overlay]}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fClockIn.card]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fClockIn.card, fClockIn.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock In</Text>
               <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1720,7 +1720,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               ))}
             </ScrollView>
             )}
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -1730,7 +1730,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           (a 7h-15m alert is overkill — the daily decision is whole hours). */}
       <Modal visible={showAlertPicker} transparent animationType={fAlert.animationType} onRequestClose={() => setShowAlertPicker(false)}>
         <View style={[styles.modalOverlay, fAlert.overlay]}>
-          <View style={[styles.modalCard, fAlert.card]}>
+          <Animated.View style={[styles.modalCard, fAlert.card, fAlert.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Shift alert</Text>
               <TouchableOpacity onPress={() => setShowAlertPicker(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1763,7 +1763,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 );
               })}
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -1772,7 +1772,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           trade's hours stay out of the cost book. */}
       <Modal visible={showRatesModal} transparent animationType={fRates.animationType} onRequestClose={commitRateDrafts}>
         <View style={[styles.modalOverlay, fRates.overlay]}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fRates.card]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fRates.card, fRates.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Labor rates</Text>
               <TouchableOpacity onPress={commitRateDrafts} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Save and close">
@@ -1886,7 +1886,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 </Text>
               ) : null}
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -1894,7 +1894,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           this edits hours rather than the clock stamps. */}
       <Modal visible={correcting !== null} transparent animationType={fCorrect.animationType} onRequestClose={() => setCorrecting(null)}>
         <View style={[styles.modalOverlay, fCorrect.overlay]}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fCorrect.card]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fCorrect.card, fCorrect.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Correct entry</Text>
               <TouchableOpacity onPress={() => setCorrecting(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -2005,7 +2005,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 )}
               </>
             ) : null}
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -2014,7 +2014,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           "next day" is on; it can't be before the clock-in or after now. */}
       <Modal visible={outFor !== null} transparent animationType={fOut.animationType} onRequestClose={() => setOutFor(null)}>
         <View style={[styles.modalOverlay, fOut.overlay]}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fOut.card]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fOut.card, fOut.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock-out time</Text>
               <TouchableOpacity onPress={() => setOutFor(null)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -2073,14 +2073,14 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 </TouchableOpacity>
               </>
             ) : null}
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
       {/* Payroll export: one pay period, one job or all (#64). */}
       <Modal visible={showExport} transparent animationType={fExport.animationType} onRequestClose={() => setShowExport(false)}>
         <View style={[styles.modalOverlay, fExport.overlay]}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fExport.card]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fExport.card, fExport.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Export payroll CSV</Text>
               <TouchableOpacity onPress={() => setShowExport(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -2141,7 +2141,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               <FileDown size={16} color="#fff" strokeWidth={2} />
               <Text style={styles.correctSaveBtnText}>{Platform.OS === 'web' ? 'Download .csv' : 'Share .csv'}</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </View>

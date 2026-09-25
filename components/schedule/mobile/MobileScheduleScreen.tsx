@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform, AppState } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform, AppState, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -9,7 +9,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, layoutNext, useRiseOnOpen } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectRole } from '@/hooks/useProjectRole';
@@ -1595,7 +1595,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
                 nonWorkingDates={activeSchedule?.nonWorkingDates}
                 placements={placements}
                 collapsedPhases={collapsed}
-                onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
+                onTogglePhase={(p) => { layoutNext(); setCollapsed((c) => ({ ...c, [p]: !c[p] })); }}
                 onPressTask={setDetailTask}
                 onAddTask={() => setShowAdd(true)}
                 onUpdateTask={onUpdateTask}
@@ -1610,7 +1610,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
                 placements={placements}
                 selectedDate={selectedDate}
                 collapsedPhases={collapsed}
-                onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
+                onTogglePhase={(p) => { layoutNext(); setCollapsed((c) => ({ ...c, [p]: !c[p] })); }}
                 onPressTask={setDetailTask}
                 onAddTask={() => setShowAdd(true)}
                 onLongPressEmpty={openAddAt}
@@ -1842,6 +1842,9 @@ function FinishDateSheet({
   const changeCount = catchUp?.changes.length ?? 0;
 
   return (
+    // Keeps 'slide' (no rise) on purpose: four of its buttons close it and
+    // present another Modal in the same tick (start-date picker, task detail,
+    // history, an alert), and that hand-off keeps today's timing.
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={onClose} />
       <View style={[styles.pickerSheet, { paddingBottom: insets.bottom + 16 }]} testID="schedule-finish-sheet">
@@ -2091,15 +2094,19 @@ function ProjectPickerSheet({ visible, projects, selectedProjectId, onSelect, on
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
+  // Smoothness pass: the scrim fades while the card rises the last 28 pt on
+  // its own spring (null at rest, on web and under Reduce Motion).
+  const rise = useRiseOnOpen(visible);
+
   const pick = (id: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     onSelect(id);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={onClose} />
-      <View style={[styles.pickerSheet, { paddingBottom: insets.bottom + 16 }]} testID="schedule-project-picker">
+      <Animated.View style={[styles.pickerSheet, { paddingBottom: insets.bottom + 16 }, rise]} testID="schedule-project-picker">
         <View style={styles.pickerGrab} />
         <View style={styles.pickerHead}>
           <Text style={styles.pickerTitle}>Switch project</Text>
@@ -2133,7 +2140,7 @@ function ProjectPickerSheet({ visible, projects, selectedProjectId, onSelect, on
             );
           })}
         </ScrollView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

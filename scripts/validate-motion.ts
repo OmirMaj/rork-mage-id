@@ -38,7 +38,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
 /** Measured 2026-09-25 after lane 1 (comment-stripped source). NEVER RAISE. */
-const BASELINE = 27;
+const BASELINE = 20;
 
 let failures = 0;
 function ok(name: string, condition: boolean, detail?: string) {

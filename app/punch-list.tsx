@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Image,
-  FlatList, Keyboard, type ListRenderItemInfo, RefreshControl, ActivityIndicator, useWindowDimensions,
+  Animated, FlatList, Keyboard, type ListRenderItemInfo, RefreshControl, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
@@ -44,7 +44,7 @@ import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { cardSurface, Button, EyebrowLabel, segmentedDesktop, useIsDesktop, useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { cardSurface, Button, EyebrowLabel, layoutNext, segmentedDesktop, useIsDesktop, useRiseOnOpen, useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 // Pin items (after the photo), Pin first (before it) and the edit sheet's pin
 // controls — founder, 2026-09-18: "pin the location of each item before and
 // after taking photos". The decisions are pure (utils/punchPinQueue); every
@@ -121,6 +121,22 @@ interface WalkShot {
 /** Frames one walk can hold. Past this the review sheet is a scroll, not a list,
  *  and the right move is to file these and start another walk. */
 const MAX_WALK_SHOTS = 40;
+
+/** Rows glide instead of popping (smoothness pass): called on the line right
+ *  before a write that removes or re-sections a row (status, reject, move,
+ *  delete). Opacity-only (layoutNext) — punch rows carry transforms and a
+ *  scaleXY crashes Fabric. Skipped on a long list: LayoutAnimation over a
+ *  FlatList that is recycling cells can flicker, and a list that long has
+ *  scrolled the change off-screen anyway. */
+const GLIDE_ROW_LIMIT = 60;
+
+/** The phone item form's ScrollView, able to carry the rise transform. Not
+ *  Animated.ScrollView: that one stamps scrollEventThrottle on the host at
+ *  rest, which would change the phone golden. */
+const RisingScrollView = Animated.createAnimatedComponent(ScrollView);
+function glideRows(rowCount: number): void {
+  if (rowCount < GLIDE_ROW_LIMIT) layoutNext();
+}
 
 function getStatusConfig(t: ThemeColors, status: PunchItemStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -1550,6 +1566,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     }
     return out;
   }, [grouped, filteredItems, sections, collapsed, selectedIds, selectMode, failedPhotoUris, onPlanKeys, activeList, sheetsById, canDeleteItem, pickerSubNames, focusedId]);
+  // Read by glideRows() at the moment of a write (a ref: no callback deps).
+  const rowCountRef = useRef(0);
+  rowCountRef.current = rows.length;
 
   // Scroll the notification's item into view once its row exists (#51).
   const listRef = useRef<FlatList<PunchRowData>>(null);
@@ -1798,6 +1817,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     // punchStatusPatch: the status named explicitly, closedAt on a close, and
     // rejectedAt + the note on any move back out of Review (CONTRACT 12 — the
     // server neutralises an un-review that carries no later rejected_at).
+    glideRows(rowCountRef.current);
     updatePunchItem(item.id, punchStatusPatch(item, newStatus, new Date().toISOString()));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
 
@@ -1855,6 +1875,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     // tells this send-back from a stale queued write even when the note text
     // is the same as last round's — which the old note-only write could not.
     const item = allItems.find(i => i.id === itemId);
+    glideRows(rowCountRef.current);
     updatePunchItem(itemId, punchStatusPatch({ status: item?.status ?? 'ready_for_review', rejectedAt: item?.rejectedAt }, 'open', new Date().toISOString(), rejectionNote));
     setShowRejectModal(null);
     setRejectionNote('');
@@ -1986,6 +2007,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       {
         text: copy.confirm,
         onPress: () => {
+          glideRows(rowCountRef.current);
           updatePunchItem(item.id, { listType: target });
           if (Platform.OS !== 'web') void Haptics.selectionAsync();
           // The row leaves this list the moment it saves; say where it went.
@@ -2102,7 +2124,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     onDelete: item => {
       showAlert('Delete', 'Delete this punch item?', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => latestActions.current.deletePunchItem(item.id) },
+        { text: 'Delete', style: 'destructive', onPress: () => { glideRows(rowCountRef.current); latestActions.current.deletePunchItem(item.id); } },
       ]);
     },
     onOpenPhoto: item => latestActions.current.setViewerItem(item),
@@ -2311,7 +2333,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
   // Desktop sheets (wave 6c): capped cards centred in the content column.
   const isDesktop = useIsDesktop();
-  const fWalk = useSheetFrame('form', { visible: showWalk, animationType: 'slide' });
+  const fWalk = useSheetFrame('form', { visible: showWalk, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(showWalk && describedWalkShots.length > 0, () => fileWalkShots());
   useSheetDialogScope(showForm);
   const fTaskPick = useSheetFrame('dialog', { visible: showTaskPicker, animationType: 'fade' });
@@ -2319,9 +2341,15 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   useSheetPrimaryHotkey(showRejectModal !== null, () => { if (showRejectModal) handleReject(showRejectModal); });
   useSheetDialogScope(viewerItem !== null);
   const fTemplates = useSheetFrame('form', { visible: showTemplates, animationType: 'slide' });
-  const fFilter = useSheetFrame('form', { visible: showFilterDrawer, animationType: 'slide' });
-  const fBulkSub = useSheetFrame('dialog', { visible: showBulkSubPicker, animationType: 'slide' });
+  const fFilter = useSheetFrame('form', { visible: showFilterDrawer, animationType: 'slide', rise: true });
+  const fBulkSub = useSheetFrame('dialog', { visible: showBulkSubPicker, animationType: 'slide', rise: true });
   const fBulkStatus = useSheetFrame('dialog', { visible: showBulkStatusPicker, animationType: 'slide' });
+  // Smoothness pass: fTemplates and fBulkStatus keep 'slide' (no rise) on
+  // purpose — each closes and presents an Alert in the same tick (template
+  // applied / send back to the sub), and that hand-off keeps today's timing.
+  // The phone item form rises like the adopted sheets; the split panel keeps
+  // its plain fade.
+  const rForm = useRiseOnOpen(showForm && editLayout !== 'split');
 
   if (!project) {
     return (
@@ -3330,7 +3358,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <Modal visible={showWalk} transparent animationType={fWalk.animationType} onRequestClose={() => setShowWalk(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fWalk.overlay]}>
-            <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fWalk.card]}>
+            <Animated.View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fWalk.card, fWalk.cardMotion]}>
               <View style={styles.formHeader}>
                 <Text style={styles.formTitle}>Photo walk</Text>
                 <TouchableOpacity onPress={() => setShowWalk(false)} accessibilityRole="button" accessibilityLabel="Close photo walk" testID="close-photo-walk">
@@ -3425,12 +3453,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                   {walkShots.length - describedWalkShots.length} photo{walkShots.length - describedWalkShots.length === 1 ? '' : 's'} still without a line — they stay here until you write one.
                 </Text>
               ) : null}
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showForm} transparent animationType={editLayout === 'split' ? 'fade' : 'slide'} onRequestClose={() => { setShowForm(false); resetForm(); }}>
+      <Modal visible={showForm} transparent animationType="fade" onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           {editLayout === 'split' ? (
             <View style={[styles.modalOverlay, styles.splitOverlay]} testID="punch-edit-split">
@@ -3464,7 +3492,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             </View>
           ) : (
             <View style={styles.modalOverlay}>
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
+              {/* The rise rides the ScrollView, not the card: the card sits at
+                  the foot of the scroll content, so both move as one. */}
+              <RisingScrollView style={[{ flex: 1 }, rForm]} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
                 <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
                   {formHeaderEl}
                   {formPipelineEl}
@@ -3472,7 +3502,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                   {formFieldsEl}
                   {formActionsEl}
                 </View>
-              </ScrollView>
+              </RisingScrollView>
             </View>
           )}
         </KeyboardAvoidingView>
@@ -3676,7 +3706,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           up new subs without code changes. */}
       <Modal visible={showFilterDrawer} transparent animationType={fFilter.animationType} onRequestClose={() => setShowFilterDrawer(false)}>
         <View style={[styles.modalOverlay, fFilter.overlay]}>
-          <View style={[styles.modalCard, { maxHeight: '80%' as const }, fFilter.card]}>
+          <Animated.View style={[styles.modalCard, { maxHeight: '80%' as const }, fFilter.card, fFilter.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
               <TouchableOpacity onPress={() => setShowFilterDrawer(false)} style={{ padding: 4 }}>
@@ -3810,7 +3840,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -3823,7 +3853,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           never keeps the previous sub's id. */}
       <Modal visible={showBulkSubPicker} transparent animationType={fBulkSub.animationType} onRequestClose={() => setShowBulkSubPicker(false)}>
         <View style={[styles.modalOverlay, fBulkSub.overlay]}>
-          <View style={[styles.modalCard, { maxHeight: '80%' as const, paddingBottom: insets.bottom + 20 }, fBulkSub.card]}>
+          <Animated.View style={[styles.modalCard, { maxHeight: '80%' as const, paddingBottom: insets.bottom + 20 }, fBulkSub.card, fBulkSub.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Assign {selectedCount} item{selectedCount === 1 ? '' : 's'}</Text>
               <TouchableOpacity onPress={() => setShowBulkSubPicker(false)} style={{ padding: 4 }} accessibilityRole="button" accessibilityLabel="Close">
@@ -3869,7 +3899,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
                 </Text>
               ) : null}
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 

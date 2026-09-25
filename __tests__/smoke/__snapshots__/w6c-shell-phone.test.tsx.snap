@@ -9996,6 +9996,7 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
             },
           ],
           "props": {
+            "collapsable": false,
             "style": {
               "backgroundColor": "#FFFFFF",
               "borderTopLeftRadius": 18,
@@ -10014,7 +10015,8 @@ exports[`CreateMenu on a phone list mode, 390 ios 1`] = `
         },
       ],
       "props": {
-        "animationType": "slide",
+        "animationType": "fade",
+        "onDismiss": [Function],
         "onRequestClose": [Function],
         "statusBarTranslucent": true,
         "transparent": true,
@@ -19830,6 +19832,7 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
             },
           ],
           "props": {
+            "collapsable": false,
             "style": {
               "backgroundColor": "#FFFFFF",
               "borderTopLeftRadius": 18,
@@ -19848,7 +19851,8 @@ exports[`CreateMenu on a phone list mode, web 390 1`] = `
         },
       ],
       "props": {
-        "animationType": "slide",
+        "animationType": "fade",
+        "onDismiss": [Function],
         "onRequestClose": [Function],
         "statusBarTranslucent": true,
         "transparent": true,
@@ -29664,6 +29668,7 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
             },
           ],
           "props": {
+            "collapsable": false,
             "style": {
               "backgroundColor": "#FFFFFF",
               "borderTopLeftRadius": 18,
@@ -29682,7 +29687,8 @@ exports[`CreateMenu on a phone list mode, web 820 1`] = `
         },
       ],
       "props": {
-        "animationType": "slide",
+        "animationType": "fade",
+        "onDismiss": [Function],
         "onRequestClose": [Function],
         "statusBarTranslucent": true,
         "transparent": true,
@@ -30646,6 +30652,7 @@ exports[`CreateMenu on a phone picker mode, 390 ios 1`] = `
             },
           ],
           "props": {
+            "collapsable": false,
             "style": {
               "backgroundColor": "#FFFFFF",
               "borderTopLeftRadius": 18,
@@ -30653,6 +30660,7 @@ exports[`CreateMenu on a phone picker mode, 390 ios 1`] = `
               "bottom": 0,
               "left": 0,
               "maxHeight": "85%",
+              "opacity": 0,
               "paddingBottom": 46,
               "paddingHorizontal": 0,
               "paddingTop": 8,
@@ -30664,7 +30672,8 @@ exports[`CreateMenu on a phone picker mode, 390 ios 1`] = `
         },
       ],
       "props": {
-        "animationType": "slide",
+        "animationType": "fade",
+        "onDismiss": [Function],
         "onRequestClose": [Function],
         "statusBarTranslucent": true,
         "transparent": true,
@@ -31638,6 +31647,7 @@ exports[`CreateMenu on a phone picker mode, web 390 1`] = `
             },
           ],
           "props": {
+            "collapsable": false,
             "style": {
               "backgroundColor": "#FFFFFF",
               "borderTopLeftRadius": 18,
@@ -31645,6 +31655,7 @@ exports[`CreateMenu on a phone picker mode, web 390 1`] = `
               "bottom": 0,
               "left": 0,
               "maxHeight": "85%",
+              "opacity": 0,
               "paddingBottom": 46,
               "paddingHorizontal": 0,
               "paddingTop": 8,
@@ -31656,7 +31667,8 @@ exports[`CreateMenu on a phone picker mode, web 390 1`] = `
         },
       ],
       "props": {
-        "animationType": "slide",
+        "animationType": "fade",
+        "onDismiss": [Function],
         "onRequestClose": [Function],
         "statusBarTranslucent": true,
         "transparent": true,
@@ -32630,6 +32642,7 @@ exports[`CreateMenu on a phone picker mode, web 820 1`] = `
             },
           ],
           "props": {
+            "collapsable": false,
             "style": {
               "backgroundColor": "#FFFFFF",
               "borderTopLeftRadius": 18,
@@ -32637,6 +32650,7 @@ exports[`CreateMenu on a phone picker mode, web 820 1`] = `
               "bottom": 0,
               "left": 0,
               "maxHeight": "85%",
+              "opacity": 0,
               "paddingBottom": 46,
               "paddingHorizontal": 0,
               "paddingTop": 8,
@@ -32648,7 +32662,8 @@ exports[`CreateMenu on a phone picker mode, web 820 1`] = `
         },
       ],
       "props": {
-        "animationType": "slide",
+        "animationType": "fade",
+        "onDismiss": [Function],
         "onRequestClose": [Function],
         "statusBarTranslucent": true,
         "transparent": true,
@@ -51750,6 +51765,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                 "style": {
                                                   "backgroundColor": "rgb(242, 242, 242)",
                                                   "flex": 1,
+                                                  "opacity": 1,
                                                 },
                                               },
                                               "type": "View",
@@ -51797,7 +51813,7 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                           "overflow": "hidden",
                                         },
                                       },
-                                      "type": "RNSScreenNavigationContainer",
+                                      "type": "RNSScreenContainer",
                                     },
                                     {
                                       "children": [
@@ -54578,13 +54594,13 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
               "opacity": 1,
               "position": "absolute",
               "right": 20,
-              "shadowColor": "#FF6A1A",
+              "shadowColor": "#000",
               "shadowOffset": {
-                "height": 9,
+                "height": 4,
                 "width": 0,
               },
-              "shadowOpacity": 0.55,
-              "shadowRadius": 22,
+              "shadowOpacity": 0.08,
+              "shadowRadius": 12,
               "transform": [
                 {
                   "translateY": 0,
@@ -71856,6 +71872,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                 "style": {
                                                   "backgroundColor": "rgb(242, 242, 242)",
                                                   "flex": 1,
+                                                  "opacity": 1,
                                                 },
                                               },
                                               "type": "View",
@@ -71903,7 +71920,7 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                           "overflow": "hidden",
                                         },
                                       },
-                                      "type": "RNSScreenNavigationContainer",
+                                      "type": "RNSScreenContainer",
                                     },
                                     {
                                       "children": [
@@ -73620,13 +73637,13 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
               "opacity": 1,
               "position": "absolute",
               "right": 20,
-              "shadowColor": "#FF6A1A",
+              "shadowColor": "#000",
               "shadowOffset": {
-                "height": 9,
+                "height": 4,
                 "width": 0,
               },
-              "shadowOpacity": 0.55,
-              "shadowRadius": 22,
+              "shadowOpacity": 0.08,
+              "shadowRadius": 12,
               "transform": [
                 {
                   "translateY": 0,
@@ -73712,6 +73729,7 @@ exports[`TabLayout on a phone client, 390 ios (keeps today's badge) 1`] = `
                         "style": {
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
+                          "opacity": 1,
                         },
                       },
                       "type": "View",
@@ -73759,7 +73777,7 @@ exports[`TabLayout on a phone client, 390 ios (keeps today's badge) 1`] = `
                   "overflow": "hidden",
                 },
               },
-              "type": "RNSScreenNavigationContainer",
+              "type": "RNSScreenContainer",
             },
             {
               "children": [
@@ -75110,6 +75128,7 @@ exports[`TabLayout on a phone contractor, 390 ios (badge "!" + the couldn't-reac
                         "style": {
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
+                          "opacity": 1,
                         },
                       },
                       "type": "View",
@@ -75157,7 +75176,7 @@ exports[`TabLayout on a phone contractor, 390 ios (badge "!" + the couldn't-reac
                   "overflow": "hidden",
                 },
               },
-              "type": "RNSScreenNavigationContainer",
+              "type": "RNSScreenContainer",
             },
             {
               "children": [
@@ -77590,6 +77609,7 @@ exports[`TabLayout on a phone contractor, web 390 (badge "99+") 1`] = `
                         "style": {
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
+                          "opacity": 1,
                         },
                       },
                       "type": "View",
@@ -80078,6 +80098,7 @@ exports[`TabLayout on a phone contractor, web 820 (tablet width, below the 900 d
                         "style": {
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
+                          "opacity": 1,
                         },
                       },
                       "type": "View",
@@ -82548,6 +82569,7 @@ exports[`TabLayout on a phone property_manager, 390 ios 1`] = `
                         "style": {
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
+                          "opacity": 1,
                         },
                       },
                       "type": "View",
@@ -82595,7 +82617,7 @@ exports[`TabLayout on a phone property_manager, 390 ios 1`] = `
                   "overflow": "hidden",
                 },
               },
-              "type": "RNSScreenNavigationContainer",
+              "type": "RNSScreenContainer",
             },
             {
               "children": [

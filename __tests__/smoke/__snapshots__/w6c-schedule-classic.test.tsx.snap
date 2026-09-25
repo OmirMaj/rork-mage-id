@@ -3,63 +3,63 @@
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Board view 1`] = `
 {
   "lines": 2133,
-  "sha256": "3403e1262548b690c594408e22ca7a1f54a25ec6aa98c277ecbf7e054ea4893e",
+  "sha256": "5f357b5bae58e207568186fa40b4d7f5943b3eddf30a9f9adc9e16cdefd44f06",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Gantt view 1`] = `
 {
   "lines": 1979,
-  "sha256": "b429d80733a89b812000a154af760bf2f8c3a73c6ce8ddd8d29b7e0e5e8e8982",
+  "sha256": "ff9cc7aeab74548b0febf820e6d148fda705e644068987a9860e382661843a6a",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Lookahead view 1`] = `
 {
   "lines": 2224,
-  "sha256": "e54da57f78fdee7a52590e9cf5caeb78f5571fe3e79f3a5de60039d3d47630a1",
+  "sha256": "ab304967d2f41f7d085adc860b92fcc9bc265f768386a499b0083e19e1416513",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Today view 1`] = `
 {
   "lines": 2150,
-  "sha256": "71bbaf003065c7c58bc1114c2ef83ab38731daebeed899170ef9192ba48cce2d",
+  "sha256": "4807b03d7b0721b1e7a1e1539b2679ae2a928f32a948b43bf61d1d3fa7cb213f",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/discover/schedule 1`] = `
 {
   "lines": 503,
-  "sha256": "8a1eadffc499a5aef35b5a652985a07923656346ad78b40f06e9d2f98d1d5188",
+  "sha256": "7840b2dec744eed81ab4eddd7578a7d7d55a25b70902498c74837b1a5466812b",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/schedule (MobileScheduleScreen) 1`] = `
 {
   "lines": 1774,
-  "sha256": "60bd99e2dcd3007100f10d9cf9f2e4eb17dd0fc968582c3f834131b72fe3fb58",
+  "sha256": "2b108eca3659eb2f3255c631bcbbbd887b3a4007902734f3a348b6731c1453c1",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /copilot-hub 1`] = `
 {
   "lines": 541,
-  "sha256": "602079d66e6ca64820bc72c630ed75e8fd9c973d3711bed4d9db9aaa8f6cfd89",
+  "sha256": "6d57a3f07fe815de32c86d13a95bd54cd6ba08a2a0fc51a016b7033dbaecc58e",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /schedule-review with a draft 1`] = `
 {
   "lines": 453,
-  "sha256": "12734c167f205fa76c6e6c9a214f0363ae10921c426adfbb6236134b9148973e",
+  "sha256": "9d34772a964199ed2df24eea0dd769b9c1e09f6d29edff3b6f3cf63a7e00ff9e",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /schedule-wizard 1`] = `
 {
   "lines": 1862,
-  "sha256": "8e0a159b15278277c316ea7a27be38f903a8b4f40a4d2b1ce37ceef1dc2994ac",
+  "sha256": "c446406149c4c4a9c97faf6d854c9432aba79f05a428a40aec098be9f0eae02d",
 }
 `;
 

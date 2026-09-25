@@ -7,7 +7,7 @@
 // Queued, not stacked: if two alerts fire back to back the second waits, which
 // matches how native Alert behaves.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, TouchableOpacity, Platform } from 'react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -17,6 +17,8 @@ import { Tokens } from '@/constants/designTokens';
 import { registerAlertHost, type AlertRequest } from '@/utils/alert';
 import { cancelButtonIndex, type AlertButton } from '@/utils/alertCore';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useReducedMotion, webMotion } from '@/components/ui';
 
 export default function AlertHost() {
   const { colors: t } = useTheme();
@@ -25,6 +27,15 @@ export default function AlertHost() {
   const [text, setText] = useState('');
 
   const current = queue[0] ?? null;
+  // Desktop web keeps the last alert on screen while its Modal fades OUT —
+  // unmounting on the press (the old `if (!current) return null`) cut the
+  // fade off. `current` still drives every handler and the dialog scope;
+  // `shown` is only what is DISPLAYED. A phone unmounts exactly as before.
+  const desktopWeb = useIsDesktopWeb();
+  const reduceMotion = useReducedMotion();
+  const lastRef = useRef<AlertRequest | null>(null);
+  if (current) lastRef.current = current;
+  const shown = current ?? (desktopWeb ? lastRef.current : null);
   // An open alert is a DIALOG to the shortcut registry (wave 6c): Esc and
   // every page / global key behind it go quiet, so the Esc that cancels a
   // confirm does not also close the record it was asked over. RN-web's Modal
@@ -37,18 +48,22 @@ export default function AlertHost() {
     return () => registerAlertHost(null);
   }, []);
 
-  // Seed the input whenever a prompt becomes current.
+  // Seed the input whenever a prompt becomes current. Not when it is answered:
+  // the desktop fade-out copy keeps showing what was typed.
   useEffect(() => {
-    setText(current?.prompt?.defaultValue ?? '');
+    if (current) setText(current.prompt?.defaultValue ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id, current?.prompt?.defaultValue]);
 
   const close = useCallback((btn?: AlertButton) => {
+    // A press on the fading-out copy of an alert already answered is inert.
+    if (!current) return;
     const value = text;
     setQueue((q) => q.slice(1));
     // Fire after dismissal so a handler that opens another alert doesn't race
     // the one we're closing.
     if (btn?.onPress) setTimeout(() => btn.onPress?.(value), 0);
-  }, [text]);
+  }, [text, current]);
 
   const onDismiss = useCallback(() => {
     if (!current) return;
@@ -57,27 +72,36 @@ export default function AlertHost() {
     if (idx >= 0) close(current.buttons[idx]);
   }, [current, close]);
 
-  if (!current) return null;
+  // A phone (and phone-width web) unmounts the instant a button is pressed,
+  // exactly as before; desktop web renders `shown` until the fade is done.
+  if (!desktopWeb) {
+    if (!current) return null;
+  }
+  if (!shown) return null;
 
-  const stacked = current.buttons.length > 2;
+  const stacked = shown.buttons.length > 2;
+  // Desktop web: the card pops in (CSS keyframe, nothing left at rest). A
+  // ternary, never a trailing null, so the phone tree is unchanged.
+  const popIn = desktopWeb && !reduceMotion ? webMotion('popIn') : null;
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onDismiss}>
+    <Modal visible={current !== null} transparent animationType="fade" onRequestClose={onDismiss}>
       <Pressable style={styles.backdrop} onPress={onDismiss} accessibilityLabel="Dismiss">
-        <Pressable style={styles.card} onPress={() => undefined} accessibilityViewIsModal>
-          <Text style={styles.title} accessibilityRole="header">{current.title}</Text>
-          {current.message ? <Text style={styles.message}>{current.message}</Text> : null}
+        <Pressable style={popIn ? [styles.card, popIn] : styles.card} onPress={() => undefined} accessibilityViewIsModal>
+          <Text style={styles.title} accessibilityRole="header">{shown.title}</Text>
+          {shown.message ? <Text style={styles.message}>{shown.message}</Text> : null}
 
-          {current.prompt ? (
+          {shown.prompt ? (
             <TextInput
               value={text}
               onChangeText={setText}
-              placeholder={current.prompt.placeholder}
+              placeholder={shown.prompt.placeholder}
               placeholderTextColor={t.textMuted}
-              secureTextEntry={current.prompt.secure}
+              secureTextEntry={shown.prompt.secure}
               style={styles.input}
               autoFocus
               onSubmitEditing={() => {
+                if (!current) return;
                 const confirm = current.buttons.find((b) => b.style !== 'cancel');
                 close(confirm ?? current.buttons[0]);
               }}
@@ -85,7 +109,7 @@ export default function AlertHost() {
           ) : null}
 
           <View style={[styles.row, stacked && styles.rowStacked]}>
-            {current.buttons.map((b, i) => {
+            {shown.buttons.map((b, i) => {
               const destructive = b.style === 'destructive';
               const cancel = b.style === 'cancel';
               return (

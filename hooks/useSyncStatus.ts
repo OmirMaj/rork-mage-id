@@ -31,9 +31,13 @@
 // failures have no marker fallback: an untagged entry there is nobody's.
 //
 // ── Cadence ─────────────────────────────────────────────────────────────────
-// A 4 s poll (matching useOfflineQueueDepth), plus an immediate re-read on
-// AppState wake and on the queue's own onQueueChanged / onQueueFlushed events,
-// so the count ticks down as a flush lands rather than up to 4 s later.
+// The queue's own onQueueChanged / onQueueFlushed events, the ledger's change
+// event and AppState wake each trigger an immediate re-read, so the count ticks
+// down as a flush lands. The poll is only the backstop for a write those events
+// miss, so it is 30 s (smoothness pass): this read JSON-parses the whole
+// offline queue, the hook is mounted twice, and at 4 s it was a visible hitch
+// offline on site with a big queue. A re-read that finds nothing changed sets
+// no state, so it re-renders nothing.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
@@ -62,7 +66,12 @@ import {
 } from '@/utils/syncLedger';
 import { computeSyncStatus, unsavedLines, type SyncStatus, type UnsavedLine } from '@/utils/syncStatusCore';
 
-const POLL_INTERVAL_MS = 4000;
+const POLL_INTERVAL_MS = 30_000;
+/** Photo and voice-note uploads emit no queue event, so while either queue
+ *  holds work the pill re-reads every 4 s (as it always did) and clears within
+ *  seconds of the upload finishing. Otherwise the 30 s poll is only a backstop
+ *  for the text writes the queue and ledger events already cover. */
+const UPLOAD_POLL_MS = 4_000;
 
 /** Duplicated from utils/offlineQueue (a module-private const there) so this
  *  hook can batch all four reads into one multiGet. Pinned by
@@ -91,6 +100,35 @@ function linesFrom(failures: readonly SyncFailure[]): UnsavedLine[] {
     ...(f.operation ? { operation: f.operation } : {}),
     ...(f.table && f.recordId ? { recordKey: `${f.table}:${f.recordId}` } : {}),
   })));
+}
+
+/** Would the user see any difference between these two statuses? Every field
+ *  the pill and its sheet read, so an unchanged re-read can keep the old
+ *  object and skip the render. */
+export function statusEqual(a: SyncStatus, b: SyncStatus): boolean {
+  return a.tone === b.tone
+    && a.pending === b.pending
+    && a.failed === b.failed
+    && a.visible === b.visible
+    && a.badge === b.badge
+    && a.title === b.title
+    && a.detail === b.detail
+    && a.depths.writes === b.depths.writes
+    && a.depths.photos === b.depths.photos
+    && a.depths.dictations === b.depths.dictations;
+}
+
+/** The same question for the "not saved" sheet's rows: every field a row
+ *  renders or acts on, in order. */
+export function unsavedEqual(a: readonly UnsavedLine[], b: readonly UnsavedLine[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.id !== y.id || x.label !== y.label || x.line !== y.line || x.canRetry !== y.canRetry
+      || x.writes !== y.writes || x.discards !== y.discards) return false;
+  }
+  return true;
 }
 
 export interface SyncStatusHandle extends SyncStatus {
@@ -185,8 +223,10 @@ export function useSyncStatus(): SyncStatusHandle {
       );
     }
     if (mountedRef.current) {
-      setStatus(next);
-      setUnsaved(lines);
+      // Keep the previous object when nothing changed: React then bails out,
+      // and neither the pill nor Home re-renders on a quiet poll.
+      setStatus((prev) => (statusEqual(prev, next) ? prev : next));
+      setUnsaved((prev) => (unsavedEqual(prev, lines) ? prev : lines));
     }
   }, []);
 
@@ -225,6 +265,13 @@ export function useSyncStatus(): SyncStatusHandle {
       offLedger();
     };
   }, [refresh]);
+
+  const uploadsPending = status.depths.photos + status.depths.dictations > 0;
+  useEffect(() => {
+    if (!uploadsPending) return;
+    const fast = setInterval(() => { void refresh(); }, UPLOAD_POLL_MS);
+    return () => clearInterval(fast);
+  }, [uploadsPending, refresh]);
 
   return { ...status, unsaved, acknowledgeFailures, retryUnsaved, discardUnsaved, refresh };
 }

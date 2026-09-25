@@ -820,13 +820,13 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /accept
               "opacity": 1,
               "position": "absolute",
               "right": 20,
-              "shadowColor": "#FF6A1A",
+              "shadowColor": "#000",
               "shadowOffset": {
-                "height": 9,
+                "height": 4,
                 "width": 0,
               },
-              "shadowOpacity": 0.55,
-              "shadowRadius": 22,
+              "shadowOpacity": 0.08,
+              "shadowRadius": 12,
               "transform": [
                 {
                   "translateY": 0,
@@ -2866,13 +2866,13 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /rfi (s
               "opacity": 1,
               "position": "absolute",
               "right": 20,
-              "shadowColor": "#FF6A1A",
+              "shadowColor": "#000",
               "shadowOffset": {
-                "height": 9,
+                "height": 4,
                 "width": 0,
               },
-              "shadowOpacity": 0.55,
-              "shadowRadius": 22,
+              "shadowOpacity": 0.08,
+              "shadowRadius": 12,
               "transform": [
                 {
                   "translateY": 0,
@@ -22118,6 +22118,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                 "style": {
                                                   "backgroundColor": "rgb(242, 242, 242)",
                                                   "flex": 1,
+                                                  "opacity": 1,
                                                 },
                                               },
                                               "type": "View",
@@ -22165,7 +22166,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                           "overflow": "hidden",
                                         },
                                       },
-                                      "type": "RNSScreenNavigationContainer",
+                                      "type": "RNSScreenContainer",
                                     },
                                     {
                                       "children": [
@@ -24946,13 +24947,13 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
               "opacity": 1,
               "position": "absolute",
               "right": 20,
-              "shadowColor": "#FF6A1A",
+              "shadowColor": "#000",
               "shadowOffset": {
-                "height": 9,
+                "height": 4,
                 "width": 0,
               },
-              "shadowOpacity": 0.55,
-              "shadowRadius": 22,
+              "shadowOpacity": 0.08,
+              "shadowRadius": 12,
               "transform": [
                 {
                   "translateY": 0,

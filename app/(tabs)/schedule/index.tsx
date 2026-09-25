@@ -1438,7 +1438,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   // `live`: the tap came from Today, Lookahead, field mode or the voice
   // button, which always show the LIVE plan (#54) — build from it and save
   // it even while a saved plan is on the Gantt.
-  const applyProgressUpdate = useCallback((task: ScheduleTask, nextProgress: number, live: boolean) => {
+  // `silent`: the caller already fired its own haptic (the Today / Lookahead
+  // cards do, before the write), so this path must not fire a second one.
+  const applyProgressUpdate = useCallback((task: ScheduleTask, nextProgress: number, live: boolean, silent = false) => {
     if (!live && refuseWhileWhatIf()) return;
     const base = live ? liveSortedTasks : sortedTasks;
     const clamped = Math.max(0, Math.min(100, nextProgress));
@@ -1464,14 +1466,17 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
     const nextSchedule = rebuildEditedSchedule(activeSchedule, scheduleName, selectedProject?.id ?? null, nextTasks, { liveTasks: live || !activeScenarioTasks });
     if (!nextSchedule) return;
     saveSchedule(nextSchedule, selectedProject);
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    if (!silent && Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, liveSortedTasks, activeScenarioTasks, refuseWhileWhatIf]);
   const handleProgressUpdate = useCallback(
     (task: ScheduleTask, nextProgress: number) => applyProgressUpdate(task, nextProgress, false),
     [applyProgressUpdate],
   );
+  // `opts.silent`: passed only by the Today / Lookahead progress cards, which
+  // fire exactly one haptic of their own before the write (smoothness pass).
+  // Field mode, the voice button and the task detail keep this path's haptic.
   const handleLiveProgressUpdate = useCallback(
-    (task: ScheduleTask, nextProgress: number) => applyProgressUpdate(task, nextProgress, true),
+    (task: ScheduleTask, nextProgress: number, opts?: { silent?: boolean }) => applyProgressUpdate(task, nextProgress, true, opts?.silent === true),
     [applyProgressUpdate],
   );
 

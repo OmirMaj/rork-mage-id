@@ -3,42 +3,42 @@
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (a) contract with a draft (the Save draft / Sign & send row) 1`] = `
 {
   "lines": 972,
-  "sha256": "c9502c226645f161b8761ec237d8263f44a70ec809eab968966540cb68cb523f",
+  "sha256": "9a6459a0d66b4fbe03e468a4481ca91294161c19c99bbf70d01a3bf8cba6fe71",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b1) daily-report, new report, jobsite 124 Park Slope (wttr answers) 1`] = `
 {
   "lines": 1134,
-  "sha256": "627c970836342b3113ab9bc802de91a1bd7fd58b4b01d6f4923b3f0b89f380da",
+  "sha256": "7f8fd7ed429c5e9ffb5f88372225edbbe1e1480ee4529e86726666045fa88af3",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b2) daily-report, new report, location 'United States' 1`] = `
 {
   "lines": 1132,
-  "sha256": "66e2ced1146b941c5f381591ba15201e637db9fb5a63f9998750472beff46f3a",
+  "sha256": "a2364e931b7b4c42816c051acca224eea2c450320ecc3f728ef095db16fad523",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c1) construction-ai, tier enterprise (Code Check) 1`] = `
 {
   "lines": 748,
-  "sha256": "4519304fd9291d0046c7094b7843e21bcc5122e9b2ac6d1178599377da845c34",
+  "sha256": "f8d4885aad48f8404a7c78a495c0fdbf3b3d74a72a551ae8f855ec6d8b743f42",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c2) construction-ai, tier enterprise (Project Roadmap) 1`] = `
 {
   "lines": 724,
-  "sha256": "25bcf97b74b5f24a3a37ee12bf403a6eb9609dbf5011ba70173d23f73c7f1230",
+  "sha256": "e9802a9aa040ee01cb73109b2d366f5b23acfcf458b73e87834343b092a45ea3",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c3) construction-ai, tier pro (Code Check) 1`] = `
 {
   "lines": 751,
-  "sha256": "ae5497a8f4ecb64d2db1656c246ad9e5055bd0036fcb9b1787ec77784dad38da",
+  "sha256": "711f70ce09cd85897834bc0f5f0055f6843e0c6a25b0b0e72679bc1803b6ad16",
 }
 `;
 
@@ -52,7 +52,7 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-pa
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
   "lines": 1907,
-  "sha256": "1710a662516971f7944183ae14a183146ca4435d1bd59c8ec1330b8d4c3290cc",
+  "sha256": "129c7d17c98b2e87fc6ca175a266531a75cf3cdc38bf889b5b448e7c321dfc9f",
 }
 `;
 

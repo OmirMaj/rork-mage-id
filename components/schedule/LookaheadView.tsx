@@ -35,14 +35,15 @@ import {
   SimulatedDayChip,
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 import { TileGrid } from '@/components/ui/TileGrid';
 
 interface LookaheadViewProps {
   tasks: ScheduleTask[];
   schedule: ProjectSchedule;
   projectStartDate: Date;
-  onProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  onProgressUpdate: (task: ScheduleTask, progress: number, opts?: ProgressUpdateOpts) => void;
   onTaskPress: (task: ScheduleTask) => void;
   /**
    * The project's location string (city / address), used to fetch the REAL
@@ -84,6 +85,11 @@ function getMonday(date: Date): Date {
   return d;
 }
 
+/** The screen's live progress path takes `{ silent: true }` from a card: the
+ *  card has already fired its haptic, so the write must not fire a second. */
+type ProgressUpdateOpts = { silent?: boolean };
+const CARD_WRITE: ProgressUpdateOpts = { silent: true };
+
 const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
   task,
   allTasks,
@@ -99,7 +105,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
   projectStartDate: Date;
   /** The engine's es/ef for this task (see LookaheadView's `placements`). */
   placement: ScheduledPlacement | undefined;
-  onProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  onProgressUpdate: (task: ScheduleTask, progress: number, opts?: ProgressUpdateOpts) => void;
   onTaskPress: (task: ScheduleTask) => void;
 }) {
   const s = useThemedStyles(makeStyles);
@@ -121,10 +127,17 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
 
   const flashGreen = useCallback(() => {
     Animated.sequence([
-      Animated.timing(flashOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
-      Animated.timing(flashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+      Animated.timing(flashOpacity, { toValue: 1, duration: 150, useNativeDriver: nativeDriver }),
+      Animated.timing(flashOpacity, { toValue: 0, duration: 400, useNativeDriver: nativeDriver }),
     ]).start();
   }, [flashOpacity]);
+
+  // The PanResponder below is created ONCE, so anything it reads from a render
+  // must come through this ref: a closure over the first render's `task`
+  // rebuilt the schedule from the task list as it was when the card mounted,
+  // silently reverting every other task edited since (smoothness pass, 4a).
+  const latest = useRef({ task, onProgressUpdate, flashGreen });
+  latest.current = { task, onProgressUpdate, flashGreen };
 
   const panResponder = useRef(
     PanResponder.create({
@@ -132,7 +145,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
       onMoveShouldSetPanResponder: (_e, gs) =>
         Math.abs(gs.dx) > 15 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5,
       onPanResponderGrant: () => {
-        startProg.current = task.progress;
+        startProg.current = latest.current.task.progress;
       },
       onPanResponderMove: (_e, gs) => {
         if (gs.dx > 0) {
@@ -140,31 +153,38 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
         }
       },
       onPanResponderRelease: (_e, gs) => {
+        const cur = latest.current;
+        let next: number | null = null;
         if (gs.dx > 50) {
-          const next = Math.min(100, Math.ceil((startProg.current + 25) / 25) * 25);
-          if (next !== startProg.current) {
-            onProgressUpdate(task, next);
-            flashGreen();
-            if (next >= 100 && Platform.OS !== 'web') {
-              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } else if (Platform.OS !== 'web') {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            }
-          }
+          const n = Math.min(100, Math.ceil((startProg.current + 25) / 25) * 25);
+          if (n !== startProg.current) next = n;
         }
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+        // Feedback first: the haptic, the flash and the spring-back all start
+        // on this frame; the CPM rebuild and save run on the next one.
+        if (next !== null && Platform.OS !== 'web') {
+          if (next >= 100) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          else void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
+        if (next !== null) cur.flashGreen();
+        Animated.spring(translateX, { toValue: 0, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
+        if (next !== null) {
+          const value = next;
+          requestAnimationFrame(() => latest.current.onProgressUpdate(cur.task, value, CARD_WRITE));
+        }
       },
       onPanResponderTerminate: () => {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+        Animated.spring(translateX, { toValue: 0, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
       },
     })
   ).current;
 
+  // Same order on a tap: the haptic and the flash first, the write a frame later.
   const handleIncrement = useCallback(() => {
     const next = Math.min(100, task.progress + 25);
-    onProgressUpdate(task, next);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [task, onProgressUpdate]);
+    flashGreen();
+    requestAnimationFrame(() => latest.current.onProgressUpdate(task, next, CARD_WRITE));
+  }, [task, flashGreen]);
 
   return (
     <View style={s.swipeWrapper}>

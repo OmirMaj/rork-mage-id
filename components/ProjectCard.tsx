@@ -9,6 +9,7 @@ import type { Project, ProjectType } from '@/types';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { nativeDriver, reducedMotion } from '@/components/ui/motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
@@ -46,8 +47,12 @@ interface ProjectCardProps {
   onPress: () => void;
   onLongPress?: () => void;
   /** Index in the parent list — used to stagger the mount-fade so cards
-   *  cascade in (40ms apart) instead of all appearing at once. */
+   *  cascade in (30ms apart, the first five) instead of all appearing at once. */
   index?: number;
+  /** Mount already settled: no fade-and-rise. Home passes it once the list has
+   *  painted, so a card a stage chip brings back does not replay its entrance
+   *  beside the cards gliding to their new rows. */
+  skipEntrance?: boolean;
   /** Billed to date on this job (non-draft invoices). `undefined` until the
    *  invoices have been read — no bar is drawn from a number with no source
    *  (audit wave 5, #151). */
@@ -56,7 +61,13 @@ interface ProjectCardProps {
   revisedContract?: number;
 }
 
-function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate, revisedContract }: ProjectCardProps) {
+/** The entrance delay for the card at `index`: 30 ms apart, the first five
+ *  only, so even a 50-job list has settled 120 ms after the first card. */
+export function entranceStagger(index: number): number {
+  return Math.min(Math.max(0, index), 4) * 30;
+}
+
+function ProjectCard({ project, onPress, onLongPress, index = 0, skipEntrance = false, invoicedToDate, revisedContract }: ProjectCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -65,9 +76,12 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate,
   // instead of just appearing. Subtle (140ms, 8px) — premium without
   // being theatrical.
   const enterAnim = useRef(new Animated.Value(0)).current;
-  // Animated burn-bar on the bottom edge of the card. Drives a width
-  // interpolation so the bar "fills up" on first render.
+  // Animated burn-bar on the bottom edge of the card. The fill is laid out at
+  // its final width and scaleX runs 0 → 1 from the left edge on the native
+  // driver: a width animation re-laid-out up to 8 cards every frame on the JS
+  // thread during hydration, which is what stalled the first scroll.
   const burnAnim = useRef(new Animated.Value(0)).current;
+  const shownBurnRatio = useRef(0);
 
   const IconComponent = getTypeIcon(project.type);
   const statusLabel = stageStatusLabel(project.status);
@@ -104,26 +118,47 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate,
   const showBurnBar = burnRatio > 0;
   const burnIsHigh = burnRatio >= 0.9;
 
+  // The entrance plays once, when the card mounts: a card re-rendered with a
+  // new index (a filter change) is already in place. Skipped (skipEntrance, or
+  // Reduce Motion) it is the same animation at zero duration and no delay, so
+  // the card lands in place on its first frame through the one code path.
   useEffect(() => {
-    // Stagger cap at index 8 so a 50-project list still feels snappy (max 320ms total cascade).
-    const stagger = Math.min(index, 8) * 40;
+    const instant = skipEntrance || reducedMotion();
     Animated.timing(enterAnim, {
       toValue: 1,
-      duration: 220,
-      delay: stagger,
+      duration: instant ? 0 : 220,
+      delay: instant ? 0 : entranceStagger(index),
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
     }).start();
-    if (showBurnBar) {
-      Animated.timing(burnAnim, {
-        toValue: burnRatio,
-        duration: 900,
-        delay: 120 + stagger,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
+    // Mount-only on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!showBurnBar) {
+      shownBurnRatio.current = 0;
+      return;
     }
-  }, [enterAnim, burnAnim, burnRatio, showBurnBar, index]);
+    const was = shownBurnRatio.current;
+    shownBurnRatio.current = burnRatio;
+    if (reducedMotion()) {
+      burnAnim.setValue(1);
+      return;
+    }
+    // First show: fill from empty. A later change (an invoice landed): grow or
+    // shrink from the old fill, which at the new width is was / now.
+    burnAnim.setValue(was > 0 ? was / burnRatio : 0);
+    Animated.timing(burnAnim, {
+      toValue: 1,
+      duration: 450,
+      delay: was > 0 || skipEntrance ? 0 : entranceStagger(index),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: nativeDriver,
+    }).start();
+    // index / skipEntrance only shape the first delay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [burnAnim, burnRatio, showBurnBar]);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, { toValue: 0.975, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
@@ -136,10 +171,6 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate,
   const enterTranslate = enterAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [8, 0],
-  });
-  const burnWidth = burnAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
   });
 
   return (
@@ -229,8 +260,9 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, invoicedToDate,
                 style={[
                   styles.burnFill,
                   {
-                    width: burnWidth,
+                    width: `${Math.round(burnRatio * 1000) / 10}%` as const,
                     backgroundColor: burnIsHigh ? colors.danger : colors.accent,
+                    transform: [{ scaleX: burnAnim }],
                   },
                 ]}
               />
@@ -330,5 +362,6 @@ const makeStyles = (t: ThemeColors) =>
     },
     burnFill: {
       height: 3,
+      transformOrigin: 'left',
     },
   });
