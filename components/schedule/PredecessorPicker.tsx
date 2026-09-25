@@ -43,6 +43,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, Modal, Pressable,
 } from 'react-native';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import * as Haptics from 'expo-haptics';
 import { X, Minus, Plus, Square, CheckSquare } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -260,10 +261,16 @@ export default function PredecessorPicker(props: PredecessorPickerProps) {
     onChange(links);
   };
 
+  // Desktop (wave 6c): a centred 440 dialog; Cmd/Ctrl+Enter or Cmd/Ctrl+S is
+  // Done. Mounted only while open, so it is always visible. All-null on a
+  // phone.
+  const frame = useSheetFrame('dialog', { visible: true, animationType: 'fade' });
+  useSheetPrimaryHotkey(true, handleDone);
+
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+    <Modal visible transparent animationType={frame.animationType} onRequestClose={onClose}>
+      <Pressable style={[styles.modalOverlay, frame.overlay]} onPress={onClose}>
+        <Pressable style={[styles.sheet, frame.card]} onPress={() => undefined}>
           <View style={styles.sheetHead}>
             <View style={{ flex: 1 }}>
               <Text style={styles.sheetTitle}>Sequence</Text>

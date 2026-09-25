@@ -68,6 +68,17 @@ function mapInvoiceStatus(s: InvoiceStatus): InvoiceStatus {
 }
 import { Type } from '@/constants/typography';
 import { Tokens, Layout } from '@/constants/designTokens';
+// Wave 6c (lane G): the desktop-web log + record split, ActionBar, framed
+// sheets. Phone-identical: useIsDesktopWeb() is false on a phone
+// (logRouteMode → 'phone'); ActionBar renders today's <View>; the sheet
+// frames are null; the rest are `isDesktop && …` appends.
+import { useIsDesktop, useIsDesktopWeb, desktopCta } from '@/components/ui/desktop';
+import { ActionBar } from '@/components/ui/ActionBar';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { usePrimaryAction } from '@/hooks/useHotkeys';
+import { InvoiceLog } from '@/components/logs/InvoiceLog';
+import { useLogAwareRouter } from '@/components/logs/LogRecordHost';
+import { logRouteMode } from '@/utils/logs/logRoutes';
 import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -322,6 +333,25 @@ export default function InvoiceScreen() {
       />
     );
   }
+  return <InvoiceEntry />;
+}
+
+/**
+ * Desktop web (wave 6c, lane G): a bare ?projectId opens the invoice LOG and
+ * ?invoiceId opens that invoice beside it. Anything that starts a bill — new,
+ * prefill*, the tutorial's type=progress, a contract milestone — is the form,
+ * as before. On a phone (and a native tablet) logRouteMode says 'phone' and
+ * this is exactly <InvoiceInner />.
+ */
+function InvoiceEntry() {
+  const desktopWeb = useIsDesktopWeb();
+  const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
+  const { projectId, invoiceId } = useLocalSearchParams<{ projectId?: string; invoiceId?: string }>();
+  const { getProject, invoices } = useProjects();
+  const logProjectId = projectId || (invoiceId ? invoices.find(i => i.id === invoiceId)?.projectId : undefined) || '';
+  const mode = logRouteMode('invoice', routeParams, { desktopWeb, projectKnown: !!getProject(logProjectId) });
+  if (mode === 'log') return <InvoiceLog projectId={logProjectId} />;
+  if (mode === 'split') return <InvoiceLog projectId={logProjectId} openId={invoiceId} detail={<InvoiceInner key={invoiceId} />} />;
   return <InvoiceInner />;
 }
 
@@ -338,6 +368,7 @@ function InvoiceRoleBlocked({ gate, pausedReason, onRetry }: {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const isDesktop = useIsDesktop();
   const copy = invoiceRoleBlockedCopy(gate, pausedReason);
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]} testID="invoice-role-blocked">
@@ -353,9 +384,9 @@ function InvoiceRoleBlocked({ gate, pausedReason, onRetry }: {
             <Text style={styles.roleBlockedTitle}>{copy.title}</Text>
             <Text style={styles.roleBlockedText}>{copy.body}</Text>
             {gate === 'error' || gate === 'paused' ? (
-              <Button label="Try again" onPress={onRetry} variant="secondary" testID="invoice-role-retry" />
+              <Button label="Try again" onPress={onRetry} variant="secondary" fullWidth={isDesktop} testID="invoice-role-retry" />
             ) : null}
-            <Button label="Go back" onPress={() => router.back()} variant="secondary" testID="invoice-role-back" />
+            <Button label="Go back" onPress={() => router.back()} variant="secondary" fullWidth={isDesktop} testID="invoice-role-back" />
           </>
         )}
       </View>
@@ -374,7 +405,10 @@ function InvoiceInner() {
   const onBottomBarLayout = useCallback((e: LayoutChangeEvent) => {
     setBottomBarH(e.nativeEvent.layout.height);
   }, []);
-  const router = useRouter();
+  // Beside the invoice log (desktop web) back() closes the record; everywhere
+  // else this IS useRouter(). Named `router` on purpose: runConfirmSend's
+  // `router.back();` literals (and the tutorial pins on them) are unchanged.
+  const router = useLogAwareRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -2619,6 +2653,25 @@ function InvoiceInner() {
   const retainageAskValue = parsePercentInput(retainageAskInput) ?? NaN;
   const retainageAskValid = retainageAskInput.trim().length > 0 && isRecordedRetainageRate(retainageAskValue);
 
+  // Desktop: the four sheets centre in the content column (null on a phone,
+  // each keeping its 'slide'). Cmd+Enter runs a sheet's primary; the ones that
+  // record money or send never take Cmd+S. Cmd+S / Cmd+Enter on the editor
+  // saves the draft, and says why when the invoice is locked or sent.
+  const fPayment = useSheetFrame('form', { visible: showPaymentModal, animationType: 'slide' });
+  const fRetainage = useSheetFrame('form', { visible: showRetainageAsk, animationType: 'slide' });
+  const fRetention = useSheetFrame('form', { visible: showRetentionModal, animationType: 'slide' });
+  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide' });
+  useSheetPrimaryHotkey(showPaymentModal, recordingPayment ? null : handleMarkPaid, { saveKey: false });
+  useSheetPrimaryHotkey(showRetainageAsk, retainageAskValid ? () => handleRetainageAnswer(retainageAskValue) : null);
+  useSheetPrimaryHotkey(showRetentionModal, handleReleaseRetention, { saveKey: false });
+  useSheetPrimaryHotkey(showSendRecipient, sendInFlight ? null : () => void handleConfirmSend(), { saveKey: false });
+  usePrimaryAction(() => handleSave('draft'), {
+    label: 'Save invoice',
+    enabled: isDesktop,
+    disabled: isLocked || !!(existingInvoice && existingInvoice.status !== 'draft'),
+    reason: 'This invoice has been sent — it is locked. Void and reissue it to change it.',
+  });
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -3208,7 +3261,7 @@ function InvoiceInner() {
                 <Text style={styles.reminderHint} testID="reminder-sample-note">{SAMPLE_NOTHING_SENT}</Text>
               ) : null}
               <TouchableOpacity
-                style={[styles.reminderBtn, (!reminderState.eligibility.eligible || sendingReminder || isSampleJob) && styles.reminderBtnDisabled]}
+                style={[styles.reminderBtn, (!reminderState.eligibility.eligible || sendingReminder || isSampleJob) && styles.reminderBtnDisabled, isDesktop && desktopCta]}
                 onPress={() => {
                   if (!qboClosedFlag) { void handleSendReminder(); return; }
                   showAlert(
@@ -3378,7 +3431,7 @@ function InvoiceInner() {
                   <Text style={styles.reminderHint} testID="pay-link-sample-note">{SAMPLE_NOTHING_SENT}</Text>
                 ) : null}
                 <TouchableOpacity
-                  style={[styles.payLinkGenerateBtn, (!!payLinkLimitReason || isSampleJob) && styles.reminderBtnDisabled]}
+                  style={[styles.payLinkGenerateBtn, (!!payLinkLimitReason || isSampleJob) && styles.reminderBtnDisabled, isDesktop && desktopCta]}
                   onPress={handleGeneratePayLink}
                   activeOpacity={0.85}
                   disabled={generatingPayLink || !!payLinkLimitReason}
@@ -3508,7 +3561,7 @@ function InvoiceInner() {
         )}
 
         {!isLocked && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
+          <ActionBar style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} width="form" onLayout={onBottomBarLayout}>
             {(!existingInvoice || existingInvoice.status === 'draft') && (
               <>
                 {/* #34: both locked while a send runs — the label says why. */}
@@ -3545,7 +3598,7 @@ function InvoiceInner() {
                 </TutorialTarget>
               </>
             )}
-          </View>
+          </ActionBar>
         )}
       </KeyboardAvoidingView>
 
@@ -3563,10 +3616,10 @@ function InvoiceInner() {
         sendInFlight,
       }) ? <TutorialTarget id="invoice.modalUp" /> : null}
 
-      <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
+      <Modal visible={showPaymentModal} transparent animationType={fPayment.animationType} onRequestClose={() => setShowPaymentModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fPayment.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fPayment.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Record Payment</Text>
                 <TouchableOpacity onPress={() => setShowPaymentModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3662,10 +3715,10 @@ function InvoiceInner() {
           held", but it invents nothing: "Not sure" stores NOTHING, because a
           retainage the app guessed is a number he bills, sends, and then argues
           about with the owner. */}
-      <Modal visible={showRetainageAsk} transparent animationType="slide" onRequestClose={handleRetainageUnknown}>
+      <Modal visible={showRetainageAsk} transparent animationType={fRetainage.animationType} onRequestClose={handleRetainageUnknown}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]} testID="retainage-ask-modal">
+          <View style={[styles.modalOverlay, fRetainage.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetainage.card]} testID="retainage-ask-modal">
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Retainage on this job</Text>
                 <TouchableOpacity onPress={handleRetainageUnknown} accessibilityRole="button" accessibilityLabel="Close">
@@ -3753,10 +3806,10 @@ function InvoiceInner() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showRetentionModal} transparent animationType="slide" onRequestClose={() => setShowRetentionModal(false)}>
+      <Modal visible={showRetentionModal} transparent animationType={fRetention.animationType} onRequestClose={() => setShowRetentionModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fRetention.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetention.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Release Retention</Text>
                 <TouchableOpacity onPress={() => setShowRetentionModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3812,10 +3865,10 @@ function InvoiceInner() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
+      <Modal visible={showSendRecipient} transparent animationType={fSend.animationType} onRequestClose={() => setShowSendRecipient(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fSend.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Invoice To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -4019,7 +4072,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   taxSourceNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
   taxInvalidNote: { fontSize: Type.caption1.fontSize, color: themeColors.danger, marginTop: 2 },
   // Invoice reads as a document — cap it, but 840 was too tight on desktop.
-  contentDesktop: { width: '100%', maxWidth: 1040, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
   backBtn: { backgroundColor: themeColors.accentFill, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },

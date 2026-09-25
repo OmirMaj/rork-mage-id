@@ -1,0 +1,15 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane DC — Summary on the phone (golden, 390 × 844 iOS) /(tabs)/summary, the fixture world 1`] = `
+{
+  "lines": 752,
+  "sha256": "050f74dcb36956f6e36841a3cdbc059ac469f4467522081fd1c44e517429a308",
+}
+`;
+
+exports[`lane DC — Summary on the phone (golden, 390 × 844 iOS) /(tabs)/summary, with a job on site today 1`] = `
+{
+  "lines": 836,
+  "sha256": "582759ee73ba923e004774aa1d5cf7f1dbfc4541707e22dcc2f97b1f308883a7",
+}
+`;

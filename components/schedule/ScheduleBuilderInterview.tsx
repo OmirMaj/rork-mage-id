@@ -15,6 +15,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { desktopCta } from '@/components/ui/desktop';
 import { useProjects } from '@/contexts/ProjectContext';
 import DatePickerModal from '@/components/DatePickerModal';
 import { stashDraft } from '@/utils/autoScheduleFromEstimate';
@@ -29,6 +31,8 @@ const SKIP = Symbol('skip');
 export default function ScheduleBuilderInterview({ projectId: routeProjectId }: { projectId: string }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Desktop: the primary button hugs its label (wave 6c) instead of the column.
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { getProject, updateProject, projects, projectsLoaded, getRFIsForProject, getDailyReportsForProject } = useProjects();
@@ -298,7 +302,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
         <Stack.Screen options={{ headerShown: false }} />
         <Text style={styles.eyebrow}>SOMETHING WENT WRONG</Text>
         <Text style={styles.question}>{errMsg}</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => setPhase('ask')} activeOpacity={0.9}>
+        <TouchableOpacity style={[styles.primaryBtn, isDesktop && desktopCta]} onPress={() => setPhase('ask')} activeOpacity={0.9}>
           <Text style={styles.primaryBtnText}>Try again</Text>
         </TouchableOpacity>
       </View>
@@ -388,7 +392,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
               multiline={q.kind === 'text'}
               testID="sb-input"
             />
-            <TouchableOpacity style={styles.primaryBtn} onPress={submitEntry} activeOpacity={0.9} testID="sb-continue">
+            <TouchableOpacity style={[styles.primaryBtn, isDesktop && desktopCta]} onPress={submitEntry} activeOpacity={0.9} testID="sb-continue">
               {idx === questions.length - 1
                 ? <><Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} /><Text style={styles.primaryBtnText}>Build my schedule</Text></>
                 : <><Text style={styles.primaryBtnText}>Continue</Text><ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2} /></>}

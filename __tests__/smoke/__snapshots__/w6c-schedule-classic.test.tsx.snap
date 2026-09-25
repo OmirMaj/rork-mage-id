@@ -1,0 +1,148 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane DC — the classic tab at 820 (tablet branch, golden) Board view 1`] = `
+{
+  "lines": 2133,
+  "sha256": "3403e1262548b690c594408e22ca7a1f54a25ec6aa98c277ecbf7e054ea4893e",
+}
+`;
+
+exports[`lane DC — the classic tab at 820 (tablet branch, golden) Gantt view 1`] = `
+{
+  "lines": 1979,
+  "sha256": "b429d80733a89b812000a154af760bf2f8c3a73c6ce8ddd8d29b7e0e5e8e8982",
+}
+`;
+
+exports[`lane DC — the classic tab at 820 (tablet branch, golden) Lookahead view 1`] = `
+{
+  "lines": 2224,
+  "sha256": "e54da57f78fdee7a52590e9cf5caeb78f5571fe3e79f3a5de60039d3d47630a1",
+}
+`;
+
+exports[`lane DC — the classic tab at 820 (tablet branch, golden) Today view 1`] = `
+{
+  "lines": 2150,
+  "sha256": "71bbaf003065c7c58bc1114c2ef83ab38731daebeed899170ef9192ba48cce2d",
+}
+`;
+
+exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/discover/schedule 1`] = `
+{
+  "lines": 503,
+  "sha256": "8a1eadffc499a5aef35b5a652985a07923656346ad78b40f06e9d2f98d1d5188",
+}
+`;
+
+exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/schedule (MobileScheduleScreen) 1`] = `
+{
+  "lines": 1774,
+  "sha256": "60bd99e2dcd3007100f10d9cf9f2e4eb17dd0fc968582c3f834131b72fe3fb58",
+}
+`;
+
+exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /copilot-hub 1`] = `
+{
+  "lines": 541,
+  "sha256": "602079d66e6ca64820bc72c630ed75e8fd9c973d3711bed4d9db9aaa8f6cfd89",
+}
+`;
+
+exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /schedule-review with a draft 1`] = `
+{
+  "lines": 453,
+  "sha256": "12734c167f205fa76c6e6c9a214f0363ae10921c426adfbb6236134b9148973e",
+}
+`;
+
+exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /schedule-wizard 1`] = `
+{
+  "lines": 1862,
+  "sha256": "8e0a159b15278277c316ea7a27be38f903a8b4f40a4d2b1ce37ceef1dc2994ac",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) AddTaskModal, open 1`] = `
+{
+  "lines": 111,
+  "sha256": "6cc00608b6b70d4b71efdbde2ed2cd95ece5ef90455027efad0b2eda2b13f014",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) BaselineManagerModal, open 1`] = `
+{
+  "lines": 43,
+  "sha256": "980a77d8987263ce374d8580209c38ecbc29a3fd38fd03f2c6fd5cb60152b116",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) COScheduleReflowPreviewModal, open 1`] = `
+{
+  "lines": 67,
+  "sha256": "611521d39d34e21fe08283bfa9061c4d2e9439635f36cef4ceb45650bc7e872d",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) ClosuresModal, open 1`] = `
+{
+  "lines": 186,
+  "sha256": "9b23d8cf47d51a2c6769db45bbe5fcaf7b26092f9ad5d0b129a91e902dcd16cd",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) CriticalPathPanel, open 1`] = `
+{
+  "lines": 55,
+  "sha256": "c547f6b5c0f23be5f1fe1c7026ca99b2a90b120ae71465ac31df660ad286d224",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) ExportSheet, open 1`] = `
+{
+  "lines": 91,
+  "sha256": "fc76e039d82dd48288aec4d15b5c4c842ec0f558ec5e7ede20c4fec5bd7554b2",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) LevelingPreviewModal, open 1`] = `
+{
+  "lines": 45,
+  "sha256": "b5cba2aa788f95a030a7a854cb30d248368af45978062b70403ea970e0f1f81b",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) PredecessorPicker, open 1`] = `
+{
+  "lines": 72,
+  "sha256": "563d57b257d32b8d81002b2619d4939b9b97e8a8147403194b3c2fc4059de149",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) QuickBuildModal, open 1`] = `
+{
+  "lines": 186,
+  "sha256": "471f37a0888af9085356377b7c5f25111542711cd74951b68c8fa21270f90f8e",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleAuditModal, open 1`] = `
+{
+  "lines": 20,
+  "sha256": "e7c1d0db29a2cbbca7242706432ab13550c4d45e236f703d035c728fbb3de6e5",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleHealthDetail, open 1`] = `
+{
+  "lines": 386,
+  "sha256": "0274ace8bac60a52583e64ae8893bbb119c3a25aa03ec0a30afc713ec72a6c70",
+}
+`;
+
+exports[`lane DC — the schedule tool sheets (golden, 390 phone) ScheduleSettingsMenu, open 1`] = `
+{
+  "lines": 291,
+  "sha256": "23116df5c8d1b970061739cb06f7a7c2d42c7dd47c9eda82d3936209da55f252",
+}
+`;

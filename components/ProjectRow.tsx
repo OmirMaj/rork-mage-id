@@ -23,17 +23,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
+// Wave 6c (C2): the badge speaks utils/projectStage's words — the same ones as
+// the Home chips and the job page ('Construction', 'Post-Con', 'Closeout').
+import { statusLabel as stageStatusLabel } from '@/utils/projectStage';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes, Wrench,
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  estimated: 'Estimated',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  closed: 'Closed',
 };
 
 const STATUS_TONE: Record<string, BadgeTone> = {
@@ -76,7 +71,7 @@ const ProjectRow = React.memo(function ProjectRow({
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const Icon = ICON_MAP[TYPE_ICON_MAP[project.type]] ?? Building2;
-  const statusLabel = STATUS_LABEL[project.status] ?? 'Draft';
+  const statusLabel = stageStatusLabel(project.status);
   const statusTone: BadgeTone = STATUS_TONE[project.status] ?? 'neutral';
 
   const { hasEstimate, estimateTotal } = useMemo(() => {
@@ -94,8 +89,13 @@ const ProjectRow = React.memo(function ProjectRow({
   // had been invoiced (#151). Now both sides come from the caller, and the
   // column is '—' whenever either is unknown or there is no contract to burn
   // against — never a computed 0% with no source.
+  //
+  // NOT capped at 100 (wave 6c integration): the printed % is the job page's
+  // billedPct rule (utils/projectWorkspaceLayout — invoiced floored at 0, over
+  // the contract, rounded, no ceiling), so an overbilled job reads 114% here
+  // and on the job page alike. Only the BAR stops at the track's end.
   const burnRatio = invoicedToDate != null && revisedContract != null && revisedContract > 0
-    ? Math.min(1, Math.max(0, invoicedToDate / revisedContract))
+    ? Math.max(0, invoicedToDate / revisedContract)
     : null;
   const burnIsHigh = burnRatio != null && burnRatio >= 0.9;
   const burnPct = burnRatio != null ? Math.round(burnRatio * 100) : 0;
@@ -147,7 +147,9 @@ const ProjectRow = React.memo(function ProjectRow({
 
       <View style={styles.burnCol}>
         <View style={styles.burnHeaderRow}>
-          <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Burn</Text>
+          {/* 'Billed' (wave 6c, C2): this is invoiced ÷ revised contract —
+              money billed, not cost burned. */}
+          <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Billed</Text>
           <Text style={[styles.burnPctText, { color: burnIsHigh ? colors.danger : colors.text }]}>
             {burnRatio != null ? `${burnPct}%` : '—'}
           </Text>
@@ -157,7 +159,7 @@ const ProjectRow = React.memo(function ProjectRow({
             style={[
               styles.burnFill,
               {
-                width: `${burnPct}%`,
+                width: `${Math.min(100, burnPct)}%`,
                 backgroundColor: burnIsHigh ? colors.danger : colors.accent,
               },
             ]}

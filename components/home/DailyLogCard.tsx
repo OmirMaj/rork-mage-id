@@ -33,22 +33,14 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
-import {
-  computeDailyLogCompletion,
-  calendarOfSchedule,
-  type DailyLogCompletion,
-} from '@/utils/dailyLogCompletion';
+import { buildDailyLogGaps, type DailyLogGapRow } from '@/utils/portfolio/attentionRows';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatCalendarDay } from '@/utils/calendarDate';
 
 const MAX_VISIBLE = 3;
 
-interface Row {
-  projectId: string;
-  projectName: string;
-  c: DailyLogCompletion;
-}
+type Row = DailyLogGapRow;
 
 export default function DailyLogCard() {
   const { colors } = useTheme();
@@ -56,34 +48,13 @@ export default function DailyLogCard() {
   const router = useRouter();
   const { projects, dailyReports } = useProjects();
 
-  const rows = useMemo<Row[]>(() => {
-    const todayISO = new Date().toISOString();
-    const out: Row[] = [];
-    for (const p of projects ?? []) {
-      if (p.status !== 'in_progress') continue;
-      const reports = (dailyReports ?? []).filter(r => r.projectId === p.id);
-      const c = computeDailyLogCompletion({
-        reports,
-        calendar: calendarOfSchedule(p.schedule),
-        startDateISO: p.schedule?.startDate ?? null,
-        todayISO,
-      });
-      // hasRecord is false until the GC has filed at least one report on this
-      // job. Nagging someone about a log they have not started is noise.
-      if (!c.hasRecord) continue;
-      const needsToday = c.todayExpected && !c.todayFiled;
-      if (!needsToday && c.missedDays === 0) continue;
-      out.push({ projectId: p.id, projectName: p.name, c });
-    }
-    // Today's unfiled logs first — that is the only action that can still be
-    // taken contemporaneously. Then the biggest holes.
-    return out.sort((a, b) => {
-      const aToday = a.c.todayExpected && !a.c.todayFiled ? 1 : 0;
-      const bToday = b.c.todayExpected && !b.c.todayFiled ? 1 : 0;
-      if (aToday !== bToday) return bToday - aToday;
-      return b.c.missedDays - a.c.missedDays;
-    });
-  }, [projects, dailyReports]);
+  // The rows are the ONE rule the desktop action rail's "Daily-log gaps"
+  // section and /attention also read (utils/portfolio/attentionRows, lifted
+  // verbatim from here in wave 6c) — same filter, same order.
+  const rows = useMemo<Row[]>(
+    () => buildDailyLogGaps(projects, dailyReports, new Date().toISOString()),
+    [projects, dailyReports],
+  );
 
   if (rows.length === 0) return null;
 
@@ -122,12 +93,19 @@ export default function DailyLogCard() {
   // put two records on one day. A gap row now opens its most recent missing
   // day (missedDates is most-recent-first), which is the gap the row names.
   // The report screen also warns if the day it opens already has a report.
+  //
+  // Wave 6c: the 'owes today' row also passes new: '1'. On desktop web a bare
+  // /daily-report?projectId opens the job's DFR log (lane H), not a report —
+  // this row means "file today's", so it asks for a new one (the same target
+  // utils/portfolio/attentionRows dailyLogGapTarget gives the action rail and
+  // /attention).
   const open = (projectId: string, missingDay?: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    router.push({
-      pathname: '/daily-report',
+    const target = {
+      pathname: '/daily-report' as const,
       params: missingDay ? { projectId, date: missingDay } : { projectId },
-    } as never);
+    };
+    router.push(missingDay ? target : { ...target, params: { ...target.params, new: '1' } });
   };
 
   return (

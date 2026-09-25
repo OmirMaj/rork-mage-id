@@ -19,6 +19,8 @@ import type { ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { segmentedDesktop } from '@/components/ui/SegmentedControl';
 import {
   formatShortDate,
   getPhaseColor,
@@ -53,6 +55,7 @@ function ScheduleShareSheet({
   const [isGenerating, setIsGenerating] = useState(false);
   const [shareMode, setShareMode] = useState<'full' | 'trade'>('full');
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
+  const fS = useSheetFrame('form', { visible, animationType: 'slide' });
 
   const phases = React.useMemo(() => {
     const set = new Set(tasks.map(t => t.phase));
@@ -187,13 +190,17 @@ function ScheduleShareSheet({
       setIsGenerating(false);
     }
   }, [tasks, shareMode, selectedPhase, generatePdfHtml, projectName, onClose]);
+  // Cmd/Ctrl+Enter = Generate & Share. Not Cmd+S: the primary hands the PDF
+  // out of the app (wave-6c rule for a primary that sends).
+  const canShare = !isGenerating && !(shareMode === 'trade' && !selectedPhase);
+  useSheetPrimaryHotkey(visible, canShare ? handleShare : null, { saveKey: false });
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={st.overlay}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={st.sheet}>
-          <View style={st.handle} />
+    <Modal visible={visible} transparent animationType={fS.animationType} onRequestClose={onClose}>
+      <View style={[st.overlay, fS.overlay]}>
+        <Pressable style={[{ flex: 1 }, fS.backdrop]} onPress={onClose} />
+        <View style={[st.sheet, fS.card]}>
+          {fS.showHandle && <View style={st.handle} />}
           <View style={st.header}>
             <View style={st.headerLeft}>
               <Share2 size={18} color={Colors.primary} strokeWidth={1.75} />
@@ -202,16 +209,16 @@ function ScheduleShareSheet({
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
-          <View style={st.modeRow}>
+          <View style={[st.modeRow, fS.isDesktop && segmentedDesktop.container]}>
             <TouchableOpacity
-              style={[st.modeBtn, shareMode === 'full' && st.modeBtnActive]}
+              style={[st.modeBtn, shareMode === 'full' && st.modeBtnActive, fS.isDesktop && segmentedDesktop.segment]}
               onPress={() => setShareMode('full')}
             >
               <FileText size={14} color={shareMode === 'full' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />
               <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full Schedule</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[st.modeBtn, shareMode === 'trade' && st.modeBtnActive]}
+              style={[st.modeBtn, shareMode === 'trade' && st.modeBtnActive, fS.isDesktop && segmentedDesktop.segment]}
               onPress={() => setShareMode('trade')}
             >
               <Users size={14} color={shareMode === 'trade' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />

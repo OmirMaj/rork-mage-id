@@ -43,6 +43,10 @@ interface TaskInspectorProps {
   projectStartDate: Date;
   onClose: () => void;
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
+  /** Wave 6c — inside Schedule Pro's docked pane (Task tab): no header, close,
+   *  340 width or shadow of its own; it fills the pane, whose header and close
+   *  it uses. Default false: today's right-docked panel. */
+  embedded?: boolean;
 }
 
 /**
@@ -71,7 +75,7 @@ const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: strin
 ];
 
 export default function TaskInspector({
-  task, allTasks, cpm, projectStartDate, onClose, onEdit,
+  task, allTasks, cpm, projectStartDate, onClose, onEdit, embedded = false,
 }: TaskInspectorProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -174,12 +178,16 @@ export default function TaskInspector({
     : null;
 
   return (
-    <View style={styles.panel}>
+    <View style={embedded ? styles.embeddedPanel : styles.panel} testID={embedded ? 'task-inspector-embedded' : undefined}>
+      {embedded ? (
+        <Text style={styles.embeddedTitle} numberOfLines={2} accessibilityRole="header">{task.title || 'Untitled task'}</Text>
+      ) : (
       <View style={styles.header}>
-        <Info size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+        <Info size={16} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled task'}</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
       </View>
+      )}
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }}>
         {/* Schedule block — raw CPM numbers. Makes the "why" of the bar
@@ -480,6 +488,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderBottomColor: t.line,
   },
   headerTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  // In Schedule Pro's docked pane: fills it; the pane owns the frame + close.
+  embeddedPanel: { flex: 1, backgroundColor: t.surface },
+  embeddedTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, paddingHorizontal: 14, paddingTop: 12 },
   closeBtn: { padding: 4 },
   body: { flex: 1 },
   section: {

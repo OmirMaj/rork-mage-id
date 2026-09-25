@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -25,6 +25,10 @@ import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import { SAMPLE_PROJECT_PREFIX } from '@/utils/projectCap';
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { canOpenSchedulePro, proFitsWindow, scheduleDestination, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';
+import { getSidebarRail } from '@/utils/sidebarRailStore';
 
 /** The example schedule's project — a sample, so the free cap never counts it. */
 const EXAMPLE_SCHEDULE_PROJECT_NAME = `${SAMPLE_PROJECT_PREFIX}Residential Build`;
@@ -37,18 +41,30 @@ export default function DiscoverScheduleTool() {
   const router = useRouter();
   const s = useThemedStyles(makeStyles);
   const { projects, addProject } = useProjects();
+  const { canAccess } = useTierAccess();
+  const webDesktop = useIsDesktopWeb();
+  const { width } = useWindowDimensions();
 
   const projectsWithSchedules = projects.filter(p => p.schedule && p.schedule.tasks.length > 0);
 
   /** Open a project's schedule. The classic schedule defaults to projects[0]
    *  and only honours an explicit projectId plus a `focus` nonce, so omitting
-   *  either dropped the user on the WRONG project's schedule. */
+   *  either dropped the user on the WRONG project's schedule.
+   *  Wave 6c: on desktop web, when Pro's own gate opens the job (own tier or
+   *  the collaborator grant) and Pro's grid fits the window, it opens Schedule
+   *  Pro directly (pushed, so Back returns to this list); everywhere else —
+   *  every phone — it is the classic tab, replaced, with the same params as
+   *  before. */
   const openSchedule = useCallback((projectId: string) => {
-    router.replace({
-      pathname: '/(tabs)/schedule',
-      params: { projectId, focus: String(Date.now()) },
-    } as any);
-  }, [router]);
+    const href = scheduleDestination({
+      projectId,
+      webDesktop,
+      canPro: canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE), projects.find(p => p.id === projectId)?.myRole),
+      proFits: proFitsWindow(width, webDesktop, getSidebarRail().pref),
+    });
+    if (href.pathname === '/schedule-pro') router.push(href);
+    else router.replace(href);
+  }, [router, webDesktop, canAccess, projects, width]);
 
   /**
    * Handle all on-ramp path selections. Discover operates without a single

@@ -7,7 +7,7 @@
 //   text, MAGE-orange the single accent, amber the "your data" signal, Fraunces
 //   for the question only, JetBrains-Mono for every grounded citation. Built
 //   from Colors/Type/Tokens (no raw hex / inline fontSize / borderRadius).
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays, ArrowLeft, Briefcase, Receipt, Undo2 } from 'lucide-react-native';
@@ -22,6 +22,8 @@ import { useCopilotConversation } from '@/hooks/useCopilotConversation';
 import { optionsForGap } from '@/utils/copilot/gapOptions';
 import { isLimitErrorKind } from '@/utils/copilot/turnMeter';
 import type { CopilotCapabilityId, CopilotContext } from '@/utils/copilot/types';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { desktopCta } from '@/components/ui/desktop';
 
 interface Props {
   capabilityId: CopilotCapabilityId;
@@ -38,6 +40,10 @@ interface Props {
   /** Undo the Apply just made (the schedule editor passes one). Offered on the
    *  "what landed" card; returns what happened in a sentence. */
   onUndo?: () => { ok: boolean; message: string };
+  /** Sent as his first turn, once, when the shell first reaches 'listening'
+   *  (Schedule Pro's command field: the change is already typed). Default: none
+   *  — the compose box waits for Continue, as today. */
+  autoSubmitSeed?: string;
 }
 
 /** An apply() result that lists what changed. A capability that returns one
@@ -46,9 +52,10 @@ interface LandedResult { landed: string[]; notLanded?: string[] }
 const isLandedResult = (a: unknown): a is LandedResult =>
   !!a && typeof a === 'object' && Array.isArray((a as LandedResult).landed);
 
-export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickProject, onBuildEstimate, onUndo }: Props) {
+export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickProject, onBuildEstimate, onUndo, autoSubmitSeed }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const router = useRouter();
   const pathname = usePathname();
   const convo = useCopilotConversation(capabilityId, ctx);
@@ -80,6 +87,18 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
     if (state.phase === 'error' && state.errorKind === 'no_project' && ctx.project) backToReview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, state.phase, state.errorKind]);
+
+  // The typed-ahead change (autoSubmitSeed): sent once, the first time the
+  // shell is ready for a turn. The compose box is cleared so the words are not
+  // left behind under the answer.
+  const autoSent = useRef(false);
+  useEffect(() => {
+    const t = (autoSubmitSeed ?? '').trim();
+    if (autoSent.current || !t || state.phase !== 'listening') return;
+    autoSent.current = true;
+    setCompose('');
+    utterance(t);
+  }, [autoSubmitSeed, state.phase, utterance]);
 
   const onTranscript = useCallback((t: string) => { setMicOpen(false); utterance(t); }, [utterance]);
   const submitCompose = useCallback(() => {
@@ -205,7 +224,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               multiline
               testID="copilot-compose"
             />
-            <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={submitCompose} testID="copilot-send">
+            <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={submitCompose} testID="copilot-send">
               <Text style={styles.buildBtnText}>Continue</Text>
             </TouchableOpacity>
           </View>
@@ -340,7 +359,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
               {!!state.reviewNote && <Text style={styles.grounding} testID="copilot-review-note">{state.reviewNote}</Text>}
               <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
-              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={buildAndLeave}>
+              <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={buildAndLeave}>
                 <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Build it</Text>
               </TouchableOpacity>
@@ -372,7 +391,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 <Text style={styles.ghostBtnText}>Undo</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={onDone} testID="copilot-landed-done">
+            <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={onDone} testID="copilot-landed-done">
               <Check size={18} color={Colors.textOnAccent} strokeWidth={2} />
               <Text style={styles.buildBtnText}>Done</Text>
             </TouchableOpacity>
@@ -399,18 +418,18 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             </Text>
             <Text style={styles.question}>{state.errorMessage ?? 'Try again.'}</Text>
             {(limitError || capError) && (
-              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={() => { onDone(); router.push('/paywall' as never); }} testID="copilot-see-plans">
+              <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={() => { onDone(); router.push('/paywall' as never); }} testID="copilot-see-plans">
                 <Text style={styles.buildBtnText}>See plans</Text>
               </TouchableOpacity>
             )}
             {state.errorKind === 'no_project' && onPickProject && (
-              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={onPickProject} testID="copilot-pick-job">
+              <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={onPickProject} testID="copilot-pick-job">
                 <Briefcase size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Pick a job</Text>
               </TouchableOpacity>
             )}
             {state.errorKind === 'no_estimate' && onBuildEstimate && (
-              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={onBuildEstimate} testID="copilot-build-estimate">
+              <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={onBuildEstimate} testID="copilot-build-estimate">
                 <Receipt size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Build the estimate first</Text>
               </TouchableOpacity>
@@ -422,7 +441,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
               </TouchableOpacity>
             )}
             {!limitError && !applyError && !capError && (
-              <TouchableOpacity accessibilityRole="button" style={styles.buildBtn} activeOpacity={0.9} onPress={() => setMicOpen(true)}>
+              <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={() => setMicOpen(true)}>
                 <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
                 <Text style={styles.buildBtnText}>Try again</Text>
               </TouchableOpacity>

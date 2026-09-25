@@ -62,17 +62,20 @@ const ROOT = join(__dirname, '..');
 //   stretchedSegments 30 → 5, unframedTransparentModalFiles 55 → 47,
 //   growingDesktopTiles 14 → 13, hiddenScrollbarRails 116 → 111 — each the
 //   count measured on the phase-A tree.
+// Wave-6c phase B integration (orchestrator): pageWidthLiterals 50 → 45,
+//   stretchedSegments 5 → 4, unframedTransparentModalFiles 47 → 32,
+//   hiddenScrollbarRails 111 → 109 — measured on the phase-B tree.
 const CEILING = {
   /** Numeric `maxWidth` literals ≥ 700 in app/ + components/ — page and
    *  column caps that should each be a Layout token. */
-  pageWidthLiterals: 50,
+  pageWidthLiterals: 45,
   /** seg/segment/tab/toggle/mode style entries that stretch (flex:1 /
    *  flexGrow:1) with no `segmentedDesktop` companion at their use site.
    *  Excludes components/schedule/mobile and `…Phone` styles. */
-  stretchedSegments: 5,
+  stretchedSegments: 4,
   /** Files with a transparent <Modal> and no desktop frame (no Sheet /
    *  useSheetFrame, no maxWidth anywhere in the file). */
-  unframedTransparentModalFiles: 47,
+  unframedTransparentModalFiles: 32,
   /** Non-transparent pageSheet <Modal>s (full-window on web). */
   pageSheetModals: 27,
   /** Percent-width tile literals (width / flexBasis / minWidth of 22–25%,
@@ -83,7 +86,7 @@ const CEILING = {
   growingDesktopTiles: 13,
   /** `showsHorizontalScrollIndicator={false}` — a desktop mouse has no swipe,
    *  so a hidden-scrollbar rail hides its own overflow. */
-  hiddenScrollbarRails: 111,
+  hiddenScrollbarRails: 109,
   /** `<Button style={{ flex: 1 }}>` — a stretched button; containerStyle is
    *  the replacement. */
   stretchedButtons: 5,
@@ -579,7 +582,6 @@ if (fixedBaseline.length) note(`gated now — delete from UNGATED_BASELINE: ${fi
  *  NEVER ADD A FILE — a new Modal adopts the frame when it lands. Lanes do not
  *  edit this block; the orchestrator trims it at integration. */
 const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
-  'app/(tabs)/(home)/index.tsx',
   'app/(tabs)/construction-ai/index.tsx',
   'app/(tabs)/discover/bids.tsx',
   'app/(tabs)/estimate/full.tsx',
@@ -592,7 +594,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/buyout-package.tsx',
   'app/buyout.tsx',
   'app/cash-flow.tsx',
-  'app/change-order.tsx',
   'app/client-view.tsx',
   'app/company-profile.tsx',
   'app/contacts.tsx',
@@ -603,7 +604,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/equipment-detail.tsx',
   'app/estimate-wizard.tsx',
   'app/get-verified.tsx',
-  'app/invoice.tsx',
   'app/job-costing.tsx',
   'app/lead-detail.tsx',
   'app/lien-waivers.tsx',
@@ -614,11 +614,8 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/plans.tsx',
   'app/project-detail.tsx',
   'app/qbo-review.tsx',
-  'app/rfi.tsx',
   'app/schedule-pro.tsx',
-  'app/schedule-wizard.tsx',
   'app/shared-schedule.tsx',
-  'app/submittal.tsx',
   'app/wip-report.tsx',
   'app/work-order.tsx',
   'components/AIBidScorer.tsx',
@@ -643,7 +640,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/InstantBidProposalModal.tsx',
   'components/MaterialAIEstimateModal.tsx',
   'components/OfflineSyncPill.tsx',
-  'components/PDFPreSendSheet.tsx',
   'components/Paywall.tsx',
   'components/ProductivityCalculator.tsx',
   'components/PropertyManagerHome.tsx',
@@ -668,27 +664,9 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/estimate/RateProvenanceChip.tsx',
   'components/punch/PunchExportSheet.tsx',
   'components/punch/PunchPhotoViewer.tsx',
-  'components/schedule/AddTaskModal.tsx',
-  'components/schedule/BaselineManagerModal.tsx',
-  'components/schedule/COScheduleReflowPreviewModal.tsx',
-  'components/schedule/ClosuresModal.tsx',
-  'components/schedule/CriticalPathPanel.tsx',
-  'components/schedule/EarnedValuePanel.tsx',
-  'components/schedule/ExportSheet.tsx',
-  'components/schedule/LevelingPreviewModal.tsx',
-  'components/schedule/PredecessorPicker.tsx',
-  'components/schedule/QuickBuildModal.tsx',
-  'components/schedule/ScenariosModal.tsx',
-  'components/schedule/ScheduleAuditModal.tsx',
-  'components/schedule/ScheduleHealthScore.tsx',
   'components/schedule/ScheduleRowMenu.tsx',
-  'components/schedule/ScheduleSettingsMenu.tsx',
-  'components/schedule/ScheduleShareSheet.tsx',
   'components/schedule/SchedulerMenuBar.tsx',
-  'components/schedule/SubUpdatesPanel.tsx',
   'components/schedule/TaskInspector.tsx',
-  'components/schedule/WeatherRescheduleModal.tsx',
-  'components/schedule/WeatherReschedulePrompt.tsx',
   'components/schedule/mobile/LivingFloorPlan.tsx',
   'components/schedule/mobile/MobileScheduleScreen.tsx',
   'components/schedule/mobile/MonthCalendarSheet.tsx',
@@ -848,7 +826,7 @@ function directChildren(src: string, styleName: string): number {
 const PINS: Pin[] = [
   {
     name: "the schedule tab's desktopHeaderLeft has no fixed width: 260",
-    file: 'app/(tabs)/schedule/index.tsx', fixed: false,
+    file: 'app/(tabs)/schedule/index.tsx', fixed: true,
     isFixed: (s) => !/desktopHeaderLeft:\s*\{[^}]*\bwidth:\s*260\b/.test(s),
   },
   {
@@ -866,12 +844,12 @@ const PINS: Pin[] = [
   },
   {
     name: "schedule-pro's tabShellBody row holds only the shell and the inspector",
-    file: 'app/schedule-pro.tsx', fixed: false,
+    file: 'app/schedule-pro.tsx', fixed: true,
     isFixed: (s) => { const n = directChildren(s, 'tabShellBody'); return n > 0 && n <= 2; },
   },
   {
     name: "TodayView's emptyActive has a desktop variant",
-    file: 'components/schedule/TodayView.tsx', fixed: false,
+    file: 'components/schedule/TodayView.tsx', fixed: true,
     isFixed: (s) => /\bemptyActiveDesktop\b/.test(s),
   },
 ];

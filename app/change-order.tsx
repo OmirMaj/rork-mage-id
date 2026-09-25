@@ -56,6 +56,18 @@ import { useServerChangeOrderNumber, coNumberHoldReason } from '@/hooks/useServe
 // The CO pipeline (and its side branches) is coPipelineFor, in the co-w4
 // block below — it used to map rejected/void onto 'Submitted' (#73).
 
+// Wave 6c (lane G): the desktop-web log + record split, the 760 form column,
+// ActionBar and framed sheets. Phone-identical: useIsDesktopWeb() is false on
+// a phone (logRouteMode → 'phone'); ActionBar renders today's <View>; the
+// sheet frames are null; the rest are `isDesktop && …` appends.
+import { useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
+import { ActionBar, ActionBarReadout } from '@/components/ui/ActionBar';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { usePrimaryAction } from '@/hooks/useHotkeys';
+import { ChangeOrderLog } from '@/components/logs/ChangeOrderLog';
+import { useLogAwareBack, useLogRecordHost } from '@/components/logs/LogRecordHost';
+import { logRouteMode } from '@/utils/logs/logRoutes';
+
 // The turnarounds a residential/light-commercial owner is actually given on a
 // change-order decision. Offered as chips because typing a number into a modal
 // while you are trying to send something is friction that gets skipped — and a
@@ -65,7 +77,7 @@ import { useServerChangeOrderNumber, coNumberHoldReason } from '@/hooks/useServe
 const CO_TURNAROUND_CHOICES = [3, 5, 7, 14] as const;
 
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
@@ -139,6 +151,17 @@ export default function ChangeOrderScreen() {
 }
 
 /**
+ * The change-order screens' back. On a phone (never a log host) it IS
+ * useSafeBack(): the screen's own safe back, which works cold (no history →
+ * home). Beside the change-order log on desktop web it closes the record
+ * instead of leaving the log.
+ */
+function useCoBack(): () => void {
+  const goBack = useSafeBack();
+  return useLogAwareBack(goBack);
+}
+
+/**
  * What a collaborator (or a role still resolving) sees instead of the editor.
  * Says WHY, and for a seat that files daily reports, where the extra work goes
  * instead: the daily report is a surface the project owner reads, so the scope
@@ -152,15 +175,19 @@ function CoRoleBlocked({ gate, role, projectId, prefillDescription, onRetry }: {
   onRetry: () => void;
 }) {
   const router = useRouter();
-  const goBack = useSafeBack();
+  // Beside the change-order log (desktop web) Back closes the record and the
+  // log's title row is the header; a phone never has a host, so it is as before.
+  const logHost = useLogRecordHost();
+  const goBack = useCoBack();
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const isDesktop = useIsDesktop();
   const copy = coRoleBlockedCopy(gate, role);
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Order" />
+      {logHost ? null : <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Order" />}
       <View style={styles.gateBody}>
         {gate === 'loading' ? (
           <Text style={styles.gateText}>{copy.body}</Text>
@@ -172,11 +199,12 @@ function CoRoleBlocked({ gate, role, projectId, prefillDescription, onRetry }: {
             {!!prefillDescription && gate === 'collaborator' && (
               <View style={styles.gatePrefillBox}><Text style={styles.gatePrefill} selectable>{prefillDescription}</Text></View>
             )}
-            {gate === 'error' && <Button label="Try again" variant="primary" onPress={onRetry} />}
+            {gate === 'error' && <Button label="Try again" variant="primary" onPress={onRetry} fullWidth={isDesktop} />}
             {gate === 'collaborator' && copy.canFileReport && !!projectId && (
               <Button
                 label="Log it in a daily report"
                 variant="primary"
+                fullWidth={isDesktop}
                 onPress={() => router.replace({
                   pathname: '/daily-report',
                   // fieldIssue carries the extra work into the report's
@@ -917,11 +945,14 @@ export function coRevisionDraft<L extends CoW4Line>(
 
 function ChangeOrderGate() {
   const router = useRouter();
+  const desktopWeb = useIsDesktopWeb();
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { coId, projectId: paramProjectId } = useLocalSearchParams<{ coId?: string; projectId?: string }>();
+  const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
   const { changeOrders, changeOrdersLoaded, projectsLoaded, retryRemoteReads } = useProjects();
+  const { getProject } = useProjects();
   const target = useMemo(() => (coId ? changeOrders.find(c => c.id === coId) ?? null : null), [coId, changeOrders]);
   const [graceOver, setGraceOver] = useState(false);
   useEffect(() => {
@@ -938,6 +969,37 @@ function ChangeOrderGate() {
     changeOrdersLoaded,
     graceOver,
   });
+  // Desktop web: a bare ?projectId opens the change-order log; ?coId opens
+  // that CO beside it. Phone (and a native tablet): 'phone' — nothing below
+  // changes.
+  const logProjectId = paramProjectId || target?.projectId || '';
+  const mode = logRouteMode('changeOrder', routeParams, { desktopWeb, projectKnown: !!getProject(logProjectId) });
+  if (mode === 'log') return <ChangeOrderLog projectId={logProjectId} />;
+  if (mode === 'split') {
+    return (
+      <ChangeOrderLog
+        projectId={logProjectId}
+        openId={coId}
+        detail={state === 'editor' ? <ChangeOrderInner key={target?.id ?? 'new'} projectIdOverride={target?.projectId} /> : (
+          <View style={styles.gateBody}>
+            {state === 'loading' ? (
+              <Text style={styles.gateText}>Loading this change order…</Text>
+            ) : (
+              <>
+                <AlertTriangle size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.gateTitle}>This change order isn&apos;t on this device yet</Text>
+                <Text style={styles.gateText}>
+                  The link names a change order that hasn&apos;t synced here, or was deleted. Nothing was
+                  opened in its place, so no new CO number was used.
+                </Text>
+                <Button label="Try again" variant="primary" onPress={() => { setGraceOver(false); retryRemoteReads(); }} />
+              </>
+            )}
+          </View>
+        )}
+      />
+    );
+  }
   if (state === 'editor') {
     // Keyed on the CO so the editor re-seeds if the link changes underneath it;
     // the CO's own project wins over the URL's (a link may carry only coId).
@@ -990,7 +1052,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     setCcdRowH(e.nativeEvent.layout.height);
   }, []);
   const router = useRouter();
-  const goBack = useSafeBack();
+  // Beside the change-order log (desktop web) Save / Send close the record;
+  // everywhere else this is useSafeBack(), as before (useCoBack).
+  const goBack = useCoBack();
+  // In the log's record pane the ToolHeader (whose chevron is the real
+  // router's back) is dropped: the log's title row and the context strip name
+  // the record, and closing it is the pane's job. null on a phone.
+  const logHost = useLogRecordHost();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
@@ -2281,6 +2349,22 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
 
   useBrainFabLift(!isLocked || coBilling ? bottomBarH : 0);
 
+  // Desktop: the sheets centre in the content column (null on a phone, and
+  // each keeps its own 'slide'); Cmd+S / Cmd+Enter saves the draft, and says
+  // why when the CO is locked. Send never binds Cmd+S — it leaves the app.
+  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide' });
+  const fAddItem = useSheetFrame('form', { visible: showAddItem, animationType: 'slide' });
+  const fEstimate = useSheetFrame('wide', { visible: showEstimateItems, animationType: 'slide' });
+  const fMaterial = useSheetFrame('wide', { visible: showMaterialSearch, animationType: 'slide' });
+  useSheetPrimaryHotkey(showSendRecipient, sendInFlight ? null : () => void handleConfirmSend(), { saveKey: false });
+  useSheetPrimaryHotkey(showAddItem, handleAddNewItem);
+  usePrimaryAction(() => withConfirmedImpactDays(() => handleSave('draft')), {
+    label: 'Save change order',
+    enabled: isDesktop,
+    disabled: isLocked,
+    reason: 'This change order is locked.',
+  });
+
   // #41 — the same role gate, on the job this editor actually resolved: a job
   // picked in the editor (sidebar entry) or a link that named only a CO the
   // outer gate could not see yet.
@@ -2300,7 +2384,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Orders" />
+        {logHost ? null : <ToolHeader eyebrow="CHANGE ORDERS · MAGE ID" title="Change Orders" />}
         <ToolProjectPicker
           toolName="Change Orders"
           message="A change order adjusts an existing contract amount, so it is written against one project."
@@ -2321,10 +2405,12 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader
-        eyebrow="CHANGE ORDERS · MAGE ID"
-        title={existingCO ? (confirmedNumber != null ? `CO #${confirmedNumber}` : 'CO (pending #)') : 'New Change Order'}
-      />
+      {logHost ? null : (
+        <ToolHeader
+          eyebrow="CHANGE ORDERS · MAGE ID"
+          title={existingCO ? (confirmedNumber != null ? `CO #${confirmedNumber}` : 'CO (pending #)') : 'New Change Order'}
+        />
+      )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           {...fabScroll}
@@ -2635,7 +2721,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               <View style={styles.fieldSection}>
                 <Text style={styles.fieldLabel}>Schedule Impact (days)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isDesktop && styles.inputXsDesktop]}
                   value={scheduleImpactDays}
                   onChangeText={onImpactDaysTyped}
                   placeholder="Additional days added to project (0 if none)"
@@ -2945,7 +3031,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               />
             )}
             {!isLocked && sendFinished && (
-              <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+              <ActionBar style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} width="form">
                 <Button
                   label={sendFinished}
                   onPress={goBack}
@@ -2953,11 +3039,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   style={{ flex: 1 }}
                   testID="co-sent-close"
                 />
-              </View>
+              </ActionBar>
             )}
 
             {!isLocked && !sendFinished && (
-              <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+              <ActionBar style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]} width="form">
                 <Button
                   label="Save to Project"
                   disabled={sendInFlight}
@@ -2974,14 +3060,14 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   style={{ flex: 1 }}
                   testID="send-co-btn"
                 />
-              </View>
+              </ActionBar>
             )}
 
             {/* Approved CO → the one action that was missing: turn it into money.
                 When it cannot be billed the control still renders and SAYS WHY,
                 rather than vanishing and leaving the GC to guess. */}
             {coBilling && existingCO && (
-              <View style={[styles.coBillBar, { paddingBottom: insets.bottom + 12 }]}>
+              <ActionBar style={[styles.coBillBar, { paddingBottom: insets.bottom + 12 }]} width="form">
                 {coBilling.canBill ? (
                   <>
                     <Button
@@ -2997,24 +3083,24 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       fullWidth
                       testID="bill-change-order-btn"
                     />
-                    {!!coBilling.note && <Text style={styles.coBillNote}>{coBilling.note}</Text>}
+                    {!!coBilling.note && <ActionBarReadout><Text style={styles.coBillNote}>{coBilling.note}</Text></ActionBarReadout>}
                   </>
                 ) : (
                   <>
                     <Button label="Bill this change order" onPress={() => {}} disabled fullWidth testID="bill-change-order-btn" />
-                    <Text style={styles.coBillNote}>{coBilling.reason}</Text>
+                    <ActionBarReadout><Text style={styles.coBillNote}>{coBilling.reason}</Text></ActionBarReadout>
                   </>
                 )}
-              </View>
+              </ActionBar>
             )}
           </View>
         )}
       </KeyboardAvoidingView>
 
-      <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
+      <Modal visible={showSendRecipient} transparent animationType={fSend.animationType} onRequestClose={() => setShowSendRecipient(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fSend.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send for Approval To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3133,10 +3219,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         }}
       />
 
-      <Modal visible={showAddItem} transparent animationType="slide" onRequestClose={() => setShowAddItem(false)}>
+      <Modal visible={showAddItem} transparent animationType={fAddItem.animationType} onRequestClose={() => setShowAddItem(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fAddItem.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAddItem.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add New Item</Text>
                 <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -3193,9 +3279,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showEstimateItems} transparent animationType="slide" onRequestClose={() => setShowEstimateItems(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }]}>
+      <Modal visible={showEstimateItems} transparent animationType={fEstimate.animationType} onRequestClose={() => setShowEstimateItems(false)}>
+        <View style={[styles.modalOverlay, fEstimate.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }, fEstimate.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add from Estimate</Text>
               <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -3229,9 +3315,9 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
         </View>
       </Modal>
 
-      <Modal visible={showMaterialSearch} transparent animationType="slide" onRequestClose={() => setShowMaterialSearch(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }]}>
+      <Modal visible={showMaterialSearch} transparent animationType={fMaterial.animationType} onRequestClose={() => setShowMaterialSearch(false)}>
+        <View style={[styles.modalOverlay, fMaterial.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }, fMaterial.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Search Materials</Text>
               <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -3436,7 +3522,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   pipelineWrap: pipelineWrapStyle,
   container: { flex: 1, backgroundColor: themeColors.bg },
   // Document-style form — cap kept, widened for desktop.
-  contentDesktop: { width: '100%', maxWidth: 1040, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' as const },
+  // Desktop only: a short input stops at its field width (TextStyle-typed,
+  // so a TextInput takes it; desktopField() returns a ViewStyle).
+  inputXsDesktop: { width: '100%', maxWidth: Layout.field.xs, alignSelf: 'flex-start' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
   backBtn: { backgroundColor: themeColors.accentFill, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },

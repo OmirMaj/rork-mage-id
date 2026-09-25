@@ -23,7 +23,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COLLABORATOR_PROJECT_FEATURES } from '../utils/collaboratorAccess';
+import { COLLABORATOR_PROJECT_FEATURES, resolveProjectAccess } from '../utils/collaboratorAccess';
+import { SCHEDULE_PRO_FEATURE, canOpenSchedulePro } from '../utils/scheduleRoute';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 let passed = 0; let failed = 0;
@@ -61,7 +62,6 @@ const EXCEPTIONS: Record<string, string> = {
  *  each is a post-chain handoff to the screen's owner. */
 const KNOWN_GAPS: Record<string, string> = {
   'app/(tabs)/schedule/index.tsx': "schedule_gantt_pdf (the PDF export) reads useTierAccess; switch to useProjectAccess(selectedProject?.id).canAccess('schedule_gantt_pdf')",
-  'app/schedule-review.tsx': "schedule_gantt_pdf via useTierAccess; switch to useProjectAccess(projectId)",
   'app/schedule-wizard.tsx': "schedule_gantt_pdf via useTierAccess; switch to useProjectAccess(projectId) (or document: building a schedule is the owner's)",
   'app/last-planner.tsx': "schedule_gantt_pdf via useTierAccess; project-hub left it (collaborator writes unverified) — verify last_planner RLS for field seats, then useProjectAccess",
   'app/schedule-import.tsx': "schedule_import via useTierAccess; switch to useProjectAccess(projectId) (or document: import replaces the owner's schedule)",
@@ -71,18 +71,62 @@ const KNOWN_GAPS: Record<string, string> = {
 const files = [...walk(join(ROOT, 'app')), ...walk(join(ROOT, 'components'))];
 const features = [...COLLABORATOR_PROJECT_FEATURES];
 
+// Wave 6c phase B: Summary and Discover link to many jobs, so they cannot
+// call useProjectAccess(projectId) per job. They gate Pro through
+// utils/scheduleRoute's canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE),
+// project.myRole) — resolveProjectAccess, the same answer the hook gives —
+// and the literal moved into that module. So the walk reads the constant as
+// the feature it names, and counts it project-aware ONLY in that wrapped
+// form; any other use of the constant (a bare own-tier canAccess) is an
+// own-tier gate like the literal would be.
+const FEATURE_ALIASES: Record<string, string> = { SCHEDULE_PRO_FEATURE };
+const PROJECT_AWARE_ALIAS = /\bcanOpenSchedulePro\(\s*canAccess\(\s*SCHEDULE_PRO_FEATURE\s*\)/g;
+function stripImports(src: string): string {
+  return src.replace(/^import\s[\s\S]*?\sfrom\s+['"][^'"]+['"];?/gm, '');
+}
+/** Uses of an alias constant that are not the project-aware wrapped form. */
+function bareAliasHits(src: string): string[] {
+  const body = stripImports(src);
+  const wrapped = (body.match(PROJECT_AWARE_ALIAS) ?? []).length;
+  return Object.entries(FEATURE_ALIASES).filter(([name, ft]) => {
+    if (!features.includes(ft as typeof features[number])) return false;
+    const all = (body.match(new RegExp(`\\b${name}\\b`, 'g')) ?? []).length;
+    return all - (name === 'SCHEDULE_PRO_FEATURE' ? wrapped : 0) > 0;
+  }).map(([, ft]) => ft);
+}
+function wrappedAliasCount(src: string): number {
+  return (stripImports(src).match(PROJECT_AWARE_ALIAS) ?? []).length;
+}
+
+console.log('\nthe alias rule (self-test):');
+ok('SCHEDULE_PRO_FEATURE is the granted feature Schedule Pro gates on', SCHEDULE_PRO_FEATURE === 'schedule_gantt_pdf'
+  && features.includes(SCHEDULE_PRO_FEATURE as typeof features[number]));
+ok('canOpenSchedulePro is resolveProjectAccess (own tier OR the seat\'s grant)',
+  ([true, false] as const).every(own => ([undefined, 'owner', 'editor', 'field', 'viewer'] as const).every(role =>
+    canOpenSchedulePro(own, role as never) === resolveProjectAccess(own, (role ?? null) as never, 'schedule_gantt_pdf'))));
+ok('the wrapped form is project-aware, a bare canAccess(SCHEDULE_PRO_FEATURE) is own-tier',
+  wrappedAliasCount("import { canOpenSchedulePro, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';\nconst a = canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE), r);") === 1
+  && bareAliasHits("import { canOpenSchedulePro, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';\nconst a = canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE), r);").length === 0
+  && bareAliasHits("import { SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';\nconst a = canAccess(SCHEDULE_PRO_FEATURE);").length === 1);
+
 console.log('\nscreens gating a collaborator-granted feature:');
 const ownTier: string[] = [];
 let projectAware = 0;
 for (const abs of files) {
   const rel = relative(ROOT, abs);
   const src = readFileSync(abs, 'utf8');
-  const hits = features.filter(f => new RegExp(`['"]${f}['"]`).test(src));
-  if (hits.length === 0) continue;
+  const hits = [...features.filter(f => new RegExp(`['"]${f}['"]`).test(src)), ...bareAliasHits(src)];
+  if (hits.length === 0) {
+    if (wrappedAliasCount(src) > 0) projectAware++;
+    continue;
+  }
   if (/useProjectAccess\(/.test(src)) { projectAware++; continue; }
   if (EXCEPTIONS[rel]) continue;
   ownTier.push(rel);
 }
+const aliasAware = files.filter(abs => wrappedAliasCount(readFileSync(abs, 'utf8')) > 0).map(abs => relative(ROOT, abs));
+ok('Summary, Discover and the AI review gate Schedule Pro through canOpenSchedulePro (project-aware)',
+  ['app/(tabs)/summary/index.tsx', 'app/(tabs)/discover/schedule.tsx', 'app/schedule-review.tsx'].every(f => aliasAware.includes(f)), aliasAware.join(', '));
 ok(`${projectAware} screens gate through useProjectAccess`, projectAware >= 15, String(projectAware));
 const newGaps = ownTier.filter(f => !KNOWN_GAPS[f]);
 ok('no NEW screen gates a collaborator-granted feature on the viewer\'s own tier', newGaps.length === 0,

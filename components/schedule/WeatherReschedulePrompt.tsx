@@ -11,7 +11,7 @@
 // shipped by US Tech Automations as a paid layer on Procore/P6. Free
 // in MAGE.
 
-import React, { memo, useMemo, useState, useCallback } from 'react';
+import React, { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { CloudRain, X, RefreshCw, ChevronRight, AlertTriangle } from 'lucide-react-native';
@@ -24,7 +24,8 @@ import { findWeatherRisk, getConditionIcon, type DayForecast } from '@/utils/wea
 import { computeWeatherHistory, weatherHistoryFactLine } from '@/utils/weatherHistory';
 import { hasSimulatedDays, SIMULATED_WEATHER_HEADLINE } from '@/utils/weatherProvenance';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 export interface WeatherReschedulePromptProps {
   tasks: ScheduleTask[];
@@ -33,6 +34,12 @@ export interface WeatherReschedulePromptProps {
   onPushTasks: (patches: { taskId: string; deltaDays: number }[]) => void;
   /** Project's daily field reports — used to surface historical lost-day grounding. */
   dailyReports?: DailyFieldReport[];
+  /** 'card' (default): today's banner. 'chip' (Schedule Pro's desktop
+   *  signals row, wave 6c): a 32 px chip that opens the same review sheet. */
+  variant?: 'card' | 'chip';
+  /** Told whether there is a conflict to show (the signals row collapses to
+   *  0 px when no chip has anything to say). */
+  onPresenceChange?: (present: boolean) => void;
 }
 
 interface WeatherConflict {
@@ -69,12 +76,13 @@ function findFirstWorkableOffset(
 }
 
 function WeatherReschedulePromptImpl({
-  tasks, forecasts, projectStartDate, onPushTasks, dailyReports,
+  tasks, forecasts, projectStartDate, onPushTasks, dailyReports, variant = 'card', onPresenceChange,
 }: WeatherReschedulePromptProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [dismissed, setDismissed] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const fWx = useSheetFrame('form', { visible: showDetail, animationType: 'slide' });
 
   // Historical grounding: "Your history here: ~N lost days/mo" when data exists.
   const historyLine = useMemo(() => {
@@ -120,10 +128,31 @@ function WeatherReschedulePromptImpl({
   // right here, and must not act on fiction believing it's a forecast.
   const conflictDaysAreSimulated = hasSimulatedDays(conflicts.map(c => c.hitDay));
 
-  if (dismissed || conflicts.length === 0) return null;
+  const present = !dismissed && conflicts.length > 0;
+  useEffect(() => { onPresenceChange?.(present); }, [present, onPresenceChange]);
+  // Cmd/Ctrl+Enter (and Cmd+S) in the review sheet = its primary, Push all.
+  const pushAllFromSheet = useCallback(() => { handlePushAll(); setShowDetail(false); }, [handlePushAll]);
+  useSheetPrimaryHotkey(showDetail && present, pushAllFromSheet);
+
+  if (!present) return null;
 
   return (
     <>
+      {variant === 'chip' ? (
+        <TouchableOpacity
+          style={styles.chip}
+          onPress={() => setShowDetail(true)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`${conflicts.length} weather-sensitive task${conflicts.length === 1 ? '' : 's'} hit bad weather — review`}
+          testID="weather-chip"
+        >
+          <CloudRain size={12} color={themeColors.warningLabel} strokeWidth={1.75} />
+          <Text style={styles.chipText} numberOfLines={1}>
+            {conflictDaysAreSimulated ? 'Simulated · ' : ''}{conflicts.length} task{conflicts.length === 1 ? '' : 's'} hit bad weather · Review
+          </Text>
+        </TouchableOpacity>
+      ) : (
       <View style={styles.banner}>
         <View style={styles.bannerIcon}>
           <CloudRain size={16} color={Colors.warningLabel} strokeWidth={1.75} />
@@ -164,11 +193,12 @@ function WeatherReschedulePromptImpl({
           <TouchableOpacity onPress={handleDismiss} hitSlop={6} style={styles.bannerCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
       </View>
+      )}
 
-      <Modal visible={showDetail} transparent animationType="slide" onRequestClose={() => setShowDetail(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHandle} />
+      <Modal visible={showDetail} transparent animationType={fWx.animationType} onRequestClose={() => setShowDetail(false)}>
+        <View style={[styles.modalBackdrop, fWx.overlay]}>
+          <View style={[styles.modalCard, fWx.card]}>
+            {fWx.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>Weather conflicts</Text>
@@ -211,19 +241,16 @@ function WeatherReschedulePromptImpl({
               ))}
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, fWx.footer]}>
               <TouchableOpacity
-                style={styles.modalSecondaryBtn}
+                style={[styles.modalSecondaryBtn, fWx.footerButton]}
                 onPress={() => setShowDetail(false)}
               >
                 <Text style={styles.modalSecondaryText}>Close</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalPrimaryBtn}
-                onPress={() => {
-                  handlePushAll();
-                  setShowDetail(false);
-                }}
+                style={[styles.modalPrimaryBtn, fWx.footerButton]}
+                onPress={pushAllFromSheet}
                 activeOpacity={0.85}
               >
                 <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
@@ -276,6 +303,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   bannerPrimaryText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: '#FFF' },
   bannerCloseBtn: { padding: 6 },
+  // The desktop signals-row chip: one line, 32 high, never wider than 240.
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    height: Layout.chip.height, maxWidth: Layout.chip.maxWidth, flexShrink: 0,
+    paddingHorizontal: 12, borderRadius: Tokens.radius.full,
+    backgroundColor: t.warningSoft, borderWidth: 1, borderColor: t.line,
+  },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.warningLabel },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {

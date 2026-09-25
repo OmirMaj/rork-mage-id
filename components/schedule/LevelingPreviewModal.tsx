@@ -13,6 +13,7 @@ import React from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
 } from 'react-native';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -38,16 +39,21 @@ export function LevelingPreviewModal(props: {
     projectFinishDelta > 0 ? `+${projectFinishDelta} days` : 'unchanged';
   const pushCount = summary.shifts.filter(sh => sh.pushesFinish).length;
 
+  // Desktop (wave 6c): a centred 720 card; Cmd/Ctrl+Enter or Cmd/Ctrl+S
+  // applies the leveling. All-null on a phone.
+  const frame = useSheetFrame('wide', { visible: props.visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(props.visible, props.onApply);
+
   return (
     <Modal
       visible={props.visible}
       transparent
-      animationType="slide"
+      animationType={frame.animationType}
       onRequestClose={props.onClose}
     >
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.modalHandle} />
+      <View style={[styles.modalBackdrop, frame.overlay]}>
+        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
+          {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>Fix overloads</Text>
             <TouchableOpacity

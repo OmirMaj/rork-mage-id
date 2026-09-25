@@ -95,6 +95,9 @@ export interface SidePanelProps {
   hotkeyScope?: HotkeyScope;
   /** DOM id on the desktop panel (the shell dock's print rule hides it by id). */
   nativeID?: string;
+  /** Web: tag the desktop panel data-print="hide" so Cmd+P prints the page
+   *  beside it, not the panel (a page-owned pane that is not the shell dock). */
+  printHide?: boolean;
 }
 
 /** Web: the resize cursor on the drag edge. RN types only 'auto' | 'pointer';
@@ -107,7 +110,7 @@ export function SidePanel(props: SidePanelProps) {
   const {
     open, onClose, title, children, onToggle, toggleCombo = 'mod+j', tabs, activeTab, onTabChange,
     panelId, defaultWidth = SIDE_PANEL_DEFAULT, containerWidth, overlayBelow = SIDE_PANEL_OVERLAY_BELOW,
-    headerActions, scroll = true, style, testID, hotkeyScope = 'page', nativeID,
+    headerActions, scroll = true, style, testID, hotkeyScope = 'page', nativeID, printHide = false,
   } = props;
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -221,6 +224,7 @@ export function SidePanel(props: SidePanelProps) {
       style={[styles.panel, { width }, overlay ? styles.overlay : null, style]}
       testID={testID}
       nativeID={nativeID}
+      {...(printHide && Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
       // A landmark on web (<aside>-like), so a screen reader can jump to it.
       role={Platform.OS === 'web' ? 'complementary' : undefined}
       accessibilityLabel={title}

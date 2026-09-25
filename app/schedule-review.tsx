@@ -32,7 +32,13 @@ import {
 } from '@/utils/scheduleEngine';
 import { SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { ActionBar } from '@/components/ui/ActionBar';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { scheduleProFits } from '@/utils/scheduleProLayout';
+import { canOpenSchedulePro, SCHEDULE_PRO_FEATURE } from '@/utils/scheduleRoute';
+import { sidebarWidthForRoute } from '@/utils/sidebarRail';
+import { getSidebarRail } from '@/utils/sidebarRailStore';
 import type { ScheduleTask } from '@/types';
 import { buildPaceBook, lookupPace, suggestDuration } from '@/utils/pace/paceBook';
 import { buildPaceFacts } from '@/utils/copilot/scheduleBuilder/paceGrounding';
@@ -52,10 +58,10 @@ import {
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
 
-// Schedule Pro (the drag/CPM grid) only renders above this width and is Pro-gated.
-// Below it — or below Pro — send the GC to the classic schedule instead of
-// bouncing them into a paywall/empty grid after they accept the draft.
-const GRID_BREAKPOINT = 900;
+// Schedule Pro (the drag/CPM grid) only renders when its CONTENT column is at
+// least GRID_BREAKPOINT wide (utils/scheduleProLayout.scheduleProFits) and is
+// Pro-gated. Below it — or below Pro — send the GC to the classic schedule
+// instead of bouncing them into a paywall/empty grid after they accept the draft.
 
 export default function ScheduleReviewScreen() {
   const { colors: t } = useTheme();
@@ -85,6 +91,7 @@ export default function ScheduleReviewScreen() {
   const { width } = useWindowDimensions();
   const { canAccess } = useTierAccess();
   const { isDesktop } = useResponsiveLayout();
+  const isDesktopWeb = useIsDesktopWeb();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
@@ -346,26 +353,37 @@ export default function ScheduleReviewScreen() {
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // The schedule is committed above regardless; only the destination differs.
-      // Schedule Pro needs both a wide viewport and Pro — otherwise land the GC in
-      // the classic schedule instead of a paywall/empty grid.
-      // Window-width comparison is CORRECT here even though this screen renders
-      // inside the desktop sidebar shell: schedule-pro is in DESKTOP_SHELL_EXEMPT
-      // (app/_layout.tsx) and renders full-bleed, so the width its grid will
-      // actually get IS the window width — not window − 240. If schedule-pro is
-      // ever un-exempted, this gate must switch to effective content width.
-      const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
+      // Schedule Pro needs both room and Pro — otherwise land the GC in the
+      // classic schedule instead of a paywall/empty grid. Room is the WINDOW
+      // minus the sidebar Pro will have on desktop web (the 64 px rail by
+      // default: schedule-pro is a canvas route inside the shell, wave 6c).
+      // Everywhere else the whole window: a phone (390) never fits.
+      // Pro's own gate, as every other way in asks it (utils/scheduleRoute):
+      // the viewer's tier OR the seat's grant on this job, so an invited
+      // editor on a free account lands in Pro here too, not only from Summary.
+      const wideEnoughForPro = scheduleProFits(width, isDesktopWeb ? sidebarWidthForRoute('schedule-pro', getSidebarRail().pref) : 0)
+        && canOpenSchedulePro(canAccess(SCHEDULE_PRO_FEATURE), project.myRole);
       if (wideEnoughForPro) {
         router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
       } else {
         // `focus` nonce: the classic schedule only re-applies a routed projectId
         // when the nonce is new, so a second visit to the same project without
         // one silently keeps whatever was manually selected there before.
+        // On desktop web the same nonce goes in `classic` too: this window is
+        // too narrow for Pro, so the classic tab must not hand the arrival to
+        // Pro (utils/scheduleRoute.classicRedirect). A phone's params are
+        // exactly what they were.
+        const focus = String(Date.now());
         router.replace({
           pathname: '/(tabs)/schedule',
-          params: { projectId: project.id, focus: String(Date.now()) },
+          params: { projectId: project.id, focus, ...(isDesktopWeb ? { classic: focus } : {}) },
         } as any);
       }
     }
+  // isDesktopWeb is left out on purpose: it follows `width` (the desktop gate
+  // is a width breakpoint on a fixed platform), and this deps list is pinned by
+  // scripts/validate-field-schedule-update.ts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds, scheduleWriteBlockedReason]);
 
   // Whole-draft regenerate — re-runs generation and replaces the ENTIRE draft.
@@ -529,7 +547,10 @@ export default function ScheduleReviewScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]} onLayout={onBottomBarLayout}>
-        <View style={styles.footerRow}>
+        {/* Desktop: the two buttons line up with the 760 content column and
+            size to their labels (was a 1,400 px 'Use this schedule'). A phone
+            gets the same View it always had. */}
+        <ActionBar style={[styles.footerRow, isDesktop && styles.footerRowDesktop]} width="form">
           {canRegenerate && (
             <TouchableOpacity
               style={[styles.regenBtn, regenerating && styles.regenBtnBusy]}
@@ -564,7 +585,7 @@ export default function ScheduleReviewScreen() {
             <Check size={17} color={Colors.textOnAccent} strokeWidth={2.5} />
             <Text style={styles.ctaText}>Use this schedule</Text>
           </TouchableOpacity>
-        </View>
+        </ActionBar>
       </View>
     </View>
   );
@@ -640,5 +661,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.45 },
   ctaText: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
-  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' as const },
+  footerRowDesktop: { justifyContent: 'center' as const },
 });

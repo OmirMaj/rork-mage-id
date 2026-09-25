@@ -6,7 +6,7 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
@@ -66,9 +66,9 @@ import { PROJECT_TYPES, type Project, type ProjectType, type EntityRef } from '@
 import { cleanProjectTypeOther, projectTypeBlockReason, PROJECT_TYPE_OTHER_MAX } from '@/utils/projectTypes';
 import { projectTypeFromParsedType } from '@/utils/scopeQuestions';
 import WarrantyWalkBanner from '@/components/WarrantyWalkBanner';
-import { getUpcomingWarrantyWalks } from '@/utils/warrantyWalks';
+import { getUpcomingWarrantyWalks, describeWalkTiming, warrantyWalkTitle } from '@/utils/warrantyWalks';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import PageHeader from '@/components/PageHeader';
 import ProjectRow from '@/components/ProjectRow';
@@ -83,18 +83,51 @@ import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 import DailyLogCard from '@/components/home/DailyLogCard';
 import { showAlert } from '@/utils/alert';
+// Wave 6c, lane F — the desktop portfolio. Everything below renders only on the
+// desktop branch or appends a style that is null on a phone.
+import { useShellDock } from '@/components/desktop/ShellDock';
+import { NoticeStrip, type Notice } from '@/components/desktop/NoticeStrip';
+import { FormGrid, FormField } from '@/components/desktop/FormGrid';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { TileGrid } from '@/components/ui/TileGrid';
+import { Button } from '@/components/ui/Button';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { useIsDesktopWeb, desktopToggle } from '@/components/ui/desktop';
+import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
+import { PortfolioHomeLayout } from '@/components/portfolio/PortfolioHomeLayout';
+import { buildPortfolioRows } from '@/utils/portfolio/portfolioRow';
+import { actionRailVisible } from '@/utils/sidebarRail';
+import { stageLabel } from '@/utils/projectStage';
 
 // Status filter buckets. ONE label map for the dense table's section header,
 // the chips and the empty-bucket state, so "No closeout jobs" names the same
 // bucket the chip the GC just tapped does.
+//
+// Wave 6c (C2, honesty copy): the words are utils/projectStage's — the job
+// page's four lifecycle names. Home used to call a finished-but-not-closed job
+// "Closeout" and a closed one "Closed", while the job page called the same
+// two "Post-Con" and "Closeout", so the chip he tapped and the job he opened
+// disagreed. The KEYS (and so the reducer, the auto-pick and any saved pick)
+// are unchanged; only the words moved.
 type StatusFilter = HomeStatusFilter;
 const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
   all: 'All projects',
-  active: 'Active',
-  precon: 'Pre-construction',
-  closeout: 'Closeout',
-  closed: 'Closed',
+  active: stageLabel('construction'),
+  precon: stageLabel('precon'),
+  closeout: stageLabel('postcon'),
+  closed: stageLabel('closeout'),
 };
+
+// The desktop stage chips (wave 6c): lifecycle order, in utils/projectStage's
+// words, over the reducer's keys (closeout = the 'completed' bucket, which
+// projectStage calls Post-Con; closed = Closeout).
+const DESKTOP_STAGE_CHIPS: { key: StatusFilter; label: string }[] = [
+  { key: 'precon', label: stageLabel('precon') },
+  { key: 'active', label: stageLabel('construction') },
+  { key: 'closeout', label: stageLabel('postcon') },
+  { key: 'closed', label: stageLabel('closeout') },
+  { key: 'all', label: 'All' },
+];
 
 // "Today on site" shows this many jobs, then a "+N more on site today" row.
 const TODAY_ON_SITE_ROWS = 4;
@@ -123,13 +156,10 @@ export default function HomeScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
-  // Same width threshold as DesktopActionRail in the tabs layout. When the
-  // rail is mounted it becomes the wide-desktop needs-you surface (canonical
-  // useBrainWatch set), so we suppress the inline Smart Inbox feed here to
-  // avoid two competing attention columns in the same viewport. Keep the
-  // breakpoint in sync if you change either side.
   const responsive = useResponsiveLayout();
-  const isWideDesktop = responsive.isDesktop && responsive.width >= 1280;
+  // Browser-only behaviour (Enter-to-create in the New Project fields) is
+  // gated on desktop WEB: isDesktop is also true on a >= 1024 native window.
+  const desktopWeb = useIsDesktopWeb();
   // Use the dense ProjectRow at tablet+ widths. On phone we keep the
   // ProjectCard pattern — stacked metas read better on narrow screens.
   const useDenseRows = !responsive.isPhone;
@@ -144,6 +174,20 @@ export default function HomeScreen() {
     // that question, so it has to know which (audit 2026-09-07).
     sourceFailed, retryRemoteReads,
   } = projectCtx;
+  // ONE rule for "is the action rail up" — lane S's actionRailVisible, the
+  // same call the tabs layout makes to mount it (Home index, window >= 1280,
+  // not a client or property manager, the shell dock empty). While it is up
+  // the rail IS the attention list, so this screen leaves the inline Smart
+  // Inbox (and, on desktop, Brain Watch, Ready to Bill, the daily-log card and
+  // the warranty banner) out instead of drawing the same list twice.
+  const dock = useShellDock();
+  const railShowing = actionRailVisible({
+    isDesktop: responsive.isDesktop,
+    width: responsive.width,
+    segments: ['(tabs)', '(home)'],
+    userRole,
+    dockOpen: dock.content != null,
+  });
   const { user } = useAuth();
   // "Try a sample project" — un-gated as of the explainability refresh.
   // Original design had this owner-only because we worried users would
@@ -371,6 +415,8 @@ export default function HomeScreen() {
     return l && l !== 'United States' ? l : null;
   }, [settings?.location]);
   const [_createdProjectId, setCreatedProjectId] = useState<string | null>(null);
+  // The job just created, highlighted in the desktop table (wave 6c, D6).
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [showNextStepModal, setShowNextStepModal] = useState(false);
   const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
 
@@ -474,6 +520,13 @@ export default function HomeScreen() {
   const burnByProject = useMemo(() => buildBurnByProject({
     projects, invoices, changeOrders, userId, invoicesRead, changeOrdersLoaded,
   }), [invoicesRead, changeOrdersLoaded, invoices, changeOrders, projects, userId]);
+
+  // The desktop portfolio table's rows (wave 6c) — computed only on desktop;
+  // the phone and tablet lists never read them.
+  const { rfis, punchItems, dailyReports } = projectCtx;
+  const portfolioRows = useMemo(() => (responsive.isDesktop ? buildPortfolioRows({
+    projects: filteredProjects, invoices, changeOrders, rfis, punchItems, dailyReports, burnByProject, now: new Date(),
+  }) : []), [responsive.isDesktop, filteredProjects, invoices, changeOrders, rfis, punchItems, dailyReports, burnByProject]);
 
   // ── Today on site ──────────────────────────────────────────────
   // Active projects whose schedule has at least one task running today.
@@ -612,6 +665,11 @@ export default function HomeScreen() {
       status: 'draft',
     };
     addProject(newProject);
+    // A new job is a draft (Pre-Con). Created while a stage chip that does not
+    // hold drafts is picked, it used to vanish the moment it was saved — so the
+    // filter moves to where the job actually is, and the table highlights it.
+    if (statusFilter !== 'all' && statusFilter !== 'precon') pickStatusFilter('precon');
+    setJustCreatedId(id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowCreateModal(false);
     setCreatedProjectId(id);
@@ -622,7 +680,24 @@ export default function HomeScreen() {
     setProjectTypeOther('');
     setProjectLocation('');
     setProjectSqft('');
-  }, [projectName, projectDescription, projectType, projectTypeOther, projectLocation, projectSqft, addProject]);
+  }, [projectName, projectDescription, projectType, projectTypeOther, projectLocation, projectSqft, addProject, statusFilter, pickStatusFilter]);
+
+  // The highlight clears 6 s after the next-step dialog closes, or as soon as
+  // he leaves Home (opening a row, or the wizard the dialog sent him to).
+  useEffect(() => {
+    if (!justCreatedId || showNextStepModal) return undefined;
+    const timer = setTimeout(() => setJustCreatedId(null), 6000);
+    return () => clearTimeout(timer);
+  }, [justCreatedId, showNextStepModal]);
+  useFocusEffect(useCallback(() => () => setJustCreatedId(null), []));
+
+  // D8 — the two hand-rolled dialogs adopt the 6b sheet frame. On a phone
+  // every frame part is null and animationType is the original literal, so the
+  // sheets render exactly as before; on desktop they centre in the content
+  // column (the create form at the 720 'wide' size, the next step at 440).
+  const createFrame = useSheetFrame('wide', { visible: showCreateModal, animationType: 'slide' });
+  useSheetPrimaryHotkey(showCreateModal, handleCreateProject);
+  const nextStepFrame = useSheetFrame('dialog', { visible: showNextStepModal, animationType: 'fade' });
 
   const handleNextStep = useCallback((step: 'estimate' | 'schedule' | 'later') => {
     setShowNextStepModal(false);
@@ -696,86 +771,104 @@ export default function HomeScreen() {
   // BELOW the project list so the user's first scroll-target is the
   // project itself — the most common thing they came here to do.
   // QuickFieldUpdate / AI summary toggle stay one short scroll away.
+  // Ask MAGE, the Copilot entry and the AI summary toggle — each ONE element,
+  // used by the phone footer below and by the desktop footer (wave 6c: Ask
+  // MAGE and the Copilot two-up in a TileGrid, the toggle hugging its label
+  // instead of spanning 1,368 px), so the JSX and its strings exist once. The
+  // desktop styles are appended behind `responsive.isDesktop &&` and are
+  // dropped on a phone.
+  const aiEntries = useMemo(() => ({
+    // Ask MAGE — whole-business conversational agent. Entry point lives in
+    // the home AI section; opens the /ask chat.
+    askMage: (
+      <TouchableOpacity
+        onPress={() => router.push('/ask' as never)}
+        activeOpacity={0.85}
+        testID="home-ask-mage"
+        style={[{
+          flexDirection: 'row', alignItems: 'center', gap: 10,
+          backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg,
+          paddingHorizontal: 16, paddingVertical: 14, marginBottom: 8,
+          borderWidth: 1, borderColor: themeColors.accent,
+        }, responsive.isDesktop && styles.launcherDesktop]}
+      >
+        <MageAIMark size={18} color={themeColors.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: themeColors.text, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
+          <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+            What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
+          </Text>
+        </View>
+        <ChevronRight size={16} color={themeColors.accent} strokeWidth={2} />
+      </TouchableOpacity>
+    ),
+    // Copilot Hub — voice-driven workflow builder. Cross-link from home so
+    // the flagship conversational surface is one tap away without requiring
+    // the user to navigate to a specific project first.
+    copilot: (
+      <TouchableOpacity
+        onPress={() => router.push('/copilot-hub' as never)}
+        activeOpacity={0.85}
+        testID="home-copilot-hub"
+        style={[{
+          flexDirection: 'row', alignItems: 'center', gap: 10,
+          backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg,
+          paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
+          borderWidth: 1, borderColor: themeColors.line,
+        }, responsive.isDesktop && styles.launcherDesktop]}
+      >
+        <MageAIMark size={18} color={themeColors.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: Type.footnote.fontSize }}>MAGE Copilot</Text>
+          <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+            Say what you need — build schedules, write change orders, create reports by voice
+          </Text>
+        </View>
+        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
+      </TouchableOpacity>
+    ),
+    briefing: (
+      <View style={[styles.aiBriefingWrap, responsive.isDesktop && styles.aiBriefingWrapDesktop]}>
+        <TouchableOpacity
+          style={[styles.aiBriefingToggle, responsive.isDesktop && desktopToggle]}
+          onPress={() => setShowAIBriefing(prev => !prev)}
+          activeOpacity={0.7}
+          testID="ai-briefing-toggle"
+        >
+          <View style={styles.aiBriefingToggleLeft}>
+            <MageAIMark size={14} color={themeColors.accent} />
+            <Text style={styles.aiBriefingToggleText}>
+              {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
+            </Text>
+          </View>
+          {showAIBriefing
+            ? <ChevronUp size={14} color={themeColors.textSecondary} strokeWidth={2} />
+            : <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={2} />}
+        </TouchableOpacity>
+        {showAIBriefing && (
+          <AIHomeBriefing
+            projects={projects}
+            invoices={invoices}
+            subscriptionTier={tier as any}
+            onViewFull={() => setShowWeeklySummary(true)}
+          />
+        )}
+      </View>
+    ),
+  }), [projects, invoices, tier, showAIBriefing, themeColors, router, responsive.isDesktop, styles]);
+
   const projectsFooterExtras = useMemo(() => {
     if (projects.length === 0) return null;
     return (
       <View style={styles.footerExtras}>
-        {/* Ask MAGE — whole-business conversational agent. Entry point lives
-            in the home AI section; opens the /ask chat. */}
-        <TouchableOpacity
-          onPress={() => router.push('/ask' as never)}
-          activeOpacity={0.85}
-          testID="home-ask-mage"
-          style={{
-            flexDirection: 'row', alignItems: 'center', gap: 10,
-            backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg,
-            paddingHorizontal: 16, paddingVertical: 14, marginBottom: 8,
-            borderWidth: 1, borderColor: themeColors.accent,
-          }}
-        >
-          <MageAIMark size={18} color={themeColors.accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: themeColors.text, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
-            <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
-              What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
-            </Text>
-          </View>
-          <ChevronRight size={16} color={themeColors.accent} strokeWidth={2} />
-        </TouchableOpacity>
+        {aiEntries.askMage}
 
-        {/* Copilot Hub — voice-driven workflow builder. Cross-link from home
-            so the flagship conversational surface is one tap away without
-            requiring the user to navigate to a specific project first. */}
-        <TouchableOpacity
-          onPress={() => router.push('/copilot-hub' as never)}
-          activeOpacity={0.85}
-          testID="home-copilot-hub"
-          style={{
-            flexDirection: 'row', alignItems: 'center', gap: 10,
-            backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg,
-            paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
-            borderWidth: 1, borderColor: themeColors.line,
-          }}
-        >
-          <MageAIMark size={18} color={themeColors.accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: Type.footnote.fontSize }}>MAGE Copilot</Text>
-            <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
-              Say what you need — build schedules, write change orders, create reports by voice
-            </Text>
-          </View>
-          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
-        </TouchableOpacity>
-        <View style={styles.aiBriefingWrap}>
-          <TouchableOpacity
-            style={styles.aiBriefingToggle}
-            onPress={() => setShowAIBriefing(prev => !prev)}
-            activeOpacity={0.7}
-            testID="ai-briefing-toggle"
-          >
-            <View style={styles.aiBriefingToggleLeft}>
-              <MageAIMark size={14} color={themeColors.accent} />
-              <Text style={styles.aiBriefingToggleText}>
-                {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
-              </Text>
-            </View>
-            {showAIBriefing
-              ? <ChevronUp size={14} color={themeColors.textSecondary} strokeWidth={2} />
-              : <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={2} />}
-          </TouchableOpacity>
-          {showAIBriefing && (
-            <AIHomeBriefing
-              projects={projects}
-              invoices={invoices}
-              subscriptionTier={tier as any}
-              onViewFull={() => setShowWeeklySummary(true)}
-            />
-          )}
-        </View>
+        {aiEntries.copilot}
+        {aiEntries.briefing}
         <QuickFieldUpdate />
       </View>
     );
-  }, [projects, invoices, tier, showAIBriefing, themeColors.accent, themeColors.textSecondary, router]);
+  }, [projects.length, aiEntries, styles]);
 
   // Compose the footer: project list first (denseProjectList renders nothing
   // on phone widths since they use FlatList items), then secondary widgets.
@@ -819,6 +912,249 @@ export default function HomeScreen() {
     return <PropertyManagerHome />;
   }
 
+  // ── Today on site ──────────────────────────────────────────────
+  // Active projects with at least one task running today per their schedule.
+  // The "what's actually happening on the ground RIGHT NOW" line — the
+  // contractor's mental model. Renders nothing when nothing's on (weekends,
+  // between phases) so the screen stays quiet. ONE element (wave 6c): the
+  // phone header renders it where it always sat, and the desktop layout in its
+  // left column, so its strings exist once.
+  const todayOnSiteBlock = todayOnSite.length > 0 ? (
+    <View style={[styles.todaySection, responsive.isDesktop && styles.todaySectionDesktop]}>
+      <Text style={styles.sectionHeader}>
+        TODAY ON SITE{todayOnSiteHidden > 0 ? ` · ${todayOnSite.length}` : ''}
+      </Text>
+      <View style={styles.todayCard}>
+        {todayOnSiteShown.map((entry, idx) => {
+          const moreTasks = entry.activeTaskCount - entry.activeTaskTitles.length;
+          return (
+            <TouchableOpacity
+              key={entry.project.id}
+              onPress={() => handleProjectPress(entry.project)}
+              activeOpacity={0.7}
+              // The last shown row still gets a divider when the
+              // "+N more" row follows it.
+              style={[styles.todayRow, (idx < todayOnSiteShown.length - 1 || todayOnSiteHidden > 0) && styles.todayRowDivider]}
+              testID={`today-on-site-${entry.project.id}`}
+            >
+              <View style={styles.todayDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.todayProjectName} numberOfLines={1}>{entry.project.name}</Text>
+                <Text style={styles.todayTasks} numberOfLines={1}>
+                  {/* Three titles are not all of them when there are five. */}
+                  {entry.activeTaskTitles.join(' · ')}{moreTasks > 0 ? ` · +${moreTasks} more` : ''}
+                </Text>
+              </View>
+              <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+            </TouchableOpacity>
+          );
+        })}
+        {todayOnSiteHidden > 0 && (
+          // The jobs past the first four are still on site. Summary's
+          // Today on site lists every task on every job, uncapped.
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/summary' as never)}
+            activeOpacity={0.7}
+            style={styles.todayRow}
+            accessibilityRole="button"
+            accessibilityLabel={`${todayOnSiteHidden} more ${todayOnSiteHidden === 1 ? 'job' : 'jobs'} on site today. Opens Summary.`}
+            testID="today-on-site-more"
+          >
+            <Text style={styles.todayMoreText}>
+              +{todayOnSiteHidden} more on site today
+            </Text>
+            <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  ) : null;
+
+  // 5-step onboarding checklist — auto-hides at 4/5 done OR when explicitly
+  // dismissed. ONE element for the phone header and the desktop cards column;
+  // it stays a full mounted card at every width (its 'Show me first' entry
+  // starts the tutorial — validate-tutorial-entry-points).
+  const onboardingChecklistCard = (
+    <OnboardingChecklist
+      companyInfoDone={companyInfoDone}
+      // realProjectCount, not projects.length (polish audit 2026-09-10,
+      // first-ten-minutes #15). Seeding "Sample — The Henderson Residence"
+      // ticked off "Create your first project" here, while handleCreatePress
+      // above deliberately filters samples OUT when it answers the same
+      // question for the free-tier cap. One definition of "a project", used
+      // by both, or this card credits him with work the rest of the app
+      // does not count.
+      // Owned, non-sample (utils/projectCap) — a job shared with him
+      // is the GC's, so it doesn't tick "Create your first project"
+      // either (#58).
+      projectCount={realProjectCount}
+      estimateCount={estimateCount}
+      stripeConnected={stripeConnected}
+      stripeCheckFailed={stripeCheckFailed}
+      // Invoices on a demo project are the seed's (#155).
+      invoiceCount={realInvoiceCount}
+      triedWowFeature={milestones.voiceUsed || milestones.takeoffRun || estimateCount > 0}
+    />
+  );
+
+  // ── The desktop Home (wave 6c, lane F) ─────────────────────────
+  // Built only on desktop. The order a GC reads his book in: header, one
+  // notice line, the portfolio table (8 jobs above the fold at 1512 × 945),
+  // then Today on site beside the self-gated cards, then the AI entries. While
+  // the action rail is up it carries Brain Watch, Ready to Bill, the daily-log
+  // gaps and the warranty walks, so they are not drawn here a second time.
+  const allSamples = projects.length > 0 && projects.every(p => isSampleProjectName(p.name));
+  const firstWalk = warrantyWalkAlerts[0];
+  const desktopHome = responsive.isDesktop ? (
+    <PortfolioHomeLayout
+      header={
+        <PageHeader
+          title="Your Projects"
+          statusPill={<OfflineSyncPill />}
+          onSearchPress={openSearch}
+          actions={
+            <>
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: themeColors.surfaceAlt }]}
+                onPress={() => router.push('/notifications-inbox')}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Notifications"
+                testID="notifications-inbox-btn"
+              >
+                <Bell size={20} color={themeColors.accent} strokeWidth={2} />
+                {notifFeed.unreadCount > 0 && (
+                  <View style={styles.notifBadge}>
+                    <Text style={styles.notifBadgeText}>
+                      {notifFeed.unreadCount > 9 ? '9+' : String(notifFeed.unreadCount)}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              {/* The labelled primary: straight to the New Project form
+                  (the cap check included), no menu in between. */}
+              <Button label="New project" size="md" onPress={handleCreatePress} testID="home-new-project" />
+              {/* Everything else that can be created. */}
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setShowCreateMenu(true)}
+                activeOpacity={0.7}
+                testID="new-project-btn"
+                accessibilityRole="button"
+                accessibilityLabel="Create something else"
+              >
+                <Plus size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
+              </TouchableOpacity>
+            </>
+          }
+        />
+      }
+      notices={
+        <NoticeStrip
+          testID="home-notices"
+          // Its own gutter: the layout does not wrap it, so a strip with
+          // nothing to show leaves no blank band above the table.
+          style={responsive.isDesktop && styles.noticesDesktop}
+          notices={[
+            {
+              id: 'stripe',
+              visible: showStripeBanner,
+              message: 'Get paid in one tap — connect Stripe so clients can pay invoices from their phone. About 3 minutes, then Stripe reviews it.',
+              onDismiss: handleDismissStripeBanner,
+              action: { label: 'Connect', onPress: () => router.push('/payments-setup') },
+              testID: 'stripe-connect-home-notice',
+            },
+            {
+              id: 'samples',
+              visible: allSamples,
+              message: 'These are sample projects — create your own to start for real.',
+              action: { label: 'New project', onPress: handleCreatePress },
+              testID: 'samples-notice',
+            },
+            {
+              // While the rail is up its WARRANTY WALKS section carries these.
+              id: 'warranty',
+              visible: !railShowing && !!firstWalk,
+              tone: firstWalk?.severity === 'urgent' ? 'warn' : 'info',
+              message: firstWalk
+                ? `${firstWalk.warrantyMonthsAssumed ? 'Warranty walk' : warrantyWalkTitle(firstWalk.warrantyMonths)} — ${firstWalk.project.name} · ${describeWalkTiming(firstWalk)}${warrantyWalkAlerts.length > 1 ? ` · +${warrantyWalkAlerts.length - 1} more` : ''}`
+                : '',
+              action: firstWalk
+                ? { label: 'Open', onPress: () => router.push({ pathname: '/warranty-walk', params: { projectId: firstWalk.project.id } }) }
+                : undefined,
+              testID: 'warranty-walk-notice',
+            },
+          ] satisfies Notice[]}
+        />
+      }
+      table={projects.length > 0 ? (
+        <PortfolioTable
+          projects={filteredProjects}
+          rows={portfolioRows}
+          burnByProject={burnByProject}
+          highlightId={justCreatedId}
+          onOpenProject={handleProjectPress}
+          onOpenActions={(p) => setActionSheetRef({ kind: 'project', id: p.id, label: p.name })}
+          stageChips={
+            <SegmentedControl<StatusFilter>
+              // Lifecycle order, in utils/projectStage's words. The keys are
+              // the reducer's, so the auto-pick and "Show all jobs" still work.
+              options={DESKTOP_STAGE_CHIPS.map(c => ({
+                value: c.key,
+                label: c.label,
+                count: statusBuckets[c.key].length,
+                testID: `stage-chip-${c.key}`,
+              }))}
+              value={statusFilter}
+              onChange={pickStatusFilter}
+              variant="pill"
+              accessibilityLabel="Filter jobs by stage"
+              testID="stage-chips"
+            />
+          }
+          emptyState={
+            <EmptyState
+              icon={<FolderOpen size={40} color={themeColors.textMuted} strokeWidth={1.6} />}
+              title={`No ${STATUS_FILTER_LABEL[statusFilter].toLowerCase()} jobs`}
+              message="Nothing in this stage right now."
+              actionLabel="Show all jobs"
+              onAction={() => pickStatusFilter('all')}
+            />
+          }
+        />
+      ) : null}
+      belowLeft={todayOnSiteBlock}
+      belowRight={
+        <>
+          <PendingInvitesCard />
+          {projects.length > 0 && !isLoading && <MorningBriefCard />}
+          {projects.length > 0 && !isLoading && <WeekCloseCard />}
+          {onboardingChecklistCard}
+          {projects.length > 0 && !allSamples ? (
+            <NextStepHero
+              projects={projects}
+              invoices={invoices}
+            />
+          ) : null}
+          {projects.length > 0 && !isLoading && <RecoveredCard />}
+          {!railShowing && projects.length > 0 && !isLoading && <BrainWatchCard />}
+          {!railShowing && projects.length > 0 && !isLoading && <ReadyToBillCard />}
+          {!railShowing && projects.length > 0 && !isLoading && <DailyLogCard />}
+          {!railShowing && projects.length > 0 && <SmartInbox />}
+        </>
+      }
+      footer={projects.length > 0 ? (
+        <View style={styles.desktopFooter}>
+          <TileGrid preset="nav" testID="home-ai-entries">
+            {aiEntries.askMage}
+            {aiEntries.copilot}
+          </TileGrid>
+          {aiEntries.briefing}
+        </View>
+      ) : null}
+    />
+  ) : null;
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <FlatList
@@ -829,7 +1165,9 @@ export default function HomeScreen() {
         data={useDenseRows ? [] : filteredProjects}
         renderItem={renderProject}
         keyExtractor={keyExtractor}
-        ListFooterComponent={listFooter}
+        // Desktop: the portfolio layout in the header owns the table and the
+        // AI entries, so there is no footer.
+        ListFooterComponent={responsive.isDesktop ? null : listFooter}
         // FlatList perf knobs: render only the first 6 cards initially, keep
         // off-screen cards in 11 windows (~5 above + 5 below current), and
         // clip subviews on Android (no-op on iOS). Tuned for the common case
@@ -845,7 +1183,6 @@ export default function HomeScreen() {
         {...fabScroll}
         contentContainerStyle={[
           styles.listContent,
-          responsive.isDesktop && styles.listContentDesktop,
           // Bottom padding clears the single MAGE Brain FAB (bottom:
           // insets.bottom + 70, 56px) plus a margin so the last rows aren't
           // tucked under it: 70 + 56 + 24 = 150. Now shared, so every screen
@@ -853,7 +1190,7 @@ export default function HomeScreen() {
           { paddingTop: insets.top, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE },
           projects.length === 0 && styles.emptyList,
         ]}
-        ListHeaderComponent={
+        ListHeaderComponent={responsive.isDesktop ? desktopHome : (
           <View>
             {/* Unified PageHeader replaces the old two-row pattern (a
                 navBar with logo + 3 icons stacked above a separate large
@@ -973,10 +1310,10 @@ export default function HomeScreen() {
                 this card printed "All caught up" four rows under "permit has
                 expired — work on it is unpermitted"), but the SENTENCE still
                 needs scoping in that component. */}
-            {/* Inline SmartInbox is suppressed at wide desktop widths — the
-                DesktopActionRail in the tabs layout is rendering the same
-                items in the right column. */}
-            {projects.length > 0 && !isWideDesktop && <SmartInbox />}
+            {/* Inline SmartInbox is suppressed while the DesktopActionRail is
+                up (railShowing — lane S's actionRailVisible): the rail is
+                rendering the same items in the right column. */}
+            {projects.length > 0 && !railShowing && <SmartInbox />}
 
             {/* ── Status filter chips ─────────────────────────────
                 Replaces the old 4-tile stats grid (Projects / Outstanding
@@ -1029,61 +1366,9 @@ export default function HomeScreen() {
             )}
 
             {/* ── Today on site ──────────────────────────────────
-                Active projects with at least one task running today per
-                their schedule. The "what's actually happening on the
-                ground RIGHT NOW" line — the contractor's mental model.
-                Renders nothing when nothing's on (weekends, between
-                phases) so the screen stays quiet. */}
-            {todayOnSite.length > 0 && (
-              <View style={styles.todaySection}>
-                <Text style={styles.sectionHeader}>
-                  TODAY ON SITE{todayOnSiteHidden > 0 ? ` · ${todayOnSite.length}` : ''}
-                </Text>
-                <View style={styles.todayCard}>
-                  {todayOnSiteShown.map((entry, idx) => {
-                    const moreTasks = entry.activeTaskCount - entry.activeTaskTitles.length;
-                    return (
-                      <TouchableOpacity
-                        key={entry.project.id}
-                        onPress={() => handleProjectPress(entry.project)}
-                        activeOpacity={0.7}
-                        // The last shown row still gets a divider when the
-                        // "+N more" row follows it.
-                        style={[styles.todayRow, (idx < todayOnSiteShown.length - 1 || todayOnSiteHidden > 0) && styles.todayRowDivider]}
-                        testID={`today-on-site-${entry.project.id}`}
-                      >
-                        <View style={styles.todayDot} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.todayProjectName} numberOfLines={1}>{entry.project.name}</Text>
-                          <Text style={styles.todayTasks} numberOfLines={1}>
-                            {/* Three titles are not all of them when there are five. */}
-                            {entry.activeTaskTitles.join(' · ')}{moreTasks > 0 ? ` · +${moreTasks} more` : ''}
-                          </Text>
-                        </View>
-                        <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {todayOnSiteHidden > 0 && (
-                    // The jobs past the first four are still on site. Summary's
-                    // Today on site lists every task on every job, uncapped.
-                    <TouchableOpacity
-                      onPress={() => router.push('/(tabs)/summary' as never)}
-                      activeOpacity={0.7}
-                      style={styles.todayRow}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${todayOnSiteHidden} more ${todayOnSiteHidden === 1 ? 'job' : 'jobs'} on site today. Opens Summary.`}
-                      testID="today-on-site-more"
-                    >
-                      <Text style={styles.todayMoreText}>
-                        +{todayOnSiteHidden} more on site today
-                      </Text>
-                      <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            )}
+                todayOnSiteBlock (above the return) — one element for the
+                phone header and the desktop layout's left column. */}
+            {todayOnSiteBlock}
 
             {/* (SmartInbox moved above the stats — see line ~346 — so
                 "what needs you right now" reads first.) */}
@@ -1137,26 +1422,7 @@ export default function HomeScreen() {
             {/* 5-step onboarding checklist — auto-hides at 4/5 done OR
                 when explicitly dismissed. New users always see it; veteran
                 users never do. */}
-            <OnboardingChecklist
-              companyInfoDone={companyInfoDone}
-              // realProjectCount, not projects.length (polish audit 2026-09-10,
-              // first-ten-minutes #15). Seeding "Sample — The Henderson Residence"
-              // ticked off "Create your first project" here, while handleCreatePress
-              // above deliberately filters samples OUT when it answers the same
-              // question for the free-tier cap. One definition of "a project", used
-              // by both, or this card credits him with work the rest of the app
-              // does not count.
-              // Owned, non-sample (utils/projectCap) — a job shared with him
-              // is the GC's, so it doesn't tick "Create your first project"
-              // either (#58).
-              projectCount={realProjectCount}
-              estimateCount={estimateCount}
-              stripeConnected={stripeConnected}
-              stripeCheckFailed={stripeCheckFailed}
-              // Invoices on a demo project are the seed's (#155).
-              invoiceCount={realInvoiceCount}
-              triedWowFeature={milestones.voiceUsed || milestones.takeoffRun || estimateCount > 0}
-            />
+            {onboardingChecklistCard}
 
             {/* NextStepHero — the answer to "where do I start?" for users
                 who've completed onboarding. Picks one action from current
@@ -1203,7 +1469,7 @@ export default function HomeScreen() {
                 itself. (Onboarding checklist stays here because it auto-
                 hides at 4/5 milestones done — veteran users never see it.) */}
           </View>
-        }
+        )}
         ListEmptyComponent={
           // FlatList renders this whenever `data` is empty — and at tablet+
           // widths `data` is hard-wired to `[]` above (the rows render as one
@@ -1214,6 +1480,9 @@ export default function HomeScreen() {
           // through here (review 2026-09-07): an empty state is a claim, and
           // on desktop it was a false one. Say nothing when the table has rows.
           useDenseRows && filteredProjects.length > 0 ? null :
+          // Desktop (wave 6c): the portfolio table carries the empty-bucket
+          // state itself, so the list below it stays silent while he has jobs.
+          responsive.isDesktop && projects.length > 0 ? null :
           // A failed read is not an empty account. This is the day-one
           // onboarding card — "Your first project is one tap away" — and it
           // was what a GC saw after reinstalling, or signing in on a second
@@ -1282,10 +1551,10 @@ export default function HomeScreen() {
           colliding with the status bar (sim-audit #7). */}
       <StatusBarMask />
 
-      <Modal visible={showCreateModal} transparent animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
+      <Modal visible={showCreateModal} transparent animationType={createFrame.animationType} onRequestClose={() => setShowCreateModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.modalOverlay, createFrame.overlay]}>
+            <View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }, createFrame.card]}>
               <View style={styles.createModalHeader}>
                 <Text style={styles.createModalTitle}>New Project</Text>
                 <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1294,6 +1563,10 @@ export default function HomeScreen() {
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false} style={styles.createModalScroll} keyboardShouldPersistTaps="handled">
+                {/* FormGrid / FormField are fragments on a phone (the tree is
+                    today's); on desktop each field caps at its size. */}
+                <FormGrid>
+                <FormField span="full">
                 <InlineVoiceFill
                   title="Dictate this project"
                   buttonLabel="Fill project by voice"
@@ -1351,7 +1624,9 @@ export default function HomeScreen() {
                     return note ? { filled: true, note } : undefined;
                   }}
                 />
+                </FormField>
 
+                <FormField span="full" size="md">
                 <Text style={styles.fieldLabel}>Project Name</Text>
                 <TextInput
                   style={styles.input}
@@ -1360,9 +1635,12 @@ export default function HomeScreen() {
                   placeholder="e.g. Kitchen Renovation"
                   placeholderTextColor={themeColors.textMuted}
                   autoFocus
+                  onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
                   testID="project-name-input"
                 />
+                </FormField>
 
+                <FormField span="full" size="lg">
                 <Text style={styles.fieldLabel}>Jobsite Address</Text>
                 <TextInput
                   style={styles.input}
@@ -1370,6 +1648,7 @@ export default function HomeScreen() {
                   onChangeText={setProjectLocation}
                   placeholder="e.g. 123 Main St, San Diego, CA"
                   placeholderTextColor={themeColors.textMuted}
+                  onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
                   testID="project-location-input"
                 />
                 {usualArea && !projectLocation.trim() ? (
@@ -1392,7 +1671,9 @@ export default function HomeScreen() {
                     blank rather than guess; you can add it any time in Project Details.
                   </Text>
                 ) : null}
+                </FormField>
 
+                <FormField span="full">
                 <Text style={styles.fieldLabel}>Description</Text>
                 <TextInput
                   style={[styles.input, styles.descInput]}
@@ -1404,7 +1685,9 @@ export default function HomeScreen() {
                   textAlignVertical="top"
                   testID="project-desc-input"
                 />
+                </FormField>
 
+                <FormField span="full">
                 <Text style={styles.fieldLabel}>Project Type</Text>
                 <View style={styles.typeGrid}>
                   {PROJECT_TYPES.map(pt => (
@@ -1435,7 +1718,9 @@ export default function HomeScreen() {
                     </Text>
                   </>
                 ) : null}
+                </FormField>
 
+                <FormField span="full" size="xs">
                 <Text style={styles.fieldLabel}>Square Footage</Text>
                 <TextInput
                   style={styles.input}
@@ -1444,16 +1729,21 @@ export default function HomeScreen() {
                   placeholder="e.g. 2400 — leave blank if you don't know yet"
                   placeholderTextColor={themeColors.textMuted}
                   keyboardType="number-pad"
+                  onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
                   testID="project-sqft-input"
                 />
+                </FormField>
+                <FormField span="full">
                 <Text style={styles.fieldHint}>
                   Sizes the estimate wizard's per-square-foot benchmarks. Blank is recorded as
                   unknown, so the wizard asks instead of pricing against zero.
                 </Text>
+                </FormField>
+                </FormGrid>
                 <View style={{ height: 20 }} />
               </ScrollView>
 
-              <TouchableOpacity style={styles.createBtn} onPress={handleCreateProject} activeOpacity={0.85} testID="create-project-btn">
+              <TouchableOpacity style={[styles.createBtn, createFrame.footerButton, responsive.isDesktop && styles.createBtnDesktop]} onPress={handleCreateProject} activeOpacity={0.85} testID="create-project-btn">
                 <Text style={styles.createBtnText}>Create Project</Text>
               </TouchableOpacity>
             </View>
@@ -1462,9 +1752,9 @@ export default function HomeScreen() {
       </Modal>
 
 
-      <Modal visible={showNextStepModal} transparent animationType="fade" onRequestClose={() => setShowNextStepModal(false)}>
-        <Pressable style={styles.modalOverlayCenter} onPress={() => handleNextStep('later')}>
-          <Pressable style={styles.nextStepCard} onPress={() => undefined}>
+      <Modal visible={showNextStepModal} transparent animationType={nextStepFrame.animationType} onRequestClose={() => setShowNextStepModal(false)}>
+        <Pressable style={[styles.modalOverlayCenter, nextStepFrame.overlay]} onPress={() => handleNextStep('later')}>
+          <Pressable style={[styles.nextStepCard, nextStepFrame.card]} onPress={() => undefined}>
             <View style={styles.nextStepSuccessIcon}>
               <CheckCircle2 size={36} color={themeColors.success} strokeWidth={2.4} />
             </View>
@@ -1603,15 +1893,32 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
-  listContentDesktop: {
-    width: '100%',
-    // Desktop shows the DENSE project table (useDenseRows), not cards — give it
-    // the viewport instead of a 1100px column stranded in the middle.
-    maxWidth: 1400,
-    alignSelf: 'center' as const,
-  },
   emptyList: {
     flex: 1,
+  },
+  // ── Desktop (wave 6c) — each appended behind `responsive.isDesktop &&` ──
+  // Ask MAGE / Copilot in the footer's TileGrid: the grid owns the gap.
+  launcherDesktop: {
+    marginBottom: 0,
+  },
+  // The footer slot already sits on the page gutter.
+  aiBriefingWrapDesktop: {
+    marginHorizontal: 0,
+  },
+  // Today on site in the layout's left column, flush with the gutter.
+  todaySectionDesktop: {
+    paddingHorizontal: 0,
+    marginTop: 0,
+  },
+  noticesDesktop: {
+    marginHorizontal: Layout.gutter,
+  },
+  // The Create button hugs its label at the dialog's right edge.
+  createBtnDesktop: {
+    alignSelf: 'flex-end' as const,
+  },
+  desktopFooter: {
+    gap: 12,
   },
   navBar: {
     flexDirection: 'row',

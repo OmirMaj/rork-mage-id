@@ -20,6 +20,7 @@ import React, { memo, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Platform,
 } from 'react-native';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Activity, X, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react-native';
@@ -112,11 +113,15 @@ function ScheduleHealthDetailImpl({ visible, onClose, result, onJumpToTask }: Sc
     [result.checks],
   );
 
+  // Desktop (wave 6c): a centred 560 card in the content column. All-null on
+  // a phone.
+  const frame = useSheetFrame('form', { visible, animationType: 'slide' });
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.modalHandle} />
+    <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, frame.overlay]}>
+        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
+          {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>Schedule health</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>

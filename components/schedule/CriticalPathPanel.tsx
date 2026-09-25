@@ -11,6 +11,7 @@ import React from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
 } from 'react-native';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -38,11 +39,15 @@ export function CriticalPathPanel(props: {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
+  // Desktop (wave 6c): a centred 720 card (the explanation reads as a panel,
+  // not a 1,300 px bottom sheet). All-null on a phone.
+  const frame = useSheetFrame('wide', { visible, animationType: 'slide' });
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.modalHandle} />
+    <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, frame.overlay]}>
+        <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, frame.card]}>
+          {frame.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>What&apos;s driving the finish date</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">

@@ -9,6 +9,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { ScheduleTask } from '@/types';
 import type { RunCpmOptions } from '@/utils/cpm';
 import { commitRefused, type CommitOutcome, type CopilotContext } from '@/utils/copilot/types';
+import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
 
 /** What a structural undo compares: the shape of the plan, not the start days
  *  a host reflows after the commit (the classic tab writes CPM starts back),
@@ -20,7 +21,10 @@ export const fingerprint = (tasks: ScheduleTask[]) =>
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .map(t => [t.id, t.title, t.durationDays, t.progress, [...t.dependencies].sort()]));
 
-export default function ScheduleEditPanel({ visible, onClose, projectId, tasks, commit, cpmOptions, seed, hasToolbarUndo = false }: {
+export default function ScheduleEditPanel({
+  visible, onClose, projectId, tasks, commit, cpmOptions, seed, hasToolbarUndo = false,
+  presentation = 'modal', autoSubmitSeed, onPreview,
+}: {
   visible: boolean;
   onClose: () => void;
   projectId: string;
@@ -35,6 +39,16 @@ export default function ScheduleEditPanel({ visible, onClose, projectId, tasks, 
    *  may a refused Undo here point at it — the classic tab and the phone have
    *  none, and "use Undo in the toolbar" sent him looking for nothing. */
   hasToolbarUndo?: boolean;
+  /** 'modal' (default): today's bottom sheet — the path the phone, the classic
+   *  tab and the scheduleEdit tutorial layer use. 'docked' (Schedule Pro's
+   *  desktop pane, wave 6c): the same shell in a flex:1 column, no Modal, so
+   *  the Gantt beside it stays visible and interactive. */
+  presentation?: 'modal' | 'docked';
+  /** Send this as his first turn as soon as the shell is listening (the Pro
+   *  toolbar's command field: he already typed the change). Default: none. */
+  autoSubmitSeed?: string;
+  /** The review's proposal as a Gantt overlay (null when it goes away). */
+  onPreview?: (overlay: SchedulePreviewOverlay | null) => void;
 }) {
   const projectsCtx = useProjects() as any;
   const { tier } = useSubscription();
@@ -88,9 +102,24 @@ export default function ScheduleEditPanel({ visible, onClose, projectId, tasks, 
   // old counter, burned a new-task id) on every keystroke.
   const ctx = useMemo<CopilotContext>(() => ({
     project, projectId, ctx: projectsCtx, tier, commitTasks: commitWithSnapshot, currentTasks: tasks, cpmOptions,
-  }), [project, projectId, projectsCtx, tier, commitWithSnapshot, tasks, cpmOptions]);
+    ...(onPreview ? { onPreview } : {}),
+  }), [project, projectId, projectsCtx, tier, commitWithSnapshot, tasks, cpmOptions, onPreview]);
 
   if (!visible) return null;
+  if (presentation === 'docked') {
+    return (
+      <View style={styles.docked} testID="schedule-edit-docked">
+        <CopilotShell
+          capabilityId="scheduleEdit"
+          ctx={ctx}
+          onDone={onClose}
+          seed={seed}
+          onUndo={undo}
+          autoSubmitSeed={autoSubmitSeed}
+        />
+      </View>
+    );
+  }
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       {/* The keyboard must not cover the review's follow-up box and its Send
@@ -98,7 +127,7 @@ export default function ScheduleEditPanel({ visible, onClose, projectId, tasks, 
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet} testID="schedule-edit-sheet">
           <CopilotShell
-            capabilityId={'scheduleEdit' as never}
+            capabilityId="scheduleEdit"
             ctx={ctx}
             onDone={onClose}
             seed={seed}
@@ -117,4 +146,5 @@ export const SCHEDULE_EDIT_SHEET_MAX_WIDTH = 720;
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
   sheet: { height: '82%', width: '100%', maxWidth: SCHEDULE_EDIT_SHEET_MAX_WIDTH },
+  docked: { flex: 1 },
 });

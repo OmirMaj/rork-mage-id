@@ -35,8 +35,9 @@ interface BriefingHeroProps {
   attentionCount: number;
   /** Count behind the muted "N active" pill. */
   activeCount: number;
-  /** The ••• overflow button. */
-  onOpenTools: () => void;
+  /** The ••• overflow button. Undefined hides it (desktop Summary: the
+   *  sidebar already carries every tool). */
+  onOpenTools?: () => void;
 }
 
 export function BriefingHero({ greetingName, attentionCount, activeCount, onOpenTools }: BriefingHeroProps) {
@@ -54,16 +55,18 @@ export function BriefingHero({ greetingName, attentionCount, activeCount, onOpen
           `greet` style for why the greeting needs the full row width. */}
       <View style={styles.topRow}>
         <Text style={styles.date} numberOfLines={1}>{dateLine}</Text>
-        <TouchableOpacity
-          style={styles.toolsBtn}
-          onPress={onOpenTools}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel="More tools"
-          testID="summary-tools-button"
-        >
-          <MoreHorizontal size={20} color={colors.textSecondary} strokeWidth={1.75} />
-        </TouchableOpacity>
+        {onOpenTools ? (
+          <TouchableOpacity
+            style={styles.toolsBtn}
+            onPress={onOpenTools}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="More tools"
+            testID="summary-tools-button"
+          >
+            <MoreHorizontal size={20} color={colors.textSecondary} strokeWidth={1.75} />
+          </TouchableOpacity>
+        ) : null}
       </View>
       {/* `adjustsFontSizeToFit` is iOS/Android only — it does not exist
           anywhere in react-native-web, so on app.mageid.app it is a silent

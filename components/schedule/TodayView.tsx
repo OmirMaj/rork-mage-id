@@ -45,7 +45,10 @@ import {
   SimulatedDayChip,
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { desktopInlineEmpty, DESKTOP_INLINE_EMPTY_ICON } from '@/components/ui/desktop';
+import { cardSurface } from '@/components/ui/Card';
+import { SIDE_PANEL_MIN } from '@/utils/splitViewLayout';
 
 interface TodayViewProps {
   tasks: ScheduleTask[];
@@ -69,6 +72,15 @@ interface TodayViewProps {
   location?: string;
   locationLatitude?: number;
   locationLongitude?: number;
+  /**
+   * 'stack' (default): today's single column — the phone, the tablet branch.
+   * 'desktop' (wave 6c; passed ONLY from the classic tab's desktop branch): two
+   * columns — the work (Overdue, Active Now, Coming Up) in a main column capped
+   * at the form width, and a 360 px rail beside it with the date, health, days
+   * left, today's weather, the outlook as a vertical list, and Completed. At
+   * 1512 the single column was a 1,368 px stack of one-line cards.
+   */
+  layout?: 'stack' | 'desktop';
 }
 
 const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
@@ -360,7 +372,9 @@ function TodayView({
   location,
   locationLatitude,
   locationLongitude,
+  layout = 'stack',
 }: TodayViewProps) {
+  const isDesktop = layout === 'desktop';
   // Built per theme. This is the 6am screen: every card, the weather strip and
   // the forecast row baked t.surface/text/cardBorder at import, so a
   // superintendent in dark mode got a white slab at full brightness in a truck
@@ -476,41 +490,196 @@ function TodayView({
     [schedule, projectStartDate, tasks, onProgressUpdate, onTaskPress, onPhotoAdded]
   );
 
-  return (
-    <View style={s.container}>
-      <View style={s.todayHeader}>
-        <View style={s.todayHeaderLeft}>
-          <Text style={s.todayDate}>{dateFormatted}</Text>
-          <View style={s.todayBadges}>
-            <View style={s.healthMini}>
-              <View style={[s.healthMiniDot, { backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : '#FF3B30' }]} />
-              <Text style={s.healthMiniText}>{healthScore}</Text>
-            </View>
-            <View style={s.daysLeftMini}>
-              <Clock size={10} color={t.textSecondary} strokeWidth={1.75} />
-              <Text style={s.daysLeftMiniText}>{daysRemaining}d left</Text>
-            </View>
+  // The sections, built once and placed by the layout below: the phone and
+  // the tablet stack them in one column (today's order); the classic tab's
+  // desktop branch splits them into a main column and a rail.
+  const headerEl = (
+    <View style={s.todayHeader}>
+      <View style={s.todayHeaderLeft}>
+        <Text style={s.todayDate}>{dateFormatted}</Text>
+        <View style={s.todayBadges}>
+          <View style={s.healthMini}>
+            <View style={[s.healthMiniDot, { backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : '#FF3B30' }]} />
+            <Text style={s.healthMiniText}>{healthScore}</Text>
+          </View>
+          <View style={s.daysLeftMini}>
+            <Clock size={10} color={t.textSecondary} strokeWidth={1.75} />
+            <Text style={s.daysLeftMiniText}>{daysRemaining}d left</Text>
           </View>
         </View>
-        {todayWeather && (
-          <View style={s.weatherCard}>
-            <Text style={s.weatherIcon}>{getConditionIcon(todayWeather.condition)}</Text>
-            <Text style={s.weatherTemp}>{todayWeather.tempHigh}°F</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Text style={s.weatherPrecip}>{todayWeather.precipChance}%</Text>
-              <Droplet size={10} color={t.textSecondary} strokeWidth={1.75} />
-            </View>
-            {/* Today's own number gets its own chip — the banner below covers
-                the window, but this reading is the one that gets acted on. */}
-            <SimulatedDayChip source={todayWeather.source} />
-          </View>
-        )}
       </View>
-
-      {/* Above the strip it disclaims. Self-hiding when every day is live —
-          `container` already supplies the gap, so no extra spacing needed. */}
+      {todayWeather && (
+        <View style={s.weatherCard}>
+          <Text style={s.weatherIcon}>{getConditionIcon(todayWeather.condition)}</Text>
+          <Text style={s.weatherTemp}>{todayWeather.tempHigh}°F</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Text style={s.weatherPrecip}>{todayWeather.precipChance}%</Text>
+            <Droplet size={10} color={t.textSecondary} strokeWidth={1.75} />
+          </View>
+          {/* Today's own number gets its own chip — the banner below covers
+              the window, but this reading is the one that gets acted on. */}
+          <SimulatedDayChip source={todayWeather.source} />
+        </View>
+      )}
+    </View>
+  );
+  // Above the strip it disclaims. Self-hiding when every day is live —
+  // `container` already supplies the gap, so no extra spacing needed.
+  const weatherNotesEl = (
+    <>
       <WeatherPlaceLine text={weatherDesc.placeLine} />
       <SimulatedWeatherBanner days={forecast} cause={weatherDesc.cause} />
+    </>
+  );
+  const overdueEl = overdueTasks.length > 0 && (
+    <View style={s.section}>
+      <View style={s.sectionHeaderOverdue}>
+        <AlertTriangle size={14} color={t.dangerLabel} strokeWidth={1.75} />
+        <Text style={s.sectionTitleOverdue}>Overdue ({overdueTasks.length})</Text>
+      </View>
+      {overdueTasks.map(task => {
+        const { end } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+        const daysOver = Math.ceil((now.getTime() - end.getTime()) / (1000 * 60 * 60 * 24));
+        return (
+          <TouchableOpacity
+            key={task.id}
+            style={s.overdueCard}
+            onPress={() => onTaskPress(task)}
+            activeOpacity={0.7}
+          >
+            <View style={s.overdueLeft}>
+              <Text style={s.overdueTitle} numberOfLines={1}>{task.title}</Text>
+              <Text style={s.overdueMeta}>{daysOver}d overdue · {task.progress}% done</Text>
+            </View>
+            <View style={s.overdueActions}>
+              <TouchableOpacity
+                style={s.overdueResolveBtn}
+                onPress={() => onProgressUpdate(task, 100)}
+              >
+                <Text style={s.overdueResolveBtnText}>Mark Done</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+  const activeEl = (
+    <View style={s.section}>
+      <View style={s.sectionHeader}>
+        <Sun size={14} color={Colors.accent} strokeWidth={1.75} />
+        <Text style={s.sectionTitle}>Active Now ({activeTasks.length})</Text>
+      </View>
+      {activeTasks.length > 0 && layout === 'stack' && (
+        <View style={s.swipeHint}>
+          <ChevronRight size={10} color={t.textMuted} strokeWidth={1.75} />
+          <Text style={s.swipeHintText}>Swipe right on a task to update progress</Text>
+        </View>
+      )}
+      {activeTasks.length === 0 ? (
+        <View style={[s.emptyActive, isDesktop && s.emptyActiveDesktop]}>
+          <CheckCircle2 size={isDesktop ? DESKTOP_INLINE_EMPTY_ICON : 28} color={t.successLabel} strokeWidth={1.75} />
+          <Text style={s.emptyActiveText}>No tasks active today</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={activeTasks}
+          renderItem={renderActiveItem}
+          keyExtractor={item => item.id}
+          scrollEnabled={false}
+          contentContainerStyle={s.activeList}
+        />
+      )}
+    </View>
+  );
+  const comingUpEl = comingUpTasks.length > 0 && (
+    <View style={s.section}>
+      <View style={s.sectionHeader}>
+        <ChevronRight size={14} color={t.info} strokeWidth={1.75} />
+        <Text style={s.sectionTitle}>Coming Up (Next 3 Days)</Text>
+      </View>
+      {comingUpTasks.map(task => {
+        const { start } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+        const isBlocked = blockedComingUp.includes(task);
+        return (
+          <TouchableOpacity
+            key={task.id}
+            style={[s.compactCard, isBlocked && s.compactCardBlocked]}
+            onPress={() => onTaskPress(task)}
+            activeOpacity={0.7}
+          >
+            <View style={[s.compactDot, { backgroundColor: getPhaseColor(task.phase) }]} />
+            <View style={s.compactInfo}>
+              <Text style={s.compactTitle} numberOfLines={1}>{task.title}</Text>
+              <Text style={s.compactMeta}>
+                {formatShortDate(start)} · {task.durationDays}d{task.crew ? ` · ${task.crew}` : ''}
+              </Text>
+            </View>
+            {isBlocked && (
+              <View style={s.blockedBadge}>
+                <AlertTriangle size={10} color={t.dangerLabel} strokeWidth={1.75} />
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+  const completedEl = completedToday.length > 0 && (
+    <View style={s.section}>
+      <View style={s.sectionHeaderGreen}>
+        <Trophy size={14} color={t.successLabel} strokeWidth={1.75} />
+        <Text style={s.sectionTitleGreen}>Completed ({completedToday.length})</Text>
+      </View>
+      {completedToday.map(task => (
+        <View key={task.id} style={s.completedCard}>
+          <CheckCircle2 size={14} color={t.successLabel} strokeWidth={1.75} />
+          <Text style={s.completedTitle} numberOfLines={1}>{task.title}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  if (isDesktop) {
+    // Desktop (classic tab, wave 6c): the day's WORK on the left, capped at
+    // the form width; the day's CONTEXT in a 360 px rail on the right, the
+    // outlook as a list you read down rather than a strip across 1,300 px.
+    return (
+      <View style={[s.container, s.containerDesktop]} testID="today-desktop">
+        <View style={s.mainDesktop} testID="today-main">
+          {overdueEl}
+          {activeEl}
+          {comingUpEl}
+        </View>
+        <View style={s.railDesktop} testID="today-rail">
+          {headerEl}
+          {weatherNotesEl}
+          {outlook.length > 0 && (
+            <View style={s.forecastListDesktop}>
+              {outlook.map((f) => {
+                const d = parseCalendarDay(f.date);
+                const dayName = d ? d.toLocaleDateString('en-US', { weekday: 'long' }) : f.date;
+                return (
+                  <View key={f.date} style={[s.forecastListRowDesktop, !f.isWorkable && s.forecastDayBad]}>
+                    <Text style={s.forecastDayIcon}>{getConditionIcon(f.condition)}</Text>
+                    <Text style={[s.forecastDayName, s.forecastListNameDesktop]}>{dayName}</Text>
+                    <Text style={s.forecastDayTemp}>{f.tempHigh}°</Text>
+                    <SimulatedDayChip source={f.source} />
+                  </View>
+                );
+              })}
+            </View>
+          )}
+          {completedEl}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.container}>
+      {headerEl}
+      {weatherNotesEl}
 
       {outlook.length > 0 && (
         <View style={s.forecastRow}>
@@ -531,115 +700,13 @@ function TodayView({
         </View>
       )}
 
-      {overdueTasks.length > 0 && (
-        <View style={s.section}>
-          <View style={s.sectionHeaderOverdue}>
-            <AlertTriangle size={14} color={t.dangerLabel} strokeWidth={1.75} />
-            <Text style={s.sectionTitleOverdue}>Overdue ({overdueTasks.length})</Text>
-          </View>
-          {overdueTasks.map(task => {
-            const { end } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
-            const daysOver = Math.ceil((now.getTime() - end.getTime()) / (1000 * 60 * 60 * 24));
-            return (
-              <TouchableOpacity
-                key={task.id}
-                style={s.overdueCard}
-                onPress={() => onTaskPress(task)}
-                activeOpacity={0.7}
-              >
-                <View style={s.overdueLeft}>
-                  <Text style={s.overdueTitle} numberOfLines={1}>{task.title}</Text>
-                  <Text style={s.overdueMeta}>{daysOver}d overdue · {task.progress}% done</Text>
-                </View>
-                <View style={s.overdueActions}>
-                  <TouchableOpacity
-                    style={s.overdueResolveBtn}
-                    onPress={() => onProgressUpdate(task, 100)}
-                  >
-                    <Text style={s.overdueResolveBtnText}>Mark Done</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
+      {overdueEl}
 
-      <View style={s.section}>
-        <View style={s.sectionHeader}>
-          <Sun size={14} color={Colors.accent} strokeWidth={1.75} />
-          <Text style={s.sectionTitle}>Active Now ({activeTasks.length})</Text>
-        </View>
-        {activeTasks.length > 0 && (
-          <View style={s.swipeHint}>
-            <ChevronRight size={10} color={t.textMuted} strokeWidth={1.75} />
-            <Text style={s.swipeHintText}>Swipe right on a task to update progress</Text>
-          </View>
-        )}
-        {activeTasks.length === 0 ? (
-          <View style={s.emptyActive}>
-            <CheckCircle2 size={28} color={t.successLabel} strokeWidth={1.75} />
-            <Text style={s.emptyActiveText}>No tasks active today</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={activeTasks}
-            renderItem={renderActiveItem}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={s.activeList}
-          />
-        )}
-      </View>
+      {activeEl}
 
-      {comingUpTasks.length > 0 && (
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <ChevronRight size={14} color={t.info} strokeWidth={1.75} />
-            <Text style={s.sectionTitle}>Coming Up (Next 3 Days)</Text>
-          </View>
-          {comingUpTasks.map(task => {
-            const { start } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
-            const isBlocked = blockedComingUp.includes(task);
-            return (
-              <TouchableOpacity
-                key={task.id}
-                style={[s.compactCard, isBlocked && s.compactCardBlocked]}
-                onPress={() => onTaskPress(task)}
-                activeOpacity={0.7}
-              >
-                <View style={[s.compactDot, { backgroundColor: getPhaseColor(task.phase) }]} />
-                <View style={s.compactInfo}>
-                  <Text style={s.compactTitle} numberOfLines={1}>{task.title}</Text>
-                  <Text style={s.compactMeta}>
-                    {formatShortDate(start)} · {task.durationDays}d{task.crew ? ` · ${task.crew}` : ''}
-                  </Text>
-                </View>
-                {isBlocked && (
-                  <View style={s.blockedBadge}>
-                    <AlertTriangle size={10} color={t.dangerLabel} strokeWidth={1.75} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
+      {comingUpEl}
 
-      {completedToday.length > 0 && (
-        <View style={s.section}>
-          <View style={s.sectionHeaderGreen}>
-            <Trophy size={14} color={t.successLabel} strokeWidth={1.75} />
-            <Text style={s.sectionTitleGreen}>Completed ({completedToday.length})</Text>
-          </View>
-          {completedToday.map(task => (
-            <View key={task.id} style={s.completedCard}>
-              <CheckCircle2 size={14} color={t.successLabel} strokeWidth={1.75} />
-              <Text style={s.completedTitle} numberOfLines={1}>{task.title}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+      {completedEl}
     </View>
   );
 }
@@ -737,6 +804,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   emptyActiveText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
+  // Desktop: one muted inline row, not a 1,368 × 115 box (wave 6b audit).
+  emptyActiveDesktop: desktopInlineEmpty,
+
+  // ── Desktop layout (layout === 'desktop' only) ──
+  containerDesktop: { flexDirection: 'row', alignItems: 'flex-start', gap: Layout.gutter },
+  mainDesktop: { flex: 1, minWidth: 0, maxWidth: Layout.page.form, gap: 16 },
+  railDesktop: { width: SIDE_PANEL_MIN, flexShrink: 0, gap: 16 },
+  forecastListDesktop: {
+    ...cardSurface(t, { pad: 'none' }),
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  forecastListRowDesktop: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  forecastListNameDesktop: { flex: 1 },
 
   activeList: { gap: 10 },
 

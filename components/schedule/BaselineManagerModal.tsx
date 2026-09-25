@@ -21,6 +21,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform,
 } from 'react-native';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import {
   Plus, Bookmark, Trash2, X, Check, GitCompare, Pencil, ChevronRight,
 } from 'lucide-react-native';
@@ -202,10 +203,14 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
   }, [mode, baselines, workingTasks, dayScale]);
 
   // ── Render ─────────────────────────────────────────────────────
+  // Desktop (wave 6c): a centred 560 card in the content column, not a
+  // full-width bottom sheet. All-null on a phone.
+  const frame = useSheetFrame('form', { visible, animationType: 'slide' });
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+    <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={handleClose}>
+      <View style={[styles.overlay, frame.overlay]}>
+        <View style={[styles.card, frame.card]}>
           <View style={styles.header}>
             <Bookmark size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.title}>

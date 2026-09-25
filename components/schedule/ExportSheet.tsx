@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useSheetFrame, SheetOverlay } from '@/components/ui/Sheet';
 import { FileText, FileSpreadsheet, Share2, Calendar, Printer, ChevronRight } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -76,16 +77,22 @@ export function ExportSheet(props: ExportSheetProps) {
     },
   ];
 
+  // Desktop (wave 6c): a centred 560 card in the content column. The scrim and
+  // the sheet are both direct Modal children (pattern S), so SheetOverlay
+  // wraps them on desktop only; a phone gets the two children as before.
+  const frame = useSheetFrame('form', { visible: props.visible, animationType: 'slide' });
+
   return (
     <Modal
       visible={props.visible}
       transparent
-      animationType="slide"
+      animationType={frame.animationType}
       onRequestClose={props.onClose}
     >
-      <Pressable style={styles.backdrop} onPress={props.onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.grab} />
+      <SheetOverlay frame={frame}>
+      <Pressable style={[styles.backdrop, frame.backdrop]} onPress={props.onClose} />
+      <View style={[styles.sheet, frame.card]}>
+        {frame.showHandle && <View style={styles.grab} />}
         <Text style={styles.title}>Export schedule</Text>
         {opts.map(o => (
           <Pressable
@@ -107,6 +114,7 @@ export function ExportSheet(props: ExportSheetProps) {
           </Pressable>
         ))}
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

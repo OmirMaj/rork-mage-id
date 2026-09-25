@@ -71,7 +71,9 @@ import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { generateUUID } from '@/utils/generateId';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { ActionBar, ActionBarReadout } from '@/components/ui/ActionBar';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { displayText } from '@/utils/formatters';
 import DatePickerModal from '@/components/DatePickerModal';
 import {
@@ -631,7 +633,7 @@ export default function ScheduleWizardScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Top bar: back arrow, title, save shortcut. Mirrors the mockup. */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, isDesktop && styles.columnDesktop]}>
         <TouchableOpacity onPress={handleBack} style={styles.topBarBackBtn} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -646,7 +648,7 @@ export default function ScheduleWizardScreen() {
       </View>
 
       {/* Step indicator — circles + labels, current step filled in primary. */}
-      <View style={styles.stepIndicatorRow}>
+      <View style={[styles.stepIndicatorRow, isDesktop && styles.columnDesktop, isDesktop && styles.stepIndicatorRowDesktop]}>
         {STEPS.map((label, i) => {
           const active = i === step;
           const done = i < step;
@@ -679,7 +681,7 @@ export default function ScheduleWizardScreen() {
                 <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>{label}</Text>
               </TouchableOpacity>
               {i < STEPS.length - 1 && (
-                <View style={[styles.stepConnector, done && styles.stepConnectorDone]} />
+                <View style={[styles.stepConnector, done && styles.stepConnectorDone, isDesktop && styles.stepConnectorDesktop]} />
               )}
             </React.Fragment>
           );
@@ -722,7 +724,7 @@ export default function ScheduleWizardScreen() {
            without this every tap on "+ Add task" / a chip while the keyboard is
            up is swallowed dismissing the keyboard instead. */
         <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+          contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.columnDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="none"
@@ -905,11 +907,13 @@ export default function ScheduleWizardScreen() {
       {/* Bottom CTA. The mock uses a single big primary button; we mirror it.
           On desktop step 1 (two-pane) the user can save directly — the Gantt
           is always visible so they don't need to advance through Timeline/Review. */}
-      <View style={[styles.bottomCta, { paddingBottom: insets.bottom + 12 }]}>
+      <ActionBar style={[styles.bottomCta, { paddingBottom: insets.bottom + 12 }]} width="form">
         {step === 3 || (isDesktop && step === 1) ? (
           <>
             {blockHint ? (
-              <Text style={styles.blockHintText}>{blockHint}</Text>
+              <ActionBarReadout>
+                <Text style={styles.blockHintText}>{blockHint}</Text>
+              </ActionBarReadout>
             ) : null}
             <TouchableOpacity
               style={[styles.ctaBtn, !canAdvance && styles.ctaBtnDisabled]}
@@ -926,7 +930,9 @@ export default function ScheduleWizardScreen() {
         ) : step < 3 ? (
           <>
             {blockHint ? (
-              <Text style={styles.blockHintText}>{blockHint}</Text>
+              <ActionBarReadout>
+                <Text style={styles.blockHintText}>{blockHint}</Text>
+              </ActionBarReadout>
             ) : null}
             <TouchableOpacity
               style={[styles.ctaBtn, !canAdvance && styles.ctaBtnDisabled]}
@@ -940,7 +946,7 @@ export default function ScheduleWizardScreen() {
             </TouchableOpacity>
           </>
         ) : null}
-      </View>
+      </ActionBar>
     </View>
   );
 }
@@ -1133,6 +1139,7 @@ function StartDateField(props: {
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { startDate, onEdit, onQuickStart } = props;
   const today = new Date();
   const monday = nextMonday(today);
@@ -1164,7 +1171,7 @@ function StartDateField(props: {
           return (
             <TouchableOpacity
               key={opt.label}
-              style={[styles.quickDate, active && styles.quickDateActive]}
+              style={[styles.quickDate, active && styles.quickDateActive, isDesktop && styles.quickDateDesktop]}
               onPress={() => onQuickStart(opt.date)}
               activeOpacity={0.85}
               accessibilityRole="button"
@@ -1814,10 +1821,11 @@ function PhasePickerSheet(props: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { visible, current, onClose, onPick } = props;
+  const f = useSheetFrame('dialog', { visible, animationType: 'fade' });
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+    <Modal visible={visible} transparent animationType={f.animationType} onRequestClose={onClose}>
+      <Pressable style={[styles.modalOverlay, f.overlay]} onPress={onClose}>
+        <Pressable style={[styles.sheet, f.card]} onPress={() => undefined}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Phase</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
@@ -1863,10 +1871,11 @@ function TemplateSheet(props: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { visible, templates, activeId, onClose, onPick } = props;
+  const f = useSheetFrame('dialog', { visible, animationType: 'fade' });
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+    <Modal visible={visible} transparent animationType={f.animationType} onRequestClose={onClose}>
+      <Pressable style={[styles.modalOverlay, f.overlay]} onPress={onClose}>
+        <Pressable style={[styles.sheet, f.card]} onPress={() => undefined}>
           <View style={styles.sheetHead}>
             <View style={{ flex: 1 }}>
               <Text style={styles.sheetTitle}>Start from a template</Text>
@@ -1932,10 +1941,15 @@ function ConfirmSheet(props: { spec: ConfirmSpec | null; onDismiss: () => void }
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { spec, onDismiss } = props;
+  const f = useSheetFrame('dialog', { visible: spec !== null, animationType: 'fade' });
+  // Cmd/Ctrl+Enter confirms on desktop web. Not Cmd+S: a confirm can replace
+  // or discard work, and a habitual "save" keystroke must never answer it.
+  const confirm = useCallback(() => { const fn = spec?.onConfirm; onDismiss(); fn?.(); }, [spec, onDismiss]);
+  useSheetPrimaryHotkey(spec !== null, spec ? confirm : null, { saveKey: false });
   return (
-    <Modal visible={spec !== null} transparent animationType="fade" onRequestClose={onDismiss}>
-      <Pressable style={styles.modalOverlay} onPress={onDismiss}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+    <Modal visible={spec !== null} transparent animationType={f.animationType} onRequestClose={onDismiss}>
+      <Pressable style={[styles.modalOverlay, f.overlay]} onPress={onDismiss}>
+        <Pressable style={[styles.sheet, f.card]} onPress={() => undefined}>
           <Text style={styles.sheetTitle}>{spec?.title ?? ''}</Text>
           <Text style={[styles.helper, { marginTop: 6, marginBottom: 18 }]}>{spec?.message ?? ''}</Text>
           <TouchableOpacity
@@ -2210,6 +2224,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginBottom: 18,
   },
   stepConnectorDone: { backgroundColor: t.accent },
+  // ── Desktop (wave 6c) — the wizard is a shell-exempt route, so on a 1,512 px
+  // window a phone-width column ran 1,800+ px. Steps 0/2/3, the top bar and
+  // the step row sit in the form column; step 1's two-pane in the dashboard.
+  columnDesktop: { width: '100%' as const, maxWidth: Layout.page.form, alignSelf: 'center' as const },
+  stepIndicatorRowDesktop: { justifyContent: 'center' as const },
+  stepConnectorDesktop: { maxWidth: Layout.field.xs },
 
   stepContent: {
     paddingHorizontal: 16,
@@ -2344,6 +2364,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
   },
   quickDateTextActive: { color: t.accent, fontWeight: '700' as const },
+  // Desktop: each quick date hugs its label instead of a third of the column.
+  quickDateDesktop: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' as const, paddingHorizontal: 14 },
 
   emptyCard: {
     padding: 16,
@@ -2618,9 +2640,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   desktopTwoPaneRow: {
     flexDirection: 'row' as const,
     flex: 1,
+    width: '100%' as const,
+    maxWidth: Layout.page.dashboard,
+    alignSelf: 'center' as const,
   },
   desktopLeftPane: {
     flex: 1,
+    maxWidth: Layout.page.form,
     paddingHorizontal: Tokens.spacing.md,
     paddingTop: 12,
     gap: 12,

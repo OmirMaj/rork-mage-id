@@ -40,8 +40,20 @@ import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFor
 import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
 import type { RFI, RFIStatus, RFIPriority, RFIBallInCourt, RFIHandoff } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { cardSurface, Button } from '@/components/ui';
+// Wave 6c (lane G): the desktop-web log + record split, and the desktop caps.
+// Every one is phone-identical: useIsDesktopWeb() is false on a phone, so
+// logRouteMode says 'phone'; the rest are `isDesktop && …` appends or
+// primitives whose phone branch is today's tree.
+import { useIsDesktop, useIsDesktopWeb, desktopCta, desktopField } from '@/components/ui/desktop';
+import { ChipRail, chipDesktop } from '@/components/ui/ChipRail';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { usePrimaryAction } from '@/hooks/useHotkeys';
+import { RfiLog } from '@/components/logs/RfiLog';
+import { useLogAwareRouter, useLogRecordDirty } from '@/components/logs/LogRecordHost';
+import { logRouteMode } from '@/utils/logs/logRoutes';
+import { rfiVisibleSubs } from '@/utils/logs/rfiLogRows';
 import { PhotoMarkupOverlay, markupForSource, sourcePhotoIdOf } from '@/components/PhotoMarkupOverlay';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
@@ -231,7 +243,9 @@ function RecordGateView({ title, state, message, onRetry }: {
  */
 function RFIScreenInner() {
   const { projectId, rfiId } = useLocalSearchParams<{ projectId?: string; rfiId?: string }>();
-  const { rfis } = useProjects();
+  const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
+  const desktopWeb = useIsDesktopWeb();
+  const { rfis, getProject } = useProjects();
   const qc = useQueryClient();
   // #55: fresh copy on open and on every return to the foreground.
   useRefetchCollectionOnOpen('rfis');
@@ -244,6 +258,23 @@ function RFIScreenInner() {
     settled: settled.settled,
     failed: settled.failed,
   });
+  // Desktop web: a bare ?projectId opens the RFI log; ?rfiId opens that RFI
+  // beside it. Phone (and a native tablet): 'phone', and nothing below changes.
+  const logProjectId = projectId || found?.projectId || '';
+  const mode = logRouteMode('rfi', routeParams, { desktopWeb, projectKnown: !!getProject(logProjectId) });
+  if (mode === 'log') return <RfiLog projectId={logProjectId} />;
+  if (mode === 'split') {
+    return (
+      <RfiLog
+        projectId={logProjectId}
+        openId={rfiId}
+        detail={gate === 'loading' ? <RecordGateView title="RFI" state="loading" />
+          : gate === 'missing' ? <RecordGateView title="RFI" state="missing" message="This RFI no longer exists, or it isn't shared with you. Ask the project owner if you expected to see it." />
+          : gate === 'error' ? <RecordGateView title="RFI" state="error" message="Couldn't load this RFI. Check your connection and try again." onRetry={() => { void qc.invalidateQueries({ queryKey: ['rfis'] }); }} />
+          : <RFIForm key={found?.id ?? 'new'} />}
+      />
+    );
+  }
   if (gate === 'loading') return <RecordGateView title="RFI" state="loading" />;
   if (gate === 'missing') {
     return <RecordGateView title="RFI" state="missing" message="This RFI no longer exists, or it isn't shared with you. Ask the project owner if you expected to see it." />;
@@ -259,7 +290,10 @@ function RFIForm() {
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
-  const router = useRouter();
+  // Beside the RFI log (desktop web) back() closes the record and the
+  // post-create replace opens it in place; everywhere else this IS useRouter().
+  const router = useLogAwareRouter();
+  const isDesktop = useIsDesktop();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId: paramProjectId, rfiId, prefillPhotoId } = useLocalSearchParams<{
@@ -629,6 +663,8 @@ function RFIForm() {
   const allowLeave = useRef(false);
   const dirtyRef = useRef(isDirty);
   dirtyRef.current = isDirty;
+  // The log's open-another-row / j/k / Esc ask first while this has edits.
+  useLogRecordDirty(() => dirtyRef.current);
   useEffect(() => navigation.addListener('beforeRemove', (e) => {
     if (allowLeave.current || !dirtyRef.current) return;
     e.preventDefault();
@@ -997,6 +1033,20 @@ function RFIForm() {
     }
   }, [question, suggesting, projectId, tier, existingRFI, getRFIsForProject, getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject]);
 
+  // Desktop: the two sheets centre in the content column; Cmd+Enter sends
+  // (never Cmd+S — a send leaves the app); Cmd+S / Cmd+Enter on the form
+  // saves. All no-ops on a phone (null frame styles, the original 'fade').
+  const fSend = useSheetFrame('form', { visible: showSendModal, animationType: 'fade' });
+  const fTask = useSheetFrame('dialog', { visible: showTaskPicker, animationType: 'fade' });
+  useSheetPrimaryHotkey(showSendModal, sending ? null : () => void handleSendToPro(), { saveKey: false });
+  usePrimaryAction(existingRFI ? handleSaveInPlace : handleSave, {
+    label: 'Save RFI',
+    enabled: isDesktop,
+    disabled: !!responseConflict,
+    reason: RFI_RESPONSE_CONFLICT_REASON,
+  });
+  const [showAllSubs, setShowAllSubs] = useState(false);
+
   if (!project && !existingRFI) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
@@ -1024,7 +1074,7 @@ function RFIForm() {
       <ScrollView
         {...fabScroll}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
         keyboardShouldPersistTaps="handled"
       >
         {!existingRFI && (
@@ -1217,7 +1267,7 @@ function RFIForm() {
 
         <Text style={styles.fieldLabel}>Subject *</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isDesktop && styles.inputSearchDesktop]}
           value={subject}
           onChangeText={setSubject}
           placeholder="Brief description of the question"
@@ -1238,7 +1288,7 @@ function RFIForm() {
         />
 
         <View style={styles.row}>
-          <View style={styles.halfField}>
+          <View style={[styles.halfField, isDesktop && desktopField('md')]}>
             <Text style={styles.fieldLabel}>Submitted By</Text>
             <TextInput
               style={styles.input}
@@ -1248,7 +1298,7 @@ function RFIForm() {
               placeholderTextColor={themeColors.textMuted}
             />
           </View>
-          <View style={styles.halfField}>
+          <View style={[styles.halfField, isDesktop && desktopField('md')]}>
             <Text style={styles.fieldLabel}>Assigned To</Text>
             <TextInput
               style={styles.input}
@@ -1276,6 +1326,48 @@ function RFIForm() {
               Which sub?{'  '}
               <Text style={styles.subChipHint}>optional — scores their RFI turnaround</Text>
             </Text>
+            {isDesktop ? (
+              // Desktop: a wrapping rail (a mouse wheel cannot scroll a
+              // hidden-scrollbar row, and /rfi scrolled sideways at 2.5× its
+              // width). The first 12 subs plus the picked one; "+N more"
+              // reveals the rest.
+              <ChipRail contentContainerStyle={styles.subChipRow} testID="rfi-sub-rail">
+                {rfiVisibleSubs(subcontractors, assignedSubId, showAllSubs).shown.map(sc => {
+                  const on = assignedSubId === sc.id;
+                  return (
+                    <TouchableOpacity
+                      key={sc.id}
+                      onPress={() => {
+                        if (on) { setAssignedSubId(undefined); return; }
+                        setAssignedSubId(sc.id);
+                        if (!assignedTo.trim()) setAssignedTo(sc.companyName);
+                      }}
+                      style={[styles.subChip, on && styles.subChipOn, isDesktop && chipDesktop, isDesktop && styles.subChipDesktop]}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Assign RFI to ${sc.companyName}`}
+                      testID={`rfi-sub-${sc.id}`}
+                    >
+                      <Text style={[styles.subChipText, on && styles.subChipTextOn]} numberOfLines={1}>{sc.companyName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {rfiVisibleSubs(subcontractors, assignedSubId, showAllSubs).hidden > 0 || showAllSubs ? (
+                  <TouchableOpacity
+                    onPress={() => setShowAllSubs(v => !v)}
+                    style={[styles.subChip, isDesktop && chipDesktop, isDesktop && styles.subChipDesktop]}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: showAllSubs }}
+                    testID="rfi-sub-more"
+                  >
+                    <Text style={styles.subChipText} numberOfLines={1}>
+                      {showAllSubs ? 'Show fewer' : `+${rfiVisibleSubs(subcontractors, assignedSubId, showAllSubs).hidden} more`}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </ChipRail>
+            ) : (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -1310,12 +1402,13 @@ function RFIForm() {
                 );
               })}
             </ScrollView>
+            )}
           </>
         )}
 
         <Text style={styles.fieldLabel}>Response Required By</Text>
         <TouchableOpacity
-          style={styles.pickerBtn}
+          style={[styles.pickerBtn, isDesktop && desktopField('sm')]}
           onPress={() => setShowDatePicker(true)}
           activeOpacity={0.7}
           testID="rfi-date-required"
@@ -1414,7 +1507,7 @@ function RFIForm() {
 
         <Text style={styles.fieldLabel}>Linked Drawing</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isDesktop && styles.inputSmDesktop]}
           value={linkedDrawing}
           onChangeText={setLinkedDrawing}
           placeholder="e.g. A-101"
@@ -1536,7 +1629,7 @@ function RFIForm() {
           <>
             {!((status === 'answered' || status === 'closed' || status === 'void') && response.trim().length > 0) && (
               <TouchableOpacity
-                style={[styles.suggestBtn, (suggesting || !question.trim()) && styles.suggestBtnDisabled]}
+                style={[styles.suggestBtn, (suggesting || !question.trim()) && styles.suggestBtnDisabled, isDesktop && desktopCta]}
                 onPress={handleSuggestAnswer}
                 disabled={suggesting || !question.trim()}
                 activeOpacity={0.85}
@@ -1608,13 +1701,13 @@ function RFIForm() {
         {/* #25: Save waits for his pick, and says why. */}
         {!!responseConflict && <Text style={styles.attachmentNote} testID="rfi-save-conflict">{RFI_RESPONSE_CONFLICT_REASON}</Text>}
         {existingRFI && isDirty && (
-          <TouchableOpacity style={[styles.sendToProBtn, !!responseConflict && { opacity: 0.5 }]} onPress={handleSaveInPlace} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save-in-place">
+          <TouchableOpacity style={[styles.sendToProBtn, !!responseConflict && { opacity: 0.5 }, isDesktop && desktopCta]} onPress={handleSaveInPlace} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save-in-place">
             <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.sendToProBtnText}>Save changes</Text>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={[styles.saveBtn, !!responseConflict && { opacity: 0.5 }]} onPress={handleSave} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save">
+        <TouchableOpacity style={[styles.saveBtn, !!responseConflict && { opacity: 0.5 }, isDesktop && desktopCta]} onPress={handleSave} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save">
           <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>{existingRFI ? 'Update RFI' : 'Create RFI'}</Text>
         </TouchableOpacity>
@@ -1626,7 +1719,7 @@ function RFIForm() {
         {existingRFI && (
           <>
             <TouchableOpacity
-              style={[styles.sendToProBtn, !!sendBlock && { opacity: 0.5 }]}
+              style={[styles.sendToProBtn, !!sendBlock && { opacity: 0.5 }, isDesktop && desktopCta]}
               onPress={openSendModal}
               disabled={!!sendBlock}
               activeOpacity={0.85}
@@ -1643,9 +1736,9 @@ function RFIForm() {
       </ScrollView>
 
       {/* Send-to-Pro modal */}
-      <Modal visible={showSendModal} transparent animationType="fade" onRequestClose={() => setShowSendModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowSendModal(false)}>
-          <Pressable style={styles.sendCard} onPress={() => undefined}>
+      <Modal visible={showSendModal} transparent animationType={fSend.animationType} onRequestClose={() => setShowSendModal(false)}>
+        <Pressable style={[styles.modalOverlay, fSend.overlay]} onPress={() => setShowSendModal(false)}>
+          <Pressable style={[styles.sendCard, fSend.card]} onPress={() => undefined}>
             <View style={styles.sendCardHeader}>
               <Text style={styles.sendCardTitle}>Send {numberLabel}</Text>
               <TouchableOpacity onPress={() => setShowSendModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -1703,9 +1796,9 @@ function RFIForm() {
       </Modal>
 
       {/* Task Picker Modal */}
-      <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowTaskPicker(false)}>
-          <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
+      <Modal visible={showTaskPicker} transparent animationType={fTask.animationType} onRequestClose={() => setShowTaskPicker(false)}>
+        <Pressable style={[styles.modalOverlay, fTask.overlay]} onPress={() => setShowTaskPicker(false)}>
+          <Pressable style={[styles.taskPickerCard, fTask.card]} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -1795,6 +1888,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textMuted,
   },
   subChipRow: { gap: 8, paddingRight: 16, paddingBottom: 2 },
+  // Desktop only (with chipDesktop): one line, content-sized.
+  subChipDesktop: { justifyContent: 'center' },
+  // Desktop only: the editor sits in the 760 form column, centred; the 24 px
+  // gutter keeps a multiline field at 712.
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center', paddingHorizontal: Layout.gutter },
+  // Desktop only: a short input stops at its field width (TextStyle-typed,
+  // so a TextInput takes it; desktopField() returns a ViewStyle).
+  inputSearchDesktop: { width: '100%', maxWidth: Layout.field.search, alignSelf: 'flex-start' },
+  inputSmDesktop: { width: '100%', maxWidth: Layout.field.sm, alignSelf: 'flex-start' },
   subChip: {
     paddingHorizontal: 14,
     paddingVertical: 9,

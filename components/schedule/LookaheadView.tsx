@@ -36,6 +36,7 @@ import {
 } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { TileGrid } from '@/components/ui/TileGrid';
 
 interface LookaheadViewProps {
   tasks: ScheduleTask[];
@@ -57,6 +58,13 @@ interface LookaheadViewProps {
    */
   locationLatitude?: number;
   locationLongitude?: number;
+  /**
+   * 'stack' (default): one week under another — the phone, the tablet branch.
+   * 'desktop' (wave 6c; passed ONLY from the classic tab's desktop branch): the
+   * weeks sit side by side in a TileGrid ('nav': three ~400 px cards across a
+   * 1,232 px column) instead of three 1,300 px strips.
+   */
+  layout?: 'stack' | 'desktop';
 }
 
 interface WeekGroup {
@@ -219,7 +227,9 @@ function LookaheadView({
   location,
   locationLatitude,
   locationLongitude,
+  layout = 'stack',
 }: LookaheadViewProps) {
+  const isDesktop = layout === 'desktop';
   // Built per theme: the week cards, day columns and their ink baked their
   // t.surface/text/cardBorder at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
@@ -442,13 +452,21 @@ function LookaheadView({
       <WeatherPlaceLine text={weatherDesc.placeLine} />
       <SimulatedWeatherBanner days={displayedDays} cause={weatherDesc.cause} />
 
-      <FlatList
-        data={weekGroups}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.label}
-        scrollEnabled={false}
-        contentContainerStyle={s.weekList}
-      />
+      {isDesktop ? (
+        <TileGrid preset="nav" testID="lookahead-week-grid">
+          {weekGroups.map((item) => (
+            <View key={item.label}>{renderItem({ item })}</View>
+          ))}
+        </TileGrid>
+      ) : (
+        <FlatList
+          data={weekGroups}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.label}
+          scrollEnabled={false}
+          contentContainerStyle={s.weekList}
+        />
+      )}
     </View>
   );
 }

@@ -47,6 +47,7 @@ export function pathToDocumentTitle(pathname: string): string | null {
     // screen. Routes with no sidebar label are left out rather than guessed —
     // validate-route-titles still lists them as "needs a copy decision".
     '/ask': 'Ask MAGE',
+    '/attention': 'Needs attention',
     '/auto-bids': 'Pre-priced Bids',
     '/building-access': 'Building Access',
     '/business': 'Your Business',

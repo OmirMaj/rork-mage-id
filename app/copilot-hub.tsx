@@ -22,6 +22,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { desktopCta } from '@/components/ui/desktop';
 import { INTENTS, routeScheduleRequest, scheduleEditHref, scheduleViewHref, SCHEDULE_EDIT_INTENT, hubScheduleNav, MODAL_DISMISS_DELAY_MS, type ScheduleRoute } from '@/utils/copilot/intentTable';
 import { pickableProjects } from '@/utils/copilot/projectScope';
 import { splitIntents, type SplitAction } from '@/utils/copilot/splitIntents';
@@ -60,6 +62,8 @@ export default function CopilotHubScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop: Paste and Continue hug their labels (wave 6c), not the 720 body.
+  const { isDesktop } = useResponsiveLayout();
 
   const [text, setText] = useState('');
   const [pasting, setPasting] = useState(false);
@@ -185,7 +189,7 @@ export default function CopilotHubScreen() {
             PM. splitIntents already turns one input into several filed
             artifacts; this just stops the email having to be retyped. */}
         <TouchableOpacity
-          style={styles.pasteBtn}
+          style={[styles.pasteBtn, isDesktop && desktopCta]}
           onPress={pasteFromClipboard}
           disabled={pasting || thinking}
           activeOpacity={0.8}
@@ -208,7 +212,7 @@ export default function CopilotHubScreen() {
           testID="copilot-hub-input"
         />
         <TouchableOpacity
-          style={[styles.goBtn, (!text.trim() || thinking) && styles.goBtnDisabled]}
+          style={[styles.goBtn, (!text.trim() || thinking) && styles.goBtnDisabled, isDesktop && desktopCta]}
           onPress={route}
           disabled={!text.trim() || thinking}
           activeOpacity={0.9}

@@ -65,7 +65,13 @@ console.log('\nSchedule Pro (app/schedule-pro.tsx):');
   ok('it still commits through the audited AI batch', /commitAiBatch\(producer, 'AI schedule edit'\);/.test(batch));
   const mount = slice(pro, '<ScheduleEditPanel', '/>');
   ok('the editor is told this screen has a toolbar Undo', /commit=\{commitEditorBatch\}[\s\S]*hasToolbarUndo/.test(mount));
-  ok('"Tell me what to change" pill is capped (720)', /copilotDesktopBar:\s*\{[^}]*maxWidth:\s*720,/.test(pro));
+  // Wave 6c: on a desktop browser the 720 pill is gone — the one front door is
+  // Row 1's command field, capped at a field width (Layout.field.md = 360).
+  const toolbar = code('components/schedule/desktop/ScheduleProToolbar.tsx');
+  ok('the Row-1 command field is capped at a field width (Layout.field.md)',
+    /testID="schedule-command-field"/.test(toolbar)
+      && /command:\s*\{[^}]*maxWidth:\s*Layout\.field\.md,/.test(toolbar)
+      && /style=\{styles\.command\}/.test(toolbar));
 }
 
 console.log('\nclassic Schedule tab (app/(tabs)/schedule/index.tsx):');
