@@ -54,8 +54,9 @@
 //   sections — and a non-transparent pageSheet Modal becomes `transparent` on
 //   desktop only (f.transparent).
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
+  Animated,
   Modal,
   Pressable,
   ScrollView,
@@ -80,6 +81,7 @@ import {
   useIsDesktopWeb,
   type SheetSize,
 } from './desktop';
+import { registerWithMotion, useReducedMotion, useRiseOnOpen } from './motion';
 
 export type { SheetSize, SheetFrameStyles } from './desktop';
 export { desktopSheetFrame } from './desktop';
@@ -108,11 +110,16 @@ export interface SheetFrame {
    *  undefined on a phone so the caller's own value stands. */
   transparent: true | undefined;
   isDesktop: boolean;
+  /** Phone + `rise`: the card's rise-into-place transform — append it to the
+   *  card, which must then be an Animated.View. null at rest (until the first
+   *  open after mount), under Reduce Motion, without `rise`, and on desktop
+   *  (the desktop card carries its CSS entry in `card` itself). */
+  cardMotion: ViewStyle | null;
 }
 
 export function useSheetFrame(
   size: SheetSize,
-  opts: { visible?: boolean; animationType?: AnimationType } = {},
+  opts: { visible?: boolean; animationType?: AnimationType; rise?: boolean } = {},
 ): SheetFrame {
   const isDesktop = useIsDesktop();
   const { colors } = useTheme();
@@ -125,7 +132,25 @@ export function useSheetFrame(
   // as the sheet component is merely MOUNTED. Desktop web only (useHotkeys
   // registers nothing on a phone or native).
   useSheetDialogScope(opts.visible === true);
-  if (!isDesktop) {
+  // Every hook runs before the phone return below, so hook order is fixed.
+  // Only a phone sheet that opted in drives the spring: the ~100 adopters
+  // without `rise` (and every desktop card) never start an animation.
+  const rise = useRiseOnOpen(opts.visible === true && opts.rise === true && !isDesktop);
+  // Desktop: the card pops in (a 'panel' slides in from the right) through a
+  // registered CSS keyframe. RN-web's Modal unmounts on close, so it replays
+  // on every open. Memoised: each registration is a new class. Reduce Motion
+  // is a dependency so a mid-session toggle drops (or restores) the keyframe.
+  const reduce = useReducedMotion();
+  const desktopFrame = useMemo(() => {
+    if (!isDesktop) return null;
+    const d = desktopSheetFrame(size, colors.line, inset);
+    return { ...d, card: d.card ? (reduce ? d.card : registerWithMotion(d.card, size === 'panel' ? 'slideInRight' : 'popIn')) : null };
+  }, [isDesktop, size, colors.line, inset, reduce]);
+  if (!isDesktop || !desktopFrame) {
+    // `rise` opts a phone sheet in: the scrim cross-dissolves ('fade', kept
+    // even under Reduce Motion) while the card rises the last 28 pt on its own
+    // spring. Without it the frame is exactly today's.
+    const rising = opts.rise === true && opts.animationType === 'slide';
     return {
       overlay: null,
       scrollContent: null,
@@ -134,17 +159,19 @@ export function useSheetFrame(
       footerButton: null,
       backdrop: null,
       showHandle: true,
-      animationType: opts.animationType,
+      animationType: rising ? 'fade' : opts.animationType,
       transparent: undefined,
       isDesktop: false,
+      cardMotion: rising ? rise : null,
     };
   }
   return {
-    ...desktopSheetFrame(size, colors.line, inset),
+    ...desktopFrame,
     showHandle: false,
     animationType: 'fade',
     transparent: true,
     isDesktop: true,
+    cardMotion: null,
   };
 }
 
@@ -267,7 +294,7 @@ export function Sheet({
   children,
   testID,
 }: SheetProps) {
-  const f = useSheetFrame(size, { visible, animationType: 'slide' });
+  const f = useSheetFrame(size, { visible, animationType: 'slide', rise: true });
   const desktopWeb = useIsDesktopWeb();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -350,12 +377,13 @@ export function Sheet({
           accessibilityLabel="Close"
           testID={testID ? `${testID}-backdrop` : undefined}
         />
-        <View
+        <Animated.View
           ref={cardRef}
           style={[
             styles.card,
             !f.isDesktop && { paddingBottom: Math.max(insets.bottom, 12) + 8 },
             f.card,
+            f.cardMotion,
           ]}
         >
           {f.showHandle ? <View style={styles.handle} /> : null}
@@ -388,7 +416,7 @@ export function Sheet({
             <Text style={styles.blocked} accessibilityLiveRegion="polite">{blocked.join(' ')}</Text>
           ) : null}
           {actions}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

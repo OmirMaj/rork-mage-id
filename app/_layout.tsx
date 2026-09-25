@@ -66,6 +66,7 @@ import {
 import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';
 import { renderDesktopPageFrame } from '@/components/desktop/DesktopPageFrame';
 import { ShellDockProvider, ShellDockHost } from '@/components/desktop/ShellDock';
+import { useReducedMotion, webMotion } from '@/components/ui/motion';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
 // goes through utils/alert.ts showAlert/showPrompt, which renders a real
@@ -496,6 +497,9 @@ function pendingLinkQuery(segments: string[], params: Record<string, string | st
   return qs ? `?${qs}` : '';
 }
 
+/** No extra root-Stack options (phone, native, Reduce Motion). */
+const NO_STACK_MOTION = {};
+
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
@@ -817,6 +821,20 @@ function RootLayoutNav() {
       colors: { ...base.colors, background: t.bg, card: t.bg, text: t.text, border: t.line },
     };
   }, [resolvedTheme, layout.isDesktop, t.bg, t.text, t.line]);
+  // Desktop web: each route fades in over 140 ms (a CSS keyframe on the
+  // screen's content; native-stack on web toggles display, which replays it on
+  // every push and back). Opacity only — a transform on the page ancestor
+  // would re-root position:fixed children. Phone and native: today's options
+  // exactly (spreading an empty object). The defaults stay an inline literal
+  // on <Stack>: validate-contrast check 11 reads headerTitleStyle there.
+  const reduceMotion = useReducedMotion();
+  const desktopWebStack = layout.isDesktop && Platform.OS === 'web';
+  const stackMotion = React.useMemo(
+    () => (desktopWebStack && !reduceMotion
+      ? { contentStyle: webMotion('fadeIn') ?? undefined }
+      : NO_STACK_MOTION),
+    [desktopWebStack, reduceMotion],
+  );
 
   // public/index.html (the SPA template; +html is ignored in single output)
   // paints <body> from a data-theme attribute its inline boot script sets
@@ -875,7 +893,7 @@ function RootLayoutNav() {
           returns the screen untouched everywhere else (utils/desktopPage). */}
       <NavThemeProvider value={navTheme}>
       <View style={{ flex: 1 }} key={`stack-${navNext.generation}`}>
-        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE }} screenLayout={renderDesktopPageFrame}>
+        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE, ...stackMotion }} screenLayout={renderDesktopPageFrame}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />

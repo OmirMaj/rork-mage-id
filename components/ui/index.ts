@@ -23,6 +23,21 @@ export { IconWrapper, type IconWrapperTone, type IconWrapperSize } from './IconW
 export { StatusPill, type StatusTone, type StatusPillProps } from './StatusPill';
 export { ScreenHeader, type ScreenHeaderProps, type ScreenHeaderVariant } from './ScreenHeader';
 
+// The motion system (smoothness pass): springs, swap fades, sheet rises, web
+// CSS glides — all null at rest and off under Reduce Motion. See ./motion.ts.
+export {
+  nativeDriver,
+  reducedMotion,
+  subscribeReducedMotion,
+  useReducedMotion,
+  layoutNext,
+  useRiseOnOpen,
+  useSwapFade,
+  webMotion,
+  registerWithMotion,
+  type WebMotionKey,
+} from './motion';
+
 // Colour decisions a chip cannot get right by eye — see ./ink.ts.
 export { labelOn, neutralInk, taskStatusInk, INK_ON_LIGHT_FILL, CHIP_TINT_SUFFIX } from './ink';
 

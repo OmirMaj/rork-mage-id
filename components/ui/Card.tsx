@@ -42,6 +42,7 @@ import * as Haptics from 'expo-haptics';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { EyebrowLabel } from './EyebrowLabel';
+import { nativeDriver, reducedMotion } from './motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -88,11 +89,14 @@ function CardRoot({
     );
   }
 
+  // Reduce Motion: no press scale at all (the value stays at 1).
   const handlePressIn = () => {
-    Animated.spring(scale, { toValue: 0.985, useNativeDriver: true, ...Tokens.motion.spring.snap }).start();
+    if (reducedMotion()) return;
+    Animated.spring(scale, { toValue: 0.985, useNativeDriver: nativeDriver, ...Tokens.motion.spring.snap }).start();
   };
   const handlePressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...Tokens.motion.spring.snap }).start();
+    if (reducedMotion()) { scale.setValue(1); return; }
+    Animated.spring(scale, { toValue: 1, useNativeDriver: nativeDriver, ...Tokens.motion.spring.snap }).start();
   };
   const handlePress = () => {
     if (Platform.OS === 'ios') Haptics.selectionAsync().catch(() => {});

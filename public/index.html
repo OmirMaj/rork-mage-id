@@ -51,6 +51,20 @@ body { background-color: #0B0D10; }
 @media (prefers-color-scheme: light) { body { background-color: #FBF8F2; } }
 html[data-theme='dark'] body { background-color: #0B0D10; }
 html[data-theme='light'] body { background-color: #FBF8F2; }
+@media (prefers-reduced-motion: no-preference) {
+  :where(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem']) * {
+    transition-property: color, stroke, fill;
+    transition-duration: 120ms;
+    transition-timing-function: cubic-bezier(0.2,0,0,1);
+  }
+  :where(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='option'],[role='switch'],input,textarea) {
+    transition-property: background-color, border-color, box-shadow, filter;
+    transition-duration: 120ms;
+    transition-timing-function: cubic-bezier(0.2,0,0,1);
+  }
+}
+:is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline: 2px solid #BC440C; outline-offset: 2px; }
+html[data-theme='dark'] :is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline-color: #FF6A1A; }
 @media print {
   html, body, #root {
     overflow: visible !important;

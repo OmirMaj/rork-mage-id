@@ -19,7 +19,7 @@
 // Pure module (type-free, imports only the colour tokens) so bun validators
 // can load it.
 
-import { Theme } from '@/constants/colors';
+import { BRAND_ACCENT, Theme, deriveAccentPalette } from '@/constants/colors';
 
 /** The AsyncStorage key contexts/ThemeContext persists the preference under.
  *  On web AsyncStorage IS window.localStorage, stored as the raw string. */
@@ -103,8 +103,55 @@ export const PRINT_CSS = [
   '}',
 ].join('\n');
 
-/** The id of the <style> element that carries THEME_BODY_CSS + PRINT_CSS. */
+/**
+ * Motion (smoothness pass, lane 1): one global hover/focus layer, so every
+ * sidebar row, RowLink, chip, tab, menu item, Button and segment on the web app
+ * glides its colour over 120 ms — with zero component-tree change, because
+ * react-native-web already renders them with these roles.
+ *
+ *  - Only under `prefers-reduced-motion: no-preference`: Reduce Motion gets
+ *    the same colours, instantly.
+ *  - Colour-ish properties ONLY. Never opacity, transform, width, height, left
+ *    or top: TouchableOpacity's press fade and the Gantt drags must not lag
+ *    behind the pointer. scripts/validate-motion.ts fails on one.
+ *  - The descendant rule comes first so a label/icon inside a control follows
+ *    the control's own glide (color/stroke/fill of the text and Lucide icon).
+ *  - Both transition rules are `:where(…)`, zero specificity, so ANY component
+ *    class wins: RN-web's TouchableOpacity root sets `transition-property:
+ *    opacity` with one class (0,1,0), and an `:is(a[href],…)` rule (0,1,1)
+ *    silently replaced it (the release fade snapped) and replaced
+ *    webMotion('rotateGlide') inside a role=button. validate-motion guards it.
+ *  - NEVER a global `animation-duration … !important` under reduced motion:
+ *    it breaks RN-web's ActivityIndicator and the Modal's animationend.
+ *  - A brand focus ring for keyboard focus (:focus-visible only, so a mouse
+ *    click draws none). The accent is a per-user hue at runtime, and a static
+ *    document cannot follow it, so the ring is the BRAND family: accentFill on
+ *    light (#FF6A1A itself is 2.87:1 there, under the 3:1 a focus indicator
+ *    needs) and accent on dark, keyed on the same data-theme tag as the page
+ *    ground above.
+ */
+const FOCUS_LIGHT = deriveAccentPalette(BRAND_ACCENT, 'light').accentFill;
+const FOCUS_DARK = deriveAccentPalette(BRAND_ACCENT, 'dark').accent;
+
+export const MOTION_CSS = [
+  '@media (prefers-reduced-motion: no-preference) {',
+  "  :where(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem']) * {",
+  '    transition-property: color, stroke, fill;',
+  '    transition-duration: 120ms;',
+  '    transition-timing-function: cubic-bezier(0.2,0,0,1);',
+  '  }',
+  "  :where(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='option'],[role='switch'],input,textarea) {",
+  '    transition-property: background-color, border-color, box-shadow, filter;',
+  '    transition-duration: 120ms;',
+  '    transition-timing-function: cubic-bezier(0.2,0,0,1);',
+  '  }',
+  '}',
+  `:is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline: 2px solid ${FOCUS_LIGHT}; outline-offset: 2px; }`,
+  `html[data-theme='dark'] :is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline-color: ${FOCUS_DARK}; }`,
+].join('\n');
+
+/** The id of the <style> element that carries THEME_BODY_CSS + MOTION_CSS + PRINT_CSS. */
 export const WEB_DOCUMENT_STYLE_ID = 'mage-document';
 
 /** The full <style> body, exactly as public/index.html carries it. */
-export const WEB_DOCUMENT_CSS = THEME_BODY_CSS + '\n' + PRINT_CSS;
+export const WEB_DOCUMENT_CSS = THEME_BODY_CSS + '\n' + MOTION_CSS + '\n' + PRINT_CSS;

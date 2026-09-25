@@ -69,6 +69,7 @@ import { useHotkeys } from '@/hooks/useHotkeys';
 import { useSplitListHidden } from '@/components/desktop/SplitView';
 import { cardSurface } from '@/components/ui/Card';
 import { labelOn } from '@/components/ui/ink';
+import { webMotion } from '@/components/ui/motion';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import {
@@ -687,6 +688,9 @@ function DataRow({
         selected && styles.rowSelected,
         active && styles.rowActive,
         focused && styles.rowFocused,
+        // The row has no role, so the global hover CSS never reaches it: its
+        // hover/selection fill glides here (120 ms; null under Reduce Motion).
+        Platform.OS === 'web' && webMotion('bgGlide'),
       ]}
     >
       {selectable ? (
