@@ -41,11 +41,14 @@ import type { LayoutPageType } from '@/constants/designTokens';
 //     the sidebar and then wants to leave through it, and the page frame now
 //     keeps their column readable. Ask and Copilot stay exempt until the
 //     ShellDock hosts them (wave 6c).
-//  4. Full-takeover editors that size off useWindowDimensions breakpoints tuned
-//     for a full-bleed viewport. schedule-pro's GRID_BREAKPOINT=900 /
-//     SPLIT_BREAKPOINT=1600 assume window width === content width; inside the
-//     240 px shell the grid would pass the ≥900 gate while actually getting
-//     window−240 px. (schedule-review's wideEnoughForPro gate relies on this.)
+//  4. (Empty since wave 6c.) Full-takeover editors that sized off
+//     useWindowDimensions breakpoints tuned for a full-bleed viewport. The one
+//     member was schedule-pro (GRID_BREAKPOINT=900 / SPLIT_BREAKPOINT=1600
+//     assumed window width === content width). Wave 6c gave it the sidebar
+//     back: Pro now sizes itself from its CONTAINER (lane DB), and the sidebar
+//     collapses to the 64 px rail on canvas routes (utils/sidebarRail
+//     CANVAS_ROUTES), so the Gantt keeps 1448 of 1512 px and the founder can
+//     leave Pro through the nav. It stays 'bleed' in ROUTE_PAGE_TYPE.
 export const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   // 1 — auth + first-run
   'login', 'signup', 'reset-password',
@@ -58,8 +61,6 @@ export const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   'schedule-import', 'paywall', 'import-pipeline',
   'post-rfp', 'submit-bid-response', 'photo-annotator', 'estimate-wizard',
   'brief',
-  // 4 — full-takeover editors with window-width breakpoints
-  'schedule-pro',
 ]);
 
 /**
@@ -94,8 +95,8 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'photo-annotator': 'bleed', 'leads': 'bleed', 'punch-walk': 'bleed', 'dev-ar-measure': 'bleed',
 
   // ── form 760 — create/edit forms, wizards, one-question interviews, chat.
-  'rfi': 'form', 'contract': 'form', 'company-profile': 'form', 'field-ticket': 'form',
-  'submittal': 'form', 'lead-detail': 'form', 'post-bid': 'form', 'post-job': 'form',
+  'contract': 'form', 'company-profile': 'form', 'field-ticket': 'form',
+  'lead-detail': 'form', 'post-bid': 'form', 'post-job': 'form',
   'equipment-detail': 'form', 'managed-property': 'form', 'client-update': 'form',
   'material-receipt': 'form', 'oac-meeting': 'form', 'generative-setup': 'form',
   // Shell-exempt flows framed as a column (fixes the 2016 px Copilot text box
@@ -123,10 +124,14 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   // ── table 1600 — registers with 7+ numeric columns.
   'wip-report': 'table', 'bid-leveling': 'table', 'buyout-package': 'table', 'aia-pay-app': 'table',
   'job-costing': 'table', 'cost-database': 'table',
+  // Wave 6c: the four project logs open list-first on desktop (lanes G/H) —
+  // a log table at Layout.page.table, the editor self-capped at
+  // Layout.page.form. All four are self-capped (SELF_CAPPED_ROUTES).
+  'rfi': 'table', 'submittal': 'table',
 
   // ── Self-capped screens (SELF_CAPPED_ROUTES): the frame passes them
   // through; the kind is the Layout token wave 6c swaps their literal for.
-  'project-detail': 'dashboard', 'invoice': 'dashboard', 'change-order': 'dashboard',
+  'project-detail': 'dashboard', 'invoice': 'table', 'change-order': 'table',
   'daily-report': 'dashboard', 'judges': 'form', 'brief': 'dashboard',
   'estimate-wizard': 'form', 'schedule-wizard': 'form', 'schedule-review': 'form',
   'cost-seed': 'form', 'widget-setup': 'form',
@@ -189,15 +194,21 @@ export const SELF_CAPPED_ROUTES: ReadonlySet<string> = new Set([
   'auto-bids', 'bid-detail', 'business', 'closeout-binder', 'last-planner', 'paywall',
   'profit-leak-history', 'sub-profile', 'track-record', 'waiting-on', 'week-close',
   'widget-setup',
+  // Wave 6c: list-first logs (the table caps at Layout.page.table, the editor
+  // at Layout.page.form — each screen owns its width).
+  'rfi', 'submittal',
 ]);
 
 /**
  * The tab navigator frames its own content (app/(tabs)/_layout.tsx) from this
  * map, keyed by the active tab's segment: the estimate hub is a table, every
  * other tab a dashboard. Replaces the tabs-only literal 1400.
+ * Wave 6c: Home is a table too — the portfolio table and /attention (lane F)
+ * use 1600 at 2560.
  */
 export const TAB_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'estimate': 'table',
+  '(home)': 'table',
 };
 
 /** The top-level segment of a route name ('integrations/qbo/callback' → 'integrations'). */

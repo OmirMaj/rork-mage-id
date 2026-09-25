@@ -180,18 +180,6 @@ console.log('\n1. The KPI strip: eight cells, honest about what it does not know
   cell(inPlace, 'open')?.onPress?.();
   cell(inPlace, 'owed')?.onPress?.();
   eq('…to the right sections', opened, ['rfis', 'invoices']);
-
-  // Desktop web, before the G logs ship: RFIs and invoices have no log screen
-  // (not in LIST_SECTION_ROUTES), so their cells open the section in place too.
-  const webOpened: string[] = [];
-  const web = buildKpiCells(FULL, { ...CTX, onOpenSection: k => webOpened.push(k) });
-  ok('desktop web: a log cell with no log screen carries no href (never a blank create form)',
-    !cell(web, 'billed')?.href && !cell(web, 'owed')?.href && !cell(web, 'overdue')?.href && !cell(web, 'open')?.href);
-  cell(web, 'open')?.onPress?.();
-  cell(web, 'billed')?.onPress?.();
-  eq('…and opens it in place', webOpened, ['rfis', 'invoices']);
-  eq('with no in-place opener it links the job page\'s section', cell(buildKpiCells(FULL, CTX), 'open')?.href,
-    { pathname: '/project-detail', params: { id: 'p1', tile: 'rfis' } });
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -240,19 +228,12 @@ console.log('\n3. The lookahead');
 // ════════════════════════════════════════════════════════════════════════════
 console.log('\n4. Where a section opens, and the one-screen budget');
 {
-  // Phase A ships without the G logs: only the H log (daily reports) and the
-  // punch list are list-first; RFIs, submittals, change orders and invoices
-  // open today's section bodies in the side panel.
-  eq('the list sections are the H log + the punch list', LIST_SECTION_ROUTES,
-    { dailyReports: '/daily-report', punchList: '/punch-list' });
+  eq('the list sections are the G/H logs + the punch list', LIST_SECTION_ROUTES,
+    { rfis: '/rfi', submittals: '/submittal', changeOrders: '/change-order', invoices: '/invoice', dailyReports: '/daily-report', punchList: '/punch-list' });
   ok('no key is both a log and a side-panel section', Object.keys(LIST_SECTION_ROUTES).every(k => !isPanelSection(k)));
-  ok('RFIs, submittals, change orders and invoices open in the side panel until their logs ship',
-    ['rfis', 'submittals', 'changeOrders', 'invoices'].every(k => isPanelSection(k) && !isListSection(k)));
-  eq('desktopTileTarget: a log', desktopTileTarget('dailyReports', 'p1'), { kind: 'route', pathname: '/daily-report', params: { projectId: 'p1' } });
-  eq('desktopTileTarget: an unshipped log is the panel', desktopTileTarget('rfis', 'p1'), { kind: 'panel' });
+  eq('desktopTileTarget: a log', desktopTileTarget('rfis', 'p1'), { kind: 'route', pathname: '/rfi', params: { projectId: 'p1' } });
   eq('desktopTileTarget: the panel / the legacy push', [desktopTileTarget('photos', 'p1'), desktopTileTarget('plans', 'p1')], [{ kind: 'panel' }, { kind: 'legacy' }]);
-  eq('an index row links a log only on desktop web', [sectionIndexHref('dailyReports', 'p1', true), sectionIndexHref('dailyReports', 'p1', false)], [{ pathname: '/daily-report', params: { projectId: 'p1' } }, null]);
-  eq('an unshipped log\'s index row is a button', [sectionIndexHref('rfis', 'p1', true), sectionIndexHref('invoices', 'p1', true)], [null, null]);
+  eq('an index row links a log only on desktop web', [sectionIndexHref('rfis', 'p1', true), sectionIndexHref('rfis', 'p1', false)], [{ pathname: '/rfi', params: { projectId: 'p1' } }, null]);
   eq('a screen of its own is always a link, with the param it reads', [sectionIndexHref('plans', 'p1', false), sectionIndexHref('scope', 'p1', true)],
     [{ pathname: '/plans', params: { projectId: 'p1' } }, { pathname: '/project-scope', params: { id: 'p1' } }]);
   eq('a side-panel section and Calendar Feed are buttons', [sectionIndexHref('photos', 'p1', true), sectionIndexHref('calendar', 'p1', true)], [null, null]);

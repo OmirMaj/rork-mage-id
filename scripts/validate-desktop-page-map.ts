@@ -148,11 +148,16 @@ const expectKind = (kind: string, names: string[]) => {
   const wrong = names.filter(n => ROUTE_PAGE_TYPE[n] !== kind);
   ok(`${kind}: ${names.length} seeded routes`, wrong.length === 0, `Not ${kind}: ${wrong.map(n => `${n}=${ROUTE_PAGE_TYPE[n]}`).join(', ')}`);
 };
-expectKind('form', ['rfi', 'contract', 'company-profile', 'field-ticket', 'submittal', 'lead-detail', 'post-bid',
+// Wave 6c: rfi and submittal left 'form' for 'table' (list-first logs, below).
+expectKind('form', ['contract', 'company-profile', 'field-ticket', 'lead-detail', 'post-bid',
   'post-job', 'equipment-detail', 'managed-property', 'client-update', 'material-receipt', 'oac-meeting',
   'generative-setup', 'schedule-builder', 'schedule-import', 'copilot', 'copilot-hub', 'ask', 'quick-quote',
   'post-rfp', 'submit-bid-response', 'import-pipeline']);
-expectKind('table', ['wip-report', 'bid-leveling', 'buyout-package', 'aia-pay-app']);
+// Wave 6c: the four project logs open list-first on desktop (lanes G/H) —
+// the log is a table; each screen self-caps (the editor at Layout.page.form).
+expectKind('table', ['wip-report', 'bid-leveling', 'buyout-package', 'aia-pay-app', 'rfi', 'submittal', 'invoice', 'change-order']);
+const logsNotSelfCapped = ['rfi', 'submittal', 'invoice', 'change-order'].filter(r => !SELF_CAPPED_ROUTES.has(r));
+ok('the four list-first logs are self-capped (the frame passes them through)', logsNotSelfCapped.length === 0, logsNotSelfCapped.join(', '));
 // Wave 6c: judges and scan are one-column flows; cost-xray stays a dashboard.
 expectKind('form', ['judges', 'scan']);
 expectKind('dashboard', ['cost-xray']);
@@ -168,7 +173,10 @@ const unexempted = ['cost-xray', 'scan', 'judges', 'quick-quote'].filter(r => DE
 ok('cost-xray, scan, judges and quick-quote have the sidebar back (not shell-exempt)', unexempted.length === 0, unexempted.join(', '));
 ok('Ask and Copilot stay shell-exempt until the dock hosts them',
   DESKTOP_SHELL_EXEMPT.has('ask') && DESKTOP_SHELL_EXEMPT.has('copilot') && DESKTOP_SHELL_EXEMPT.has('copilot-hub'));
-ok('schedule-pro stays shell-exempt (its breakpoints assume the full window)', DESKTOP_SHELL_EXEMPT.has('schedule-pro'));
+// Wave 6c: Pro sizes itself from its container (lane DB) and the sidebar
+// collapses to the 64 px rail there — it has the sidebar back and stays bleed.
+ok('schedule-pro has the sidebar (not shell-exempt) and stays bleed; ask is still exempt',
+  !DESKTOP_SHELL_EXEMPT.has('schedule-pro') && ROUTE_PAGE_TYPE['schedule-pro'] === 'bleed' && DESKTOP_SHELL_EXEMPT.has('ask'));
 // Every canvas route (the sidebar defaults to the 64 px rail there) is a real
 // route file that shows the sidebar — a rail on a page with no sidebar, or on
 // a typo, is a rule that never runs.
@@ -202,10 +210,10 @@ ok("an unmapped ordinary name falls back to 'dashboard'", pageTypeForRoute('no-s
 ok("'(tabs)' passes through (the tab navigator frames itself)", frameKindForRoute('(tabs)') === null);
 ok('a bleed route passes through', frameKindForRoute('schedule-pro') === null && frameKindForRoute('leads') === null);
 ok('a self-capped route passes through', frameKindForRoute('project-detail') === null && frameKindForRoute('login') === null);
-ok('a form route is framed as form', frameKindForRoute('rfi') === 'form' && frameKindForRoute('copilot-hub') === 'form');
+ok('a form route is framed as form', frameKindForRoute('contract') === 'form' && frameKindForRoute('copilot-hub') === 'form');
 ok('a table route is framed as table', frameKindForRoute('wip-report') === 'table');
-ok("the estimate tab is a table, every other tab a dashboard",
-  pageTypeForTab('estimate') === 'table' && pageTypeForTab('(home)') === 'dashboard'
+ok("the estimate and Home tabs are tables, every other tab a dashboard",
+  pageTypeForTab('estimate') === 'table' && pageTypeForTab('(home)') === 'table'
   && pageTypeForTab('schedule') === 'dashboard' && pageTypeForTab(undefined) === 'dashboard');
 
 console.log('\ndesktop page map — wiring:');

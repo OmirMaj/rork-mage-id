@@ -25,10 +25,8 @@ export const SIDEBAR_RAIL = 64; /* Layout.sidebar.rail */
 /** Per-viewer UI preference; a mageid_ key, so the sign-out sweep clears it. */
 export const SIDEBAR_RAIL_KEY = 'mageid_sidebar_rail';
 
-/** Top-level route segments whose sidebar defaults to the 64 px rail.
- *  'schedule-pro' joins when lane DB gives Pro the sidebar; until then it is a
- *  shell-exempt full takeover (utils/desktopPage DESKTOP_SHELL_EXEMPT). */
-export const CANVAS_ROUTES: ReadonlySet<string> = new Set(['plan-viewer']);
+/** Top-level route segments whose sidebar defaults to the 64 px rail. */
+export const CANVAS_ROUTES: ReadonlySet<string> = new Set(['schedule-pro', 'plan-viewer']);
 
 /** Collapsed or not, remembered separately for canvases and for everything
  *  else — collapsing it on Schedule Pro must not collapse it on the RFI log. */

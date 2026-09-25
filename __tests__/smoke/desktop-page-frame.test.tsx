@@ -185,13 +185,14 @@ describe('DesktopPageFrame', () => {
 
   it('on native adds nothing even at a desktop-sized window', () => {
     as('ios', 'desktop');
-    const tree = render(<ThemeProvider><DesktopPageFrame route="rfi"><Probe /></DesktopPageFrame></ThemeProvider>);
+    const tree = render(<ThemeProvider><DesktopPageFrame route="contract"><Probe /></DesktopPageFrame></ThemeProvider>);
     expect(tree.toJSON()).toEqual(PROBE_JSON);
   });
 
   it('on desktop web caps a form route at Layout.page.form, centred on the page ground', () => {
     as('web', 'desktop');
-    const tree = render(<ThemeProvider><DesktopPageFrame route="rfi"><Probe /></DesktopPageFrame></ThemeProvider>);
+    // 'contract', not 'rfi': wave 6c made the RFI log list-first and self-capped.
+    const tree = render(<ThemeProvider><DesktopPageFrame route="contract"><Probe /></DesktopPageFrame></ThemeProvider>);
     const outer = tree.getByTestId('desktop-page-frame');
     const outerStyle = StyleSheet.flatten(outer.props.style);
     expect(outerStyle).toMatchObject({ flex: 1, alignItems: 'center' });
@@ -235,7 +236,7 @@ describe('DesktopPageFrame', () => {
 
   it('on web below desktop keeps the same two Views, both plain flex:1 (no remount at 900 px)', () => {
     as('web', 'phone');
-    const tree = render(<ThemeProvider><DesktopPageFrame route="rfi"><Probe /></DesktopPageFrame></ThemeProvider>);
+    const tree = render(<ThemeProvider><DesktopPageFrame route="contract"><Probe /></DesktopPageFrame></ThemeProvider>);
     const outer = tree.getByTestId('desktop-page-frame');
     expect(StyleSheet.flatten(outer.props.style)).toEqual({ flex: 1 });
     const inner = outer.children[0] as unknown as { props: { style: unknown } };
@@ -565,22 +566,22 @@ describe('wave 6c at 1512 desktop web: the action rail is Home-only', () => {
 
 describe('wave 6c at 1512 desktop web: canvas routes get the 64 px sidebar rail', () => {
   beforeEach(() => { mockDockOpen = false; });
-  it.each(['/plan-viewer'])('%s: the sidebar is 64 and the page gets 1448', async (url) => {
+  it.each(['/schedule-pro', '/plan-viewer'])('%s: the sidebar is 64 and the page gets 1448', async (url) => {
     desktopWeb1512();
     const r = await shellAt(url);
     expect(r.sidebar).toBe(64);
     expect(r.page).toBe(1448);
   });
 
-  it.each(['/rfi', '/schedule-pro'])('%s: a non-canvas route keeps the 240 sidebar (Pro is shell-exempt until lane DB)', async (url) => {
+  it('a non-canvas route keeps the 240 sidebar', async () => {
     desktopWeb1512();
-    const r = await shellAt(url);
+    const r = await shellAt('/rfi');
     expect(r.sidebar).toBe(240);
   });
 
   it('the toggle expands the canvas sidebar and saves the choice under a mageid_ key', async () => {
     desktopWeb1512();
-    const r = await shellAt('/plan-viewer');
+    const r = await shellAt('/schedule-pro');
     expect(r.sidebar).toBe(64);
     await act(async () => { fireEvent.press(r.tree.getByTestId('rail-toggle')); });
     expect(flat(r.tree.getByTestId('shell-sidebar').props.style).width).toBe(240);
