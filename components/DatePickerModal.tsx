@@ -37,6 +37,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 
 interface Props {
   visible: boolean;
@@ -65,6 +66,10 @@ export default function DatePickerModal({
 }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // An open picker is a dialog to the shortcut registry (wave 6d, C2): its Esc
+  // closes only the picker, never the Schedule Pro pane it was opened from,
+  // and Cmd+Z behind it does not undo the schedule. A no-op off desktop web.
+  useSheetDialogScope(visible);
   // Parse the incoming value once per open. Treat invalid input as today.
   // Through calendarDayStart, not `new Date(value)`: callers hand this both a
   // bare 'YYYY-MM-DD' and this modal's own noon-UTC instant. `new Date` reads

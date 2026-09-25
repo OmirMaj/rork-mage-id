@@ -37,6 +37,13 @@
 # green build over an unchecked type surface.
 #
 # Run via: sh scripts/ci-generate-expo-types.sh   (idempotent; safe locally)
+#
+# REFRESH (opt-in, wave 6d). An existing router.d.ts is KEPT, so a route added
+# since it was written (e.g. /attention) reads to tsc as "not a route" until the
+# file is regenerated. `EXPO_TYPEGEN_REFRESH=1 sh scripts/ci-generate-expo-types.sh`
+# regenerates it; if the dev server fails to write a new one, the old file is
+# put back and the script still exits non-zero. Unset (CI's default), nothing
+# changes: a present file is kept and the script exits 0.
 
 set -u
 
@@ -63,9 +70,16 @@ else
 fi
 
 # ── 2. .expo/types/router.d.ts ──────────────────────────────────────────────
-if [ -f "$ROUTER_TYPES" ]; then
-  echo "expo-types: $ROUTER_TYPES already present"
+REFRESH=${EXPO_TYPEGEN_REFRESH:-0}
+if [ -f "$ROUTER_TYPES" ] && [ "$REFRESH" != "1" ]; then
+  echo "expo-types: $ROUTER_TYPES already present (EXPO_TYPEGEN_REFRESH=1 regenerates it)"
   exit 0
+fi
+STALE_TYPES=""
+if [ "$REFRESH" = "1" ] && [ -f "$ROUTER_TYPES" ]; then
+  STALE_TYPES="${TMPDIR:-/tmp}/mageid-router-types.$$.d.ts"
+  mv "$ROUTER_TYPES" "$STALE_TYPES" || exit 1
+  echo "expo-types: EXPO_TYPEGEN_REFRESH=1 — regenerating $ROUTER_TYPES"
 fi
 
 echo "expo-types: starting an offline dev server on :$PORT to generate typed routes…"
@@ -78,6 +92,11 @@ cleanup() {
   # Give Metro a moment, then insist.
   sleep 1
   kill -9 "$SERVER_PID" 2>/dev/null
+  # A refresh that produced nothing puts the old file back (the exit stays
+  # non-zero); one that succeeded drops the old copy.
+  if [ -n "$STALE_TYPES" ] && [ -f "$STALE_TYPES" ]; then
+    if [ -f "$ROUTER_TYPES" ]; then rm -f "$STALE_TYPES"; else mv "$STALE_TYPES" "$ROUTER_TYPES"; fi
+  fi
 }
 trap cleanup EXIT INT TERM
 

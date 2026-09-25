@@ -4,7 +4,7 @@
 // Honesty: an unknown value is null (the table draws '—'), never 0 — an RFI
 // with no submitted date has no "days open", not zero of them.
 
-import type { RFI, RFIBallInCourt } from '@/types';
+import type { RFI, RFIBallInCourt, RFIHandoff } from '@/types';
 import { overdueCalendarDays } from '@/utils/delayScan/rfiBlocking';
 
 const DAY_MS = 86400000;
@@ -150,4 +150,89 @@ export function rfiVisibleSubs<T extends { id: string }>(
   const picked = pickedId ? subs.find((s) => s.id === pickedId) : undefined;
   if (picked && !shown.includes(picked)) shown.push(picked);
   return { shown, hidden: subs.length - shown.length };
+}
+
+// ── Bulk "Close" (wave 6d, lane V3) ─────────────────────────────────────────
+// Closes answered RFIs one at a time through the context's updateRFI (the
+// offline queue), each with EXACTLY the patch the RFI screen's persistForm
+// writes when he flips Status to Closed and saves: status closed, and the ball
+// hand-off to 'closed' logged as "RFI closed by GC". The ball and regression
+// rules are hooks/useCollectionSettled's rfiBallAfterSave / rfiRegressionReason,
+// INJECTED so this file stays bun-pure; scripts/validate-log-bulk.ts runs
+// persistForm's rule beside this one and requires the same patch.
+
+export interface RfiBulkCloseDeps {
+  ballAfterSave: (p: {
+    prevBall: RFIBallInCourt | undefined;
+    handoffs: RFIHandoff[] | undefined;
+    status: string;
+    responseTyped: boolean;
+    dateResponded: string | undefined;
+    now: string;
+  }) => { ball: string; added: { at: string; fromParty: string; toParty: string; note?: string }[] };
+  regressionReason: (
+    opened: { status: string; response?: string; dateResponded?: string },
+    form: { status: string; response: string },
+  ) => string | null;
+}
+
+export type RfiClosePatch = Pick<RFI, 'status'> & Partial<Pick<RFI, 'ballInCourt' | 'handoffs'>>;
+
+export const RFI_CLOSE_SKIP = {
+  open: 'not answered yet — close it from its record',
+  closed: 'already closed',
+  void: 'void',
+} as const;
+
+export interface RfiBulkClosePlan {
+  close: { id: string; patch: RfiClosePatch }[];
+  skipped: { number: number; reason: string }[];
+}
+
+/** Which picked RFIs bulk Close writes (answered ones only), and why the rest
+ *  are left alone. */
+export function rfiBulkClosePlan(
+  rfis: readonly RFI[],
+  nowIso: string,
+  deps: RfiBulkCloseDeps,
+): RfiBulkClosePlan {
+  const out: RfiBulkClosePlan = { close: [], skipped: [] };
+  for (const r of rfis) {
+    if (r.status !== 'answered') {
+      const reason = r.status === 'closed' ? RFI_CLOSE_SKIP.closed : r.status === 'void' ? RFI_CLOSE_SKIP.void : RFI_CLOSE_SKIP.open;
+      out.skipped.push({ number: r.number, reason });
+      continue;
+    }
+    const blocked = deps.regressionReason(r, { status: 'closed', response: r.response ?? '' });
+    if (blocked) {
+      out.skipped.push({ number: r.number, reason: blocked });
+      continue;
+    }
+    const { ball, added } = deps.ballAfterSave({
+      prevBall: r.ballInCourt,
+      handoffs: r.handoffs,
+      status: 'closed',
+      responseTyped: false,
+      dateResponded: r.dateResponded,
+      now: nowIso,
+    });
+    const patch: RfiClosePatch = {
+      status: 'closed',
+      ...(added.length ? { ballInCourt: ball as RFIBallInCourt, handoffs: [...(r.handoffs ?? []), ...(added as RFIHandoff[])] } : {}),
+    };
+    out.close.push({ id: r.id, patch });
+  }
+  return out;
+}
+
+/** "Skipped 3: #4, #7 — already sent; #2 — paid." — or '' when none were. */
+export function logBulkSkippedLine(skipped: readonly { number: number | null | undefined; reason: string }[]): string {
+  if (skipped.length === 0) return '';
+  const byReason = new Map<string, string[]>();
+  for (const s of skipped) {
+    const label = typeof s.number === 'number' && Number.isFinite(s.number) ? `#${s.number}` : 'one with no number';
+    byReason.set(s.reason, [...(byReason.get(s.reason) ?? []), label]);
+  }
+  const parts = [...byReason].map(([reason, labels]) => `${labels.join(', ')} — ${reason}`);
+  return `Skipped ${skipped.length}: ${parts.join('; ')}.`;
 }

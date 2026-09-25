@@ -4,7 +4,8 @@
 // panes and every "quick look" opened as a full-window modal over a scrim — so
 // the GC could not look at the schedule while asking about it, which is the
 // whole point of asking. This panel sits BESIDE the page: 440 px by default,
-// resizable 360–560 by dragging its left edge (saved per panel id), with a
+// resizable 360–560 by dragging its left edge (saved per panel id; a pane
+// whose width the screen fixes passes resizable={false}), with a
 // header, optional tabs and a close button. Nothing is hidden behind a scrim;
 // the page next to it stays interactive.
 //
@@ -20,6 +21,10 @@
 // swallow the rest of the page's shortcuts); `toggleCombo` (default Cmd/Ctrl+J
 // when onToggle is given) toggles it. A page-scope binding beats the shell's
 // global Cmd+J, which is how Schedule Pro's own panel takes Cmd+J on that route.
+// An Esc typed in a field OUTSIDE the panel belongs to that field (a grid
+// cell's cancel, the command field) and never closes it; an Esc typed in the
+// panel's own field, or anywhere that is not a field, does (wave 6d, D2). That
+// is why every desktop panel carries a DOM id.
 //
 // The shell's global dock (components/desktop/ShellDock.tsx) renders THIS
 // component with `hotkeyScope="global"`, so there is one right-panel
@@ -76,6 +81,10 @@ export interface SidePanelProps {
   onTabChange?: (key: string) => void;
   /** Saves the dragged width (`mageid_panel_<panelId>`). Without it the width resets per mount. */
   panelId?: string;
+  /** Default true: the left edge drags the width (360–560). False: no drag
+   *  edge and no stored width — for a pane whose width the screen fixes
+   *  (Schedule Pro's 440 slot, wave 6d). */
+  resizable?: boolean;
   /** Initial width; clamped to 360–560. */
   defaultWidth?: number;
   /** The width the page has (hooks/useContainerWidth). Under `overlayBelow` → overlay. */
@@ -93,7 +102,9 @@ export interface SidePanelProps {
   /** Registry scope for Esc / the toggle key. Default 'page'; the shell dock
    *  passes 'global' so a page's own Esc wins over it. */
   hotkeyScope?: HotkeyScope;
-  /** DOM id on the desktop panel (the shell dock's print rule hides it by id). */
+  /** DOM id on the desktop panel (the shell dock's print rule hides it by id).
+   *  Absent → `side-panel-<panelId>`, else an automatic `side-panel-<n>`: the
+   *  Esc rule needs an id to tell the panel's own fields from the page's. */
   nativeID?: string;
   /** Web: tag the desktop panel data-print="hide" so Cmd+P prints the page
    *  beside it, not the panel (a page-owned pane that is not the shell dock). */
@@ -106,11 +117,15 @@ const RESIZE_CURSOR: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'col-resize' } as unknown as ViewStyle)
   : null;
 
+/** Numbers the DOM ids of panels that pass neither nativeID nor panelId. */
+let SIDE_PANEL_SEQ = 0;
+
 export function SidePanel(props: SidePanelProps) {
   const {
     open, onClose, title, children, onToggle, toggleCombo = 'mod+j', tabs, activeTab, onTabChange,
     panelId, defaultWidth = SIDE_PANEL_DEFAULT, containerWidth, overlayBelow = SIDE_PANEL_OVERLAY_BELOW,
     headerActions, scroll = true, style, testID, hotkeyScope = 'page', nativeID, printHide = false,
+    resizable = true,
   } = props;
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -119,18 +134,22 @@ export function SidePanel(props: SidePanelProps) {
   const widthRef = useRef(width);
   widthRef.current = width;
   const dragStart = useRef(width);
+  const autoId = useRef(`side-panel-${++SIDE_PANEL_SEQ}`).current;
+  const domId = nativeID ?? (panelId ? `side-panel-${panelId}` : autoId);
+  // A fixed-width panel neither reads nor writes a stored width.
+  const widthKeyId = resizable ? panelId : undefined;
 
   useEffect(() => {
-    if (!panelId) return undefined;
+    if (!widthKeyId) return undefined;
     let alive = true;
-    AsyncStorage.getItem(sidePanelWidthKey(panelId))
+    AsyncStorage.getItem(sidePanelWidthKey(widthKeyId))
       .then((raw) => {
         const n = raw ? Number.parseFloat(raw) : NaN;
         if (alive && Number.isFinite(n)) setWidth(clampSidePanelWidth(n));
       })
       .catch(() => { /* default width */ });
     return () => { alive = false; };
-  }, [panelId]);
+  }, [widthKeyId]);
 
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -140,20 +159,21 @@ export function SidePanel(props: SidePanelProps) {
     onPanResponderRelease: (_e, g) => {
       const w = dragSidePanelWidth(dragStart.current, g.dx);
       setWidth(w);
-      if (panelId) AsyncStorage.setItem(sidePanelWidthKey(panelId), String(w)).catch(() => { /* not saved */ });
+      if (widthKeyId) AsyncStorage.setItem(sidePanelWidthKey(widthKeyId), String(w)).catch(() => { /* not saved */ });
     },
-  }), [panelId]);
+  }), [widthKeyId]);
 
   // Mounted whether open or not, so the toggle key works while it is closed.
-  // A GLOBAL-scope panel (the shell dock) ignores an Esc typed in a PAGE
-  // field — that Esc belongs to the field and the page — but still closes on
-  // an Esc typed in its own field (wave 6c). Page-scope panels are unchanged.
-  const escWhen = hotkeyScope === 'global'
-    ? (ev: { target?: unknown }) => !isTypingTarget(ev.target) || (!!nativeID && targetWithin(ev.target, nativeID))
-    : undefined;
+  // ONE Esc rule for every scope (wave 6d, C1): an Esc typed in a field
+  // OUTSIDE this panel belongs to that field — on Schedule Pro a grid cell's
+  // cancel or the command field's Esc used to close the pane and throw away
+  // the AI review — while an Esc typed in the panel's own field, or anywhere
+  // that is not a field, closes it. The registry reads field keys in the
+  // capture phase, so without this the page-scope binding always won.
+  const escWhen = (ev: { target?: unknown }) => !isTypingTarget(ev.target) || (!!domId && targetWithin(ev.target, domId));
   useHotkeys(
     [
-      { combo: 'escape', label: `Close ${title}`, group: 'Panel', enabled: open, handler: onClose, ...(escWhen ? { when: escWhen } : {}) },
+      { combo: 'escape', label: `Close ${title}`, group: 'Panel', enabled: open, handler: onClose, when: escWhen },
       ...(onToggle ? [{ combo: toggleCombo, label: `Show / hide ${title}`, group: 'Panel', handler: onToggle }] : []),
     ],
     { enabled: isDesktop, scope: hotkeyScope },
@@ -223,19 +243,21 @@ export function SidePanel(props: SidePanelProps) {
     <View
       style={[styles.panel, { width }, overlay ? styles.overlay : null, style]}
       testID={testID}
-      nativeID={nativeID}
+      nativeID={domId}
       {...(printHide && Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
       // A landmark on web (<aside>-like), so a screen reader can jump to it.
       role={Platform.OS === 'web' ? 'complementary' : undefined}
       accessibilityLabel={title}
     >
-      <View
-        {...pan.panHandlers}
-        style={[styles.edge, RESIZE_CURSOR]}
-        accessibilityRole="adjustable"
-        accessibilityLabel={`Resize ${title}`}
-        testID={testID ? `${testID}-edge` : undefined}
-      />
+      {resizable ? (
+        <View
+          {...pan.panHandlers}
+          style={[styles.edge, RESIZE_CURSOR]}
+          accessibilityRole="adjustable"
+          accessibilityLabel={`Resize ${title}`}
+          testID={testID ? `${testID}-edge` : undefined}
+        />
+      ) : null}
       {header}
       {tabRow}
       {body}

@@ -22,7 +22,6 @@ import { getConditionIcon, type DayForecast } from '@/utils/weatherService';
 import {
   SIMULATED_WEATHER_HEADLINE,
   SIMULATED_NO_LOG_NOTICE,
-  WEATHER_API_KEY_ENV,
 } from '@/utils/weatherProvenance';
 
 export interface WeatherRescheduleModalProps {
@@ -105,7 +104,7 @@ export default function WeatherRescheduleModal({
                     </Text>
                     <Text style={styles.provenanceBody}>
                       {isFullySimulated
-                        ? `${SIMULATED_NO_LOG_NOTICE} Set ${WEATHER_API_KEY_ENV} for live weather.`
+                        ? `${SIMULATED_NO_LOG_NOTICE} Live weather isn't available for this job right now.`
                         : `${result!.simulatedAffectedDates.length} of ${result!.affectedDates.length} delay days are simulated (beyond live forecast coverage). Only the ${result!.liveAffectedDates.length} live day${result!.liveAffectedDates.length === 1 ? '' : 's'} will be recorded in the weather delay log.`}
                     </Text>
                   </View>

@@ -68,6 +68,9 @@ const ROOT = join(__dirname, '..');
 // Wave-6d P0 (orchestrator): unframedTransparentModalFiles 32 → 28 — the
 //   counter now skips SHEET_EXEMPT, and the phone-only schedule sheets and
 //   SidePanel's phone branch joined it. The rest re-measured unchanged.
+// Wave-6d phase 1 integration (orchestrator): stretchedButtons 5 → 0 (a flex:1
+//   Button inside an <ActionBar> no longer counts), unframedTransparentModalFiles
+//   28 → 24, pageSheetModals 27 → 23; 12 files reached sheet parity.
 const CEILING = {
   /** Numeric `maxWidth` literals ≥ 700 in app/ + components/ — page and
    *  column caps that should each be a Layout token. */
@@ -79,9 +82,9 @@ const CEILING = {
   /** Files with a transparent <Modal> and no desktop frame (no Sheet /
    *  useSheetFrame, no maxWidth anywhere in the file). SHEET_EXEMPT files are
    *  skipped (wave 6d): they never render a desktop sheet. */
-  unframedTransparentModalFiles: 28,
+  unframedTransparentModalFiles: 24,
   /** Non-transparent pageSheet <Modal>s (full-window on web). */
-  pageSheetModals: 27,
+  pageSheetModals: 23,
   /** Percent-width tile literals (width / flexBasis / minWidth of 22–25%,
    *  30–33% or 45–49%) — tiles sized from the row, not from a minimum. */
   percentTileLiterals: 26,
@@ -93,7 +96,7 @@ const CEILING = {
   hiddenScrollbarRails: 109,
   /** `<Button style={{ flex: 1 }}>` — a stretched button; containerStyle is
    *  the replacement. */
-  stretchedButtons: 5,
+  stretchedButtons: 0,
 };
 
 // ═══ B. Baselined gate exceptions — `file::ref`, as found when this landed.
@@ -189,6 +192,34 @@ function openingTag(src: string, at: number): string {
 }
 const tagsOf = (src: string, name: string) =>
   [...src.matchAll(new RegExp(`<${name}\\b`, 'g'))].map((m) => openingTag(src, m.index!));
+
+/** `<ActionBar …>…</ActionBar>` index spans (nesting-aware; a self-closing
+ *  `<ActionBar … />` has no children and no span). ActionBar's desktop branch
+ *  clones every child with flexGrow/flexShrink/flexBasis longhands, so a
+ *  `style={{ flex: 1 }}` Button inside one is the phone's half-width split and
+ *  a hugging 40 px button on desktop — not a stretched button. Wave 6d. */
+function actionBarSpans(src: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  const stack: number[] = [];
+  const tok = /<ActionBar\b|<\/ActionBar>/g;
+  for (let m = tok.exec(src); m; m = tok.exec(src)) {
+    if (m[0] === '</ActionBar>') {
+      const start = stack.pop();
+      if (start !== undefined) spans.push([start, m.index + m[0].length]);
+      continue;
+    }
+    if (!/\/>$/.test(openingTag(src, m.index))) stack.push(m.index);
+  }
+  return spans;
+}
+/** `<Button … style={{ flex: 1 }}>` tags that are NOT inside an ActionBar. */
+function stretchedButtonTags(src: string): string[] {
+  const spans = actionBarSpans(src);
+  return [...src.matchAll(/<Button\b/g)]
+    .filter((m) => !spans.some(([a, b]) => m.index! > a && m.index! < b))
+    .map((m) => openingTag(src, m.index!))
+    .filter((t) => /\sstyle=\{\{\s*flex:\s*1\s*\}\}/.test(t));
+}
 
 /** Split an expression on its top-level commas. */
 function topLevelParts(expr: string): string[] {
@@ -289,7 +320,7 @@ for (const [file, src] of code) {
   }
 
   counts.hiddenScrollbarRails += (src.match(/showsHorizontalScrollIndicator=\{false\}/g) ?? []).length;
-  counts.stretchedButtons += tagsOf(src, 'Button').filter((t) => /\sstyle=\{\{\s*flex:\s*1\s*\}\}/.test(t)).length;
+  counts.stretchedButtons += stretchedButtonTags(src).length;
 }
 
 // Self-test: the segment-name filter (wave 6c X0.5a).
@@ -300,6 +331,17 @@ for (const [file, src] of code) {
     ['segmentLabels', false], ['tabPhone', false], ['headerRow', false],
   ];
   for (const [name, want] of cases) ok(`segment-name self-test — ${name}: ${want ? 'a box' : 'not counted'}`, isSegmentBoxName(name) === want);
+}
+
+// Self-test: the stretched-button scanner skips ActionBar children (wave 6d).
+{
+  const inside = '<ActionBar style={s.row} width="form"><Button label="Save" onPress={() => save()} style={{ flex: 1 }} /></ActionBar>';
+  const outside = '<View style={s.row}><Button label="Send" style={{ flex: 1 }} /></View>';
+  ok('stretched-button self-test — a flex:1 Button inside an <ActionBar> is not counted', stretchedButtonTags(inside).length === 0);
+  ok('stretched-button self-test — a flex:1 Button outside one is counted', stretchedButtonTags(outside).length === 1);
+  ok('stretched-button self-test — one inside and one after the bar: only the one after counts', stretchedButtonTags(inside + outside).length === 1);
+  ok('stretched-button self-test — a self-closing <ActionBar /> opens no span', stretchedButtonTags('<ActionBar />' + outside).length === 1);
+  ok('stretched-button self-test — <ActionBarReadout> is not a bar', stretchedButtonTags('<ActionBarReadout><Button style={{ flex: 1 }} /></ActionBarReadout>').length === 1);
 }
 
 console.log('\ndesktop layout — ceilings (may only go down):');
@@ -613,7 +655,6 @@ if (fixedBaseline.length) note(`gated now — delete from UNGATED_BASELINE: ${fi
  *  SA6; the three phone-only schedule sheets and SidePanel moved to
  *  SHEET_EXEMPT. */
 const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
-  'app/(tabs)/construction-ai/index.tsx',
   'app/(tabs)/discover/bids.tsx',
   'app/(tabs)/materials/[category].tsx',
   'app/(tabs)/schedule/index.tsx',
@@ -627,9 +668,7 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/client-view.tsx',
   'app/company-profile.tsx',
   'app/contacts.tsx',
-  'app/copilot.tsx',
   'app/crew.tsx',
-  'app/delay-events.tsx',
   'app/deliveries.tsx',
   'app/equipment-detail.tsx',
   'app/estimate-wizard.tsx',
@@ -642,9 +681,7 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/plan-intelligence.tsx',
   'app/plan-viewer.tsx',
   'app/plans.tsx',
-  'app/project-detail.tsx',
   'app/qbo-review.tsx',
-  'app/schedule-pro.tsx',
   'app/shared-schedule.tsx',
   'app/wip-report.tsx',
   'app/work-order.tsx',
@@ -659,7 +696,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/ClientPaywall.tsx',
   'components/ConfirmEmailModal.tsx',
   'components/CreateMenu.tsx',
-  'components/DatePickerModal.tsx',
   'components/DemoSeedPickerModal.tsx',
   'components/EntityActionSheet.tsx',
   'components/EstimateComparison.tsx',
@@ -685,7 +721,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/TakeoffPageInspector.tsx',
   'components/UniversalMicButton.tsx',
   'components/UpgradeSheet.tsx',
-  'components/VoiceCaptureModal.tsx',
   'components/VoiceCommandModal.tsx',
   'components/copilot/ScheduleEditPanel.tsx',
   'components/desktop/JobSwitcher.tsx',
@@ -693,11 +728,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/estimate/RateProvenanceChip.tsx',
   'components/punch/PunchExportSheet.tsx',
   'components/punch/PunchPhotoViewer.tsx',
-  'components/schedule/ScheduleRowMenu.tsx',
-  'components/schedule/SchedulerMenuBar.tsx',
-  'components/schedule/TaskInspector.tsx',
-  'components/schedule/mobile/LivingFloorPlan.tsx',
-  'components/schedule/mobile/PlanZoneEditor.tsx',
   'components/summary/ToolsSheet.tsx',
 ]);
 

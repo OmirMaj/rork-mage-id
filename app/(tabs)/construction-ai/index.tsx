@@ -50,6 +50,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { cardSurface, segmentedDesktop, useIsDesktop, useSheetDialogScope } from '@/components/ui';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { useProjects } from '@/contexts/ProjectContext';
 import CodeCheckLoader from '@/components/CodeCheckLoader';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
@@ -1042,11 +1043,13 @@ Never invent a section number you are unsure of — leave section empty and desc
   const canUpsellCap = tier === 'free' || tier === 'pro';
   const upsellCapTier: 'pro' | 'business' = tier === 'free' ? 'pro' : 'business';
 
-  // Desktop (wave 6c): the mode toggle becomes a compact segmented control;
-  // the two review sheets are opaque pageSheets — dialog scope only.
+  // Desktop (wave 6c): the mode toggle becomes a compact segmented control.
+  // Wave 6d: the two review sheets are centred 'wide' cards over a scrim on
+  // desktop (each frame also registers the dialog scope); on a phone they are
+  // the same pageSheets as before.
   const isDesktop = useIsDesktop();
-  useSheetDialogScope(showInspectionSheet);
-  useSheetDialogScope(!!pendingResult);
+  const fInsp = useSheetFrame('wide', { visible: showInspectionSheet, animationType: 'slide' });
+  const fResult = useSheetFrame('wide', { visible: !!pendingResult, animationType: 'slide' });
 
   if (overLimit) {
     return canUpsellCap ? (
@@ -1103,6 +1106,27 @@ Never invent a section number you are unsure of — leave section empty and desc
       />
     );
   }
+
+  // The two review sheets' bodies, hoisted so the desktop card host and the
+  // phone's bare child render the same element.
+  const inspectionSheet = (
+    <AutoScheduleReviewSheet
+      lines={reviewLines}
+      zoning={zoningProp}
+      onConfirm={handleConfirmInspections}
+      onCancel={() => setShowInspectionSheet(false)}
+      onConfirmZoning={handleConfirmZoning}
+    />
+  );
+  const resultSheet = pendingResult ? (
+    <InspectionResultReviewSheet
+      inspection={pendingResult.inspection}
+      result={pendingResult.result}
+      work={pendingResult.work}
+      onConfirm={handleConfirmInspectionResult}
+      onCancel={() => setPendingResult(null)}
+    />
+  ) : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -1409,7 +1433,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             </TouchableOpacity>
 
             <Text style={styles.quotaText}>
-              {dailyCap === Infinity ? 'Unlimited code checks today' : `Daily limit: ${dailyCap} checks`}
+              {dailyCap === Infinity ? 'No daily cap on code checks · each run counts toward your AI requests' : `Daily limit: ${dailyCap} checks`}
             </Text>
 
             {result && !resultOpen ? (
@@ -1494,7 +1518,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                   <Text style={styles.runBtnText}>Generate Roadmap</Text>
                 </TouchableOpacity>
                 <Text style={styles.quotaText}>
-                  {roadmapDailyCap === Infinity ? 'Unlimited roadmaps today' : `Daily limit: ${roadmapDailyCap} generations`}
+                  {roadmapDailyCap === Infinity ? 'No daily cap on roadmaps · each run counts toward your AI requests' : `Daily limit: ${roadmapDailyCap} generations`}
                 </Text>
                 {roadmapMissing.length > 0 ? (
                   <View style={styles.missingCard}>
@@ -1674,18 +1698,15 @@ Never invent a section number you are unsure of — leave section empty and desc
               inspections. pageSheet on iOS, matching project-detail. */}
           <Modal
             visible={showInspectionSheet}
-            animationType="slide"
+            animationType={fInsp.animationType}
             presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
             transparent={Platform.OS !== 'ios'}
             onRequestClose={() => setShowInspectionSheet(false)}
           >
-            <AutoScheduleReviewSheet
-              lines={reviewLines}
-              zoning={zoningProp}
-              onConfirm={handleConfirmInspections}
-              onCancel={() => setShowInspectionSheet(false)}
-              onConfirmZoning={handleConfirmZoning}
-            />
+            <SheetOverlay frame={fInsp}>
+              <SheetScrim frame={fInsp} onPress={() => setShowInspectionSheet(false)} />
+              {fInsp.isDesktop ? <View style={[styles.reviewHost, fInsp.card]}>{inspectionSheet}</View> : inspectionSheet}
+            </SheetOverlay>
           </Modal>
 
           {/* Inspection-RESULT confirm surface — the ONLY commit path for a
@@ -1693,20 +1714,15 @@ Never invent a section number you are unsure of — leave section empty and desc
               the contractor confirms here. */}
           <Modal
             visible={!!pendingResult}
-            animationType="slide"
+            animationType={fResult.animationType}
             presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
             transparent={Platform.OS !== 'ios'}
             onRequestClose={() => setPendingResult(null)}
           >
-            {pendingResult ? (
-              <InspectionResultReviewSheet
-                inspection={pendingResult.inspection}
-                result={pendingResult.result}
-                work={pendingResult.work}
-                onConfirm={handleConfirmInspectionResult}
-                onCancel={() => setPendingResult(null)}
-              />
-            ) : null}
+            <SheetOverlay frame={fResult}>
+              <SheetScrim frame={fResult} onPress={() => setPendingResult(null)} />
+              {fResult.isDesktop ? <View style={[styles.reviewHost, fResult.card]}>{resultSheet}</View> : resultSheet}
+            </SheetOverlay>
           </Modal>
           </>
         ) : mode === 'plan' ? (
@@ -1827,7 +1843,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                     </Text>
                   </TouchableOpacity>
                   <Text style={styles.quotaText}>
-                    {planMonthlyCap === Infinity ? 'Unlimited plan reviews this month' : `Monthly limit: ${planMonthlyCap} reviews`}
+                    {`Monthly limit: ${planMonthlyCap} reviews`}
                   </Text>
 
                   {/* Results */}
@@ -2279,8 +2295,13 @@ const ROADMAP_LOADING_STEPS = [
   'Finalizing roadmap…',
 ];
 
+// The AI pass is running: not dismissable. Esc (RN-web) and Android back call this no-op, as they did with no handler.
+// validate-desktop-layout SA2 requires onRequestClose on every Modal in a file that uses a sheet frame.
+const KEEP_LOADER_OPEN = () => {};
+
 function RoadmapLoadingModal({ visible, subject }: { visible: boolean; subject?: string }) {
   const [stepIdx, setStepIdx] = useState(0);
+  useSheetDialogScope(visible);
 
   useEffect(() => {
     if (!visible) { setStepIdx(0); return; }
@@ -2294,7 +2315,7 @@ function RoadmapLoadingModal({ visible, subject }: { visible: boolean; subject?:
   }, [visible]);
 
   return (
-    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
+    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={KEEP_LOADER_OPEN}>
       <CodeCheckLoader
         eyebrow="PROJECT ROADMAP"
         headline="Sequencing permits, inspections and lead times"
@@ -2323,6 +2344,7 @@ const LOADING_STEPS = [
 
 function LoadingModal({ visible, subject }: { visible: boolean; subject?: string }) {
   const [stepIdx, setStepIdx] = useState(0);
+  useSheetDialogScope(visible);
 
   useEffect(() => {
     if (!visible) {
@@ -2343,7 +2365,7 @@ function LoadingModal({ visible, subject }: { visible: boolean; subject?: string
   // Full-screen, not a card on a dimmed form: the wait IS the screen while the
   // pass runs. presentationStyle fullScreen so there is no sheet chrome.
   return (
-    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
+    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={KEEP_LOADER_OPEN}>
       <CodeCheckLoader
         steps={LOADING_STEPS}
         activeStep={stepIdx}
@@ -2454,15 +2476,19 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
     setOpenCode(cur => (cur === key ? null : key));
     if (openCode !== key) void loadDetail(c);
   }, [openCode, loadDetail]);
-  useSheetDialogScope(visible && !!result);
+  // Desktop: a right-docked full-height panel over a scrim (the frame also
+  // registers the dialog scope); on a phone, the same pageSheet as before.
+  const fCode = useSheetFrame('panel', { visible: visible && !!result, animationType: 'slide' });
 
   if (!result) return null;
 
   const toggle = (k: SectionKey) => setExpanded((cur) => cur === k ? null : k);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.resultContainer, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }]}>
+    <Modal visible={visible} animationType={fCode.animationType} presentationStyle="pageSheet" transparent={fCode.transparent} onRequestClose={onClose}>
+      <SheetOverlay frame={fCode}>
+      <SheetScrim frame={fCode} onPress={onClose} />
+      <View style={[styles.resultContainer, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }, fCode.card]}>
         <View style={styles.resultHeader}>
           <View style={styles.resultHeaderIcon}>
             <Gavel size={20} color={Colors.primary} strokeWidth={1.75} />
@@ -2685,6 +2711,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
           </Text>
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }
@@ -2927,6 +2954,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: themeColors.bg,
   },
+  // Desktop host for the two inspection review sheets inside a 'wide' frame
+  // card (the frame supplies the size, radius and hairline). Background only:
+  // no radius here, so it is not a hand-rolled surface card.
+  reviewHost: { backgroundColor: themeColors.surface, overflow: 'hidden' as const },
   resultHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

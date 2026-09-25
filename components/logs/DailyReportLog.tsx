@@ -13,6 +13,12 @@
 // the URL as ?rec=), DataTable (sort, search, j/k/Enter; SplitView's Esc) and
 // ToolbarActions. Nothing here writes: Edit / Open, the change-order handoff
 // and the T&M ticket all go to the screens that already own those writes.
+//
+// Wave 6d, lane V3: every row is a real link to /daily-report?projectId&
+// reportId (getRowHref), so Cmd-click and the browser's own right-click menu
+// open a report in a new tab — a plain click still opens it beside the list.
+// Until dailyReportsLoaded the empty table says "Loading daily reports…",
+// never "No daily reports on this job yet".
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -25,6 +31,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { SplitView, useSplitRecord } from '@/components/desktop/SplitView';
 import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
+import { routeHref } from '@/components/desktop/RowLink';
 import { ToolbarActions, type ToolbarAction } from '@/components/desktop/ToolbarActions';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
@@ -105,17 +112,22 @@ export function DailyReportLog({ projectId, filedBy }: DailyReportLogProps) {
       rowKey={(r) => r.report.id}
       activeKey={rec.openId}
       onRowOpen={(r) => rec.open(r.report.id)}
+      getRowHref={(r) => routeHref('/daily-report', { projectId, reportId: r.report.id })}
       defaultSort={{ key: 'date', dir: 'desc' }}
       searchText={(r) => [shortDay(r.day), r.report.workPerformed, r.report.issuesAndDelays, r.filedBy ?? ''].join(' ')}
       searchPlaceholder="Search reports"
       // Required by the type; never drawn — this component is desktop-only.
       renderCard={(r) => <Text style={styles.cardLine}>{shortDay(r.day)}</Text>}
-      emptyState={
+      emptyState={rows.length === 0 && !dailyReportsLoaded ? (
+        <View style={styles.empty} testID="dfr-log-loading">
+          <Text style={styles.emptyText}>Loading daily reports…</Text>
+        </View>
+      ) : (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No daily reports on this job yet.</Text>
           <Button label="New report" onPress={newReport} size="sm" testID="dfr-log-empty-new" />
         </View>
-      }
+      )}
     />
   );
 

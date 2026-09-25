@@ -199,6 +199,34 @@ ok('aiLimitAlert.ts: no "unlimited" in code', !/unlimited/i.test(code(read('util
 ok('aiRateLimiter.ts: no "unlimited" anywhere (comments included — it is the header users\' copy is written from)',
   !/unlimited/i.test(read('utils/aiRateLimiter.ts')));
 
+// Wave 6d (Z2): the leftovers fixq did not reach. Enterprise's daily code-check
+// and roadmap caps are Infinity client-side, but the relay meters every run.
+const constructionAi = code(read('app/(tabs)/construction-ai/index.tsx'));
+ok('construction-ai: no "Unlimited code checks / roadmaps / plan reviews"',
+  !/Unlimited (code checks|roadmaps|plan reviews)/.test(constructionAi),
+  (constructionAi.match(/Unlimited (code checks|roadmaps|plan reviews)[^'`]*/g) ?? []).join(' | '));
+ok('construction-ai: an uncapped plan says each run still counts toward the AI requests',
+  constructionAi.includes("'No daily cap on code checks · each run counts toward your AI requests'")
+  && constructionAi.includes("'No daily cap on roadmaps · each run counts toward your AI requests'"));
+ok('construction-ai: the plan-review quota line has no Infinity branch (every tier has a monthly number)',
+  constructionAi.includes('{`Monthly limit: ${planMonthlyCap} reviews`}') && !/planMonthlyCap === Infinity/.test(constructionAi));
+const onboardingPaywall = code(read('app/onboarding-paywall.tsx'));
+ok('onboarding-paywall: no "Teams & unlimited"', !onboardingPaywall.includes('Teams & unlimited'));
+ok('onboarding-paywall: the Business tagline counts its seats from INCLUDED_ADMIN_SEATS.business',
+  onboardingPaywall.includes('tagline={`Teams · ${INCLUDED_ADMIN_SEATS.business} office seats`}'));
+const marketingHome = code(read('marketing/index.html'));
+const unlimitedEstimating = marketingHome.split('\n').filter(l => /Unlimited estimating/i.test(l));
+ok('marketing/index.html: no line pairs "Unlimited estimating"', unlimitedEstimating.length === 0, unlimitedEstimating.join(' | '));
+// The number on the Pro card, read against the LITERAL in the limiter's table
+// (utils/aiRateLimiterCore.ts, re-exported by utils/aiRateLimiter.ts) as well
+// as the imported value, so neither side can drift alone.
+const limiterSrc = read('utils/aiRateLimiterCore.ts');
+const proDailyLiteral = Number(limiterSrc.match(/\bpro:\s*\{\s*daily:\s*(\d+)/)?.[1] ?? NaN);
+const marketingAi = [...marketingHome.matchAll(/(\d+) AI requests a day/g)].map(m => Number(m[1]));
+ok(`marketing/index.html: the Pro card's AI number equals LIMITS.pro.daily (${LIMITS.pro.daily}, literal ${proDailyLiteral})`,
+  marketingAi.length === 1 && marketingAi[0] === proDailyLiteral && proDailyLiteral === LIMITS.pro.daily,
+  `marketing ${JSON.stringify(marketingAi)}`);
+
 // ── 5. Settings wiring ──────────────────────────────────────────────────────
 console.log('\n5. Settings > AI USAGE is wired to the honest card');
 

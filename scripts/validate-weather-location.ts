@@ -317,6 +317,26 @@ async function main(): Promise<void> {
   const notif = strip(read('app/notifications-settings.tsx'));
   ok('the digest location card classifies with classifyProjectLocation', /classifyProjectLocation\(p\)/.test(notif));
 
+  // Wave 6d (Z2): the daily report's live read. It sent the typed text to
+  // wttr.in (so 'United States' fetched some city's weather) and printed that
+  // text on the chip instead of the place wttr.in actually read.
+  const dfr = strip(read('app/daily-report.tsx'));
+  ok('daily-report asks wttr.in only with usableLocationText(project?.location)',
+    /const weatherQuery = usableLocationText\(project\?\.location\);/.test(dfr)
+    && /encodeURIComponent\(weatherQuery\)/.test(dfr) && !/encodeURIComponent\(project\.location\)/.test(dfr));
+  ok('daily-report has no `if (!project?.location) return` gate (a country-only location is not an address)',
+    !/if \(!project\?\.location\) return/.test(dfr) && /if \(!weatherQuery\) \{/.test(dfr));
+  ok('daily-report: a tapped fetch with no usable address says why (NO_ADDRESS_WEATHER_CAUSE); the auto one stays quiet',
+    /if \(!weatherQuery\) \{\s*if \(opts\?\.auto !== true\) showAlert\('No jobsite address', NO_ADDRESS_WEATHER_CAUSE\);\s*return;\s*\}/.test(dfr));
+  ok('daily-report: the mount fetch is gated on weatherQuery', /if \(!existingReport && weatherQuery\) \{\s*void fetchWeather\(\{ auto: true \}\);/.test(dfr));
+  ok("daily-report reads wttr.in's nearest_area for the place it read",
+    /data\?\.nearest_area\?\.\[0\]/.test(dfr) && /setWeatherPlace\(\[area\?\.areaName\?\.\[0\]\?\.value, area\?\.region\?\.\[0\]\?\.value\]\.filter\(Boolean\)\.join\(', '\) \|\| weatherQuery\)/.test(dfr));
+  ok('daily-report passes weatherPlace into weatherProvenanceLine (never the typed text)',
+    /weatherProvenanceLine\(\{[\s\S]{0,400}location: weatherPlace \?\? weatherQuery \?\? ''/.test(dfr)
+    && !/weatherProvenanceLine\(\{[\s\S]{0,400}location: project\?\.location/.test(dfr));
+  ok('daily-report clears the place with the reading (the backfill clear)',
+    /setWeatherReadAt\(null\);\s*setWeatherPlace\(null\);/.test(dfr));
+
   const fn = read('supabase/functions/weather-forecast/index.ts');
   const fnCode = strip(fn);
   ok('weather-forecast authenticates every caller (requireTier, all tiers)', /requireTier\(req, \['free', 'pro', 'business', 'enterprise'\]/.test(fnCode));

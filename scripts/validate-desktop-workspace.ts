@@ -507,6 +507,41 @@ ok('typing guard: plain key blocked in a field; Esc and Cmd chords pass; blockIn
     ok('targetWithin: only a DOM-like target with a matching closest()',
       targetWithin(DOCK_FIELD, 'shell-dock') && !targetWithin(DOCK_FIELD, 'other') && !targetWithin(null, 'x') && !targetWithin({ tagName: 'DIV' }, 'x'));
   }
+  {
+    // (e) Wave 6d (C1): SidePanel's ONE Esc rule, for every scope — the exact
+    // `when` SidePanel registers (validate-shell-6c pins the source line).
+    // Two page-scope panels, A and B. An Esc typed in a page field (outside
+    // both) closes neither — it belongs to the field (a grid cell's cancel) —
+    // while an Esc typed in A's own field closes A, and an Esc typed in no
+    // field closes the newest panel.
+    const panelEsc = (domId: string) => (ev: KeyLike) => !isTypingTarget(ev.target) || (!!domId && targetWithin(ev.target, domId));
+    const r = createHotkeyRegistry();
+    const closed: string[] = [];
+    r.register('page', { combo: 'escape', handler: () => { closed.push('a'); }, when: panelEsc('side-panel-a') });
+    r.register('page', { combo: 'escape', handler: () => { closed.push('b'); }, when: panelEsc('side-panel-b') });
+    const field = (inside: string | null) => ({ tagName: 'INPUT', type: 'text', closest: (sel: string) => (inside && sel === `#${inside}` ? {} : null) });
+    const outside = key('Escape', { target: field(null) });
+    ok('(e) page panel: an Esc typed in a field OUTSIDE both panels closes neither (not fired, not prevented)',
+      r.handle(outside) === false && closed.length === 0 && !outside.prevented, closed.join(','));
+    ok("(e) page panel: an Esc typed in A's own field closes A (not the newer B)",
+      r.handle(key('Escape', { target: field('side-panel-a') })) === true && eq(closed, ['a']), closed.join(','));
+    ok('(e) page panel: an Esc outside any field closes the newest panel',
+      r.handle(key('Escape', { target: { tagName: 'DIV' } })) === true && eq(closed, ['a', 'b']), closed.join(','));
+  }
+  {
+    // (f) Wave 6d (D3): hasDialog() — what GridPane's raw window listeners
+    // read. Dialog-scope hooks unregister when they close, so ANY dialog
+    // entry means one is open (a handler-less Esc listing entry counts).
+    const r = createHotkeyRegistry();
+    ok('(f) hasDialog(): false with nothing registered', r.hasDialog() === false);
+    const offPage = r.register('page', { combo: 'mod+d', handler: () => {} });
+    ok('(f) hasDialog(): false with only page / global bindings', r.hasDialog() === false);
+    const offDialog = r.register('dialog', { combo: 'escape' });
+    ok('(f) hasDialog(): true while a dialog binding is mounted', r.hasDialog() === true);
+    offDialog();
+    ok('(f) hasDialog(): false again after it unregisters', r.hasDialog() === false);
+    offPage();
+  }
 
   log.length = 0;
   const ev = key('j', { target: INPUT });
@@ -662,6 +697,24 @@ ok('useIsScreenFocused: NavigationContext (never useIsFocused, which throws outs
   /const \{ NavigationContext \} = require\('@react-navigation\/native'\)/.test(hk) && /useContext\(NavigationContext\)/.test(hk)
   && /useSyncExternalStore\(subscribe, snapshot, snapshot\)/.test(hk) && /subscribeFocus\(nav, cb\)/.test(hk)
   && /focusSnapshot\(nav\)/.test(hk) && !/useIsFocused\(/.test(hk));
+ok('useHotkeys: useIsScreenFocused is exported and the registry has hasDialog() (wave 6d, D3)',
+  /export function useIsScreenFocused\(\): boolean \{/.test(hk) && /hasDialog\(\): boolean;/.test(hk)
+  && /hasDialog\(\) \{ return entries\.some\(\(e\) => e\.scope === 'dialog'\); \}/.test(hk));
+{
+  // Wave 6d (C3): GridPane's raw window listeners (keydown: Cmd+A / Esc /
+  // Delete / Cmd+D; the two pastes) are not on the registry, so each must bail
+  // when its screen is hidden under a pushed route or a dialog is open.
+  const grid = strip(read('components/schedule/GridPane.tsx'));
+  ok('GridPane: liveRef follows useIsScreenFocused()',
+    /const screenFocused = useIsScreenFocused\(\);\s*const liveRef = useRef\(true\);\s*liveRef\.current = screenFocused;/.test(grid)
+    && /import \{ hotkeys, useIsScreenFocused \} from '@\/hooks\/useHotkeys';/.test(grid));
+  const listeners = [...grid.matchAll(/const handler = \((e): (KeyboardEvent|ClipboardEvent)\) => \{\s*([^\n]*)/g)];
+  const adds = (grid.match(/window\.addEventListener\('(keydown|paste)', handler\)/g) ?? []).length;
+  ok(`GridPane: every window keydown / paste listener (${listeners.length}) starts by reading liveRef and hotkeys.hasDialog()`,
+    listeners.length === 3 && adds === 3
+    && listeners.every((m) => m[3].trim() === 'if (!liveRef.current || hotkeys.hasDialog()) return;'),
+    listeners.map((m) => m[3].trim()).join(' | '));
+}
 ok('useHotkeys: no react-native import (bun-executable, and a no-op without a DOM)', !/from 'react-native'/.test(hk) && /typeof g\.document === 'undefined'/.test(hk));
 ok('usePrimaryAction binds Cmd+Enter AND Cmd+S, and explains a blocked action', /combo: 'mod\+enter'/.test(hk) && /combo: 'mod\+s'/.test(hk) && /explainBlocked\(/.test(hk));
 ok('useHotkeys: `when` is forwarded through the ref and recorded in the signature',

@@ -11,9 +11,10 @@
 // and react-native-web renders a Pressable with an href as an <a>. A plain
 // left click is still an in-app push — Link's handler preventDefaults it — and
 // a click with Cmd / Ctrl / Shift, or a middle click, is left to the browser,
-// which opens a new tab. The browser's own context menu on an <a> already
-// offers "Open in new tab" and "Copy link"; the custom EntityActionSheet
-// popover the audit sketched is a wave 6c add-on, not needed for either.
+// which opens a new tab. The browser's native context menu IS the right-click
+// menu: on an <a> it already offers "Open link in new tab / window" and "Copy
+// link address". Never preventDefault the context-menu event on a RowLink or a
+// linked DataTable row — a custom menu would only take those away (wave 6d).
 //
 // On NATIVE it is a plain Pressable that pushes the same href, so a phone
 // row keeps its exact behaviour.

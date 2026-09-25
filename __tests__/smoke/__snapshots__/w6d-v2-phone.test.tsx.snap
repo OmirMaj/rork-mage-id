@@ -1,0 +1,36 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) LivingFloorPlan (GC, editable) 1`] = `
+{
+  "lines": 63,
+  "sha256": "19b9a1818e34128da3cb8d616582ba80cd753b6f647de3037ad8882bef7fd48b",
+}
+`;
+
+exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) PlanZoneEditor (both sheets rendered, the zone sheet opened on Kitchen) 1`] = `
+{
+  "lines": 84,
+  "sha256": "3215d2a9735b7a443d9309f4bf47eea4601e3db3611ebc86f35a9d193faef796",
+}
+`;
+
+exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) ScheduleRowMenu (no anchor: the bottom sheet) 1`] = `
+{
+  "lines": 16,
+  "sha256": "ce9432e5302bf8c03fb5af51a821f20da564662b79d08b4751a400b3b4e6a057",
+}
+`;
+
+exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) SchedulerMenuBar (the bar, then Track opened) 1`] = `
+{
+  "lines": 83,
+  "sha256": "843a051d1fde70dc1fe1ad0603cbfb84a86c6decaeffbc30f62e7e988f62ab58",
+}
+`;
+
+exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) TaskInspector (embedded false), the trade picker opened through its button 1`] = `
+{
+  "lines": 254,
+  "sha256": "1adbde3f360f0f2117292335bdbcd43e041b00e901578974355fb76031aa2d59",
+}
+`;

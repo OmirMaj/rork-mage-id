@@ -41,6 +41,7 @@ import { Type } from '@/constants/typography';
 import { zoneStateAsOf, type ZoneState } from '@/utils/planZoneStatus';
 import { TimelineScrubber } from './TimelineScrubber';
 import EmptyState from '@/components/EmptyState';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import { parseCalendarDay } from '@/utils/calendarDate';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
@@ -116,6 +117,9 @@ export function LivingFloorPlan({
   );
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [openZone, setOpenZone] = useState<PlanZone | null>(null);
+  // The zone sheet: a phone bottom sheet, a centred form card on desktop
+  // (Schedule Pro's Living Plan view and the homeowner's /shared-plan).
+  const fZone = useSheetFrame('form', { visible: !!openZone, animationType: 'slide' });
 
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const aspect = imageW && imageH ? imageW / imageH : 4 / 3;
@@ -195,9 +199,10 @@ export function LivingFloorPlan({
         <TimelineScrubber dateAtIndex={dateAtIndex} totalDays={totalDays} dayIndex={dayIndex} todayIndex={todayIndex} onChange={setDayIndex} />
       </ScrollView>
 
-      <Modal visible={!!openZone} transparent animationType="slide" onRequestClose={() => setOpenZone(null)}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setOpenZone(null)} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+      <Modal visible={!!openZone} transparent animationType={fZone.animationType} onRequestClose={() => setOpenZone(null)}>
+        <SheetOverlay frame={fZone}>
+        <TouchableOpacity style={[styles.backdrop, fZone.backdrop]} activeOpacity={1} onPress={() => setOpenZone(null)} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fZone.card]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>{openZone?.label}</Text>
             <TouchableOpacity onPress={() => setOpenZone(null)} accessibilityRole="button" accessibilityLabel="Close">
@@ -228,6 +233,7 @@ export function LivingFloorPlan({
             );
           })()}
         </View>
+        </SheetOverlay>
       </Modal>
     </View>
   );

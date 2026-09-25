@@ -25,6 +25,11 @@
 //      SplitView's collapseWhenEmpty keeps the list the root's first child;
 //      rfi / submittal are 'table' + self-capped; the invoice tutorial
 //      sentinel still precedes the first Modal.
+//   5. Wave 6d, lane V3: every log's empty state (and chip counts) waits for
+//      its collection's settle signal — "Loading …", never "No … on this job
+//      yet" before the read lands; a failed RFI / submittal read says so with a
+//      retry. The daily-report log's rows are real links (getRowHref), and
+//      RowLink never takes the browser's own right-click menu away.
 //
 // Not here (wave 6d, deferred with the CO line grid): the "Needs a price"
 // blank-line rule.
@@ -412,6 +417,42 @@ ok('SplitView collapse: the list stays the root\'s FIRST child (same node, resty
   && /const collapsed = collapseWhenEmpty && !single && !hasRecord;/.test(desk) && /collapsed \? '100%' : splitWidths\(width, ratio\)\.listWidth/.test(desk));
 ok('SplitView collapse: no divider and no detail pane while collapsed',
   /\) : collapsed \? null : \(\n\s*<View\n\s*key="divider"/.test(desk) && /\(single && !hasRecord\) \|\| collapsed \? null : \(/.test(desk));
+
+console.log('\nhonest loading (wave 6d, lane V3 — runtime fix C6): no "No … yet" before the collection loads:');
+{
+  const LOADERS: [string, string, RegExp, string][] = [
+    ['components/logs/RfiLog.tsx', 'rfis', /const settle = useCollectionSettled\('rfis', undefined\);/, 'const loading = all.length === 0 && !settle.settled && !settledOnce;'],
+    ['components/logs/SubmittalLog.tsx', 'submittals', /const settle = useCollectionSettled\('submittals', undefined\);/, 'const loading = all.length === 0 && !settle.settled && !settledOnce;'],
+    ['components/logs/ChangeOrderLog.tsx', 'changeOrdersLoaded', /const \{[^}]*\bchangeOrdersLoaded\b[^}]*\} = useProjects\(\);/, 'const loading = all.length === 0 && !changeOrdersLoaded;'],
+    ['components/logs/InvoiceLog.tsx', 'invoicesLoaded', /const \{[^}]*\binvoicesLoaded\b[^}]*\} = useProjects\(\);/, 'const loading = all.length === 0 && !invoicesLoaded;'],
+  ];
+  for (const [file, signal, reads, loadingLine] of LOADERS) {
+    const src = read(file);
+    const empty = src.slice(src.indexOf('emptyState={'), src.indexOf('renderCard='));
+    ok(`${file}: reads its settle signal (${signal}) and derives \`loading\` from it`, reads.test(src) && src.includes(loadingLine));
+    ok(`${file}: the emptyState branches on \`loading\` FIRST ("Loading …"), before any "No … on this job yet"`,
+      /^emptyState=\{loading \? \(\s*<EmptyState[\s\S]{0,160}title="Loading [A-Za-z ]+…"/.test(empty)
+      && empty.indexOf('title="Loading') < empty.indexOf('on this job yet'));
+    ok(`${file}: the chip counts are hidden while loading (never a 0 it has not earned)`, /count: loading \? undefined : counts\[f\.key\]/.test(src));
+  }
+  for (const [file, key, noun] of [['components/logs/RfiLog.tsx', 'rfis', 'RFIs'], ['components/logs/SubmittalLog.tsx', 'submittals', 'submittals']] as const) {
+    const src = read(file);
+    ok(`${file}: a settled-and-failed read says "Couldn't load ${noun}. Check your connection." with a retry of ['${key}']`,
+      new RegExp(`\\) : all\\.length === 0 && settle\\.failed \\? \\(\\s*<EmptyState[\\s\\S]{0,160}title="Couldn't load ${noun}\\. Check your connection\\."[\\s\\S]{0,200}onAction=\\{retryRead\\}`).test(src)
+      && src.includes(`const retryRead = useCallback(() => { void qc.invalidateQueries({ queryKey: ['${key}'] }); }, [qc]);`));
+  }
+  const dfrLog = read('components/logs/DailyReportLog.tsx');
+  ok('DailyReportLog: the empty table says "Loading daily reports…" until dailyReportsLoaded',
+    /emptyState=\{rows\.length === 0 && !dailyReportsLoaded \? \(\s*<View style=\{styles\.empty\} testID="dfr-log-loading">\s*<Text style=\{styles\.emptyText\}>Loading daily reports…<\/Text>/.test(dfrLog));
+  console.log('\nrecord links (wave 6d, lane V3 — contract D7):');
+  ok("DailyReportLog passes getRowHref → routeHref('/daily-report', { projectId, reportId }) (Cmd-click / right-click open a new tab)",
+    /getRowHref=\{\(r\) => routeHref\('\/daily-report', \{ projectId, reportId: r\.report\.id \}\)\}/.test(dfrLog)
+    && /import \{ routeHref \} from '@\/components\/desktop\/RowLink';/.test(dfrLog)
+    && /onRowOpen=\{\(r\) => rec\.open\(r\.report\.id\)\}/.test(dfrLog));
+  const rowLink = read('components/desktop/RowLink.tsx');
+  ok("RowLink.tsx contains no 'contextmenu' (the browser's native menu IS the right-click menu)", !/contextmenu/i.test(rowLink));
+  ok('…and its header says so', /The browser's native context menu IS the right-click\n\/\/ menu/.test(rowLink));
+}
 
 console.log('\nroute contract (lane S, read-only here):');
 ok("rfi and submittal are 'table' and self-capped", pageTypeForRoute('rfi') === 'table' && pageTypeForRoute('submittal') === 'table'

@@ -5,6 +5,8 @@
 //
 // Nothing here writes; the record pane is the change-order screen's own
 // editor. The line grid (Grid | Cards) is wave 6d — the editor keeps its cards.
+// Until changeOrdersLoaded the empty table says "Loading change orders…",
+// never "No change orders on this job yet" (wave 6d, lane V3).
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
@@ -55,10 +57,12 @@ export function ChangeOrderLog({ projectId, openId, detail }: ChangeOrderLogProp
   const router = useRouter();
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { getChangeOrdersForProject, getProject } = useProjects();
+  const { getChangeOrdersForProject, getProject, changeOrdersLoaded } = useProjects();
   const project = getProject(projectId);
   const all = useMemo(() => getChangeOrdersForProject(projectId), [getChangeOrdersForProject, projectId]);
   const now = useMemo(() => new Date(), [all]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Nothing on this device and the collection not loaded: no empty copy, no counts.
+  const loading = all.length === 0 && !changeOrdersLoaded;
 
   const counts = useMemo(() => coLogChipCounts(all), [all]);
   // Opens on All: the footer's approved / pending money is the job's, not
@@ -147,7 +151,7 @@ export function ChangeOrderLog({ projectId, openId, detail }: ChangeOrderLogProp
               testID="co-log-chip"
               value={filter}
               onChange={setPicked}
-              chips={CO_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: counts[f.key] }))}
+              chips={CO_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: loading ? undefined : counts[f.key] }))}
             />
           )}
           bulkActions={[{ key: 'csv', label: 'Export CSV', run: exportSelected }]}
@@ -155,7 +159,13 @@ export function ChangeOrderLog({ projectId, openId, detail }: ChangeOrderLogProp
             description: `Approved ${logMoney(totals.approved) ?? '—'} · Pending ${logMoney(totals.pending) ?? '—'} (drafts not counted)`,
             amount: logMoney(totals.approved, true),
           } : undefined}
-          emptyState={(
+          emptyState={loading ? (
+            <EmptyState
+              icon={<ClipboardList size={28} color={t.accent} />}
+              title="Loading change orders…"
+              message="This job's change orders appear here once they load."
+            />
+          ) : (
             <EmptyState
               icon={<ClipboardList size={28} color={t.accent} />}
               title={all.length === 0 ? 'No change orders on this job yet' : 'Nothing under this filter'}

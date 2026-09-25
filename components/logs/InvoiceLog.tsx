@@ -3,7 +3,12 @@
 // only when utils/logs/logRoutes.logRouteMode says 'log' or 'split' — never
 // for the tutorial's /invoice?projectId&type=progress (a create signal).
 //
-// Nothing here writes; the record pane is the invoice screen's own editor.
+// The record pane is the invoice screen's own editor. The one write here is
+// the bulk "Mark sent" (wave 6d, lane V3): drafts only, never on the sample
+// job, behind a confirm, one invoice at a time through updateInvoice (the
+// offline queue) with the exact patch the invoice screen's "Mark sent" writes
+// (markSentPatch). It emails nobody. Until invoicesLoaded the empty table says
+// "Loading invoices…", never "No invoices on this job yet".
 // The balance, status and aging are the app's own rules (netBalanceDue,
 // getEffectiveInvoiceStatus, getDaysPastDue) — see utils/logs/invoiceLogRows.
 
@@ -25,10 +30,13 @@ import { LogShell } from '@/components/logs/LogShell';
 import { LogCard } from '@/components/logs/LogCard';
 import { RecordContextStrip } from '@/components/logs/RecordContextStrip';
 import { rowsToCsv } from '@/utils/dataTable';
+import { showAlert } from '@/utils/alert';
+import { isSampleProject } from '@/utils/sampleGuard';
+import { logBulkSkippedLine } from '@/utils/logs/rfiLogRows';
 import { deliverTextFile } from '@/utils/platformFile';
 import { logCsvFileName, logDayKey, logDayLabel, logMoney } from '@/utils/logs/logRoutes';
 import {
-  INVOICE_LOG_FILTERS, invoiceAgingDays, invoiceAgingLabel, invoiceBalance, invoiceLogChipCounts, invoiceLogFilter,
+  INVOICE_LOG_FILTERS, invoiceAgingDays, invoiceAgingLabel, invoiceBalance, invoiceBulkMarkSentPlan, invoiceLogChipCounts, invoiceLogFilter,
   invoiceLogStatus, invoiceLogTotals, invoiceQboLabel, invoiceSearchText, invoiceStatusLabel, invoiceTypeLabel,
   type InvoiceLogFilter,
 } from '@/utils/logs/invoiceLogRows';
@@ -54,10 +62,12 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
   const router = useRouter();
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { getInvoicesForProject, getProject } = useProjects();
+  const { getInvoicesForProject, getProject, invoicesLoaded, updateInvoice } = useProjects();
   const project = getProject(projectId);
   const all = useMemo(() => getInvoicesForProject(projectId), [getInvoicesForProject, projectId]);
   const now = useMemo(() => new Date(), [all]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Nothing on this device and the collection not loaded: no empty copy, no counts.
+  const loading = all.length === 0 && !invoicesLoaded;
 
   const counts = useMemo(() => invoiceLogChipCounts(all), [all]);
   // Opens on All: the footer's Total / Paid / Balance are the job's billing,
@@ -118,6 +128,27 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
 
   const newInvoice = useCallback(() => router.push(routeHref('/invoice', { projectId, new: '1' })), [router, projectId]);
 
+  // Bulk Mark sent: drafts only, each with the invoice screen's own patch.
+  // It confirms first, names what it skips, and emails nobody.
+  const markSentSelected = useCallback((ids: string[]) => {
+    const picked = all.filter((inv) => ids.includes(inv.id));
+    const plan = invoiceBulkMarkSentPlan(picked, new Date().toISOString(), (pid) => isSampleProject(getProject(pid)));
+    const skippedLine = logBulkSkippedLine(plan.skipped);
+    const n = plan.mark.length;
+    if (n === 0) {
+      showAlert('Nothing to mark sent', skippedLine || 'Pick draft invoices to mark them sent.', [{ text: 'OK' }]);
+      return;
+    }
+    showAlert(
+      `Mark ${n} invoice${n === 1 ? '' : 's'} sent?`,
+      `This does not email anything. Each one's issue date becomes today, its due date today + its terms, payment reminders start, and QuickBooks gets it.${skippedLine ? `\n\n${skippedLine}` : ''}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: `Mark ${n} sent`, onPress: () => plan.mark.forEach((m) => updateInvoice(m.id, m.patch)) },
+      ],
+    );
+  }, [all, getProject, updateInvoice]);
+
   const open = openId ? all.find((inv) => inv.id === openId) ?? null : null;
   const openStatus = open ? invoiceLogStatus(open) : null;
   const strip = open && openStatus ? (
@@ -162,24 +193,25 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
               testID="invoice-log-chip"
               value={filter}
               onChange={setPicked}
-              chips={INVOICE_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: counts[f.key] }))}
+              chips={INVOICE_LOG_FILTERS.map((f) => ({ value: f.key, label: f.label, count: loading ? undefined : counts[f.key] }))}
             />
           )}
           bulkActions={[
             { key: 'csv', label: 'Export CSV', run: exportSelected },
-            {
-              key: 'sent',
-              label: 'Mark sent',
-              run: () => {},
-              disabledReason: 'Mark each invoice sent from its record — that starts its payment clock and reminders one invoice at a time.',
-            },
+            { key: 'sent', label: 'Mark sent', run: markSentSelected },
           ]}
           footerTotals={rows.length > 0 ? {
             total: logMoney(totals.total),
             paid: logMoney(totals.paid),
             balance: logMoney(totals.balance),
           } : undefined}
-          emptyState={(
+          emptyState={loading ? (
+            <EmptyState
+              icon={<Receipt size={28} color={t.accent} />}
+              title="Loading invoices…"
+              message="This job's invoices appear here once they load."
+            />
+          ) : (
             <EmptyState
               icon={<Receipt size={28} color={t.accent} />}
               title={all.length === 0 ? 'No invoices on this job yet' : 'Nothing under this filter'}

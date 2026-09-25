@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=bill: the NOT-loaded render is byte-identical on the phone 1`] = `
+{
+  "lines": 54,
+  "sha256": "d06fa71d6514a9e407474e3973466051024b889466ec636714b0fe8cc9dd45b1",
+}
+`;
+
+exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=bill: the loaded render is the golden 1`] = `
+{
+  "lines": 54,
+  "sha256": "d06fa71d6514a9e407474e3973466051024b889466ec636714b0fe8cc9dd45b1",
+}
+`;
+
+exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=logs: the NOT-loaded render is byte-identical on the phone 1`] = `
+{
+  "lines": 54,
+  "sha256": "cb6bc24b7a3c883ec70960491f48930ae6adb76bbd4ffed4dde039f59877dd52",
+}
+`;
+
+exports[`lane V3 — /attention on the phone (390 iOS), loaded flags false and true ?view=logs: the loaded render is the golden 1`] = `
+{
+  "lines": 54,
+  "sha256": "cb6bc24b7a3c883ec70960491f48930ae6adb76bbd4ffed4dde039f59877dd52",
+}
+`;

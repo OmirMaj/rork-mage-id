@@ -62,7 +62,7 @@ import { isOwner } from '@/utils/owner';
 import { useHideBrainFab } from '@/components/brain/brainFabState';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
-import { Button, Card, cardSurface } from '@/components/ui';
+import { Button, Card, cardSurface, useIsDesktop } from '@/components/ui';
 import { SUPABASE_URL } from '@/lib/supabase';
 import { containImageRect, normalizeTapToImage, pinStepImageSource, sheetAspectRatio, isPinnableSheet } from '@/utils/punchPlanPin';
 import { feetPerPixel } from '@/utils/takeoffGeometry';
@@ -103,6 +103,9 @@ export default function DevArMeasureScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { projects, planSheets, getCalibrationForPlan } = useProjects();
+  // Desktop: the primary CTA hugs Layout.button.fullWidthMax instead of the
+  // window (change-order / invoice precedent). false on a phone = the default.
+  const isDesktop = useIsDesktop();
 
   // The Brain FAB is suppressed rather than padded around. On a jobsite the
   // controls on this screen are pressed one-handed while standing on the
@@ -606,6 +609,7 @@ export default function DevArMeasureScreen() {
               disabled={busy || samples.length === 0}
               iconLeft={<Square size={16} color={t.text} />}
               style={styles.block}
+              fullWidth={isDesktop}
             />
             {samples.length === 0 && (
               <Text style={styles.why}>Nothing has been marked yet, so there is nothing to export.</Text>
@@ -697,6 +701,7 @@ interface SetupProps {
 
 function SetupBlock(p: SetupProps) {
   const { styles, t } = p;
+  const isDesktop = useIsDesktop();
   return (
     <>
       <Card style={styles.block}>
@@ -797,6 +802,7 @@ function SetupBlock(p: SetupProps) {
         disabled={p.busy || p.blocked !== null}
         iconLeft={<Play size={16} color={t.bg} />}
         style={styles.block}
+        fullWidth={isDesktop}
       />
       {p.blocked && <Text style={styles.why}>{p.blocked}</Text>}
     </>

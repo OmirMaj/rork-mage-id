@@ -648,9 +648,6 @@ function ScheduleProScreenInner() {
   // button (and any other onAddTask caller).
   const [showAddTask, setShowAddTask] = useState(false);
   const [showLivingPlanEditor, setShowLivingPlanEditor] = useState(false);
-  // The Living Plan editor is an opaque full-screen Modal: a dialog to the
-  // shortcut registry while it is up.
-  useSheetDialogScope(showLivingPlanEditor);
 
   // ── Wave 6c desktop canvas state ──────────────────────────────────────
   // The toolbar's view (the shell is controlled), the row density (saved per
@@ -2646,8 +2643,10 @@ function ScheduleProScreenInner() {
     { combo: 'mod+z', handler: handleUndo, blockInInput: true, label: 'Undo', group: 'Schedule' },
     { combo: 'mod+shift+z', handler: handleRedo, blockInInput: true, label: 'Redo', group: 'Schedule' },
     { combo: 'mod+y', handler: handleRedo, blockInInput: true, label: 'Redo', group: 'Schedule' },
-    { combo: 'mod+e', handler: handleExportCsv, label: 'Export CSV', group: 'Schedule' },
-    { combo: 'mod+shift+s', handler: () => { void handleShare(); }, label: 'Copy share link', group: 'Schedule' },
+    // Not while he types in a grid cell or the command field (wave 6d, C7):
+    // Cmd+E / Cmd+Shift+S there must not download a CSV or copy a link.
+    { combo: 'mod+e', handler: handleExportCsv, blockInInput: true, label: 'Export CSV', group: 'Schedule' },
+    { combo: 'mod+shift+s', handler: () => { void handleShare(); }, blockInInput: true, label: 'Copy share link', group: 'Schedule' },
     { combo: 'mod+j', handler: focusCommand, label: 'Ask or change the schedule', group: 'Schedule' },
     // The pane's own Esc (SidePanel) closes it; with it closed, Esc clears focus.
     { combo: 'escape', handler: () => setFocusedTaskId(null), blockInInput: true, enabled: !!focusedTaskId && !paneOpen, label: 'Clear task focus', group: 'Schedule' },
@@ -3054,23 +3053,7 @@ function ScheduleProScreenInner() {
         />
 
         {/* Living Plan zone editor (full-screen modal) */}
-        {showLivingPlanEditor && (() => {
-          const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
-          const firstSheet = planSheets[0] ?? null;
-          if (!firstSheet) return null;
-          return (
-            <Modal visible animationType="slide" onRequestClose={() => setShowLivingPlanEditor(false)}>
-              <PlanZoneEditor
-                project={project}
-                planSheetId={firstSheet.id}
-                imageUri={firstSheet.imageUri}
-                imageW={firstSheet.width}
-                imageH={firstSheet.height}
-                onClose={() => setShowLivingPlanEditor(false)}
-              />
-            </Modal>
-          );
-        })()}
+        {showLivingPlanEditor && <LivingPlanEditorModal project={project} onClose={() => setShowLivingPlanEditor(false)} />}
     </>
   );
 
@@ -3867,24 +3850,34 @@ function ScheduleProScreenInner() {
       />
 
       {/* Living Plan zone editor (full-screen modal) */}
-      {showLivingPlanEditor && (() => {
-        const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
-        const firstSheet = planSheets[0] ?? null;
-        if (!firstSheet) return null;
-        return (
-          <Modal visible animationType="slide" onRequestClose={() => setShowLivingPlanEditor(false)}>
-            <PlanZoneEditor
-              project={project}
-              planSheetId={firstSheet.id}
-              imageUri={firstSheet.imageUri}
-              imageW={firstSheet.width}
-              imageH={firstSheet.height}
-              onClose={() => setShowLivingPlanEditor(false)}
-            />
-          </Modal>
-        );
-      })()}
+      {showLivingPlanEditor && <LivingPlanEditorModal project={project} onClose={() => setShowLivingPlanEditor(false)} />}
     </View>
+  );
+}
+
+/**
+ * The Living Plan zone editor: an opaque full-window Modal over the job's first
+ * current plan sheet (a full-window canvas, like PlanPinStep — not a framed
+ * card). While it is up it is a dialog to the shortcut registry, so the
+ * schedule behind it hears no keys. Nothing renders — and nothing claims the
+ * keyboard — when the job has no current plan sheet.
+ */
+function LivingPlanEditorModal({ project, onClose }: { project: Project; onClose: () => void }) {
+  const { getPlanSheetsForProject } = useProjects();
+  const sheet = getPlanSheetsForProject(project.id).filter((s) => !s.superseded)[0] ?? null;
+  useSheetDialogScope(!!sheet);
+  if (!sheet) return null;
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <PlanZoneEditor
+        project={project}
+        planSheetId={sheet.id}
+        imageUri={sheet.imageUri}
+        imageW={sheet.width}
+        imageH={sheet.height}
+        onClose={onClose}
+      />
+    </Modal>
   );
 }
 

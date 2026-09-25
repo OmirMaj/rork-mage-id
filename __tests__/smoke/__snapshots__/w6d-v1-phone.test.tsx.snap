@@ -1,0 +1,50 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane V1 — the phone is unchanged (golden, 390 wide) DatePickerModal, visible — ios 390, dark 1`] = `
+{
+  "lines": 209,
+  "sha256": "c05825ee289b3fb83dc5b6cc9ed86471fbbf1e8b7e7e5ccff01d61fe8b4ff446",
+}
+`;
+
+exports[`lane V1 — the phone is unchanged (golden, 390 wide) DatePickerModal, visible — ios 390, light 1`] = `
+{
+  "lines": 209,
+  "sha256": "eedef9520035744684158ecff26822f1c2de95ffbae83e3d026bcfa5dcdb5d40",
+}
+`;
+
+exports[`lane V1 — the phone is unchanged (golden, 390 wide) DatePickerModal, visible — web 390, dark 1`] = `
+{
+  "lines": 209,
+  "sha256": "c05825ee289b3fb83dc5b6cc9ed86471fbbf1e8b7e7e5ccff01d61fe8b4ff446",
+}
+`;
+
+exports[`lane V1 — the phone is unchanged (golden, 390 wide) DatePickerModal, visible — web 390, light 1`] = `
+{
+  "lines": 209,
+  "sha256": "eedef9520035744684158ecff26822f1c2de95ffbae83e3d026bcfa5dcdb5d40",
+}
+`;
+
+exports[`lane V1 — the phone is unchanged (golden, 390 wide) SidePanel phone branch, open with a tab row — ios 390 1`] = `
+{
+  "lines": 23,
+  "sha256": "b8897f9901feb11ce5f2a3d5aeb633657b0d8f039268b8493d73b924b2d10c66",
+}
+`;
+
+exports[`lane V1 — the phone is unchanged (golden, 390 wide) VoiceCaptureModal, visible — ios 390, dark 1`] = `
+{
+  "lines": 66,
+  "sha256": "5e49a888fa0eb42e9ee2b27adda4cc4d87eacd713b05f8ed641a3e8987fc383f",
+}
+`;
+
+exports[`lane V1 — the phone is unchanged (golden, 390 wide) VoiceCaptureModal, visible — ios 390, light 1`] = `
+{
+  "lines": 66,
+  "sha256": "90698d6604c556dd44c5eef85ed4da57165b683cd7069015ed2f8e7d6f5a2b9c",
+}
+`;

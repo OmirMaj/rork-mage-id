@@ -201,6 +201,66 @@ export const VIEW_LABEL: Readonly<Record<ProView, string>> = {
   workload: 'Workload', lanes: 'Lanes', living: 'Living Plan', calendar: 'Calendar · soon',
 };
 
+// ─── Toolbar row 2: collapse instead of overflowing (wave 6d, C4) ──────────
+// Row 2 is a fixed-height, no-wrap row, and RN-web children do not shrink, so
+// under ~1236 px of content it ran past the right edge and Track / Share were
+// cut off (1366 with the sidebar pinned, 1280, even 1440). The minimum widths
+// of what it holds, from Layout:
+//   gutters                Layout.gutter 24 × 2                          48
+//   view segmented         5 × Layout.segment.minWidth 88 + 4 × 2 + 6   454
+//   More ▾                                                              ≈72
+//   zoom group             32 + Fit ≈38 + Today ≈58 + 32 + gaps        ≈166
+//   "Rows" ≈36 + density   88 + "Comfortable" ≈108 + 8                 ≈240
+//   Plan / Track / Share                                               ≈216
+//   5 gaps                 Layout.rowGap 8 × 5                           40
+//                                                                     ≈1236
+// Each step below the one before it drops the next thing he needs least.
+export const ROW2_NEEDS = {
+  /** Everything as it was: the sum above. */
+  full: 1236,
+  /** No "Rows" label and density is one ≈112 text toggle: 1236 − 240 + 112. */
+  noRowsLabel: 1108,
+  /** Board and Overview move into More ▾: 1108 − 2 × (88 + 2). */
+  twoViewsInMore: 928,
+} as const;
+
+/** The three views the segmented control keeps once Board / Overview move into More ▾. */
+export const ROW2_NARROW_VIEWS: readonly ProView[] = ['split', 'gantt', 'list'];
+
+export interface Row2Plan {
+  /** The "Rows" caption before the density control. */
+  rowsLabel: boolean;
+  /** Two segments, or one text button that flips Compact ⇄ Comfortable. */
+  density: 'segmented' | 'toggle';
+  /** The views on the segmented control; every other view is under More ▾. */
+  primary: readonly ProView[];
+  /** "Fit" / "Today" as words; false = 32 px icon buttons (same labels). */
+  zoomLabels: boolean;
+}
+
+/**
+ * What toolbar row 2 shows at a measured content width. Unmeasured (0, NaN)
+ * or ≥ ROW2_NEEDS.full: everything as it was.
+ *   < full            no "Rows" label; density is one toggle
+ *   < noRowsLabel     + Board and Overview move into More ▾
+ *   < twoViewsInMore  + Fit and Today become icons
+ */
+export function row2Plan(width: number): Row2Plan {
+  const w = Number.isFinite(width) && width > 0 ? width : 0;
+  if (w === 0 || w >= ROW2_NEEDS.full) {
+    return { rowsLabel: true, density: 'segmented', primary: PRIMARY_VIEWS, zoomLabels: true };
+  }
+  return {
+    rowsLabel: false,
+    density: 'toggle',
+    primary: w < ROW2_NEEDS.noRowsLabel ? ROW2_NARROW_VIEWS : PRIMARY_VIEWS,
+    zoomLabels: w >= ROW2_NEEDS.twoViewsInMore,
+  };
+}
+
+/** Every view, primary first: the More ▾ list is this minus the plan's primary. */
+export const ALL_VIEWS: readonly ProView[] = [...PRIMARY_VIEWS, ...MORE_VIEWS];
+
 /** Which shell tab (and, for the timeline, which GanttTab layout) a view is. */
 export function viewToTab(v: ProView): { tab: ProTabKey; layout?: ProGanttLayout } {
   switch (v) {

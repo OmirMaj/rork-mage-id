@@ -34,6 +34,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { transcribeAudio } from '@/utils/transcribeAudio';
 import {
   getContextDictation,
@@ -111,6 +112,11 @@ export default function VoiceCaptureModal({
 }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // R-PANEL (wave 6d): on desktop the opaque full-window sheet becomes the
+  // 880 px right panel over a scrim; the frame also makes the open sheet a
+  // DIALOG to the shortcut registry, so its Esc closes only this sheet, never
+  // the Schedule Pro pane it was opened from (C2). All-null on a phone.
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -431,8 +437,10 @@ export default function VoiceCaptureModal({
   const isSaved = step === 'saved';
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={styles.root}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle="pageSheet" transparent={fP.transparent} onRequestClose={onClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <View style={[styles.root, fP.card]}>
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
@@ -596,6 +604,7 @@ export default function VoiceCaptureModal({
           </View>
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

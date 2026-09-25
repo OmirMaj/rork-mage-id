@@ -108,6 +108,8 @@ import { useLaborRates } from '@/hooks/useLaborRates';
 import {
   backfilledWeatherNotice, canReadLiveWeatherFor, weatherProvenanceLine,
 } from '@/utils/weatherService';
+import { usableLocationText } from '@/utils/geocodeProject';
+import { NO_ADDRESS_WEATHER_CAUSE } from '@/utils/weatherProvenance';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -1679,6 +1681,12 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   useEffect(() => { reportDateRef.current = reportDate; }, [reportDate]);
   /** When the reading in the block was taken, if it was taken in this session. */
   const [weatherReadAt, setWeatherReadAt] = useState<Date | null>(null);
+  /** Where wttr.in says it read that weather (its nearest_area), for the chip. */
+  const [weatherPlace, setWeatherPlace] = useState<string | null>(null);
+  /** The jobsite text worth asking wttr.in about — null when blank, too short,
+   *  or a country on its own ("United States" is the estimate wizard's default,
+   *  and wttr.in answers it with some city's weather). */
+  const weatherQuery = usableLocationText(project?.location);
 
   // Progress meter — "X of 5 sections filled". Five tracked items because
   // five is what a contractor can hold in their head: weather, crew, work
@@ -1704,7 +1712,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   // onPress: the press event would arrive as `opts` and `opts.auto` would be
   // undefined by luck rather than by design.
   const fetchWeather = useCallback(async (opts?: { auto?: boolean }) => {
-    if (!project?.location) return;
+    if (!weatherQuery) {
+      if (opts?.auto !== true) showAlert('No jobsite address', NO_ADDRESS_WEATHER_CAUSE);
+      return;
+    }
     // DFR-WEATHER-DAY. wttr.in answers `current_condition` — the sky RIGHT NOW.
     // Nothing in this path used to look at the report's date, so a Monday report
     // filed Tuesday morning carried Tuesday's sky stamped `isManual: false`, the
@@ -1732,7 +1743,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     }
     setWeatherLoading(true);
     try {
-      const location = encodeURIComponent(project.location);
+      const location = encodeURIComponent(weatherQuery);
       const response = await fetch(
         `https://wttr.in/${location}?format=j1`
       );
@@ -1756,6 +1767,9 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           // persisted timestamp for a reading restored from disk would be the
           // same class of lie this guard exists to stop.
           setWeatherReadAt(new Date());
+          // The place wttr.in actually read (nearest_area), not the text sent.
+          const area = data?.nearest_area?.[0];
+          setWeatherPlace([area?.areaName?.[0]?.value, area?.region?.[0]?.value].filter(Boolean).join(', ') || weatherQuery);
           // Fold an unattended fetch into the unsaved-work baseline, or the
           // screen reports itself as edited before the super has typed a word.
           if (opts?.auto === true) setAutoFilled(p => ({ ...p, weather: fetched }));
@@ -1780,10 +1794,10 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     } finally {
       setWeatherLoading(false);
     }
-  }, [project?.location, reportDate, reportDayLabel]);
+  }, [weatherQuery, reportDate, reportDayLabel]);
 
   useEffect(() => {
-    if (!existingReport && project?.location) {
+    if (!existingReport && weatherQuery) {
       void fetchWeather({ auto: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1806,6 +1820,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     if (!weather.temperature && !weather.conditions && !weather.wind) return;
     setWeather(EMPTY_DFR_WEATHER);
     setWeatherReadAt(null);
+    setWeatherPlace(null);
     // Keep the unsaved-work baseline in step, or clearing the app's own guess
     // reads as the super having edited the report.
     setAutoFilled(p => ({ ...p, weather: EMPTY_DFR_WEATHER }));
@@ -1818,15 +1833,16 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     isManual: weather.isManual,
     reportIsToday,
     hasValue: Boolean(weather.temperature || weather.conditions || weather.wind),
-    // Printed verbatim: project.location legitimately defaults to the literal
-    // "United States" on projects created through the estimate wizard, and a
-    // chip reading 'read for United States' exposes that rather than hiding it
-    // behind three confident-looking values.
-    location: project?.location ?? '',
+    // The chip names the place wttr.in actually read (its nearest_area), not
+    // the text we sent: wttr.in resolves a street address to the nearest area
+    // it knows, and that is where the reading is from. A country-only location
+    // ("United States", the estimate wizard's default) is never fetched at all
+    // (weatherQuery is null), so no chip can claim a reading for it.
+    location: weatherPlace ?? weatherQuery ?? '',
     readAtLabel: weatherReadAt
       ? weatherReadAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
       : undefined,
-  }), [weather, reportIsToday, project?.location, weatherReadAt]);
+  }), [weather, reportIsToday, weatherPlace, weatherQuery, weatherReadAt]);
 
   // Pre-fill manpower for the report's day. Two sources, in order of truth:
   //
