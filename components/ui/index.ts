@@ -36,6 +36,7 @@ export {
   useSheetFrame,
   useSheetDialogScope,
   SheetOverlay,
+  SheetScrim,
   useSheetPrimaryHotkey,
   desktopSheetFrame,
   type SheetFrame,

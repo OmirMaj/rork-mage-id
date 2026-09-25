@@ -159,6 +159,13 @@ export function SheetOverlay({ frame, children }: { frame: SheetFrame; children?
   return <View style={[{ flex: 1 }, frame.overlay]}>{children}</View>;
 }
 
+/**
+ * The desktop scrim behind a centred card: a full-window Pressable carrying
+ * the frame's backdrop (absoluteFill) in Colors.overlay. On a phone it returns
+ * null, so no host node is added. Wave 6d.
+ */
+export function SheetScrim({ frame, onPress, label = 'Close' }: { frame: SheetFrame; onPress?: () => void; label?: string }) { if (!frame.isDesktop) return null; return <Pressable style={[{ backgroundColor: Colors.overlay }, frame.backdrop]} onPress={onPress} accessibilityRole="button" accessibilityLabel={label} />; }
+
 const NOOP = () => {};
 
 /**

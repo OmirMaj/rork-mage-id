@@ -14,16 +14,17 @@
 // Workload) keep the full width — their content really is that wide.
 //
 // Wave 6c dropped two sections this file used to carry: the classic Schedule
-// tab (lane DC pins it in its own validator now) and the ContentWidth token
-// (the orchestrator removes it and adds the "no ContentWidth anywhere" check
-// here at integration).
+// tab (lane DC pins it in its own validator now) and the ContentWidth token.
+// Wave 6d folded ContentWidth into Layout.page and deleted it; the live check
+// below walks the source tree so it cannot come back.
 //
 // This is a SOURCE guard: styles are not observable from bun without a
 // renderer (the w6c-schedule-canvas smoke test renders them).
 //
 // Run via: bun run scripts/validate-schedule-desktop-width.ts
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 let pass = 0, fail = 0;
 function ok(n: string, cond: boolean, extra: unknown = '') {
@@ -69,6 +70,25 @@ console.log('\nSchedule Pro sub-tabs (components/schedule/tabs/*):');
     ok(`${f} keeps the full width (a timeline / grid, not cards): no page cap`,
       !/ContentWidth/.test(src) && !/Layout\.page\./.test(src));
   }
+}
+
+console.log('\nContentWidth is gone (folded into Layout.page in 6d):');
+{
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(root + dir)) {
+      const rel = `${dir}/${name}`;
+      if (statSync(root + rel).isDirectory()) walk(rel);
+      else if (/\.tsx?$/.test(name)) files.push(rel);
+    }
+  };
+  for (const d of ['app', 'components', 'utils', 'hooks', 'contexts', 'constants']) walk(d);
+  // \b does not match inside scheduleProContentWidth: the preceding 'o' is a word char.
+  const hits = files.filter((f) => /\bContentWidth\b/.test(code(f)));
+  ok(`no ContentWidth anywhere (folded into Layout.page in 6d) — ${files.length} files walked`,
+    files.length > 100 && hits.length === 0, hits);
+  ok('designTokens has no contentWidth: barrel key', !/\bcontentWidth:/.test(tokens));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

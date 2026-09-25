@@ -209,29 +209,6 @@ export const IconSize = {
   large:   { size: 24, strokeWidth: 2.0 },
 } as const;
 
-// ─────────────────────────────────────────────────────────────────────
-// Content widths — how wide a card column may grow on a desktop browser.
-// ─────────────────────────────────────────────────────────────────────
-//
-// On web the routed content is 1400 wide (useResponsiveLayout.contentMaxWidth)
-// and Schedule Pro is full-bleed, so a stack of flex:1 cards stretched to
-// 1,368px (the Schedule tab's Today view, measured on app.mageid.app at a
-// 2056px window, 2026-09-23) and to the whole monitor in Pro — one-line
-// banners 1,300px long, four stat tiles 500px each. The founder: "the boxes
-// are so stretched out and it looks terrible". Card and list views sit in a
-// centred column of these widths; timelines and grids (Gantt, List) keep the
-// full width because their content really is that wide. Below the cap the
-// column is simply 100%, so phones and tablets are unchanged.
-export const ContentWidth = {
-  /** Stacked cards and single-column lists (Today, Lookahead, Board rows, a dashboard). */
-  reading: 1040,
-  /** Side-by-side columns that each need a card's width (a kanban board). */
-  board: 1280,
-} as const;
-
-// Wave 6c folds ContentWidth into Layout.page (board 1280 = dashboard; reading 1040 has no
-// Layout twin yet — a decision for 6c). Until then both exist; new code uses Layout.
-
 // Layout — desktop web only (wave 6b visual system). The web app was the phone
 // app stretched across a monitor: pages 1816 px wide, 1,360 px buttons, 1,000 px
 // number boxes. These are the widths a desktop layout snaps to. Every value is
@@ -249,9 +226,17 @@ export const Layout = {
   segment: { height: 32, minWidth: 88, maxWidth: 200, controlMax: 640, numeric: 56 },
   chip:    { height: 32, maxWidth: 240 },
   field:   { xs: 120, sm: 200, md: 360, lg: 560, search: 480 },
+  // desktop side columns: a 220 index (plans rail, wizard, Settings) and a 360 rail (money dashboards, the wizard's price rail)
+  column: { index: 220, rail: 360 },
+  // the registers (R1–R3): Documents' Files rail and the Leads board columns
+  register: { aside: 320, boardColMin: 180, boardColMax: 360, boardGap: 12 },
   // The desktop sidebar: the full rail, and the 64 px icon rail it collapses
   // to (canvas routes default to it — utils/sidebarRail.ts). Wave 6c.
   sidebar: { full: 240, rail: 64 },
+  // Printed schedules (wave 6d). US Letter landscape is 11 in × 96 = 1056 CSS px minus
+  // 2 × 10 mm margins (≈76) = 980; A4 landscape is wider (1047), so Letter is the binding
+  // case. 0.3 is the smallest zoom that still reads.
+  print: { landscapeWidth: 980, fitMin: 0.3 },
   tile: {
     action:  { min: 200, maxCols: 6, gap: 10, minHeight: 56 },
     kpi:     { min: 220, maxCols: 4, gap: 12 },
@@ -270,7 +255,6 @@ export const Tokens = {
   motion: Motion,
   touchTarget: TouchTarget,
   iconSize: IconSize,
-  contentWidth: ContentWidth,
   continuousCorners,
   layout: Layout,
 } as const;
