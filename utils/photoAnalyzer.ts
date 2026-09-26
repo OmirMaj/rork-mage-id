@@ -25,6 +25,7 @@ import { edgeFunctionError, edgeErrorStatus } from '@/utils/edgeError';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { RawReceiptExtraction } from '@/utils/materialReceipt';
+import { normalizeCodeLook, type CodeLookResult } from '@/utils/codeLook';
 
 export interface AiPunchItem {
   description: string;
@@ -165,7 +166,7 @@ interface AnalyzeMeta {
   skippedIndexes: number[];
 }
 
-async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' | 'rfi' | 'triage' | 'receipt' | 'rooms' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
+async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'codeLook'; codeLook?: { jurisdictionBlock?: string; trade?: string; checklist?: string[] } }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
   if (!opts.photoUrls || opts.photoUrls.length === 0) {
     throw new Error('No photos to analyze.');
   }
@@ -184,6 +185,7 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | '
     projectType: opts.projectType,
     notes: opts.notes,
   };
+  if (opts.codeLook) payload.codeLook = opts.codeLook;
 
   // The originalIndexes array tracks, per encoded photo, which slot
   // in the caller's input it came from. For URL paths this is just
@@ -398,4 +400,26 @@ export async function captionPhoto(opts: { photoUrl: string; projectName?: strin
     console.log('[photoAnalyzer] captionPhoto unavailable:', err);
     return null;
   }
+}
+
+/**
+ * Photo Code Look — ONE photo, at most five things an inspector would look at
+ * in it, plus what the photo cannot show (utils/codeLook normalises it again).
+ * Errors are edgeFunctionError's: the function's own sentence and its code
+ * (monthly_cap_reached / unknown_task / one_photo), so the sheet can say which.
+ */
+export async function analyzePhotoCodeLook(opts: {
+  photoUrl: string;
+  projectName?: string;
+  projectType?: string;
+  codeLook: { jurisdictionBlock?: string; trade?: string; checklist?: string[] };
+}): Promise<CodeLookResult> {
+  const { data } = await callAnalyzePhotos<unknown>({
+    photoUrls: [opts.photoUrl],
+    projectName: opts.projectName,
+    projectType: opts.projectType,
+    codeLook: opts.codeLook,
+    task: 'codeLook',
+  });
+  return normalizeCodeLook(data);
 }

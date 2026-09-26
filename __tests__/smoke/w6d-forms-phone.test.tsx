@@ -46,6 +46,7 @@ import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { PROJECT_ID, ESTIMATE_ID } from '@/__tests__/fixtures/world';
 import Paywall from '@/components/Paywall';
 import PaywallScreen from '@/app/paywall';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
 // ── The layout gate: a width + a web flag, exactly like the app's hook ──────
 let mockWidth = 390;
@@ -198,6 +199,7 @@ function dumpLines(node: unknown, depth: number, out: string[]): void {
   dumpLines(el.children, depth + 1, out);
 }
 function fingerprint(name: string, json: unknown): { lines: number; sha256: string } {
+  json = stripSanctioned(json);
   const out: string[] = [];
   dumpLines(json, 0, out);
   const text = out.join('\n');

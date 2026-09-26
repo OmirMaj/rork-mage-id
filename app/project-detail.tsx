@@ -80,6 +80,7 @@ import HardHatTap from '@/components/animations/HardHatTap';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import BlueprintReveal from '@/components/animations/BlueprintReveal';
 import InspectionReadyCard from '@/components/inspectionPrep/InspectionReadyCard';
+import CodeLookSheet from '@/components/codeLook/CodeLookSheet';
 import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
 import ProjectCodeChecksCard from '@/components/codeThread/ProjectCodeChecksCard';
 import ScopeGapsCard from '@/components/scopeGaps/ScopeGapsCard';
@@ -863,6 +864,9 @@ export default function ProjectDetailScreen() {
   const [photoFilter, setPhotoFilter] = useState<string>('all');
   // Photo lightbox — shows the full-size image when a thumb is tapped.
   const [lightboxPhoto, setLightboxPhoto] = useState<ProjectPhoto | null>(null);
+  // Photo Code Look on the lightbox photo. Mounted ONLY while set: a closed,
+  // always-mounted sheet would hold a dialog hotkey scope on desktop.
+  const [codeLookTarget, setCodeLookTarget] = useState<{ photoUri: string; sourcePhotoId: string } | null>(null);
   // D3-2: free-text photo search (matches tag / location / linked-task /
   // geo-label — all already persisted on ProjectPhoto) + auto-album-by-date
   // toggle. Default grouped: albums are the library win for a long project.
@@ -6033,6 +6037,25 @@ export default function ProjectDetailScreen() {
               <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
             </TouchableOpacity>
           )}
+          {lightboxPhoto && (
+            <TouchableOpacity
+              testID="codelook-open-lightbox"
+              accessibilityRole="button"
+              accessibilityLabel="Code look"
+              style={styles.lightboxCodeLookBtn}
+              onPress={() => {
+                const target = { photoUri: lightboxPhoto.uri, sourcePhotoId: lightboxPhoto.id };
+                setLightboxPhoto(null);
+                // A modal over a modal is unreliable on iOS — the same hand-off
+                // the markup button uses.
+                setTimeout(() => setCodeLookTarget(target), 100);
+              }}
+              activeOpacity={0.85}
+            >
+              <ScanSearch size={14} color={themeColors.surface} strokeWidth={1.75} />
+              <Text style={styles.lightboxMarkupBtnText}>Code look</Text>
+            </TouchableOpacity>
+          )}
           {lightboxPhoto && project && (
             <View style={styles.lightboxPortalActions} onStartShouldSetResponder={() => true}>
               <PortalStatusPill portalState={lightboxPhoto.portalState} itemUpdatedAt={lightboxPhoto.timestamp} />
@@ -6048,6 +6071,16 @@ export default function ProjectDetailScreen() {
           )}
         </Pressable>
       </Modal>
+
+      {codeLookTarget && project ? (
+        <CodeLookSheet
+          visible
+          onClose={() => setCodeLookTarget(null)}
+          project={project}
+          photoUri={codeLookTarget.photoUri}
+          sourcePhotoId={codeLookTarget.sourcePhotoId}
+        />
+      ) : null}
 
       {/* Preview-then-apply for a change order's schedule impact. Shows the
           anchor task, every downstream shift, the new finish and any critical
@@ -6094,7 +6127,8 @@ export default function ProjectDetailScreen() {
           coach draws nothing rather than a dim and a card behind the sheet.
           Zero-size, inert. */}
       {(activeTile !== null || detailModal !== null || selectedRevision !== null || showShareModal || showEditModal
-        || showNoteModal || actionSheetRef !== null || lightboxPhoto !== null || portalPaywallOpen || coReflowPreview !== null)
+        || showNoteModal || actionSheetRef !== null || lightboxPhoto !== null || portalPaywallOpen || coReflowPreview !== null
+        || codeLookTarget !== null)
         ? <TutorialTarget id="hub.modalUp" />
         : null}
     </View>
@@ -6481,6 +6515,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
     paddingHorizontal: 18, paddingVertical: 12, borderRadius: Tokens.radius.full,
     backgroundColor: 'rgba(255,106,26,0.95)',
+  },
+  lightboxCodeLookBtn: {
+    position: 'absolute' as const, bottom: 176, alignSelf: 'center' as const,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingHorizontal: 18, paddingVertical: 12, borderRadius: Tokens.radius.full,
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
   lightboxMarkupBtnText: { color: themeColors.surface, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
   lightboxPortalActions: {

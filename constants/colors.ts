@@ -807,6 +807,13 @@ export const PHASE_PALETTE: Record<string, string> = {
  *  in the table so "uncategorised" never reads as a real phase. */
 export const PHASE_FALLBACK = '#7A7266';
 
+/** Desktop takeoff condition swatches (wave 4). Data hues, never chrome.
+ *  The trade defaults reuse PHASE_PALETTE's families so a trade reads the
+ *  same colour on the Gantt and on the plan. */
+export const TAKEOFF_CONDITION_PALETTE: readonly string[] = [
+  '#94A3B8', '#22C55E', '#A855F7', '#EAB308', '#0EA5E9', '#14B8A6', '#06B6D4', '#3B82F6', '#EF4444', '#EC4899', '#F97316', '#84CC16',
+];
+
 /** Summary-tab project chips. 10pt WHITE initials sit on these, so every entry
  *  must clear AA 4.5:1 against white — four of the six originals did not
  *  (worst #0FB5AE at 2.55:1, measured 2026-09-07). Darkened in place, hue

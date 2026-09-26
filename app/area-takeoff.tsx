@@ -53,6 +53,7 @@ import { roundCents } from '@/utils/invoiceBilling';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import EstimateJobPicker from '@/components/estimate/EstimateJobPicker';
+import TakeoffWorkspace from '@/components/takeoff/TakeoffWorkspace';
 import { estimateProjectCandidates, pickEstimateProject } from '@/utils/estimateLanding';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
@@ -127,11 +128,15 @@ function engineRatesForUnit(location: string, unit: TakeoffUnit): EngineOption[]
 export default function AreaTakeoffScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  // Desktop web gets the canvas workspace (components/takeoff); the phone,
+  // a tablet and a narrow browser keep the touch flow below, untouched.
+  const isDesktopWeb = useIsDesktopWeb();
   if (!canAccess('job_costing')) {
     return (
       <Paywall visible={true} feature="Visual Takeoff" requiredTier="pro" onClose={() => router.back()} />
     );
   }
+  if (isDesktopWeb) return <TakeoffWorkspace />;
   return <AreaTakeoffInner />;
 }
 

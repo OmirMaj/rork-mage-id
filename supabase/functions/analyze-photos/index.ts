@@ -23,6 +23,10 @@
 //                 the vault screen (canAccess('rfis_submittals') = Pro). Until
 //                 this build is deployed the live function answers 400 for
 //                 'coi', and the client says reading isn't live (audit #23/#40).
+//   - 'codeLook' → Photo Code Look: ONE photo of work about to be covered
+//                 up; at most 5 things an inspector would look at in it, and
+//                 a required list of what the photo cannot show. Never a
+//                 verdict. Its own meter ('code_look', Pro+).
 //
 // Modelled on the existing analyze-drawings function — same auth /
 // CORS / error shape, different prompt + schema per task.
@@ -32,7 +36,7 @@
 //
 // Request body:
 // {
-//   task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk' | 'coi';
+//   task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk' | 'coi' | 'codeLook';
 //   photoUrls: string[];        // 1..N publicly fetchable image URLs
 //   projectName?: string;
 //   projectType?: string;
@@ -65,7 +69,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface AnalyzePhotosRequest {
-  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk' | 'coi';
+  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk' | 'coi' | 'codeLook';
   /** EITHER photoUrls (server fetches) OR photos[].base64 inline.
    *  Client-side camera / library picks are file:// URIs that the
    *  server can't fetch — those callers send inline base64 instead. */
@@ -74,6 +78,8 @@ interface AnalyzePhotosRequest {
   projectName?: string;
   projectType?: string;
   notes?: string;
+  /** codeLook only: the jurisdiction grounding block (utils/codeJurisdiction groundingFactsFor().promptBlock), the trade, and — when launched from an Inspection Ready line — the checklist lines the model is checking against. All optional, all length-capped server-side. */
+  codeLook?: { jurisdictionBlock?: string; trade?: string; checklist?: string[] };
 }
 
 const PUNCH_PROMPT = `You are a general contractor walking a job site to build the punch list before final walkthrough. The job may be a house, a tenant fit-out, or any other building — read the photos, do not assume. Look at the attached project photos and identify any items that need to be fixed, finished, or addressed before the project can close.
@@ -182,6 +188,41 @@ Rules:
   - If the image is NOT a floor plan (photo, elevation, detail sheet), return { "rooms": [] }.
 
 Return JSON only — no preamble.`;
+
+const CODE_LOOK_PROMPT = `You are a building inspector's second pair of eyes looking at ONE site photo of work that will be covered up (rough-in, framing, insulation, fire-stopping, and the like). List what an inspector would look at IN THIS PHOTO.
+Rules:
+- Report ONLY what is visible. If you cannot see it, it goes in cantTell, never in observations.
+- At most 5 observations. Prefer fewer, sharper ones.
+- No dimensions unless a visible reference in the photo lets you measure them.
+- codeRef: only a section you recall for the edition named in the jurisdiction block; leave it "" when unsure. It will be shown as model recall.
+- confidence is how sure you are about what you SEE (high / med / low), never about the code.
+- cantTell is required: list at least one thing this photo cannot show (hidden side, box fill, fastener spacing behind the finish, a label out of frame), each with betterShot = the photo that would show it.
+- Never say the work passes or that there are no issues.
+Output JSON only: {"observations":[{"what":"","whereInPhoto":"","family":"electrical|plumbing|mechanical|framing|fire|building|energy|other","topic":"","codeRef":"","confidence":"high|med|low"}],"cantTell":[{"what":"","betterShot":""}]}`;
+
+/** One line, capped: context text is inserted into the prompt verbatim. */
+function codeLookLine(v: unknown, cap: number): string {
+  return typeof v === 'string' ? v.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, cap) : '';
+}
+
+/** CODE_LOOK_PROMPT + the capped context: jurisdiction block ≤ 1500 chars,
+ *  trade ≤ 40, checklist ≤ 8 lines × 160 chars (each stripped of newlines). */
+function codeLookPrompt(ctx: AnalyzePhotosRequest['codeLook']): string {
+  const parts = [CODE_LOOK_PROMPT];
+  const block = typeof ctx?.jurisdictionBlock === 'string' ? ctx.jurisdictionBlock.trim().slice(0, 1500) : '';
+  if (block) parts.push(block);
+  const trade = codeLookLine(ctx?.trade, 40);
+  if (trade) parts.push(`TRADE: ${trade}`);
+  const rawLines: unknown = ctx?.checklist;
+  const lines = (Array.isArray(rawLines) ? rawLines : [])
+    .map((l) => codeLookLine(l, 160))
+    .filter(Boolean)
+    .slice(0, 8);
+  if (lines.length > 0) parts.push(`Check these first:\n${lines.map((l) => `- ${l}`).join('\n')}`);
+  return parts.join('\n\n');
+}
+
+const CODE_LOOK_FAMILIES = ['electrical', 'plumbing', 'mechanical', 'framing', 'fire', 'building', 'energy', 'other'];
 
 const COI_PROMPT = `You are reading a CERTIFICATE OF LIABILITY INSURANCE (usually an ACORD 25) that a subcontractor sent a general contractor. Extract exactly what is printed — never infer a policy that is not on the page.
 
@@ -351,10 +392,10 @@ serve(async (req) => {
   let body: AnalyzePhotosRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400); }
 
-  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk', 'coi'].includes(body.task)) {
+  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk', 'coi', 'codeLook'].includes(body.task)) {
     // `code` lets the COI vault tell "this server can't read that yet" from a
     // failed read (the pre-'coi' build answered this 400 with no code).
-    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", "rooms", "conditionRisk", or "coi"', code: 'unknown_task' }, 400);
+    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", "rooms", "conditionRisk", "coi", or "codeLook"', code: 'unknown_task' }, 400);
   }
 
   const usingInline = Array.isArray(body.photos) && body.photos.length > 0;
@@ -363,6 +404,7 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'Either photos[] (inline base64) or photoUrls[] required' }, 400);
   }
   const inputCount = usingInline ? body.photos!.length : body.photoUrls!.length;
+  if (body.task === 'codeLook' && inputCount !== 1) return jsonResponse({ success: false, error: 'Code look reads one photo at a time.', code: 'one_photo' }, 400);
   if (inputCount > 12) {
     return jsonResponse({ success: false, error: 'Max 12 photos per call (cost / latency control)' }, 400);
   }
@@ -436,10 +478,11 @@ serve(async (req) => {
   // answers, below). Meter only once at least one valid photo is in hand — a
   // missing/oversized/unfetchable input where no Gemini call runs must not
   // consume a unit. punch/dfr/rfi/triage/receipt/rooms/coi share one cap (same
-  // spend); conditionRisk (Cost X-Ray) has its own. aiUsageGet fails CLOSED.
+  // spend); conditionRisk (Cost X-Ray) has its own; codeLook (Photo Code
+  // Look) has its own meter, Pro+ (free cap 0). aiUsageGet fails CLOSED.
   // Accepted window: N requests racing at cap-1 all pass this read and each
   // charges after — one user's counter can overshoot by N-1, never more.
-  const meterKey = body.task === 'conditionRisk' ? 'cost_xray' : 'analyze_photos';
+  const meterKey = body.task === 'conditionRisk' ? 'cost_xray' : body.task === 'codeLook' ? 'code_look' : 'analyze_photos';
   if (meterKey === 'cost_xray' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
     return jsonResponse({ success: false, error: 'Cost X-Ray requires the Business plan', code: 'tier_required' }, 403);
   }
@@ -448,7 +491,9 @@ serve(async (req) => {
   if (used >= cap) {
     return jsonResponse({
       success: false,
-      error: `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+      error: meterKey === 'code_look'
+        ? `Monthly Code Look limit reached (${cap} on ${auth.tier}). Resets on the 1st.`
+        : `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
       code: 'monthly_cap_reached',
       used, cap,
     }, 429);
@@ -504,6 +549,7 @@ Return JSON only — no preamble.`;
     body.task === 'rooms'   ? ROOMS_PROMPT :
     body.task === 'conditionRisk' ? CONDITION_RISK_PROMPT :
     body.task === 'coi'     ? COI_PROMPT :
+    body.task === 'codeLook' ? codeLookPrompt(body.codeLook) :
     TRIAGE_PROMPT;
   const prompt = ctxLine ? `${ctxLine}\n\n${basePrompt}` : basePrompt;
 
@@ -705,6 +751,40 @@ Return JSON only — no preamble.`;
       confidence: Math.max(0, Math.min(100, Number(o.confidence) || 0)),
     };
     return jsonResponse({ success: true, data: out });
+  }
+
+  if (body.task === 'codeLook') {
+    // utils/codeLook.normalizeCodeLook re-normalises on the client; here the
+    // caps, the enums and the shape. Rows with no `what` are dropped.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return jsonResponse({ success: false, error: 'Expected a Code look object' }, 500);
+    }
+    const o = parsed as Record<string, unknown>;
+    const cut = (v: unknown, n: number) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim().slice(0, n) : '');
+    const observations = (Array.isArray(o.observations) ? o.observations : [])
+      .slice(0, 5)
+      .map((x) => {
+        const r = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+        const family = cut(r.family, 20).toLowerCase();
+        const confidence = cut(r.confidence, 8).toLowerCase();
+        return {
+          what: cut(r.what, 200),
+          whereInPhoto: cut(r.whereInPhoto, 120),
+          family: CODE_LOOK_FAMILIES.includes(family) ? family : 'other',
+          topic: cut(r.topic, 80),
+          codeRef: cut(r.codeRef, 60),
+          confidence: ['high', 'med', 'low'].includes(confidence) ? confidence : 'low',
+        };
+      })
+      .filter((r) => r.what.length > 0);
+    const cantTell = (Array.isArray(o.cantTell) ? o.cantTell : [])
+      .slice(0, 6)
+      .map((x) => {
+        const r = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+        return { what: cut(r.what, 160), betterShot: cut(r.betterShot, 160) };
+      })
+      .filter((r) => r.what.length > 0);
+    return jsonResponse({ success: true, data: { observations, cantTell } });
   }
 
   if (body.task === 'rooms') {

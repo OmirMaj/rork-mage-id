@@ -10,11 +10,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import CodeLookSheet from '@/components/codeLook/CodeLookSheet';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
   Trash2, Link2, ChevronDown, ListChecks, ChevronRight, Filter, MapPin,
   Camera, Square, SquareCheck, Users, Send, Layers, List, ArrowUpDown,
-  ArrowLeftRight, EyeOff, Wrench, CalendarClock, MapPinned, MapPinPlus, Images,
+  ArrowLeftRight, EyeOff, Wrench, CalendarClock, MapPinned, MapPinPlus, Images, ScanSearch,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -1097,6 +1098,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   // drops property narrowing inside callbacks, and a `!` here would be a lie
   // waiting to become a crash.
   const viewerPhotoUri = viewerItem?.photoUri;
+  // Photo Code Look on the viewer's photo. Mounted ONLY while set: a closed,
+  // always-mounted sheet would hold a dialog hotkey scope on desktop.
+  const [codeLookTarget, setCodeLookTarget] = useState<{ photoUri: string; sourcePhotoId?: string } | null>(null);
   // A signed URL expires, and legacy rows can still hold another device's
   // `file://`. Either way <Image> resolves to nothing and leaves an empty
   // frame that reads as "the photo is gone" — showing no thumbnail is the
@@ -3616,6 +3620,24 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             <Text style={styles.viewerCaption} numberOfLines={2}>
               {[viewerItem?.description, viewerItem?.location].filter(Boolean).join('  ·  ')}
             </Text>
+            {viewerPhotoUri ? (
+              <TouchableOpacity
+                testID="codelook-open-punch"
+                accessibilityRole="button"
+                accessibilityLabel="Code look"
+                style={styles.viewerCodeLookBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => {
+                  const target = { photoUri: viewerPhotoUri, sourcePhotoId: viewerItem?.sourcePhotoId };
+                  setViewerItem(null);
+                  // A modal over a modal is unreliable on iOS: close, then open.
+                  setTimeout(() => setCodeLookTarget(target), 100);
+                }}
+              >
+                <ScanSearch size={16} color="#fff" strokeWidth={1.75} />
+                <Text style={styles.viewerCodeLookText}>Code look</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
           {viewerPhotoUri ? (
             // The overlay has to share this box exactly, so the image and the
@@ -3648,6 +3670,16 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           ) : null}
         </View>
       </Modal>
+
+      {codeLookTarget && project ? (
+        <CodeLookSheet
+          visible
+          onClose={() => setCodeLookTarget(null)}
+          project={project}
+          photoUri={codeLookTarget.photoUri}
+          sourcePhotoId={codeLookTarget.sourcePhotoId}
+        />
+      ) : null}
 
       {/* Trade-template picker. Modal-style overlay listing each
           template grouped by trade. Tapping a template applies it
@@ -4350,6 +4382,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)" },
   viewerHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 16, paddingBottom: 12 },
   viewerCaption: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: '#fff' },
+  viewerCodeLookBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  viewerCodeLookText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: '#fff' },
   // The image and its markup overlay share this box, so the overlay can work
   // out where the letterboxed photo actually landed inside it.
   viewerImageWrap: { flex: 1, width: '100%', position: 'relative' as const },

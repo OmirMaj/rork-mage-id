@@ -50,7 +50,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, ChevronRight, Send, CheckCircle2, History, FileQuestion, FileCheck, FileSignature, Truck, HardHat, FileText } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Send, CheckCircle2, History, FileQuestion, FileCheck, FileSignature, Truck, HardHat, FileText, Palette } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -70,7 +70,11 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { canShare, shareText } from '@/utils/shareText';
 import { calendarDayOf, daysUntilCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
-import type { FollowUp, FollowUpChase, FollowUpHold } from '@/types';
+import type { FollowUp, FollowUpChase, FollowUpHold, SelectionCategory } from '@/types';
+import { loadSelectionsChecked } from '@/utils/selectionsEngine';
+
+/** Selections are read for at most this many in-progress jobs. */
+const SELECTION_JOB_LIMIT = 10;
 
 /**
  * Where the chase log lives.
@@ -177,6 +181,8 @@ const KIND_ICON: Record<ChaseKind, typeof FileQuestion> = {
   unsent_rfi: Send,
   // A sent proposal the client has not signed.
   proposal: FileText,
+  // An owner selection past its due date.
+  selection: Palette,
 };
 
 export default function WaitingOnScreen() {
@@ -234,6 +240,29 @@ export default function WaitingOnScreen() {
     return byProject;
   }, [dailyReports]);
 
+  // ── Owner selections, for the jobs that can be late ──────────────────────
+  // In-progress jobs only (at most SELECTION_JOB_LIMIT). A failed read of any
+  // of them is 'failed': the list is then built WITHOUT selections and says
+  // "not checked" — never a silent zero.
+  const selectionJobIds = useMemo(
+    () => (projects ?? []).filter(p => p.status === 'in_progress').slice(0, SELECTION_JOB_LIMIT).map(p => p.id).join(','),
+    [projects],
+  );
+  const [selectionsLoad, setSelectionsLoad] = useState<{ status: 'loading' | 'ok' | 'failed'; rows: SelectionCategory[] }>({ status: 'loading', rows: [] });
+  useEffect(() => {
+    let alive = true;
+    const ids = selectionJobIds ? selectionJobIds.split(',') : [];
+    if (ids.length === 0) { setSelectionsLoad({ status: 'ok', rows: [] }); return () => { alive = false; }; }
+    void Promise.all(ids.map(id => loadSelectionsChecked(id)))
+      .then((results) => {
+        if (!alive) return;
+        if (results.some(r => !r.ok)) { setSelectionsLoad({ status: 'failed', rows: [] }); return; }
+        setSelectionsLoad({ status: 'ok', rows: results.flatMap(r => (r.ok ? r.value : [])) });
+      })
+      .catch(() => { if (alive) setSelectionsLoad({ status: 'failed', rows: [] }); });
+    return () => { alive = false; };
+  }, [selectionJobIds]);
+
   const items = useMemo(
     () =>
       buildChaseList({
@@ -249,8 +278,9 @@ export default function WaitingOnScreen() {
         dailyReportsByProject,
         nowMs: Date.now(),
         proposals: openProposals.status === 'ok' ? openProposals.rows : undefined,
+        selections: selectionsLoad.status === 'ok' ? selectionsLoad.rows : undefined,
       }),
-    [rfis, submittals, changeOrders, projects, deliveries, dailyReportsByProject, openProposals],
+    [rfis, submittals, changeOrders, projects, deliveries, dailyReportsByProject, openProposals, selectionsLoad],
   );
   const summary = useMemo(() => chaseSummary(items), [items]);
 
@@ -647,12 +677,20 @@ export default function WaitingOnScreen() {
               Couldn’t check your sent proposals, so none are listed here.
             </Text>
           ) : null}
+          {selectionsLoad.status === 'failed' ? (
+            <Text style={styles.cardNote} testID="ownerdelay-selections-failed">
+              Selections couldn’t load — not checked.
+            </Text>
+          ) : null}
 
           {summary.total === 0 ? (
             // Only claimed when the warnings above are empty too. "Go build"
             // over a live COI warning is the app telling him to walk into the
             // problem it just found.
-            preventiveItems.length === 0 ? (
+            // …and only once every source it lists was actually checked: a
+            // proposals or selections read still loading or failed is not
+            // "nothing to chase".
+            preventiveItems.length === 0 && openProposals.status === 'ok' && selectionsLoad.status === 'ok' ? (
               <View style={styles.emptyCard}>
                 <CheckCircle2 size={18} color={t.success} strokeWidth={2} />
                 <Text style={styles.emptyText}>Nothing to chase. Go build.</Text>
@@ -685,6 +723,11 @@ export default function WaitingOnScreen() {
                         <Text style={styles.cardNote} testID={item.kind === 'proposal' ? `proposalchase-note-${item.id}` : undefined}>
                           {item.note}
                         </Text>
+                      ) : null}
+                      {item.consequence ? (
+                        <View testID={`ownerdelay-${item.id}`}>
+                          <Text style={styles.cardNote}>{item.consequence}</Text>
+                        </View>
                       ) : null}
                       <Text style={styles.cardMeta} numberOfLines={1}>
                         {item.projectName} · with {item.waitingOn}

@@ -12,10 +12,13 @@
 //
 // Pure: no React/network/clock (caller passes nowMs).
 
-import type { RFI, Submittal, ChangeOrder, Project, DailyFieldReport } from '@/types';
+import type { RFI, Submittal, ChangeOrder, Project, DailyFieldReport, SelectionCategory, ScheduleTask } from '@/types';
 import { classifyDelivery, type Delivery } from '@/utils/deliverySchedule';
 import { buildCrewPresence, findQuietTrades } from '@/utils/crewPresence';
 import { formatMoney } from '@/utils/formatters';
+import { projectDelayContext, consequenceFor, type ProjectDelayContext } from '@/utils/ownerDelayCost';
+import { matchTaskByTitle } from '@/utils/delayScan/matchTask';
+import { formatCalendarDay, toCalendarDayString } from '@/utils/calendarDate';
 
 // 'delivery' joins the paperwork kinds because a late load is the same shape
 // of problem: someone else is holding something you need, and every day it
@@ -31,8 +34,12 @@ import { formatMoney } from '@/utils/formatters';
  * damages a relationship he depends on. Filed as its own kind, with the ball on
  * him, it becomes the useful fact it always was: this question is still in your
  * drafts and the date you need it by is coming.
+ *
+ * `selection` is an owner decision past its due date (a SelectionCategory not
+ * yet decided — see selectionDecided). Like `co_approval` it carries a `consequence`: what the wait
+ * costs, from his schedule and his own General Conditions line.
  */
-export type ChaseKind = 'rfi' | 'submittal' | 'co_approval' | 'delivery' | 'quiet_trade' | 'unsent_rfi' | 'proposal';
+export type ChaseKind = 'rfi' | 'submittal' | 'co_approval' | 'delivery' | 'quiet_trade' | 'unsent_rfi' | 'proposal' | 'selection';
 export type ChaseSeverity = 'critical' | 'high' | 'normal';
 
 export interface ChaseItem {
@@ -55,6 +62,9 @@ export interface ChaseItem {
   /** A muted line under the title (the proposal kind says what MAGE cannot
    *  see: whether the client opened it). */
   note?: string;
+  /** What the wait is costing — computed from his schedule and his own
+   *  General Conditions line; absent when there is nothing honest to say. */
+  consequence?: string;
   /** Route to open the underlying record. */
   route: { pathname: string; params: Record<string, string> };
 }
@@ -132,11 +142,25 @@ export function buildChaseList(opts: {
   /** Sent proposals (project_contracts, kind 'proposal'). Optional — omitted
    *  means the list behaves exactly as it did before proposals were chased. */
   proposals?: readonly ProposalChaseInput[];
+  /** Owner selections (SelectionCategory rows). Optional — omitted means the
+   *  list behaves exactly as it did before selections were chased. */
+  selections?: readonly SelectionCategory[];
 }): ChaseItem[] {
   const { rfis, submittals, changeOrders, projects, nowMs } = opts;
   const includeUpcoming = opts.includeUpcoming ?? false;
   const nameById = new Map(projects.map((p) => [p.id, p.name]));
   const items: ChaseItem[] = [];
+  // Owner-delay context (CPM + his own daily site cost), once per project, and
+  // only for projects an owner decision actually needs it for.
+  const projectById = new Map(projects.map((p) => [p.id, p]));
+  const delayCtx = new Map<string, ProjectDelayContext>();
+  const ctxFor = (projectId: string): ProjectDelayContext => {
+    let c = delayCtx.get(projectId);
+    if (!c) { c = projectDelayContext(projectById.get(projectId)); delayCtx.set(projectId, c); }
+    return c;
+  };
+  // The clock is nowMs; "today" is its LOCAL calendar day.
+  const today = toCalendarDayString(new Date(nowMs));
 
   const keep = (d: number | null): d is number => d != null && (includeUpcoming || d > 0);
 
@@ -266,6 +290,11 @@ export function buildChaseList(opts: {
     if (!includeUpcoming && overdue <= 0) continue;
 
     const label = `CO #${co.number}`;
+    const ctx = ctxFor(co.projectId);
+    const tasks: ScheduleTask[] = ctx.schedule?.tasks ?? [];
+    const anchorId = co.scheduleAnchorTaskId ?? co.scheduleImpactTaskIds?.[0];
+    const task = anchorId ? tasks.find((t) => t.id === anchorId) ?? null : null;
+    const consequence = consequenceFor(ctx, task, task ? 'linked_task' : 'no_task', today).text;
     items.push({
       id: co.id,
       kind: 'co_approval',
@@ -279,6 +308,7 @@ export function buildChaseList(opts: {
         `Checking in on ${label}, sent ${d} day${d === 1 ? '' : 's'} ago. ` +
         `We can't schedule this work until it's approved — let us know if you have questions.`,
       route: { pathname: '/change-order', params: { projectId: co.projectId, coId: co.id } },
+      consequence,
     });
   }
 
@@ -375,7 +405,47 @@ export function buildChaseList(opts: {
     }
   }
 
+  // ── Owner selections past their due date ─────────────────────────────────
+  // A selection the owner has not made by the date it was due holds up the
+  // install task. Due in the past (calendar day < today) and not decided
+  // (selectionDecided — the same rule app/selections.tsx uses for "late").
+  for (const sel of opts.selections ?? []) {
+    if (selectionDecided(sel)) continue;
+    const due = sel.dueDate?.slice(0, 10);
+    if (!due || !/^\d{4}-\d{2}-\d{2}$/.test(due) || !(due < today)) continue;
+    const d = daysPast(due, nowMs);
+    if (d == null) continue;
+    const late = Math.max(1, d);
+    const ctx = ctxFor(sel.projectId);
+    const task = matchTaskByTitle(sel.category, ctx.schedule?.tasks ?? []);
+    const dueLabel = formatCalendarDay(due, { month: 'short', day: 'numeric' });
+    items.push({
+      id: `selection:${sel.id}`,
+      kind: 'selection',
+      projectId: sel.projectId,
+      projectName: nameById.get(sel.projectId) ?? 'Project',
+      title: `${sel.category} selection`,
+      waitingOn: 'the owner',
+      daysOverdue: late,
+      severity: severityFor(late),
+      nudge:
+        `Checking in on the ${sel.category} selection — it was due ${dueLabel}. ` +
+        `We need it to keep the schedule on track${task ? ` for ${task.title}` : ''}.`,
+      route: { pathname: '/selections', params: { projectId: sel.projectId } },
+      consequence: consequenceFor(ctx, task, task ? 'matched_by_name' : 'no_task', today).text,
+    });
+  }
+
   return items.sort((a, b) => b.daysOverdue - a.daysOverdue);
+}
+
+/**
+ * A selection counts as decided when it is 'chosen' or 'exceeded' (a pick over
+ * the allowance is still a pick), or when any of its options isChosen — the
+ * rule app/selections.tsx (#48, DueDateSection) uses before it calls one late.
+ */
+export function selectionDecided(sel: Pick<SelectionCategory, 'status' | 'options'>): boolean {
+  return sel.status === 'chosen' || sel.status === 'exceeded' || (sel.options ?? []).some(o => o.isChosen);
 }
 
 /** Headline counts for a card/badge. */
@@ -384,7 +454,7 @@ export function chaseSummary(items: ChaseItem[]): {
   critical: number;
   byKind: Record<ChaseKind, number>;
 } {
-  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0, delivery: 0, quiet_trade: 0, unsent_rfi: 0, proposal: 0 };
+  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0, delivery: 0, quiet_trade: 0, unsent_rfi: 0, proposal: 0, selection: 0 };
   let critical = 0;
   for (const i of items) {
     byKind[i.kind] += 1;

@@ -29,9 +29,15 @@ export interface PlanSheetRailProps {
   onPick: (id: string) => void;
   onClose: () => void;
   sheetUri: (s: PlanSheet) => string;
+  /** Desktop takeoff: a trailing count (measurements on that sheet), textMuted. Absent → nothing drawn. */
+  badgeFor?: (s: PlanSheet) => number | null;
+  /** Desktop takeoff: a scale dot — 'ready' success, 'none'/'recheck' warningLabel. Absent → nothing drawn. */
+  scaleFor?: (s: PlanSheet) => 'none' | 'ready' | 'recheck' | null;
 }
 
-export default function PlanSheetRail({ sheets, activeId, onPick, onClose, sheetUri }: PlanSheetRailProps) {
+const SCALE_WORDS = { ready: 'scale set', none: 'no scale yet', recheck: 'scale needs a recheck' } as const;
+
+export default function PlanSheetRail({ sheets, activeId, onPick, onClose, sheetUri, badgeFor, scaleFor }: PlanSheetRailProps) {
   const isDesktop = useIsDesktop();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -75,6 +81,11 @@ export default function PlanSheetRail({ sheets, activeId, onPick, onClose, sheet
         {sheets.map((s) => {
           const selected = s.id === activeId;
           const missing = planSheetImageState(s) === 'missing';
+          // Both trailing marks exist only when the caller passes the prop
+          // (the desktop takeoff); plan-viewer passes neither.
+          const badge = badgeFor ? badgeFor(s) : null;
+          const scale = scaleFor ? scaleFor(s) : null;
+          const showBadge = badge != null && badge > 0;
           return (
             <Pressable
               key={s.id}
@@ -88,7 +99,7 @@ export default function PlanSheetRail({ sheets, activeId, onPick, onClose, sheet
               ]}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`${s.sheetNumber ? `${s.sheetNumber}, ` : ''}${s.name}${s.superseded ? ', superseded' : ''}`}
+              accessibilityLabel={`${s.sheetNumber ? `${s.sheetNumber}, ` : ''}${s.name}${s.superseded ? ', superseded' : ''}${scale ? `, ${SCALE_WORDS[scale]}` : ''}${showBadge ? `, ${badge} measured` : ''}`}
               testID={`plan-rail-${s.id}`}
             >
               <View style={styles.railThumb}>
@@ -101,6 +112,14 @@ export default function PlanSheetRail({ sheets, activeId, onPick, onClose, sheet
                 <Text style={styles.railName} numberOfLines={2}>{s.name}</Text>
                 {s.superseded ? <Text style={styles.railSupersededWord}>Superseded</Text> : null}
               </View>
+              {scale || showBadge ? (
+                <View style={styles.railTrail}>
+                  {showBadge ? <Text style={styles.railBadge}>{badge}</Text> : null}
+                  {scale ? (
+                    <View style={[styles.railScaleDot, { backgroundColor: scale === 'ready' ? colors.success : colors.warningLabel }]} />
+                  ) : null}
+                </View>
+              ) : null}
             </Pressable>
           );
         })}
@@ -162,5 +181,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   railText: { flex: 1, minWidth: 0 },
   railNumber: { color: t.accent, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },
   railName: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '500', marginTop: 1 },
+  railTrail: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  railBadge: { color: t.textMuted, fontSize: Type.caption2.fontSize, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  railScaleDot: { width: 8, height: 8, borderRadius: Tokens.radius.full },
   railSupersededWord: { color: t.warningLabel, fontSize: Type.caption2.fontSize, fontWeight: '700', marginTop: 2, textTransform: 'uppercase' },
 });

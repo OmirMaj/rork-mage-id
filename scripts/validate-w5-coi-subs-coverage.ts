@@ -192,15 +192,15 @@ console.log('\n5 · the card has coverage rows, saved through updateCOI:');
 console.log("\n6 · analyze-photos has the 'coi' task:");
 {
   const fn = src('supabase/functions/analyze-photos/index.ts');
-  ok("'coi' is in the request union", /task: [^\n]*'conditionRisk' \| 'coi';/.test(fn));
-  ok("'coi' is on the allow-list", /\['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk', 'coi'\]\.includes\(body\.task\)/.test(fn));
+  ok("'coi' is in the request union", /task: [^\n]*'conditionRisk' \| 'coi'(?: \| 'codeLook')?;/.test(fn));
+  ok("'coi' is on the allow-list", /\['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk', 'coi'(?:, 'codeLook')?\]\.includes\(body\.task\)/.test(fn));
   ok("an unknown task says so with code 'unknown_task'", /code: 'unknown_task'/.test(fn));
   ok('the prompt switch routes coi → COI_PROMPT', /body\.task === 'coi'\s*\? COI_PROMPT/.test(fn));
   ok('the prompt asks for the RawAIExtraction shape with YYYY-MM-DD dates',
     ['insuredName', 'coverages', 'carrierName', 'policyNumber', 'effectiveDate', 'expiresAt', 'eachOccurrence', 'generalAggregate', 'hasAdditionalInsured', 'hasWaiverOfSubrogation', 'confidence', 'YYYY-MM-DD']
       .every(k => fn.slice(fn.indexOf('const COI_PROMPT'), fn.indexOf('interface CoiCoverageOut')).includes(k)));
   ok("a 'coi' normaliser returns the coverages", /if \(body\.task === 'coi'\) \{[\s\S]*?coverages: rawCov\.map/.test(fn));
-  ok('metered on analyze_photos (only conditionRisk has its own meter)', /const meterKey = body\.task === 'conditionRisk' \? 'cost_xray' : 'analyze_photos';/.test(fn));
+  ok('metered on analyze_photos (only conditionRisk has its own meter)', /const meterKey = body\.task === 'conditionRisk' \? 'cost_xray' : body\.task === 'codeLook' \? 'code_look' : 'analyze_photos';/.test(fn));
   ok('under the same Pro gate as the vault screen', /requireTier\(req, \['pro', 'business'\], 'analyze_photos'\)/.test(fn));
 }
 

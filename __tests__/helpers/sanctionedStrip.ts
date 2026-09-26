@@ -1,8 +1,9 @@
 // __tests__/helpers/sanctionedStrip.ts
 //
 // Step-3 wave (2026-09-26): new cards and buttons whose ROOT testID carries one of these prefixes are removed before a golden is fingerprinted, so each golden still proves that nothing ELSE on the screen moved (the same idea as the SANCTIONED copy map in w6d-z2-phone). Each lane's own smoke test asserts that the new node renders. Never widen a prefix to cover an existing element.
+// Wave 4 (2026-09-26): takeoffws- (desktop takeoff), codelook- (Photo Code Look), pricewatch-/lienclock- (W1), backcharge-/ownerdelay- (W2).
 
-export const SANCTIONED_TESTID_PREFIXES = ['scopegaps-', 'rfiscope-', 'payearned-', 'codethread-'] as const;
+export const SANCTIONED_TESTID_PREFIXES = ['scopegaps-', 'rfiscope-', 'payearned-', 'codethread-', 'takeoffws-', 'codelook-', 'pricewatch-', 'lienclock-', 'backcharge-', 'ownerdelay-'] as const;
 
 /** A react-test-renderer JSON node whose props.testID starts with a sanctioned prefix. */
 export function isSanctionedNode(n: unknown): boolean {
