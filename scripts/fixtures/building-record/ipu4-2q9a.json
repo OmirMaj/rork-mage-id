@@ -1,0 +1,256 @@
+{
+ "id": "ipu4-2q9a",
+ "asOfHeader": "Fri, 25 Sep 2026 23:13:43 GMT",
+ "rows": [
+  {
+   "bin__": "1001026",
+   "job__": "140994271",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "01/29/2021",
+   "expiration_date": "04/20/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140994271",
+   "permit_status": "ISSUED",
+   "filing_status": "RENEWAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "04/16/2021",
+   "expiration_date": "04/20/2022"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140981533",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "11/27/2020",
+   "expiration_date": "07/01/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140961840",
+   "permit_status": "ISSUED",
+   "filing_status": "RENEWAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "10/29/2020",
+   "expiration_date": "11/01/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140961840",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "10/09/2020",
+   "expiration_date": "11/01/2020"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140961500",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "10/16/2020",
+   "expiration_date": "07/01/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140958186",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "11/05/2020",
+   "expiration_date": "04/01/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140957855",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "11/20/2020",
+   "expiration_date": "11/20/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140941337",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "08/28/2020",
+   "expiration_date": "04/01/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140923160",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "08/14/2020",
+   "expiration_date": "08/14/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140923160",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "08/14/2020",
+   "expiration_date": "08/14/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140918504",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "06/30/2020",
+   "expiration_date": "04/01/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140915375",
+   "permit_status": "ISSUED",
+   "filing_status": "RENEWAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "10/29/2020",
+   "expiration_date": "11/01/2021"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140915375",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "07/07/2020",
+   "expiration_date": "11/01/2020"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140915375",
+   "permit_status": "ISSUED",
+   "filing_status": "RENEWAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "10/27/2021",
+   "expiration_date": "11/01/2022"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140788271",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "07/31/2018",
+   "expiration_date": "07/31/2019"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140700016",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "09/29/2017",
+   "expiration_date": "09/29/2018"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140700016",
+   "permit_status": "ISSUED",
+   "filing_status": "RENEWAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "10/24/2017",
+   "expiration_date": "10/24/2018"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140551301",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "09/20/2016",
+   "expiration_date": "09/20/2017"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140460230",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "02/26/2016",
+   "expiration_date": "02/25/2017"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140460230",
+   "permit_status": "ISSUED",
+   "filing_status": "RENEWAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "02/27/2017",
+   "expiration_date": "02/27/2018"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140343073",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "OT",
+   "issuance_date": "05/11/2015",
+   "expiration_date": "04/01/2016"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140331424",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "04/15/2015",
+   "expiration_date": "04/14/2016"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "140304953",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EQ",
+   "work_type": "EQ",
+   "issuance_date": "01/28/2015",
+   "expiration_date": "01/28/2016"
+  },
+  {
+   "bin__": "1001026",
+   "job__": "123899380",
+   "permit_status": "ISSUED",
+   "filing_status": "INITIAL",
+   "permit_type": "EW",
+   "work_type": "MH",
+   "issuance_date": "07/12/2019",
+   "expiration_date": "12/31/2019"
+  }
+ ]
+}

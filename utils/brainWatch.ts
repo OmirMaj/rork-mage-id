@@ -294,10 +294,11 @@ export function permitAttention(
       kind: 'permit',
       severity,
       message: `${project.name}: ${permitLabel(permit)} inspection in ${daysUntil}d`,
-      route: {
-        pathname: '/permits',
-        params: { projectId: project.id },
-      },
+      // Inspection Ready (step 2 L3): inside the prep window the line opens the
+      // checklist on the job itself; further out it still goes to Permits.
+      route: daysUntil <= 3
+        ? { pathname: '/project-detail', params: { id: project.id, prep: `permit:${permit.id}` } }
+        : { pathname: '/permits', params: { projectId: project.id } },
     });
   }
 

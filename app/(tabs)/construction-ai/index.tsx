@@ -95,9 +95,16 @@ import {
 // and still say so, in the same place and at the same size as before.
 import {
   citationEvidenceFor,
+  editionMismatchFor,
   rungSummaryLine,
   type CitationEvidence,
 } from '@/utils/codeAmendments';
+import { CODE_CHECK_DISCLAIMER } from '@/utils/codeCheckCopy';
+import { useBuildingRecord } from '@/hooks/useBuildingRecord';
+import { useReviewBenchmark } from '@/hooks/useReviewBenchmark';
+import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
+import DepartmentCard from '@/components/buildingRecord/DepartmentCard';
+import { DraftQuestionButton } from '@/components/buildingRecord/DraftQuestionButton';
 import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/utils/automation/inspectionResultToScheduleWork';
 import { InspectionResultReviewSheet } from '@/components/automation/InspectionResultReviewSheet';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
@@ -562,6 +569,12 @@ function ConstructionAIScreenInner() {
   const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;
   const roadmapTasks = roadmapProject?.schedule?.tasks ?? [];
   const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
+  // DOB's public record for the building (NYC only; inert everywhere else) and
+  // the borough's measured plan-review time. Both run unconditionally so the
+  // hook order never depends on the jobsite.
+  const roadmapBuilding = useBuildingRecord(roadmapProject);
+  const roadmapBenchmark = useReviewBenchmark(roadmapProject);
+  // (Declared here, ahead of roadmapLeadFor, whose deps read roadmapBenchmark.)
   // ── The Roadmap's provenance layer ──────────────────────────────────
   //
   // Everything below exists because this tab rendered `{permit.leadTimeDays}d
@@ -590,8 +603,9 @@ function ConstructionAIScreenInner() {
         authority: roadmapAuthority,
         permitType: permitType ?? null,
         authoredDays: authoredDays ?? null,
+        measured: roadmapBenchmark,
       }),
-    [permits, roadmapAuthority],
+    [permits, roadmapAuthority, roadmapBenchmark],
   );
   const roadmapInspectionLeadFor = useCallback(
     (authoredDays: number | null | undefined): ResolvedRoadmapLead =>
@@ -888,11 +902,15 @@ function ConstructionAIScreenInner() {
       roadmapInspectionGrounding.promptBlock,
       leadTimeFactsFor(permits, roadmapAuthority).promptBlock,
     ];
+    // The building's public record, verbatim, when there is one — and its key
+    // in the cache identity, so a cached roadmap never answers a prompt it
+    // did not see.
+    if (roadmapBuilding.summary.promptBlock) roadmapGroundingBlocks.push(roadmapBuilding.summary.promptBlock);
     const res = await generateRoadmap(roadmapProject, {
       forceFresh: isRegen,
       grounding: {
         blocks: roadmapGroundingBlocks,
-        key: `${roadmapAuthority ?? 'no-ahj'}::${roadmapInspectionGrounding.cacheKey}::${leadTimeFactsFor(permits, roadmapAuthority).grounded ? 'lead-learned' : 'lead-unlearned'}`,
+        key: `${roadmapAuthority ?? 'no-ahj'}::${roadmapInspectionGrounding.cacheKey}::${leadTimeFactsFor(permits, roadmapAuthority).grounded ? 'lead-learned' : 'lead-unlearned'}::${roadmapBuilding.summary.cacheKey}`,
       },
     });
     setRoadmapLoading(false);
@@ -920,37 +938,52 @@ function ConstructionAIScreenInner() {
     savePermitRoadmap(newRoadmap);
     if (!res.cached) void bumpRoadmapTodayUsage(user?.id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap, permits, roadmapAuthority, roadmapJobsite, roadmapInspectionGrounding]);
+  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap, permits, roadmapAuthority, roadmapJobsite, roadmapInspectionGrounding, roadmapBuilding.summary.promptBlock, roadmapBuilding.summary.cacheKey]);
 
   const onAddToPermits = useCallback((p: RoadmapPermit) => {
     if (!roadmapProject || !roadmap || p.linkedPermitId) return;
-    const created = addPermit({
-      projectId: roadmapProject.id,
-      projectName: roadmapProject.name,
-      type: toPermitType(p.type),
-      // The issuing authority, never the jobsite address (MISS-06). Empty when
-      // MAGE has no verified building-department record — the note under the
-      // Permits heading tells the contractor that before they tap Add.
-      jurisdiction: roadmapAuthority ?? '',
-      status: 'applied',
-      // B4 review A3: Permit.appliedDate is a CALENDAR DAY (permits.applied_date
-      // is a `date` column and app/permits.tsx writes todayCalendarDay()). The
-      // instant this used to write was cast to its UTC date on sync — tomorrow
-      // from ~6 pm, west of Greenwich.
-      appliedDate: todayCalendarDay(),
-      fee: 0,
-      // Carry the roadmap's descriptive name as the first line of notes (the
-      // permits tracker has no dedicated title column), with the "why" below it.
-      // The Permits card surfaces the first line as the permit's name.
-      notes: p.description ? `${p.title}\n${p.description}` : p.title,
-    });
-    updatePermitRoadmap(roadmap.id, {
-      permits: roadmap.permits.map((x) =>
-        x.id === p.id ? { ...x, linkedPermitId: created.id, status: 'applied' } : x,
-      ),
-    });
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [roadmapProject, roadmap, roadmapAuthority, addPermit, updatePermitRoadmap]);
+    const addRoadmapPermit = (p: RoadmapPermit) => {
+      const created = addPermit({
+        projectId: roadmapProject.id,
+        projectName: roadmapProject.name,
+        type: toPermitType(p.type),
+        // The issuing authority, never the jobsite address (MISS-06). Empty when
+        // MAGE has no verified building-department record — the note under the
+        // Permits heading tells the contractor that before they tap Add.
+        jurisdiction: roadmapAuthority ?? '',
+        status: 'applied',
+        // B4 review A3: Permit.appliedDate is a CALENDAR DAY (permits.applied_date
+        // is a `date` column and app/permits.tsx writes todayCalendarDay()). The
+        // instant this used to write was cast to its UTC date on sync — tomorrow
+        // from ~6 pm, west of Greenwich.
+        appliedDate: todayCalendarDay(),
+        fee: 0,
+        // Carry the roadmap's descriptive name as the first line of notes (the
+        // permits tracker has no dedicated title column), with the "why" below it.
+        // The Permits card surfaces the first line as the permit's name.
+        notes: p.description ? `${p.title}\n${p.description}` : p.title,
+      });
+      updatePermitRoadmap(roadmap.id, {
+        permits: roadmap.permits.map((x) =>
+          x.id === p.id ? { ...x, linkedPermitId: created.id, status: 'applied' } : x,
+        ),
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    };
+    // DOB's public record shows something open on this building: say so
+    // BEFORE the permit is tracked, in the record's own words. The contractor
+    // can still add it — this is a heads-up, not a gate.
+    const summary = roadmapBuilding.summary;
+    if (summary.kind === 'attention') {
+      showAlert(
+        'Before you add this permit',
+        `${summary.headline}\n\n${summary.lines.slice(0, 3).join('\n')}\n\nThese are DOB's public records as published. Ask your expeditor or applicant of record before you price.`,
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Add anyway', onPress: () => addRoadmapPermit(p) }],
+      );
+      return;
+    }
+    addRoadmapPermit(p);
+  }, [roadmapProject, roadmap, roadmapAuthority, addPermit, updatePermitRoadmap, roadmapBuilding.summary]);
 
   // City + state are what pick the authority, so they are what the form needs.
   // A missing street NEVER blocks the check — plenty of code questions are
@@ -983,7 +1016,7 @@ function ConstructionAIScreenInner() {
         `- Scope: ${scopeSummary(codeCheckProject) || codeCheckProject.description || '(none)'}\n`
       : '';
 
-    const prompt = `You are a licensed code-compliance advisor for US construction. A contractor is working on the following project and needs a building-code sanity check.
+    const prompt = `A contractor is working on the following project and needs a building-code sanity check. You are answering from your memory of the model codes: you cannot look anything up and you are not a licensed professional.
 
 ${projectContextBlock}Address: ${addressLine || `${city.trim()}, ${stateCode.trim()}`}
 ${grounding.promptBlock}
@@ -993,21 +1026,20 @@ Scenario: ${scenario.trim()}
 
 Return a JSON object with:
 - summary: one paragraph explaining the key code implications
-- applicableCodes: array of { code (e.g. "IRC 2021", "NYC BC 2022"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English) }
+- applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English) }
 - permitsRequired: array of permit names the contractor should pull before work
 - inspections: array of inspections this project will likely need
 - commonViolations: array of the most common code violations for this type of work
-- disclaimer: a one-sentence reminder that this is AI guidance, not legal advice, and the AHJ governs
 
 Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
-Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite only what you would stake your license on.`;
+Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite a section only when you are certain of it.`;
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
     const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
 
     try {
-      const res = await mageAISmart(prompt, codeCheckSchema, cacheKey);
+      const res = await mageAISmart(prompt, codeCheckSchema, cacheKey, 'ai_code_check');
       if (!res.success || !res.data) {
         setLoading(false);
         showAlert('Code check failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
@@ -1504,6 +1536,17 @@ Never invent a section number you are unsure of — leave section empty and desc
               />
             ) : null}
 
+            {/* The building's public record and its department, OUTSIDE the
+                roadmap branch so the one-time "Is this the building?" step
+                can happen before the first Generate. Both render nothing
+                outside NYC. */}
+            {roadmapProject ? (
+              <>
+                <BuildingRecordCard project={roadmapProject} variant="compact" testID="roadmap-building-record" />
+                <DepartmentCard project={roadmapProject} testID="roadmap-department" />
+              </>
+            ) : null}
+
             {roadmapProject && !roadmap ? (
               /* Generate button (no roadmap yet) */
               <>
@@ -1612,6 +1655,14 @@ Never invent a section number you are unsure of — leave section empty and desc
                         onOpenInTracker={() => router.push('/permits')}
                       />
                     ))}
+                    {roadmapProject ? (
+                      <DraftQuestionButton
+                        project={roadmapProject}
+                        permitNumbers={permits.filter((x) => x.projectId === roadmapProject.id).map((x) => x.permitNumber)}
+                        topic="this job's permits"
+                        testID="roadmap-draft-question"
+                      />
+                    ) : null}
 
                     {/* Inspections section */}
                     <Text style={styles.roadmapSectionTitle}>Inspections</Text>
@@ -2423,6 +2474,9 @@ function ResultModal({
       citationEvidenceFor(jurisdiction, c.code, c.section ?? ''),
     );
   }, [result, jurisdiction]);
+  /** A cited edition the verified row does not adopt. Index-aligned with
+   *  result.applicableCodes; null where the row is silent or the cite matches. */
+  const mismatches = useMemo(() => (!result || !jurisdiction) ? [] : result.applicableCodes.map(c => editionMismatchFor(jurisdiction, c.code)), [result, jurisdiction]);
   const rungSummary = useMemo(() => rungSummaryLine(evidence), [evidence]);
   /** Which code row is open, plus its lazily-fetched detail. Rendered INLINE:
    *  iOS refuses to present a second Modal over this one (see the openDelay
@@ -2441,7 +2495,7 @@ function ResultModal({
     // Same jurisdiction block as the summary prompt — a drill-in answered
     // against a different edition than the summary would be worse than useless.
     const jurisdictionBlock = grounding ? `${grounding.promptBlock}\n` : '';
-    const prompt = `You are a licensed code-compliance advisor for US construction. A contractor ran a code check and wants to understand ONE specific code citation in depth.
+    const prompt = `A contractor ran a code check and wants to understand ONE specific code citation in depth. You are explaining from your memory of the model codes; you cannot look anything up.
 
 Address: ${location.trim()}
 ${jurisdictionBlock}Work being done: ${scenario.trim()}
@@ -2460,7 +2514,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
     // The jurisdiction is in this prompt too, so it is in this key too.
     const cacheKey = `code_detail::${grounding?.cacheKey ?? 'none'}::${location.trim().toLowerCase()}::${label.toLowerCase()}::${c.requirement.toLowerCase().slice(0, 80)}`;
     try {
-      const res = await mageAISmart(prompt, codeDetailSchema, cacheKey);
+      const res = await mageAISmart(prompt, codeDetailSchema, cacheKey, 'ai_code_check');
       if (!res.success || !res.data) {
         setDetails(prev => ({ ...prev, [key]: { loading: false, data: null, error: res.error ?? 'Could not load detail.' } }));
         return;
@@ -2600,6 +2654,14 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                         including for plain recall — because a ladder you can
                         only see when the news is good is not a ladder. */}
                     {ev ? <RungBadge ev={ev} testID={`code-check-rung-${i}`} /> : null}
+                    {mismatches[i] ? (
+                      <View style={styles.rungWrap} testID={`code-check-edition-mismatch-${i}`}>
+                        <View style={[styles.rungBadge, styles.rungRecall, styles.rungMismatchBadge]}>
+                          <AlertTriangle size={10} color={themeColors.warningLabel} strokeWidth={2.25} />
+                          <Text style={[styles.rungBadgeText, styles.rungRecallText, styles.rungMismatchText]}>{mismatches[i]!.label}</Text>
+                        </View>
+                      </View>
+                    ) : null}
 
                     {isOpen && (
                       <View style={styles.codeDetail}>
@@ -2706,8 +2768,7 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
           )}
 
           <Text style={styles.disclaimer}>
-            {result.disclaimer ||
-              'AI guidance only — verify with the local Authority Having Jurisdiction (AHJ) before work begins.'}
+            {CODE_CHECK_DISCLAIMER}
           </Text>
         </ScrollView>
       </View>
@@ -3038,6 +3099,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   rungAmendedText: { color: themeColors.successLabel },
   rungNamedText: { color: Colors.primary },
   rungRecallText: { color: themeColors.warningLabel },
+  // The mismatch label runs 100-174 chars; without this the pill overflows the card on a phone.
+  rungMismatchBadge: { maxWidth: '100%' as const },
+  rungMismatchText: { flexShrink: 1 },
   rungDetail: {
     ...Type.caption2, color: themeColors.textMuted, lineHeight: 15,
   },

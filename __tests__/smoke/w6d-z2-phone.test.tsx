@@ -174,6 +174,8 @@ const SANCTIONED: Array<[RegExp, string]> = [
   [/Teams & unlimited|Teams · 5 office seats/g, '<W6:business-tagline>'],
   [/ for (?:124 Park Slope, Brooklyn NY|Park Slope, New York)\./g, ' for <W7:weather-place>.'],
   [/Set EXPO_PUBLIC_OPENWEATHER_API_KEY for live weather\.|Live weather isn't available for this job right now\./g, '<W7:reschedule-notice>'],
+  // IR-L4 (2026-09-25): founder-approved copy change; mapped back to the recorded wording so the golden still proves nothing ELSE moved.
+  [/Code guidance for your jurisdiction's adopted edition, permit roadmaps and inspection prep\./g, 'Look up building codes, permits, and inspection requirements.'],
 ];
 const mask = (s: string) => SANCTIONED.reduce((acc, [re, token]) => acc.replace(re, token), s);
 
@@ -405,6 +407,13 @@ describe('Z2 deltas — the sanctioned copy and the weather place', () => {
     const text = allText(tree.toJSON()).join('\n');
     expect(text).toContain('Teams · 5 office seats');
     expect(text).not.toContain('Teams & unlimited');
+  });
+
+  it('onboarding-paywall: the new code copy, not the lookup claim', async () => {
+    const tree = await phoneRoute('/onboarding-paywall');
+    const text = allText(tree.toJSON()).join('\n');
+    expect(text).toContain("Code guidance for your jurisdiction's adopted edition, permit roadmaps and inspection prep.");
+    expect(text).not.toContain('Look up building codes, permits, and inspection requirements.');
   });
 
   it("daily-report: the chip names the place wttr.in read (nearest_area)", async () => {

@@ -1,0 +1,20 @@
+{
+ "id": "855j-jady",
+ "asOfHeader": "Fri, 25 Sep 2026 18:07:01 GMT",
+ "rows": [
+  {
+   "bin": "1001026",
+   "violation_number": "VIO-FTC-VT-CAT1-202412-0006951",
+   "violation_issue_date": "2025-10-10T00:00:00.000",
+   "violation_type": "FTC-VT-CAT1-CO",
+   "violation_status": "Active"
+  },
+  {
+   "bin": "1001026",
+   "violation_number": "VIO-FTC-VT-CAT1-202212-0017457",
+   "violation_issue_date": "2023-10-23T00:00:00.000",
+   "violation_type": "FTC-VT-CAT1-CO",
+   "violation_status": "Active"
+  }
+ ]
+}

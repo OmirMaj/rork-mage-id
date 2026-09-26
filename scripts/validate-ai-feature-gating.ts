@@ -30,6 +30,9 @@ const EXPECTED: Record<string, number> = {
   weeklyAnalysis: 1,
   cashFlowForecaster: 1,
   fullBudgetDashboard: 2,
+  // Code Check + its drill-in + Inspection Ready's recall group (IR-L4,
+  // 2026-09-25). Client gate: utils/featureTiers ai_code_check 'pro'.
+  ai_code_check: 1,
 };
 // aiEstimateWizard is DELIBERATELY absent (2026-09-07). It carried a Pro floor
 // in the relay while utils/aiRateLimiterCore.ts:92 granted it a 2-run FREE
@@ -52,7 +55,7 @@ const VISION_FEATURES = new Set<AIFeature>([
 // Feature ids the relay gates that are gated client-side via useTierAccess
 // (canAccess) rather than FEATURE_CONFIG — so they're valid relay keys but not
 // AIFeature entries.
-const CANACCESS_GATED = new Set(['cashFlowForecaster', 'fullBudgetDashboard']);
+const CANACCESS_GATED = new Set(['cashFlowForecaster', 'fullBudgetDashboard', 'ai_code_check']);
 
 // ── Parse FEATURE_MIN_RANK out of the relay source ─────────────────────────
 // Path is relative to the repo root — ship-check runs validators from there.
@@ -105,12 +108,14 @@ const TAG_MANIFEST: Record<string, string[]> = {
   weeklyAnalysis: ['utils/weeklyClientUpdate.ts', 'utils/aiService.ts'],
   cashFlowForecaster: ['app/cash-flow.tsx'],
   fullBudgetDashboard: ['app/budget-dashboard.tsx'],
+  ai_code_check: ['app/(tabs)/construction-ai/index.tsx', 'utils/inspectionPrepAI.ts'],
 };
 for (const [feat, files] of Object.entries(TAG_MANIFEST)) {
   for (const f of files) {
     let src = '';
     try { src = readFileSync(f, 'utf8'); } catch { /* missing file → fail below */ }
-    const tagged = src.includes(`feature: '${feat}'`) || src.includes(`feature: "${feat}"`);
+    // mageAIFast/mageAISmart take the id as a 4th POSITIONAL argument.
+    const tagged = src.includes(`feature: '${feat}'`) || src.includes(`feature: "${feat}"`) || new RegExp(`mageAI(?:Fast|Smart)\\([^;]*?['\"]${feat}['\"]`).test(src);
     ok(`${f} tags mageAI with feature '${feat}'`, tagged,
       `add feature: '${feat}' to the mageAI() call in ${f} (the relay skips the gate when the tag is absent)`);
   }

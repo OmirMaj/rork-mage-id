@@ -23,6 +23,7 @@
 // source-text pins on the screen the pure functions cannot reach.
 
 import { readFileSync } from 'node:fs';
+import { departmentFor } from '../utils/codeJurisdiction';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -1381,6 +1382,36 @@ console.log('\nthe screen — the ladder is rendered, and the recall chip is not
   }
   ok('screen: a truncated amendment is labelled as an excerpt, never as the whole',
     /not all of it/.test(code) && /quoteComplete/.test(code));
+}
+
+// ── building-department blocks (added 2026-09-26, lane L1) ──────────────
+// A department block is contact and process facts, read off nyc.gov. It is
+// held to the same citation rules as the adoption rows: an https source on the
+// authority's own site, and a checkedOn no older than a year.
+{
+  const withDept = LOCAL_ADOPTIONS.filter((e) => !!e.department);
+  ok('department: the NYC row carries a department block', withDept.some((e) => e.name === 'New York City'));
+  for (const e of withDept) {
+    const d = e.department!;
+    const who = `${e.name} department`;
+    ok(`${who}: sourceUrl is https on the authority's site`, e.name !== 'New York City' || /^https:\/\/www\.nyc\.gov\//.test(d.sourceUrl));
+    ok(`${who}: checkedOn is an ISO date`, /^\d{4}-\d{2}-\d{2}$/.test(d.checkedOn) && Number.isFinite(Date.parse(d.checkedOn)));
+    ok(`${who}: checkedOn is not in the future and not older than one year`, (() => {
+      const t = Date.parse(`${d.checkedOn}T00:00:00Z`);
+      const now = Date.now();
+      return t - now <= 24 * 60 * 60 * 1000 && now - t <= 365 * 24 * 60 * 60 * 1000;
+    })());
+    const urls = [d.portalUrl, d.statusLookupUrl, d.sourceUrl, ...d.questionChannels.map((c) => c.url), ...(d.feeScheduleUrls ?? []).map((f) => f.url)]
+      .filter((u): u is string => !!u);
+    ok(`${who}: every URL is https`, urls.every((u) => u.startsWith('https://')));
+    ok(`${who}: every question channel says something`, d.questionChannels.length > 0 && d.questionChannels.every((c) => c.label.trim() && c.note.trim()));
+  }
+  ok('department: departmentFor answers the NYC row and nothing else',
+    !!departmentFor(resolveCodeJurisdiction({ city: 'Brooklyn', state: 'NY' }))
+    && departmentFor(resolveCodeJurisdiction({ city: 'Portland', state: 'OR' })) === null
+    && departmentFor(resolveCodeJurisdiction({ city: 'Houston', state: 'TX' })) === null
+    && departmentFor(resolveCodeJurisdiction({})) === null
+    && departmentFor(resolveCodeJurisdiction({ state: 'NY' })) === null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

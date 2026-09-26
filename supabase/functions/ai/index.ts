@@ -120,6 +120,7 @@ serve(async (req) => {
       weeklyAnalysis: 1,      // pro
       cashFlowForecaster: 1,  // pro
       fullBudgetDashboard: 2, // business
+      ai_code_check: 1,     // pro — Code Check, its drill-in, and Inspection Ready's recall group (client gate: utils/featureTiers ai_code_check 'pro')
     };
     // aiEstimateWizard was here with a Pro floor until 2026-09-07, and it
     // contradicted the client: utils/aiRateLimiterCore.ts:92 grants it

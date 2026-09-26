@@ -312,6 +312,9 @@ const CHANGED_SINCE_6065_BY_FEATURE: Record<string, string[]> = {
   'schedule builder interview': [
     'utils/copilot/schedule/scheduleCapability.ts schemaHint: #1',
   ],
+  // Inspection Ready's code recall: a NEW site (no 6065b326 schema). The
+  // explicit hint stays because deriveHintFromZod does not unwrap ZodCatch.
+  'inspection ready recall (new site)': ['utils/inspectionPrepAI.ts schemaHint: #1'],
 };
 const CHANGED_SINCE_6065 = Object.values(CHANGED_SINCE_6065_BY_FEATURE).flat().sort();
 // NOT a source literal, so not in this snapshot: the voice parser's `[]`

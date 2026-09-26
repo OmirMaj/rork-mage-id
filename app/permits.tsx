@@ -86,6 +86,12 @@ import {
   inspectionHistorySummary,
   openFailedInspection,
 } from '@/utils/permitInspectionHistory';
+import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
+import DepartmentCard from '@/components/buildingRecord/DepartmentCard';
+import { DraftQuestionButton } from '@/components/buildingRecord/DraftQuestionButton';
+import { issuingAuthorityForAddress, jobsiteAddressForProject } from '@/utils/codeJurisdiction';
+import { checkDobPermit } from '@/utils/buildingRecordClient';
+import { isNycJobsite, suggestPermitStatusFromDob, type DobPermitLookup } from '@/utils/buildingRecord';
 
 const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection',
   // Occupied-building approvals. Without these in the picker the new
@@ -707,6 +713,10 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
       projectId: scopedProjectId
         ? (projects.some(p => p.id === scopedProjectId) ? scopedProjectId : '')
         : projects.length === 1 ? projects[0].id : '',
+      // The building department the scoped job's address resolves to (NYC:
+      // "NYC Department of Buildings"). '' when the address does not resolve;
+      // the free-text field below stays the override.
+      jurisdiction: (() => { const sp = scopedProjectId ? projects.find(p => p.id === scopedProjectId) : undefined; return sp ? (issuingAuthorityForAddress(jobsiteAddressForProject(sp)) ?? '') : ''; })(),
     });
     setInspections([]);
     scanTicketRef.current = `new:${Date.now()}`;
@@ -835,6 +845,32 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     setScanState('fresh');
     setForm(f => ({ ...f, attachmentUri: durable }));
   }, [form.projectId, stagePermitScan]);
+
+  // The job the form is filed under — drives the NYC-only "Check with DOB"
+  // and the department card. Reads `projects` and `form` only.
+  const formProject = projects.find(p => p.id === form.projectId) ?? null;
+  const formIsNyc = !!formProject && isNycJobsite(jobsiteAddressForProject(formProject));
+  // One DOB lookup per permit number; a stale answer for a number he has
+  // since edited is never shown against the new one.
+  const [dobCheck, setDobCheck] = useState<{
+    permitNumber: string;
+    busy: boolean;
+    lookup: DobPermitLookup | null;
+    error: string | null;
+  } | null>(null);
+  const runDobCheck = useCallback(() => {
+    const num = form.permitNumber.trim();
+    if (!num) return;
+    setDobCheck({ permitNumber: num, busy: true, lookup: null, error: null });
+    void (async () => {
+      const res = await checkDobPermit(num);
+      setDobCheck(cur => {
+        if (!cur || cur.permitNumber !== num) return cur;
+        if (res.status === 'permit') return { permitNumber: num, busy: false, lookup: res.lookup, error: null };
+        return { permitNumber: num, busy: false, lookup: null, error: res.status === 'error' ? res.error : "DOB didn't answer — nothing was checked." };
+      });
+    })();
+  }, [form.permitNumber]);
 
   const handleSave = useCallback(() => {
     if (!form.projectId) {
@@ -1052,6 +1088,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
             </TouchableOpacity>
           </View>
         ) : null}
+        {scopedProject ? (<><BuildingRecordCard project={scopedProject} variant="compact" testID="permits-building-record" /><DepartmentCard project={scopedProject} testID="permits-department" /></>) : null}
 
         {/* Next-inspection hero — biggest visual on screen when there
             is one. Calculates days countdown live so "tomorrow" shows
@@ -1429,6 +1466,60 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   placeholderTextColor={themeColors.textMuted}
                 />
 
+                {formProject && formIsNyc && form.permitNumber.trim() ? (() => {
+                  const num = form.permitNumber.trim();
+                  const check = dobCheck && dobCheck.permitNumber === num ? dobCheck : null;
+                  const lookup = check?.lookup ?? null;
+                  const suggestions = (lookup?.matches ?? []).map(m => suggestPermitStatusFromDob(m.statusText));
+                  const suggested = suggestions.find(x => x.suggested && x.suggested !== form.status)?.suggested ?? null;
+                  const objections = suggestions.some(x => x.flag === 'objections');
+                  return (
+                    <View style={styles.dobBlock} testID="permit-dob-block">
+                      <Button
+                        label={check?.busy ? 'Checking DOB…' : 'Check with DOB'}
+                        onPress={runDobCheck}
+                        variant="secondary"
+                        size="sm"
+                        loading={!!check?.busy}
+                        testID="permit-check-dob"
+                      />
+                      {check?.error ? <Text style={styles.dobLine}>{check.error}</Text> : null}
+                      {lookup ? (
+                        <>
+                          {lookup.matches.map((m, i) => (
+                            <Text key={`${m.datasetId}-${i}`} style={styles.dobLine}>
+                              {`${m.datasetName} (as of ${m.asOf ? m.asOf.slice(0, 10) : 'date unknown'}): '${m.statusText}'${m.date ? ' · ' + m.date : ''}`}
+                            </Text>
+                          ))}
+                          {lookup.failed.map((name, i) => (
+                            <Text key={`failed-${i}`} style={styles.dobMuted}>{`${name}: not checked`}</Text>
+                          ))}
+                          {lookup.matches.length === 0 ? (
+                            <Text style={styles.dobMuted}>
+                              {lookup.failed.length > 0
+                                ? `No match for ${num} in the DOB datasets that answered.`
+                                : `No match for ${num} in the DOB datasets checked. Check the number with your applicant of record.`}
+                            </Text>
+                          ) : null}
+                          {objections ? (
+                            <Text style={styles.dobLine}>DOB shows objections issued — your applicant of record answers them.</Text>
+                          ) : null}
+                          {suggested ? (
+                            <Button
+                              label={`Set status to ${PERMIT_STATUS_INFO[suggested]?.label ?? suggested}`}
+                              onPress={() => setForm(f => ({ ...f, status: suggested }))}
+                              variant="ghost"
+                              size="sm"
+                              testID="permit-dob-suggest"
+                            />
+                          ) : null}
+                        </>
+                      ) : null}
+                      <DraftQuestionButton project={formProject} permitNumber={form.permitNumber} testID="permit-draft-question" />
+                    </View>
+                  );
+                })() : null}
+
                 <Text style={styles.formLabel}>Jurisdiction *</Text>
                 <TextInput
                   style={styles.formInput}
@@ -1437,6 +1528,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   placeholder="City of Phoenix, AZ"
                   placeholderTextColor={themeColors.textMuted}
                 />
+                <DepartmentCard project={formProject} testID="permit-form-department" />
 
                 <Text style={styles.formLabel}>Phase Tag</Text>
                 <TextInput
@@ -2155,6 +2247,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.line,
   },
   formRow: { flexDirection: 'row', gap: 10 },
+  dobBlock: { marginTop: 8, gap: 6, alignItems: 'flex-start' },
+  dobLine: { ...Type.footnote, color: t.text },
+  dobMuted: { ...Type.footnote, color: t.textSecondary },
   formPicker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: t.surface,

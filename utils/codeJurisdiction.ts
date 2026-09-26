@@ -212,6 +212,40 @@ export interface LocalAdoption extends BaseEntry {
   state: string;
   matchCity?: readonly string[];
   matchCounty?: readonly string[];
+  /** How to reach the building department. Only rows verified on the
+   *  authority's own site carry one (NYC today); `departmentFor` returns null
+   *  for every other row, so nothing is rendered from recall. */
+  department?: BuildingDepartment;
+}
+
+/** Where a contractor is in the permit's life when the question comes up. */
+export type DepartmentQuestionStage = 'pre_filing' | 'in_review' | 'objection' | 'inspection' | 'general';
+
+/** One way to put a question to the department at a given stage. */
+export interface DepartmentChannel {
+  stage: DepartmentQuestionStage;
+  label: string;
+  url?: string;
+  phone?: string;
+  email?: string;
+  note: string;
+}
+
+/** Contact and process facts for a building department, every one read off
+ *  `sourceUrl` (or the URL it names) on `checkedOn`. Fees are LINKED, never
+ *  computed. */
+export interface BuildingDepartment {
+  portalUrl: string;
+  statusLookupUrl?: string;
+  phone?: string;
+  email?: string;
+  hours?: string;
+  afterHours?: string;
+  questionChannels: readonly DepartmentChannel[];
+  feeScheduleUrls?: readonly { label: string; url: string }[];
+  applicantOfRecordNote?: string;
+  sourceUrl: string;
+  checkedOn: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -556,6 +590,66 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     notes: 'New York City writes and enforces its own Construction Codes rather than the state code; the 2022 Construction Codes took effect 7 November 2022.',
     sourceUrl: 'https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page',
     checkedOn: '2026-09-07',
+    // Every fact below was read off the nyc.gov page its channel links to on
+    // 2026-09-26. a810-* hosts answer 403 to scripts (Akamai), so those are
+    // LINKED exactly as nyc.gov links them and nothing is claimed about what
+    // they say. Fees are links only: MAGE never computes a DOB fee.
+    department: {
+      // nyc.gov's own "Login to DOB NOW" link (using-dob-now.page).
+      portalUrl: 'https://a810-dobnow.nyc.gov/publish/#/',
+      statusLookupUrl: 'https://www.nyc.gov/site/buildings/industry/dob-now-public-portal.page',
+      phone: '212-393-2550',
+      hours: 'Borough offices: in person 8:30 am to 4:00 pm; phone lines 8:30 am to 4:30 pm, Monday to Friday.',
+      afterHours: 'Buildings After Hours: borough offices open the first and third Tuesday of the month, 4:00 pm to 7:00 pm.',
+      questionChannels: [
+        {
+          stage: 'pre_filing',
+          label: 'Pre-Determination request',
+          url: 'https://www.nyc.gov/site/buildings/industry/determinations.page',
+          note: 'For a possible objection on a job not yet filed. Submitted in DOB NOW under +Determinations by a registered architect or professional engineer (or another professional DOB lists).',
+        },
+        {
+          stage: 'pre_filing',
+          label: 'Development HUB (New Building and Alt-1 projects)',
+          url: 'https://www.nyc.gov/site/buildings/industry/the-hub.page',
+          phone: '212-393-2850',
+          email: 'nycdevelopmenthub@buildings.nyc.gov',
+          note: 'Request a HUB consultation to file a New Building or Alteration Type-1 job at the Development HUB.',
+        },
+        {
+          stage: 'in_review',
+          label: 'Plan examination appointment',
+          url: 'https://a810-dobnow.nyc.gov/Publish/Appointments/index.html#/',
+          note: 'For standard plan review BIS filings. The applicant needs a DOB ID number and PIN plus the BIS job and document numbers.',
+        },
+        {
+          stage: 'objection',
+          label: 'Second Review of Objection, then a CCD1/ZRD1 determination',
+          url: 'https://www.nyc.gov/site/buildings/industry/determinations.page',
+          note: 'On a DOB NOW job, open the filing and choose Second Review of Objection under Select Action. A CCD1 or ZRD1 determination request goes in under +Determinations.',
+        },
+        {
+          stage: 'inspection',
+          label: 'DOB NOW: Inspections',
+          url: 'https://www.nyc.gov/site/buildings/industry/dob-now-inspection.page',
+          note: 'Most DOB inspections are scheduled online in DOB NOW: Inspections.',
+        },
+        {
+          stage: 'general',
+          label: 'DOB customer service and online help',
+          url: 'https://www.nyc.gov/dobhelp',
+          phone: '212-393-2550',
+          note: 'Customer service line, or the online help form at nyc.gov/dobhelp.',
+        },
+      ],
+      feeScheduleUrls: [
+        { label: 'New permit fee structure (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/new_permit_fee_structure.pdf' },
+        { label: 'Alteration filing fees (PDF)', url: 'https://www.nyc.gov/assets/buildings/pdf/alteration_filing_fees.pdf' },
+      ],
+      applicantOfRecordNote: 'In NYC the registered architect or engineer (or their expeditor) is usually the applicant of record and the one who talks to the plan examiner — not the GC.',
+      sourceUrl: 'https://www.nyc.gov/site/buildings/dob/contact-us.page',
+      checkedOn: '2026-09-26',
+    },
   },
   {
     name: 'San Francisco',
@@ -1423,4 +1517,15 @@ export function groundingFactsFor(resolved: ResolvedCodeJurisdiction): Jurisdict
     cacheKey: `${resolved.kind}:${entry.state}:${normalizePlace(scope)}`,
     viewerLinks: viewerLinksFor(resolved),
   };
+}
+
+/**
+ * The verified building-department block for a resolved jurisdiction. City
+ * rows only, and only when the row carries one; a state row, an unknown
+ * address or a city without a verified block all answer null, so a caller can
+ * render nothing rather than guess.
+ */
+export function departmentFor(resolved: ResolvedCodeJurisdiction): BuildingDepartment | null {
+  if (resolved.kind !== 'city') return null;
+  return resolved.entry.department ?? null;
 }

@@ -51,6 +51,7 @@ import {
   type LeadTimeConfidence,
 } from '@/utils/automation/leadTimeLibrary';
 import { sameAuthority } from '@/utils/permitInspectionFacts';
+import type { ReviewBenchmark } from '@/utils/buildingRecord';
 
 /** Below this many completed permits, no lead is learned. */
 export const LEARNED_LEAD_FLOOR = 3;
@@ -59,6 +60,30 @@ export const LEARNED_LEAD_FLOOR = 3;
 const LEARNED_HIGH_CONFIDENCE_AT = 6;
 
 const MS_DAY = 86400000;
+
+/**
+ * Below this many approved filings a public review-time benchmark is not used.
+ * Thirty is the floor under which a median of a heavy-tailed queue moves by
+ * weeks from one filing to the next.
+ */
+export const MEASURED_LEAD_FLOOR = 30;
+
+/** At or above this many filings a measured lead is allowed 'high'. */
+const MEASURED_HIGH_CONFIDENCE_AT = 300;
+
+/**
+ * A review time MEASURED from a public dataset rather than the contractor's
+ * own file — today the NYC DOB standard-plan-exam median from NYC Open Data
+ * (hooks/useReviewBenchmark.ts builds it). `detail` is the provenance clause
+ * the chip prints verbatim (median, p75, n, borough, dataset, "approved
+ * filings only").
+ */
+export interface MeasuredReviewLead {
+  days: number;
+  n: number;
+  detail: string;
+  appliesTo: readonly PermitType[];
+}
 
 /**
  * One measured review: a permit whose appliedDate and approvedDate are both
@@ -95,6 +120,40 @@ export interface LearnedLead {
   permitType?: PermitType;
   authority: string;
   confidence: LeadTimeConfidence;
+}
+
+/** The benchmark group the measured tier reads: standard plan examination. */
+export const STANDARD_PLAN_EXAM_GROUP = 'Standard Plan Examination';
+
+function titleCaseBorough(b: string): string {
+  return b
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/**
+ * A NYC DOB review-time benchmark → the measured lead, or null when the
+ * standard-plan-exam group is missing or below MEASURED_LEAD_FLOOR. Filings
+ * still in review are not in the benchmark (it biases short), so the detail
+ * says "approved filings only" every time it prints.
+ */
+export function measuredLeadFromBenchmark(b: ReviewBenchmark | null | undefined): MeasuredReviewLead | null {
+  if (!b || !Array.isArray(b.groups)) return null;
+  const g = b.groups.find((x) => x.reviewType === STANDARD_PLAN_EXAM_GROUP);
+  if (!g || g.medianDays == null || !Number.isFinite(g.medianDays)) return null;
+  if (!Number.isFinite(g.n) || g.n < MEASURED_LEAD_FLOOR) return null;
+  const median = Math.round(g.medianDays);
+  const p75 = g.p75Days == null || !Number.isFinite(g.p75Days) ? null : Math.round(g.p75Days);
+  const n = g.n;
+  const detail =
+    `median ${median}d · p75 ${p75 == null ? '—' : `${p75}d`} · n=${n.toLocaleString('en-US')} · ` +
+    `${titleCaseBorough(b.borough)} standard-plan-exam alteration filings approved in the last 12 mo · ` +
+    'NYC Open Data w9ak-ipjd · approved filings only';
+  return { days: Math.max(1, median), n, detail, appliesTo: ['building'] };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -261,9 +320,13 @@ function rangeDetail(l: LearnedLead): string {
  *
  * Order, most-grounded first:
  *   1. learned   — the contractor's own dated records, at or above the floor.
- *   2. jurisdiction — a real AHJ dataset. JURISDICTION_OVERRIDES ships empty,
- *      so in practice this is unreachable today; it is in the order because
- *      the library's resolution order says it is, not because it fires.
+ *   2. measured — a MeasuredReviewLead the caller passes in (today: the NYC
+ *      DOB review-time benchmark from NYC Open Data, approved filings only),
+ *      at or above MEASURED_LEAD_FLOOR and for a permit type it applies to.
+ *      It rides source 'jurisdiction' because it IS a real AHJ dataset.
+ *      Below the floor, or for a type it does not describe, it is ignored.
+ *      The library jurisdiction branch after it (JURISDICTION_OVERRIDES)
+ *      still ships empty; the measured tier is how 'jurisdiction' fires.
  *   3. ai_estimate — the model's authored `leadTimeDays`, kept ABOVE the
  *      seeded national default because the model at least saw this project's
  *      scope, and kept LABELLED because it saw nothing else. This is the same
@@ -278,6 +341,9 @@ export function resolvePermitReviewLead(args: {
   permitType?: PermitType | null;
   /** The model's `RoadmapPermit.leadTimeDays`, if it authored a positive one. */
   authoredDays?: number | null;
+  /** A measured review time from a public dataset (NYC DOB). Used only at or
+   *  above MEASURED_LEAD_FLOOR and only for a type in `appliesTo`. */
+  measured?: MeasuredReviewLead | null;
 }): ResolvedRoadmapLead {
   const auth = (args.authority ?? '').trim();
   const observed = reviewSamplesFor(args.permits, auth).length;
@@ -292,6 +358,30 @@ export function resolvePermitReviewLead(args: {
       observed,
       chipLabel: leadTimeChipText(lead, rangeDetail(learned)),
       sourceLabel: 'from your own permit history',
+      hardDate: true,
+    };
+  }
+
+  const measured = args.measured;
+  if (
+    measured &&
+    Number.isFinite(measured.n) &&
+    measured.n >= MEASURED_LEAD_FLOOR &&
+    Number.isFinite(measured.days) &&
+    measured.days > 0 &&
+    (!args.permitType || measured.appliesTo.includes(args.permitType))
+  ) {
+    const lead: LeadTime = {
+      days: measured.days,
+      source: 'jurisdiction',
+      confidence: measured.n >= MEASURED_HIGH_CONFIDENCE_AT ? 'high' : 'med',
+    };
+    return {
+      lead,
+      learned: null,
+      observed,
+      chipLabel: leadTimeChipText(lead, measured.detail),
+      sourceLabel: 'measured from NYC DOB filings',
       hardDate: true,
     };
   }

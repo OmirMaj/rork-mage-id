@@ -1,0 +1,71 @@
+{
+ "id": "3h2n-5cm9",
+ "asOfHeader": "Fri, 25 Sep 2026 17:39:06 GMT",
+ "rows": [
+  {
+   "bin": "1001026",
+   "issue_date": "20210224",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "E-ELEVATOR                                                        ELEVATORREQUIRED",
+   "violation_number": "9027/698783"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "20150130",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "HBLVIO-HIGH PRESSURE BOILER                                            BOILER  REQUIRED",
+   "violation_number": "9028/532681"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "20140716",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "E-ELEVATOR                                                        ELEVATORREQUIRED",
+   "violation_number": "9028/514918"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "20000927",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "E-ELEVATOR                                                        ELEVATORREQUIRED",
+   "violation_number": "9444/127221",
+   "description": "1P31171"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "19970701",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "LL1080-LOCAL LAW 10/80 - FACADE                                        FACADE  OPTIONAL",
+   "violation_number": "NRF0027"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "19970113",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "LL1081-LOCAL LAW 10/81 - ELEVATOR                                      ELEVATOROPTIONAL",
+   "violation_number": "00024"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "19890316",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "ES-ELECTRIC SIGNS                                                  NONE",
+   "violation_number": "ST0212W"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "19890316",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "ES-ELECTRIC SIGNS                                                  NONE",
+   "violation_number": "ST0211W"
+  },
+  {
+   "bin": "1001026",
+   "issue_date": "19881125",
+   "violation_category": "V-DOB VIOLATION - ACTIVE",
+   "violation_type": "E-ELEVATOR                                                        ELEVATORREQUIRED",
+   "violation_number": "1196A\\1",
+   "description": "(51)PROPERLY DATE AND TAG THE GOVERNOR FOR 5 YR TEST"
+  }
+ ]
+}

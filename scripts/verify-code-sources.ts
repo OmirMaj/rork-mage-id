@@ -414,7 +414,67 @@ const RECEIPT_COMMENT = [
 
 // ─────────────────────────────────────────────────────────────────────
 
-const terms = process.argv.slice(2).map((s) => s.toLowerCase());
+// ─────────────────────────────────────────────────────────────────────
+// Building-department blocks (LocalAdoption.department). These are contact
+// and process facts, not editions, so the check is simpler: every URL must
+// answer, and checkedOn must be under a year old. a810-*.nyc.gov (DOB NOW,
+// BIS, eFiling) sits behind Akamai and answers 403 to every script by design;
+// those links are reported 'manual' and never fail the run.
+//   bun run scripts/verify-code-sources.ts --departments   (this pass only;
+//   it writes nothing, so it never touches the receipt)
+// ─────────────────────────────────────────────────────────────────────
+
+async function departmentStatus(url: string): Promise<number | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA, Accept: 'text/html,application/pdf,*/*;q=0.8' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(30_000),
+    });
+    await res.body?.cancel();
+    return res.status;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyDepartments(): Promise<number> {
+  const withDept = LOCAL_ADOPTIONS.filter((e) => !!e.department);
+  console.log(`\nbuilding departments: ${withDept.length} block(s)\n`);
+  let bad = 0;
+  const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+  for (const e of withDept) {
+    const d = e.department!;
+    const age = Date.now() - Date.parse(`${d.checkedOn}T00:00:00Z`);
+    const fresh = Number.isFinite(age) && age <= YEAR_MS && age >= -24 * 60 * 60 * 1000;
+    console.log(`  ${e.name}: checkedOn ${d.checkedOn} ${fresh ? 'ok' : 'STALE'}`);
+    if (!fresh) bad++;
+    const urls = [...new Set([
+      d.sourceUrl, d.portalUrl, d.statusLookupUrl,
+      ...d.questionChannels.map((c) => c.url),
+      ...(d.feeScheduleUrls ?? []).map((f) => f.url),
+    ].filter((u): u is string => !!u))];
+    for (const url of urls) {
+      const host = new URL(url).hostname;
+      const status = await departmentStatus(url);
+      const akamai = /^a810-[a-z0-9-]+\.nyc\.gov$/.test(host);
+      let verdict: string;
+      if (status !== null && status >= 200 && status < 400) verdict = `ok (${status})`;
+      else if (akamai && (status === 403 || status === null)) verdict = `manual (403 to machines by design)`;
+      else { verdict = `FAIL (${status ?? 'no answer'})`; bad++; }
+      console.log(`    ${verdict.padEnd(40)} ${url}`);
+    }
+  }
+  console.log(`\nbuilding departments: ${bad === 0 ? 'all reachable or manual' : `${bad} problem(s)`}`);
+  return bad;
+}
+
+if (process.argv.includes('--departments')) {
+  const deptBad = await verifyDepartments();
+  process.exit(deptBad > 0 ? 1 : 0);
+}
+
+const terms = process.argv.slice(2).filter((a) => a !== '--departments').map((s) => s.toLowerCase());
 const rows = terms.length
   ? ALL.filter((e) => terms.some((t) => labelOf(e).toLowerCase().includes(t) || e.sourceUrl.toLowerCase().includes(t)))
   : ALL;
@@ -755,4 +815,5 @@ if (amBad > 0) {
   console.log('something its own cited page no longer says. Re-read the page and fix or drop the row');
   console.log('in utils/codeAmendments.ts — there is no generator to re-run.');
 }
-process.exit(failures + volBad + amBad > 0 ? 1 : 0);
+const deptBad = await verifyDepartments();
+process.exit(failures + volBad + amBad + deptBad > 0 ? 1 : 0);
