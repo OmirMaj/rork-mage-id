@@ -1,0 +1,8 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`tomorrow's lineup one message per sub, from the records (golden) 1`] = `
+{
+  "a": "Acme Drywall: <day> at 123 Main St: Hang board (2nd fl). Access: freight elevator booked 07:00-09:00, ref BK-7. Deliveries: Board from ABC Supply, window 08:00-09:00. Inspections: Plumbing rough inspection — time not set. Reply to confirm you'll be there.",
+  "b": "Bolt Electric: <day> at 123 Main St: Electrical rough. Access: freight elevator booked 07:00-09:00, ref BK-7. Inspections: Plumbing rough inspection — time not set. Reply to confirm you'll be there.",
+}
+`;

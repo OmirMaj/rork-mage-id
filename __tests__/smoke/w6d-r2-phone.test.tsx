@@ -37,6 +37,7 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { PROJECT_ID, ESTIMATE_ID } from '@/__tests__/fixtures/world';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
 // ── The layout gate: a width + a web flag, exactly like the app's hook ──────
 let mockWidth = 390;
@@ -174,6 +175,10 @@ function dumpLines(node: unknown, depth: number, out: string[]): void {
 }
 function fingerprint(name: string, json: unknown): { lines: number; sha256: string } {
   const out: string[] = [];
+  // List-2 lane I: the 'insaudit-link' row on /coi-vault is sanctioned, so it
+  // is removed before hashing (same reference back when nothing matches, so
+  // every hash recorded before it is unchanged).
+  json = stripSanctioned(json);
   dumpLines(json, 0, out);
   const text = out.join('\n');
   const dir = process.env.R2_DUMP_DIR;

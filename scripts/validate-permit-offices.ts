@@ -114,16 +114,41 @@ for (const [label, doc] of [['NJ', njRoster], ['CT', ctList]] as const) {
 }
 
 // ── 4. NY hand-verified cards ───────────────────────────────────────────────
-console.log('\n── 4. NY hand-verified Nassau towns ─────────────────────────');
+console.log('\n── 4. NY hand-verified Nassau / Suffolk / Westchester ───────');
 const wantTowns = ['Town of Hempstead', 'Town of North Hempstead', 'Town of Oyster Bay'];
 ok('the three Nassau towns are hand-verified', wantTowns.every((t) => NY_HAND_VERIFIED.some((h) => h.jurisdiction === t)));
+const WANT_NEW = [
+  'Town of Huntington', 'Town of Brookhaven', 'Town of Babylon', 'Town of Smithtown',
+  'City of Yonkers', 'City of New Rochelle', 'City of Mount Vernon', 'City of White Plains', 'Town of Greenburgh',
+];
+ok('the nine Suffolk / Westchester cards read this pass are hand-verified', WANT_NEW.every((t) => NY_HAND_VERIFIED.some((h) => h.jurisdiction === t)));
+ok('Town of Islip has no hand card (its own site answered 403: nothing read)', !NY_HAND_VERIFIED.some((h) => /Islip/.test(h.jurisdiction)));
+ok('hand-card GEOIDs are unique', new Set(NY_HAND_VERIFIED.map((h) => h.geoid)).size === NY_HAND_VERIFIED.length);
+const AGGREGATOR = /yelp|manta|mapquest|yellowpages|facebook|wikipedia|google/i;
+const hostOfUrl = (u: string): string => /^https:\/\/(?:www\.)?([^/#?]+)/i.exec(u)?.[1]?.toLowerCase() ?? '';
 for (const h of NY_HAND_VERIFIED) {
-  const host = /^https:\/\/(?:www\.)?([^/]+)/.exec(h.sourceUrl)?.[1] ?? '';
-  ok(`${h.jurisdiction}: Nassau GEOID, checkedOn, https source + portal`,
-    /^36059\d{5}$/.test(h.geoid) && ISO_DATE.test(h.checkedOn) && h.sourceUrl.startsWith('https://') && h.portalUrl.startsWith('https://'));
-  ok(`${h.jurisdiction}: the portal link was read off the town's own site`, !!host && h.portalSeenOn.includes(host));
+  const host = hostOfUrl(h.sourceUrl);
+  const checked = Date.parse(`${h.checkedOn}T00:00:00Z`);
+  ok(`${h.jurisdiction}: Nassau / Suffolk / Westchester county-subdivision GEOID`, /^36(059|103|119)\d{5}$/.test(h.geoid), h.geoid);
+  ok(`${h.jurisdiction}: checkedOn ${h.checkedOn} is a date within 120 days`,
+    ISO_DATE.test(h.checkedOn) && now - checked <= 120 * DAY && checked <= now + DAY);
+  ok(`${h.jurisdiction}: https source on the municipality's own domain, not an aggregator`,
+    h.sourceUrl.startsWith('https://') && !!host && !AGGREGATOR.test(host), h.sourceUrl);
+  ok(`${h.jurisdiction}: portal is null with portalSeenOn null, or https read off the municipality's own site`,
+    h.portalUrl === null
+      ? h.portalSeenOn === null
+      : h.portalUrl.startsWith('https://') && !!h.portalSeenOn && h.portalSeenOn.startsWith('https://') && hostOfUrl(h.portalSeenOn) === host,
+    `${h.portalUrl} / ${h.portalSeenOn}`);
   ok(`${h.jurisdiction}: phone dials`, telUrlFor(h.phone) !== null);
+  ok(`${h.jurisdiction}: a title, and every fact is a sentence`,
+    !!h.title.trim() && h.facts.every((f) => f.trim().length > 0));
+  // Oyster Bay's own page prints no ZIP ('Oyster Bay, NY'); the Nassau cards
+  // stay as read, so the ZIP rule holds for every card added since.
+  if (!h.geoid.startsWith('36059')) {
+    ok(`${h.jurisdiction}: address has a line ending in "NY 1xxxx"`, h.address.some((l) => /NY 1\d{4}$/.test(l)), JSON.stringify(h.address));
+  }
 }
+ok('Greenburgh links no online portal: its card carries none', NY_HAND_VERIFIED.find((h) => h.jurisdiction === 'Town of Greenburgh')?.portalUrl === null);
 
 // ── 5. the resolver over recorded Census answers ────────────────────────────
 console.log('\n── 5. permitOfficeFor ───────────────────────────────────────');
@@ -134,6 +159,8 @@ const place = (p: Partial<PlaceLookupResult>): PlaceLookupResult => ({
 });
 const NASSAU = { name: 'Nassau County', geoid: '36059' };
 const HEMPSTEAD = unit('Hempstead town', 'Hempstead', '3605934000', 'town');
+const SUFFOLK = { name: 'Suffolk County', geoid: '36103' };
+const WESTCHESTER = { name: 'Westchester County', geoid: '36119' };
 
 // Garden City (recorded: Hempstead town + Garden City village)
 const gc = permitOfficeFor(place({ state: 'NY', county: NASSAU, town: HEMPSTEAD, incorporatedPlace: unit('Garden City village', 'Garden City', '3628178', 'village') }));
@@ -160,8 +187,46 @@ ok('Oyster Bay → hand card with its portal', ob.office?.verification === 'hand
 const glen = permitOfficeFor(place({ state: 'NY', county: NASSAU, town: unit('Glen Cove city', 'Glen Cove', '3605929113', 'city'), incorporatedPlace: unit('Glen Cove city', 'Glen Cove', '3629113', 'city') }));
 ok('NY city → City of Glen Cove, name-only, keyed on its county-subdivision GEOID, no village caution',
   glen.office?.jurisdiction === 'City of Glen Cove' && glen.office.verification === 'name-only' && glen.office.key === 'NY:3605929113' && glen.cautions.length === 0);
-const smith = permitOfficeFor(place({ state: 'NY', county: { name: 'Suffolk County', geoid: '36103' }, town: unit('Smithtown town', 'Smithtown', '3610368000', 'town') }));
-ok('An unverified NY town is a name-only "Town of X" card', smith.office?.title === 'Town of Smithtown' && smith.office.verification === 'name-only');
+// Smithtown was this check's name-only example until its card was read
+// (2026-09-26); Islip stays name-only (its own site answers 403).
+const islip = permitOfficeFor(place({ state: 'NY', county: SUFFOLK, town: unit('Islip town', 'Islip', '3610338000', 'town'), cdp: unit('Islip CDP', 'Islip', '3637869', 'CDP') }));
+ok('An unverified NY town is a name-only "Town of X" card', islip.office?.title === 'Town of Islip' && islip.office.verification === 'name-only' && islip.office.facts.includes(NAME_ONLY_NOTE));
+
+// Suffolk + Westchester hand cards, over Census answers recorded 2026-09-26
+// (the county subdivision + CDP / incorporated place at each hall's address).
+const handCases: { label: string; p: Partial<PlaceLookupResult>; title: string; phone: string }[] = [
+  { label: 'Huntington CDP → Town of Huntington', title: 'Town of Huntington Building & Housing Division', phone: '(631) 351-2821',
+    p: { county: SUFFOLK, town: unit('Huntington town', 'Huntington', '3610337000', 'town'), cdp: unit('Huntington CDP', 'Huntington', '3636233', 'CDP') } },
+  { label: 'Coram CDP → Town of Brookhaven', title: 'Town of Brookhaven Building Division', phone: '631-451-8696',
+    p: { county: SUFFOLK, town: unit('Brookhaven town', 'Brookhaven', '3610310000', 'town'), cdp: unit('Coram CDP', 'Coram', '3618157', 'CDP') } },
+  { label: 'North Lindenhurst CDP → Town of Babylon', title: 'Town of Babylon Building Department', phone: '(631) 957-3058',
+    p: { county: SUFFOLK, town: unit('Babylon town', 'Babylon', '3610304000', 'town'), cdp: unit('North Lindenhurst CDP', 'North Lindenhurst', '3653198', 'CDP') } },
+  { label: 'Smithtown CDP → Town of Smithtown', title: 'Town of Smithtown Building Department', phone: '(631) 360-7520',
+    p: { county: SUFFOLK, town: unit('Smithtown town', 'Smithtown', '3610368000', 'town'), cdp: unit('Smithtown CDP', 'Smithtown', '3667851', 'CDP') } },
+  { label: 'Greenville CDP → Town of Greenburgh', title: 'Town of Greenburgh Building Department', phone: '(914) 989-1560',
+    p: { county: WESTCHESTER, town: unit('Greenburgh town', 'Greenburgh', '3611930367', 'town'), cdp: unit('Greenville CDP', 'Greenville', '3630642', 'CDP') } },
+  { label: 'Yonkers city → City of Yonkers', title: 'City of Yonkers Department of Housing and Buildings', phone: '914-377-6500',
+    p: { county: WESTCHESTER, town: unit('Yonkers city', 'Yonkers', '3611984000', 'city'), incorporatedPlace: unit('Yonkers city', 'Yonkers', '3684000', 'city') } },
+  { label: 'New Rochelle city → City of New Rochelle', title: 'City of New Rochelle Bureau of Buildings', phone: '(914) 654-2035',
+    p: { county: WESTCHESTER, town: unit('New Rochelle city', 'New Rochelle', '3611950617', 'city'), incorporatedPlace: unit('New Rochelle city', 'New Rochelle', '3650617', 'city') } },
+  { label: 'Mount Vernon city → City of Mount Vernon', title: 'City of Mount Vernon Building Department', phone: '914-665-2483',
+    p: { county: WESTCHESTER, town: unit('Mount Vernon city', 'Mount Vernon', '3611949121', 'city'), incorporatedPlace: unit('Mount Vernon city', 'Mount Vernon', '3649121', 'city') } },
+  { label: 'White Plains city → City of White Plains', title: 'City of White Plains Department of Building', phone: '914-422-1269',
+    p: { county: WESTCHESTER, town: unit('White Plains city', 'White Plains', '3611981677', 'city'), incorporatedPlace: unit('White Plains city', 'White Plains', '3681677', 'city') } },
+];
+for (const c of handCases) {
+  const a = permitOfficeFor(place({ state: 'NY', ...c.p }));
+  ok(`${c.label}: the hand-verified card`,
+    a.kind === 'office' && a.office?.verification === 'hand-verified' && a.office.title === c.title && a.office.phone === c.phone
+      && !a.office.facts.includes(NAME_ONLY_NOTE) && !a.cautions.includes(VILLAGE_CAUTION),
+    `${a.office?.verification} ${a.office?.title} ${a.office?.phone}`);
+}
+const wpCity = permitOfficeFor(place({ state: 'NY', county: WESTCHESTER, ...handCases[8].p }));
+ok('a hand-verified city card is keyed on the county subdivision and names its source and date',
+  wpCity.office?.key === 'NY:3611981677' && wpCity.office.sourceLabel === 'cityofwhiteplains.com, checked 2026-09-26');
+const ardsley = permitOfficeFor(place({ state: 'NY', county: WESTCHESTER, town: unit('Greenburgh town', 'Greenburgh', '3611930367', 'town'), incorporatedPlace: unit('Ardsley village', 'Ardsley', '3602506', 'village') }));
+ok('Ardsley (a village inside Greenburgh) → still the name-only Village of Ardsley card, with the village caution',
+  ardsley.office?.jurisdiction === 'Village of Ardsley' && ardsley.office.verification === 'name-only' && ardsley.cautions.includes(VILLAGE_CAUTION));
 
 const queens = permitOfficeFor(place({ state: 'NY', county: { name: 'Queens County', geoid: '36081' }, town: unit('Queens borough', 'Queens', '3608160323', 'borough'), incorporatedPlace: unit('New York city', 'New York', '3651000', 'city') }));
 ok('Queens (recorded Astoria answer) → nyc: keep the NYC DOB card', queens.kind === 'nyc' && queens.office === null);
@@ -212,7 +277,7 @@ ok('the name-only badge says contact details are not verified', /not verified by
 
 // Every card
 const cards = Object.values(DEPARTMENTS);
-ok(`DEPARTMENTS holds ${cards.length} cards = 564 NJ + 174 CT + 3 NY`, cards.length === 564 + 174 + 3);
+ok(`DEPARTMENTS holds ${cards.length} cards = 564 NJ + 174 CT + 12 NY`, cards.length === 564 + 174 + 12 && NY_HAND_VERIFIED.length === 12);
 ok('every card key is <state>:<id>', cards.every((c) => /^(NJ|CT|NY):[\w-]+$/.test(c.key)));
 ok('every card names its source', cards.every((c) => !!c.sourceLabel && (c.sourceUrl === null || c.sourceUrl.startsWith('https://'))));
 ok('every listed card phone either dials or is shown undialled (never a wrong number)',

@@ -236,10 +236,14 @@ export function telUrlFor(phone: string | null | undefined): string | null {
 export const NAME_ONLY_NOTE = "Derived from Census geography; MAGE hasn't verified this office's contact details.";
 export const NAME_ONLY_BADGE = 'Contact details not verified by MAGE';
 
-// ── NY: hand-verified Nassau towns ──────────────────────────────────
-// Each fact below was read off the town's own page on `checkedOn`; the portal
-// link is the one that page publishes. Keyed by the town's Census GEOID
-// (TIGERweb county subdivisions, Nassau County 36059).
+// ── NY: hand-verified Nassau, Suffolk and Westchester offices ───────
+// Nassau (36059), Suffolk (36103) and Westchester (36119) towns and cities.
+// Keyed by the Census county-subdivision GEOID (a NY city is its own county
+// subdivision, which is how resolveNy keys a city); each fact read off the
+// municipality's own page on checkedOn. The portal link is the one that
+// municipality's page publishes (portalSeenOn); when its pages link no online
+// portal, both are null. A municipality whose own page could not be read, or
+// does not state every required fact, has no entry and stays a name-only card.
 interface HandCard {
   geoid: string;
   jurisdiction: string;
@@ -247,8 +251,9 @@ interface HandCard {
   address: string[];
   phone: string;
   hours: string | null;
-  portalUrl: string;
-  portalSeenOn: string;
+  /** Null together with portalSeenOn: the municipality's pages link no portal. */
+  portalUrl: string | null;
+  portalSeenOn: string | null;
   sourceUrl: string;
   checkedOn: string;
   facts: string[];
@@ -293,6 +298,139 @@ export const NY_HAND_VERIFIED: readonly HandCard[] = [
     sourceUrl: 'https://oysterbaytown.com/departments/planning-and-development/building/',
     checkedOn: '2026-09-26',
     facts: ['Applications are also taken at the Building Division Annex, Town Hall South, 977 Hicksville Rd, Massapequa.'],
+  },
+  // ── Suffolk County (36103). Town of Islip has no entry: islipny.gov answers
+  //    403 to every fetch, so nothing could be read off its own page.
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=100+Main+Street%2C+Huntington%2C+NY+11743&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → Huntington town
+    geoid: '3610337000',
+    jurisdiction: 'Town of Huntington',
+    title: 'Town of Huntington Building & Housing Division',
+    address: ['Town Hall, Room 115, 100 Main Street', 'Huntington, NY 11743'],
+    phone: '(631) 351-2821',
+    hours: 'Monday to Friday, 8:30 am to 3:00 pm',
+    portalUrl: 'https://townofhuntingtonny.viewpointcloud.com/categories/1071',
+    portalSeenOn: 'https://www.huntingtonny.gov/building-housing',
+    sourceUrl: 'https://www.huntingtonny.gov/building-housing',
+    checkedOn: '2026-09-26',
+    facts: ['Paper applications and payments can be mailed or dropped off at Town Hall, Room 115 (1st floor); fees can be paid in person or by credit card over the phone.'],
+  },
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=1+Independence+Hill%2C+Farmingville%2C+NY+11738&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → Brookhaven town
+    geoid: '3610310000',
+    jurisdiction: 'Town of Brookhaven',
+    title: 'Town of Brookhaven Building Division',
+    address: ['1 Independence Hill', 'Farmingville, NY 11738'],
+    phone: '631-451-8696',
+    hours: 'Monday to Friday, 9:00 am to 4:15 pm',
+    portalUrl: 'https://brookhavenny.gov/NewApplication',
+    portalSeenOn: 'https://www.brookhavenny.gov/284/Building-Division',
+    sourceUrl: 'https://www.brookhavenny.gov/284/Building-Division',
+    checkedOn: '2026-09-26',
+    facts: ['The division moves to Town of Brookhaven Digital Services (digitalservices.brookhavenny.gov) on September 28, 2026; from then, drop-offs are no longer accepted.'],
+  },
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=200+East+Sunrise+Highway%2C+Lindenhurst%2C+NY+11757&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → Babylon town
+    geoid: '3610304000',
+    jurisdiction: 'Town of Babylon',
+    title: 'Town of Babylon Building Department',
+    address: ['Babylon Town Hall, West Wing, 200 East Sunrise Highway', 'Lindenhurst, NY 11757'],
+    phone: '(631) 957-3058',
+    hours: 'Monday to Friday, 9:00 am to 4:30 pm',
+    portalUrl: 'https://babylonny.portal.opengov.com/',
+    portalSeenOn: 'https://www.townofbabylonny.gov/797/Building-Department',
+    sourceUrl: 'https://www.townofbabylonny.gov/797/Building-Department',
+    checkedOn: '2026-09-26',
+    facts: ['Since February 2, 2026, all applications and supporting materials must be submitted online through the Online Permit Center.'],
+  },
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=23+Redwood+Lane%2C+Smithtown%2C+NY+11787&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → Smithtown town
+    geoid: '3610368000',
+    jurisdiction: 'Town of Smithtown',
+    title: 'Town of Smithtown Building Department',
+    address: ['23 Redwood Lane', 'Smithtown, NY 11787'],
+    phone: '(631) 360-7520',
+    hours: 'Monday to Friday, 9:00 am to 4:00 pm (July 1 to August 31: 9:00 am to 3:00 pm)',
+    portalUrl: 'https://citysquared.com/#/app/SmithtownTownNY/landing',
+    portalSeenOn: 'https://www.smithtownny.gov/726/ONLINE-RESIDENTIAL-BUILDING-PERMITS',
+    sourceUrl: 'https://www.smithtownny.gov/109/Building-Department',
+    checkedOn: '2026-09-26',
+    facts: ['To schedule an inspection, call (631) 360-7522.'],
+  },
+  // ── Westchester County (36119). Each city is keyed on its county
+  //    subdivision, which the Census names as the same city.
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=20+South+Broadway%2C+Yonkers%2C+NY+10701&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → Yonkers city (place 3684000)
+    geoid: '3611984000',
+    jurisdiction: 'City of Yonkers',
+    title: 'City of Yonkers Department of Housing and Buildings',
+    address: ['20 South Broadway, 3rd Floor', 'Yonkers, NY 10701'],
+    phone: '914-377-6500',
+    hours: null,
+    portalUrl: 'https://www.citysquared.com/#/app/Yonkers/landing',
+    portalSeenOn: 'https://www.yonkersny.gov/217/Housing-Buildings',
+    sourceUrl: 'https://www.yonkersny.gov/217/Housing-Buildings',
+    checkedOn: '2026-09-26',
+    facts: [
+      "Renovating an existing 1-to-3-family dwelling needs a Home Improvement Contractor's License from the City's Consumer Protection Bureau before the permit.",
+      "Expediters need an Expeditor's License from the Consumer Protection Bureau (914-377-3000).",
+    ],
+  },
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=515+North+Avenue%2C+New+Rochelle%2C+NY+10801&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → New Rochelle city (place 3650617)
+    geoid: '3611950617',
+    jurisdiction: 'City of New Rochelle',
+    title: 'City of New Rochelle Bureau of Buildings',
+    address: ['515 North Ave.', 'New Rochelle, NY 10801'],
+    phone: '(914) 654-2035',
+    hours: null,
+    portalUrl: 'https://www.citysquared.com/#/app/map/NewRochelleCityNY',
+    portalSeenOn: 'https://www.newrochelleny.gov/1612/How-to-Apply-for-a-Permit',
+    sourceUrl: 'https://www.newrochelleny.gov/233/Buildings',
+    checkedOn: '2026-09-26',
+    facts: [],
+  },
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=1+Roosevelt+Square%2C+Mount+Vernon%2C+NY+10550&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → Mount Vernon city (place 3649121)
+    geoid: '3611949121',
+    jurisdiction: 'City of Mount Vernon',
+    title: 'City of Mount Vernon Building Department',
+    address: ['1 Roosevelt Square, City Hall, Room 11', 'Mount Vernon, NY 10550'],
+    phone: '914-665-2483',
+    hours: 'Monday, Tuesday, Thursday and Friday, 9:00 am to 3:00 pm; closed to the public on Wednesday',
+    portalUrl: 'https://www.mountvernonny.gov/opengovbldpermits',
+    portalSeenOn: 'https://www.mountvernonny.gov/187/Buildings',
+    sourceUrl: 'https://www.mountvernonny.gov/directory.aspx?did=8',
+    checkedOn: '2026-09-26',
+    facts: [],
+  },
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=70+Church+Street%2C+White+Plains%2C+NY+10601&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → White Plains city (place 3681677)
+    geoid: '3611981677',
+    jurisdiction: 'City of White Plains',
+    title: 'City of White Plains Department of Building',
+    address: ['70 Church St.', 'White Plains, NY 10601'],
+    phone: '914-422-1269',
+    hours: null,
+    portalUrl: 'https://www.citysquared.com/#/app/landing',
+    portalSeenOn: 'https://www.cityofwhiteplains.com/86/Building',
+    sourceUrl: 'https://www.cityofwhiteplains.com/86/Building',
+    checkedOn: '2026-09-26',
+    facts: [],
+  },
+  {
+    // Census: https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?address=177+Hillside+Avenue%2C+Greenburgh%2C+NY+10607&benchmark=Public_AR_Current&vintage=Current_Current&layers=County+Subdivisions,Incorporated+Places&format=json → Greenburgh town
+    geoid: '3611930367',
+    jurisdiction: 'Town of Greenburgh',
+    title: 'Town of Greenburgh Building Department',
+    address: ['177 Hillside Avenue', 'Greenburgh, NY 10607'],
+    phone: '(914) 989-1560',
+    hours: 'In-person submissions Monday to Friday, 8:00 am to 3:30 pm (excluding Town holidays)',
+    portalUrl: null,
+    portalSeenOn: null,
+    sourceUrl: 'https://www.greenburghny.com/176/Building-Department',
+    checkedOn: '2026-09-26',
+    facts: ['Applications may be submitted in person or by mail.'],
   },
 ];
 

@@ -75,6 +75,27 @@ import { ChipRail } from '@/components/ui';
 import { useSplitRecord } from '@/components/desktop/SplitView';
 import { CoiVaultRegister } from '@/components/registers/CoiVaultRegister';
 import { useRegisterRecordDirty } from '@/components/registers/RegisterRecordHost';
+import { NavRow } from '@/components/NavRow';
+
+/**
+ * The door to the insurance audit pack (list-2 lane I). One row, rendered in
+ * the phone list and above the desktop register; its outermost node carries
+ * the 'insaudit-' testID so the phone goldens strip it (sanctionedStrip).
+ */
+function InsuranceAuditLink({ desktop }: { desktop?: boolean }) {
+  const router = useRouter();
+  return (
+    <NavRow
+      variant="card"
+      Icon={ShieldCheck}
+      title="Insurance audit pack — payments vs certificates"
+      subtitle="Which sub payments had a workers' comp certificate covering the date"
+      onPress={() => router.push('/insurance-audit')}
+      style={desktop ? { marginHorizontal: 16, marginTop: 12, marginBottom: 4 } : { marginBottom: 12 }}
+      testID="insaudit-link"
+    />
+  );
+}
 
 export default function COIVaultScreen() {
   const { colors: themeColors } = useTheme();
@@ -446,6 +467,7 @@ function COIVaultInner() {
   // List mode
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {isDesktopWeb ? <InsuranceAuditLink desktop /> : null}
       {isDesktopWeb ? (
         <CoiVaultRegister
           subcontractors={subcontractors}
@@ -514,6 +536,7 @@ function COIVaultInner() {
       </View>
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
+        <InsuranceAuditLink />
         {subcontractors.length === 0 ? (
           <View style={styles.emptyState}>
             <Shield size={36} color={themeColors.textMuted} strokeWidth={1.75} />

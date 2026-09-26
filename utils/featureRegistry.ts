@@ -306,6 +306,8 @@ const REGISTRY = [
   { id: 'schedule', title: 'Schedule', synonyms: ['timeline', 'calendar', 'phases', 'sequence'], route: '/(tabs)/discover/schedule', icon: 'MageSchedule', group: 'project' },
   { id: 'schedule-pro', title: 'Pro Scheduler', synonyms: ['gantt', 'cpm', 'critical path', 'ms project', 'dependencies', 'float'], route: '/schedule-pro', requires: 'schedule_gantt_pdf', icon: 'MageSchedule', group: 'project', projectScoped: true },
   { id: 'last-planner', title: 'Last Planner', synonyms: ['lookahead', 'ppc', 'pull planning', 'weekly commitments'], route: '/last-planner', requires: 'schedule_gantt_pdf', icon: 'ListChecks', group: 'project' },
+  // Same gate as its door (Last Planner's crew dispatch): app/tomorrow-lineup.tsx checks 'schedule_gantt_pdf'.
+  { id: 'tomorrow-lineup', title: "Tomorrow's lineup", synonyms: ['lineup', 'tomorrow', 'crew text', 'who is on site tomorrow', 'dispatch'], route: '/tomorrow-lineup', requires: 'schedule_gantt_pdf', icon: 'CalendarCheck', group: 'project' },
   // #163: "ask your plans" opens here — the Ask box is on the Plans screen
   // (its own Business gate and upgrade button live in AskPlansPanel).
   { id: 'plans', title: 'Plans & Drawings', synonyms: ['blueprints', 'sheets', 'drawings', 'markup', 'ask your plans', 'plan search', 'find on plans'], route: '/plans', requires: 'plan_markup', icon: 'MagePlans', group: 'project' },
@@ -356,6 +358,8 @@ const REGISTRY = [
   { id: 'lien-waivers', title: 'Lien Waivers', synonyms: ['lien', 'waiver', 'conditional', 'unconditional'], route: '/lien-waivers', requires: 'lien_waiver_manager', icon: 'ScrollText', group: 'money' },
   { id: 'profit-leaks', title: 'Profit Leaks', synonyms: ['leak', 'lost money', 'unbilled', 'slippage'], route: '/profit-leak-history', requires: 'brain_accuracy', icon: 'Droplets', group: 'money' },
   { id: 'tax-1099', title: '1099 Export', synonyms: ['1099', 'taxes', 'cpa', 'year end'], route: '/tax-1099-export', icon: 'Receipt', group: 'money' },
+  // No `requires`, like tax-1099 above: app/insurance-audit.tsx has no entry gate.
+  { id: 'insurance-audit', title: 'Insurance audit pack', synonyms: ['workers comp audit', 'premium audit', 'coi audit', 'insurance audit'], route: '/insurance-audit', icon: 'ShieldCheck', group: 'money' },
   { id: 'buyout', title: 'Buyout', synonyms: ['sub packages', 'award', 'procurement', 'purchase'], route: '/buyout', icon: 'Handshake', group: 'money' },
   { id: 'reports', title: 'Reports', synonyms: ['all records', 'exports', 'filterable list'], route: '/reports', icon: 'BarChart3', group: 'money' },
   // PRODUCT-F2: "quickbooks" used to land on app/integrations.tsx — a preview

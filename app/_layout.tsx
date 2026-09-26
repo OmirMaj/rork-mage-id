@@ -937,6 +937,8 @@ function RootLayoutNav() {
       <Stack.Screen name="extract-submittals" options={{ headerShown: false }} />
       <Stack.Screen name="compare-drawings" options={{ headerShown: false }} />
       <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC Export' }} />
+      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance Audit Pack' }} />
+      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's Lineup" }} />
       <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
         name="login"

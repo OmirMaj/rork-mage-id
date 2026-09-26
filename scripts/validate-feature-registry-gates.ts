@@ -183,7 +183,10 @@ const entryGateIsProjectAware = (src: string): boolean => {
 // the GC's plan (#62), but its per-job clock gate (resolveClockGate) is not an
 // entry-gate shape this parser reads, so it is not in this set — its Business
 // chip over-locks an invited seat the same way.
-const PROJECT_GRANTABLE = ['ai-punch', 'change-order', 'field-ticket', 'plans', 'punch-list', 'rfi', 'submittal'];
+// List round 2 (2026-09-26): tomorrow-lineup resolves through useProjectAccess
+// like last-planner (its door); same accepted false lock until the chip learns
+// project context.
+const PROJECT_GRANTABLE = ['ai-punch', 'change-order', 'field-ticket', 'plans', 'punch-list', 'rfi', 'submittal', 'tomorrow-lineup'];
 const grantable = FEATURE_REGISTRY.filter(e => {
   if (!e.requires) return false;
   const f = screenFileFor(e.route);

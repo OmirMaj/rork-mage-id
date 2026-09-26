@@ -14,6 +14,28 @@ export interface PlanCodeFindingRaw {
   observed?: string;
   severity?: string;
   confidence?: string;
+  /** analyze-plan-code's split citation + the server-stamped evidence level
+   *  (always 'model_recall'). An older deployment sends none of these. */
+  citedEdition?: string | null;
+  section?: string | null;
+  evidence?: string;
+  /** Plan Set Code Sweep only (a request with `sweep`): the question for the
+   *  architect, and the approximate centre on the sheet (0–1). */
+  question?: string | null;
+  location?: { x: number; y: number } | null;
+}
+
+/**
+ * A refused or failed plan review, carrying the function's own `code`
+ * (`monthly_cap_reached`, `hourly_limit`, `tier_required`, …) and its own
+ * sentence (`reason`), so a caller can stop a loop on a cap without matching
+ * English. `message` keeps the long-standing "Plan review call failed: …" text.
+ */
+export class PlanCodeError extends Error {
+  constructor(message: string, readonly code: string, readonly reason: string) {
+    super(message);
+    this.name = 'PlanCodeError';
+  }
 }
 
 export interface PlanCodeResult {
@@ -91,14 +113,24 @@ export async function reviewPlanCode(opts: {
    *  the client because that is where the adoption table lives; passed verbatim
    *  so the prompt and the grounding chip carry the same text. */
   jurisdictionBlock?: string;
+  /** Plan Set Code Sweep only. Omitted by Plan Review, whose request body is
+   *  then exactly what it always was. */
+  sweep?: { scopeTargets: string[] };
 }): Promise<PlanCodeResult> {
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;
     data?: PlanCodeResult;
     error?: string;
+    code?: string;
   }>('analyze-plan-code', { body: opts });
-  if (error) throw new Error(`Plan review call failed: ${await edgeFunctionErrorMessage(error, 'request failed')}`);
-  if (!data?.success || !data.data) throw new Error(data?.error ?? 'Plan review returned an empty result.');
+  if (error) {
+    const info = await readEdgeError(error, 'request failed');
+    throw new PlanCodeError(`Plan review call failed: ${info.message}`, info.code, info.message);
+  }
+  if (!data?.success || !data.data) {
+    const reason = data?.error ?? 'Plan review returned an empty result.';
+    throw new PlanCodeError(reason, typeof data?.code === 'string' ? data.code : '', reason);
+  }
   return {
     findings: Array.isArray(data.data.findings) ? data.data.findings : [],
     disclaimer: data.data.disclaimer || PLAN_REVIEW_DISCLAIMER,

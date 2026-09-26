@@ -25,8 +25,9 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, ChevronLeft as ChevLeft, Plus, X, Check,
   AlertTriangle, CircleCheck, Clock, Target, ListChecks, TrendingUp, TrendingDown,
-  Mail, Share2, Users, CalendarOff, CloudOff,
+  Mail, Share2, Users, CalendarOff, CloudOff, Send,
 } from 'lucide-react-native';
+import { NavRow } from '@/components/NavRow';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors } from '@/constants/colors';
@@ -251,6 +252,16 @@ function LastPlannerInner() {
         showsVerticalScrollIndicator={false}
       >
         <View style={{ width: '100%', maxWidth: contentWidth }}>
+          {/* List-2 lane I: the door to Tomorrow's lineup. Its outermost node
+              carries the 'lineup-' testID, which the phone goldens strip. */}
+          <NavRow
+            variant="card"
+            Icon={Send}
+            title="Tomorrow's lineup — a ready-to-send text per sub"
+            onPress={() => router.push({ pathname: '/tomorrow-lineup', params: { projectId: project.id } })}
+            style={{ marginTop: 12 }}
+            testID="lineup-link"
+          />
           {tab === 'lookahead' && (
             <LookaheadView
               tasks={tasks} startDate={startDate} constraints={lp.constraints} calendar={calendar}

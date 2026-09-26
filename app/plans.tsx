@@ -41,6 +41,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import AskPlansPanel from '@/components/plans/AskPlansPanel';
+import PlanSweepPanel from '@/components/plans/PlanSweepPanel';
 import { Button, TileGrid, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import FilterChipRow from '@/components/FilterChipRow';
@@ -120,6 +121,8 @@ export default function PlansScreen() {
   // #163: Ask Your Plans opens HERE, in a sheet of its own, not on the Plan
   // Intelligence estimating screen. `ask=1` (from the plan viewer) opens it.
   const [askOpen, setAskOpen] = useState<boolean>(params.ask === '1');
+  // Plan Set Code Sweep (list-2 lane S): its sheet is mounted only while open.
+  const [sweepOpen, setSweepOpen] = useState(false);
   const { user: authUser } = useAuth();
   // Same gate as the viewer's number field: chain columns are written only
   // for a signed-in, cloud-connected session.
@@ -518,6 +521,7 @@ export default function PlansScreen() {
   // today's bottom sheet on a phone. New sheet and the title-block numbers are
   // saves, so Cmd+Enter / Cmd+S run them.
   const fAsk = useSheetFrame('form', { visible: askOpen, animationType: 'slide' });
+  const fSweep = useSheetFrame('form', { visible: sweepOpen, animationType: 'slide' });
   const fNew = useSheetFrame('form', { visible: !!newSheet, animationType: 'slide' });
   const fTitle = useSheetFrame('form', { visible: !!titleReview, animationType: 'slide' });
   useSheetPrimaryHotkey(!!newSheet, () => { void confirmImport(); });
@@ -787,6 +791,22 @@ export default function PlansScreen() {
           <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
 
+        {/* Plan Set Code Sweep — questions for the architect on the sheets that
+            matter for this job's scope. The panel carries its own Pro gate. */}
+        <TouchableOpacity
+          onPress={() => setSweepOpen(true)}
+          activeOpacity={0.85}
+          style={[styles.compareBtn, { marginTop: 8 }]}
+          testID="plansweep-cta"
+        >
+          <MageAIMark size={16} color={themeColors.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.compareBtnTitle}>Sweep plans for code questions</Text>
+            <Text style={styles.compareBtnSub}>Picks the sheets that matter for your scope</Text>
+          </View>
+          <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
+
         {/* Plan Intelligence is the ESTIMATING tool — labelled as such, so a
             tap on a sheet there is understood to start an AI room estimate. */}
         {sheets.length > 0 && (
@@ -838,6 +858,32 @@ export default function PlansScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Plan Set Code Sweep. Mounted ONLY while open: a closed sheet renders
+          nothing, so the phone golden is unchanged and the panel's hooks do not
+          run until he opens it. The sweep itself is not saved. */}
+      {sweepOpen ? (
+        <Modal visible={sweepOpen} transparent animationType={fSweep.animationType} onRequestClose={() => setSweepOpen(false)}>
+          <View style={[styles.modalBackdrop, fSweep.overlay]}>
+            <View style={[styles.modalCard, { maxHeight: '92%' }, fSweep.card]} testID="plansweep-modal">
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Plan Set Code Sweep</Text>
+                <TouchableOpacity onPress={() => setSweepOpen(false)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
+                  <X size={18} color={themeColors.text} strokeWidth={1.75} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 560, flexShrink: 1 }} keyboardShouldPersistTaps="handled">
+                <PlanSweepPanel
+                  project={project}
+                  sheets={allSheets}
+                  onUpgrade={() => { setSweepOpen(false); router.push('/paywall'); }}
+                  onClose={() => setSweepOpen(false)}
+                />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
 
       {/* New-sheet naming modal */}
       <Modal visible={!!newSheet} transparent animationType={fNew.animationType} onRequestClose={() => setNewSheet(null)}>

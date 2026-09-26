@@ -18,6 +18,16 @@
 // the same recall chip, rung badge and edition-mismatch badge on it that Code
 // Check carries, comparing `citedEdition` against the jurisdiction's own row.
 //
+// Plan Set Code Sweep (list-2 lane S, 2026-09-26): an OPTIONAL `sweep` field
+// ({ scopeTargets }) turns one call into a scope-aimed pre-check whose findings
+// are QUESTIONS FOR THE ARCHITECT: the prompt names the GC's scope, forbids the
+// "violation / non-compliant / fails code / illegal" vocabulary, and asks for a
+// `question` and an approximate `location` per finding. Without `sweep` the
+// prompt, the normalized result and every other byte are exactly what Plan
+// Review sent and received before (scripts/validate-plan-sweep.ts pins both
+// against the pre-sweep base). Tiering, caps, the hourly bucket, CORS and the
+// error bodies are unchanged; `evidence` stays server-stamped.
+//
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -74,6 +84,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// <pure:planPrompt>
 interface PlanCodeRequest {
   imageBase64: string;
   mimeType: string;
@@ -83,6 +94,27 @@ interface PlanCodeRequest {
    *  utils/codeJurisdiction.groundingFactsFor. Exactly the text the prompt
    *  carries and the chip shows, so the two can never disagree. */
   jurisdictionBlock?: string;
+  /** Plan Set Code Sweep only. Absent on every Plan Review call. */
+  sweep?: { scopeTargets?: unknown };
+}
+
+/**
+ * The sweep's scope targets, sanitised: at most 8, each one line, control
+ * characters stripped, clipped to 80 characters, empties dropped. null when the
+ * request carries no `sweep` object at all — the Plan Review path.
+ */
+function sweepTargetsOf(sweep: unknown): string[] | null {
+  if (!sweep || typeof sweep !== "object" || Array.isArray(sweep)) return null;
+  const raw = (sweep as { scopeTargets?: unknown }).scopeTargets;
+  const list = Array.isArray(raw) ? raw : [];
+  const out: string[] = [];
+  for (const t of list) {
+    if (typeof t !== "string") continue;
+    const clean = t.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80).trim();
+    if (clean) out.push(clean);
+    if (out.length >= 8) break;
+  }
+  return out;
 }
 
 function buildPrompt(req: PlanCodeRequest): string {
@@ -95,6 +127,10 @@ function buildPrompt(req: PlanCodeRequest): string {
   // A GC does not build to a general IRC; he builds to the edition his AHJ
   // adopted, and the two differ in exactly the places a plan examiner stops him.
   const juris = req.jurisdictionBlock?.trim() || "";
+  // Plan Set Code Sweep: null on every Plan Review call, so each sweep entry
+  // below is '' there and filter(Boolean) drops it — the Plan Review prompt is
+  // byte-identical to what it was before the sweep existed.
+  const sweep = sweepTargetsOf(req.sweep);
   return [
     "You are a meticulous building-code plan reviewer. Review THIS construction drawing for LIKELY code issues a plan examiner would flag.",
     `Project location: ${loc}. Project type: ${ptype}.`,
@@ -102,16 +138,28 @@ function buildPrompt(req: PlanCodeRequest): string {
     juris
       ? "Cite the ADOPTED edition named above wherever it covers the issue, and say which edition you are citing. Fall back to general IRC/IBC (and ADA where relevant) only for something that block does not cover. Never invent a local amendment that is not listed."
       : "Cite general IRC/IBC sections (and ADA where relevant). If the location is unknown, give general IRC/IBC guidance and do not invent local amendments.",
+    sweep && sweep.length > 0
+      ? `The general contractor's scope on this job includes: ${sweep.join("; ")}. Look first for items on this sheet that relate to that scope. Still flag ONLY what you can actually see.`
+      : "",
+    sweep
+      ? "Write every field as a question or an observation for the architect. Never use the words 'violation', 'violates', 'non-compliant', 'fails code' or 'illegal'."
+      : "",
     "Only flag what you can ACTUALLY SEE in the drawing. Prefer fewer high-confidence findings over speculation. This is a PRE-CHECK the GC will verify against their AHJ — it is not a substitute for plan review.",
     "You cannot look anything up: every section number is your own recall. Give a section only when you are certain of it; otherwise leave section empty and describe the requirement.",
     juris
       ? "For each finding, citedEdition is the code family and edition you are citing, exactly as named in the jurisdiction block above when that block covers it, and section is the section number alone."
       : "For each finding, citedEdition is the model-code family and the edition year you are recalling (the family alone if you are unsure of the year), and section is the section number alone.",
     "Return STRICT JSON of this exact shape and nothing else:",
-    '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"code and section as you would print it","citedEdition":"code family and edition year","section":"section number only, or empty","requirement":"what code requires","observed":"what the drawing shows that conflicts","severity":"high|med|low","confidence":"high|med|low"}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}',
+    sweep
+      ? '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"code and section as you would print it","citedEdition":"code family and edition year","section":"section number only, or empty","requirement":"what code requires","observed":"what the drawing shows","severity":"high|med|low","confidence":"high|med|low","question":"one plain question the contractor can send the architect about this item, phrased as a question","location":{"x":0.0-1.0,"y":0.0-1.0}}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}'
+      : '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"code and section as you would print it","citedEdition":"code family and edition year","section":"section number only, or empty","requirement":"what code requires","observed":"what the drawing shows that conflicts","severity":"high|med|low","confidence":"high|med|low"}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}',
+    sweep
+      ? "location is the approximate centre of the item on the sheet as a fraction of width/height, or null if you cannot place it."
+      : "",
     'If you see no likely issues, return {"findings":[],"disclaimer":"..."}.',
   ].filter(Boolean).join("\n");
 }
+// </pure:planPrompt>
 
 // <pure:normalizePlanResult>
 /**
@@ -131,13 +179,29 @@ interface PlanFindingOut {
   severity: string;
   confidence: string;
   evidence: typeof PLAN_FINDING_EVIDENCE;
+  /** Sweep only — never a key on a Plan Review finding. */
+  question?: string | null;
+  location?: { x: number; y: number } | null;
 }
-function normalizePlanResult(raw: unknown): { findings: PlanFindingOut[]; disclaimer: string } {
+function normalizePlanResult(raw: unknown, sweep = false): { findings: PlanFindingOut[]; disclaimer: string } {
   // One line, bounded: a model string never carries a newline or a wall of text
   // into a card, and never an empty-looking value that is only whitespace.
   const clip = (v: unknown, max: number): string =>
     typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
   const obj = raw && typeof raw === "object" ? raw as { findings?: unknown; disclaimer?: unknown } : {};
+  const sweepQuestion = (v: unknown): string | null => {
+    const q = clip(v, 300);
+    if (!q) return null;
+    if (q.endsWith("?")) return q;
+    const stem = q.slice(0, 299).replace(/[\s.!:;,]+$/, "");
+    return stem ? `${stem}?` : null;
+  };
+  const sweepLocation = (v: unknown): { x: number; y: number } | null => {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+    const { x, y } = v as { x?: unknown; y?: unknown };
+    if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+  };
   const list = Array.isArray(obj.findings) ? obj.findings.slice(0, 40) : [];
   const findings: PlanFindingOut[] = [];
   for (const item of list) {
@@ -155,6 +219,10 @@ function normalizePlanResult(raw: unknown): { findings: PlanFindingOut[]; discla
       severity: clip(f.severity, 8),
       confidence: clip(f.confidence, 8),
       evidence: PLAN_FINDING_EVIDENCE,
+      // Sweep only: the question for the architect (always ends in '?') and
+      // the approximate centre on the sheet, both clamped or null. A Plan
+      // Review call never gets these keys, whatever the model wrote.
+      ...(sweep ? { question: sweepQuestion(f.question), location: sweepLocation(f.location) } : {}),
     });
   }
   return { findings, disclaimer: clip(obj.disclaimer, 300) };
@@ -253,6 +321,13 @@ serve(async (req) => {
       }, 429);
     }
 
+    // Plan Set Code Sweep: the same call, charged the same way, normalized with
+    // the sweep fields. The Plan Review path below is untouched.
+    if (sweepTargetsOf(body.sweep) !== null) {
+      const swept = normalizePlanResult(await callGemini(body), true);
+      const sweepUsed = await aiUsageIncrement(auth.userId, "plan_code_review");
+      return jsonResponse({ success: true, data: swept, usage: { used: sweepUsed, cap } });
+    }
     const data = normalizePlanResult(await callGemini(body));
     const newUsed = await aiUsageIncrement(auth.userId, "plan_code_review");
     return jsonResponse({ success: true, data, usage: { used: newUsed, cap } });

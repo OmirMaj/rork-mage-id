@@ -110,6 +110,7 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'client-portal-setup': 'form', 'payments-setup': 'form', 'qbo-setup': 'form',
   'get-verified': 'form', 'work-order': 'form', 'warranty-walk': 'form',
   'dev-seeder': 'form', 'dev-flagship-seeder': 'form', 'tax-1099-export': 'form',
+  'insurance-audit': 'form', 'tomorrow-lineup': 'form',
   'client-messages': 'form', 'messages': 'form', '+not-found': 'form',
   'tutorials': 'form',
 

@@ -1,0 +1,101 @@
+{
+ "objectIdFieldName": "OBJECTID",
+ "uniqueIdField": {
+  "name": "OBJECTID",
+  "isSystemMaintained": true
+ },
+ "globalIdFieldName": "",
+ "geometryType": "esriGeometryPolygon",
+ "spatialReference": {
+  "wkid": 102100,
+  "latestWkid": 3857
+ },
+ "fields": [
+  {
+   "name": "PAMS_PIN",
+   "type": "esriFieldTypeString",
+   "alias": "PAMS_PIN",
+   "sqlType": "sqlTypeOther",
+   "length": 38,
+   "domain": null,
+   "defaultValue": null
+  },
+  {
+   "name": "PCL_MUN",
+   "type": "esriFieldTypeString",
+   "alias": "PCL_MUN",
+   "sqlType": "sqlTypeOther",
+   "length": 4,
+   "domain": null,
+   "defaultValue": null
+  },
+  {
+   "name": "PCLBLOCK",
+   "type": "esriFieldTypeString",
+   "alias": "PCLBLOCK",
+   "sqlType": "sqlTypeOther",
+   "length": 10,
+   "domain": null,
+   "defaultValue": null
+  },
+  {
+   "name": "PCLLOT",
+   "type": "esriFieldTypeString",
+   "alias": "PCLLOT",
+   "sqlType": "sqlTypeOther",
+   "length": 10,
+   "domain": null,
+   "defaultValue": null
+  },
+  {
+   "name": "PCLQCODE",
+   "type": "esriFieldTypeString",
+   "alias": "PCLQCODE",
+   "sqlType": "sqlTypeOther",
+   "length": 11,
+   "domain": null,
+   "defaultValue": null
+  },
+  {
+   "name": "MUN_NAME",
+   "type": "esriFieldTypeString",
+   "alias": "MUN_NAME",
+   "sqlType": "sqlTypeOther",
+   "length": 40,
+   "domain": null,
+   "defaultValue": null
+  },
+  {
+   "name": "COUNTY",
+   "type": "esriFieldTypeString",
+   "alias": "COUNTY",
+   "sqlType": "sqlTypeOther",
+   "length": 10,
+   "domain": null,
+   "defaultValue": null
+  },
+  {
+   "name": "PROP_LOC",
+   "type": "esriFieldTypeString",
+   "alias": "PROP_LOC",
+   "sqlType": "sqlTypeOther",
+   "length": 25,
+   "domain": null,
+   "defaultValue": null
+  }
+ ],
+ "features": [
+  {
+   "attributes": {
+    "PAMS_PIN": "0905_199_1",
+    "PCL_MUN": "0905",
+    "PCLBLOCK": "199",
+    "PCLLOT": "1",
+    "PCLQCODE": "",
+    "MUN_NAME": "HOBOKEN CITY",
+    "COUNTY": "HUDSON",
+    "PROP_LOC": "94 WASHINGTON ST"
+   }
+  }
+ ]
+}
