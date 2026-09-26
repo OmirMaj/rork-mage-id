@@ -24,7 +24,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Animated, Easing, ActivityIndicator, Linking,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import {
@@ -54,7 +54,7 @@ import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { useProjects } from '@/contexts/ProjectContext';
 import CodeCheckLoader from '@/components/CodeCheckLoader';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
-import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, scopeSummary, type RoadmapLead } from '@/utils/permitRoadmap';
+import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, type RoadmapLead } from '@/utils/permitRoadmap';
 import {
   inspectionHistoryFactsFor,
   type InspectionHistoryGrounding,
@@ -66,7 +66,7 @@ import {
   type ResolvedRoadmapLead,
 } from '@/utils/automation/learnedLeadTime';
 import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
-import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview, Permit } from '@/types';
+import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview, Permit, Project } from '@/types';
 import { recordInspectionResult } from '@/utils/inspectionPrep';
 import { showAlert } from '@/utils/alert';
 import AskConstructionMode from '@/components/construction/AskConstructionMode';
@@ -81,6 +81,8 @@ import {
   resolveCodeJurisdiction,
   groundingFactsFor,
   issuingAuthorityForAddress,
+  codesSummary,
+  departmentFor,
   jobsiteAddressForProject,
   sameJobsiteAddress,
   viewerUrlToOpen,
@@ -113,6 +115,19 @@ import { useSafety } from '@/contexts/SafetyContext';
 import { generateUUID } from '@/utils/generateId';
 import { todayCalendarDay } from '@/utils/calendarDate';
 import { projectTypeLabel } from '@/utils/projectTypes';
+// Code Thread: the job's own data grounds the check, the model may ask up to
+// three answer-changing follow-ups, and each run is saved to the job (on this
+// device until sign-out; see utils/codeThread/store.ts for why it is local).
+import { categoryForProject, codeThreadContextBlock, scenarioForSource } from '@/utils/codeThread/context';
+import {
+  MAX_FOLLOW_UPS, answeredFactsBlock, answersCacheFragment, coerceFollowUps, followUpInstruction, followUpsZod,
+} from '@/utils/codeThread/followUps';
+import { loadCodeChecks, remapActions, saveCodeCheck, subscribeCodeChecks } from '@/utils/codeThread/store';
+import { hashLeakText } from '@/utils/profitLeak/leakPrompt';
+import type {
+  CodeCheckGroundingSnapshot, CodeCheckRecord, CodeCheckResultSnapshot, CodeThreadAnswer, CodeThreadFollowUp, CodeThreadSource,
+} from '@/utils/codeThread/types';
+import CodeThreadActions from '@/components/codeThread/CodeThreadActions';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -199,6 +214,7 @@ const codeCheckSchema = z.object({
   inspections: z.array(z.string()).default([]),
   commonViolations: z.array(z.string()).default([]),
   disclaimer: z.string().catch('').default(''),
+  followUps: followUpsZod,
 });
 
 type CodeCheckResult = z.infer<typeof codeCheckSchema>;
@@ -458,6 +474,9 @@ function ConstructionAIScreenInner() {
   const { tier } = useTierAccess();
   const { user } = useAuth();
   const router = useRouter();
+  // "Code check this" from a job, a punch item or a plan sheet lands here with
+  // these (utils/codeThread/actions.ts codeCheckRoute). No params → nothing.
+  const params = useLocalSearchParams<{ projectId?: string; source?: string; sourceId?: string; mode?: string }>();
 
   // ── Mode toggle ─────────────────────────────────────────────────────
   const [mode, setMode] = useState<'code' | 'roadmap' | 'plan' | 'ask'>('code');
@@ -514,6 +533,31 @@ function ConstructionAIScreenInner() {
   const [resultOpen, setResultOpen] = useState(false);
   const [overLimit, setOverLimit] = useState(false);
 
+  // ── Code Thread state ────────────────────────────────────────────────
+  // Where this check came from (a punch item, a plan sheet, the job).
+  const [threadSource, setThreadSource] = useState<CodeThreadSource | null>(null);
+  // His taps on the model's follow-ups. Each one re-runs the SAME check.
+  const [answers, setAnswers] = useState<CodeThreadAnswer[]>([]);
+  const [followUps, setFollowUps] = useState<CodeThreadFollowUp[]>([]);
+  // One id per thread: a re-run with an answer replaces the saved record.
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [savedRecord, setSavedRecord] = useState<CodeCheckRecord | null>(null);
+  /** A new question starts a new thread: the old answers belong to the old one. */
+  const resetThread = useCallback(() => {
+    setThreadId(null);
+    setAnswers([]);
+    setFollowUps([]);
+    setSavedRecord(null);
+  }, []);
+  const onChangeCategory = useCallback((c: CategoryKey) => {
+    setCategory(c);
+    resetThread();
+  }, [resetThread]);
+  const onChangeScenario = useCallback((text: string) => {
+    setScenario(text);
+    resetThread();
+  }, [resetThread]);
+
   const dailyCap = useMemo(() => FEATURE_LIMITS.ai_code_check_daily[tier], [tier]);
 
   // ── Roadmap state ────────────────────────────────────────────────────
@@ -534,10 +578,16 @@ function ConstructionAIScreenInner() {
     getPlanReviewForSheet,
     savePlanReview,
     updatePlanReview,
+    getPunchItemsForProject,
+    getPlanSheet,
   } = useProjects();
   const { addHazard, hazards } = useSafety();
 
   const codeCheckProject = codeCheckProjectId ? projects.find((p) => p.id === codeCheckProjectId) ?? null : null;
+  // The NYC building record for the LINKED job (null project → unsupported, no
+  // network). Its summary goes into the prompt only once it is 'ready'; a NYC
+  // job whose record was not read is saved as 'not checked', never as clean.
+  const codeBuilding = useBuildingRecord(codeCheckProject);
 
   // Linking a project REPLACES the address — every field, blanks included.
   //
@@ -551,6 +601,9 @@ function ConstructionAIScreenInner() {
   // one value.
   const selectCodeCheckProject = useCallback((id: string | null) => {
     if (id === codeCheckProjectId) return;
+    // A different job is a different thread.
+    resetThread();
+    setThreadSource(null);
     if (id === null) {
       // Back to "No project". Hand back whatever they had typed themselves
       // before the first link — but ONLY if the box still holds the project's
@@ -568,7 +621,7 @@ function ConstructionAIScreenInner() {
       setAddress(next);
     }
     setCodeCheckProjectId(id);
-  }, [codeCheckProjectId, projects, address]);
+  }, [codeCheckProjectId, projects, address, resetThread]);
 
   // Keep a LINKED project's address current. `codeCheckProject` re-derives from
   // `projects` on every render, but `address` is state — so editing the linked
@@ -631,6 +684,68 @@ function ConstructionAIScreenInner() {
   const roadmapDailyCap = useMemo(() => FEATURE_LIMITS.ai_permit_roadmap_daily[tier], [tier]);
 
   const roadmapProject = projects.find((p) => p.id === roadmapProjectId) ?? null;
+
+  // ── Entry from elsewhere ("Code check this") ─────────────────────────
+  // One-shot per DISTINCT set of params, keyed on all four: a second "Code
+  // check this" into the already-mounted tab (another punch item, another
+  // sheet) re-applies. A projectId that does not resolve yet (projects still
+  // loading, or a stale id) does nothing and leaves the key unhandled, so it
+  // applies once the project shows up. No params → nothing happens.
+  const handledParamsKey = useRef<string | null>(null);
+  useEffect(() => {
+    const pid = params.projectId;
+    if (!pid) return;
+    const key = `${params.projectId ?? ''}|${params.source ?? ''}|${params.sourceId ?? ''}|${params.mode ?? ''}`;
+    if (handledParamsKey.current === key) return;
+    const project = projects.find((p) => p.id === pid);
+    if (!project) return;
+    handledParamsKey.current = key;
+
+    if (params.mode === 'roadmap') {
+      setMode('roadmap');
+      setRoadmapProjectId(pid);
+      return;
+    }
+    setMode('code');
+    // Links through the SAME path as the project chips (so the address is
+    // replaced whole, and setCodeCheckProjectId keeps its one caller).
+    // validate-code-jurisdiction counts the chips' direct call sites, so this
+    // entry dispatches through a local alias rather than a third literal call.
+    const linkProject = selectCodeCheckProject;
+    linkProject(pid);
+    setCategory(categoryForProject(project));
+    const kind: 'punch' | 'plan_sheet' | 'project' =
+      params.source === 'punch' || params.source === 'plan_sheet' ? params.source : 'project';
+    const sourceId = params.sourceId || undefined;
+    const punch = kind === 'punch' && sourceId
+      ? getPunchItemsForProject(pid).find((pi) => pi.id === sourceId) ?? null
+      : null;
+    const sheet = kind === 'plan_sheet' && sourceId ? getPlanSheet(sourceId) ?? null : null;
+    // A punch item or sheet that is gone falls back to the job itself, and the
+    // source says so (no label pretending the item was read).
+    const resolvedKind = (kind === 'punch' && !punch) || (kind === 'plan_sheet' && !sheet) ? 'project' : kind;
+    setScenario(scenarioForSource({ kind: resolvedKind, project, punch, sheet }));
+    const label = punch
+      ? punch.description
+      : sheet
+        ? [sheet.sheetNumber, sheet.name].filter(Boolean).join(' ')
+        : project.name;
+    setThreadSource({ kind: resolvedKind, id: resolvedKind === 'project' ? undefined : sourceId, label });
+    resetThread();
+  }, [params.projectId, params.source, params.sourceId, params.mode, projects, selectCodeCheckProject, getPunchItemsForProject, getPlanSheet, resetThread]);
+
+  // Keep the saved record fresh: an action taken from the result sheet (Add to
+  // Permits…) writes to the store, and the row then shows as done.
+  useEffect(() => subscribeCodeChecks(() => {
+    if (!savedRecord) return;
+    void loadCodeChecks(savedRecord.projectId).then((r) => {
+      if (r.ok) {
+        const next = r.checks.find((c) => c.id === savedRecord.id);
+        if (next) setSavedRecord(next);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [savedRecord?.id, savedRecord?.projectId]);
 
   // WHO issues the permits on this job. `Permit.jurisdiction` means the issuing
   // authority — the manual add-permit form refuses to save without one and
@@ -1147,8 +1262,9 @@ function ConstructionAIScreenInner() {
   const canSubmit =
     city.trim().length > 0 && stateCode.trim().length > 0 && scenario.trim().length > 10 && !loading;
 
-  const runCheck = useCallback(async () => {
+  const runCheck = useCallback(async (answeredOverride?: CodeThreadAnswer[]) => {
     if (!canSubmit) return;
+    const answered = answeredOverride ?? answers;
     const used = await getTodayUsage(user?.id);
     if (used >= dailyCap) {
       setOverLimit(true);
@@ -1165,34 +1281,38 @@ function ConstructionAIScreenInner() {
 
     const categoryLabel = CATEGORIES.find((c) => c.key === category)?.label ?? category;
 
-    // Build optional project-context prefix for a richer, grounded check.
-    const projectContextBlock = codeCheckProject
-      ? `PROJECT CONTEXT (auto-filled from "${codeCheckProject.name}"):\n` +
-        `- Type: ${codeCheckProject.type || 'unknown'}\n` +
-        `- Scope: ${scopeSummary(codeCheckProject) || codeCheckProject.description || '(none)'}\n`
+    // The linked job's OWN records (type, size, scope notes, estimate lines
+    // with quantities, schedule phases, a CONFIRMED zoning district). `sent`
+    // is built in the same pass, so the chip names exactly what went out.
+    const ctx = codeCheckProject ? codeThreadContextBlock(codeCheckProject) : null;
+    const projectContextBlock = ctx ? ctx.block + '\n' : '';
+    const buildingBlock = codeBuilding.phase === 'ready' && codeBuilding.summary.promptBlock
+      ? `${codeBuilding.summary.promptBlock}\n`
       : '';
+    const factsBlock = answeredFactsBlock(answered);
 
     const prompt = `A contractor is working on the following project and needs a building-code sanity check. You are answering from your memory of the model codes: you cannot look anything up and you are not a licensed professional.
 
 ${projectContextBlock}Address: ${addressLine || `${city.trim()}, ${stateCode.trim()}`}
 ${grounding.promptBlock}
 ${inspectionGrounding.promptBlock}
-Category: ${categoryLabel}
+${buildingBlock}Category: ${categoryLabel}
 Scenario: ${scenario.trim()}
-
+${factsBlock ? `${factsBlock}\n` : ''}
 Return a JSON object with:
 - summary: one paragraph explaining the key code implications
 - applicableCodes: array of { code (the family and edition exactly as named in the jurisdiction block above; if no edition is named there, the family only, e.g. "IRC"), section (e.g. "R310.1" — ONLY when you are certain of it; otherwise ""), requirement (plain English) }
 - permitsRequired: array of permit names the contractor should pull before work
 - inspections: array of inspections this project will likely need
 - commonViolations: array of the most common code violations for this type of work
+${followUpInstruction(answered)}
 
 Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.
 Never invent a section number you are unsure of — leave section empty and describe the requirement instead. You have no code lookup here: a section number is your own recall, so cite a section only when you are certain of it.`;
 
     // The jurisdiction is part of the prompt, so it MUST be part of the key —
     // otherwise Brooklyn and Phoenix, asked the same scenario, share an answer.
-    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
+    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${grounding.cacheKey}::${inspectionGrounding.cacheKey}::${addressLine.trim().toLowerCase()}::${category}::${hashLeakText(scenario.trim().toLowerCase(), '', [])}::${ctx?.cacheFragment ?? 'noctx'}::${codeBuilding.phase === 'ready' ? codeBuilding.summary.cacheKey : 'nobr'}::${answersCacheFragment(answered)}`;
 
     try {
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey, 'ai_code_check');
@@ -1201,11 +1321,70 @@ Never invent a section number you are unsure of — leave section empty and desc
         showAlert('Code check failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
         return;
       }
-      setResult(res.data as CodeCheckResult);
+      const data = res.data as CodeCheckResult;
+      setResult(data);
       // Snapshot the grounding that went WITH this prompt.
       setResultGrounding(grounding);
       setResultInspectionGrounding(inspectionGrounding);
       setResultJurisdiction(jurisdiction);
+      setFollowUps(coerceFollowUps(data.followUps, answered));
+      // Save the run to the job: a snapshot of what was SENT and what came
+      // back. Local to this device until sign-out (utils/codeThread/store.ts).
+      if (codeCheckProject) {
+        const id = threadId ?? generateUUID();
+        setThreadId(id);
+        const nowISO = new Date().toISOString();
+        const resolvedEntry = jurisdiction.kind === 'unknown' ? null : jurisdiction.entry;
+        const buildingReady = codeBuilding.phase === 'ready';
+        const snapshot: CodeCheckGroundingSnapshot = {
+          authority: codeCheckAuthority,
+          codes: resolvedEntry ? codesSummary(resolvedEntry.codes) : '',
+          checkedOn: resolvedEntry ? resolvedEntry.checkedOn : null,
+          grounded: grounding.grounded,
+          chipLabel: grounding.chipLabel,
+          buildingRecordKind: buildingReady ? codeBuilding.summary.kind : codeBuilding.supported ? 'not_checked' : 'none',
+          buildingRecordHeadline: buildingReady
+            ? codeBuilding.summary.headline
+            : codeBuilding.supported ? 'DOB record not checked (building not confirmed or not loaded)' : null,
+          // BuildingDepartment carries no name of its own; the row that owns
+          // the verified department is named by its authority.
+          departmentName: departmentFor(jurisdiction) && jurisdiction.kind === 'city' ? jurisdiction.entry.authorityName : null,
+          jobDataSent: ctx ? ctx.sent : [],
+        };
+        const reused = savedRecord && savedRecord.id === id ? savedRecord : null;
+        const resultSnapshot: CodeCheckResultSnapshot = {
+          summary: data.summary,
+          applicableCodes: data.applicableCodes.map((c) => ({ code: c.code, section: c.section ?? '', requirement: c.requirement })),
+          permitsRequired: data.permitsRequired,
+          inspections: data.inspections,
+          commonViolations: data.commonViolations,
+        };
+        const record: CodeCheckRecord = {
+          id,
+          projectId: codeCheckProject.id,
+          createdAt: reused?.createdAt ?? nowISO,
+          updatedAt: nowISO,
+          source: threadSource ?? { kind: 'project' },
+          category,
+          categoryLabel,
+          scenario: scenario.trim(),
+          address: addressLine || `${city.trim()}, ${stateCode.trim()}`,
+          answers: answered,
+          followUps: coerceFollowUps(data.followUps, answered),
+          grounding: snapshot,
+          result: resultSnapshot,
+          disclaimer: CODE_CHECK_DISCLAIMER,
+          recallNote: 'Code sections below are model recall, not a lookup.',
+          // An action follows the item's TEXT, never its position: a follow-up
+          // that reorders or replaces the lists must not move an "Added" mark
+          // onto a different item (remapActions).
+          actions: reused ? remapActions(reused.result, reused.actions, resultSnapshot) : [],
+        };
+        void saveCodeCheck(record);
+        setSavedRecord(record);
+      } else {
+        setSavedRecord(null);
+      }
       if (!res.cached) await bumpTodayUsage(user?.id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // iOS can't present two Modals at once. Dismiss the loading modal
@@ -1219,7 +1398,26 @@ Never invent a section number you are unsure of — leave section empty and desc
       setLoading(false);
       showAlert('Code check failed', err instanceof Error ? err.message : 'Unknown error.');
     }
-  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id]);
+  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id, answers, codeBuilding.phase, codeBuilding.supported, codeBuilding.summary, codeCheckAuthority, threadId, savedRecord, threadSource]);
+
+  // A follow-up tap. iOS will not present a second Modal while the pageSheet
+  // result is still dismissing (the openDelay rule above), so close it FIRST
+  // and start the re-run (whose fullScreen LoadingModal presents) only after
+  // the dismissal animation. Each re-run counts toward today's checks.
+  // A second tap that lands while the closing sheet still shows the chip
+  // (iOS keeps it touchable during the dismissal) must not start a second
+  // paid re-run or store the answer twice.
+  const lastFollowUpTapAt = useRef(0);
+  const onAnswerFollowUp = useCallback((fu: CodeThreadFollowUp, option: string) => {
+    if (answers.length >= MAX_FOLLOW_UPS) return;
+    if (answers.some((a) => a.questionId === fu.id)) return;
+    if (Date.now() - lastFollowUpTapAt.current < 1500) return;
+    lastFollowUpTapAt.current = Date.now();
+    const next = [...answers, { questionId: fu.id, question: fu.question, answer: option }];
+    setAnswers(next);
+    setResultOpen(false);
+    setTimeout(() => { void runCheck(next); }, Platform.OS === 'ios' ? 450 : 80);
+  }, [answers, runCheck]);
 
   const presets = PRESET_QUESTIONS[category];
 
@@ -1619,7 +1817,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                 return (
                   <TouchableOpacity
                     key={c.key}
-                    onPress={() => setCategory(c.key)}
+                    onPress={() => onChangeCategory(c.key)}
                     activeOpacity={0.8}
                     style={[styles.chip, active && styles.chipActive]}
                     testID={`code-check-cat-${c.key}`}
@@ -1639,7 +1837,7 @@ Never invent a section number you are unsure of — leave section empty and desc
                 <TouchableOpacity
                   key={q}
                   onPress={() => {
-                    setScenario(q);
+                    onChangeScenario(q);
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   }}
                   activeOpacity={0.7}
@@ -1662,7 +1860,7 @@ Never invent a section number you are unsure of — leave section empty and desc
             <Text style={styles.label}>Describe the work</Text>
             <TextInput
               value={scenario}
-              onChangeText={setScenario}
+              onChangeText={onChangeScenario}
               placeholder="Tap a popular question above, or write your own (e.g. converting a garage into a livable bedroom with a new egress window)."
               placeholderTextColor={Colors.textMuted}
               style={styles.textArea}
@@ -1674,7 +1872,7 @@ Never invent a section number you are unsure of — leave section empty and desc
 
             <TouchableOpacity
               style={[styles.runBtn, !canSubmit && styles.runBtnDisabled]}
-              onPress={runCheck}
+              onPress={() => runCheck()}
               disabled={!canSubmit}
               activeOpacity={0.85}
               testID="code-check-run"
@@ -2206,6 +2404,13 @@ Never invent a section number you are unsure of — leave section empty and desc
         grounding={resultGrounding}
         jurisdiction={resultJurisdiction}
         inspectionGrounding={resultInspectionGrounding}
+        project={savedRecord ? projects.find((p) => p.id === savedRecord.projectId) ?? null : null}
+        savedRecord={savedRecord}
+        followUps={followUps}
+        answeredCount={answers.length}
+        answers={answers}
+        onAnswer={onAnswerFollowUp}
+        dailyCap={dailyCap}
       />
     </View>
   );
@@ -2678,6 +2883,7 @@ type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 
 function ResultModal({
   visible, result, onClose, location, scenario, grounding, jurisdiction, inspectionGrounding,
+  project = null, savedRecord = null, followUps = [], answeredCount = 0, answers = [], onAnswer, dailyCap,
 }: {
   visible: boolean;
   result: CodeCheckResult | null;
@@ -2698,6 +2904,17 @@ function ResultModal({
    *  the answer above may reason about them, and he has to be able to read the
    *  words themselves rather than the model's account of them. */
   inspectionGrounding: InspectionHistoryGrounding | null;
+  /** Code Thread: the job this run was saved to (null = no linked job). */
+  project?: Project | null;
+  /** The saved snapshot of this run; its actions show as done. */
+  savedRecord?: CodeCheckRecord | null;
+  /** Answer-changing questions the model asked (at most 3 per thread). */
+  followUps?: CodeThreadFollowUp[];
+  answeredCount?: number;
+  answers?: CodeThreadAnswer[];
+  /** A tap re-runs the same check with the answer as a fact. */
+  onAnswer?: (fu: CodeThreadFollowUp, option: string) => void;
+  dailyCap?: number;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
@@ -2833,6 +3050,28 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
             />
           ) : null}
 
+          {/* Code Thread: exactly what of HIS job went out with this check. */}
+          {project && savedRecord ? (
+            <View style={styles.historyChip} testID="codethread-sent">
+              <ClipboardList size={12} color={Colors.primary} strokeWidth={2} />
+              <Text style={styles.historyChipText}>
+                {`Sent from this job: ${savedRecord.grounding.jobDataSent.join(' · ')}`}
+              </Text>
+            </View>
+          ) : null}
+          {project && savedRecord && savedRecord.grounding.buildingRecordKind !== 'none' ? (
+            <View
+              style={[styles.jurisdictionChip, savedRecord.grounding.buildingRecordKind === 'not_checked' && styles.jurisdictionChipUnknown]}
+              testID="codethread-building"
+            >
+              <Landmark size={12} color={savedRecord.grounding.buildingRecordKind === 'not_checked' ? themeColors.warningLabel : Colors.primary} strokeWidth={2} />
+              <Text style={[styles.jurisdictionChipText, savedRecord.grounding.buildingRecordKind === 'not_checked' && styles.jurisdictionChipTextUnknown]}>
+                {savedRecord.grounding.buildingRecordHeadline ?? 'DOB record not checked (building not confirmed or not loaded)'}
+              </Text>
+            </View>
+          ) : null}
+          {project ? <DepartmentCard project={project} testID="codethread-department" /> : null}
+
           {result.summary ? (
             <View style={[styles.resultCard, styles.resultSummaryCard]}>
               <View style={styles.resultCardHeader}>
@@ -2905,6 +3144,9 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
                         </View>
                       </View>
                     ) : null}
+                    {savedRecord && project ? (
+                      <CodeThreadActions key={`codes-${i}-${c.requirement}`} record={savedRecord} project={project} section="codes" index={i} text={c.requirement} onBeforeNavigate={onClose} />
+                    ) : null}
 
                     {isOpen && (
                       <View style={styles.codeDetail}>
@@ -2973,7 +3215,12 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               onToggle={toggle}
             >
               {result.permitsRequired.map((p, i) => (
-                <Text key={i} style={styles.bulletRow}>• {p}</Text>
+                <View key={i}>
+                  <Text style={styles.bulletRow}>• {p}</Text>
+                  {savedRecord && project ? (
+                    <CodeThreadActions key={`permits-${i}-${p}`} record={savedRecord} project={project} section="permits" index={i} text={p} onBeforeNavigate={onClose} />
+                  ) : null}
+                </View>
               ))}
             </AccordionSection>
           )}
@@ -2989,7 +3236,12 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               onToggle={toggle}
             >
               {result.inspections.map((ins, i) => (
-                <Text key={i} style={styles.bulletRow}>• {ins}</Text>
+                <View key={i}>
+                  <Text style={styles.bulletRow}>• {ins}</Text>
+                  {savedRecord && project ? (
+                    <CodeThreadActions key={`inspections-${i}-${ins}`} record={savedRecord} project={project} section="inspections" index={i} text={ins} onBeforeNavigate={onClose} />
+                  ) : null}
+                </View>
               ))}
             </AccordionSection>
           )}
@@ -3005,10 +3257,68 @@ Be concrete and specific to the cited jurisdiction. Never invent a section numbe
               onToggle={toggle}
             >
               {result.commonViolations.map((v, i) => (
-                <Text key={i} style={styles.bulletRow}>• {v}</Text>
+                <View key={i}>
+                  <Text style={styles.bulletRow}>• {v}</Text>
+                  {savedRecord && project ? (
+                    <CodeThreadActions key={`violations-${i}-${v}`} record={savedRecord} project={project} section="violations" index={i} text={v} onBeforeNavigate={onClose} />
+                  ) : null}
+                </View>
               ))}
             </AccordionSection>
           )}
+
+          {/* Code Thread: questions whose answer would change the result. */}
+          {followUps.length > 0 || answers.length > 0 ? (
+            <View style={styles.historyChipWrap} testID="codethread-followups">
+              {answers.length > 0 ? (
+                <View style={styles.threadAnswered}>
+                  <Text style={styles.codeDetailHeading}>Your answers (sent as facts)</Text>
+                  {answers.map((a, k) => (
+                    <Text key={`${a.questionId}-${k}`} style={styles.codeDetailBullet}>{`• ${a.question} — ${a.answer}`}</Text>
+                  ))}
+                </View>
+              ) : null}
+              {answeredCount >= MAX_FOLLOW_UPS ? (
+                <Text style={styles.threadCaption}>You’ve answered 3 questions — the check won’t ask more.</Text>
+              ) : followUps.length > 0 ? (
+                <>
+                  <Text style={styles.codeDetailHeading}>A detail that changes the answer</Text>
+                  {followUps.map((fu) => (
+                    <View key={fu.id} style={styles.threadQuestion}>
+                      <Text style={styles.codeReq}>{fu.question}</Text>
+                      <View style={styles.chipWrap}>
+                        {fu.options.map((opt) => (
+                          <TouchableOpacity
+                            key={opt}
+                            style={styles.chip}
+                            onPress={() => onAnswer?.(fu, opt)}
+                            disabled={!onAnswer}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${fu.question} ${opt}`}
+                            testID={`codethread-answer-${fu.id}-${opt}`}
+                          >
+                            <Text style={styles.chipText}>{opt}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={styles.threadCaption}>
+                    {dailyCap === undefined || dailyCap === Infinity
+                      ? 'Each answer re-runs the check (it counts toward your AI requests).'
+                      : `Each answer re-runs the check (uses 1 of today's ${dailyCap}).`}
+                  </Text>
+                </>
+              ) : null}
+            </View>
+          ) : null}
+
+          {project && savedRecord ? (
+            <Text style={styles.threadCaption} testID="codethread-saved">
+              {`Saved to ${project.name} on this device (until you sign out) · ${new Date(savedRecord.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. See it on the job page.`}
+            </Text>
+          ) : null}
 
           <Text style={styles.disclaimer}>
             {CODE_CHECK_DISCLAIMER}
@@ -3419,6 +3729,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   codeRuleText: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18, fontWeight: '600' as const },
   bulletRow: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 20, marginBottom: 4 },
+  // Code Thread (text + layout only; the chips reuse the history/jurisdiction recipes).
+  threadAnswered: { gap: 2 },
+  threadQuestion: { gap: 6, marginBottom: 8 },
+  threadCaption: { ...Type.caption2, color: themeColors.textMuted, lineHeight: 15 },
   disclaimer: {
     fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'center' as const, paddingHorizontal: 20, marginTop: 4,

@@ -37,6 +37,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSidebarRail, useSidebarRailRouteSync } from '@/hooks/useSidebarRail';
 import { __resetSidebarRailForTests } from '@/utils/sidebarRailStore';
 import { SIDEBAR_RAIL_KEY } from '@/utils/sidebarRail';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
 // ── Forcing the responsive hook and the platform ──────────────────────────
 // `mock`-prefixed so jest's hoisted factory may read it. null = the real hook.
@@ -396,7 +397,7 @@ describe('phone equality at 390 native (snapshots recorded from 6065b326)', () =
     await primeSignedOut();
     const tree = await mountRouteChecked(href);
     expect(tree.getPathname()).toBe(href);
-    expect(phoneView(tree.toJSON())).toMatchSnapshot();
+    expect(phoneView(stripSanctioned(tree.toJSON()))).toMatchSnapshot();
   });
 
   it.each(['/invoice', '/sub-portal-setup', '/leads', '/rfi', '/safety'])(
@@ -407,7 +408,7 @@ describe('phone equality at 390 native (snapshots recorded from 6065b326)', () =
       await AsyncStorage.setItem('mageid_theme', 'light');
       const tree = await mountRouteChecked(href);
       expect(tree.getPathname()).toBe(href);
-      const c = chrome(tree.toJSON());
+      const c = chrome(stripSanctioned(tree.toJSON()));
       expect(c.length).toBeGreaterThan(0);
       expect(c).toMatchSnapshot();
     },
@@ -424,7 +425,7 @@ describe('phone equality at 390 native (snapshots recorded from 6065b326)', () =
     await AsyncStorage.setItem('mageid_theme', 'light');
     const tree = await mountRouteChecked(href);
     expect(tree.getPathname()).toBe(href);
-    expect(clockFree(phoneView(tree.toJSON()))).toMatchSnapshot();
+    expect(clockFree(phoneView(stripSanctioned(tree.toJSON())))).toMatchSnapshot();
   });
 
   it('/settings tab renders exactly as before (tab navigator, phone branch)', async () => {
@@ -432,7 +433,7 @@ describe('phone equality at 390 native (snapshots recorded from 6065b326)', () =
     await primeWorld('empty');
     await AsyncStorage.setItem('mageid_theme', 'light');
     const tree = await mountRouteChecked('/settings');
-    expect(chrome(tree.toJSON())).toMatchSnapshot();
+    expect(chrome(stripSanctioned(tree.toJSON()))).toMatchSnapshot();
   });
 });
 

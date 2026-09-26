@@ -60,6 +60,7 @@ import { SendToClientButton } from '@/components/SendToClientButton';
 import { extractMemoryDocs, answerFromMemorySemantic } from '@/utils/projectMemory';
 import { rfiBlockStatus, overdueCalendarDays } from '@/utils/delayScan/rfiBlocking';
 import { computeRfiHoldTime } from '@/utils/rfiHoldTime';
+import { RfiScopeCheckCard } from '@/components/rfi/RfiScopeCheckCard';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
@@ -1621,6 +1622,7 @@ function RFIForm() {
           </>
         )}
 
+        {existingRFI && project ? <RfiScopeCheckCard rfi={existingRFI} project={project} /> : null}
         {/* MAGE suggests — drafts a response from how this project answered
             similar questions before. Cited; GC reviews before sending.
             Hidden once an answered/closed/void RFI holds a recorded response —

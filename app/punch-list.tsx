@@ -82,6 +82,7 @@ import { nailIt } from '@/components/animations/NailItToast';
 import { useCountTo } from '@/components/animations/TapeRollNumber';
 import { AnimatedFill } from '@/components/animations/AnimatedFill';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
+import CodeCheckThisButton from '@/components/codeThread/CodeCheckThisButton';
 import {
   buildPunchLocationOptions,
   groupPunchItemsByLocation,
@@ -2879,6 +2880,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   );
   const formPipelineEl = (
     <>
+      {/* Code check this item: closes the sheet, then opens the Code Check. */}
+      {editingItem ? (<CodeCheckThisButton variant="row" projectId={editingItem.projectId} source="punch" sourceId={editingItem.id} onBeforeNavigate={() => { setShowForm(false); resetForm(); }} testID="codethread-entry-punch" />) : null}
       {/* Only when EDITING an existing item — a new one has no lifecycle
           to show yet, and the list cards already carry a status badge
           plus the Start / Submit / Close actions. Same gate

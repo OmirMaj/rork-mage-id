@@ -22,6 +22,7 @@ import type {
   ContractSignature, ContractStatus,
   Project, EstimateRevision, PaymentSplit,
 } from '@/types';
+import type { ProposalChaseInput } from '@/utils/systemOfAction';
 
 // Row shape from the DB — snake_case mirrors columns.
 interface ProjectContractRow {
@@ -636,4 +637,37 @@ export function computeContractPaid(contract: ProjectContract): number {
 
 export function isFullySigned(contract: ProjectContract): boolean {
   return !!contract.gcSignature && !!contract.homeownerSignature && contract.status === 'signed';
+}
+
+// ─── Proposal chase (Waiting On) ────────────────────────────────────
+
+export type OpenProposalsResult = { ok: true; rows: ProposalChaseInput[] } | { ok: false; error: string };
+
+/** Every proposal he has SENT and not yet seen signed, across his jobs (RLS
+ *  scopes the read to his rows). A failed read stays a failure, never "none". */
+export async function fetchOpenProposals(): Promise<OpenProposalsResult> {
+  if (!isSupabaseConfigured) return { ok: false, error: 'Not connected' };
+  try {
+    const { data, error } = await supabase
+      .from('project_contracts')
+      .select('id,project_id,title,contract_value,status,kind,sent_at,signed_at,voided_at,superseded_by')
+      .eq('kind', 'proposal')
+      .eq('status', 'sent');
+    if (error) return { ok: false, error: error.message };
+    const rows: ProposalChaseInput[] = (data ?? []).map((r: Record<string, unknown>) => ({
+      id: String(r.id),
+      projectId: String(r.project_id),
+      title: typeof r.title === 'string' ? r.title : '',
+      contractValue: Number(r.contract_value) || 0,
+      status: String(r.status ?? ''),
+      kind: typeof r.kind === 'string' ? r.kind : undefined,
+      sentAt: typeof r.sent_at === 'string' ? r.sent_at : undefined,
+      signedAt: typeof r.signed_at === 'string' ? r.signed_at : undefined,
+      voidedAt: typeof r.voided_at === 'string' ? r.voided_at : undefined,
+      supersededBy: typeof r.superseded_by === 'string' ? r.superseded_by : undefined,
+    }));
+    return { ok: true, rows };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }

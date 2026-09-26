@@ -36,6 +36,9 @@ import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
+import { ScopeGapsCard } from '@/components/scopeGaps/ScopeGapsCard';
+import type { ScopeLine } from '@/utils/scopeCoverage';
+import type { PricedScopeGap } from '@/utils/scopeGaps';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -58,7 +61,7 @@ export default function EstimateReviewScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { cart, laborCart, assemblyCart, globalMarkup } = useMaterialCart();
+  const { cart, laborCart, assemblyCart, globalMarkup, addToCart } = useMaterialCart();
   const { settings, projects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
   const laborSamples = useLaborCostSamples();
@@ -121,6 +124,35 @@ export default function EstimateReviewScreen() {
   const laborTotal = priced.laborSell;
   const assemblyTotal = priced.assemblySell;
   const itemCount = cart.length + laborCart.length + assemblyCart.length;
+
+  // Scope Code Gaps (step-3 L1): the whole estimate as scope lines — the
+  // materials, the labor trades and the assemblies — so a code item that is
+  // already in it reads as covered.
+  const scopeGapLines = useMemo<ScopeLine[]>(() => [
+    ...cart.map(i => ({ name: i.material.name, category: i.material.category, quantity: i.quantity, unit: i.material.unit })),
+    ...laborCart.map(l => ({ name: l.labor.trade, category: 'Labor', quantity: l.hours, unit: 'hrs' })),
+    ...assemblyCart.map(a => ({ name: a.assembly.name, category: 'Assemblies', quantity: 1, unit: a.assembly.unit })),
+  ], [cart, laborCart, assemblyCart]);
+
+  // A code item goes into the cart at HIS learned rate (the same scopeRateFor
+  // entry the card priced it with — the cart stores the category KEY and the
+  // divisions memo maps it to the label, so the re-lookup finds the same
+  // entry) and only with a real quantity; never at a guessed price.
+  const addGapToCart = useCallback((gap: PricedScopeGap): boolean => {
+    if (!gap.priced || gap.unitRate == null || gap.quantity == null) return false;
+    addToCart({
+      id: `codegap:${gap.rule.id}`,
+      name: gap.rule.topic,
+      category: gap.rule.price.trade,
+      unit: gap.rule.price.unit,
+      baseRetailPrice: gap.unitRate,
+      baseBulkPrice: gap.unitRate,
+      bulkMinQty: 999999,
+      supplier: 'Your price book',
+      sourceLabel: 'Code item · your learned rate',
+    }, gap.quantity);
+    return true;
+  }, [addToCart]);
 
   // The learned price book — only consulted for the CONTRACTOR view's
   // rate-provenance chips. See the divisions memo below for why it is gated.
@@ -385,6 +417,7 @@ export default function EstimateReviewScreen() {
               </View>
             ) : null}
 
+            {mode === 'contractor' ? <ScopeGapsCard mode="cart" lines={scopeGapLines} storageKey="cart:current" onAddLine={addGapToCart} /> : null}
             {mode === 'contractor' ? (
               isDesktop ? (
                 <View>

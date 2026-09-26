@@ -13,7 +13,7 @@ import { projectTypeLabel } from '@/utils/projectTypes';
 export const MAX_SCOPE_CHARS = 6000;
 
 // Statuses that mean the work is already captured — should not be re-flagged.
-const CAPTURED_STATUSES = new Set(['approved', 'draft', 'submitted', 'under_review', 'revised']);
+export const CAPTURED_STATUSES: ReadonlySet<string> = new Set(['approved', 'draft', 'submitted', 'under_review', 'revised']);
 
 export function buildScopeSummary(project: Project, changeOrders: ChangeOrder[]): string {
   try {
