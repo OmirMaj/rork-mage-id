@@ -220,7 +220,7 @@ export async function askConstruction(
           'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ question: req.question, projectId: req.projectId ?? null }),
+        body: JSON.stringify({ question: req.question, projectId: req.projectId ?? null, jurisdiction: req.jurisdiction ?? null }),
         signal: controller.signal,
       });
     } catch (e) {

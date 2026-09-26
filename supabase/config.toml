@@ -172,6 +172,9 @@ verify_jwt = true
 [functions.building-record]
 verify_jwt = true
 
+[functions.place-lookup]
+verify_jwt = true
+
 [functions.construction-news]
 verify_jwt = true
 

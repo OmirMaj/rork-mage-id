@@ -351,8 +351,8 @@
     },
     "state:NJ": {
       "label": "New Jersey (state)",
-      "verifiedOn": "2026-09-13",
-      "checkedOn": "2026-09-07",
+      "verifiedOn": "2026-09-26",
+      "checkedOn": "2026-09-26",
       "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
       "codes": [
         {
@@ -361,9 +361,9 @@
           "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
           "claimId": "IBC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
           "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
-          "verifiedOn": "2026-09-13",
+          "verifiedOn": "2026-09-26",
           "verdict": "confirmed",
-          "evidence": "AC 5:23 ) Adoption Date BUILDING SUBCODE ( NJAC 5:23-3.14 ) International Building Code/2024 (NJ ed, coming soon) * Corrected pages (NJ errata) - N"
+          "evidence": "AC 5:23 ) Adoption Date BUILDING SUBCODE ( NJAC 5:23-3.14 ) International Building Code/2024 , NJ ed * Corrected pages (NJ errata) - N/A * Correcte"
         },
         {
           "family": "IRC",
@@ -371,9 +371,9 @@
           "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
           "claimId": "IRC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
           "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
-          "verifiedOn": "2026-09-13",
+          "verifiedOn": "2026-09-26",
           "verdict": "confirmed",
-          "evidence": "026 ONE- AND TWO-FAMILY DWELLING SUBCODE ( NJAC 5:23-3.21 ) International Residential Code/2024 NJ ed * Corrected pages (NJ errata) - N/A * Corrected"
+          "evidence": "026 ONE- AND TWO-FAMILY DWELLING SUBCODE ( NJAC 5:23-3.21 ) International Residential Code/2024 , NJ ed * Corrected pages (NJ errata) - N/A * Correcte"
         },
         {
           "family": "IECC",
@@ -381,7 +381,7 @@
           "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
           "claimId": "IECC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
           "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
-          "verifiedOn": "2026-09-13",
+          "verifiedOn": "2026-09-26",
           "verdict": "confirmed",
           "evidence": "* TIA 1 - 13 Aug 17, 2026 ENERGY SUBCODE ( NJAC 5:23-3.18 ) International Energy Conservation Code/2024 (Low-Rise Residential) ASHRAE 90.1-2022 (Commercial &"
         },
@@ -391,7 +391,7 @@
           "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
           "claimId": "IMC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
           "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
-          "verifiedOn": "2026-09-13",
+          "verifiedOn": "2026-09-26",
           "verdict": "confirmed",
           "evidence": "dential) Aug 17, 2026 MECHANICAL SUBCODE ( NJAC 5:23-3.20 ) International Mechanical Code/2024 Aug 17, 2026 ONE- AND TWO-FAMILY DWELLING SUBCODE ( NJ"
         },
@@ -401,7 +401,7 @@
           "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
           "claimId": "IFGC|2024|https://www.nj.gov/dca/codes/codreg/current.shtml",
           "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
-          "verifiedOn": "2026-09-13",
+          "verifiedOn": "2026-09-26",
           "verdict": "confirmed",
           "evidence": "024; etc.) Aug 17, 2026 FUEL GAS SUBCODE ( NJAC 5:23-3.22 ) International Fuel Gas Code/2024 Aug 17, 2026 REHABILITATION SUBCODE (NJAC 5:23-6) NJUC"
         },
@@ -411,9 +411,67 @@
           "sourceUrl": "https://www.nj.gov/dca/codes/codreg/current.shtml",
           "claimId": "NEC|2023|https://www.nj.gov/dca/codes/codreg/current.shtml",
           "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
-          "verifiedOn": "2026-09-13",
+          "verifiedOn": "2026-09-26",
           "verdict": "confirmed",
           "evidence": "errata) Aug 17, 2026 ELECTRICAL SUBCODE ( NJAC 5:23-3.16 ) National Electrical Code (NFPA 70)/2023 (link also provides access to all NFPA stand"
+        }
+      ]
+    },
+    "state:CT": {
+      "label": "Connecticut (state)",
+      "verifiedOn": "2026-09-26",
+      "checkedOn": "2026-09-26",
+      "sourceUrl": "https://portal.ct.gov/das/office-of-state-building-inspector/connecticut-state-building-code/regulations",
+      "codes": [
+        {
+          "family": "IBC",
+          "edition": "2021",
+          "sourceUrl": "https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "claimId": "IBC|2021|https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-26",
+          "verdict": "confirmed",
+          "evidence": "troduction and adopted model codes 1 Amendments to the 2021 International Building Code 3 Amendments to ICC A 117.1-2017 69 Amendments to the 2021"
+        },
+        {
+          "family": "IRC",
+          "edition": "2021",
+          "sourceUrl": "https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "claimId": "IRC|2021|https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-26",
+          "verdict": "confirmed",
+          "evidence": "ational Swimming Pool & Spa Code 113 Amendments to the 2021 International Residential Code 119 2022 Connecticut State Building Code (w/ Errata #1) ED:"
+        },
+        {
+          "family": "IECC",
+          "edition": "2021",
+          "sourceUrl": "https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "claimId": "IECC|2021|https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-26",
+          "verdict": "confirmed",
+          "evidence": "021 International Mechanical Code 89 Amendments to the 2021 International Energy Conservation Code 97 Amendments to the 2020 NFPA 70, National Electrical Code"
+        },
+        {
+          "family": "IEBC",
+          "edition": "2021",
+          "sourceUrl": "https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "claimId": "IEBC|2021|https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-26",
+          "verdict": "confirmed",
+          "evidence": "3 Amendments to ICC A 117.1-2017 69 Amendments to the 2021 International Existing Building Code 73 Amendments to the 2021 International Plumbing Code 81 Am"
+        },
+        {
+          "family": "NEC",
+          "edition": "2020",
+          "sourceUrl": "https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "claimId": "NEC|2020|https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf",
+          "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
+          "verifiedOn": "2026-09-26",
+          "verdict": "confirmed",
+          "evidence": "Energy Conservation Code 97 Amendments to the 2020 NFPA 70, National Electrical Code 105 Amendments to the 2021 International Swimming Pool & Sp"
         }
       ]
     },
@@ -465,7 +523,7 @@
     },
     "city:NY:new york city": {
       "label": "New York City, NY",
-      "verifiedOn": "2026-09-13",
+      "verifiedOn": "2026-09-26",
       "checkedOn": "2026-09-07",
       "sourceUrl": "https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page",
       "codes": [
@@ -475,7 +533,7 @@
           "sourceUrl": "https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page",
           "claimId": "LOCAL|2022|https://www.nyc.gov/site/buildings/codes/2022-construction-codes.page",
           "verifiedBy": "scripts/verify-code-sources.ts — this script fetched the page itself",
-          "verifiedOn": "2026-09-13",
+          "verifiedOn": "2026-09-26",
           "verdict": "confirmed",
           "evidence": "perty or Business Owner Industry Safety Codes Search Search Code Development NYC Codes Sustainability Reference Select 2022"
         }

@@ -1,0 +1,7349 @@
+{
+ "source": "NJ Department of Community Affairs — Listing of NJ Municipal Construction Code Enforcement Officials",
+ "sourceUrl": "https://www.nj.gov/dca/codes/publications/pdf_ora/muniroster.pdf",
+ "asOf": "2026-09-02",
+ "checkedOn": "2026-09-26",
+ "joinSource": "US Census TIGERweb current county subdivisions (Places_CouSub_ConCity_SubMCD/MapServer/1)",
+ "rosterEntries": 565,
+ "offices": [
+  {
+   "code": "1330",
+   "name": "ABERDEEN TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402500070",
+   "address": [
+    "1 ABERDEEN SQUARE",
+    "ABERDEEN, NJ 07747"
+   ],
+   "phone": "732-583-4200",
+   "fax": "732-290-1614",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0101",
+   "name": "ABSECON CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400100100",
+   "address": [
+    "MUNICIPAL COMPLEX - 500 MILL ROAD",
+    "ABSECON, NJ 08201"
+   ],
+   "phone": "609-641-0663",
+   "fax": "609-645-5098",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1001",
+   "name": "ALEXANDRIA TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401900550",
+   "address": [
+    "242 LITTLE YORK-MT. PLEASANT RD",
+    "MILFORD, NJ 08848"
+   ],
+   "phone": "908-996-7585",
+   "fax": "908-996-7762",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2101",
+   "name": "ALLAMUCHY TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404100670",
+   "address": [
+    "292 ALPHANO ROAD PO BOX A",
+    "ALLAMUCHY, NJ 07820"
+   ],
+   "phone": "908-852-7695",
+   "fax": "908-852-0129",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0201",
+   "name": "ALLENDALE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400300700",
+   "address": [
+    "500 WEST CRESCENT AVENUE",
+    "ALLENDALE, NJ 07401"
+   ],
+   "phone": "201-818-4400",
+   "fax": "201-825-1913",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1301",
+   "name": "ALLENHURST BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402500730",
+   "address": [
+    "125 CORLIES AVE",
+    "ALLENHURST, NJ 07711"
+   ],
+   "phone": "732-531-2757",
+   "fax": "732-531-8694",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1302",
+   "name": "ALLENTOWN BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402500760",
+   "address": [
+    "1 WASHINGTON BLVD, SUITE 14",
+    "ROBBINSVILLE, NJ 08691"
+   ],
+   "phone": "609-918-0002",
+   "fax": "609-918-1665",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1701",
+   "name": "ALLOWAY TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403300880",
+   "address": [
+    "BOX 425",
+    "ALLOWAY, NJ 08001"
+   ],
+   "phone": "856-935-3716",
+   "fax": "856-935-2993",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2102",
+   "name": "ALPHA BORO",
+   "county": "WARREN",
+   "censusGeoid": "3404101030",
+   "address": [
+    "1001 EAST BLVD",
+    "ALPHA, NJ 08865"
+   ],
+   "phone": "908-454-0088",
+   "fax": "908-454-0076",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0202",
+   "name": "ALPINE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400301090",
+   "address": [
+    "100 CHURCH STREET",
+    "ALPINE, NJ 07620"
+   ],
+   "phone": "201-784-2901",
+   "fax": "201-784-1407",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1901",
+   "name": "ANDOVER BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403701330",
+   "address": [
+    "137 MAIN ST",
+    "ANDOVER, NJ 07821"
+   ],
+   "phone": "973-786-6688",
+   "fax": "973-786-7231",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1902",
+   "name": "ANDOVER TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403701360",
+   "address": [
+    "134 NEWTON SPARTA ROAD",
+    "NEWTON, NJ 07860"
+   ],
+   "phone": "973-383-4280",
+   "fax": "973-383-9977",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1303",
+   "name": "ASBURY PARK CITY",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402501960",
+   "address": [
+    "1 MUNICIPAL PLAZA",
+    "ASBURY PARK, NJ 07712"
+   ],
+   "phone": "732-502-5722",
+   "fax": "732-502-0719",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0102",
+   "name": "ATLANTIC CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400102080",
+   "address": [
+    "1333 ATLANTIC AVE",
+    "ATLANTIC CITY, NJ 08401"
+   ],
+   "phone": "609-347-5660",
+   "fax": "609-347-6437",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1304",
+   "name": "ATLANTIC HIGHLANDS BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402502110",
+   "address": [
+    "100 FIRST AVENUE",
+    "ATLANTIC HIGHLANDS, NJ 07716"
+   ],
+   "phone": "732-291-1122",
+   "fax": "732-291-3100",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0401",
+   "name": "AUDUBON BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400702200",
+   "address": [
+    "606 WEST NICHOLASON RD",
+    "AUDUBON, NJ 08106"
+   ],
+   "phone": "856-547-6312",
+   "fax": "856-546-4749",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0402",
+   "name": "AUDUBON PARK BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400702230",
+   "address": [
+    "THE COMMUNITY BLDG C ROAD",
+    "AUDUBON PARK, NJ 08106"
+   ],
+   "phone": "609-547-4550",
+   "fax": "609-547-1849",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0501",
+   "name": "AVALON BORO",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400902320",
+   "address": [
+    "3100 DUNE DRIVE",
+    "AVALON, NJ 08202"
+   ],
+   "phone": "609-967-4220",
+   "fax": "609-967-4140",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1305",
+   "name": "AVON-BY-THE-SEA BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402502440",
+   "address": [
+    "301 MAIN STREET",
+    "AVON-BY-THE-SEA, NJ 07717"
+   ],
+   "phone": "732-502-4510",
+   "fax": "732-774-0605",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1501",
+   "name": "BARNEGAT LIGHT BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402903130",
+   "address": [
+    "10 WEST 10TH ST",
+    "BARNEGAT LIGHT, NJ 08006"
+   ],
+   "phone": "609-494-3522",
+   "fax": "609-494-4827",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1533",
+   "name": "BARNEGAT TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402903050",
+   "address": [
+    "900 WEST BAY AVENUE",
+    "BARNEGAT, NJ 08005"
+   ],
+   "phone": "609-698-0080",
+   "fax": "609-698-7446",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0403",
+   "name": "BARRINGTON BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400703250",
+   "address": [
+    "229 TRENTON AVENUE",
+    "BARRINGTON, NJ 08007"
+   ],
+   "phone": "856-547-0706",
+   "fax": "856-547-1392",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0301",
+   "name": "BASS RIVER TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400503370",
+   "address": [
+    "PO BOX 307 NORTH MAPLE AV",
+    "NEW GRETNA, NJ 08224"
+   ],
+   "phone": "609-296-4270",
+   "fax": "609-296-3458",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1502",
+   "name": "BAY HEAD BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402903520",
+   "address": [
+    "83 BRIDGE AVENUE",
+    "BAY HEAD, NJ 08742"
+   ],
+   "phone": "732-892-0574",
+   "fax": "732-899-6494",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0901",
+   "name": "BAYONNE CITY",
+   "county": "HUDSON",
+   "censusGeoid": "3401703580",
+   "address": [
+    "630 AVENUE C",
+    "BAYONNE, NJ 07002-3898"
+   ],
+   "phone": "201-858-6073",
+   "fax": "201-858-6122",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1503",
+   "name": "BEACH HAVEN BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402903940",
+   "address": [
+    "300 ENGLESIDE AVENUE",
+    "BEACH HAVEN, NJ 08008"
+   ],
+   "phone": "609-492-0909",
+   "fax": "609-492-6382",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1504",
+   "name": "BEACHWOOD BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402904180",
+   "address": [
+    "1600 PINEWALD ROAD",
+    "BEACHWOOD, NJ 08722"
+   ],
+   "phone": "732-286-6000",
+   "fax": "732-349-8390",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1801",
+   "name": "BEDMINSTER TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403504450",
+   "address": [
+    "ONE MILLER LANE",
+    "BEDMINSTER, NJ 07921"
+   ],
+   "phone": "908-212-7000",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "0701",
+   "name": "BELLEVILLE TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401304695",
+   "address": [
+    "152 WASHINGTON AVE",
+    "BELLEVILLE, NJ 07109-2589"
+   ],
+   "phone": "973-450-3410",
+   "fax": "973-450-9309",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0404",
+   "name": "BELLMAWR BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400704750",
+   "address": [
+    "21 EAST BROWNING RD",
+    "BELLMAWR, NJ 08031"
+   ],
+   "phone": "856-933-1286",
+   "fax": "856-933-3289",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1306",
+   "name": "BELMAR BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402504930",
+   "address": [
+    "601 MAIN STREET",
+    "BELMAR, NJ 07719"
+   ],
+   "phone": "732-681-3700",
+   "fax": "732-681-3434",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2103",
+   "name": "BELVIDERE TOWN",
+   "county": "WARREN",
+   "censusGeoid": "3404104990",
+   "address": [
+    "691 WATER STREET",
+    "BELVIDERE, NJ 07823"
+   ],
+   "phone": "908-475-3924",
+   "fax": "908-475-1392",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0203",
+   "name": "BERGENFIELD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400305170",
+   "address": [
+    "198 N WASHINGTON AVENUE",
+    "BERGENFIELD, NJ 07621"
+   ],
+   "phone": "201-387-4055",
+   "fax": "201-385-7376",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2001",
+   "name": "BERKELEY HEIGHTS TWP",
+   "county": "UNION",
+   "censusGeoid": "3403905320",
+   "address": [
+    "29 PARK AVENUE",
+    "BERKELEY HEIGHTS, NJ 07922"
+   ],
+   "phone": "908-464-2700",
+   "fax": "908-464-3791",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1505",
+   "name": "BERKELEY TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402905305",
+   "address": [
+    "627 PINEWALD KESWICK ROAD",
+    "BAYVILLE, NJ 08721"
+   ],
+   "phone": "732-244-0660",
+   "fax": "732-244-7325",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0405",
+   "name": "BERLIN BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400705440",
+   "address": [
+    "59 S. WHITE HORSE PIKE",
+    "BERLIN, NJ 08009"
+   ],
+   "phone": "856-767-7777",
+   "fax": "856-767-1071",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0406",
+   "name": "BERLIN TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400705470",
+   "address": [
+    "135 ROUTE 73 SOUTH",
+    "WEST BERLIN, NJ 08091"
+   ],
+   "phone": "856-767-1854",
+   "fax": "609-768-6613",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1802",
+   "name": "BERNARDS TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403505560",
+   "address": [
+    "277 SOUTH MAPLE AV",
+    "BASKING RIDGE, NJ 07920"
+   ],
+   "phone": "908-204-3173",
+   "fax": "908-204-2515",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1803",
+   "name": "BERNARDSVILLE BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403505590",
+   "address": [
+    "1 ANDERSON HILL ROAD SUITE 103",
+    "BERNARDSVILLE, NJ 07924"
+   ],
+   "phone": "908-766-3850",
+   "fax": "908-766-1315",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1002",
+   "name": "BETHLEHEM TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401905650",
+   "address": [
+    "405 MINE ROAD",
+    "ASBURY, NJ 08802"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0302",
+   "name": "BEVERLY CITY",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400505740",
+   "address": [
+    "446 BROAD STREET",
+    "BEVERLY, NJ 08010"
+   ],
+   "phone": "609-387-1881",
+   "fax": "609-387-8536",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2104",
+   "name": "BLAIRSTOWN TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404106160",
+   "address": [
+    "106 ROUTE 94",
+    "BLAIRSTOWN, NJ 07825"
+   ],
+   "phone": "908-362-6897",
+   "fax": "908-362-9635",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0702",
+   "name": "BLOOMFIELD TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401306260",
+   "address": [
+    "1 MUNICIPAL PLAZA ROOM 105",
+    "BLOOMFIELD, NJ 07003"
+   ],
+   "phone": "973-680-4053",
+   "fax": "973-680-1652",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1601",
+   "name": "BLOOMINGDALE BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403106340",
+   "address": [
+    "30 BALLSTON STREET",
+    "BLOOMINGDALE, NJ 07403"
+   ],
+   "phone": "973-838-7995",
+   "fax": "973-838-5790",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1003",
+   "name": "BLOOMSBURY BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401906370",
+   "address": [
+    "171 ROUTE 173, SUITE 101",
+    "ASBURY, NJ 08802"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0204",
+   "name": "BOGOTA BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400306490",
+   "address": [
+    "375 LARCH AVENUE",
+    "BOGOTA, NJ 07603"
+   ],
+   "phone": "201-342-1736",
+   "fax": "201-342-0574",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1401",
+   "name": "BOONTON TOWN",
+   "county": "MORRIS",
+   "censusGeoid": "3402706610",
+   "address": [
+    "100 WASHINGTON STREET",
+    "BOONTON, NJ 07005"
+   ],
+   "phone": "973-402-9410",
+   "fax": "973-402-7643",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1402",
+   "name": "BOONTON TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402706640",
+   "address": [
+    "155 POWERVILLE ROAD",
+    "BOONTON TWP., NJ 07005"
+   ],
+   "phone": "973-402-4005",
+   "fax": "973-402-4013",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0303",
+   "name": "BORDENTOWN CITY",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400506670",
+   "address": [
+    "324 FARNSWORTH AVENUE",
+    "BORDENTOWN, NJ 08505"
+   ],
+   "phone": "609-291-9331",
+   "fax": null,
+   "dcaEnforced": true
+  },
+  {
+   "code": "0304",
+   "name": "BORDENTOWN TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400506700",
+   "address": [
+    "1 MUNICIPAL DRIVE",
+    "BORDENTOWN, NJ 08505"
+   ],
+   "phone": "609-298-2800",
+   "fax": "609-291-5038",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1804",
+   "name": "BOUND BROOK BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403506790",
+   "address": [
+    "230 HAMILTON STREET",
+    "BOUND BROOK, NJ 08805"
+   ],
+   "phone": "732-356-0833",
+   "fax": "732-356-8990",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1307",
+   "name": "BRADLEY BEACH BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402506970",
+   "address": [
+    "701 MAIN STREET",
+    "BRADLEY BEACH, NJ 07720"
+   ],
+   "phone": "732-776-2999",
+   "fax": "732-775-1782",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1805",
+   "name": "BRANCHBURG TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403507180",
+   "address": [
+    "1077 HIGHWAY 202",
+    "BRANCHBURG, NJ 08876"
+   ],
+   "phone": "908-526-1300",
+   "fax": "908-526-5561",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1903",
+   "name": "BRANCHVILLE BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403707300",
+   "address": [
+    "PO BOX 840",
+    "BRANCHVILLE, NJ 07826"
+   ],
+   "phone": "973-948-2118",
+   "fax": "973-948-0899",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1506",
+   "name": "BRICK TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402907420",
+   "address": [
+    "401 CHAMBERS BRIDGE RD",
+    "BRICKTOWN, NJ 08723"
+   ],
+   "phone": "732-262-1030",
+   "fax": "732-262-8954",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0601",
+   "name": "BRIDGETON CITY",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401107600",
+   "address": [
+    "181 EAST COMMERCE STREET",
+    "BRIDGETON, NJ 08302"
+   ],
+   "phone": "856-455-3230",
+   "fax": "856-459-2481",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1806",
+   "name": "BRIDGEWATER TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403507720",
+   "address": [
+    "100 COMMONS WAY",
+    "BRIDGEWATER, NJ 08807-2801"
+   ],
+   "phone": "908-725-6300",
+   "fax": "908-725-4272",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1308",
+   "name": "BRIELLE BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402507750",
+   "address": [
+    "601 UNION LANE",
+    "BRIELLE, NJ 08730"
+   ],
+   "phone": "732-528-6600",
+   "fax": "732-528-7186",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0103",
+   "name": "BRIGANTINE CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400107810",
+   "address": [
+    "1417 WEST BRIGANTINE AVE-BUILD DEPT",
+    "BRIGANTINE, NJ 08203-2186"
+   ],
+   "phone": "609-266-7600",
+   "fax": "609-266-6625",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0407",
+   "name": "BROOKLAWN BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400708170",
+   "address": [
+    "301 CHRISTIANA ST",
+    "BROOKLAWN, NJ 08030"
+   ],
+   "phone": "856-456-0750",
+   "fax": "856-456-1874",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0104",
+   "name": "BUENA BORO",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400108680",
+   "address": [
+    "616 CENTRAL AVENUE",
+    "MINOTOLA, NJ 08341"
+   ],
+   "phone": "856-697-0407",
+   "fax": "856-697-0832",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0105",
+   "name": "BUENA VISTA TWP",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400108710",
+   "address": [
+    "890 HARDING HIGHWAY PO BOX 605",
+    "BUENA, NJ 08310"
+   ],
+   "phone": "856-697-2100",
+   "fax": "856-697-8651",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0305",
+   "name": "BURLINGTON CITY",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400508920",
+   "address": [
+    "525 HIGH STREET",
+    "BURLINGTON, NJ 08016"
+   ],
+   "phone": "609-386-0200",
+   "fax": "609-386-3362",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0306",
+   "name": "BURLINGTON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400508950",
+   "address": [
+    "851 OLD YORK RD",
+    "BURLINGTON, NJ 08016"
+   ],
+   "phone": "609-239-5846",
+   "fax": "609-387-5178",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1403",
+   "name": "BUTLER BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402709040",
+   "address": [
+    "1 ACE ROAD",
+    "BUTLER, NJ 07405"
+   ],
+   "phone": "973-838-7200",
+   "fax": "973-838-3762",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1904",
+   "name": "BYRAM TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403709160",
+   "address": [
+    "10 MANSFIELD DRIVE",
+    "STANHOPE, NJ 07874"
+   ],
+   "phone": "973-347-2500",
+   "fax": "973-347-0502",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0703",
+   "name": "CALDWELL BORO",
+   "county": "ESSEX",
+   "censusGeoid": "3401309250",
+   "address": [
+    "ONE PROVOST SQUARE",
+    "CALDWELL, NJ 07006"
+   ],
+   "phone": "973-403-4626",
+   "fax": "973-226-6734",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1004",
+   "name": "CALIFON BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401909280",
+   "address": [
+    "39 ACADEMY ST PO BOX 368",
+    "CALIFON, NJ 07830"
+   ],
+   "phone": "908-832-5552",
+   "fax": "908-832-0674",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0408",
+   "name": "CAMDEN CITY",
+   "county": "CAMDEN",
+   "censusGeoid": "3400710000",
+   "address": [
+    "6TH & MARKET STREET",
+    "CAMDEN, NJ 08101"
+   ],
+   "phone": "856-757-7489",
+   "fax": "856-757-7259",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0502",
+   "name": "CAPE MAY CITY",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400910270",
+   "address": [
+    "643 WASHINGTON STREET",
+    "CAPE MAY, NJ 08204-2397"
+   ],
+   "phone": "609-884-9555",
+   "fax": "609-884-3355",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0503",
+   "name": "CAPE MAY POINT BORO",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400910330",
+   "address": [
+    "215 LIGHTHOUSE AV PO BOX 490",
+    "CAPE MAY POINT, NJ 08212"
+   ],
+   "phone": "609-884-0269",
+   "fax": "609-884-1732",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0205",
+   "name": "CARLSTADT BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400310480",
+   "address": [
+    "500 MADISON STREET",
+    "CARLSTADT, NJ 07072"
+   ],
+   "phone": "201-939-1777",
+   "fax": "201-531-8711",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1713",
+   "name": "CARNEYS POINT TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403310610",
+   "address": [
+    "303 HARDING HIGHWAY",
+    "CARNEYS POINT, NJ 08069"
+   ],
+   "phone": "856-299-0070",
+   "fax": "856-299-1983",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1201",
+   "name": "CARTERET BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402310750",
+   "address": [
+    "61 COOKE AVENUE",
+    "CARTERET, NJ 07008"
+   ],
+   "phone": "732-541-3810",
+   "fax": "732-969-2429",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0704",
+   "name": "CEDAR GROVE TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401311200",
+   "address": [
+    "525 POMPTON AVENUE",
+    "CEDAR GROVE TWP, NJ 07009"
+   ],
+   "phone": "973-239-1410",
+   "fax": "973-857-7105",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1404",
+   "name": "CHATHAM BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402712100",
+   "address": [
+    "54 FAIRMOUNT AV",
+    "CHATHAM, NJ 07928"
+   ],
+   "phone": "973-593-3064",
+   "fax": "973-635-7983",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1405",
+   "name": "CHATHAM TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402712130",
+   "address": [
+    "58 MEYERSVILLE ROAD",
+    "CHATHAM, NJ 07928"
+   ],
+   "phone": "973-406-0309",
+   "fax": "973-635-4002",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0409",
+   "name": "CHERRY HILL TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400712280",
+   "address": [
+    "820 MERCER STREET",
+    "CHERRY HILL, NJ 08002"
+   ],
+   "phone": "856-488-7855",
+   "fax": "856-486-4575",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0410",
+   "name": "CHESILHURST BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400712550",
+   "address": [
+    "201 GRANT AV",
+    "CHESILHURST, NJ 08089"
+   ],
+   "phone": "856-767-4153",
+   "fax": "856-753-1696",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1406",
+   "name": "CHESTER BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402712580",
+   "address": [
+    "50 NORTH ROAD",
+    "CHESTER, NJ 07930"
+   ],
+   "phone": "908-879-3660",
+   "fax": "908-879-5812",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1407",
+   "name": "CHESTER TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402712610",
+   "address": [
+    "1 PARKER ROAD",
+    "CHESTER, NJ 07930"
+   ],
+   "phone": "908-879-5100",
+   "fax": "908-879-5260",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0307",
+   "name": "CHESTERFIELD TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400512670",
+   "address": [
+    "300 BORDENTOWN CHESTERFIELD RD",
+    "TRENTON, NJ 08620"
+   ],
+   "phone": "609-298-0426",
+   "fax": "609-298-0469",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0308",
+   "name": "CINNAMINSON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400512940",
+   "address": [
+    "1621 RIVERTON ROAD PO BOX 2100",
+    "CINNAMINSON, NJ 08077"
+   ],
+   "phone": "856-829-6000",
+   "fax": "856-303-0265",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2002",
+   "name": "CLARK TWP",
+   "county": "UNION",
+   "censusGeoid": "3403913150",
+   "address": [
+    "430 WESTFIELD AVENUE",
+    "CLARK, NJ 07066"
+   ],
+   "phone": "732-388-3600",
+   "fax": "732-388-3501",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0801",
+   "name": "CLAYTON BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401513360",
+   "address": [
+    "125 N DELSEA DRIVE",
+    "CLAYTON NJ, NJ 08312"
+   ],
+   "phone": "856-881-2882",
+   "fax": "856-881-9408",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0411",
+   "name": "CLEMENTON BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400713420",
+   "address": [
+    "101 GIBBSBORO RD",
+    "CLEMENTON, NJ 08021"
+   ],
+   "phone": "856-783-0284",
+   "fax": "856-784-3419",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0206",
+   "name": "CLIFFSIDE PARK BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400313570",
+   "address": [
+    "525 PALISADE AVENUE",
+    "CLIFFSIDE PARK, NJ 07010"
+   ],
+   "phone": "201-313-2040",
+   "fax": "201-945-3903",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1602",
+   "name": "CLIFTON CITY",
+   "county": "PASSAIC",
+   "censusGeoid": "3403113690",
+   "address": [
+    "900 CLIFTON AVENUE",
+    "CLIFTON, NJ 07013"
+   ],
+   "phone": "973-470-5809",
+   "fax": "973-470-0617",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1005",
+   "name": "CLINTON TOWN",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401913720",
+   "address": [
+    "43 LEIGH STREET, PO BOX 5194",
+    "CLINTON, NJ 08809"
+   ],
+   "phone": "908-735-8616",
+   "fax": "908-735-8082",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1006",
+   "name": "CLINTON TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401913750",
+   "address": [
+    "1225 ROUTE 31, SUITE 411",
+    "LEBANON, NJ 08833"
+   ],
+   "phone": "908-735-8800",
+   "fax": "908-735-7346",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0207",
+   "name": "CLOSTER BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400313810",
+   "address": [
+    "295 CLOSTER DOCK ROAD",
+    "CLOSTER, NJ 07624"
+   ],
+   "phone": "201-784-0600",
+   "fax": "201-784-4711",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0412",
+   "name": "COLLINGSWOOD BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400714260",
+   "address": [
+    "678 HADDON AVENUE",
+    "COLLINGSWOOD, NJ 08108"
+   ],
+   "phone": "856-854-0720",
+   "fax": "856-854-0632",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1309",
+   "name": "COLTS NECK TOWNSHIP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402514560",
+   "address": [
+    "124 CEDAR GROVE DRIVE",
+    "COLTS NECK, NJ 07722"
+   ],
+   "phone": "732-409-7134",
+   "fax": "732-462-8460",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0602",
+   "name": "COMMERCIAL TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401114710",
+   "address": [
+    "1768 MAIN ST",
+    "PORT NORRIS, NJ 08349"
+   ],
+   "phone": "856-785-3100",
+   "fax": "856-785-9420",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0106",
+   "name": "CORBIN CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400115160",
+   "address": [
+    "MAPLE STREET",
+    "CORBIN, NJ 08270"
+   ],
+   "phone": "609-628-2673",
+   "fax": null,
+   "dcaEnforced": true
+  },
+  {
+   "code": "1202",
+   "name": "CRANBURY TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402315550",
+   "address": [
+    "23A N MAIN STREET",
+    "CRANBURY, NJ 08512"
+   ],
+   "phone": "609-395-0544",
+   "fax": "609-395-8861",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2003",
+   "name": "CRANFORD TWP",
+   "county": "UNION",
+   "censusGeoid": "3403915640",
+   "address": [
+    "8 SPRINGFIELD AVENUE",
+    "CRANFORD, NJ 07016"
+   ],
+   "phone": "908-709-7213",
+   "fax": "908-276-4872",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0208",
+   "name": "CRESSKILL BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400315820",
+   "address": [
+    "67 UNION AVENUE",
+    "CRESSKILL, NJ 07626"
+   ],
+   "phone": "201-569-7775",
+   "fax": "201-569-3714",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1310",
+   "name": "DEAL BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402516660",
+   "address": [
+    "DURANT SQUARE",
+    "DEAL, NJ 07723"
+   ],
+   "phone": "732-531-1454",
+   "fax": "732-531-1705",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0603",
+   "name": "DEERFIELD TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401116900",
+   "address": [
+    "PO BOX 350, LANDIS AVENUE",
+    "ROSENHAYN, NJ 08352"
+   ],
+   "phone": "856-455-3200",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "0309",
+   "name": "DELANCO TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400517080",
+   "address": [
+    "770 COOPERTOWN RD",
+    "DELANCO, NJ 08077"
+   ],
+   "phone": "856-461-0561",
+   "fax": "856-461-0685",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1007",
+   "name": "DELAWARE TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401917170",
+   "address": [
+    "570 ROSEMONT RINGOES RD PO BOX 500",
+    "SERGEANTSVILLE, NJ 08557"
+   ],
+   "phone": "609-397-3240",
+   "fax": "609-397-0651",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0310",
+   "name": "DELRAN TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400517440",
+   "address": [
+    "900 CHESTER AV",
+    "DELRAN, NJ 08075"
+   ],
+   "phone": "856-461-8667",
+   "fax": "856-461-1147",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0209",
+   "name": "DEMAREST BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400317530",
+   "address": [
+    "118 SERPENTINE ROAD",
+    "DEMAREST, NJ 07627"
+   ],
+   "phone": "201-768-0167",
+   "fax": "201-768-2581",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0504",
+   "name": "DENNIS TWP",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400917560",
+   "address": [
+    "PO BOX 204 571 PETERSBURG RD",
+    "DENNISVILLE, NJ 08214-0204"
+   ],
+   "phone": "609-861-9705",
+   "fax": "609-861-9719",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1408",
+   "name": "DENVILLE TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402717650",
+   "address": [
+    "1 ST. MARY'S PLACE",
+    "DENVILLE, NJ 07834"
+   ],
+   "phone": "973-625-8300",
+   "fax": "973-625-2491",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0802",
+   "name": "DEPTFORD TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401517710",
+   "address": [
+    "1011 COOPER STREET",
+    "DEPTFORD, NJ 08096"
+   ],
+   "phone": "856-845-5300",
+   "fax": "856-845-8995",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1409",
+   "name": "DOVER TOWN",
+   "county": "MORRIS",
+   "censusGeoid": "3402718070",
+   "address": [
+    "37 N SUSSEX STREET",
+    "DOVER, NJ 07801"
+   ],
+   "phone": "973-366-2200",
+   "fax": "973-366-0039",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0604",
+   "name": "DOWNE TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401118220",
+   "address": [
+    "MUNICIPAL COMPLEX PO BOX 569",
+    "NEWPORT, NJ 08345-0569"
+   ],
+   "phone": "856-447-3100",
+   "fax": "856-447-3533",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0210",
+   "name": "DUMONT BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400318400",
+   "address": [
+    "50 WASHINGTON AVENUE",
+    "DUMONT, NJ 07628"
+   ],
+   "phone": "201-387-5034",
+   "fax": "201-387-5063",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1203",
+   "name": "DUNELLEN BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402318490",
+   "address": [
+    "355 NORTH AVENUE",
+    "DUNELLEN, NJ 08812"
+   ],
+   "phone": "732-968-3323",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "1508",
+   "name": "EAGLESWOOD TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402918670",
+   "address": [
+    "146 DIVISION STREET",
+    "WEST CREEK, NJ 08092"
+   ],
+   "phone": "609-296-3040",
+   "fax": "609-296-4649",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1008",
+   "name": "EAST AMWELL TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401918820",
+   "address": [
+    "1070 US HIGHWAY 202/31",
+    "RINGOES, NJ 08551-1051"
+   ],
+   "phone": "908-782-1190",
+   "fax": "908-782-1967",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1204",
+   "name": "EAST BRUNSWICK TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402319000",
+   "address": [
+    "4 HARTS LANE",
+    "EAST BRUNSWICK, NJ 08816-1081"
+   ],
+   "phone": "732-390-6875",
+   "fax": "732-390-6906",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0803",
+   "name": "EAST GREENWICH TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401519180",
+   "address": [
+    "159 DEMOCRAT ROAD",
+    "MICKLETON, NJ 08056"
+   ],
+   "phone": "856-423-0733",
+   "fax": "856-423-7908",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1410",
+   "name": "EAST HANOVER TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402719210",
+   "address": [
+    "411 RIDGEDALE AVENUE",
+    "EAST HANOVER, NJ 07936"
+   ],
+   "phone": "973-887-5642",
+   "fax": "973-887-7210",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0902",
+   "name": "EAST NEWARK BORO",
+   "county": "HUDSON",
+   "censusGeoid": "3401719360",
+   "address": [
+    "34 SHERMAN AVENUE",
+    "EAST NEWARK, NJ 07029"
+   ],
+   "phone": "973-481-2902",
+   "fax": "973-481-0627",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0705",
+   "name": "EAST ORANGE CITY",
+   "county": "ESSEX",
+   "censusGeoid": "3401319390",
+   "address": [
+    "44 CITY HALL PLAZA",
+    "EAST ORANGE, NJ 07019"
+   ],
+   "phone": "973-266-5165",
+   "fax": "973-675-5184",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0212",
+   "name": "EAST RUTHERFORD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400319510",
+   "address": [
+    "199 PATERSON AVENUE",
+    "EAST RUTHERFORD, NJ 07073"
+   ],
+   "phone": "201-933-5649",
+   "fax": "201-933-6094",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1101",
+   "name": "EAST WINDSOR TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402119780",
+   "address": [
+    "16 LANNING BLVD",
+    "EAST WINDSOR, NJ 08520"
+   ],
+   "phone": "609-443-4000",
+   "fax": "609-443-8303",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0311",
+   "name": "EASTAMPTON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400518790",
+   "address": [
+    "12 MANOR HOUSE COURT",
+    "EASTAMPTON, NJ 08060"
+   ],
+   "phone": "609-267-5720",
+   "fax": "609-265-1714",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1311",
+   "name": "EATONTOWN BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402519840",
+   "address": [
+    "47 BROAD STREET",
+    "EATONTOWN, NJ 07724"
+   ],
+   "phone": "732-389-7615",
+   "fax": "732-935-1822",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0213",
+   "name": "EDGEWATER BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400320020",
+   "address": [
+    "55 RIVER ROAD 2ND FLOOR RM 223",
+    "EDGEWATER, NJ 07020"
+   ],
+   "phone": "201-943-1700",
+   "fax": "201-941-7767",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0312",
+   "name": "EDGEWATER PARK TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400520050",
+   "address": [
+    "400 DELANCO ROAD",
+    "EDGEWATER PARK, NJ 08010"
+   ],
+   "phone": "609-877-2217",
+   "fax": "609-877-2308",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1205",
+   "name": "EDISON TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402320230",
+   "address": [
+    "100 MUNICIPAL BOULEVARD",
+    "EDISON, NJ 08817"
+   ],
+   "phone": "732-248-7257",
+   "fax": "732-248-1606",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0107",
+   "name": "EGG HARBOR CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400120350",
+   "address": [
+    "500 LONDON AVENUE",
+    "EGG HARBOR, NJ 08215"
+   ],
+   "phone": "609-965-1616",
+   "fax": "609-965-0715",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0108",
+   "name": "EGG HARBOR TWP",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400120290",
+   "address": [
+    "3515 BARGAINTOWN RD.",
+    "EGG HARBOR TWP, NJ 08234-8321"
+   ],
+   "phone": "609-926-4121",
+   "fax": "609-926-4003",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2004",
+   "name": "ELIZABETH CITY",
+   "county": "UNION",
+   "censusGeoid": "3403921000",
+   "address": [
+    "50 WINFIELD SCOTT PLAZA",
+    "ELIZABETH, NJ 07201"
+   ],
+   "phone": "908-820-4093",
+   "fax": "908-820-4241",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0804",
+   "name": "ELK TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401521060",
+   "address": [
+    "667 WHIG LANE ROAD",
+    "MONROEVILLE, NJ 08343"
+   ],
+   "phone": "856-881-6525",
+   "fax": "856-881-5750",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1702",
+   "name": "ELMER BORO",
+   "county": "SALEM",
+   "censusGeoid": "3403321240",
+   "address": [
+    "989 CENTERTON ROAD",
+    "PITTSGROVE, NJ 08318"
+   ],
+   "phone": "856-358-2300",
+   "fax": "856-358-3055",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0211",
+   "name": "ELMWOOD PARK BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400321300",
+   "address": [
+    "182 MARKET STREET",
+    "ELMWOOD PARK, NJ 07407"
+   ],
+   "phone": "201-796-4085",
+   "fax": "201-796-0142",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1703",
+   "name": "ELSINBORO TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403321330",
+   "address": [
+    "619 SALEM-FT. ELFSBURG RD.",
+    "SALEM, NJ 08079"
+   ],
+   "phone": "856-935-2200",
+   "fax": "856-935-9011",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0214",
+   "name": "EMERSON BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400321450",
+   "address": [
+    "1 MUNICIPAL PLACE",
+    "EMERSON, NJ 07630"
+   ],
+   "phone": "201-262-7169",
+   "fax": "201-599-6333",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0215",
+   "name": "ENGLEWOOD CITY",
+   "county": "BERGEN",
+   "censusGeoid": "3400321480",
+   "address": [
+    "2-10 NORTH VAN BRUNT ST",
+    "ENGLEWOOD, NJ 07631"
+   ],
+   "phone": "201-871-6649",
+   "fax": "201-816-8018",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0216",
+   "name": "ENGLEWOOD CLIFFS BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400321510",
+   "address": [
+    "10 KAHN TERRACE",
+    "ENGLEWOOD CLIFFS, NJ 07632"
+   ],
+   "phone": "201-568-9262",
+   "fax": "201-569-4356",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1312",
+   "name": "ENGLISHTOWN BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402521570",
+   "address": [
+    "15 MAIN STREET",
+    "ENGLISHTOWN, NJ 07726"
+   ],
+   "phone": "732-446-9235",
+   "fax": "732-446-4979",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0706",
+   "name": "ESSEX FELLS BORO",
+   "county": "ESSEX",
+   "censusGeoid": "3401321840",
+   "address": [
+    "307 RUNNYMEDE ROAD",
+    "ESSEX FELLS, NJ 07021"
+   ],
+   "phone": "973-226-3040",
+   "fax": "973-226-9596",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0109",
+   "name": "ESTELLE MANOR CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400121870",
+   "address": [
+    "172 CUMBERLAND AV PO BOX 102",
+    "ESTELL MANOR, NJ 08319"
+   ],
+   "phone": "609-476-2612",
+   "fax": "609-476-4588",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0313",
+   "name": "EVESHAM TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400522110",
+   "address": [
+    "984 TUCKERTON ROAD",
+    "MARLTON, NJ 08053"
+   ],
+   "phone": "856-983-2914",
+   "fax": "856-983-6709",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1102",
+   "name": "EWING TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402122185",
+   "address": [
+    "2 JAKE GARZIO DRIVE",
+    "EWING, NJ 08628"
+   ],
+   "phone": "609-883-2900",
+   "fax": "609-406-1384",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1313",
+   "name": "FAIR HAVEN BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402522440",
+   "address": [
+    "748 RIVER ROAD",
+    "FAIR HAVEN, NJ 07704"
+   ],
+   "phone": "732-747-0241",
+   "fax": "732-747-6962",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0217",
+   "name": "FAIR LAWN BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400322470",
+   "address": [
+    "8-01 FAIR LAWN AV",
+    "FAIR LAWN, NJ 07410"
+   ],
+   "phone": "201-794-5307",
+   "fax": "201-797-7478",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0605",
+   "name": "FAIRFIELD TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401122350",
+   "address": [
+    "PO BOX 240",
+    "FAIRTON, NJ 08320"
+   ],
+   "phone": "856-453-3168",
+   "fax": "856-455-3056",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0707",
+   "name": "FAIRFIELD TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401322385",
+   "address": [
+    "230 FAIRFIELD ROAD",
+    "FAIRFIELD, NJ 07004"
+   ],
+   "phone": "973-882-2730",
+   "fax": "973-244-9255",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0218",
+   "name": "FAIRVIEW BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400322560",
+   "address": [
+    "59 ANDERSON AVENUE",
+    "FAIRVIEW, NJ 07022"
+   ],
+   "phone": "201-943-5485",
+   "fax": "201-943-4057",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2005",
+   "name": "FANWOOD BORO",
+   "county": "UNION",
+   "censusGeoid": "3403922860",
+   "address": [
+    "75 N MARTINE AVENUE",
+    "FANWOOD, NJ 07023"
+   ],
+   "phone": "908-322-5244",
+   "fax": "908-322-5237",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1807",
+   "name": "FAR HILLS BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403522890",
+   "address": [
+    "6 PROSPECT ST PO BOX 249",
+    "FAR HILLS, NJ 07931"
+   ],
+   "phone": "908-234-0611",
+   "fax": "908-234-0918",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1314",
+   "name": "FARMINGDALE BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402522950",
+   "address": [
+    "11 ASBURY AVE PO BOX 58",
+    "FARMINGDALE, NJ 07727-0058"
+   ],
+   "phone": "732-938-4077",
+   "fax": "732-938-2023",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0314",
+   "name": "FIELDSBORO BORO",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400523250",
+   "address": [
+    "MUNICIPAL BUILDING",
+    "FIELDSBORO, NJ 08505"
+   ],
+   "phone": "609-298-6344",
+   "fax": "609-298-1552",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1009",
+   "name": "FLEMINGTON BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401923700",
+   "address": [
+    "38 PARK AVENUE",
+    "FLEMINGTON, NJ 08822"
+   ],
+   "phone": "908-782-8840",
+   "fax": "908-782-0142",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0315",
+   "name": "FLORENCE TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400523850",
+   "address": [
+    "MUNICIPAL COMPLEX, 711 BROAD STREET",
+    "FLORENCE, NJ 08518-2323"
+   ],
+   "phone": "609-499-2130",
+   "fax": "609-499-3262",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1411",
+   "name": "FLORHAM PARK BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402723910",
+   "address": [
+    "111 RIDGEDALE AVENUE",
+    "FLORHAM PARK, NJ 07932"
+   ],
+   "phone": "973-410-5300",
+   "fax": "973-377-5749",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0110",
+   "name": "FOLSOM BORO",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400123940",
+   "address": [
+    "1700 12TH STREET ROUTE 54",
+    "FOLSOM, NJ 08037"
+   ],
+   "phone": "609-561-3507",
+   "fax": "609-561-5821",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0219",
+   "name": "FORT LEE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400324420",
+   "address": [
+    "309 MAIN STREET",
+    "FORT LEE, NJ 07024"
+   ],
+   "phone": "201-592-3500",
+   "fax": "201-585-0621",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1905",
+   "name": "FRANKFORD TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403724810",
+   "address": [
+    "151 US HIGHWAY ROUTE 206",
+    "AUGUSTA, NJ 07822"
+   ],
+   "phone": "973-948-6453",
+   "fax": "973-948-2612",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1906",
+   "name": "FRANKLIN BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403724930",
+   "address": [
+    "46 MAIN STREET",
+    "FRANKLIN, NJ 07416"
+   ],
+   "phone": "973-827-9853",
+   "fax": "973-827-0716",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0220",
+   "name": "FRANKLIN LAKES BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400324990",
+   "address": [
+    "DE KORTE DRIVE",
+    "FRANKLIN LAKES, NJ 07417"
+   ],
+   "phone": "201-891-0048",
+   "fax": "201-848-9453",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0805",
+   "name": "FRANKLIN TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401524840",
+   "address": [
+    "1571 DELSEA DRIVE",
+    "FRANKLINVILLE, NJ 08322"
+   ],
+   "phone": "856-694-2020",
+   "fax": "856-694-2307",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1010",
+   "name": "FRANKLIN TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401924870",
+   "address": [
+    "202 SIDNEY ROAD",
+    "PITTSTOWN, NJ 08867"
+   ],
+   "phone": "908-735-5343",
+   "fax": "908-735-7598",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1808",
+   "name": "FRANKLIN TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403524900",
+   "address": [
+    "475 DEMOTT LANE",
+    "SOMERSET, NJ 08873"
+   ],
+   "phone": "732-873-7283",
+   "fax": "732-873-0844",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2105",
+   "name": "FRANKLIN TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404124960",
+   "address": [
+    "2093 RT. 57, PO BOX 547",
+    "BROADWAY, NJ 08808"
+   ],
+   "phone": "908-689-3994",
+   "fax": "908-689-5803",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1907",
+   "name": "FREDON TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403725140",
+   "address": [
+    "443 RT 94",
+    "NEWTON, NJ 07860"
+   ],
+   "phone": "973-383-7025",
+   "fax": "973-383-8711",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1315",
+   "name": "FREEHOLD BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402525200",
+   "address": [
+    "30 MECHANIC STREET",
+    "FREEHOLD, NJ 07728"
+   ],
+   "phone": "732-462-4903",
+   "fax": "732-409-2973",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1316",
+   "name": "FREEHOLD TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402525230",
+   "address": [
+    "1 MUNICIPAL PLAZA",
+    "FREEHOLD, NJ 07728"
+   ],
+   "phone": "732-294-2050",
+   "fax": "732-780-7030",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2106",
+   "name": "FRELINGHUYSEN TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404125320",
+   "address": [
+    "210 ROUTE 661 PO BOX 417",
+    "JOHNSONBURG, NJ 07846"
+   ],
+   "phone": "908-852-4121",
+   "fax": "908-852-7621",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1011",
+   "name": "FRENCHTOWN BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401925350",
+   "address": [
+    "18 YORK STREET",
+    "LAMBERTVILLE, NJ 08530"
+   ],
+   "phone": "609-397-0803",
+   "fax": "609-397-2203",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0111",
+   "name": "GALLOWAY TWP",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400125560",
+   "address": [
+    "300 E. JIMMIE LEEDS ROAD",
+    "GALLOWAY, NJ 08201"
+   ],
+   "phone": "609-652-3700",
+   "fax": "609-652-5259",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0221",
+   "name": "GARFIELD CITY",
+   "county": "BERGEN",
+   "censusGeoid": "3400325770",
+   "address": [
+    "111 OUTWATER LANE",
+    "GARFIELD, NJ 07026"
+   ],
+   "phone": "973-340-2106",
+   "fax": "973-340-7623",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2006",
+   "name": "GARWOOD BORO",
+   "county": "UNION",
+   "censusGeoid": "3403925800",
+   "address": [
+    "8 SPRINGFIELD AVENUE",
+    "CRANFORD, NJ 07016"
+   ],
+   "phone": "908-709-7213",
+   "fax": "908-276-4872",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0413",
+   "name": "GIBBSBORO BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400726070",
+   "address": [
+    "49 KIRKWOOD RD",
+    "GIBBSBORO, NJ 08026"
+   ],
+   "phone": "856-783-6655",
+   "fax": "609-782-8694",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0806",
+   "name": "GLASSBORO BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401526340",
+   "address": [
+    "1 SOUTH MAIN ST-CONSTRUCTION OFFICE",
+    "GLASSBORO, NJ 08028"
+   ],
+   "phone": "856-881-8140",
+   "fax": "856-863-4690",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1012",
+   "name": "GLEN GARDNER BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401926550",
+   "address": [
+    "MAIN STREET",
+    "GLEN GARDNER, NJ 08826"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0708",
+   "name": "GLEN RIDGE BORO",
+   "county": "ESSEX",
+   "censusGeoid": "3401326610",
+   "address": [
+    "825 BLOOMFIELD AVENUE PO BOX 66",
+    "GLEN RIDGE, NJ 07028"
+   ],
+   "phone": "973-748-8444",
+   "fax": "973-748-3926",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0222",
+   "name": "GLEN ROCK BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400326640",
+   "address": [
+    "1 HARDING PLAZA",
+    "GLEN ROCK, NJ 07452"
+   ],
+   "phone": "201-670-3965",
+   "fax": "201-652-1674",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0414",
+   "name": "GLOUCESTER CITY",
+   "county": "CAMDEN",
+   "censusGeoid": "3400726820",
+   "address": [
+    "512 MONMOUTH STREET",
+    "GLOUCESTER, NJ 08030"
+   ],
+   "phone": "856-456-7689",
+   "fax": "856-456-0289",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0415",
+   "name": "GLOUCESTER TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400726760",
+   "address": [
+    "1261 CHEWSLANDING RD",
+    "LAUREL SPRINGS, NJ 08021"
+   ],
+   "phone": "856-374-3500",
+   "fax": "856-232-6229",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1809",
+   "name": "GREEN BROOK TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403527510",
+   "address": [
+    "111 GREENBROOK ROAD",
+    "GREEN BROOK, NJ 08812"
+   ],
+   "phone": "732-968-1023",
+   "fax": "732-968-6514",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1908",
+   "name": "GREEN TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403727420",
+   "address": [
+    "150 KENNEDY ROAD PO BOX 65",
+    "TRANQUILITY, NJ 07879"
+   ],
+   "phone": "908-852-9333",
+   "fax": "908-852-1972",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0807",
+   "name": "GREENWICH TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401528185",
+   "address": [
+    "420 WASHINGTON STREET",
+    "GIBBSTOWN, NJ 08027"
+   ],
+   "phone": "856-423-9129",
+   "fax": "856-423-2989",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2107",
+   "name": "GREENWICH TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404128260",
+   "address": [
+    "321 GREENWICH ST.",
+    "STEWARTSVILLE, NJ 08886"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0606",
+   "name": "GREENWICH TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401128170",
+   "address": [
+    "MUNICIPAL BUILDING-CONSTRUCT. DEPT.",
+    "GREENWICH, NJ 08323"
+   ],
+   "phone": "609-453-9181",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "0903",
+   "name": "GUTTENBERG TOWN",
+   "county": "HUDSON",
+   "censusGeoid": "3401728650",
+   "address": [
+    "6808 PARK AVENUE",
+    "GUTTENBERG, NJ 07093"
+   ],
+   "phone": "201-868-3647",
+   "fax": "201-868-3750",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0223",
+   "name": "HACKENSACK CITY",
+   "county": "BERGEN",
+   "censusGeoid": "3400328680",
+   "address": [
+    "410 EAST RAILROAD AVENUE",
+    "HACKENSACK, NJ 07601"
+   ],
+   "phone": "201-646-3920",
+   "fax": "201-646-8052",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2108",
+   "name": "HACKETTSTOWN TOWN",
+   "county": "WARREN",
+   "censusGeoid": "3404128710",
+   "address": [
+    "215 STIGER STREET",
+    "HACKETTSTOWN, NJ 07840"
+   ],
+   "phone": "908-850-0660",
+   "fax": "908-852-2538",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0418",
+   "name": "HADDON HEIGHTS BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400728800",
+   "address": [
+    "625 STATION AVENUE",
+    "HADDDON HEIGHTS, NJ 08035"
+   ],
+   "phone": "856-547-2959",
+   "fax": "856-546-0485",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0416",
+   "name": "HADDON TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400728740",
+   "address": [
+    "135 HADDON AV",
+    "WESTMONT, NJ 08108-2788"
+   ],
+   "phone": "856-854-1176",
+   "fax": "856-854-8773",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0417",
+   "name": "HADDONFIELD BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400728770",
+   "address": [
+    "242 KINGS HIGHWAY EAST-BLDG DEPT.",
+    "HADDONFIELD, NJ 08033"
+   ],
+   "phone": "856-429-4700",
+   "fax": "856-429-4162",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0316",
+   "name": "HAINESPORT TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400529010",
+   "address": [
+    "PO BOX 477",
+    "HAINESPORT, NJ 08036"
+   ],
+   "phone": "609-267-2730",
+   "fax": "609-261-4762",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1603",
+   "name": "HALEDON BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403129070",
+   "address": [
+    "510 BELMONT AVENUE",
+    "HALEDON, NJ 07508"
+   ],
+   "phone": "973-595-7766",
+   "fax": "973-790-4781",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1909",
+   "name": "HAMBURG BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403729220",
+   "address": [
+    "16 WALLKILL AVE.",
+    "HAMBURG, NJ 07419"
+   ],
+   "phone": "973-827-9230",
+   "fax": "973-827-0466",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0112",
+   "name": "HAMILTON TWP",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400129280",
+   "address": [
+    "6101 13TH STREET SUITE 207",
+    "MAYS LANDING, NJ 08330"
+   ],
+   "phone": "609-625-1591",
+   "fax": "609-625-3986",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1103",
+   "name": "HAMILTON TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402129310",
+   "address": [
+    "2090 GREENWOOD AV PO BOX 00150",
+    "HAMILTON, NJ 08650-0150"
+   ],
+   "phone": "609-890-3666",
+   "fax": "609-890-4026",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0113",
+   "name": "HAMMONTON TOWN",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400129430",
+   "address": [
+    "100 CENTRAL AVENUE",
+    "HAMMONTON, NJ 08037"
+   ],
+   "phone": "609-567-4300",
+   "fax": "609-567-2499",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1013",
+   "name": "HAMPTON BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401929460",
+   "address": [
+    "WELLS AVENUE",
+    "HAMPTON, NJ 08827"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1910",
+   "name": "HAMPTON TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403729490",
+   "address": [
+    "1 MUNICIPAL COMPLEX ROAD",
+    "NEWTON, NJ 07860"
+   ],
+   "phone": "973-383-8845",
+   "fax": "973-383-7890",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1412",
+   "name": "HANOVER TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402729550",
+   "address": [
+    "1000 ROUTE 10 PO BOX 250",
+    "WHIPPANY, NJ 07981"
+   ],
+   "phone": "973-428-2462",
+   "fax": "973-428-3146",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1413",
+   "name": "HARDING TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402729700",
+   "address": [
+    "BLUE MILL RD, PO BOX 666",
+    "NEW VERNON, NJ 07976"
+   ],
+   "phone": "973-267-8000",
+   "fax": "973-267-6221",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2109",
+   "name": "HARDWICK TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404129820",
+   "address": [
+    "40 SPRING VALLEY ROAD",
+    "HARDWICK, NJ 07825"
+   ],
+   "phone": "908-362-6528",
+   "fax": "908-362-8840",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1911",
+   "name": "HARDYSTON TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403729850",
+   "address": [
+    "149 WHEATSWORTH RD, STE A",
+    "HARDYSTON, NJ 07419"
+   ],
+   "phone": "973-823-7020",
+   "fax": "973-823-7023",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2110",
+   "name": "HARMONY TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404130090",
+   "address": [
+    "3003 BELVIDERE ROAD",
+    "PHILLIPSBURG, NJ 08865"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0224",
+   "name": "HARRINGTON PARK BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400330150",
+   "address": [
+    "85 HARRIOT AVENUE",
+    "HARRINGTON PARK, NJ 07640"
+   ],
+   "phone": "201-768-2585",
+   "fax": "201-768-3038",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0904",
+   "name": "HARRISON TOWN",
+   "county": "HUDSON",
+   "censusGeoid": "3401730210",
+   "address": [
+    "401 WARREN STREET",
+    "HARRISON, NJ 07029"
+   ],
+   "phone": "973-268-2446",
+   "fax": "973-268-2423",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0808",
+   "name": "HARRISON TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401530180",
+   "address": [
+    "114 BRIDGETON PIKE",
+    "MULLICA HILL, NJ 08062"
+   ],
+   "phone": "856-478-6522",
+   "fax": "856-478-6287",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1509",
+   "name": "HARVEY CEDARS BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402930390",
+   "address": [
+    "7606 LONG BEACH BLVD.",
+    "HARVEY CEDARS, NJ 08008"
+   ],
+   "phone": "609-361-6016",
+   "fax": "609-494-2335",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0225",
+   "name": "HASBROUCK HEIGHTS BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400330420",
+   "address": [
+    "218-222 BOULEVARD",
+    "HASBROUCK HEIGHTS, NJ 07604"
+   ],
+   "phone": "201-288-2143",
+   "fax": "201-288-1468",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0226",
+   "name": "HAWORTH BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400330540",
+   "address": [
+    "300 HAWORTH AVENUE",
+    "HAWORTH, NJ 07641"
+   ],
+   "phone": "201-384-8824",
+   "fax": "201-384-1206",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1604",
+   "name": "HAWTHORNE BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403130570",
+   "address": [
+    "445 LAFAYETTE AVENUE",
+    "HAWTHORNE, NJ 07506"
+   ],
+   "phone": "973-427-4889",
+   "fax": "973-304-2059",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1339",
+   "name": "HAZLET TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402530690",
+   "address": [
+    "1766 UNION AVENUE",
+    "HAZLET, NJ 07730"
+   ],
+   "phone": "732-264-1700",
+   "fax": "732-264-0659",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1206",
+   "name": "HELMETTA BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402330840",
+   "address": [
+    "60 MAIN ST",
+    "HELMETTA, NJ 08828"
+   ],
+   "phone": "732-521-0386",
+   "fax": "732-521-1263",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0419",
+   "name": "HI-NELLA BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400732220",
+   "address": [
+    "100 WYKAGYL ROAD",
+    "HI-NELLA, NJ 08083"
+   ],
+   "phone": "609-784-6237",
+   "fax": null,
+   "dcaEnforced": true
+  },
+  {
+   "code": "1014",
+   "name": "HIGH BRIDGE BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401931320",
+   "address": [
+    "97 WEST MAIN STREET",
+    "HIGH BRIDGE, NJ 08829"
+   ],
+   "phone": "908-638-6455",
+   "fax": "908-638-9374",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1207",
+   "name": "HIGHLAND PARK BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402331470",
+   "address": [
+    "221 SOUTH 5TH ST",
+    "HIGHLAND PARK, NJ 08904"
+   ],
+   "phone": "732-819-3795",
+   "fax": "732-777-6006",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1317",
+   "name": "HIGHLANDS BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402531500",
+   "address": [
+    "171 BAY AVENUE",
+    "HIGHLANDS BORO, NJ 07732"
+   ],
+   "phone": "732-872-1224",
+   "fax": "732-872-0670",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1104",
+   "name": "HIGHTSTOWN BORO",
+   "county": "MERCER",
+   "censusGeoid": "3402131620",
+   "address": [
+    "156 BANK STREET",
+    "HIGHTSTOWN, NJ 08520"
+   ],
+   "phone": "609-490-5100",
+   "fax": "609-371-0267",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1810",
+   "name": "HILLSBOROUGH TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403531890",
+   "address": [
+    "379 SOUTH BRANCH ROAD",
+    "HILLSBOROUGH, NJ 08844"
+   ],
+   "phone": "908-369-5882",
+   "fax": "908-369-3954",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0227",
+   "name": "HILLSDALE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400331920",
+   "address": [
+    "380 HILLSDALE AVENUE",
+    "HILLSDALE, NJ 07642"
+   ],
+   "phone": "201-722-2612",
+   "fax": "201-666-7735",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2007",
+   "name": "HILLSIDE TWP",
+   "county": "UNION",
+   "censusGeoid": "3403931980",
+   "address": [
+    "1409 LIBERETY AVENUE",
+    "HILLSIDE, NJ 07205"
+   ],
+   "phone": "973-926-5100",
+   "fax": "973-282-3403",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0905",
+   "name": "HOBOKEN CITY",
+   "county": "HUDSON",
+   "censusGeoid": "3401732250",
+   "address": [
+    "94 WASHINGTON STREET",
+    "HOBOKEN, NJ 07030"
+   ],
+   "phone": "201-420-2066",
+   "fax": "201-386-5601",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0228",
+   "name": "HO-HO-KUS BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400332310",
+   "address": [
+    "333 WARREN AVENUE",
+    "HO-HO-KUS, NJ 07423"
+   ],
+   "phone": "201-652-2826",
+   "fax": "201-652-2680",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1015",
+   "name": "HOLLAND TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401932460",
+   "address": [
+    "61 CHURCH ROAD",
+    "MILFORD, NJ 08848"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1318",
+   "name": "HOLMDEL TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402532640",
+   "address": [
+    "4 CRAWFORDS CORNER ROAD",
+    "HOLMDEL, NJ 07733"
+   ],
+   "phone": "732-946-2820",
+   "fax": "732-946-0116",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1912",
+   "name": "HOPATCONG BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403732910",
+   "address": [
+    "111 RIVER STYX RD",
+    "HOPATCONG, NJ 07843"
+   ],
+   "phone": "973-770-1200",
+   "fax": "973-770-0301",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2111",
+   "name": "HOPE TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404133060",
+   "address": [
+    "407 HOPE-GREAT MEADOWS RD POB 284",
+    "HOPE, NJ 07844"
+   ],
+   "phone": "908-459-5011",
+   "fax": "908-459-5336",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1105",
+   "name": "HOPEWELL BORO",
+   "county": "MERCER",
+   "censusGeoid": "3402133150",
+   "address": [
+    "88 E BROAD STREET",
+    "HOPEWELL, NJ 08525"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0607",
+   "name": "HOPEWELL TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401133120",
+   "address": [
+    "590 SHILOH PIKE",
+    "BRIDGETON, NJ 08302"
+   ],
+   "phone": "856-453-9181",
+   "fax": "856-459-9483",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1106",
+   "name": "HOPEWELL TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402133180",
+   "address": [
+    "201 WASHINGTON CROSSING PENN ROAD",
+    "TITUSVILLE, NJ 08560-1410"
+   ],
+   "phone": "609-737-0612",
+   "fax": "609-737-2770",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1319",
+   "name": "HOWELL TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402533300",
+   "address": [
+    "4567 ROUTE 9 NORTH 2ND FLOOR",
+    "HOWELL, NJ 07731"
+   ],
+   "phone": "732-938-4500",
+   "fax": "732-414-3243",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2112",
+   "name": "INDEPENDENCE TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404133930",
+   "address": [
+    "4 REGINA LANE",
+    "GREAT MEADOWS, NJ 07838"
+   ],
+   "phone": "908-637-6104",
+   "fax": "908-637-0151",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1320",
+   "name": "INTERLAKEN BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402534200",
+   "address": [
+    "100 GRASSMERE AVENUE",
+    "INTERLAKEN, NJ 07712"
+   ],
+   "phone": "732-531-7405",
+   "fax": "732-531-0150",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0709",
+   "name": "IRVINGTON TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401334450",
+   "address": [
+    "CIVIC SQUARE- MUNICIPAL BLDG",
+    "IRVINGTON, NJ 07111"
+   ],
+   "phone": "973-399-6610",
+   "fax": "973-416-5716",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1510",
+   "name": "ISLAND HEIGHTS BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402934530",
+   "address": [
+    "1 WANAMAKER MUNICIPAL COMPLEX",
+    "ISLAND HEIGHTS, NJ 08732-0797"
+   ],
+   "phone": "732-270-0388",
+   "fax": "732-270-8586",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1511",
+   "name": "JACKSON TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402934680",
+   "address": [
+    "95 W. VETERANS HIGHWAY",
+    "JACKSON, NJ 08527"
+   ],
+   "phone": "732-928-1200",
+   "fax": "732-928-7861",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1208",
+   "name": "JAMESBURG BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402334890",
+   "address": [
+    "131 PERRINEVILLE ROAD",
+    "JAMESBURG, NJ 08831"
+   ],
+   "phone": "732-521-5875",
+   "fax": "732-521-3455",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1414",
+   "name": "JEFFERSON TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402734980",
+   "address": [
+    "1033 WELDON ROAD",
+    "LAKE HOPATCONG, NJ 07856"
+   ],
+   "phone": "973-208-6113",
+   "fax": "973-697-1805",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0906",
+   "name": "JERSEY CITY",
+   "county": "HUDSON",
+   "censusGeoid": "3401736000",
+   "address": [
+    "360 MARTIN LUTHER KING DR.",
+    "JERSEY CITY, NJ 07305-3717"
+   ],
+   "phone": "201-547-5055",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "1321",
+   "name": "KEANSBURG BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402536480",
+   "address": [
+    "29 CHURCH STREET",
+    "KEANSBURG, NJ 07734"
+   ],
+   "phone": "732-787-0215",
+   "fax": "732-787-0787",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0907",
+   "name": "KEARNY TOWN",
+   "county": "HUDSON",
+   "censusGeoid": "3401736510",
+   "address": [
+    "402 KEARNY AV",
+    "KEARNY, NJ 07032"
+   ],
+   "phone": "201-955-7880",
+   "fax": "201-998-5171",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2008",
+   "name": "KENILWORTH BORO",
+   "county": "UNION",
+   "censusGeoid": "3403936690",
+   "address": [
+    "567 BOULEVARD",
+    "KENILWORTH, NJ 07033"
+   ],
+   "phone": "908-276-5802",
+   "fax": "908-276-7688",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1322",
+   "name": "KEYPORT BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402536810",
+   "address": [
+    "70 W. FRONT ST",
+    "KEYPORT, NJ 07735"
+   ],
+   "phone": "732-739-5135",
+   "fax": "732-739-3479",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1016",
+   "name": "KINGWOOD TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401937065",
+   "address": [
+    "899 OAK GROVE RD",
+    "FRENCHTOWN, NJ 08825"
+   ],
+   "phone": "908-996-3061",
+   "fax": "908-996-7753",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1415",
+   "name": "KINNELON BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402737110",
+   "address": [
+    "130 KINNELON ROAD",
+    "KINNELON, NJ 07405"
+   ],
+   "phone": "973-838-7573",
+   "fax": "973-838-1862",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2113",
+   "name": "KNOWLTON TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404137320",
+   "address": [
+    "628 ROUTE 94",
+    "COLUMBIA, NJ 07832"
+   ],
+   "phone": "908-496-4794",
+   "fax": "908-496-4516",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1512",
+   "name": "LACEY TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402937380",
+   "address": [
+    "124 SOUTH MAIN STREET",
+    "FORKED RIVER, NJ 08731"
+   ],
+   "phone": "609-693-1100",
+   "fax": "609-693-8466",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1913",
+   "name": "LAFAYETTE TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403737440",
+   "address": [
+    "33 MORRIS FARM RD.",
+    "LAFAYETTE, NJ 07848"
+   ],
+   "phone": "973-383-1817",
+   "fax": "973-383-0566",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1347",
+   "name": "LAKE COMO BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402537560",
+   "address": [
+    "1730 MAIN ST PO BOX 569",
+    "LAKE COMO, NJ 07719"
+   ],
+   "phone": "732-681-3232",
+   "fax": "732-681-8981",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1513",
+   "name": "LAKEHURST BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402937770",
+   "address": [
+    "5 UNION AVENUE",
+    "LAKEHURST, NJ 08733"
+   ],
+   "phone": "732-657-4141",
+   "fax": "732-657-8272",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1514",
+   "name": "LAKEWOOD TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402938550",
+   "address": [
+    "212 4TH STREET",
+    "LAKEWOOD, NJ 08701"
+   ],
+   "phone": "732-364-3760",
+   "fax": "732-905-8112",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1017",
+   "name": "LAMBERTVILLE CITY",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401938610",
+   "address": [
+    "18 YORK STREET",
+    "LAMBERTVILLE, NJ 08530"
+   ],
+   "phone": "609-397-0803",
+   "fax": "609-397-2203",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0420",
+   "name": "LAUREL SPRINGS BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400739210",
+   "address": [
+    "135 BROADWAY",
+    "LAUREL SPRINGS, NJ 08021"
+   ],
+   "phone": "856-784-0500",
+   "fax": "856-783-2540",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1515",
+   "name": "LAVALLETTE BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402939390",
+   "address": [
+    "1306 GRAND CENTRAL AVENUE",
+    "LAVALLETTE, NJ 08735"
+   ],
+   "phone": "732-793-5105",
+   "fax": "732-830-6344",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0421",
+   "name": "LAWNSIDE BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400739420",
+   "address": [
+    "4 DOUGLAS AVENUE",
+    "LAWNSIDE, NJ 08045"
+   ],
+   "phone": "856-573-6208",
+   "fax": "856-546-3232",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0608",
+   "name": "LAWRENCE TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401139450",
+   "address": [
+    "LAWRENCE TWP MUN BLDG, 357 MAIN ST",
+    "CEDARVILLE, NJ 08311"
+   ],
+   "phone": "856-447-4554",
+   "fax": "856-447-3055",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1107",
+   "name": "LAWRENCE TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402139510",
+   "address": [
+    "2207 LAWRENCE RD",
+    "LAWRENCEVILLE, NJ 08648"
+   ],
+   "phone": "609-844-7060",
+   "fax": "609-844-0282",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1018",
+   "name": "LEBANON BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401939630",
+   "address": [
+    "1225 ROUTE 31, SUITE 411",
+    "LEBANON, NJ 08833"
+   ],
+   "phone": "908-735-8800",
+   "fax": "908-735-7346",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1019",
+   "name": "LEBANON TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401939660",
+   "address": [
+    "108 FAIRMOUNT RD W",
+    "CALIFON, NJ 07830"
+   ],
+   "phone": "908-832-5552",
+   "fax": "908-832-0674",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0229",
+   "name": "LEONIA BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400340020",
+   "address": [
+    "312 BROAD AVENUE",
+    "LEONIA, NJ 07605"
+   ],
+   "phone": "201-592-5743",
+   "fax": "201-592-5746",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2114",
+   "name": "LIBERTY TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404140110",
+   "address": [
+    "349 MOUNTAIN LAKE ROAD",
+    "GREAT MEADOWS, NJ 07838"
+   ],
+   "phone": "908-637-4579",
+   "fax": null,
+   "dcaEnforced": true
+  },
+  {
+   "code": "1416",
+   "name": "LINCOLN PARK BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402740290",
+   "address": [
+    "34 CHAPEL HILL ROAD",
+    "LINCOLN PARK, NJ 07035"
+   ],
+   "phone": "973-270-2028",
+   "fax": "973-270-2042",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2009",
+   "name": "LINDEN CITY",
+   "county": "UNION",
+   "censusGeoid": "3403940350",
+   "address": [
+    "301 NORTH WOOD AVENUE ROOM 204",
+    "LINDEN, NJ 07036"
+   ],
+   "phone": "908-474-8462",
+   "fax": "908-474-8028",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0422",
+   "name": "LINDENWOLD BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400740440",
+   "address": [
+    "2001 EGG HARBOR ROAD",
+    "LINDENWOLD, NJ 08021"
+   ],
+   "phone": "856-783-2121",
+   "fax": "856-783-2540",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0114",
+   "name": "LINWOOD CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400140530",
+   "address": [
+    "400 POPLAR AVENUE",
+    "LINWOOD CITY, NJ 08221"
+   ],
+   "phone": "609-926-7992",
+   "fax": "609-653-2730",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1516",
+   "name": "LITTLE EGG HARBOR TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402940560",
+   "address": [
+    "665 RADIO ROAD",
+    "LITTLE EGG HARBOR, NJ 08087"
+   ],
+   "phone": "609-294-9071",
+   "fax": "609-294-9065",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1605",
+   "name": "LITTLE FALLS TWP",
+   "county": "PASSAIC",
+   "censusGeoid": "3403140620",
+   "address": [
+    "225 MAIN STREET",
+    "LITTLE FALLS, NJ 07424"
+   ],
+   "phone": "973-256-6182",
+   "fax": "973-256-8017",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0230",
+   "name": "LITTLE FERRY BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400340680",
+   "address": [
+    "215-217 LIBERTY ST",
+    "LITTLE FERRY, NJ 07643"
+   ],
+   "phone": "201-641-2942",
+   "fax": "201-641-7487",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1323",
+   "name": "LITTLE SILVER BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402540770",
+   "address": [
+    "480 PROSPECT AVENUE",
+    "LITTLE SILVER, NJ 07739"
+   ],
+   "phone": "732-530-2760",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "0710",
+   "name": "LIVINGSTON TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401340890",
+   "address": [
+    "357 S LIVINGSTON AVENUE",
+    "LIVINGSTON, NJ 07039"
+   ],
+   "phone": "973-535-7957",
+   "fax": "973-992-7435",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1324",
+   "name": "LOCH ARBOUR VILLAGE",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402541010",
+   "address": [
+    "550 MAIN STREET",
+    "LOCH ARBOUR, NJ 07711"
+   ],
+   "phone": null,
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "0231",
+   "name": "LODI BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400341100",
+   "address": [
+    "ONE MEMORIAL DRIVE",
+    "LODI, NJ 07644"
+   ],
+   "phone": "973-365-4005",
+   "fax": "973-365-1723",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0809",
+   "name": "LOGAN TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401541160",
+   "address": [
+    "PO BOX 314 125 MAIN STREET",
+    "BRIDGEPORT, NJ 08014"
+   ],
+   "phone": "856-467-3626",
+   "fax": "856-467-9260",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1517",
+   "name": "LONG BEACH TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402941250",
+   "address": [
+    "6805 LONG BEACH BLVD",
+    "BRANT BEACH, NJ 08008"
+   ],
+   "phone": "609-361-1000",
+   "fax": "609-494-5421",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1325",
+   "name": "LONG BRANCH CITY",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402541310",
+   "address": [
+    "344 BROADWAY",
+    "LONG BRANCH, NJ 07740"
+   ],
+   "phone": "732-222-7000",
+   "fax": "732-571-2450",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1430",
+   "name": "LONG HILL TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402741362",
+   "address": [
+    "915 VALLEY ROAD",
+    "GILLETTE, NJ 07933"
+   ],
+   "phone": "908-647-8000",
+   "fax": "908-647-4150",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0115",
+   "name": "LONGPORT BORO",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400141370",
+   "address": [
+    "2305 ATLANTIC AVENUE",
+    "LONGPORT, NJ 08403"
+   ],
+   "phone": "609-822-0569",
+   "fax": "609-823-9480",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2115",
+   "name": "LOPATCONG TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404141490",
+   "address": [
+    "232 3RD STREET M.P.",
+    "PHILLIPSBURG, NJ 08865"
+   ],
+   "phone": "908-859-3355",
+   "fax": "908-859-4543",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1704",
+   "name": "LOWER ALLOWAYS CREEK TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403341640",
+   "address": [
+    "PO BOX 157",
+    "HANCOCK'S BRIDGE, NJ 08038-0157"
+   ],
+   "phone": "856-935-5441",
+   "fax": "856-935-9176",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0505",
+   "name": "LOWER TWP",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400941610",
+   "address": [
+    "2600 BAYSHORE ROAD",
+    "VILLAS, NJ 08251"
+   ],
+   "phone": "609-886-2005",
+   "fax": "609-886-2122",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0317",
+   "name": "LUMBERTON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400542060",
+   "address": [
+    "35 MUNICIPAL DRIVE PO BOX 1860",
+    "LUMBERTON, NJ 08048-1860"
+   ],
+   "phone": "609-267-3217",
+   "fax": "609-267-5566",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0232",
+   "name": "LYNDHURST TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400342090",
+   "address": [
+    "253 STUYVESANT AV",
+    "LYNDHURST, NJ 07071"
+   ],
+   "phone": "201-804-2490",
+   "fax": "201-939-8088",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1417",
+   "name": "MADISON BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402742510",
+   "address": [
+    "HARTLEY DODGE MEMORIAL-KINGS RD",
+    "MADISON, NJ 07940"
+   ],
+   "phone": "973-593-3064",
+   "fax": "973-593-4955",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0423",
+   "name": "MAGNOLIA BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400742630",
+   "address": [
+    "438 W EVESHAM AVENUE"
+   ],
+   "phone": "856-783-1520",
+   "fax": "856-782-0782",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0233",
+   "name": "MAHWAH TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400342750",
+   "address": [
+    "475 CORPORATE DRIVE",
+    "MAHWAH, NJ 07430"
+   ],
+   "phone": "201-529-5757",
+   "fax": "201-512-0537",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1326",
+   "name": "MANALAPAN TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402542990",
+   "address": [
+    "120 RTE 522 & TAYLORS MILLS RD",
+    "MANALAPAN TWP, NJ 07726"
+   ],
+   "phone": "732-446-8319",
+   "fax": "732-446-1366",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1327",
+   "name": "MANASQUAN BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402543050",
+   "address": [
+    "201 EAST MAIN STREET",
+    "MANASQUAN, NJ 08736"
+   ],
+   "phone": "732-223-0544",
+   "fax": "732-223-1300",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1518",
+   "name": "MANCHESTER TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402943140",
+   "address": [
+    "1 COLONIAL DRIVE",
+    "MANCHESTER, NJ 08759"
+   ],
+   "phone": "732-657-8121",
+   "fax": "732-657-7348",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1705",
+   "name": "MANNINGTON TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403343200",
+   "address": [
+    "491 ROUTE 45",
+    "SALEM, NJ 08079"
+   ],
+   "phone": "856-935-2359",
+   "fax": "856-935-6557",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0318",
+   "name": "MANSFIELD TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400543290",
+   "address": [
+    "3135 ROUTE 206 SOUTH SUITE 1",
+    "COLUMBUS, NJ 08022"
+   ],
+   "phone": "609-298-0542",
+   "fax": "609-298-4095",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2116",
+   "name": "MANSFIELD TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404143320",
+   "address": [
+    "100 PORT MURRAY ROAD",
+    "PORT MURRAY, NJ 07865"
+   ],
+   "phone": "908-689-6151",
+   "fax": "908-689-0142",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1519",
+   "name": "MANTOLOKING BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402943380",
+   "address": [
+    "202 DOWNER AVE / P.O. BOX 247",
+    "MANTOLOKING, NJ 08738"
+   ],
+   "phone": "732-475-7261",
+   "fax": "732-475-7601",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0810",
+   "name": "MANTUA TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401543440",
+   "address": [
+    "401 SOUTH MAIN STREET",
+    "MANTUA, NJ 08051"
+   ],
+   "phone": "856-468-9050",
+   "fax": "856-468-7267",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1811",
+   "name": "MANVILLE BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403543620",
+   "address": [
+    "325 NORTH MAIN STREET",
+    "MANVILLE, NJ 08835"
+   ],
+   "phone": "908-725-9478",
+   "fax": "908-231-8620",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0319",
+   "name": "MAPLE SHADE TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400543740",
+   "address": [
+    "200 STILES AVENUE",
+    "MAPLE SHADE, NJ 08052"
+   ],
+   "phone": "856-779-9610",
+   "fax": "856-779-2524",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0711",
+   "name": "MAPLEWOOD TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401343800",
+   "address": [
+    "574 VALLEY STREET",
+    "MAPLEWOOD NJ, NJ 07040"
+   ],
+   "phone": "973-762-8120",
+   "fax": "973-762-2894",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0116",
+   "name": "MARGATE CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400143890",
+   "address": [
+    "9001 WINCHESTER AVENUE",
+    "MARGATE, NJ 08402"
+   ],
+   "phone": "609-822-1974",
+   "fax": "609-822-2248",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1328",
+   "name": "MARLBORO TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402544070",
+   "address": [
+    "1979 TOWNSHIP DRIVE",
+    "MARLBORO, NJ 07746"
+   ],
+   "phone": "732-536-0200",
+   "fax": "732-617-7225",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1329",
+   "name": "MATAWAN BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402544520",
+   "address": [
+    "201 BROAD STREET",
+    "MATAWAN, NJ 07747"
+   ],
+   "phone": "732-566-3898",
+   "fax": "732-290-7631",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0609",
+   "name": "MAURICE RIVER TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401144580",
+   "address": [
+    "590 MAIN STREET",
+    "LEESBURG, NJ 08327"
+   ],
+   "phone": "856-785-1403",
+   "fax": "856-785-1974",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0234",
+   "name": "MAYWOOD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400344880",
+   "address": [
+    "15 PARK AVENUE",
+    "MAYWOOD, NJ 07607"
+   ],
+   "phone": "201-845-2900",
+   "fax": "201-909-0673",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0321",
+   "name": "MEDFORD LAKES BORO",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400545210",
+   "address": [
+    "1 CABIN CIRCLE",
+    "MEDFORD LAKES, NJ 08055"
+   ],
+   "phone": "609-654-8898",
+   "fax": "609-654-1816",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0320",
+   "name": "MEDFORD TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400545120",
+   "address": [
+    "17 NORTH MAIN STREET",
+    "MEDFORD, NJ 08055"
+   ],
+   "phone": "609-654-2608",
+   "fax": "609-953-7720",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1418",
+   "name": "MENDHAM BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402745330",
+   "address": [
+    "6 WEST MAIN STREET",
+    "MENDHAM, NJ 07945"
+   ],
+   "phone": "973-543-7152",
+   "fax": "973-543-2290",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1419",
+   "name": "MENDHAM TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402745360",
+   "address": [
+    "PO BOX 520, TWP. BUILDING",
+    "BROOKSIDE, NJ 07926"
+   ],
+   "phone": "973-543-4555",
+   "fax": "973-543-6630",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0424",
+   "name": "MERCHANTVILLE BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400745510",
+   "address": [
+    "1 WEST MAPLE AV",
+    "MERCHANTVILLE, NJ 08109"
+   ],
+   "phone": "856-662-2474",
+   "fax": "856-662-0461",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1210",
+   "name": "METUCHEN BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402345690",
+   "address": [
+    "500 MAIN STREET",
+    "METUCHEN, NJ 08840"
+   ],
+   "phone": "732-632-8515",
+   "fax": "732-632-8100",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0506",
+   "name": "MIDDLE TWP",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400945810",
+   "address": [
+    "33 MECHANIC STREET",
+    "CAPE MAY COURT HOUSE, NJ 08210"
+   ],
+   "phone": "609-465-8740",
+   "fax": "609-463-1705",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1211",
+   "name": "MIDDLESEX BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402345900",
+   "address": [
+    "1200 MOUNTAIN AVENUE",
+    "MIDDLESEX, NJ 08846"
+   ],
+   "phone": "732-356-3666",
+   "fax": "732-356-3050",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1331",
+   "name": "MIDDLETOWN TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402545990",
+   "address": [
+    "1 KINGS HIGHWAY",
+    "MIDDLETOWN, NJ 07748"
+   ],
+   "phone": "732-615-2104",
+   "fax": "732-671-2576",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0235",
+   "name": "MIDLAND PARK BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400346110",
+   "address": [
+    "280 GODWIN AVENUE",
+    "MIDLAND PARK, NJ 07432"
+   ],
+   "phone": "201-445-5424",
+   "fax": "201-445-5850",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1020",
+   "name": "MILFORD BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401946260",
+   "address": [
+    "30 WATER STREET PO BOX 507",
+    "MILFORD, NJ 08848"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0712",
+   "name": "MILLBURN TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401346380",
+   "address": [
+    "375 MILLBURN AVENUE",
+    "MILLBURN, NJ 07041"
+   ],
+   "phone": "973-564-7055",
+   "fax": "973-379-3927",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1812",
+   "name": "MILLSTONE BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403546590",
+   "address": [
+    "1353 MAIN ST",
+    "MILLSTONE, NJ 08844"
+   ],
+   "phone": null,
+   "fax": null,
+   "dcaEnforced": true
+  },
+  {
+   "code": "1332",
+   "name": "MILLSTONE TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402546560",
+   "address": [
+    "470 STAGECOACH RD",
+    "MILLSTONE TWP, NJ 08510"
+   ],
+   "phone": "732-917-2953",
+   "fax": "609-208-2083",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1212",
+   "name": "MILLTOWN BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402346620",
+   "address": [
+    "39 WASHINGTON AVENUE",
+    "MILLTOWN, NJ 08850"
+   ],
+   "phone": "732-828-2100",
+   "fax": "732-249-4568",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0610",
+   "name": "MILLVILLE CITY",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401146680",
+   "address": [
+    "12 SOUTH HIGH STREET",
+    "MILLVILLE, NJ 08332"
+   ],
+   "phone": "856-825-7000",
+   "fax": "856-825-7401",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1420",
+   "name": "MINE HILL TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402746860",
+   "address": [
+    "10 BAKER STREET",
+    "MINE HILL, NJ 07803"
+   ],
+   "phone": "973-366-9031",
+   "fax": "973-366-7311",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1333",
+   "name": "MONMOUTH BEACH BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402547130",
+   "address": [
+    "22 BEACH ROAD",
+    "MONMOUTH BEACH, NJ 07750"
+   ],
+   "phone": "732-229-2204",
+   "fax": "732-870-8245",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0811",
+   "name": "MONROE TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401547250",
+   "address": [
+    "125 VIRGINIA AVE",
+    "MONROE TWP, NJ 08094"
+   ],
+   "phone": "856-728-9800",
+   "fax": "856-875-2941",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1213",
+   "name": "MONROE TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402347280",
+   "address": [
+    "PERRINEVILLE ROAD",
+    "JAMESBURG, NJ 08831"
+   ],
+   "phone": "732-656 4585",
+   "fax": "732-521-5659",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1914",
+   "name": "MONTAGUE TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403747430",
+   "address": [
+    "277 CLOVE RD",
+    "MONTAGUE, NJ 07827"
+   ],
+   "phone": "973-293-3366",
+   "fax": "973-293-7467",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0713",
+   "name": "MONTCLAIR TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401347500",
+   "address": [
+    "205 CLAREMONT AVENUE",
+    "MONTCLAIR, NJ 07042"
+   ],
+   "phone": "973-509-4951",
+   "fax": "973-655-9368",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1813",
+   "name": "MONTGOMERY TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403547580",
+   "address": [
+    "100 COMMUNITY DRIVE",
+    "SKILLMAN, NJ 08558"
+   ],
+   "phone": "908-359-8211",
+   "fax": "908-359-2006",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0236",
+   "name": "MONTVALE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400347610",
+   "address": [
+    "12 MERCEDES DRIVE",
+    "MONTVALE, NJ 07645"
+   ],
+   "phone": "201-391-5732",
+   "fax": "201-391-9317",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1421",
+   "name": "MONTVILLE TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402747670",
+   "address": [
+    "195 CHANGEBRIDGE ROAD",
+    "MONTVILLE, NJ 07045"
+   ],
+   "phone": "973-331-3318",
+   "fax": "973-334-0180",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0237",
+   "name": "MOONACHIE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400347700",
+   "address": [
+    "70 MOONACHIE ROAD",
+    "MOONACHIE, NJ 07074"
+   ],
+   "phone": "201-641-1857",
+   "fax": "201-641-9542",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0322",
+   "name": "MOORESTOWN TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400547880",
+   "address": [
+    "111 WEST 2ND STREET",
+    "MOORESTOWN, NJ 08057"
+   ],
+   "phone": "856-235-0912",
+   "fax": "856-273-2457",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1423",
+   "name": "MORRIS PLAINS BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402748210",
+   "address": [
+    "531 SPEEDWELL AVENUE",
+    "MORRIS PLAINS, NJ 07950"
+   ],
+   "phone": "973-538-0325",
+   "fax": "973-539-9288",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1422",
+   "name": "MORRIS TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402748090",
+   "address": [
+    "PO BOX 7603",
+    "CONVENT STATION, NJ 07961-7603"
+   ],
+   "phone": "973-326-7445",
+   "fax": "973-605-8363",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1424",
+   "name": "MORRISTOWN TOWN",
+   "county": "MORRIS",
+   "censusGeoid": "3402748300",
+   "address": [
+    "200 SOUTH STREET PO BOX 914",
+    "MORRISTOWN, NJ 07960"
+   ],
+   "phone": "973-292-6712",
+   "fax": "973-292-6734",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1426",
+   "name": "MOUNT ARLINGTON BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402748690",
+   "address": [
+    "419 HOWARD BOULEVARD",
+    "MOUNT ARLINGTON, NJ 07856"
+   ],
+   "phone": "973-398-0974",
+   "fax": "973-398-3344",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0425",
+   "name": "MOUNT EPHRAIM BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400748750",
+   "address": [
+    "121 SOUTH BLACK HORSE PIKE",
+    "MOUNT EPHRAIM, NJ 08059"
+   ],
+   "phone": "856-931-1546",
+   "fax": "856-931-5167",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0323",
+   "name": "MOUNT HOLLY TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400548900",
+   "address": [
+    "23 WASHINGTON STREET",
+    "MOUNT HOLLY, NJ 08060"
+   ],
+   "phone": "609-845-1100",
+   "fax": "609-267-6295",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0324",
+   "name": "MOUNT LAUREL TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400549020",
+   "address": [
+    "100 MOUNT LAUREL ROAD",
+    "MOUNT LAUREL, NJ 08054"
+   ],
+   "phone": "856-234-9686",
+   "fax": "856-273-0106",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1427",
+   "name": "MOUNT OLIVE TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402749080",
+   "address": [
+    "PO BOX 450",
+    "BUDD LAKE, NJ 07828"
+   ],
+   "phone": "973-691-0900",
+   "fax": "973-347-5331",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1425",
+   "name": "MOUNTAIN LAKES BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402748480",
+   "address": [
+    "400 BOULEVARD",
+    "MOUNTAIN LAKES, NJ 07046"
+   ],
+   "phone": "973-334-8219",
+   "fax": "973-402-5595",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2010",
+   "name": "MOUNTAINSIDE BORO",
+   "county": "UNION",
+   "censusGeoid": "3403948510",
+   "address": [
+    "1385 ROUTE 22",
+    "MOUNTAINSIDE, NJ 07092"
+   ],
+   "phone": "908-232-2919",
+   "fax": "908-232-6902",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0117",
+   "name": "MULLICA TWP",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400149410",
+   "address": [
+    "4528 WHITE HORSE PIKE PO BOX 317",
+    "ELWOOD, NJ 08217"
+   ],
+   "phone": "609-561-7070",
+   "fax": "609-561-3031",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0812",
+   "name": "NATIONAL PARK BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401549680",
+   "address": [
+    "7 SOUTH GROVE AVENUE",
+    "NATIONAL PARK, NJ 08063"
+   ],
+   "phone": "856-845-3891",
+   "fax": "856-845-0726",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1335",
+   "name": "NEPTUNE CITY BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402549920",
+   "address": [
+    "106 WEST SYLVANIA AVENUE",
+    "NEPTUNE CITY, NJ 07753"
+   ],
+   "phone": "732-776-9204",
+   "fax": "732-776-8906",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1334",
+   "name": "NEPTUNE TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402549890",
+   "address": [
+    "25 NEPTUNE BOULEVARD",
+    "NEPTUNE, NJ 07753"
+   ],
+   "phone": "732-988-5200",
+   "fax": "732-988-0062",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1428",
+   "name": "NETCONG BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402750130",
+   "address": [
+    "23 MAPLE AVENUE",
+    "NETCONG, NJ 07857-1121"
+   ],
+   "phone": "973-347-0252",
+   "fax": "973-347-3020",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1214",
+   "name": "NEW BRUNSWICK CITY",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402351210",
+   "address": [
+    "25 KIRKPATRICK ST/PO BOX 269",
+    "NEW BRUNSWICK, NJ 08903-0269"
+   ],
+   "phone": "732-745-5075",
+   "fax": "732-745-5141",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0325",
+   "name": "NEW HANOVER TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400551510",
+   "address": [
+    "2 HOCKAMICK RD PO BOX 159",
+    "COOKSTOWN, NJ 08511"
+   ],
+   "phone": "609-758-2172",
+   "fax": "609-758-1822",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0238",
+   "name": "NEW MILFORD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400351660",
+   "address": [
+    "930 RIVER ROAD",
+    "NEW MILFORD, NJ 07646"
+   ],
+   "phone": "201-967-5415",
+   "fax": "201-262-1904",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2011",
+   "name": "NEW PROVIDENCE BORO",
+   "county": "UNION",
+   "censusGeoid": "3403951810",
+   "address": [
+    "360 ELKWOOD AVENUE",
+    "NEW PROVIDENCE, NJ 07974"
+   ],
+   "phone": "908-665-1098",
+   "fax": "908-665-8361",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0714",
+   "name": "NEWARK CITY",
+   "county": "ESSEX",
+   "censusGeoid": "3401351000",
+   "address": [
+    "920 BROAD STREET",
+    "NEWARK, NJ 07102"
+   ],
+   "phone": "973-733-5632",
+   "fax": "973-824-6070",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0813",
+   "name": "NEWFIELD BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401551390",
+   "address": [
+    "18 CATAWBA AVENUE",
+    "NEWFIELD, NJ 08344"
+   ],
+   "phone": "856-697-1100",
+   "fax": "856-697-3014",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1915",
+   "name": "NEWTON TOWN",
+   "county": "SUSSEX",
+   "censusGeoid": "3403751930",
+   "address": [
+    "39 TRINITY STREET",
+    "NEWTON, NJ 07860"
+   ],
+   "phone": "973-383-3521",
+   "fax": "973-383-0827",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0239",
+   "name": "NORTH ARLINGTON BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400352320",
+   "address": [
+    "214 RIDGE ROAD",
+    "NORTH ARLINGTON, NJ 07031"
+   ],
+   "phone": "201-991-6060",
+   "fax": "201-998-9284",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0908",
+   "name": "NORTH BERGEN TWP",
+   "county": "HUDSON",
+   "censusGeoid": "3401752470",
+   "address": [
+    "4233 KENNEDY BOULEVARD",
+    "NORTH BERGEN, NJ 07047"
+   ],
+   "phone": "201-392-2051",
+   "fax": "201-864-0208",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1215",
+   "name": "NORTH BRUNSWICK TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402352560",
+   "address": [
+    "710 HERMANN ROAD",
+    "NORTH BRUNSWICK, NJ 08902"
+   ],
+   "phone": "732-247-0922",
+   "fax": "732-289-3822",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0715",
+   "name": "NORTH CALDWELL BORO",
+   "county": "ESSEX",
+   "censusGeoid": "3401352620",
+   "address": [
+    "154 GOULD AVENUE",
+    "NORTH CALDWELL, NJ 07006"
+   ],
+   "phone": "973-228-6415",
+   "fax": "973-228-2914",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1606",
+   "name": "NORTH HALEDON BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403153040",
+   "address": [
+    "103 OVERLOOK AVENUE",
+    "NORTH HALEDON, NJ 07508"
+   ],
+   "phone": "973-423-9422",
+   "fax": "973-427-5301",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0326",
+   "name": "NORTH HANOVER TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400553070",
+   "address": [
+    "41 SCHOOLHOUSE ROAD",
+    "JACOBSTOWN, NJ 08562"
+   ],
+   "phone": "609-758-2522",
+   "fax": "609-758-3016",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1814",
+   "name": "NORTH PLAINFIELD BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403553280",
+   "address": [
+    "263 SOMERSET STREET",
+    "NORTH PLAINFIELD, NJ 07060"
+   ],
+   "phone": "908-769-2900",
+   "fax": "908-769-6499",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0507",
+   "name": "NORTH WILDWOOD CITY",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400953490",
+   "address": [
+    "901 ATLANTIC AVENUE",
+    "NORTH WILDWOOD, NJ 08260"
+   ],
+   "phone": "609-522-2030",
+   "fax": "609-523-8502",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0118",
+   "name": "NORTHFIELD CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400152950",
+   "address": [
+    "1600 SHORE ROAD",
+    "NORTHFIELD, NJ 08225"
+   ],
+   "phone": "609-641-2832",
+   "fax": "609-641-7042",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0240",
+   "name": "NORTHVALE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400353430",
+   "address": [
+    "116 PARIS AVENUE",
+    "NORTHVALE, NJ 07647"
+   ],
+   "phone": "201-767-8069",
+   "fax": "201-767-0372",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0241",
+   "name": "NORWOOD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400353610",
+   "address": [
+    "455 BROADWAY",
+    "NORWOOD, NJ 07648"
+   ],
+   "phone": "201-767-7420",
+   "fax": "201-784-2270",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0716",
+   "name": "NUTLEY TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401353680",
+   "address": [
+    "1 KENNEDY DRIVE",
+    "NUTLEY, NJ 07110"
+   ],
+   "phone": "973-284-4951",
+   "fax": "973-284-0071",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0242",
+   "name": "OAKLAND BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400353850",
+   "address": [
+    "MUNICIPAL PLAZA",
+    "OAKLAND, NJ 07436"
+   ],
+   "phone": "201-337-1644",
+   "fax": "201-337-9212",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0426",
+   "name": "OAKLYN BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400753880",
+   "address": [
+    "500 WHITE HORSE PIKE",
+    "OAKLYN, NJ 08107"
+   ],
+   "phone": "856-858-2457",
+   "fax": "856-854-0180",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0508",
+   "name": "OCEAN CITY",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400954360",
+   "address": [
+    "115 12TH STREET",
+    "OCEAN CITY, NJ 08226"
+   ],
+   "phone": "609-525-9174",
+   "fax": "609-399-8419",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1521",
+   "name": "OCEAN GATE BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402954450",
+   "address": [
+    "801 OCEAN GATE AVE",
+    "OCEAN GATE, NJ 08740"
+   ],
+   "phone": "732-269-3166",
+   "fax": "732-269-6652",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1337",
+   "name": "OCEAN TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402554270",
+   "address": [
+    "399 MONMOUTH ROAD",
+    "OAKHURST, NJ 07755"
+   ],
+   "phone": "732-531-5000",
+   "fax": "732-531-7696",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1520",
+   "name": "OCEAN TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402954300",
+   "address": [
+    "200 WELLS MILLS RD (RT. 532)",
+    "WARETOWN, NJ 08758"
+   ],
+   "phone": "609-693-3302",
+   "fax": "609-693-0478",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1338",
+   "name": "OCEANPORT BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402554570",
+   "address": [
+    "222 MONMOUTH BOULEVARD",
+    "OCEANPORT, NJ 07757"
+   ],
+   "phone": "732-222-0641",
+   "fax": "732-222-0759",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1916",
+   "name": "OGDENSBURG BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403754660",
+   "address": [
+    "14 HIGHLAND AVENUE",
+    "OGDENSBURG, NJ 07439"
+   ],
+   "phone": "973-827-3860",
+   "fax": "973-827-9602",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1209",
+   "name": "OLD BRIDGE TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402354705",
+   "address": [
+    "1 OLD BRIDGE PLAZA",
+    "OLD BRIDGE, NJ 08857"
+   ],
+   "phone": "732-721-5600",
+   "fax": "732-607-7912",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0243",
+   "name": "OLD TAPPAN BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400354870",
+   "address": [
+    "227 OLD TAPPAN ROAD",
+    "OLD TAPPAN, NJ 07675"
+   ],
+   "phone": "201-664-1849",
+   "fax": "201-664-3543",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1706",
+   "name": "OLDMANS TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403354810",
+   "address": [
+    "40 FREED ROAD",
+    "PEDRICKTOWN, NJ 08067"
+   ],
+   "phone": "856-299-0780",
+   "fax": "856-299-4890",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0244",
+   "name": "ORADELL BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400354990",
+   "address": [
+    "355 KINDERKAMACK ROAD",
+    "ORADELL, NJ 07649"
+   ],
+   "phone": "201-261-8005",
+   "fax": "201-261-4142",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0717",
+   "name": "ORANGE CITY",
+   "county": "ESSEX",
+   "censusGeoid": "3401313045",
+   "address": [
+    "29 NORTH DAY STREET",
+    "ORANGE, NJ 07050"
+   ],
+   "phone": "973-266-4099",
+   "fax": "973-677-7847",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2117",
+   "name": "OXFORD TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404155530",
+   "address": [
+    "WASHINGTON AVENUE",
+    "OXFORD, NJ 07863"
+   ],
+   "phone": "908-835-1732",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "0245",
+   "name": "PALISADES PARK BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400355770",
+   "address": [
+    "275 BROAD AVENUE",
+    "PALISADES PARK, NJ 07650"
+   ],
+   "phone": "201-585-4108",
+   "fax": "201-585-4110",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0327",
+   "name": "PALMYRA BORO",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400555800",
+   "address": [
+    "20 WEST BROAD STREET",
+    "PALMYRA, NJ 08065"
+   ],
+   "phone": "856-829-1096",
+   "fax": "856-829-4096",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0246",
+   "name": "PARAMUS BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400355950",
+   "address": [
+    "1 JOCKISH SQUARE",
+    "PARAMUS, NJ 07652"
+   ],
+   "phone": "201-265-2100",
+   "fax": "201-265-5631",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0247",
+   "name": "PARK RIDGE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400356130",
+   "address": [
+    "55 PARK AVENUE",
+    "PARK RIDGE, NJ 07656"
+   ],
+   "phone": "201-573-1800",
+   "fax": "201-391-7130",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1429",
+   "name": "PARSIPPANY-TROY HILLS TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402756460",
+   "address": [
+    "1001 PARSIPPANY BOULEVARD",
+    "PARSIPPANY-TROY HILL, NJ 07054"
+   ],
+   "phone": "973-263-4366",
+   "fax": "973-263-1488",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1607",
+   "name": "PASSAIC CITY",
+   "county": "PASSAIC",
+   "censusGeoid": "3403156550",
+   "address": [
+    "330 PASSAIC STREET",
+    "PASSAIC, NJ 07055"
+   ],
+   "phone": "973-365-5545",
+   "fax": "973-365-5546",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1608",
+   "name": "PATERSON CITY",
+   "county": "PASSAIC",
+   "censusGeoid": "3403157000",
+   "address": [
+    "111 BROADWAY MUNICIPAL COMPLEX",
+    "PATERSON, NJ 07505"
+   ],
+   "phone": "973-321-1549",
+   "fax": "973-321-1548",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0814",
+   "name": "PAULSBORO BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401557150",
+   "address": [
+    "1211 NORTH DELAWARE STREET",
+    "PAULSBORO, NJ 08066"
+   ],
+   "phone": "856-423-1500",
+   "fax": "856-423-9117",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1815",
+   "name": "PEAPACK-GLADSTONE BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403557300",
+   "address": [
+    "1 SCHOOL STREET, P O BOX 218",
+    "SOMERSET, NJ 07977"
+   ],
+   "phone": "908-234-2250",
+   "fax": "908-234-1130",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0328",
+   "name": "PEMBERTON BORO",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400557480",
+   "address": [
+    "50 EGBERT STREET, PO BOX 261",
+    "PEMBERTON, NJ 08068"
+   ],
+   "phone": "609-894-8222",
+   "fax": "609-894-9417",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0329",
+   "name": "PEMBERTON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400557510",
+   "address": [
+    "500 PEMBERTON-BROWNS MILLS ROAD",
+    "PEMBERTON, NJ 08068-1539"
+   ],
+   "phone": "609-894-3330",
+   "fax": "609-894-7976",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1108",
+   "name": "PENNINGTON BORO",
+   "county": "MERCER",
+   "censusGeoid": "3402157600",
+   "address": [
+    "30 NORTH MAIN STREET",
+    "PENNINGTON, NJ 08534"
+   ],
+   "phone": "609-737-0276",
+   "fax": "609-737-9780",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1707",
+   "name": "PENNS GROVE BORO",
+   "county": "SALEM",
+   "censusGeoid": "3403357750",
+   "address": [
+    "1 STATE STREET",
+    "PENNS GROVE, NJ 08069"
+   ],
+   "phone": "856-299-1579",
+   "fax": "856-299-4311",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0427",
+   "name": "PENNSAUKEN TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400757660",
+   "address": [
+    "2400 MERCHANTVILLE",
+    "PENNSAUKEN, NJ 08110"
+   ],
+   "phone": "856-665-1000",
+   "fax": "856-488-1198",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1708",
+   "name": "PENNSVILLE TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403357870",
+   "address": [
+    "90 NORTH BROADWAY",
+    "PENNSVILLE, NJ 08070"
+   ],
+   "phone": "856-678-3089",
+   "fax": "856-678-7388",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1431",
+   "name": "PEQUANNOCK TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402758110",
+   "address": [
+    "530 NEWARK POMPTON TURNPIKE",
+    "POMPTON PLAINS, NJ 07444"
+   ],
+   "phone": "973-897-0324",
+   "fax": "973-835-9396",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1216",
+   "name": "PERTH AMBOY CITY",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402358200",
+   "address": [
+    "375 NEW BRUNSWICK AVENUE",
+    "PERTH AMBOY, NJ 08861"
+   ],
+   "phone": "732-826-0183",
+   "fax": "732-826-5830",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2119",
+   "name": "PHILLIPSBURG TOWN",
+   "county": "WARREN",
+   "censusGeoid": "3404158350",
+   "address": [
+    "675 CORLISS AVENUE",
+    "PHILLIPSBURG, NJ 08865"
+   ],
+   "phone": "908-454-5500",
+   "fax": "908-213-9214",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1709",
+   "name": "PILESGROVE TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403358530",
+   "address": [
+    "1180 ROUTE 40",
+    "PILESGROVE, NJ 08098"
+   ],
+   "phone": "856-769-4814",
+   "fax": "856-769-5490",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1522",
+   "name": "PINE BEACH BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402958590",
+   "address": [
+    "599 PENNSYLVANIA AVENUE PO BOX 425",
+    "PINE BEACH, NJ 08741"
+   ],
+   "phone": "732-349-6111",
+   "fax": "732-240-0533",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0428",
+   "name": "PINE HILL BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400758770",
+   "address": [
+    "45 W 7TH AVE STE 1",
+    "CLEMENTON, NJ 08021-5317"
+   ],
+   "phone": "856-783-3856",
+   "fax": "856-783-0619",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1217",
+   "name": "PISCATAWAY TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402359010",
+   "address": [
+    "505 SIDNEY ROAD",
+    "PISCATAWAY, NJ 08854"
+   ],
+   "phone": "732-562-2325",
+   "fax": "732-743-2525",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0815",
+   "name": "PITMAN BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401559070",
+   "address": [
+    "110 SOUTH BROADWAY",
+    "PITMAN, NJ 08071"
+   ],
+   "phone": "856-589-2433",
+   "fax": "856-589-6833",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1710",
+   "name": "PITTSGROVE TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403359130",
+   "address": [
+    "989 CENTERTON ROAD",
+    "PITTSGROVE, NJ 08318"
+   ],
+   "phone": "856-358-2300",
+   "fax": "856-358-3055",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2012",
+   "name": "PLAINFIELD CITY",
+   "county": "UNION",
+   "censusGeoid": "3403959190",
+   "address": [
+    "515 WATCHUNG AVENUE",
+    "PLAINFIELD, NJ 07060"
+   ],
+   "phone": "908-226-2665",
+   "fax": "908-226-8030",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1218",
+   "name": "PLAINSBORO TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402359280",
+   "address": [
+    "641 PLAINSBORO RD",
+    "PLAINSBORO, NJ 08536"
+   ],
+   "phone": "609-799-0909",
+   "fax": "609-799-8831",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0119",
+   "name": "PLEASANTVILLE CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400159640",
+   "address": [
+    "132 W. WASHINGTON ST",
+    "PLEASANTVILLE, NJ 08232"
+   ],
+   "phone": "609-484-3614",
+   "fax": "609-641-8642",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1523",
+   "name": "PLUMSTED TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402959790",
+   "address": [
+    "121 EVERGREEN ROAD",
+    "NEW EGYPT, NJ 08533"
+   ],
+   "phone": "609-758-2241",
+   "fax": "609-758-0123",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2120",
+   "name": "POHATCONG TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404159820",
+   "address": [
+    "50 MUNICIPAL DRIVE",
+    "PHILLIPSBURG, NJ 08865"
+   ],
+   "phone": "908-454-6121",
+   "fax": "908-454-5911",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1525",
+   "name": "POINT PLEASANT BEACH BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402959910",
+   "address": [
+    "416 NEW JERSEY AVENUE",
+    "POINT PLEASANT, NJ 08742"
+   ],
+   "phone": "732-899-3306",
+   "fax": "732-892-1594",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1524",
+   "name": "POINT PLEASANT BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402959880",
+   "address": [
+    "2233 BRIDGE AV PO BOX 25",
+    "POINT PLEASANT, NJ 08742"
+   ],
+   "phone": "732-892-7129",
+   "fax": "732-899-2655",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1609",
+   "name": "POMPTON LAKES BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403160090",
+   "address": [
+    "25 LENNOX AVENUE",
+    "POMPTON LAKES, NJ 07442"
+   ],
+   "phone": "973-835-0143",
+   "fax": "973-839-8132",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0120",
+   "name": "PORT REPUBLIC CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400160600",
+   "address": [
+    "143 MAIN STREET",
+    "PORT REPUBLIC, NJ 08241"
+   ],
+   "phone": "609-652-8759",
+   "fax": "609-652-8270",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1114",
+   "name": "PRINCETON TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402160900",
+   "address": [
+    "400 WITHERSPOON STREET",
+    "PRINCETON, NJ 08540"
+   ],
+   "phone": "609-921-7078",
+   "fax": "609-688-2043",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1610",
+   "name": "PROSPECT PARK BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403161170",
+   "address": [
+    "106 BROWN AVENUE",
+    "PROSPECT PARK, NJ 07508"
+   ],
+   "phone": "973-790-7902",
+   "fax": "973-790-6632",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1711",
+   "name": "QUINTON TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403361470",
+   "address": [
+    "MUNICIPAL BLDG PO BOX 65",
+    "QUINTON, NJ 08072"
+   ],
+   "phone": "856-935-7482",
+   "fax": "856-935-6817",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2013",
+   "name": "RAHWAY CITY",
+   "county": "UNION",
+   "censusGeoid": "3403961530",
+   "address": [
+    "1 CITY HALL PLAZA",
+    "RAHWAY, NJ 07065"
+   ],
+   "phone": "732-827-2163",
+   "fax": "732-680-1375",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0248",
+   "name": "RAMSEY BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400361680",
+   "address": [
+    "33 NORTH CENTRAL AVENUE",
+    "RAMSEY, NJ 07446"
+   ],
+   "phone": "201-825-3400",
+   "fax": "201-825-7120",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1432",
+   "name": "RANDOLPH TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402761890",
+   "address": [
+    "502 MILLBROOK AVENUE",
+    "RANDOLPH, NJ 07869"
+   ],
+   "phone": "973-989-7070",
+   "fax": "973-989-0762",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1816",
+   "name": "RARITAN BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403561980",
+   "address": [
+    "22 FIRST STREET",
+    "RARITAN, NJ 08869"
+   ],
+   "phone": "908-231-1300",
+   "fax": "908-231-0810",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1021",
+   "name": "RARITAN TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401961920",
+   "address": [
+    "1 MUNICIPAL DRIVE",
+    "FLEMINGTON, NJ 08822"
+   ],
+   "phone": "908-806-6100",
+   "fax": "908-806-2330",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1022",
+   "name": "READINGTON TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401962250",
+   "address": [
+    "509 ROUTE 523",
+    "WHITEHOUSE STATION, NJ 08889"
+   ],
+   "phone": "908-534-2164",
+   "fax": "908-534-9151",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1340",
+   "name": "RED BANK BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402562430",
+   "address": [
+    "90 MONMOUTH ST",
+    "RED BANK, NJ 07701"
+   ],
+   "phone": "732-530-2760",
+   "fax": "732-530-2766",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0249",
+   "name": "RIDGEFIELD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400362910",
+   "address": [
+    "550 EDISON STREET",
+    "RIDGEFIELD, NJ 07657"
+   ],
+   "phone": "201-943-5546",
+   "fax": "201-941-2969",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0250",
+   "name": "RIDGEFIELD PARK VILLAGE",
+   "county": "BERGEN",
+   "censusGeoid": "3400362940",
+   "address": [
+    "234 MAIN STREET",
+    "RIDGEFIELD PARK, NJ 07660"
+   ],
+   "phone": "201-641-9221",
+   "fax": "201-641-1248",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0251",
+   "name": "RIDGEWOOD VILLAGE",
+   "county": "BERGEN",
+   "censusGeoid": "3400363000",
+   "address": [
+    "131 NORTH MAPLE AVENUE",
+    "RIDGEWOOD VILLAGE, NJ 07451"
+   ],
+   "phone": "201-670-5500",
+   "fax": "201-670-5549",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1611",
+   "name": "RINGWOOD BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403163150",
+   "address": [
+    "60 MARGARET KING AVENUE",
+    "RINGWOOD, NJ 07456"
+   ],
+   "phone": "973-962-7880",
+   "fax": "973-962-7823",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0252",
+   "name": "RIVER EDGE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400363360",
+   "address": [
+    "705 KINDERKAMACK ROAD",
+    "RIVEREDGE, NJ 07661"
+   ],
+   "phone": "201-599-6322",
+   "fax": "201-599-6325",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0253",
+   "name": "RIVER VALE TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400363690",
+   "address": [
+    "406 RIVERVALE ROAD",
+    "RIVERVALE, NJ 07675"
+   ],
+   "phone": "201-664-2346",
+   "fax": "201-358-7754",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1433",
+   "name": "RIVERDALE BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402763300",
+   "address": [
+    "91 NEWARK POMPTON TURNPIKE",
+    "RIVERDALE, NJ 07457"
+   ],
+   "phone": "973-835-4060",
+   "fax": "973-835-0783",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0330",
+   "name": "RIVERSIDE TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400563510",
+   "address": [
+    "PO BOX 188 1 W. SCOTT ST",
+    "RIVERSIDE, NJ 08075"
+   ],
+   "phone": "856-461-1460",
+   "fax": "856-461-5878",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0331",
+   "name": "RIVERTON BORO",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400563660",
+   "address": [
+    "505A HOWARD STREET",
+    "RIVERTON, NJ 08077"
+   ],
+   "phone": "856-829-0120",
+   "fax": "856-829-1413",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1112",
+   "name": "ROBBINSVILLE TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402163850",
+   "address": [
+    "2298 ROUTE 33",
+    "ROBBINSVILLE, NJ 08691"
+   ],
+   "phone": "609-259-3600",
+   "fax": "609-259-2327",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0254",
+   "name": "ROCHELLE PARK TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400363990",
+   "address": [
+    "151 WEST PASSAIC STREET",
+    "ROCHELLE PARK, NJ 07662"
+   ],
+   "phone": "201-587-7730",
+   "fax": "201-587-7755",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1434",
+   "name": "ROCKAWAY BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402764050",
+   "address": [
+    "1 EAST MAIN STREET",
+    "ROCKAWAY, NJ 07866"
+   ],
+   "phone": "973-627-8035",
+   "fax": "973-627-8294",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1435",
+   "name": "ROCKAWAY TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402764080",
+   "address": [
+    "65 MT HOPE ROAD",
+    "ROCKAWAY, NJ 07866"
+   ],
+   "phone": "973-627-7200",
+   "fax": "973-627-1081",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0255",
+   "name": "ROCKLEIGH BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400364170",
+   "address": [
+    "26 ROCKLEIGH ROAD",
+    "ROCKLEIGH, NJ 07647-2706"
+   ],
+   "phone": "201-768-4217",
+   "fax": "201-768-3355",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1817",
+   "name": "ROCKY HILL BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403564320",
+   "address": [
+    "BORO HALL-P.O. BOX 188",
+    "ROCKY HILL, NJ 08553"
+   ],
+   "phone": null,
+   "fax": null,
+   "dcaEnforced": true
+  },
+  {
+   "code": "1341",
+   "name": "ROOSEVELT BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402564410",
+   "address": [
+    "33 NORTH ROCHDALE AV PO BOX 128",
+    "ROOSEVELT, NJ 08555"
+   ],
+   "phone": "609-633-2423",
+   "fax": "609-984-7956",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0718",
+   "name": "ROSELAND BORO",
+   "county": "ESSEX",
+   "censusGeoid": "3401364590",
+   "address": [
+    "300 EAGLE ROCK AVENUE",
+    "ROSELAND, NJ 07068"
+   ],
+   "phone": "973-226-6565",
+   "fax": "973-226-8520",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2014",
+   "name": "ROSELLE BORO",
+   "county": "UNION",
+   "censusGeoid": "3403964620",
+   "address": [
+    "210 CHESTNUT STREET",
+    "ROSELLE, NJ 07203"
+   ],
+   "phone": "908-634-4530",
+   "fax": "908-245-1547",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2015",
+   "name": "ROSELLE PARK BORO",
+   "county": "UNION",
+   "censusGeoid": "3403964650",
+   "address": [
+    "110 EAST WESTFIELD AVENUE",
+    "ROSELLE PARK, NJ 07204"
+   ],
+   "phone": "908-245-2721",
+   "fax": "908-298-9718",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1436",
+   "name": "ROXBURY TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402764980",
+   "address": [
+    "1715 ROUTE 46",
+    "LEDGEWOOD, NJ 07852"
+   ],
+   "phone": "973-448-2009",
+   "fax": "973-448-2111",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1342",
+   "name": "RUMSON BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402565130",
+   "address": [
+    "80 EAST RIVER ROAD",
+    "RUMSON, NJ 07760"
+   ],
+   "phone": "732-842-3022",
+   "fax": "732-842-0961",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0430",
+   "name": "RUNNEMEDE BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400765160",
+   "address": [
+    "24 NORTH BLACK HORSE PIKE",
+    "RUNNEMEDE, NJ 08078"
+   ],
+   "phone": "856-939-2815",
+   "fax": "856-939-2821",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0256",
+   "name": "RUTHERFORD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400365280",
+   "address": [
+    "176 PARK AVENUE",
+    "RUTHERFORD, NJ 07070"
+   ],
+   "phone": "201-460-3010",
+   "fax": "201-460-3003",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0257",
+   "name": "SADDLE BROOK TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400365340",
+   "address": [
+    "540 SADDLE RIVER ROAD",
+    "SADDLE BROOK, NJ 07663"
+   ],
+   "phone": "201-843-7111",
+   "fax": "201-843-0697",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0258",
+   "name": "SADDLE RIVER BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400365400",
+   "address": [
+    "100 EAST ALLENDALE ROAD",
+    "SADDLE RIVER, NJ 07458"
+   ],
+   "phone": "201-327-4114",
+   "fax": "201-934-7591",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1712",
+   "name": "SALEM CITY",
+   "county": "SALEM",
+   "censusGeoid": "3403365490",
+   "address": [
+    "17 NEW MARKET ST",
+    "SALEM, NJ 08079"
+   ],
+   "phone": "856-935-5510",
+   "fax": "856-935-6360",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1917",
+   "name": "SANDYSTON TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403765700",
+   "address": [
+    "133 RT 645",
+    "BRANCHVILLE, NJ 07826"
+   ],
+   "phone": "973-948-3520",
+   "fax": "973-948-0783",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1219",
+   "name": "SAYREVILLE BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402365790",
+   "address": [
+    "49 DOLAN STREET",
+    "SAYREVILLE, NJ 08872"
+   ],
+   "phone": "732-390-7077",
+   "fax": "732-390-7458",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2016",
+   "name": "SCOTCH PLAINS TWP",
+   "county": "UNION",
+   "censusGeoid": "3403966060",
+   "address": [
+    "430 PARK AVENUE",
+    "SCOTCH PLAINS, NJ 07076"
+   ],
+   "phone": "908-322-6700",
+   "fax": "908-322-4361",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1343",
+   "name": "SEA BRIGHT BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402566240",
+   "address": [
+    "1167 OCEAN AVENUE",
+    "SEA BRIGHT, NJ 07760"
+   ],
+   "phone": "732-842-0099",
+   "fax": "732-741-3116",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1344",
+   "name": "SEA GIRT BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402566330",
+   "address": [
+    "321 BALTIMORE BLVD",
+    "SEA GIRT, NJ 08750"
+   ],
+   "phone": "732-449-9433",
+   "fax": "732-974-8296",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0509",
+   "name": "SEA ISLE CITY",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400966390",
+   "address": [
+    "233 JOHN F. KENNEDY BLVD RM 206",
+    "SEA ISLE CITY, NJ 08243"
+   ],
+   "phone": "609-263-1166",
+   "fax": "609-263-1366",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1526",
+   "name": "SEASIDE HEIGHTS BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402966450",
+   "address": [
+    "100 GRANT AVENUE",
+    "SEASIDE HEIGHTS, NJ 08751"
+   ],
+   "phone": "732-793-9100",
+   "fax": "732-793-0319",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1527",
+   "name": "SEASIDE PARK BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402966480",
+   "address": [
+    "313 SW CENTRAL AVE",
+    "SEASIDE PARK, NJ 08752"
+   ],
+   "phone": "732-250-7569",
+   "fax": "732-793-5123",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0909",
+   "name": "SECAUCUS TOWN",
+   "county": "HUDSON",
+   "censusGeoid": "3401766570",
+   "address": [
+    "1203 PATERSON PLANK RD",
+    "SECAUCUS, NJ 07094"
+   ],
+   "phone": "201-330-2027",
+   "fax": "201-617-5937",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0332",
+   "name": "SHAMONG TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400566810",
+   "address": [
+    "105 WILLOW GROVE ROAD",
+    "SHAMONG, NJ 08088"
+   ],
+   "phone": "609-268-8385",
+   "fax": "609-268-2701",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0611",
+   "name": "SHILOH BORO",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401167020",
+   "address": [
+    "900 MAIN STREET, PO BOX 349",
+    "SHILOH, NJ 08353"
+   ],
+   "phone": "856-455-3054",
+   "fax": "856-455-0369",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1528",
+   "name": "SHIP BOTTOM BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402967110",
+   "address": [
+    "1621 LONG BEACH BLVD",
+    "SHIP BOTTOM, NJ 08008"
+   ],
+   "phone": "609-494-1622",
+   "fax": "609-494-7534",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1345",
+   "name": "SHREWSBURY BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402567350",
+   "address": [
+    "419 SYCAMORE AVENUE",
+    "SHREWSBURY, NJ 07702"
+   ],
+   "phone": "732-741-4200",
+   "fax": "732-741-3622",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1346",
+   "name": "SHREWSBURY TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402567365",
+   "address": [
+    "1979 CRAWFORD STREET",
+    "EATONTOWN, NJ 07724"
+   ],
+   "phone": "201-542-0572",
+   "fax": "732-935-1345",
+   "dcaEnforced": true
+  },
+  {
+   "code": "0431",
+   "name": "SOMERDALE BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400768340",
+   "address": [
+    "105 KENNEDY BOULEVARD",
+    "SOMERDALE, NJ 08083"
+   ],
+   "phone": "856-783-6320",
+   "fax": "856-784-9377",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0121",
+   "name": "SOMERS POINT CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400168430",
+   "address": [
+    "1 WEST NEW JERSEY AV",
+    "SOMERS POINT, NJ 08244"
+   ],
+   "phone": "609-927-9088",
+   "fax": "609-927-0177",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1818",
+   "name": "SOMERVILLE BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403568460",
+   "address": [
+    "25 WEST END AVENUE PO BOX 399",
+    "SOMERVILLE, NJ 08876"
+   ],
+   "phone": "908-704-6965",
+   "fax": "908-704-3540",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1220",
+   "name": "SOUTH AMBOY CITY",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402368550",
+   "address": [
+    "140 NORTH BROADWAY",
+    "SOUTH AMBOY, NJ 08879-1647"
+   ],
+   "phone": "732-525-5927",
+   "fax": "732-727-6139",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1819",
+   "name": "SOUTH BOUND BROOK BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403568730",
+   "address": [
+    "12 MAIN STREET",
+    "SOUTH BOUND BROOK, NJ 08880"
+   ],
+   "phone": "732-356-0258",
+   "fax": "732-868-1842",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1221",
+   "name": "SOUTH BRUNSWICK TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402368790",
+   "address": [
+    "PO BOX 190 540 RIDGE ROAD",
+    "MONMOUTH JCT, NJ 08852-0190"
+   ],
+   "phone": "732-329-4000",
+   "fax": "732-274-2084",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0259",
+   "name": "SOUTH HACKENSACK TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400368970",
+   "address": [
+    "227 PHILLIPS AVENUE",
+    "SOUTH HACKENSACK, NJ 07606"
+   ],
+   "phone": "201-440-1815",
+   "fax": "201-440-0719",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0816",
+   "name": "SOUTH HARRISON TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401569030",
+   "address": [
+    "664 HARRISONVILLE RD PO BOX 113",
+    "HARRISONVILLE, NJ 08039"
+   ],
+   "phone": "856-769-4444",
+   "fax": "856-769-8048",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0719",
+   "name": "SOUTH ORANGE VILLAGE TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401369270",
+   "address": [
+    "101 SOUTH ORANGE AV",
+    "SOUTH ORANGE VILLAGE, NJ 07079"
+   ],
+   "phone": "973-378-7715",
+   "fax": "973-761-4357",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1222",
+   "name": "SOUTH PLAINFIELD BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402369390",
+   "address": [
+    "2480 PLAINFIELD AVENUE",
+    "SOUTH PLAINFIELD, NJ 07080"
+   ],
+   "phone": "908-226-7640",
+   "fax": "908-754-1179",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1223",
+   "name": "SOUTH RIVER BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402369420",
+   "address": [
+    "48 WASHINGTON ST",
+    "SOUTH RIVER, NJ 08882"
+   ],
+   "phone": "732-257-1999",
+   "fax": "732-613-6105",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1529",
+   "name": "SOUTH TOMS RIVER BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402969510",
+   "address": [
+    "239 WASHINGTON ST/PO BOX 2191",
+    "TOMS RIVER, NJ 08754"
+   ],
+   "phone": "732-286-6000",
+   "fax": "732-349-8390",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0333",
+   "name": "SOUTHAMPTON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400568610",
+   "address": [
+    "5 RETREAT ROAD",
+    "SOUTHAMPTON, NJ 08088-3591"
+   ],
+   "phone": "609-859-1394",
+   "fax": "609-859-1465",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1918",
+   "name": "SPARTA TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403769690",
+   "address": [
+    "65 MAIN STREET",
+    "SPARTA, NJ 07871"
+   ],
+   "phone": "973-729-9888",
+   "fax": "973-729-0567",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1224",
+   "name": "SPOTSWOOD BORO",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402369810",
+   "address": [
+    "77 SUMMERHILL ROAD",
+    "SPOTSWOOD, NJ 08884"
+   ],
+   "phone": "732-251-0700",
+   "fax": "732-251-2266",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1348",
+   "name": "SPRING LAKE BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402570110",
+   "address": [
+    "423 WARREN AVE",
+    "SPRING LAKE, NJ 07762"
+   ],
+   "phone": "732-449-0800",
+   "fax": "732-974-7059",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1349",
+   "name": "SPRING LAKE HEIGHTS BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402570140",
+   "address": [
+    "555 BRIGHTON AVENUE",
+    "SPRING LAKE HEIGHTS, NJ 07762"
+   ],
+   "phone": "732-449-3500",
+   "fax": "732-449-8264",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0334",
+   "name": "SPRINGFIELD TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400569990",
+   "address": [
+    "2159 JACKSONVLLE-JOBSTWN RD POB 119",
+    "JOBSTOWN, NJ 08041"
+   ],
+   "phone": "609-723-2464",
+   "fax": "609-723-6591",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2017",
+   "name": "SPRINGFIELD TWP",
+   "county": "UNION",
+   "censusGeoid": "3403970020",
+   "address": [
+    "100 MOUNTAIN AVENUE",
+    "SPRINGFIELD, NJ 07081"
+   ],
+   "phone": "973-912-2220",
+   "fax": "973-912-2283",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1530",
+   "name": "STAFFORD TWP",
+   "county": "OCEAN",
+   "censusGeoid": "3402970320",
+   "address": [
+    "260 EAST BAY AVENUE",
+    "MANAHAWKIN, NJ 08050-3498"
+   ],
+   "phone": "609-597-1000",
+   "fax": "609-978-9612",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1919",
+   "name": "STANHOPE BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403770380",
+   "address": [
+    "77 MAIN STREET",
+    "STANHOPE, NJ 07874"
+   ],
+   "phone": "973-347-0159",
+   "fax": "973-347-6058",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1920",
+   "name": "STILLWATER TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403770890",
+   "address": [
+    "964 STILLWATER ROAD",
+    "NEWTON, NJ 07860"
+   ],
+   "phone": "973-383-6332",
+   "fax": "973-383-8059",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1023",
+   "name": "STOCKTON BORO",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401970980",
+   "address": [
+    "5 MAIN ST - PO BOX M",
+    "STOCKTON, NJ 08557"
+   ],
+   "phone": "609-397-0070",
+   "fax": "609-397-4067",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0510",
+   "name": "STONE HARBOR BORO",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400971010",
+   "address": [
+    "9508 2ND AVENUE",
+    "STONE HARBOR, NJ 08247"
+   ],
+   "phone": "609-368-6814",
+   "fax": "609-368-0628",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0612",
+   "name": "STOW CREEK TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401171160",
+   "address": [
+    "58 MASKILLS MILL ROAD",
+    "SALEM, NJ 08079"
+   ],
+   "phone": "856-935-2535",
+   "fax": null,
+   "dcaEnforced": false
+  },
+  {
+   "code": "0432",
+   "name": "STRATFORD BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400771220",
+   "address": [
+    "307 UNION AVENUE",
+    "STRATFORD, NJ 08084"
+   ],
+   "phone": "856-783-0600",
+   "fax": "856-783-7949",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2018",
+   "name": "SUMMIT CITY",
+   "county": "UNION",
+   "censusGeoid": "3403971430",
+   "address": [
+    "512 SPRINGFIELD AVE",
+    "SUMMIT, NJ 07901"
+   ],
+   "phone": "908-273-6408",
+   "fax": "908-608-1214",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1531",
+   "name": "SURF CITY BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402971640",
+   "address": [
+    "813 LONG BEACH BOULEVARD",
+    "SURF CITY, NJ 08008"
+   ],
+   "phone": "609-494-6448",
+   "fax": "609-361-9746",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1921",
+   "name": "SUSSEX BORO",
+   "county": "SUSSEX",
+   "censusGeoid": "3403771670",
+   "address": [
+    "888 ROUTE 23",
+    "WANTAGE, NJ 07461"
+   ],
+   "phone": "973-875-7195",
+   "fax": "973-875-0816",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0817",
+   "name": "SWEDESBORO BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401571850",
+   "address": [
+    "PO BOX 56, 1500 KINGS HIGHWAY",
+    "SWEDESBORO, NJ 08085"
+   ],
+   "phone": "856-467-0202",
+   "fax": "856-467-5767",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0335",
+   "name": "TABERNACLE TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400572060",
+   "address": [
+    "163 CARRANZA ROAD",
+    "TABERNACLE, NJ 08088"
+   ],
+   "phone": "609-268-1665",
+   "fax": "609-268-7158",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0433",
+   "name": "TAVISTOCK BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400772240",
+   "address": [
+    "242 KINGS HIGHWAY EAST",
+    "HADDONFIELD, NJ 08033"
+   ],
+   "phone": "856-429-4700",
+   "fax": "856-429-4162",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0260",
+   "name": "TEANECK TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400372360",
+   "address": [
+    "818 TEANECK ROAD",
+    "TEANECK, NJ 07666"
+   ],
+   "phone": "201-837-1600",
+   "fax": "201-837-4802",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0261",
+   "name": "TENAFLY BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400372420",
+   "address": [
+    "100 RIVER EDGE ROAD",
+    "TENAFLY, NJ 07670"
+   ],
+   "phone": "201-568-6100",
+   "fax": "201-568-3264",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0262",
+   "name": "TETERBORO BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400372480",
+   "address": [
+    "510 ROUTE 46 WEST",
+    "TETERBORO, NJ 07608"
+   ],
+   "phone": "201-288-7204",
+   "fax": "201-288-4832",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1024",
+   "name": "TEWKSBURY TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401972510",
+   "address": [
+    "108 FAIRMOUNT ROAD WEST",
+    "CALIFON, NJ 07830"
+   ],
+   "phone": "908-832-5552",
+   "fax": "908-832-0674",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1336",
+   "name": "TINTON FALLS BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402573020",
+   "address": [
+    "556 TINTON AVENUE",
+    "TINTON FALLS, NJ 07724"
+   ],
+   "phone": "732-542-3400",
+   "fax": "732-389-2377",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1507",
+   "name": "TOMS RIVER TOWNSHIP",
+   "county": "OCEAN",
+   "censusGeoid": "3402973125",
+   "address": [
+    "33 WASHINGTON STREET",
+    "TOMS RIVER, NJ 08753"
+   ],
+   "phone": "732-341-1000",
+   "fax": "732-473-9535",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1612",
+   "name": "TOTOWA BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403173140",
+   "address": [
+    "537 TOTOWA RD",
+    "TOTOWA, NJ 07512"
+   ],
+   "phone": "973-956-7929",
+   "fax": "973-956-8159",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1111",
+   "name": "TRENTON CITY",
+   "county": "MERCER",
+   "censusGeoid": "3402174000",
+   "address": [
+    "319 EAST STATE ST CITY HALL ANNEX",
+    "TRENTON, NJ 08608"
+   ],
+   "phone": "609-989-3550",
+   "fax": "609-989-4241",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1532",
+   "name": "TUCKERTON BORO",
+   "county": "OCEAN",
+   "censusGeoid": "3402974210",
+   "address": [
+    "420 E. MAIN ST",
+    "TUCKERTON, NJ 08087"
+   ],
+   "phone": "609-296-4916",
+   "fax": "609-296-0699",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1350",
+   "name": "UNION BEACH BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402574540",
+   "address": [
+    "650 POOLE AVENUE",
+    "UNION BEACH, NJ 07735"
+   ],
+   "phone": "732-526-8687",
+   "fax": "732-264-0452",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0910",
+   "name": "UNION CITY",
+   "county": "HUDSON",
+   "censusGeoid": "3401774630",
+   "address": [
+    "3715 PALISADE AVENUE",
+    "UNION CITY, NJ 07087"
+   ],
+   "phone": "201-348-5710",
+   "fax": "201-223-1970",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1025",
+   "name": "UNION TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401974420",
+   "address": [
+    "140 PERRYVILLE ROAD",
+    "HAMPTON, NJ 08827"
+   ],
+   "phone": "908-735-8027",
+   "fax": "908-735-0591",
+   "dcaEnforced": true
+  },
+  {
+   "code": "2019",
+   "name": "UNION TWP",
+   "county": "UNION",
+   "censusGeoid": "3403974480",
+   "address": [
+    "1976 MORRIS AVE",
+    "UNION, NJ 07083"
+   ],
+   "phone": "908-851-8509",
+   "fax": "908-851-4677",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0613",
+   "name": "UPPER DEERFIELD TWP",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401174870",
+   "address": [
+    "1325 HIGHWAY 77 PO BOX 5098",
+    "SEABROOK, NJ 08302"
+   ],
+   "phone": "856-455-9591",
+   "fax": "856-451-5006",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1351",
+   "name": "UPPER FREEHOLD TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402574900",
+   "address": [
+    "PO BOX 89, 314 ROUTE 539",
+    "CREAM RIDGE, NJ 08514"
+   ],
+   "phone": "609-758-7738",
+   "fax": "609-758-1183",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1714",
+   "name": "UPPER PITTSGROVE TWP",
+   "county": "SALEM",
+   "censusGeoid": "3403375110",
+   "address": [
+    "431 ROUTE 77",
+    "ELMER, NJ 08318"
+   ],
+   "phone": "856-358-8500",
+   "fax": "856-358-1160",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0263",
+   "name": "UPPER SADDLE RIVER BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400375140",
+   "address": [
+    "376 WEST SADDLE RIVER ROAD",
+    "UPPER SADDLE RIVER, NJ 07458"
+   ],
+   "phone": "201-934-3966",
+   "fax": "201-934-9146",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0511",
+   "name": "UPPER TWP",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400974810",
+   "address": [
+    "2100 TUCKAHOE RD",
+    "PETERSBURG, NJ 08250"
+   ],
+   "phone": "609-628-2011",
+   "fax": "609-628-3092",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0122",
+   "name": "VENTNOR CITY",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400175620",
+   "address": [
+    "6201 ATLANTIC AV",
+    "VENTNOR, NJ 08406"
+   ],
+   "phone": "609-823-7987",
+   "fax": "609-823-7966",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1922",
+   "name": "VERNON TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403775740",
+   "address": [
+    "21 CHURCH ST PO BOX 340",
+    "VERNON, NJ 07462"
+   ],
+   "phone": "973-764-4055",
+   "fax": "973-764-9109",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0720",
+   "name": "VERONA TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401375815",
+   "address": [
+    "880 BLOOMFIELD AVENUE",
+    "VERONA, NJ 07044"
+   ],
+   "phone": "973-857-4834",
+   "fax": "973-857-5134",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1437",
+   "name": "VICTORY GARDENS BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402775890",
+   "address": [
+    "337 SOUTH SALEM STREET",
+    "DOVER, NJ 07801"
+   ],
+   "phone": "973-366-5312",
+   "fax": "973-366-9711",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0614",
+   "name": "VINELAND CITY",
+   "county": "CUMBERLAND",
+   "censusGeoid": "3401176070",
+   "address": [
+    "640 EAST WOOD STREET",
+    "VINELAND, NJ 08360"
+   ],
+   "phone": "856-794-4000",
+   "fax": "856-405-4609",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0434",
+   "name": "VOORHEES TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400776220",
+   "address": [
+    "2400 VOORHEES TOWN CENTER",
+    "VOORHEES, NJ 08043-1499"
+   ],
+   "phone": "856-429-7759",
+   "fax": "856-795-2335",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0264",
+   "name": "WALDWICK BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400376400",
+   "address": [
+    "63 FRANKLIN TURNPIKE",
+    "WALDWICK, NJ 07463"
+   ],
+   "phone": "201-652-5300",
+   "fax": "201-652-5483",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1352",
+   "name": "WALL TWP",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402576460",
+   "address": [
+    "2700 ALLAIRE ROAD",
+    "WALL, NJ 07719"
+   ],
+   "phone": "732-449-8444",
+   "fax": "732-449-8995",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0265",
+   "name": "WALLINGTON BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400376490",
+   "address": [
+    "54 UNION BLVD",
+    "WALLINGTON, NJ 07057"
+   ],
+   "phone": "973-777-0318",
+   "fax": "973-473-2447",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1923",
+   "name": "WALPACK TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403776640",
+   "address": [
+    "8 MAIN ST PO BOX 94",
+    "WALPACK, NJ 07881"
+   ],
+   "phone": "908-841-9576",
+   "fax": "908-841-9513",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1613",
+   "name": "WANAQUE BORO",
+   "county": "PASSAIC",
+   "censusGeoid": "3403176730",
+   "address": [
+    "579 RINGWOOD AVENUE",
+    "WANAQUE, NJ 07465"
+   ],
+   "phone": "973-839-3000",
+   "fax": "973-839-4959",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1924",
+   "name": "WANTAGE TWP",
+   "county": "SUSSEX",
+   "censusGeoid": "3403776790",
+   "address": [
+    "888 STATE ROUTE 23",
+    "WANTAGE, NJ 07461"
+   ],
+   "phone": "973-875-7195",
+   "fax": "973-875-0816",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1820",
+   "name": "WARREN TWP",
+   "county": "SOMERSET",
+   "censusGeoid": "3403576940",
+   "address": [
+    "46 MOUNTAIN BOULEVARD",
+    "WARREN, NJ 07059"
+   ],
+   "phone": "908-753-8000",
+   "fax": "908-757-2955",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2121",
+   "name": "WASHINGTON BORO",
+   "county": "WARREN",
+   "censusGeoid": "3404177270",
+   "address": [
+    "100 BELVEDERE AVENUE",
+    "WASHINGTON, NJ 07882"
+   ],
+   "phone": "908-713-0722",
+   "fax": "908-713-0995",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0266",
+   "name": "WASHINGTON TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400377135",
+   "address": [
+    "350 HUDSON AVENUE",
+    "WASHINGTON TWP, NJ 07676"
+   ],
+   "phone": "201-666-0462",
+   "fax": "201-666-0338",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0336",
+   "name": "WASHINGTON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400577150",
+   "address": [
+    "10 TURTLE CREEK",
+    "EGG HARBOR, NJ 08215"
+   ],
+   "phone": "609-965-3062",
+   "fax": null,
+   "dcaEnforced": true
+  },
+  {
+   "code": "0818",
+   "name": "WASHINGTON TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401577180",
+   "address": [
+    "PO BOX 1106 523 EGG HARBOR ROAD",
+    "TURNERSVILLE, NJ 08012"
+   ],
+   "phone": "856-256-0234",
+   "fax": "856-218-1473",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1438",
+   "name": "WASHINGTON TWP",
+   "county": "MORRIS",
+   "censusGeoid": "3402777240",
+   "address": [
+    "43 SCHOOLEY'S MOUNTAIN ROAD",
+    "LONG VALLEY, NJ 07853"
+   ],
+   "phone": "908-876-4711",
+   "fax": "908-876-5082",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2122",
+   "name": "WASHINGTON TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404177300",
+   "address": [
+    "211 STATE ROUTE 31 NORTH",
+    "WASHINGTON, NJ 07882"
+   ],
+   "phone": "908-835-1732",
+   "fax": "908-835-1749",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1821",
+   "name": "WATCHUNG BORO",
+   "county": "SOMERSET",
+   "censusGeoid": "3403577600",
+   "address": [
+    "10 MOUNTAIN BLVD.",
+    "WATCHUNG, NJ 07069"
+   ],
+   "phone": "908-756-6093",
+   "fax": "908-668-8048",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0435",
+   "name": "WATERFORD TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400777630",
+   "address": [
+    "2131 AUBURN AVENUE",
+    "ATCO, NJ 08004"
+   ],
+   "phone": "856-768-2300",
+   "fax": "856-768-1703",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1614",
+   "name": "WAYNE TWP",
+   "county": "PASSAIC",
+   "censusGeoid": "3403177840",
+   "address": [
+    "475 VALLEY ROAD",
+    "WAYNE, NJ 07470"
+   ],
+   "phone": "973-694-1800",
+   "fax": "973-709-0209",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0911",
+   "name": "WEEHAWKEN TWP",
+   "county": "HUDSON",
+   "censusGeoid": "3401777930",
+   "address": [
+    "4100 PARK AVENUE",
+    "WEEHAWKEN, NJ 07087"
+   ],
+   "phone": "201-319-6057",
+   "fax": "201-863-7989",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0819",
+   "name": "WENONAH BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401578110",
+   "address": [
+    "1 WEST CHERRY STREET, PO BOX 66",
+    "WENONAH, NJ 08090"
+   ],
+   "phone": "856-845-1300",
+   "fax": "609-468-0390",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1026",
+   "name": "WEST AMWELL TWP",
+   "county": "HUNTERDON",
+   "censusGeoid": "3401978230",
+   "address": [
+    "150 ROCKTOWN-LAMBERTVILLE ROAD",
+    "LAMBERTVILLE, NJ 08530-3203"
+   ],
+   "phone": "609-397-2054",
+   "fax": "609-397-7726",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0721",
+   "name": "WEST CALDWELL TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401378510",
+   "address": [
+    "30 CLINTON ROAD",
+    "WEST CALDWELL, NJ 07006"
+   ],
+   "phone": "973-226-2302",
+   "fax": "973-226-2396",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0512",
+   "name": "WEST CAPE MAY BORO",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400978530",
+   "address": [
+    "2600 BAYSHORE ROAD",
+    "VILLAS, NJ 08251"
+   ],
+   "phone": "609-886-1455",
+   "fax": "609-886-2122",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0820",
+   "name": "WEST DEPTFORD TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401578800",
+   "address": [
+    "400 CROWN POINT ROAD",
+    "THOROFARE, NJ 08086"
+   ],
+   "phone": "856-845-4004",
+   "fax": "856-384-3079",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1353",
+   "name": "WEST LONG BRANCH BORO",
+   "county": "MONMOUTH",
+   "censusGeoid": "3402579310",
+   "address": [
+    "965 BROADWAY",
+    "WEST LONG BRANCH, NJ 07764"
+   ],
+   "phone": "732-571-5991",
+   "fax": "732-571-5996",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1615",
+   "name": "WEST MILFORD TWP",
+   "county": "PASSAIC",
+   "censusGeoid": "3403179460",
+   "address": [
+    "1480 UNION VALLEY ROAD",
+    "WEST MILFORD, NJ 07480"
+   ],
+   "phone": "973-728-2780",
+   "fax": "973-728-2843",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0912",
+   "name": "WEST NEW YORK TOWN",
+   "county": "HUDSON",
+   "censusGeoid": "3401779610",
+   "address": [
+    "428 60TH STREET",
+    "WEST NEW YORK, NJ 07093"
+   ],
+   "phone": "201-295-5170",
+   "fax": "201-295-9597",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0722",
+   "name": "WEST ORANGE TWP",
+   "county": "ESSEX",
+   "censusGeoid": "3401379800",
+   "address": [
+    "66 MAIN STREET",
+    "WEST ORANGE, NJ 07052"
+   ],
+   "phone": "973-325-4112",
+   "fax": "973-325-3959",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0513",
+   "name": "WEST WILDWOOD BORO",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400980210",
+   "address": [
+    "4400 NEW JERSEY AVENUE",
+    "WILDWOOD, NJ 08260"
+   ],
+   "phone": "609-522-2444",
+   "fax": "609-729-5916",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1113",
+   "name": "WEST WINDSOR TWP",
+   "county": "MERCER",
+   "censusGeoid": "3402180240",
+   "address": [
+    "271 CLARKSVILLE RD, PO BOX 38",
+    "WEST WINDSOR, NJ 08550"
+   ],
+   "phone": "609-799-8490",
+   "fax": "609-799-2764",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0337",
+   "name": "WESTAMPTON TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400578200",
+   "address": [
+    "710 RANCOCAS ROAD",
+    "WESTAMPTON, NJ 08060"
+   ],
+   "phone": "609-267-1891",
+   "fax": "609-267-7398",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2020",
+   "name": "WESTFIELD TOWN",
+   "county": "UNION",
+   "censusGeoid": "3403979040",
+   "address": [
+    "959 NORTH AVENUE",
+    "WESTFIELD, NJ 07090"
+   ],
+   "phone": "908-789-4125",
+   "fax": "908-789-4129",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0821",
+   "name": "WESTVILLE BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401580120",
+   "address": [
+    "165 BROADWAY",
+    "WESTVILLE, NJ 08093-0816"
+   ],
+   "phone": "856-456-0030",
+   "fax": "856-742-8190",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0267",
+   "name": "WESTWOOD BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400380270",
+   "address": [
+    "101 WASHINGTON AVENUE",
+    "WESTWOOD, NJ 07675"
+   ],
+   "phone": "201-664-5900",
+   "fax": "201-664-7570",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0123",
+   "name": "WEYMOUTH TWP",
+   "county": "ATLANTIC",
+   "censusGeoid": "3400180330",
+   "address": [
+    "45 S. JERSEY AV PO BOX 53",
+    "DOROTHY, NJ 08317"
+   ],
+   "phone": "609-476-2633",
+   "fax": "609-476-4466",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1439",
+   "name": "WHARTON BORO",
+   "county": "MORRIS",
+   "censusGeoid": "3402780390",
+   "address": [
+    "10 ROBERT STREET",
+    "WHARTON, NJ 07885"
+   ],
+   "phone": "973-361-8444",
+   "fax": "973-361-5281",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2123",
+   "name": "WHITE TWP",
+   "county": "WARREN",
+   "censusGeoid": "3404180570",
+   "address": [
+    "555 COUNTY ROUTE 519",
+    "BELVIDERE, NJ 07823"
+   ],
+   "phone": "908-475-5922",
+   "fax": "908-475-1194",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0514",
+   "name": "WILDWOOD CITY",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400981170",
+   "address": [
+    "4400 NEW JERSEY AVENUE",
+    "WILDWOOD, NJ 08260"
+   ],
+   "phone": "609-522-2444",
+   "fax": "609-729-5916",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0515",
+   "name": "WILDWOOD CREST BORO",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400981200",
+   "address": [
+    "6101 PACIFIC AVENUE",
+    "WILDWOOD CREST, NJ 08260"
+   ],
+   "phone": "609-522-3916",
+   "fax": "609-522-7380",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0338",
+   "name": "WILLINGBORO TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400581440",
+   "address": [
+    "1 REV. DR. M. L. KING JR. DR.",
+    "WILLINGBORO, NJ 08046"
+   ],
+   "phone": "609-877-2200",
+   "fax": "609-877-1278",
+   "dcaEnforced": false
+  },
+  {
+   "code": "2021",
+   "name": "WINFIELD TWP",
+   "county": "UNION",
+   "censusGeoid": "3403981650",
+   "address": [
+    "12 GULFSTREAM AVENUE",
+    "WINFIELD, NJ 07036"
+   ],
+   "phone": "908-925-3850",
+   "fax": "908-925-4526",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0436",
+   "name": "WINSLOW TWP",
+   "county": "CAMDEN",
+   "censusGeoid": "3400781740",
+   "address": [
+    "125 SOUTH ROUTE 73",
+    "BRADDOCK, NJ 08037"
+   ],
+   "phone": "609-567-0700",
+   "fax": "856-767-0230",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0516",
+   "name": "WOODBINE BORO",
+   "county": "CAPE MAY",
+   "censusGeoid": "3400981890",
+   "address": [
+    "BOROUGH HALL, 809 FRANKLIN STREET",
+    "WOODBINE, NJ 08270-2171"
+   ],
+   "phone": "609-861-2153",
+   "fax": "609-861-2529",
+   "dcaEnforced": true
+  },
+  {
+   "code": "1225",
+   "name": "WOODBRIDGE TWP",
+   "county": "MIDDLESEX",
+   "censusGeoid": "3402382000",
+   "address": [
+    "1 MAIN STREET",
+    "WOODBRIDGE, NJ 07095"
+   ],
+   "phone": "732-634-4500",
+   "fax": "732-726-2330",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0269",
+   "name": "WOOD-RIDGE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400382570",
+   "address": [
+    "85 HUMBOLDT STREET",
+    "WOOD RIDGE, NJ 07075"
+   ],
+   "phone": "201-939-5188",
+   "fax": "201-939-4425",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0822",
+   "name": "WOODBURY CITY",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401582120",
+   "address": [
+    "400 CROWN POINT ROAD",
+    "THOROFARE, NJ 08086"
+   ],
+   "phone": "856-845-4004",
+   "fax": "856-384-3079",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0823",
+   "name": "WOODBURY HEIGHTS BORO",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401582180",
+   "address": [
+    "1011 COOPER STREET",
+    "DEPTFORD, NJ 08096"
+   ],
+   "phone": "856-845-5300",
+   "fax": "856-845-8995",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0268",
+   "name": "WOODCLIFF LAKE BORO",
+   "county": "BERGEN",
+   "censusGeoid": "3400382300",
+   "address": [
+    "188 PASCACK ROAD",
+    "WOODCLIFF LAKE, NJ 07677"
+   ],
+   "phone": "201-391-4977",
+   "fax": "201-391-8830",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1616",
+   "name": "WOODLAND PARK BOROUGH",
+   "county": "PASSAIC",
+   "censusGeoid": "3403182423",
+   "address": [
+    "5 BROPHY LANE",
+    "WOODLAND PARK, NJ 07424"
+   ],
+   "phone": "973-345-8100",
+   "fax": "973-345-3729",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0339",
+   "name": "WOODLAND TWP",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400582420",
+   "address": [
+    "3RD & MAIN STREETS PO BOX 388",
+    "CHATSWORTH, NJ 08019"
+   ],
+   "phone": "609-726-1700",
+   "fax": "609-726-1996",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0437",
+   "name": "WOODLYNNE BORO",
+   "county": "CAMDEN",
+   "censusGeoid": "3400782450",
+   "address": [
+    "200 COOPER AVENUE",
+    "WOODLYNNE, NJ 08107"
+   ],
+   "phone": "856-962-8300",
+   "fax": "856-962-8763",
+   "dcaEnforced": false
+  },
+  {
+   "code": "1715",
+   "name": "WOODSTOWN BORO",
+   "county": "SALEM",
+   "censusGeoid": "3403382720",
+   "address": [
+    "PO BOX 286 WEST AVE",
+    "WOODSTOWN, NJ 08098-0286"
+   ],
+   "phone": "856-769-1918",
+   "fax": "856-769-3723",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0824",
+   "name": "WOOLWICH TWP",
+   "county": "GLOUCESTER",
+   "censusGeoid": "3401582840",
+   "address": [
+    "120 VILLAGE GREEN DRIVE",
+    "WOOLWICH, NJ 08085"
+   ],
+   "phone": "856-467-1445",
+   "fax": "856-467-5487",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0340",
+   "name": "WRIGHTSTOWN BORO",
+   "county": "BURLINGTON",
+   "censusGeoid": "3400582960",
+   "address": [
+    "21 SAYLORS POND ROAD",
+    "WRIGHTSTOWN, NJ 08562"
+   ],
+   "phone": "609-723-4450",
+   "fax": "609-723-7137",
+   "dcaEnforced": false
+  },
+  {
+   "code": "0270",
+   "name": "WYCKOFF TWP",
+   "county": "BERGEN",
+   "censusGeoid": "3400383050",
+   "address": [
+    "340 FRANKLIN AV",
+    "WYCKOFF, NJ 07481"
+   ],
+   "phone": "201-891-7000",
+   "fax": "201-891-0314",
+   "dcaEnforced": false
+  }
+ ],
+ "unmatched": [
+  {
+   "code": "0429",
+   "name": "PINE VALLEY BORO",
+   "county": "CAMDEN",
+   "reason": "no current Census county subdivision (TIGERweb) matches this name in this county"
+  }
+ ]
+}

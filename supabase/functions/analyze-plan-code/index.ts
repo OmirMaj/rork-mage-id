@@ -11,6 +11,13 @@
 // once the model answered (AI-F8), and generic error bodies: the upstream
 // status text and any raw model output stay in the server log (AI-F16).
 //
+// Plan Review honesty (lane C, 2026-09-26): every finding now comes back with
+// `citedEdition` and `section` split out of the model's citation, plus an
+// `evidence` level the SERVER stamps — never the model. There is no code lookup
+// behind this function, so that level is always "model_recall"; the client puts
+// the same recall chip, rung badge and edition-mismatch badge on it that Code
+// Check carries, comparing `citedEdition` against the jurisdiction's own row.
+//
 // Secrets: GEMINI_API_KEY
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -96,11 +103,63 @@ function buildPrompt(req: PlanCodeRequest): string {
       ? "Cite the ADOPTED edition named above wherever it covers the issue, and say which edition you are citing. Fall back to general IRC/IBC (and ADA where relevant) only for something that block does not cover. Never invent a local amendment that is not listed."
       : "Cite general IRC/IBC sections (and ADA where relevant). If the location is unknown, give general IRC/IBC guidance and do not invent local amendments.",
     "Only flag what you can ACTUALLY SEE in the drawing. Prefer fewer high-confidence findings over speculation. This is a PRE-CHECK the GC will verify against their AHJ — it is not a substitute for plan review.",
+    "You cannot look anything up: every section number is your own recall. Give a section only when you are certain of it; otherwise leave section empty and describe the requirement.",
+    juris
+      ? "For each finding, citedEdition is the code family and edition you are citing, exactly as named in the jurisdiction block above when that block covers it, and section is the section number alone."
+      : "For each finding, citedEdition is the model-code family and the edition year you are recalling (the family alone if you are unsure of the year), and section is the section number alone.",
     "Return STRICT JSON of this exact shape and nothing else:",
-    '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"IRC/IBC section","requirement":"what code requires","observed":"what the drawing shows that conflicts","severity":"high|med|low","confidence":"high|med|low"}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}',
+    '{"findings":[{"category":"egress|stairs|width|height|fire|ada|guards|other","codeRef":"code and section as you would print it","citedEdition":"code family and edition year","section":"section number only, or empty","requirement":"what code requires","observed":"what the drawing shows that conflicts","severity":"high|med|low","confidence":"high|med|low"}],"disclaimer":"one sentence reminding the GC to verify against the local code official"}',
     'If you see no likely issues, return {"findings":[],"disclaimer":"..."}.',
   ].filter(Boolean).join("\n");
 }
+
+// <pure:normalizePlanResult>
+/**
+ * What the client receives for one finding. `evidence` is stamped HERE, never
+ * read from the model: nothing behind this function retrieves code text, so
+ * the only honest level is model recall. A model that writes its own
+ * "evidence": "verified" is ignored, and so is any other field it invents.
+ */
+const PLAN_FINDING_EVIDENCE = "model_recall" as const;
+interface PlanFindingOut {
+  category: string;
+  codeRef: string;
+  citedEdition: string | null;
+  section: string | null;
+  requirement: string;
+  observed: string;
+  severity: string;
+  confidence: string;
+  evidence: typeof PLAN_FINDING_EVIDENCE;
+}
+function normalizePlanResult(raw: unknown): { findings: PlanFindingOut[]; disclaimer: string } {
+  // One line, bounded: a model string never carries a newline or a wall of text
+  // into a card, and never an empty-looking value that is only whitespace.
+  const clip = (v: unknown, max: number): string =>
+    typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
+  const obj = raw && typeof raw === "object" ? raw as { findings?: unknown; disclaimer?: unknown } : {};
+  const list = Array.isArray(obj.findings) ? obj.findings.slice(0, 40) : [];
+  const findings: PlanFindingOut[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const f = item as Record<string, unknown>;
+    const citedEdition = clip(f.citedEdition, 80);
+    const section = clip(f.section, 40);
+    findings.push({
+      category: clip(f.category, 20),
+      codeRef: clip(f.codeRef, 120),
+      citedEdition: citedEdition || null,
+      section: section || null,
+      requirement: clip(f.requirement, 600),
+      observed: clip(f.observed, 600),
+      severity: clip(f.severity, 8),
+      confidence: clip(f.confidence, 8),
+      evidence: PLAN_FINDING_EVIDENCE,
+    });
+  }
+  return { findings, disclaimer: clip(obj.disclaimer, 300) };
+}
+// </pure:normalizePlanResult>
 
 function approxBase64Bytes(b64: string): number {
   const len = b64.length;
@@ -194,7 +253,7 @@ serve(async (req) => {
       }, 429);
     }
 
-    const data = await callGemini(body);
+    const data = normalizePlanResult(await callGemini(body));
     const newUsed = await aiUsageIncrement(auth.userId, "plan_code_review");
     return jsonResponse({ success: true, data, usage: { used: newUsed, cap } });
   } catch (e) {

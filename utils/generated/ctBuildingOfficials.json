@@ -1,0 +1,2725 @@
+{
+ "source": "CT Department of Administrative Services — List of Connecticut Municipal Building Officials",
+ "sourceUrl": "https://portal.ct.gov/-/media/DAS/OEDM/BO-List/bolist.pdf",
+ "asOf": "2026-04-06",
+ "checkedOn": "2026-09-26",
+ "joinSource": "US Census TIGERweb current county subdivisions (Places_CouSub_ConCity_SubMCD/MapServer/1)",
+ "listEntries": 220,
+ "offices": [
+  {
+   "id": "andover",
+   "name": "Andover",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0911001080",
+   "address": [
+    "17 School Road",
+    "Andover, CT 06232-0328"
+   ],
+   "addressOmitted": null,
+   "phone": "860-649-8066 x6103",
+   "email": "rmckinnon@boltonct.gov"
+  },
+  {
+   "id": "ansonia",
+   "name": "Ansonia",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0914001220",
+   "address": [
+    "253 Main Street",
+    "Ansonia, CT 06401"
+   ],
+   "addressOmitted": null,
+   "phone": "203-736-5960",
+   "email": null
+  },
+  {
+   "id": "ashford",
+   "name": "Ashford",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915001430",
+   "address": [
+    "5 Town Hall Rd.",
+    "Ashford, CT 06278"
+   ],
+   "addressOmitted": null,
+   "phone": "860-487-4404",
+   "email": "rmckinnon@boltonct.gov"
+  },
+  {
+   "id": "avon",
+   "name": "Avon",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911002060",
+   "address": [
+    "60 West Main St.",
+    "Avon, CT 06001"
+   ],
+   "addressOmitted": null,
+   "phone": "860-409-4370",
+   "email": "cszylobryt@avonct.gov"
+  },
+  {
+   "id": "bantam",
+   "name": "Bantam",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": null,
+   "address": [
+    "80 Doyle Rd., PO Box 12",
+    "Bantam, CT 06750"
+   ],
+   "addressOmitted": null,
+   "phone": "860-567-7567",
+   "email": "jworthington@townoflitchfieldct.gov"
+  },
+  {
+   "id": "barkhamsted",
+   "name": "Barkhamsted",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916002760",
+   "address": [
+    "67 Ripley Hill Road",
+    "Pleasant Valley, CT 06063"
+   ],
+   "addressOmitted": null,
+   "phone": "860-379-1314",
+   "email": null
+  },
+  {
+   "id": "beacon-falls",
+   "name": "Beacon Falls",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0914003250",
+   "address": [
+    "10 Maple Ave.",
+    "Beacon Falls, CT 06403"
+   ],
+   "addressOmitted": null,
+   "phone": "203-729-4216",
+   "email": null
+  },
+  {
+   "id": "berlin",
+   "name": "Berlin",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911004300",
+   "address": [
+    "240 Kensington Rd.",
+    "Kensington, CT 06037"
+   ],
+   "addressOmitted": null,
+   "phone": "860-828-7012",
+   "email": "fvanlinter@berlinct.gov"
+  },
+  {
+   "id": "bethany",
+   "name": "Bethany",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0917004580",
+   "address": [
+    "40 Peck Road",
+    "Bethany, CT 06524-3322"
+   ],
+   "addressOmitted": null,
+   "phone": "203-393-2100 x1135",
+   "email": null
+  },
+  {
+   "id": "bethel",
+   "name": "Bethel",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919004720",
+   "address": [
+    "One School Street",
+    "Bethel, CT 06801"
+   ],
+   "addressOmitted": null,
+   "phone": "203-794-8517",
+   "email": "baldwinc@bethel-ct.gov"
+  },
+  {
+   "id": "bethlehem",
+   "name": "Bethlehem",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0914004930",
+   "address": [
+    "PO Box 160",
+    "Bethlehem, CT 06751"
+   ],
+   "addressOmitted": null,
+   "phone": "203-266-7510 X4",
+   "email": null
+  },
+  {
+   "id": "bloomfield",
+   "name": "Bloomfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911005910",
+   "address": [
+    "800 Bloomfield Ave.",
+    "Bloomfield, CT 06002"
+   ],
+   "addressOmitted": null,
+   "phone": "860-769-3543",
+   "email": "dcarlson@bloomfieldct.gov"
+  },
+  {
+   "id": "bolton",
+   "name": "Bolton",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911006260",
+   "address": [
+    "222 Bolton Center Rd.",
+    "Bolton, CT 06043"
+   ],
+   "addressOmitted": null,
+   "phone": "860-649-8066 x6103",
+   "email": "rmckinnon@boltonct.gov"
+  },
+  {
+   "id": "bozrah",
+   "name": "Bozrah",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918006820",
+   "address": [
+    "One River Rd.",
+    "Bozrah, CT 06334"
+   ],
+   "addressOmitted": null,
+   "phone": "860-889-2689 x6",
+   "email": null
+  },
+  {
+   "id": "branford",
+   "name": "Branford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917007310",
+   "address": [
+    "1019 Main St., PO Box 150",
+    "Branford, CT 06405"
+   ],
+   "addressOmitted": null,
+   "phone": "203-315-0674",
+   "email": "acinicola@branford-ct.gov"
+  },
+  {
+   "id": "bridgeport",
+   "name": "Bridgeport",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0912008070",
+   "address": [
+    "45 Lyon Terrace, Rm 222",
+    "Bridgeport, CT 06604"
+   ],
+   "addressOmitted": null,
+   "phone": "203-576-7226",
+   "email": "sean.masi@bridgeportct.gov"
+  },
+  {
+   "id": "bridgewater",
+   "name": "Bridgewater",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0919008210",
+   "address": [
+    "PO Box 216",
+    "Bridgewater, CT 06752"
+   ],
+   "addressOmitted": null,
+   "phone": "860-355-4467",
+   "email": null
+  },
+  {
+   "id": "bristol",
+   "name": "Bristol",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914008490",
+   "address": [
+    "111 North Main St.",
+    "Bristol, CT 06010"
+   ],
+   "addressOmitted": null,
+   "phone": "860-584-6215",
+   "email": "richardbrown@bristolct.gov"
+  },
+  {
+   "id": "brookfield",
+   "name": "Brookfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919008980",
+   "address": [
+    "100 Pocono Rd.",
+    "Brookfield, CT 06804"
+   ],
+   "addressOmitted": null,
+   "phone": "203-775-7305",
+   "email": "wbabyak@brookfieldct.gov"
+  },
+  {
+   "id": "brooklyn",
+   "name": "Brooklyn",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915009190",
+   "address": [
+    "69 South Main St, Suite 21",
+    "Brooklyn, CT 06234"
+   ],
+   "addressOmitted": null,
+   "phone": "860-779-3411 Ext.112",
+   "email": null
+  },
+  {
+   "id": "burlington",
+   "name": "Burlington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916010100",
+   "address": [
+    "200 Spielman Highway",
+    "Burlington, CT 06013"
+   ],
+   "addressOmitted": null,
+   "phone": "860-673-6789 x6",
+   "email": null
+  },
+  {
+   "id": "canaan",
+   "name": "Canaan",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916010940",
+   "address": [
+    "PO Box 47",
+    "Falls Village, CT 06031"
+   ],
+   "addressOmitted": null,
+   "phone": "860-309-7852",
+   "email": null
+  },
+  {
+   "id": "canterbury",
+   "name": "Canterbury",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915012130",
+   "address": [
+    "One Municipal Drive",
+    "Canterbury, CT 06331-1453"
+   ],
+   "addressOmitted": null,
+   "phone": "860-546-6857",
+   "email": null
+  },
+  {
+   "id": "canton",
+   "name": "Canton",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0911012270",
+   "address": [
+    "PO Box 168",
+    "Collinsville, CT 06022"
+   ],
+   "addressOmitted": null,
+   "phone": "860-693-7856",
+   "email": null
+  },
+  {
+   "id": "chaplin",
+   "name": "Chaplin",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915013810",
+   "address": [
+    "495 Phoenixville Rd.",
+    "Chaplin, CT 06235"
+   ],
+   "addressOmitted": null,
+   "phone": "860-455-0073 x315",
+   "email": null
+  },
+  {
+   "id": "cheshire",
+   "name": "Cheshire",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914014160",
+   "address": [
+    "84 South Main St.",
+    "Cheshire, CT 06410"
+   ],
+   "addressOmitted": null,
+   "phone": "203-271-6640",
+   "email": "tlozier@cheshirect.gov"
+  },
+  {
+   "id": "chester",
+   "name": "Chester",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0913014300",
+   "address": [
+    "203 Middlesex Ave.",
+    "Chester, CT 06412-1221"
+   ],
+   "addressOmitted": null,
+   "phone": "860-526-0013 x207",
+   "email": null
+  },
+  {
+   "id": "clinton",
+   "name": "Clinton",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913015350",
+   "address": [
+    "54 East Main St.",
+    "Clinton, CT 06413"
+   ],
+   "addressOmitted": null,
+   "phone": "860-669-9118",
+   "email": null
+  },
+  {
+   "id": "colchester",
+   "name": "Colchester",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0918015910",
+   "address": [
+    "Planning & Zoning Dept. 127",
+    "Norwich Ave."
+   ],
+   "addressOmitted": null,
+   "phone": "860-537-7285",
+   "email": "building@colchesterct.gov"
+  },
+  {
+   "id": "colebrook",
+   "name": "Colebrook",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916016050",
+   "address": [
+    "PO Box 5",
+    "Colebrook, CT 06021"
+   ],
+   "addressOmitted": null,
+   "phone": "860-379-3359 x201",
+   "email": null
+  },
+  {
+   "id": "columbia",
+   "name": "Columbia",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0911016400",
+   "address": [
+    "323 Rte. 87",
+    "Columbia, CT 06237"
+   ],
+   "addressOmitted": null,
+   "phone": "860-228-0440",
+   "email": null
+  },
+  {
+   "id": "cornwall",
+   "name": "Cornwall",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916017240",
+   "address": [
+    "P. O. Box 141",
+    "Cornwall Bridge, CT 06754"
+   ],
+   "addressOmitted": null,
+   "phone": "860-672-0711",
+   "email": "bldginspection@cornwallct.gov"
+  },
+  {
+   "id": "coventry",
+   "name": "Coventry",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911017800",
+   "address": [
+    "1712 Main St.",
+    "Coventry, CT 06238"
+   ],
+   "addressOmitted": null,
+   "phone": "860-742-4064",
+   "email": "rheckman@coventry-ct.gov"
+  },
+  {
+   "id": "cromwell",
+   "name": "Cromwell",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913018080",
+   "address": [
+    "41 West St.",
+    "Cromwell, CT 06416"
+   ],
+   "addressOmitted": null,
+   "phone": "860-632-3428",
+   "email": null
+  },
+  {
+   "id": "danbury",
+   "name": "Danbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919018500",
+   "address": [
+    "155 Deer Hill Ave.",
+    "Danbury, CT 06810"
+   ],
+   "addressOmitted": null,
+   "phone": "203-797-4580",
+   "email": "j.schullery@danbury-ct.gov"
+  },
+  {
+   "id": "darien",
+   "name": "Darien",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919018850",
+   "address": [
+    "2 Renshaw Rd.",
+    "Darien, CT 06820"
+   ],
+   "addressOmitted": null,
+   "phone": "203-656-7347",
+   "email": "mvitti@darienct.gov"
+  },
+  {
+   "id": "deep-river",
+   "name": "Deep River",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0913019130",
+   "address": [
+    "174 Main St.",
+    "Deep River, CT 06417"
+   ],
+   "addressOmitted": null,
+   "phone": "860-526-6025",
+   "email": null
+  },
+  {
+   "id": "derby",
+   "name": "Derby",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914019550",
+   "address": [
+    "One Elizabeth St.",
+    "Derby, CT 06418"
+   ],
+   "addressOmitted": null,
+   "phone": "203-736-1450",
+   "email": "jballaro@derbyct.gov"
+  },
+  {
+   "id": "durham",
+   "name": "Durham",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0913020810",
+   "address": [
+    "30 Town House Rd.",
+    "PO Box 428 Durham, CT"
+   ],
+   "addressOmitted": null,
+   "phone": "860-349-8253",
+   "email": null
+  },
+  {
+   "id": "eastford",
+   "name": "Eastford",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915021860",
+   "address": [
+    "PO Box 98",
+    "Eastford, CT 06242"
+   ],
+   "addressOmitted": null,
+   "phone": "860-974-2068 x8",
+   "email": null
+  },
+  {
+   "id": "east-granby",
+   "name": "East Granby",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911022070",
+   "address": [
+    "9 Center Steet",
+    "East Granby, CT 06026-1858"
+   ],
+   "addressOmitted": null,
+   "phone": "860-653-3444",
+   "email": null
+  },
+  {
+   "id": "east-haddam",
+   "name": "East Haddam",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913022280",
+   "address": [
+    "7 Main St., PO Box K East",
+    "Haddam, CT 06423"
+   ],
+   "addressOmitted": null,
+   "phone": "860-873-5024",
+   "email": null
+  },
+  {
+   "id": "east-hampton",
+   "name": "East Hampton",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913022490",
+   "address": [
+    "1 Community Drive",
+    "East Hampton, CT 06424"
+   ],
+   "addressOmitted": null,
+   "phone": "860-267-9601",
+   "email": "buildingofficial@easthamptonct.gov"
+  },
+  {
+   "id": "east-hartford",
+   "name": "East Hartford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911022630",
+   "address": [
+    "740 Main St.",
+    "East Hartford, CT 06108"
+   ],
+   "addressOmitted": null,
+   "phone": "860-291-7342",
+   "email": "tgothers@easthartfordct.gov"
+  },
+  {
+   "id": "east-haven",
+   "name": "East Haven",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917022910",
+   "address": [
+    "250 Main St.",
+    "East Haven, CT 06512"
+   ],
+   "addressOmitted": null,
+   "phone": "203-468-3216",
+   "email": "wbrown@easthaven-ct.gov"
+  },
+  {
+   "id": "east-lyme",
+   "name": "East Lyme",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918023400",
+   "address": [
+    "108 Pennsylvania Ave",
+    "Niantic, CT 06357"
+   ],
+   "addressOmitted": null,
+   "phone": "860-691-4114",
+   "email": null
+  },
+  {
+   "id": "easton",
+   "name": "Easton",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0912023890",
+   "address": [
+    "225 Center Rd.",
+    "Easton, CT 06612"
+   ],
+   "addressOmitted": null,
+   "phone": "203-268-6291",
+   "email": "PHoward@EastonCT.gov"
+  },
+  {
+   "id": "east-windsor",
+   "name": "East Windsor",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911024800",
+   "address": [
+    "11 Rye St.",
+    "Broad Brook, CT 06016"
+   ],
+   "addressOmitted": null,
+   "phone": "860-623-2439",
+   "email": "krich@eastwindsor-ct.gov"
+  },
+  {
+   "id": "ellington",
+   "name": "Ellington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911025360",
+   "address": [
+    "55 Main St., PO Box 187",
+    "Ellington, CT 06029"
+   ],
+   "addressOmitted": null,
+   "phone": "860-870-3124",
+   "email": "buildingofficial@ellington-ct.gov"
+  },
+  {
+   "id": "enfield",
+   "name": "Enfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911025990",
+   "address": [
+    "820 Enfield Street",
+    "Enfield, CT 06082"
+   ],
+   "addressOmitted": null,
+   "phone": "860-253-6370",
+   "email": null
+  },
+  {
+   "id": "essex",
+   "name": "Essex",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913026270",
+   "address": [
+    "29 West Ave.",
+    "Essex, CT 06426"
+   ],
+   "addressOmitted": null,
+   "phone": "860-767-4340 x117",
+   "email": "dmesite@essexct.gov"
+  },
+  {
+   "id": "fairfield",
+   "name": "Fairfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0912026620",
+   "address": [
+    "725 Old Post Rd.",
+    "Fairfield, CT 06824"
+   ],
+   "addressOmitted": null,
+   "phone": "203-256-3036",
+   "email": null
+  },
+  {
+   "id": "farmington",
+   "name": "Farmington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911027600",
+   "address": [
+    "One Monteith Dr.",
+    "Farmington, CT 06032"
+   ],
+   "addressOmitted": null,
+   "phone": "860-675-2315",
+   "email": null
+  },
+  {
+   "id": "fenwick",
+   "name": "Fenwick",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": null,
+   "address": [
+    "580 Maple Avenue",
+    "Old Saybrook, CT 06475"
+   ],
+   "addressOmitted": null,
+   "phone": "860-388-3499",
+   "email": null
+  },
+  {
+   "id": "franklin",
+   "name": "Franklin",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918029910",
+   "address": [
+    "7 Meeting House Hill Rd.",
+    "North Franklin, CT 06254"
+   ],
+   "addressOmitted": null,
+   "phone": "860-642-4338 x14",
+   "email": null
+  },
+  {
+   "id": "glastonbury",
+   "name": "Glastonbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911031240",
+   "address": [
+    "2155 Main St.",
+    "Glastonbury, CT 06033"
+   ],
+   "addressOmitted": null,
+   "phone": "860-652-7521",
+   "email": "lincoln.white@glastonbury-ct.gov"
+  },
+  {
+   "id": "goshen",
+   "name": "Goshen",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916032290",
+   "address": [
+    "42 North St., PO Box 187",
+    "Goshen, CT"
+   ],
+   "addressOmitted": null,
+   "phone": "860-491-2308 x231",
+   "email": "czibell@goshenct.gov"
+  },
+  {
+   "id": "granby",
+   "name": "Granby",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911032640",
+   "address": [
+    "15 North Granby Rd.",
+    "Granby, CT 06035"
+   ],
+   "addressOmitted": null,
+   "phone": "860-844-5318",
+   "email": "jskilton@granby-ct.gov"
+  },
+  {
+   "id": "greenwich",
+   "name": "Greenwich",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919033620",
+   "address": [
+    "101 Field Point Rd., PO Box",
+    "2540 - Greenwich, CT 06836"
+   ],
+   "addressOmitted": null,
+   "phone": "203-622-7755",
+   "email": null
+  },
+  {
+   "id": "griswold",
+   "name": "Griswold",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0918033900",
+   "address": [
+    "28 Main Street",
+    "Jewett City, CT 06351"
+   ],
+   "addressOmitted": null,
+   "phone": "860-376-7060 x2110",
+   "email": null
+  },
+  {
+   "id": "groton",
+   "name": "Groton",
+   "qualifier": "Town of Groton",
+   "staffing": "full time",
+   "censusGeoid": "0918034250",
+   "address": [
+    "134 Groton Long Point Rd.",
+    "Groton, CT 06340"
+   ],
+   "addressOmitted": null,
+   "phone": "860-446-5982",
+   "email": "tbrennan@groton-ct.gov"
+  },
+  {
+   "id": "groton-long-point",
+   "name": "Groton Long Point",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": null,
+   "address": [
+    "44 Beach Rd., PO Box 3737",
+    "Groton Long Point, CT 06340"
+   ],
+   "addressOmitted": null,
+   "phone": "860-536-4736",
+   "email": null
+  },
+  {
+   "id": "city-of-groton",
+   "name": "Groton",
+   "qualifier": "City of Groton",
+   "staffing": "full time",
+   "censusGeoid": null,
+   "address": [
+    "295 Meridian St.",
+    "Groton, CT 06340"
+   ],
+   "addressOmitted": null,
+   "phone": "860-446-4104",
+   "email": "reagans@cityofgroton-ct.gov"
+  },
+  {
+   "id": "guilford",
+   "name": "Guilford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917034950",
+   "address": [
+    "50 Boston St.",
+    "Guilford, CT 06437"
+   ],
+   "addressOmitted": null,
+   "phone": "203-453-8029",
+   "email": "normank@guilfordct.gov"
+  },
+  {
+   "id": "haddam",
+   "name": "Haddam",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913035230",
+   "address": [
+    "30 Field Park Drive",
+    "Haddam, CT 06438"
+   ],
+   "addressOmitted": null,
+   "phone": "860-345-8531 x230",
+   "email": null
+  },
+  {
+   "id": "hamden",
+   "name": "Hamden",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917035650",
+   "address": [
+    "2750 Dixwell Ave.",
+    "Hamden, CT 06518"
+   ],
+   "addressOmitted": null,
+   "phone": "203-287-7160",
+   "email": null
+  },
+  {
+   "id": "hampton",
+   "name": "Hampton",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915036000",
+   "address": [
+    "164 Main St., PO Box 143",
+    "Hampton, CT 06247"
+   ],
+   "addressOmitted": null,
+   "phone": "860-455-9132 x6",
+   "email": null
+  },
+  {
+   "id": "hartford",
+   "name": "Hartford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911037070",
+   "address": [
+    "260 Constitution Plaza, 1st Fl",
+    "Hartford, CT 06103"
+   ],
+   "addressOmitted": null,
+   "phone": "860-757-9231",
+   "email": "al.torromeo@hartford.gov"
+  },
+  {
+   "id": "hartland",
+   "name": "Hartland",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916037140",
+   "address": [
+    "15 North Granby Rd.",
+    "Granby, CT 06035"
+   ],
+   "addressOmitted": null,
+   "phone": "860-844-5318",
+   "email": "Jskilton@granby-ct.gov"
+  },
+  {
+   "id": "harwinton",
+   "name": "Harwinton",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916037280",
+   "address": [
+    "100 Bentley Drive",
+    "Harwinton, CT 06791"
+   ],
+   "addressOmitted": null,
+   "phone": "860-485-3892",
+   "email": null
+  },
+  {
+   "id": "hebron",
+   "name": "Hebron",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911037910",
+   "address": [
+    "15 Gilead St.",
+    "Hebron, CT 06248"
+   ],
+   "addressOmitted": null,
+   "phone": "860-228-5971 x142",
+   "email": null
+  },
+  {
+   "id": "kent",
+   "name": "Kent",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916040290",
+   "address": [
+    "41 Kent Green Blvd. PO Box 678",
+    "Kent, CT 06757-0678"
+   ],
+   "addressOmitted": null,
+   "phone": "860-927-4872",
+   "email": "buildingdepartment@townofkentct.gov"
+  },
+  {
+   "id": "killingly",
+   "name": "Killingly",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0915040500",
+   "address": [
+    "172 Main Street",
+    "Killingly, CT 06239"
+   ],
+   "addressOmitted": null,
+   "phone": "860-779-5315",
+   "email": "pgazzola@killinglyct.gov"
+  },
+  {
+   "id": "killingworth",
+   "name": "Killingworth",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0913040710",
+   "address": [
+    "323 Route 81",
+    "Killingworth, CT 06419"
+   ],
+   "addressOmitted": null,
+   "phone": "860-391-5190 x206",
+   "email": null
+  },
+  {
+   "id": "lebanon",
+   "name": "Lebanon",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0918042390",
+   "address": [
+    "579 Exeter Rd.",
+    "Lebanon, CT 06249"
+   ],
+   "addressOmitted": null,
+   "phone": "860-642-6028",
+   "email": "buildingdept@lebanonct.gov"
+  },
+  {
+   "id": "ledyard",
+   "name": "Ledyard",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918042600",
+   "address": [
+    "741 Col. Ledyard Hwy.",
+    "Ledyard, CT 06339"
+   ],
+   "addressOmitted": null,
+   "phone": "860-464-3217",
+   "email": null
+  },
+  {
+   "id": "lisbon",
+   "name": "Lisbon",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0918043230",
+   "address": [
+    "One Newent Rd.",
+    "Lisbon, CT 06351"
+   ],
+   "addressOmitted": null,
+   "phone": "860-376-8291",
+   "email": null
+  },
+  {
+   "id": "litchfield",
+   "name": "Litchfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916043370",
+   "address": [
+    "80 Doyle Rd., PO Box 12",
+    "Bantam"
+   ],
+   "addressOmitted": null,
+   "phone": "860-567-7567",
+   "email": "jworthington@townoflitchfieldct.gov"
+  },
+  {
+   "id": "lyme",
+   "name": "Lyme",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0913044210",
+   "address": [
+    "480 Hamburg Rd.",
+    "Lyme, CT 06371"
+   ],
+   "addressOmitted": null,
+   "phone": "860-434-7733 Ext 30",
+   "email": null
+  },
+  {
+   "id": "madison",
+   "name": "Madison",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917044560",
+   "address": [
+    "8 Campus Drive",
+    "Madison, CT 06443"
+   ],
+   "addressOmitted": null,
+   "phone": "203-245-5618",
+   "email": null
+  },
+  {
+   "id": "manchester",
+   "name": "Manchester",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911044700",
+   "address": [
+    "494 Main St., PO Box 191",
+    "Manchester, CT 06045-0191"
+   ],
+   "addressOmitted": null,
+   "phone": "860-647-3110",
+   "email": "jroy@manchesterct.gov"
+  },
+  {
+   "id": "mansfield",
+   "name": "Mansfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911044910",
+   "address": [
+    "4 South Eagleville Rd.",
+    "Storrs, CT 06268"
+   ],
+   "addressOmitted": null,
+   "phone": "860-429-3324",
+   "email": null
+  },
+  {
+   "id": "marlborough",
+   "name": "Marlborough",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911045820",
+   "address": [
+    "PO Box 29",
+    "Marlborough, CT 06447"
+   ],
+   "addressOmitted": null,
+   "phone": "860-295-6202 X226",
+   "email": null
+  },
+  {
+   "id": "meriden",
+   "name": "Meriden",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917046520",
+   "address": [
+    "142 East Main St., Room 137",
+    "Meriden, CT 06450"
+   ],
+   "addressOmitted": null,
+   "phone": "203-630-4091",
+   "email": "eiorfino@meridenct.gov"
+  },
+  {
+   "id": "middlebury",
+   "name": "Middlebury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914046940",
+   "address": [
+    "1212 Whittemore Rd.",
+    "Middlebury, CT 06762"
+   ],
+   "addressOmitted": null,
+   "phone": "203-577-8299",
+   "email": null
+  },
+  {
+   "id": "middlefield",
+   "name": "Middlefield",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0913047080",
+   "address": [
+    "405 Main St., Suite 1",
+    "Middlefield, CT 06455"
+   ],
+   "addressOmitted": null,
+   "phone": "860-349-7123",
+   "email": null
+  },
+  {
+   "id": "middletown",
+   "name": "Middletown",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913047360",
+   "address": [
+    "245 DeKoven Dr., PO Box 1300",
+    "Middletown, CT 06457"
+   ],
+   "addressOmitted": null,
+   "phone": "860-638-4872",
+   "email": "dean.lisitano@middletownct.gov"
+  },
+  {
+   "id": "milford",
+   "name": "Milford",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0917047535",
+   "address": [
+    "70 West River St.",
+    "Milford, CT 06460"
+   ],
+   "addressOmitted": null,
+   "phone": "203-701-4450",
+   "email": "sreed@milfordct.gov"
+  },
+  {
+   "id": "mohegan",
+   "name": "Mohegan",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": null,
+   "address": [
+    "13 Crow Hill Road",
+    "Uncasville, CT 06382"
+   ],
+   "addressOmitted": null,
+   "phone": "860-862-6503",
+   "email": null
+  },
+  {
+   "id": "monroe",
+   "name": "Monroe",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0912048620",
+   "address": [
+    "7 Fan Hill Rd.",
+    "Monroe, CT 06468"
+   ],
+   "addressOmitted": null,
+   "phone": "203-452-2805",
+   "email": null
+  },
+  {
+   "id": "montville",
+   "name": "Montville",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918048900",
+   "address": [
+    "310 Norwich-New London",
+    "Tpk. Uncasville, CT 06382"
+   ],
+   "addressOmitted": null,
+   "phone": "860-848-6782",
+   "email": null
+  },
+  {
+   "id": "morris",
+   "name": "Morris",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916049460",
+   "address": [
+    "3 East St., PO Box 66",
+    "Morris, CT 06763"
+   ],
+   "addressOmitted": null,
+   "phone": "860-567-7434",
+   "email": null
+  },
+  {
+   "id": "naugatuck",
+   "name": "Naugatuck",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914049950",
+   "address": [
+    "229 Church St.",
+    "Naugatuck, CT 06770"
+   ],
+   "addressOmitted": null,
+   "phone": "203-720-7035",
+   "email": "bherzman@naugatuck-ct.gov"
+  },
+  {
+   "id": "new-britain",
+   "name": "New Britain",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911050440",
+   "address": [
+    "27 West Main St",
+    "New Britain, CT 06051"
+   ],
+   "addressOmitted": null,
+   "phone": "860-826-3387",
+   "email": "michael.nomack@newbritainct.gov"
+  },
+  {
+   "id": "new-canaan",
+   "name": "New Canaan",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919050580",
+   "address": [
+    "77 Main St.",
+    "New Canaan, CT 06840"
+   ],
+   "addressOmitted": null,
+   "phone": "203-594-3104",
+   "email": "scott.becker@newcanaanct.gov"
+  },
+  {
+   "id": "new-fairfield",
+   "name": "New Fairfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919050860",
+   "address": [
+    "4 Brush Hill Rd.",
+    "New Fairfield, CT 06812"
+   ],
+   "addressOmitted": null,
+   "phone": "203-312-5646",
+   "email": "ekist@newfairfieldct.gov"
+  },
+  {
+   "id": "new-hartford",
+   "name": "New Hartford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916051350",
+   "address": [
+    "530 Main St.",
+    "New Hartford, CT 06057"
+   ],
+   "addressOmitted": null,
+   "phone": "860-379-8830",
+   "email": "building@newhartfordct.gov"
+  },
+  {
+   "id": "new-haven",
+   "name": "New Haven",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917052070",
+   "address": [
+    "200 Orange St., Suite 502",
+    "New Haven, CT 06510"
+   ],
+   "addressOmitted": null,
+   "phone": "203-946-8046",
+   "email": "rdillon@newhavenct.gov"
+  },
+  {
+   "id": "newington",
+   "name": "Newington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911052140",
+   "address": [
+    "200 Garfield Street",
+    "Newington, CT 06111"
+   ],
+   "addressOmitted": null,
+   "phone": "860-665-8580",
+   "email": "djourdan@newingtonct.gov"
+  },
+  {
+   "id": "new-london",
+   "name": "New London",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918052350",
+   "address": [
+    "111 Union St.",
+    "New London, CT 06320"
+   ],
+   "addressOmitted": null,
+   "phone": "860-447-5240",
+   "email": "kkripas@newlondonct.gov"
+  },
+  {
+   "id": "new-milford",
+   "name": "New Milford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919052630",
+   "address": [
+    "10 Main St.",
+    "New Milford, CT 06776"
+   ],
+   "addressOmitted": null,
+   "phone": "860-355-6090",
+   "email": "jrondini@newmilfordct.gov"
+  },
+  {
+   "id": "newtown",
+   "name": "Newtown",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919052980",
+   "address": [
+    "3 Primrose St.",
+    "Newtown, CT 06470"
+   ],
+   "addressOmitted": null,
+   "phone": "203-270-4260",
+   "email": "john.poeltl@newtown-ct.gov"
+  },
+  {
+   "id": "norfolk",
+   "name": "Norfolk",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916053470",
+   "address": [
+    "PO Box 552",
+    "Norfolk, CT 06058"
+   ],
+   "addressOmitted": null,
+   "phone": "860-542-6986",
+   "email": null
+  },
+  {
+   "id": "north-branford",
+   "name": "North Branford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917053890",
+   "address": [
+    "909 Foxon Rd.",
+    "North Branford, CT 06471"
+   ],
+   "addressOmitted": null,
+   "phone": "203-484-6008",
+   "email": "sBuccitti@northbranfordct.gov"
+  },
+  {
+   "id": "north-canaan",
+   "name": "North Canaan",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916054030",
+   "address": [
+    "100 Pease Street, #3",
+    "North Canaan, CT 06018"
+   ],
+   "addressOmitted": null,
+   "phone": "860-824-7313 x191",
+   "email": null
+  },
+  {
+   "id": "north-haven",
+   "name": "North Haven",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917054870",
+   "address": [
+    "18 Church St.",
+    "North Haven, CT 06473"
+   ],
+   "addressOmitted": null,
+   "phone": "203-239-5321 x405",
+   "email": "Floriano.elio@town.north-haven.ct.us"
+  },
+  {
+   "id": "north-stonington",
+   "name": "North Stonington",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0918055500",
+   "address": [
+    "40 Main Street",
+    "North Stonington, CT 06359"
+   ],
+   "addressOmitted": null,
+   "phone": "860-535-2877 x118",
+   "email": "building@northstoningtonct.gov"
+  },
+  {
+   "id": "norwalk",
+   "name": "Norwalk",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919056060",
+   "address": [
+    "125 East Ave., PO Box 5125",
+    "Norwalk, CT 06856-5125"
+   ],
+   "addressOmitted": null,
+   "phone": "203-854-7760",
+   "email": "wireland@norwalkct.gov"
+  },
+  {
+   "id": "norwich",
+   "name": "Norwich",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918056270",
+   "address": [
+    "23 Union Street",
+    "Norwich, CT 06360"
+   ],
+   "addressOmitted": null,
+   "phone": "860-823-3745",
+   "email": null
+  },
+  {
+   "id": "old-lyme",
+   "name": "Old Lyme",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913057040",
+   "address": [
+    "52 Lyme Street",
+    "Old Lyme, CT 06371"
+   ],
+   "addressOmitted": null,
+   "phone": "860-434-1605 X213",
+   "email": "mwayland@oldlyme-ct.gov"
+  },
+  {
+   "id": "old-saybrook",
+   "name": "Old Saybrook",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913057320",
+   "address": [
+    "302 Main Street",
+    "Old Saybrook, CT 06475"
+   ],
+   "addressOmitted": null,
+   "phone": "860-395-3130",
+   "email": "building.department@oldsaybrookct.gov"
+  },
+  {
+   "id": "orange",
+   "name": "Orange",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917057600",
+   "address": [
+    "617 Orange Center Road",
+    "Orange, CT 06477"
+   ],
+   "addressOmitted": null,
+   "phone": "203-891-4713",
+   "email": "rwagner@orange-ct.gov"
+  },
+  {
+   "id": "oxford",
+   "name": "Oxford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914058300",
+   "address": [
+    "486 Oxford Road",
+    "Oxford, CT 06478"
+   ],
+   "addressOmitted": null,
+   "phone": "203-828-6511",
+   "email": "bldgoff@oxford-ct.gov"
+  },
+  {
+   "id": "plainfield",
+   "name": "Plainfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0915059980",
+   "address": [
+    "8 Community Ave.",
+    "Plainfield, CT 06374"
+   ],
+   "addressOmitted": null,
+   "phone": "860-230-3012",
+   "email": null
+  },
+  {
+   "id": "plainville",
+   "name": "Plainville",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911060120",
+   "address": [
+    "One Central Square",
+    "Plainville, CT 06062"
+   ],
+   "addressOmitted": null,
+   "phone": "860-793-0221 x7173",
+   "email": "ditolla@plainville-ct.gov"
+  },
+  {
+   "id": "plymouth",
+   "name": "Plymouth",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914060750",
+   "address": [
+    "80 Main Street",
+    "Terryville, CT 06786"
+   ],
+   "addressOmitted": null,
+   "phone": "860-585-4007",
+   "email": null
+  },
+  {
+   "id": "pomfret",
+   "name": "Pomfret",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915061030",
+   "address": [
+    "5 Haven Rd., PO Box 286",
+    "Pomfret Center, CT 06259"
+   ],
+   "addressOmitted": null,
+   "phone": "860-974-2972",
+   "email": null
+  },
+  {
+   "id": "portland",
+   "name": "Portland",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913061800",
+   "address": [
+    "PO Box 71",
+    "Portland, CT 06480"
+   ],
+   "addressOmitted": null,
+   "phone": "860-342-6728",
+   "email": null
+  },
+  {
+   "id": "preston",
+   "name": "Preston",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918062150",
+   "address": [
+    "389 Route 2",
+    "Preston, CT 06365"
+   ],
+   "addressOmitted": null,
+   "phone": "860-887-5581",
+   "email": null
+  },
+  {
+   "id": "prospect",
+   "name": "Prospect",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0914062290",
+   "address": [
+    "36 Center Street",
+    "Prospect, CT 06712"
+   ],
+   "addressOmitted": null,
+   "phone": "203-758-4461",
+   "email": null
+  },
+  {
+   "id": "putnam",
+   "name": "Putnam",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0915062710",
+   "address": [
+    "200 School Street",
+    "Putnam, CT 06260"
+   ],
+   "addressOmitted": null,
+   "phone": "860-963-6800",
+   "email": null
+  },
+  {
+   "id": "redding",
+   "name": "Redding",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919063480",
+   "address": [
+    "PO Box 1161",
+    "Redding, CT 06875"
+   ],
+   "addressOmitted": null,
+   "phone": "203-938-2558",
+   "email": null
+  },
+  {
+   "id": "ridgefield",
+   "name": "Ridgefield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919063970",
+   "address": [
+    "66 Prospect Street",
+    "Ridgefield, CT 06877"
+   ],
+   "addressOmitted": null,
+   "phone": "203-431-2743",
+   "email": "buildingofficial@ridgefieldct.gov"
+  },
+  {
+   "id": "rocky-hill",
+   "name": "Rocky Hill",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911065370",
+   "address": [
+    "761 Old Main St., PO Box",
+    "657"
+   ],
+   "addressOmitted": null,
+   "phone": "860-258-2733",
+   "email": "mviolette@rockyhillct.gov"
+  },
+  {
+   "id": "roxbury",
+   "name": "Roxbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916065930",
+   "address": [
+    "29 North St., PO Box 203",
+    "Roxbury, CT 06783"
+   ],
+   "addressOmitted": null,
+   "phone": "860-355-2948",
+   "email": null
+  },
+  {
+   "id": "salem",
+   "name": "Salem",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918066210",
+   "address": [
+    "270 Hartford Road",
+    "Salem, CT 06420"
+   ],
+   "addressOmitted": null,
+   "phone": "860-859-3873 x250",
+   "email": "vern.vesey@salemct.gov"
+  },
+  {
+   "id": "salisbury",
+   "name": "Salisbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916066420",
+   "address": [
+    "27 Main St., PO Box 548",
+    "Salisbury, CT 06068"
+   ],
+   "addressOmitted": null,
+   "phone": "860-435-5177",
+   "email": null
+  },
+  {
+   "id": "scotland",
+   "name": "Scotland",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915067400",
+   "address": [
+    "9 Devotion Rd., PO Box 122",
+    "Scotland, CT 06264"
+   ],
+   "addressOmitted": null,
+   "phone": "860-428-2954",
+   "email": null
+  },
+  {
+   "id": "seymour",
+   "name": "Seymour",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914067610",
+   "address": [
+    "One First Street",
+    "Seymour, CT 06483"
+   ],
+   "addressOmitted": null,
+   "phone": "203-888-3545",
+   "email": null
+  },
+  {
+   "id": "sharon",
+   "name": "Sharon",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916067960",
+   "address": [
+    "63 Main St., PO Box 385",
+    "Sharon, CT 06069"
+   ],
+   "addressOmitted": null,
+   "phone": "860-364-0909",
+   "email": "landuse@sharonct.gov"
+  },
+  {
+   "id": "shelton",
+   "name": "Shelton",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914068170",
+   "address": [
+    "54 Hill Street",
+    "Shelton, CT 06484"
+   ],
+   "addressOmitted": null,
+   "phone": "203-924-1555 x1358",
+   "email": null
+  },
+  {
+   "id": "sherman",
+   "name": "Sherman",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0919068310",
+   "address": [
+    "9 Route 39, PO Box 39",
+    "Sherman, CT 06784"
+   ],
+   "addressOmitted": null,
+   "phone": "860-516-7143",
+   "email": null
+  },
+  {
+   "id": "simsbury",
+   "name": "Simsbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911068940",
+   "address": [
+    "933 Hopmeadow St, PO Box 495,",
+    "Simsbury, CT 06070"
+   ],
+   "addressOmitted": null,
+   "phone": "860-658-3234",
+   "email": "dsousa@simsbury-ct.gov"
+  },
+  {
+   "id": "somers",
+   "name": "Somers",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911069220",
+   "address": [],
+   "addressOmitted": "the list prints two rows over each other here, so the address text is unreadable",
+   "phone": "860-763-8215",
+   "email": "buildingofficial@somersct.gov"
+  },
+  {
+   "id": "southbury",
+   "name": "Southbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914069640",
+   "address": [
+    "501 Main Street South",
+    "Southbury, CT 06488-2295"
+   ],
+   "addressOmitted": null,
+   "phone": "203-262-0609",
+   "email": "building@southbury-ct.gov"
+  },
+  {
+   "id": "southington",
+   "name": "Southington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911070550",
+   "address": [
+    "196 North Main Street",
+    "Southington, CT 06489"
+   ],
+   "addressOmitted": null,
+   "phone": "860-276-6242",
+   "email": "David.Riccio@southingtonct.gov"
+  },
+  {
+   "id": "south-windsor",
+   "name": "South Windsor",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911071390",
+   "address": [
+    "1540 Sullivan Ave.",
+    "South Windsor, CT 06074"
+   ],
+   "addressOmitted": null,
+   "phone": "860-644-2511 x2330",
+   "email": "marc.melanson@southwindsor-ct.gov"
+  },
+  {
+   "id": "sprague",
+   "name": "Sprague",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0918071670",
+   "address": [
+    "One Main St., PO Box 162",
+    "Baltic, CT 06330"
+   ],
+   "addressOmitted": null,
+   "phone": "860-822-3000 x204",
+   "email": null
+  },
+  {
+   "id": "stafford-springs",
+   "name": "Stafford Springs",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": null,
+   "address": [
+    "One Main Street",
+    "Stafford Springs, CT 06076"
+   ],
+   "addressOmitted": null,
+   "phone": "860-684-1775",
+   "email": null
+  },
+  {
+   "id": "stamford",
+   "name": "Stamford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919073070",
+   "address": [
+    "888 Washington Blvd.",
+    "PO Box 891, Stamford, CT"
+   ],
+   "addressOmitted": null,
+   "phone": "203-977-4161",
+   "email": "sreed@stamfordct.gov"
+  },
+  {
+   "id": "sterling",
+   "name": "Sterling",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0915073420",
+   "address": [
+    "1183 Plainfield Pike, PO Box 157",
+    "Oneco, CT 06373"
+   ],
+   "addressOmitted": null,
+   "phone": "(860) 564-2904",
+   "email": null
+  },
+  {
+   "id": "stonington",
+   "name": "Stonington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918073770",
+   "address": [
+    "152 Elm Street",
+    "Stonington, CT 06378"
+   ],
+   "addressOmitted": null,
+   "phone": "860-535-5075",
+   "email": "rchevalier@stonington-ct.gov"
+  },
+  {
+   "id": "stratford",
+   "name": "Stratford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0912074190",
+   "address": [
+    "2725 Main Street",
+    "Stratford, CT 06615"
+   ],
+   "addressOmitted": null,
+   "phone": "203-385-4010",
+   "email": null
+  },
+  {
+   "id": "suffield",
+   "name": "Suffield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911074540",
+   "address": [
+    "83 Mountain Road",
+    "Suffield, CT 06078"
+   ],
+   "addressOmitted": null,
+   "phone": "860-668-3878",
+   "email": "maddington@suffieldct.gov"
+  },
+  {
+   "id": "thomaston",
+   "name": "Thomaston",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0914075730",
+   "address": [
+    "158 Main Street",
+    "Thomaston, CT 06787"
+   ],
+   "addressOmitted": null,
+   "phone": "860-283-8411",
+   "email": null
+  },
+  {
+   "id": "thompson",
+   "name": "Thompson",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0915075870",
+   "address": [
+    "815 Riverside Dr.",
+    "North Grosvenordale, CT"
+   ],
+   "addressOmitted": null,
+   "phone": "860-923-9002",
+   "email": null
+  },
+  {
+   "id": "tolland",
+   "name": "Tolland",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911076290",
+   "address": [
+    "21 Tolland Green",
+    "Tolland, CT 06084"
+   ],
+   "addressOmitted": null,
+   "phone": "860-871-3601",
+   "email": "jpaquin@tollandct.gov"
+  },
+  {
+   "id": "torrington",
+   "name": "Torrington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916076570",
+   "address": [
+    "140 Main St.",
+    "Torrington, CT 06790"
+   ],
+   "addressOmitted": null,
+   "phone": "860-489-2245",
+   "email": null
+  },
+  {
+   "id": "trumbull",
+   "name": "Trumbull",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0912077200",
+   "address": [
+    "5866 Main St.",
+    "Trumbull, CT 06611"
+   ],
+   "addressOmitted": null,
+   "phone": "203-452-5020",
+   "email": "rdunn@trumbull-ct.gov"
+  },
+  {
+   "id": "union",
+   "name": "Union",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915077830",
+   "address": [
+    "1043 Buckley Highway",
+    "Union, CT 06076"
+   ],
+   "addressOmitted": null,
+   "phone": "860-684-3812",
+   "email": null
+  },
+  {
+   "id": "vernon",
+   "name": "Vernon",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911078250",
+   "address": [
+    "55 West Main St.",
+    "Vernon, CT 06066"
+   ],
+   "addressOmitted": null,
+   "phone": "860-870-3651",
+   "email": "steveprattson@vernon-ct.gov"
+  },
+  {
+   "id": "voluntown",
+   "name": "Voluntown",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0915078600",
+   "address": [
+    "PO Box 96",
+    "Voluntown, CT 06384"
+   ],
+   "addressOmitted": null,
+   "phone": "860-376-3867",
+   "email": "rmartel@voluntown.gov"
+  },
+  {
+   "id": "wallingford",
+   "name": "Wallingford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917078740",
+   "address": [
+    "45 South Main St.",
+    "Wallingford, CT 06492"
+   ],
+   "addressOmitted": null,
+   "phone": "203-294-2005",
+   "email": "L.Coppola@WallingfordCT.Gov"
+  },
+  {
+   "id": "warren",
+   "name": "Warren",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0916079510",
+   "address": [
+    "50 Cemetery Road",
+    "Warren, CT 06754"
+   ],
+   "addressOmitted": null,
+   "phone": "860-868-7881",
+   "email": "building@warrenct.gov"
+  },
+  {
+   "id": "washington",
+   "name": "Washington",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0916079720",
+   "address": [
+    "PO Box 383",
+    "Washington Depot, CT 06794"
+   ],
+   "addressOmitted": null,
+   "phone": "860-868-0844",
+   "email": null
+  },
+  {
+   "id": "waterbury",
+   "name": "Waterbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914080070",
+   "address": [
+    "185 South Main St, 5th Fl",
+    "Waterbury, CT 06706"
+   ],
+   "addressOmitted": null,
+   "phone": "203-574-6832",
+   "email": null
+  },
+  {
+   "id": "waterford",
+   "name": "Waterford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918080280",
+   "address": [
+    "15 Rope Ferry Rd.",
+    "Waterford, CT 06385-2886"
+   ],
+   "addressOmitted": null,
+   "phone": "860-444-5826",
+   "email": null
+  },
+  {
+   "id": "watertown",
+   "name": "Watertown",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914080490",
+   "address": [
+    "61 Echo Lake Rd.",
+    "Watertown, CT 06795"
+   ],
+   "addressOmitted": null,
+   "phone": "860-945-5264",
+   "email": null
+  },
+  {
+   "id": "westbrook",
+   "name": "Westbrook",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0913081680",
+   "address": [
+    "866 Boston Post Rd.",
+    "Westbrook, CT 06498-1881"
+   ],
+   "addressOmitted": null,
+   "phone": "860-399-2035",
+   "email": null
+  },
+  {
+   "id": "west-hartford",
+   "name": "West Hartford",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911082590",
+   "address": [
+    "50 South Main St.",
+    "West Hartford, CT 06107"
+   ],
+   "addressOmitted": null,
+   "phone": "860-561-7504",
+   "email": "greg.smith@westhartfordct.gov"
+  },
+  {
+   "id": "west-haven",
+   "name": "West Haven",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0917082870",
+   "address": [
+    "355 Main St., 1st Fl",
+    "West Haven, CT 06516"
+   ],
+   "addressOmitted": null,
+   "phone": "203-937-3590",
+   "email": "ladams@westhaven-ct.gov"
+  },
+  {
+   "id": "weston",
+   "name": "Weston",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919083430",
+   "address": [
+    "24 School Road",
+    "Weston, CT 06883"
+   ],
+   "addressOmitted": null,
+   "phone": "203-222-2659",
+   "email": "desposito@westonct.gov"
+  },
+  {
+   "id": "westport",
+   "name": "Westport",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919083500",
+   "address": [
+    "515 Post Rd.",
+    "East Westport, CT 06880"
+   ],
+   "addressOmitted": null,
+   "phone": "203-341-5025",
+   "email": "phoward@westportct.gov"
+  },
+  {
+   "id": "wethersfield",
+   "name": "Wethersfield",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911084900",
+   "address": [
+    "505 Silas Deane Highway",
+    "Wethersfield, CT 06109"
+   ],
+   "addressOmitted": null,
+   "phone": "860-721-2841",
+   "email": "sean.hussey@wethersfieldct.gov"
+  },
+  {
+   "id": "willington",
+   "name": "Willington",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0911085950",
+   "address": [
+    "40 Old Farms Road",
+    "Willington, CT 06279"
+   ],
+   "addressOmitted": null,
+   "phone": "860-487-3123",
+   "email": "rmckinnon@boltonct.gov"
+  },
+  {
+   "id": "wilton",
+   "name": "Wilton",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0919086370",
+   "address": [
+    "238 Danbury Rd.",
+    "Wilton, CT 06897"
+   ],
+   "addressOmitted": null,
+   "phone": "203-563-0177",
+   "email": "building@wiltonct.gov"
+  },
+  {
+   "id": "winchester",
+   "name": "Winchester",
+   "qualifier": null,
+   "staffing": null,
+   "censusGeoid": "0916086440",
+   "address": [
+    "338 Main St.",
+    "Winsted, CT 06098"
+   ],
+   "addressOmitted": null,
+   "phone": "(860) 379-3818",
+   "email": null
+  },
+  {
+   "id": "windham",
+   "name": "Windham",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0918086790",
+   "address": [
+    "1 Main Street",
+    "Stafford Springs, CT 06076"
+   ],
+   "addressOmitted": null,
+   "phone": "860-684-1775",
+   "email": "gsetzler@windhamct.gov"
+  },
+  {
+   "id": "windsor",
+   "name": "Windsor",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911087000",
+   "address": [
+    "275 Broad St.",
+    "Windsor, CT 06095"
+   ],
+   "addressOmitted": null,
+   "phone": "860-285-1960",
+   "email": null
+  },
+  {
+   "id": "windsor-locks",
+   "name": "Windsor Locks",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0911087070",
+   "address": [
+    "50 Church St.",
+    "Windsor Locks, CT 06096"
+   ],
+   "addressOmitted": null,
+   "phone": "860-627-1447",
+   "email": null
+  },
+  {
+   "id": "wolcott",
+   "name": "Wolcott",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914087560",
+   "address": [
+    "10 Kenea Ave.",
+    "Wolcott, CT 06716"
+   ],
+   "addressOmitted": null,
+   "phone": "203-879-8100",
+   "email": null
+  },
+  {
+   "id": "woodbridge",
+   "name": "Woodbridge",
+   "qualifier": null,
+   "staffing": "part time",
+   "censusGeoid": "0917087700",
+   "address": [
+    "11 Meetinghouse Lane",
+    "Woodbridge, CT 06525"
+   ],
+   "addressOmitted": null,
+   "phone": "203-389-3419",
+   "email": null
+  },
+  {
+   "id": "woodbury",
+   "name": "Woodbury",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0914087910",
+   "address": [
+    "281 Main Street South",
+    "Woodbury, CT 06798"
+   ],
+   "addressOmitted": null,
+   "phone": "203-263-5717",
+   "email": null
+  },
+  {
+   "id": "woodstock",
+   "name": "Woodstock",
+   "qualifier": null,
+   "staffing": "full time",
+   "censusGeoid": "0915088190",
+   "address": [
+    "415 Route 169",
+    "Woodstock, CT 06281"
+   ],
+   "addressOmitted": null,
+   "phone": "860-928-1388",
+   "email": "buildingofficial@woodstockct.gov"
+  }
+ ],
+ "aliases": [
+  {
+   "name": "Amston",
+   "seeTowns": [
+    "Hebron"
+   ]
+  },
+  {
+   "name": "Baltic",
+   "seeTowns": [
+    "Sprague"
+   ]
+  },
+  {
+   "name": "Byram",
+   "seeTowns": [
+    "Greenwich"
+   ]
+  },
+  {
+   "name": "Centerbrook",
+   "seeTowns": [
+    "Essex"
+   ]
+  },
+  {
+   "name": "Chesterfield",
+   "seeTowns": [
+    "Montville"
+   ]
+  },
+  {
+   "name": "Collinsville",
+   "seeTowns": [
+    "Canton"
+   ]
+  },
+  {
+   "name": "Cos Cob",
+   "seeTowns": [
+    "Greenwich"
+   ]
+  },
+  {
+   "name": "Danielson",
+   "seeTowns": [
+    "Killingly"
+   ]
+  },
+  {
+   "name": "Dayville",
+   "seeTowns": [
+    "Killingly"
+   ]
+  },
+  {
+   "name": "Falls Village",
+   "seeTowns": [
+    "Canaan"
+   ]
+  },
+  {
+   "name": "Forestville",
+   "seeTowns": [
+    "Bristol"
+   ]
+  },
+  {
+   "name": "Gales Ferry",
+   "seeTowns": [
+    "Ledyard"
+   ]
+  },
+  {
+   "name": "Georgetown",
+   "seeTowns": [
+    "Redding"
+   ]
+  },
+  {
+   "name": "Glenville",
+   "seeTowns": [
+    "Greenwich"
+   ]
+  },
+  {
+   "name": "Higganum",
+   "seeTowns": [
+    "Haddam"
+   ]
+  },
+  {
+   "name": "Ivoryton",
+   "seeTowns": [
+    "Essex"
+   ]
+  },
+  {
+   "name": "Jewitt City",
+   "seeTowns": [
+    "Griswold"
+   ]
+  },
+  {
+   "name": "Kensington",
+   "seeTowns": [
+    "Berlin"
+   ]
+  },
+  {
+   "name": "Lakeville",
+   "seeTowns": [
+    "Salisbury"
+   ]
+  },
+  {
+   "name": "Moodus",
+   "seeTowns": [
+    "East Haddam"
+   ]
+  },
+  {
+   "name": "Moosup",
+   "seeTowns": [
+    "Plainfield"
+   ]
+  },
+  {
+   "name": "Mystic",
+   "seeTowns": [
+    "Stonington",
+    "Groton"
+   ]
+  },
+  {
+   "name": "New Preston",
+   "seeTowns": [
+    "Washington"
+   ]
+  },
+  {
+   "name": "Niantic",
+   "seeTowns": [
+    "East Lyme"
+   ]
+  },
+  {
+   "name": "North Grosvenordale",
+   "seeTowns": [
+    "Thompson"
+   ]
+  },
+  {
+   "name": "Northfield",
+   "seeTowns": [
+    "Litchfield"
+   ]
+  },
+  {
+   "name": "Northford",
+   "seeTowns": [
+    "North Branford"
+   ]
+  },
+  {
+   "name": "Oakdale",
+   "seeTowns": [
+    "Montville"
+   ]
+  },
+  {
+   "name": "Oakville",
+   "seeTowns": [
+    "Watertown"
+   ]
+  },
+  {
+   "name": "Old Greenwich",
+   "seeTowns": [
+    "Greenwich"
+   ]
+  },
+  {
+   "name": "Pawcatuck",
+   "seeTowns": [
+    "Stonington"
+   ]
+  },
+  {
+   "name": "Plantsville",
+   "seeTowns": [
+    "Southington"
+   ]
+  },
+  {
+   "name": "Quaker Hill",
+   "seeTowns": [
+    "Waterford"
+   ]
+  },
+  {
+   "name": "Riverside",
+   "seeTowns": [
+    "Greenwich"
+   ]
+  },
+  {
+   "name": "Rockfall",
+   "seeTowns": [
+    "Middlefield"
+   ]
+  },
+  {
+   "name": "Rowayton",
+   "seeTowns": [
+    "Norwalk"
+   ]
+  },
+  {
+   "name": "Sandy Hook",
+   "seeTowns": [
+    "Newtown"
+   ]
+  },
+  {
+   "name": "Southport",
+   "seeTowns": [
+    "Fairfield"
+   ]
+  },
+  {
+   "name": "Storrs",
+   "seeTowns": [
+    "Mansfield"
+   ]
+  },
+  {
+   "name": "Tariffville",
+   "seeTowns": [
+    "Simsbury"
+   ]
+  },
+  {
+   "name": "Terryville",
+   "seeTowns": [
+    "Plymouth"
+   ]
+  },
+  {
+   "name": "Uncasville",
+   "seeTowns": [
+    "Montville"
+   ]
+  },
+  {
+   "name": "Unionville",
+   "seeTowns": [
+    "Farmington"
+   ]
+  },
+  {
+   "name": "Versailles",
+   "seeTowns": [
+    "Sprague"
+   ]
+  },
+  {
+   "name": "Willimantic",
+   "seeTowns": [
+    "Windham"
+   ]
+  },
+  {
+   "name": "Winsted",
+   "seeTowns": [
+    "Winchester"
+   ]
+  }
+ ],
+ "townsWithoutOffice": [
+  "Stafford"
+ ]
+}

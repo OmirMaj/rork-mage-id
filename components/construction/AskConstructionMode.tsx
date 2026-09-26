@@ -38,9 +38,26 @@ import {
   MAX_QUESTION_CHARS, consultedSummary,
   type ConstructionAnswerResponse,
 } from '@/utils/constructionAnswer';
-import type { AnswerCitation } from '@/types/constructionAnswer';
+import type { AnswerCitation, ConstructionAnswerJurisdiction } from '@/types/constructionAnswer';
+import { codesSummary, jobsiteAddressForProject, resolveCodeJurisdiction, type AddressableProject } from '@/utils/codeJurisdiction';
 
-interface ProjectLite { id: string; name: string }
+type ProjectLite = AddressableProject & { id: string; name: string };
+
+/** The selected job's verified adoption record, or null (unknown place / no job). */
+function jurisdictionForAsk(project: ProjectLite | null): ConstructionAnswerJurisdiction | null {
+  if (!project) return null;
+  const addr = jobsiteAddressForProject(project);
+  const r = resolveCodeJurisdiction(addr);
+  if (r.kind === 'unknown') return null;
+  return {
+    authority: r.entry.authorityName,
+    codesInForce: codesSummary(r.entry.codes),
+    checkedOn: r.entry.checkedOn,
+    sourceUrl: r.entry.sourceUrl,
+    place: [addr.city, addr.state].filter(Boolean).join(', '),
+    scope: r.kind,
+  };
+}
 
 interface Props {
   projects: ProjectLite[];
@@ -78,7 +95,8 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
     setErrCode(null);
     setErrMsg(null);
     try {
-      const res = await askConstruction({ question: question.trim(), projectId });
+      const project = projects.find((p) => p.id === projectId) ?? null;
+      const res = await askConstruction({ question: question.trim(), projectId, jurisdiction: jurisdictionForAsk(project) });
       setResult(res);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
@@ -90,7 +108,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [canAsk, canSubmit, question, projectId]);
+  }, [canAsk, canSubmit, question, projectId, projects]);
 
   const openCitation = useCallback((c: AnswerCitation) => {
     if (c.kind === 'web' && c.url) { void Linking.openURL(c.url); return; }

@@ -66,7 +66,8 @@ import {
   type ResolvedRoadmapLead,
 } from '@/utils/automation/learnedLeadTime';
 import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
-import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
+import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview, Permit } from '@/types';
+import { recordInspectionResult } from '@/utils/inspectionPrep';
 import { showAlert } from '@/utils/alert';
 import AskConstructionMode from '@/components/construction/AskConstructionMode';
 import { AutoScheduleReviewSheet } from '@/components/automation/AutoScheduleReviewSheet';
@@ -308,6 +309,10 @@ async function getPlanReviewMonthUsage(userId: string | null | undefined): Promi
 }
 
 // ── Permit type mapping for Add-to-Permits (Task 6) ─────────────────────
+// The <pure:…> markers let scripts/validate-code-check-honesty.ts run these
+// exact lines under bun (this screen itself cannot load there). Keep what sits
+// between a pair free of imports and of anything declared outside it.
+// <pure:toPermitType>
 const PERMIT_TYPE_MAP: Record<string, PermitType> = {
   electrical: 'electrical', plumbing: 'plumbing', mechanical: 'mechanical', hvac: 'mechanical',
   building: 'building', structural: 'building', demolition: 'demolition', demo: 'demolition',
@@ -324,6 +329,83 @@ const PERMIT_TYPE_MAP: Record<string, PermitType> = {
 };
 function toPermitType(t: string): PermitType {
   return PERMIT_TYPE_MAP[t.trim().toLowerCase()] ?? 'other';
+}
+// </pure:toPermitType>
+
+// <pure:roadmapPermitMatch>
+/**
+ * Which of THIS job's permits a roadmap inspection's Pass/Fail belongs to.
+ *
+ * Inspection Ready reads the inspector's words out of a permit's history, so a
+ * roadmap result that never reaches a permit teaches it nothing. But a result
+ * filed on the WRONG permit teaches it the wrong thing, so the rule is the
+ * simplest one that can be proven:
+ *   - 'matched' ONLY when the inspection's type maps to a specific permit type
+ *     (not 'other') AND exactly one permit is found — first the permit a
+ *     same-type roadmap permit was added as (linkedPermitId), otherwise the
+ *     job's one permit of that type;
+ *   - otherwise, when the job has any permit, 'choose' over ALL of the job's
+ *     permits (the contractor picks; nothing is saved until he does). Roadmap
+ *     inspections are usually KINDS ('framing', 'foundation', 'rough_mep',
+ *     'final') that map to 'other' — those must never auto-file on whichever
+ *     permit happens to be typed 'other' (a zoning permit, say);
+ *   - 'none' only when the job has no permits at all (the screen says to add
+ *     the permit — it never creates one).
+ */
+type RoadmapPermitMatch =
+  | { kind: 'matched'; permitId: string }
+  | { kind: 'choose'; permitIds: string[] }
+  | { kind: 'none' };
+function roadmapPermitMatch(
+  inspection: { type: string },
+  roadmapPermits: readonly { type: string; linkedPermitId?: string }[],
+  jobPermits: readonly { id: string; type: string }[],
+  toType: (t: string) => string,
+): RoadmapPermitMatch {
+  const all = [...new Set(jobPermits.map((p) => p.id))];
+  if (all.length === 0) return { kind: 'none' };
+  const want = toType(inspection.type ?? '');
+  if (want !== 'other') {
+    const onJob = new Set(all);
+    const linked = [...new Set(
+      roadmapPermits
+        .filter((rp) => !!rp.linkedPermitId && onJob.has(rp.linkedPermitId) && toType(rp.type ?? '') === want)
+        .map((rp) => rp.linkedPermitId as string),
+    )];
+    const found = linked.length > 0 ? linked : [...new Set(jobPermits.filter((p) => p.type === want).map((p) => p.id))];
+    if (found.length === 1) return { kind: 'matched', permitId: found[0] };
+  }
+  return { kind: 'choose', permitIds: all };
+}
+// </pure:roadmapPermitMatch>
+
+// <pure:planFindingCitation>
+/**
+ * What one Plan Review finding cites, as the ladder reads it. analyze-plan-code
+ * now splits the citation into `citedEdition` + `section`; a review saved
+ * before that carries only `codeRef`, which is then the cited code with no
+ * section — so an old finding can only ever sit on a WEAKER rung, never climb
+ * one on a parse guess.
+ */
+function planFindingCitation(f: { codeRef: string; citedEdition?: string | null; section?: string | null }): { citedCode: string; section: string } {
+  const edition = (f.citedEdition ?? '').trim();
+  return { citedCode: edition || (f.codeRef ?? '').trim(), section: edition ? (f.section ?? '').trim() : '' };
+}
+// </pure:planFindingCitation>
+
+/** A Plan Review finding as saved since analyze-plan-code returned its evidence
+ *  (lane C). The extra fields ride in the local plan-review store; CodeFinding
+ *  itself is unchanged. `evidence` is stamped by the server, never the model. */
+type PlanFindingSaved = CodeFinding & {
+  citedEdition?: string | null;
+  section?: string | null;
+  evidence?: 'model_recall';
+};
+
+/** How the roadmap result sheet names the permit it will write to. */
+function roadmapPermitLabel(p: Permit): string {
+  const n = (p.permitNumber ?? '').trim();
+  return n ? `${n} permit` : `${p.type.replace(/_/g, ' ')} permit`;
 }
 
 export default function ConstructionAITab() {
@@ -447,6 +529,7 @@ function ConstructionAIScreenInner() {
     savePermitRoadmap,
     updatePermitRoadmap,
     addPermit,
+    updatePermit,
     getPlanSheetsForProject,
     getPlanReviewForSheet,
     savePlanReview,
@@ -739,6 +822,12 @@ function ConstructionAIScreenInner() {
     result: 'passed' | 'failed';
     work: InspectionResultWork;
   } | null>(null);
+  // The inspector's words for the roadmap result, and — when this job has two
+  // or more candidate permits — the one the contractor picked. Both reset each
+  // time a result is opened, so one inspection's note can never ride into the
+  // next one's confirm.
+  const [resultNotes, setResultNotes] = useState('');
+  const [resultPermitPick, setResultPermitPick] = useState<string | null>(null);
 
   // TRIGGER — the contractor marks a scheduled inspection PASSED or FAILED. We
   // build the draft consequences against the CURRENT committed schedule and open
@@ -760,10 +849,34 @@ function ConstructionAIScreenInner() {
           jurisdiction: roadmapAuthority ?? undefined,
         },
       );
+      setResultNotes('');
+      setResultPermitPick(null);
       setPendingResult({ inspection, result, work });
     },
     [roadmapProject, roadmapAuthority, user],
   );
+
+  // The permit this result will be filed on, or why there is none. A result on
+  // the roadmap used to stop at the roadmap: the permit's history — the record
+  // Inspection Ready builds its checklist from — never heard about it.
+  const resultPermitMatch = useMemo<RoadmapPermitMatch | null>(() => {
+    if (!pendingResult || !roadmapProject || !roadmap) return null;
+    return roadmapPermitMatch(
+      pendingResult.inspection,
+      roadmap.permits,
+      permits.filter((p) => p.projectId === roadmapProject.id),
+      toPermitType,
+    );
+  }, [pendingResult, roadmapProject, roadmap, permits]);
+  const resultPermit = useMemo<Permit | null>(() => {
+    if (!resultPermitMatch) return null;
+    const id = resultPermitMatch.kind === 'matched'
+      ? resultPermitMatch.permitId
+      : resultPermitMatch.kind === 'choose' && resultPermitPick && resultPermitMatch.permitIds.includes(resultPermitPick)
+        ? resultPermitPick
+        : null;
+    return id ? permits.find((p) => p.id === id) ?? null : null;
+  }, [resultPermitMatch, resultPermitPick, permits]);
 
   // COMMIT — runs ONLY on an explicit confirm from the result sheet. Commits all
   // consequences atomically: the reflowed/merged schedule tasks (when the
@@ -795,6 +908,23 @@ function ConstructionAIScreenInner() {
       ),
     });
 
+    // 2b) The permit's own inspection history, with the inspector's notes —
+    //     the same recordInspectionResult Inspection Ready's Pass/Fail runs, so
+    //     the next inspection with this authority starts from these words.
+    //     Only a permit the contractor can see named on the sheet; none → the
+    //     sheet said to add one, and nothing is created here.
+    if (resultPermit) {
+      updatePermit(
+        resultPermit.id,
+        recordInspectionResult(
+          resultPermit,
+          { name: inspection.title, day: todayCalendarDay(), result, notes: resultNotes },
+          new Date().toISOString(),
+          generateUUID,
+        ),
+      );
+    }
+
     // 3) FAIL → commit the hazard. Dedupe on sourceInspectionId so a re-fail of
     //    the same inspection does not spawn a second live hazard.
     if (result === 'failed' && work.hazardDraft) {
@@ -806,7 +936,7 @@ function ConstructionAIScreenInner() {
 
     setPendingResult(null);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [pendingResult, roadmapProject, roadmap, updateProject, updatePermitRoadmap, addHazard, hazards]);
+  }, [pendingResult, roadmapProject, roadmap, updateProject, updatePermitRoadmap, addHazard, hazards, resultPermit, resultNotes, updatePermit]);
 
   // ── Plan Review state ────────────────────────────────────────────────
   const [planProjectId, setPlanProjectId] = useState<string | null>(projects[0]?.id ?? null);
@@ -829,6 +959,22 @@ function ConstructionAIScreenInner() {
   const planSheets = planProjectId ? getPlanSheetsForProject(planProjectId) : [];
   const planSheet = planSheets.find((s) => s.id === planSheetId) ?? null;
   const existingReview = planSheetId ? getPlanReviewForSheet(planSheetId) : null;
+  // Code Check's ladder, on Plan Review's findings: the rung each citation
+  // stands on and any cited edition this jobsite's verified row does not
+  // adopt. Keyed by finding id. Computed against the plan project's own
+  // jurisdiction — the same one the review's prompt was grounded on.
+  const planEvidence = useMemo(() => {
+    const out = new globalThis.Map<string, { ev: CitationEvidence; mismatch: ReturnType<typeof editionMismatchFor> }>();
+    for (const f of existingReview?.findings ?? []) {
+      const c = planFindingCitation(f as PlanFindingSaved);
+      out.set(f.id, {
+        ev: citationEvidenceFor(planJurisdiction, c.citedCode, c.section),
+        mismatch: editionMismatchFor(planJurisdiction, c.citedCode),
+      });
+    }
+    return out;
+  }, [existingReview, planJurisdiction]);
+  const planRungSummary = useMemo(() => rungSummaryLine([...planEvidence.values()].map((x) => x.ev)), [planEvidence]);
   const planMonthlyCap = useMemo(() => FEATURE_LIMITS.ai_plan_review_monthly[tier], [tier]);
 
   const runPlanReview = useCallback(async () => {
@@ -851,9 +997,19 @@ function ConstructionAIScreenInner() {
       const prior = getPlanReviewForSheet(planSheet.id);
       const priorStatusByRef = new globalThis.Map((prior?.findings ?? []).map((f) => [f.codeRef, f.status] as const));
       const reviewId = prior?.id ?? `plan-review-${planSheet.id}-${Date.now()}`;
-      const findings: CodeFinding[] = res.findings.map((f, i) => {
+      const findings: PlanFindingSaved[] = res.findings.map((raw, i) => {
+        // analyze-plan-code's per-finding evidence (lane C). Typed loosely on
+        // purpose: an older deployment returns none of these, and the ladder
+        // then reads the whole codeRef as the citation (planFindingCitation).
+        const f = raw as typeof raw & { citedEdition?: unknown; section?: unknown; evidence?: unknown };
         const codeRef = (f.codeRef ?? '').trim() || 'IRC/IBC (general)';
+        const citedEdition = typeof f.citedEdition === 'string' && f.citedEdition.trim() ? f.citedEdition.trim() : null;
+        const section = typeof f.section === 'string' && f.section.trim() ? f.section.trim() : null;
         return {
+          citedEdition,
+          section,
+          // Never 'verified': nothing behind Plan Review retrieves code text.
+          evidence: 'model_recall' as const,
           id: `${reviewId}-${i}`,
           category: normalizeCategory(f.category),
           codeRef,
@@ -1150,14 +1306,77 @@ Never invent a section number you are unsure of — leave section empty and desc
       onConfirmZoning={handleConfirmZoning}
     />
   );
+  // Where this result will be kept, said BEFORE the confirm: the permit it is
+  // filed on (with a box for the inspector's words), the permits to pick from,
+  // or — when the job has no permits at all — that it needs adding first.
+  const resultPermitChoices = resultPermitMatch?.kind === 'choose'
+    ? resultPermitMatch.permitIds.map((id) => permits.find((p) => p.id === id)).filter((p): p is Permit => !!p)
+    : [];
+  const resultPermitBlock = pendingResult && resultPermitMatch ? (
+    <View style={styles.resultPermitBlock} testID="roadmap-result-permit">
+      {resultPermitMatch.kind === 'none' ? (
+        <Text style={styles.resultPermitNote} testID="roadmap-result-permit-none">
+          {"Add this permit to keep the inspector's notes. This job has no permits in Permits yet, so this result stays on the roadmap only."}
+        </Text>
+      ) : (
+        <>
+          {resultPermitChoices.length > 0 ? (
+            <>
+              <Text style={styles.resultPermitNote}>
+                Which permit was this inspection on? Nothing is saved to a permit until you pick one.
+              </Text>
+              <View style={styles.resultPermitChoices}>
+                {resultPermitChoices.map((p) => {
+                  const active = resultPermitPick === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => setResultPermitPick(p.id)}
+                      activeOpacity={0.8}
+                      style={[styles.chip, active && styles.chipActive]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      testID={`roadmap-result-permit-pick-${p.id}`}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{roadmapPermitLabel(p)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+          {resultPermit ? (
+            <>
+              <Text style={styles.label}>{"Inspector's notes (optional)"}</Text>
+              <TextInput
+                style={[styles.textArea, styles.resultNotesInput]}
+                value={resultNotes}
+                onChangeText={setResultNotes}
+                placeholder="What the inspector said, in their words"
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                testID="roadmap-result-notes"
+              />
+              <Text style={styles.resultPermitNote} testID="roadmap-result-permit-target">
+                {`On confirm, this result${resultNotes.trim() ? ' and these notes go' : ' goes'} to the ${roadmapPermitLabel(resultPermit)} history. Inspection Ready leads with it the next time this authority inspects.`}
+              </Text>
+            </>
+          ) : null}
+        </>
+      )}
+    </View>
+  ) : null;
   const resultSheet = pendingResult ? (
-    <InspectionResultReviewSheet
-      inspection={pendingResult.inspection}
-      result={pendingResult.result}
-      work={pendingResult.work}
-      onConfirm={handleConfirmInspectionResult}
-      onCancel={() => setPendingResult(null)}
-    />
+    <View style={styles.resultHost}>
+      {resultPermitBlock}
+      <InspectionResultReviewSheet
+        inspection={pendingResult.inspection}
+        result={pendingResult.result}
+        work={pendingResult.work}
+        onConfirm={handleConfirmInspectionResult}
+        onCancel={() => setPendingResult(null)}
+      />
+    </View>
   ) : null;
 
   return (
@@ -1905,6 +2124,19 @@ Never invent a section number you are unsure of — leave section empty and desc
                       </Text>
                     ) : (
                       <View style={styles.findingsWrap}>
+                        {/* Code Check's honesty, on Plan Review. The server
+                            stamps every finding model recall — there is no code
+                            lookup behind this — and the chip says so ABOVE the
+                            findings, in the same words and tone as Code Check. */}
+                        <View style={styles.recallChip} testID="plan-review-recall-chip">
+                          <AlertTriangle size={12} color={themeColors.warningLabel} strokeWidth={2} />
+                          <Text style={styles.recallChipText}>
+                            From model recall — verify with your AHJ before relying on a section number
+                          </Text>
+                        </View>
+                        {planRungSummary ? (
+                          <Text style={styles.rungSummary} testID="plan-review-rung-summary">{planRungSummary}</Text>
+                        ) : null}
                         {SEVERITY_ORDER.map((sev) => {
                           const group = existingReview.findings.filter((f) => f.severity === sev);
                           if (group.length === 0) return null;
@@ -1925,6 +2157,17 @@ Never invent a section number you are unsure of — leave section empty and desc
                                   ) : null}
                                   {f.observed ? (
                                     <Text style={styles.findingObserved}>{`Observed: ${f.observed}`}</Text>
+                                  ) : null}
+                                  {planEvidence.get(f.id) ? (
+                                    <RungBadge ev={planEvidence.get(f.id)!.ev} testID={`plan-review-rung-${f.id}`} />
+                                  ) : null}
+                                  {planEvidence.get(f.id)?.mismatch ? (
+                                    <View style={styles.rungWrap} testID={`plan-review-edition-mismatch-${f.id}`}>
+                                      <View style={[styles.rungBadge, styles.rungRecall, styles.rungMismatchBadge]}>
+                                        <AlertTriangle size={10} color={themeColors.warningLabel} strokeWidth={2.25} />
+                                        <Text style={[styles.rungBadgeText, styles.rungRecallText, styles.rungMismatchText]}>{planEvidence.get(f.id)!.mismatch!.label}</Text>
+                                      </View>
+                                    </View>
                                   ) : null}
                                   <TouchableOpacity
                                     onPress={() => cycleFindingStatus(existingReview, f.id)}
@@ -3019,6 +3262,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // card (the frame supplies the size, radius and hairline). Background only:
   // no radius here, so it is not a hand-rolled surface card.
   reviewHost: { backgroundColor: themeColors.surface, overflow: 'hidden' as const },
+  // The roadmap result sheet plus the permit block above it. No radius: the
+  // sheet below draws its own top corners, and on a phone this IS the page.
+  resultHost: { flex: 1, backgroundColor: themeColors.surface },
+  resultPermitBlock: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
+  resultPermitNote: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
+  resultPermitChoices: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  resultNotesInput: { minHeight: 72 },
   resultHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
