@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`slick3 front door golden — /login and /signup at rest (a) /login phone 390 × 844 iOS 1`] = `
+{
+  "lines": 361,
+  "sha256": "53f9075ca516ce5d47dc7a08c04db888f217f024fcc715722588bdfd122cb9b3",
+}
+`;
+
+exports[`slick3 front door golden — /login and /signup at rest (b) /signup phone 390 × 844 iOS 1`] = `
+{
+  "lines": 448,
+  "sha256": "3f31344cd606c24b862d356df6ab831f1fa072e22b8d5817857ed7e305bb4167",
+}
+`;
+
+exports[`slick3 front door golden — /login and /signup at rest (c) /login desktop 1280 × 800 (desktop-web layout forced) 1`] = `
+{
+  "lines": 363,
+  "sha256": "c23092107e43b633f59899270846f091b60c52000e3c8ec452b09f07c303e454",
+}
+`;
+
+exports[`slick3 front door golden — /login and /signup at rest (d) /signup desktop 1280 × 800 (desktop-web layout forced) 1`] = `
+{
+  "lines": 450,
+  "sha256": "305dfae962396452308e8a8917551066b80952ad4708b74cf9c8637f658e252e",
+}
+`;

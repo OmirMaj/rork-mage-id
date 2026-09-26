@@ -48,6 +48,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
+import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import { supabase } from '@/lib/supabase';
 import {
   useUserLocation,
@@ -495,9 +496,16 @@ export default function CachedBidsScreen() {
     setSortBy('deadline');
   }, []);
 
-  const renderBid = useCallback(({ item }: { item: BidWithDistance }) => (
-    <BidCard bid={item} onPress={() => handleBidPress(item)} />
-  ), [handleBidPress]);
+  // The first rows land on a short stagger when a skeleton that was on screen
+  // hands over (slick round 3). null at rest and for every later row. The
+  // row getter is stable, so renderItem never re-renders the list.
+  const { row: landingRow } = useLanding(isLoading);
+
+  const renderBid = useCallback(({ item, index }: { item: BidWithDistance; index: number }) => (
+    <LandingSlot style={landingRow(index)}>
+      <BidCard bid={item} onPress={() => handleBidPress(item)} />
+    </LandingSlot>
+  ), [handleBidPress, landingRow]);
 
   const totalCount = bidsWithMeta.length;
   const filteredCount = filteredBids.length;

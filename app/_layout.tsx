@@ -4,11 +4,13 @@ import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform, View, LogBox, StyleSheet } from "react-native";
+import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandSplash from "@/components/BrandSplash";
 import CraneLoader from "@/components/CraneLoader";
+import ReloadVeil from "@/components/launch/ReloadVeil";
+import { setBootReady } from "@/components/launch/launchCurtain";
 import DesktopSidebar from "@/components/DesktopSidebar";
 import { useSidebarRailRouteSync } from "@/hooks/useSidebarRail";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
@@ -853,6 +855,10 @@ function RootLayoutNav() {
   // redirects.
   const bootstrapping =
     authLoading || projectLoading || hasSeenOnboarding === null;
+  // The launch curtain (components/launch/launchCurtain): BrandSplash holds
+  // its ink until the app underneath is ready, then hands off. Above the
+  // loader's early return, so the hook order never changes.
+  useEffect(() => { setBootReady(!bootstrapping); }, [bootstrapping]);
 
   // #7: the loader REPLACES the Stack only on the first boot and on a switch
   // between two different accounts; any other reload (a sign-in from signed
@@ -1593,13 +1599,10 @@ function RootLayoutNav() {
       {/* Right-hand dock slot: 0 px unless something is docked, desktop
           shell only. Nothing opens it yet (wave 6c moves Ask into it). */}
       {shellEligible && <ShellDockHost visible={showDesktopShell} />}
-      {navMode === 'stack+overlay' ? (
-        // Blocks input while the boot reads run, exactly as the full-screen
-        // loader did, without unmounting what is underneath.
-        <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]} testID="root-nav-reload-overlay">
-          <CraneLoader label="MAGE ID" />
-        </View>
-      ) : null}
+      {/* Blocks input while the boot reads run, exactly as the full-screen
+          loader did, without unmounting what is underneath; shows only if the
+          reload is slow, and fades out (components/launch/ReloadVeil). */}
+      <ReloadVeil active={navMode === 'stack+overlay'} />
     </View>
   );
 }

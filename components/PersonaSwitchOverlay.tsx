@@ -2,22 +2,29 @@
 //
 // The old version scaled a brand-orange disc over the whole screen — a
 // full-bleed accent flood with unreadable text. This one stays inside the
-// app's own theme: the screen dims to the theme scrim, two hairline accent
-// rings ripple out from the tapped card, and a surface card springs in with
-// the destination icon, a readable label, and the signature move — a spirit
+// app's own theme: the screen dims to the theme scrim, one hairline accent
+// ring ripples out from the tapped card, and the tapped card itself lifts into
+// a surface card at centre with the destination icon, a readable label, and the signature move — a spirit
 // level whose bubble slides in and SETTLES DEAD CENTER. Construction for
 // "you've leveled into your new workspace."
 //
-// Timeline (~1.15s total):
-//   0ms       — haptic impact, scrim fades in, ring 1 starts
-//   140ms     — ring 2 echoes
-//   90–420ms  — card + icon spring in, eyebrow/label rise
+// Timeline (~1.15s total without a hold):
+//   0ms       — haptic impact, scrim fades in, the ring starts
+//   90–420ms  — the card lifts out of the tapped card (originRect) and springs
+//               to centre — or, with no originRect, rises from 0.92 — then the
+//               icon and the eyebrow/label follow
 //   300–520ms — level track draws in
-//   420–850ms — bubble springs to center (the settle)
-//   930ms     — overlay fades out; onDone() at ~1150ms
+//   420–780ms — bubble springs to center (the settle; no wobble, no glow)
+//   onSettled — the HOLD: at T_SETTLED the overlay awaits onSettled (bounded
+//               by HOLD_CAP_MS), then fades out and calls onDone()
+//   930ms     — with no onSettled: overlay fades out; onDone() at ~1150ms
 //
-// Reduced motion / web: a clean theme-dark crossfade, no theatrics.
-// Props are unchanged from the previous version — persona-select needs no edits.
+// The overlay never navigates. Its own work ends at onDone: the parent
+// navigates after it (persona-select), so the host outlives the fade.
+//
+// Reduced motion / web: a clean theme-dark crossfade, no theatrics (web keeps
+// timings where native springs).
+// Props are additive: originRect and onSettled are optional.
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -28,12 +35,14 @@ import {
   Platform,
   StyleSheet,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 import type { ThemeColors } from '@/constants/colors';
 import type { UserRole } from '@/utils/onboardingProfile';
 import { USER_ROLE_LABELS } from '@/utils/onboardingProfile';
@@ -58,6 +67,19 @@ const T_LEVEL = 300;
 const T_BUBBLE = 420;
 const T_FADE = 930;
 const DUR_FADEOUT = 220;
+/** The bubble has visibly settled: the hold point. */
+const T_SETTLED = T_BUBBLE + 360; // hoist into Motion.duration after round 3
+/** The longest the overlay holds for onSettled (the invite lookup alone may take 4 s). */
+export const HOLD_CAP_MS = 5000; // hoist into Motion.duration after round 3
+/** The morphing card's fade-in at the start of its lift. */
+const DUR_CARD_IN = 120; // hoist into Motion.duration after round 3
+/** Reduced motion: the settled card shows at least this long before the fade. */
+const REDUCED_HOLD_MS = 420; // hoist into Motion.duration after round 3
+/** If the card has not laid out by then, it rises in place (no morph). */
+const MORPH_LAYOUT_WAIT_MS = 160; // hoist into Motion.duration after round 3
+
+// The bubble finds centre: ζ = 20 / (2·√(170·0.9)) ≈ 0.81, a hair of overshoot.
+const BUBBLE_SPRING = { damping: 20, stiffness: 170, mass: 0.9 }; // hoist into Motion.spring after round 3
 
 // Icons mirroring ROLE_ICONS in persona-select.tsx
 const ROLE_ICONS: Record<UserRole, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
@@ -67,7 +89,13 @@ const ROLE_ICONS: Record<UserRole, React.ComponentType<{ size?: number; color?: 
   property_manager: Building2,
 };
 
-// ── Props (unchanged API) ─────────────────────────────────────────────────────
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const wait = (ms: number, timers: Set<ReturnType<typeof setTimeout>>) => new Promise<void>((resolve) => {
+  const id = setTimeout(() => { timers.delete(id); resolve(); }, ms);
+  timers.add(id);
+});
+
+// ── Props (additive) ──────────────────────────────────────────────────────────
 
 export interface PersonaSwitchOverlayProps {
   /** Show and drive the animation. */
@@ -76,9 +104,15 @@ export interface PersonaSwitchOverlayProps {
   toRole: UserRole;
   /** Pixel position of tapped card center for the ring origin. */
   originPoint?: { x: number; y: number };
-  /** Whether reduced motion is active (from AccessibilityInfo). */
+  /** The tapped card's window rect: the workspace card lifts out of it. */
+  originRect?: { x: number; y: number; width: number; height: number };
+  /** Whether reduced motion is active. */
   reduceMotion?: boolean;
-  /** Called when animation finishes — parent should navigate or finish. */
+  /** The HOLD: called once the level has settled; the overlay waits for it
+   *  (at most HOLD_CAP_MS) before it fades. A rejection is swallowed here —
+   *  the parent owns the error. */
+  onSettled?: () => Promise<void> | void;
+  /** Called when the overlay has faded and unmounted — the parent may navigate. */
   onDone: () => void;
 }
 
@@ -88,53 +122,148 @@ export default function PersonaSwitchOverlay({
   visible,
   toRole,
   originPoint,
+  originRect,
   reduceMotion = false,
+  onSettled,
   onDone,
 }: PersonaSwitchOverlayProps) {
   const { colors: t } = useTheme();
   const [mounted, setMounted] = useState(false);
+
+  // The latest callbacks, read after awaits (the parent may re-render mid-hold).
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
+  const originRectRef = useRef(originRect);
+  originRectRef.current = originRect;
+
+  // Alive = this component is mounted. Every post-await step checks it.
+  const aliveRef = useRef(true);
+  const timersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const runningRef = useRef<Animated.CompositeAnimation[]>([]);
+  const run = (anim: Animated.CompositeAnimation, done?: Animated.EndCallback) => {
+    runningRef.current.push(anim);
+    anim.start(done);
+  };
 
   // Animated values
   const scrimOpacity   = useRef(new Animated.Value(0)).current;
   const overlayOpacity = useRef(new Animated.Value(1)).current;
   const ring1Scale     = useRef(new Animated.Value(0.2)).current;
   const ring1Opacity   = useRef(new Animated.Value(0)).current;
-  const ring2Scale     = useRef(new Animated.Value(0.2)).current;
-  const ring2Opacity   = useRef(new Animated.Value(0)).current;
   const cardOpacity    = useRef(new Animated.Value(0)).current;
   const cardScale      = useRef(new Animated.Value(0.92)).current;
+  const morph          = useRef(new Animated.Value(0)).current;
   const iconScale      = useRef(new Animated.Value(0.7)).current;
   const iconOpacity    = useRef(new Animated.Value(0)).current;
   const labelOpacity   = useRef(new Animated.Value(0)).current;
   const labelTranslate = useRef(new Animated.Value(8)).current;
   const trackScaleX    = useRef(new Animated.Value(0)).current;
   const bubbleX        = useRef(new Animated.Value(BUBBLE_START_X)).current;
-  const settleGlow     = useRef(new Animated.Value(0)).current;
+
+  // The morph's start, from the card's own layout: offset to the tapped card's
+  // centre and its width ratio. null = the plain rise-in-place.
+  const [morphFrom, setMorphFrom] = useState<null | { dx: number; dy: number; s0: number }>(null);
+  const cardLaunchedRef = useRef(false);
 
   const resetAnimations = useCallback(() => {
     scrimOpacity.setValue(0);
     overlayOpacity.setValue(1);
     ring1Scale.setValue(0.2);
     ring1Opacity.setValue(0);
-    ring2Scale.setValue(0.2);
-    ring2Opacity.setValue(0);
     cardOpacity.setValue(0);
     cardScale.setValue(0.92);
+    morph.setValue(0);
     iconScale.setValue(0.7);
     iconOpacity.setValue(0);
     labelOpacity.setValue(0);
     labelTranslate.setValue(8);
     trackScaleX.setValue(0);
     bubbleX.setValue(BUBBLE_START_X);
-    settleGlow.setValue(0);
-  }, [scrimOpacity, overlayOpacity, ring1Scale, ring1Opacity, ring2Scale, ring2Opacity, cardOpacity, cardScale, iconScale, iconOpacity, labelOpacity, labelTranslate, trackScaleX, bubbleX, settleGlow]);
+  }, [scrimOpacity, overlayOpacity, ring1Scale, ring1Opacity, cardOpacity, cardScale, morph, iconScale, iconOpacity, labelOpacity, labelTranslate, trackScaleX, bubbleX]);
 
   useEffect(() => {
     if (visible) {
       resetAnimations();
+      cardLaunchedRef.current = false;
+      setMorphFrom(null);
       setMounted(true);
     }
   }, [visible, resetAnimations]);
+
+  // Unmount: stop everything, clear every timer, and let no await continue.
+  useEffect(() => {
+    aliveRef.current = true;
+    const timers = timersRef.current;
+    return () => {
+      aliveRef.current = false;
+      timers.forEach(clearTimeout);
+      timers.clear();
+      runningRef.current.forEach((a) => a.stop());
+      runningRef.current = [];
+    };
+  }, []);
+
+  const finish = useCallback(() => {
+    if (!aliveRef.current) return;
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    setMounted(false);
+    onDoneRef.current();
+  }, []);
+
+  /** Await onSettled (bounded by HOLD_CAP_MS; a rejection is the parent's),
+   *  at least `minMs` long. */
+  const holdForSettled = useCallback(async (minMs: number) => {
+    const settle = onSettledRef.current;
+    const timers = timersRef.current;
+    const settled = settle
+      ? (async () => { await settle(); })().catch(() => { /* the parent owns the error */ })
+      : Promise.resolve();
+    await Promise.all([
+      Promise.race([settled, wait(HOLD_CAP_MS, timers)]),
+      minMs > 0 ? wait(minMs, timers) : Promise.resolve(),
+    ]);
+  }, []);
+
+  // The card: 0 → 1 opacity, and either the morph from the tapped card or the
+  // 0.92 → 1 rise. Launched once, from the card's layout (or the fallback).
+  const launchCard = useCallback((from: null | { dx: number; dy: number; s0: number }) => {
+    if (cardLaunchedRef.current || !aliveRef.current) return;
+    cardLaunchedRef.current = true;
+    const springy = Platform.OS !== 'web';
+    if (from) {
+      setMorphFrom(from);
+      run(Animated.parallel([
+        Animated.timing(cardOpacity, { toValue: 1, duration: DUR_CARD_IN, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }),
+        Animated.spring(morph, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
+      ]));
+      return;
+    }
+    run(Animated.sequence([
+      Animated.delay(T_CARD),
+      Animated.parallel([
+        Animated.timing(cardOpacity, { toValue: 1, duration: 170, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver }),
+        springy
+          ? Animated.spring(cardScale, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver })
+          : Animated.timing(cardScale, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }),
+      ]),
+    ]));
+  }, [cardOpacity, cardScale, morph]);
+
+  const onCardLayout = useCallback((e: LayoutChangeEvent) => {
+    const rect = originRectRef.current;
+    if (cardLaunchedRef.current || reduceMotion || !rect) return;
+    const { x, y, width, height } = e.nativeEvent.layout;
+    if (!(width > 0 && height > 0)) return;
+    launchCard({
+      dx: rect.x + rect.width / 2 - (x + width / 2),
+      dy: rect.y + rect.height / 2 - (y + height / 2),
+      s0: clamp(rect.width / width, 0.6, 1.6),
+    });
+  }, [reduceMotion, launchCard]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -145,6 +274,7 @@ export default function PersonaSwitchOverlay({
 
     if (reduceMotion) {
       // Reduced motion: theme-dark crossfade only.
+      cardLaunchedRef.current = true;
       scrimOpacity.setValue(1);
       cardOpacity.setValue(1);
       cardScale.setValue(1);
@@ -154,49 +284,36 @@ export default function PersonaSwitchOverlay({
       labelTranslate.setValue(0);
       trackScaleX.setValue(1);
       bubbleX.setValue(0);
-      Animated.sequence([
-        Animated.delay(420),
-        Animated.timing(overlayOpacity, { toValue: 0, duration: 280, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-      ]).start(() => {
-        setMounted(false);
-        onDone();
-      });
+      void (async () => {
+        await holdForSettled(REDUCED_HOLD_MS);
+        if (!aliveRef.current) return;
+        run(Animated.timing(overlayOpacity, { toValue: 0, duration: 280, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver }), finish);
+      })();
       return;
     }
 
     const springy = Platform.OS !== 'web';
+    const holding = !!onSettledRef.current;
 
-    Animated.parallel([
+    // The card lifts out of the tapped card once it has laid out; with no
+    // originRect (or no layout in time) it rises in place.
+    if (!originRectRef.current) launchCard(null);
+    else {
+      const timers = timersRef.current;
+      const id = setTimeout(() => { timers.delete(id); launchCard(null); }, MORPH_LAYOUT_WAIT_MS);
+      timers.add(id);
+    }
+
+    const legs: Animated.CompositeAnimation[] = [
       // Scrim settles in fast — the app dims into its own theme, no color flood.
-      Animated.timing(scrimOpacity, { toValue: 1, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(scrimOpacity, { toValue: 1, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver }),
 
-      // Two hairline rings ripple out from the tapped card.
+      // One hairline ring ripples out from the tapped card.
       Animated.parallel([
-        Animated.timing(ring1Scale, { toValue: RING_COVER_SCALE, duration: 760, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(ring1Scale, { toValue: RING_COVER_SCALE, duration: 760, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }),
         Animated.sequence([
-          Animated.timing(ring1Opacity, { toValue: 0.55, duration: 90, useNativeDriver: true }),
-          Animated.timing(ring1Opacity, { toValue: 0, duration: 640, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-        ]),
-      ]),
-      Animated.sequence([
-        Animated.delay(140),
-        Animated.parallel([
-          Animated.timing(ring2Scale, { toValue: RING_COVER_SCALE, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-          Animated.sequence([
-            Animated.timing(ring2Opacity, { toValue: 0.35, duration: 90, useNativeDriver: true }),
-            Animated.timing(ring2Opacity, { toValue: 0, duration: 680, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          ]),
-        ]),
-      ]),
-
-      // Card pops in.
-      Animated.sequence([
-        Animated.delay(T_CARD),
-        Animated.parallel([
-          Animated.timing(cardOpacity, { toValue: 1, duration: 170, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          springy
-            ? Animated.spring(cardScale, { toValue: 1, damping: 16, stiffness: 240, mass: 0.7, useNativeDriver: true })
-            : Animated.timing(cardScale, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(ring1Opacity, { toValue: 0.35, duration: 90, useNativeDriver: nativeDriver }),
+          Animated.timing(ring1Opacity, { toValue: 0, duration: 640, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver }),
         ]),
       ]),
 
@@ -204,10 +321,10 @@ export default function PersonaSwitchOverlay({
       Animated.sequence([
         Animated.delay(T_CARD + 70),
         Animated.parallel([
-          Animated.timing(iconOpacity, { toValue: 1, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(iconOpacity, { toValue: 1, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver }),
           springy
-            ? Animated.spring(iconScale, { toValue: 1, damping: 13, stiffness: 220, mass: 0.8, useNativeDriver: true })
-            : Animated.timing(iconScale, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            ? Animated.spring(iconScale, { toValue: 1, ...Motion.spring.snap, useNativeDriver: nativeDriver })
+            : Animated.timing(iconScale, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }),
         ]),
       ]),
 
@@ -215,41 +332,45 @@ export default function PersonaSwitchOverlay({
       Animated.sequence([
         Animated.delay(T_CARD + 130),
         Animated.parallel([
-          Animated.timing(labelOpacity, { toValue: 1, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.timing(labelTranslate, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(labelOpacity, { toValue: 1, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver }),
+          Animated.timing(labelTranslate, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }),
         ]),
       ]),
 
       // The level draws, then the bubble settles dead center.
       Animated.sequence([
         Animated.delay(T_LEVEL),
-        Animated.timing(trackScaleX, { toValue: 1, duration: 210, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(trackScaleX, { toValue: 1, duration: 210, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }),
       ]),
       Animated.sequence([
         Animated.delay(T_BUBBLE),
         springy
-          ? Animated.spring(bubbleX, { toValue: 0, damping: 12, stiffness: 150, mass: 0.9, useNativeDriver: true })
-          : Animated.timing(bubbleX, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          ? Animated.spring(bubbleX, { toValue: 0, ...BUBBLE_SPRING, useNativeDriver: nativeDriver })
+          : Animated.timing(bubbleX, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }),
       ]),
-      // A soft glow blooms as the bubble finds center.
-      Animated.sequence([
-        Animated.delay(T_BUBBLE + 260),
-        Animated.timing(settleGlow, { toValue: 1, duration: 160, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-        Animated.timing(settleGlow, { toValue: 0, duration: 260, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-      ]),
+    ];
 
-      // Fade out and hand back to the app.
+    if (holding) {
+      // HOLD, THEN RELEASE: the fade is not part of the main parallel.
+      run(Animated.parallel(legs));
+      void (async () => {
+        await wait(T_SETTLED, timersRef.current);
+        if (!aliveRef.current) return;
+        await holdForSettled(0);
+        if (!aliveRef.current) return;
+        run(Animated.timing(overlayOpacity, { toValue: 0, duration: DUR_FADEOUT, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }), finish);
+      })();
+      return;
+    }
+
+    // No hold: today's single timeline — fade out and hand back to the app.
+    run(Animated.parallel([
+      ...legs,
       Animated.sequence([
         Animated.delay(T_FADE),
-        Animated.timing(overlayOpacity, { toValue: 0, duration: DUR_FADEOUT, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: DUR_FADEOUT, easing: Easing.in(Easing.ease), useNativeDriver: nativeDriver }),
       ]),
-    ]).start(() => {
-      if (Platform.OS !== 'web') {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      setMounted(false);
-      onDone();
-    });
+    ]), finish);
   }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!mounted) return null;
@@ -264,6 +385,14 @@ export default function PersonaSwitchOverlay({
   const ringLeft = ox - RING_SIZE / 2;
   const ringTop = oy - RING_SIZE / 2;
 
+  const cardTransform = morphFrom
+    ? [
+        { translateX: morph.interpolate({ inputRange: [0, 1], outputRange: [morphFrom.dx, 0] }) },
+        { translateY: morph.interpolate({ inputRange: [0, 1], outputRange: [morphFrom.dy, 0] }) },
+        { scale: morph.interpolate({ inputRange: [0, 1], outputRange: [morphFrom.s0, 1] }) },
+      ]
+    : [{ scale: cardScale }];
+
   return (
     <Modal
       visible={mounted}
@@ -276,16 +405,17 @@ export default function PersonaSwitchOverlay({
         {/* Theme scrim — the app dims into its own surface, never a color flood. */}
         <Animated.View style={[styles.scrim, { opacity: scrimOpacity }]} />
 
-        {/* Hairline accent rings rippling from the tapped card */}
+        {/* A hairline accent ring rippling from the tapped card */}
         <Animated.View
           style={[styles.ring, { left: ringLeft, top: ringTop, opacity: ring1Opacity, transform: [{ scale: ring1Scale }] }]}
         />
-        <Animated.View
-          style={[styles.ring, styles.ringThin, { left: ringLeft, top: ringTop, opacity: ring2Opacity, transform: [{ scale: ring2Scale }] }]}
-        />
 
         {/* The workspace card */}
-        <Animated.View style={[styles.card, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]} pointerEvents="none">
+        <Animated.View
+          style={[styles.card, { opacity: cardOpacity, transform: cardTransform }]}
+          pointerEvents="none"
+          onLayout={onCardLayout}
+        >
           <Animated.View style={[styles.iconChip, { opacity: iconOpacity, transform: [{ scale: iconScale }] }]}>
             <ToIcon size={30} color={t.accent} strokeWidth={1.9} />
           </Animated.View>
@@ -299,7 +429,6 @@ export default function PersonaSwitchOverlay({
           <View style={styles.levelWrap}>
             <Animated.View style={[styles.levelTrack, { transform: [{ scaleX: trackScaleX }] }]} />
             <View style={styles.levelNotch} />
-            <Animated.View style={[styles.bubbleGlow, { opacity: settleGlow }]} />
             <Animated.View style={[styles.bubble, { transform: [{ translateX: bubbleX }] }]} />
           </View>
         </Animated.View>
@@ -327,9 +456,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: RING_SIZE / 2,
     borderWidth: 1.5,
     borderColor: t.accent,
-  },
-  ringThin: {
-    borderWidth: 1,
   },
   card: {
     alignItems: 'center',
@@ -394,12 +520,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     height: 10,
     borderRadius: Tokens.radius.full,
     backgroundColor: t.accent,
-  },
-  bubbleGlow: {
-    position: 'absolute',
-    width: BUBBLE_W + 18,
-    height: 22,
-    borderRadius: Tokens.radius.full,
-    backgroundColor: t.accentSoft,
   },
 });

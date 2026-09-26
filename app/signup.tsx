@@ -26,9 +26,13 @@ import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { Type } from '@/constants/typography';
 import { Tokens, Layout } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { Slot, useLaunchEntrance, useLaunchTarget } from '@/components/auth/authMotion';
 import {
   INVITE_PARAM, postSignInHref, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
+
+// The wordmark while the splash's own "MAGE ID" is still flying onto it.
+const HIDDEN = { opacity: 0 } as const;
 
 export default function SignupScreen() {
   const { colors: themeColors } = useTheme();
@@ -36,6 +40,10 @@ export default function SignupScreen() {
   const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Cold-start hand-off from BrandSplash (a web visitor can land here cold from
+  // the marketing site). Unarmed, and the tree unchanged, on every other mount.
+  const entrance = useLaunchEntrance(8);
+  const launchTarget = useLaunchTarget();
   // An invite opened before the account existed (utils/deepLinksInvite): an
   // OAuth sign-up with a live session goes straight back to it — accept-invite
   // is exempt from the persona / onboarding gates, which run after. Email
@@ -254,19 +262,29 @@ export default function SignupScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.topSection, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={24} color={Colors.textOnAccent} strokeWidth={2} />
-        </TouchableOpacity>
+        <Slot style={entrance.slot(0)}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
+            <ChevronLeft size={24} color={Colors.textOnAccent} strokeWidth={2} />
+          </TouchableOpacity>
+        </Slot>
         <View style={styles.logoRow}>
-          <View style={styles.logoCircle}>
-            <HardHat size={28} color={Colors.textOnAccent} strokeWidth={1.8} />
-          </View>
+          <Slot style={entrance.slot(1)}>
+            <View style={styles.logoCircle}>
+              <HardHat size={28} color={Colors.textOnAccent} strokeWidth={1.8} />
+            </View>
+          </Slot>
           <View>
-            <Text style={styles.brandName}>MAGE ID</Text>
-            <Text style={styles.brandTagline}>Create your account</Text>
+            <Text
+              ref={launchTarget.ref}
+              {...launchTarget.layoutProps}
+              style={entrance.showWordmark ? styles.brandName : [styles.brandName, HIDDEN]}
+            >MAGE ID</Text>
+            <Slot style={entrance.slot(2)}>
+              <Text style={styles.brandTagline}>Create your account</Text>
+            </Slot>
           </View>
         </View>
       </View>
@@ -291,6 +309,7 @@ export default function SignupScreen() {
           {/* ─── One-tap signup with Apple / Google ──────────────
               Apple uses the iOS native sheet — no Supabase URL prompt.
               Both create the account instantly with no form to fill. */}
+          <Slot style={entrance.slot(3)}>
           <View style={styles.primaryAuthStack}>
             {Platform.OS === 'ios' || Platform.OS === 'web' ? (
               <TouchableOpacity
@@ -334,13 +353,17 @@ export default function SignupScreen() {
               )}
             </TouchableOpacity>
           </View>
+          </Slot>
 
+          <Slot style={entrance.slot(4)}>
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>or with email</Text>
             <View style={styles.dividerLine} />
           </View>
+          </Slot>
 
+          <Slot style={entrance.slot(5)}>
           <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Full Name</Text>
@@ -411,7 +434,9 @@ export default function SignupScreen() {
             </View>
 
           </Animated.View>
+          </Slot>
 
+          <Slot style={entrance.slot(6)}>
           <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
             <TouchableOpacity
               style={[styles.signupButton, isSubmitting && styles.signupButtonDisabled]}
@@ -430,7 +455,9 @@ export default function SignupScreen() {
               )}
             </TouchableOpacity>
           </Animated.View>
+          </Slot>
 
+          <Slot style={entrance.slot(7)}>
           {/* Apple guideline 3.1.2 / 5.1.1 — surface the legal terms on the
               same screen the user agrees to them on. Tappable links open the
               hosted Privacy Policy and Terms of Service in the browser. */}
@@ -463,6 +490,7 @@ export default function SignupScreen() {
               <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
           </View>
+          </Slot>
         </ScrollView>
       </KeyboardAvoidingView>
 

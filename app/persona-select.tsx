@@ -13,6 +13,11 @@
 // size-band question (it changes the whole UI), so this screen comes
 // FIRST — the existing onboarding follows after.
 //
+// Motion (slick-3): the tapped card lifts into the overlay's "switching
+// workspace" card while the role is written; the list hides under the scrim;
+// the route changes the moment the overlay has unmounted (no dead time, never
+// back to the list).
+//
 // Routing: handled by app/_layout.tsx based on `userRole` from
 // ProjectContext. If null → /persona-select. Once set → /onboarding
 // (or skip directly to /(tabs)/(home) if onboarding already complete,
@@ -20,10 +25,11 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Pressable, Dimensions, AccessibilityInfo,
+  View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Pressable, Dimensions,
 } from 'react-native';
 import PersonaSwitchOverlay from '@/components/PersonaSwitchOverlay';
-import { continuousCorners, Tokens } from '@/constants/designTokens';
+import { continuousCorners, Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver, useReducedMotion } from '@/components/ui/motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { takePendingDeepLink } from '@/utils/pendingDeepLink';
@@ -73,6 +79,25 @@ const ROLE_ICONS: Record<UserRole, React.ComponentType<{ size?: number; color?: 
 };
 
 const ROLES: UserRole[] = ['contractor', 'client', 'both', 'property_manager'];
+
+// Motion (slick-3): the copy, then each card, 50 ms apart, 220 ms fades — the
+// cards are in within about half a second.
+const STAGGER_MS = 50; // hoist into Motion.duration after round 3
+const ENTER_MS = 220; // hoist into Motion.duration after round 3
+const CARD_RISE = 12;
+const PRESS_SCALE = 0.98;
+
+/**
+ * The pick's two hold points. commitRole calls `ready` once everything BEFORE
+ * its first completeOnboarding() / router call has run (the role write, the
+ * analytics, the invite lookup); `ready` reports success and then waits until
+ * the overlay has faded and unmounted. Its catch calls `failed`, which reports
+ * the failure and waits the same way. So nothing navigates while the overlay
+ * is up, and nothing is left waiting after it.
+ */
+type PickGate = { ready: () => Promise<void>; failed: () => Promise<void> };
+/** One pick in flight: `prepared` never rejects (true = ready, false = failed). */
+type PickRun = { prepared: Promise<boolean>; settled: boolean; release: () => void };
 
 export default function PersonaSelectScreen() {
   const insets = useSafeAreaInsets();
@@ -126,6 +151,7 @@ export default function PersonaSelectScreen() {
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlayRole, setOverlayRole] = useState<UserRole>('contractor');
   const [overlayOrigin, setOverlayOrigin] = useState<{ x: number; y: number } | undefined>();
+  const [overlayRect, setOverlayRect] = useState<{ x: number; y: number; width: number; height: number } | undefined>();
   // One ref per role card for measureInWindow origin capture
   const cardRefs = useRef<Record<UserRole, View | null>>({
     contractor: null,
@@ -133,58 +159,90 @@ export default function PersonaSelectScreen() {
     both: null,
     property_manager: null,
   });
-  // Stores the actual commit logic until the animation's peak (onDone)
-  const pendingCommit = useRef<(() => Promise<void>) | null>(null);
+  // The pick in flight (see PickRun), or null.
+  const pickRef = useRef<PickRun | null>(null);
 
-  // Reduce-motion handling matches onboarding.tsx — Apple HIG requires
-  // it and skipping the animation also means we don't gate the user on
-  // a 600ms reveal when accessibility is on.
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then(v => {
-      if (mounted) setReduceMotion(v);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => { mounted = false; sub.remove(); };
-  }, []);
+  // Reduce Motion, from the app's one motion store (iOS setting / the web's
+  // prefers-reduced-motion). The overlay gets it too.
+  const reduceMotion = useReducedMotion();
 
-  // Staggered reveal — same easing/timing as onboarding so the two
-  // screens feel like one motion language.
+  // Staggered reveal — the copy, then each card on its own opacity + rise, so
+  // the four arrive one by one rather than as a slab.
   const eyebrowOpacity = useRef(new Animated.Value(0)).current;
   const headlineOpacity = useRef(new Animated.Value(0)).current;
   const bodyOpacity = useRef(new Animated.Value(0)).current;
-  const cardsOpacity = useRef(new Animated.Value(0)).current;
+  const trustOpacity = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(8)).current;
+  const cardOpacity = useRef(ROLES.map(() => new Animated.Value(0))).current;
+  const cardLift = useRef(ROLES.map(() => new Animated.Value(CARD_RISE))).current;
+  const cardPress = useRef(ROLES.map(() => new Animated.Value(1))).current;
+  // Set while the overlay's opaque scrim covers a successful pick: the copy and
+  // cards are hidden under it, and the entrance must not bring them back.
+  const listHiddenRef = useRef(false);
 
   useEffect(() => {
+    if (listHiddenRef.current) return;
     if (reduceMotion) {
       Animated.parallel([
-        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(headlineOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(bodyOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(cardsOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
+        Animated.timing(headlineOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
+        Animated.timing(bodyOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
+        ...cardOpacity.map((v) => Animated.timing(v, { toValue: 1, duration: 200, useNativeDriver: nativeDriver })),
+        Animated.timing(trustOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
       ]).start();
       lift.setValue(0);
+      cardLift.forEach((v) => v.setValue(0));
       return;
     }
+    const fadeIn = (v: Animated.Value) => Animated.timing(v, {
+      toValue: 1, duration: ENTER_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
+    });
     Animated.parallel([
-      Animated.timing(lift, {
-        toValue: 0, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-      Animated.stagger(120, [
-        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
-        Animated.timing(headlineOpacity, { toValue: 1, duration: 420, useNativeDriver: true }),
-        Animated.timing(bodyOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
-        Animated.timing(cardsOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
+      Animated.spring(lift, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
+      Animated.stagger(STAGGER_MS, [
+        fadeIn(eyebrowOpacity),
+        fadeIn(headlineOpacity),
+        fadeIn(bodyOpacity),
+        ...ROLES.map((_, i) => Animated.parallel([
+          fadeIn(cardOpacity[i]),
+          Animated.spring(cardLift[i], { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
+        ])),
+        fadeIn(trustOpacity),
       ]),
     ]).start();
-  }, [reduceMotion, eyebrowOpacity, headlineOpacity, bodyOpacity, cardsOpacity, lift]);
+  }, [reduceMotion, eyebrowOpacity, headlineOpacity, bodyOpacity, trustOpacity, lift, cardOpacity, cardLift]);
 
-  // commitRole — the actual async logic that runs when the overlay's reveal
-  // peak fires (onDone). Separated so the animation can play uninterrupted
-  // while the role write + navigation are deferred to the overlay's callback.
-  const commitRole = useCallback(async (role: UserRole) => {
+  // Everything that paints this screen's copy and cards (not the wordmark,
+  // which onboarding draws in the same place).
+  const listOpacities = useCallback(
+    () => [eyebrowOpacity, headlineOpacity, bodyOpacity, trustOpacity, ...cardOpacity],
+    [eyebrowOpacity, headlineOpacity, bodyOpacity, trustOpacity, cardOpacity],
+  );
+  // Under the overlay's opaque scrim (t.bg at opacity 1) this is invisible;
+  // what the overlay's fade then reveals is the bare ink BrandBackdrop field —
+  // the field onboarding opens on. The persona list never comes back.
+  const hideListUnderOverlay = useCallback(() => {
+    listHiddenRef.current = true;
+    listOpacities().forEach((v) => v.setValue(0));
+  }, [listOpacities]);
+  const restoreList = useCallback(() => {
+    listHiddenRef.current = false;
+    listOpacities().forEach((v) => v.setValue(1));
+    lift.setValue(0);
+    cardLift.forEach((v) => v.setValue(0));
+  }, [listOpacities, lift, cardLift]);
+
+  const pressCard = useCallback((i: number, to: number) => {
+    if (reduceMotion) return;
+    Animated.spring(cardPress[i], { toValue: to, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
+  }, [reduceMotion, cardPress]);
+
+  // commitRole — the role write and the routing. It STARTS the moment he taps
+  // (handlePick), so the write happens while the overlay plays, and it HOLDS at
+  // gate.ready() — after everything that prepares the pick and before the
+  // first completeOnboarding() / router call — until the overlay has faded and
+  // unmounted (handleOverlayDone). Every ordering and branch is today's.
+  const commitRole = useCallback(async (role: UserRole, gate: PickGate) => {
     try {
       if (invitedProject) {
         // Exactly one navigation: TAKE accept-invite's stashed link before any
@@ -193,6 +251,7 @@ export default function PersonaSelectScreen() {
         await takePendingDeepLink();
         await setUserRole(role);
         track(AnalyticsEvents.PERSONA_SELECTED, { persona: role, onboarding: !hasSeenOnboarding, invited: true });
+        await gate.ready();
         if (!hasSeenOnboarding) await completeOnboarding();
         router.replace('/(tabs)/(home)' as never);
         router.push({ pathname: '/project-detail', params: { id: invitedProject } } as never);
@@ -215,6 +274,8 @@ export default function PersonaSelectScreen() {
         );
         invited = found[0] ?? null;
       }
+      // THE HOLD: prepared; nothing navigates until the overlay is gone.
+      await gate.ready();
       if (invited && !hasSeenOnboarding) {
         await completeOnboarding();
         router.replace('/(tabs)/(home)' as never);
@@ -245,6 +306,11 @@ export default function PersonaSelectScreen() {
         router.replace('/onboarding' as never);
       }
     } catch (err) {
+      // Nothing has navigated (completeOnboarding is the only await ahead of
+      // the router calls), so this screen is still mounted. Wait for the
+      // overlay to go, then bring the list back for a second tap.
+      await gate.failed();
+      restoreList();
       console.warn('[persona-select] failed to set role:', err);
       setSubmitting(null);
       // showAlert renders on web too — the new-user flow must never
@@ -254,37 +320,71 @@ export default function PersonaSelectScreen() {
         'Please tap your role again.',
       );
     }
-  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, invitedProject, waitingInvite, lookForInvites, queryClient, fetchPendingInvites, pendingInvitesQueryKey]);
+  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, invitedProject, waitingInvite, lookForInvites, queryClient, fetchPendingInvites, pendingInvitesQueryKey, restoreList]);
 
   const handlePick = useCallback((role: UserRole) => {
     if (submitting) return;
     setSubmitting(role);
 
-    // Store the commit for when the overlay's onDone fires
-    pendingCommit.current = () => commitRole(role);
+    // The pick's hold points (PickRun). `prepared` never rejects, and
+    // commitRole catches everything, so no bare rejecting promise exists.
+    let markPrepared: (ok: boolean) => void = () => {};
+    let release: () => void = () => {};
+    const overlayGone = new Promise<void>((resolve) => { release = resolve; });
+    const run: PickRun = { prepared: Promise.resolve(false), settled: false, release: () => release() };
+    run.prepared = new Promise<boolean>((resolve) => {
+      markPrepared = (ok) => {
+        if (run.settled) return;
+        run.settled = true;
+        resolve(ok);
+      };
+    });
+    pickRef.current = run;
 
-    // Measure the tapped card for reveal origin; fall back to screen center
+    // The role write starts NOW, while the overlay plays — no dead time after it.
+    void commitRole(role, {
+      ready: async () => { markPrepared(true); await overlayGone; },
+      failed: async () => { markPrepared(false); await overlayGone; },
+    });
+
+    // Measure the tapped card: the overlay's card lifts out of this rect.
     const ref = cardRefs.current[role];
     if (ref && typeof ref.measureInWindow === 'function') {
       ref.measureInWindow((cx, cy, cw, ch) => {
         setOverlayOrigin({ x: cx + cw / 2, y: cy + ch / 2 });
+        setOverlayRect(cw > 0 && ch > 0 ? { x: cx, y: cy, width: cw, height: ch } : undefined);
         setOverlayRole(role);
         setShowOverlay(true);
       });
     } else {
+      setOverlayRect(undefined);
       setOverlayRole(role);
       setShowOverlay(true);
     }
   }, [submitting, commitRole]);
 
-  // Called when the overlay animation completes — commit the role + navigate
-  const handleOverlayDone = useCallback(async () => {
+  // The overlay's HOLD point (onSettled): wait for the pick to be prepared and,
+  // on success, hide the list under the scrim. Never navigates.
+  const handleOverlaySettled = useCallback(async () => {
+    const run = pickRef.current;
+    if (!run) return;
+    const ok = await run.prepared;
+    // Past the overlay's cap the overlay may already be gone: hide nothing then.
+    if (ok && pickRef.current === run) hideListUnderOverlay();
+  }, [hideListUnderOverlay]);
+
+  // Called once the overlay has faded and unmounted — only now may the pick
+  // navigate (commitRole continues past gate.ready()).
+  const handleOverlayDone = useCallback(() => {
     setShowOverlay(false);
-    if (pendingCommit.current) {
-      await pendingCommit.current();
-      pendingCommit.current = null;
-    }
-  }, []);
+    const run = pickRef.current;
+    if (!run) return;
+    pickRef.current = null;
+    // Past the 5 s cap the write may still be in flight: show the list (the
+    // tapped card keeps its busy state) while it finishes; navigation follows.
+    if (!run.settled) restoreList();
+    run.release();
+  }, [restoreList]);
 
   return (
     <View style={styles.root}>
@@ -324,18 +424,21 @@ export default function PersonaSelectScreen() {
             : "MAGE ID has two sides — the operating system for builders, and a marketplace for property owners hiring them. Pick one and we'll set up the right experience. You can switch later in Settings."}
         </Animated.Text>
 
-        <Animated.View style={[styles.cardList, isDesktop && styles.cardGrid, { opacity: cardsOpacity }]}>
-          {ROLES.map(role => {
+        <View style={[styles.cardList, isDesktop && styles.cardGrid]}>
+          {ROLES.map((role, i) => {
             const Icon = ROLE_ICONS[role];
             const isSubmitting = submitting === role;
             return (
-              <View
+              <Animated.View
                 key={role}
-                ref={r => { cardRefs.current[role] = r; }}
+                ref={(r: View | null) => { cardRefs.current[role] = r; }}
                 collapsable={false}
+                style={{ opacity: cardOpacity[i], transform: [{ translateY: cardLift[i] }, { scale: cardPress[i] }] }}
               >
                 <Pressable
                   onPress={() => handlePick(role)}
+                  onPressIn={() => pressCard(i, PRESS_SCALE)}
+                  onPressOut={() => pressCard(i, 1)}
                   disabled={!!submitting}
                   style={({ pressed, hovered }) => [
                     styles.roleCard,
@@ -361,12 +464,12 @@ export default function PersonaSelectScreen() {
                     <ArrowRight size={16} color={BRAND.cream} strokeWidth={2.2} />
                   </View>
                 </Pressable>
-              </View>
+              </Animated.View>
             );
           })}
-        </Animated.View>
+        </View>
 
-        <Animated.Text style={[styles.trustLine, { opacity: cardsOpacity }]}>
+        <Animated.Text style={[styles.trustLine, { opacity: trustOpacity }]}>
           You can change this anytime in Settings
         </Animated.Text>
       </Animated.View>
@@ -376,7 +479,9 @@ export default function PersonaSelectScreen() {
         visible={showOverlay}
         toRole={overlayRole}
         originPoint={overlayOrigin}
+        originRect={overlayRect}
         reduceMotion={reduceMotion}
+        onSettled={handleOverlaySettled}
         onDone={handleOverlayDone}
       />
     </View>

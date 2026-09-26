@@ -1,7 +1,7 @@
 // EmptyState — premium empty-state primitive used everywhere a list
 // has no items yet. Replaces "No projects yet"-style flat text with
 // a centered icon + soft halo, generous typography, and an optional
-// CTA. The whole thing fades + slides up on mount so it feels alive.
+// CTA. The whole thing fades + rises once on mount, then sits still.
 //
 // NO structural lines behind the content. This primitive used to paint a
 // decorative "blueprint" grid (2 horizontal + 2 vertical hairlines) behind the
@@ -18,7 +18,8 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver, reducedMotion } from '@/components/ui/motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -40,34 +41,41 @@ interface EmptyStateProps {
   steps?: string[];
 }
 
+/** Entrance fade. hoist into Motion.duration after round 3 */
+const ENTER_FADE_MS = 200;
+/** How far the empty state rises into place (the first frame's offset). */
+const ENTER_RISE = 12;
+/** The halo's fixed opacity: the old pulse's resting value. */
+const HALO_OPACITY = 0.6;
+
 export default function EmptyState({
   icon, title, message, actionLabel, onAction,
   secondaryLabel, onSecondaryAction, accent, steps,
 }: EmptyStateProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const enter = useRef(new Animated.Value(0)).current;
-  // Icon-halo gentle pulse so the screen doesn't feel static.
-  const pulse = useRef(new Animated.Value(0)).current;
+  // It arrives ONCE — a fade plus a 12 pt rise on the rise spring — and then
+  // sits still. (The halo used to breathe forever on an infinite loop: a glow
+  // that never stopped while the screen was open. It is static now.) Under
+  // Reduce Motion both values start at rest and nothing animates.
+  const still = reducedMotion();
+  const enter = useRef(new Animated.Value(still ? 1 : 0)).current;
+  const rise = useRef(new Animated.Value(still ? 0 : ENTER_RISE)).current;
 
   useEffect(() => {
+    if (reducedMotion()) {
+      enter.setValue(1);
+      rise.setValue(0);
+      return;
+    }
     Animated.timing(enter, {
       toValue: 1,
-      duration: 360,
+      duration: ENTER_FADE_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: nativeDriver,
     }).start();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    ).start();
-  }, [enter, pulse]);
-
-  const translate = enter.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
-  const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
-  const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
+    Animated.spring(rise, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }).start();
+  }, [enter, rise]);
 
   const accentColor = accent ?? colors.accent;
   // The CTA carries WHITE text, so its fill must clear 4.5:1 for white — the
@@ -87,20 +95,11 @@ export default function EmptyState({
 
   return (
     <Animated.View
-      style={[styles.container, { opacity: enter, transform: [{ translateY: translate }] }]}
+      style={[styles.container, { opacity: enter, transform: [{ translateY: rise }] }]}
       testID="empty-state"
     >
       <View style={styles.iconStack}>
-        <Animated.View
-          style={[
-            styles.halo,
-            {
-              backgroundColor: accentColor + '14',
-              opacity: haloOpacity,
-              transform: [{ scale: haloScale }],
-            },
-          ]}
-        />
+        <View style={[styles.halo, { backgroundColor: accentColor + '14', opacity: HALO_OPACITY }]} />
         <View style={[styles.iconContainer, { backgroundColor: accentColor + '18' }]}>
           {icon}
         </View>
