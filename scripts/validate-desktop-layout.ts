@@ -74,10 +74,13 @@ const ROOT = join(__dirname, '..');
 // Wave-6d phase 2 integration (orchestrator): pageWidthLiterals 45 → 42,
 //   unframedTransparentModalFiles 24 → 21, growingDesktopTiles 13 → 11,
 //   hiddenScrollbarRails 109 → 108; 8 files reached sheet parity.
+// Wave-6d phase 3 integration (orchestrator): pageWidthLiterals 42 → 40,
+//   unframedTransparentModalFiles 21 → 19, pageSheetModals 23 → 22,
+//   hiddenScrollbarRails 108 → 106; 6 files reached sheet parity.
 const CEILING = {
   /** Numeric `maxWidth` literals ≥ 700 in app/ + components/ — page and
    *  column caps that should each be a Layout token. */
-  pageWidthLiterals: 42,
+  pageWidthLiterals: 40,
   /** seg/segment/tab/toggle/mode style entries that stretch (flex:1 /
    *  flexGrow:1) with no `segmentedDesktop` companion at their use site.
    *  Excludes components/schedule/mobile and `…Phone` styles. */
@@ -85,9 +88,9 @@ const CEILING = {
   /** Files with a transparent <Modal> and no desktop frame (no Sheet /
    *  useSheetFrame, no maxWidth anywhere in the file). SHEET_EXEMPT files are
    *  skipped (wave 6d): they never render a desktop sheet. */
-  unframedTransparentModalFiles: 21,
+  unframedTransparentModalFiles: 19,
   /** Non-transparent pageSheet <Modal>s (full-window on web). */
-  pageSheetModals: 23,
+  pageSheetModals: 22,
   /** Percent-width tile literals (width / flexBasis / minWidth of 22–25%,
    *  30–33% or 45–49%) — tiles sized from the row, not from a minimum. */
   percentTileLiterals: 26,
@@ -96,7 +99,7 @@ const CEILING = {
   growingDesktopTiles: 11,
   /** `showsHorizontalScrollIndicator={false}` — a desktop mouse has no swipe,
    *  so a hidden-scrollbar rail hides its own overflow. */
-  hiddenScrollbarRails: 108,
+  hiddenScrollbarRails: 106,
   /** `<Button style={{ flex: 1 }}>` — a stretched button; containerStyle is
    *  the replacement. */
   stretchedButtons: 0,
@@ -661,23 +664,17 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/(tabs)/discover/bids.tsx',
   'app/(tabs)/materials/[category].tsx',
   'app/(tabs)/schedule/index.tsx',
-  'app/(tabs)/settings/index.tsx',
-  'app/(tabs)/subs/index.tsx',
   'app/building-access.tsx',
   'app/buyout-package.tsx',
   'app/buyout.tsx',
   'app/client-view.tsx',
   'app/company-profile.tsx',
-  'app/deliveries.tsx',
   'app/equipment-detail.tsx',
-  'app/estimate-wizard.tsx',
   'app/get-verified.tsx',
   'app/lead-detail.tsx',
   'app/managed-property.tsx',
   'app/oac-meeting.tsx',
   'app/plan-intelligence.tsx',
-  'app/plan-viewer.tsx',
-  'app/plans.tsx',
   'app/qbo-review.tsx',
   'app/shared-schedule.tsx',
   'app/wip-report.tsx',
@@ -1019,6 +1016,26 @@ const PINS: Pin[] = [
     name: "contacts' desktop web renders the register (no 1736 px search)",
     file: 'app/contacts.tsx', fixed: true,
     isFixed: (s) => /isDesktopWeb\s*\?\s*\(?\s*<ContactsRegister\b/.test(s),
+  },
+  {
+    name: "subs' desktop web renders the register",
+    file: 'app/(tabs)/subs/index.tsx', fixed: true,
+    isFixed: (s) => /isDesktopWeb\s*\?\s*\(?\s*<SubsRegister\b/.test(s),
+  },
+  {
+    name: "the COI vault's desktop web renders the register",
+    file: 'app/coi-vault.tsx', fixed: true,
+    isFixed: (s) => /isDesktopWeb\s*\?\s*\(?\s*<CoiVaultRegister\b/.test(s),
+  },
+  {
+    name: 'the leads board sizes its columns from leadsBoardLayout (no horizontal overflow)',
+    file: 'app/leads.tsx', fixed: true,
+    isFixed: (s) => /leadsBoardLayout\(/.test(s),
+  },
+  {
+    name: 'the estimate wizard is one page on desktop web',
+    file: 'app/estimate-wizard.tsx', fixed: true,
+    isFixed: (s) => /isDesktopWeb[^\n]*\?[\s\S]{0,200}<EstimateWizardDesktop\b/.test(s),
   },
   {
     name: "TodayView's emptyActive has a desktop variant",

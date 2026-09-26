@@ -14,6 +14,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, KeyboardAvoidingView,
+  type TextStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -38,8 +39,10 @@ import {
 } from '@/utils/buildingAccess';
 import type { DeliveryReceipt } from '@/utils/deliverySchedule';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
-import { segmentedDesktop, useIsDesktop } from '@/components/ui';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { desktopField, segmentedDesktop, useIsDesktop, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { DeliveriesRegister } from '@/components/registers/DeliveriesRegister';
 
 /** Today as YYYY-MM-DD in LOCAL time — toISOString() would roll the date over
  *  in the evening for anyone west of UTC. */
@@ -140,6 +143,12 @@ export default function DeliveriesScreen() {
     setReceiving(null);
   }, [addDeliveryReceipt, updateDelivery]);
   const isDesktop = useIsDesktop();
+  // Desktop web only: the look-ahead becomes a register (Late and Upcoming
+  // tables). The phone and a native tablet keep today's rows.
+  const isDesktopWeb = useIsDesktopWeb();
+  const openBuildingAccess = useCallback(() => {
+    router.push({ pathname: '/building-access', params: { projectId } });
+  }, [router, projectId]);
 
   if (!project) {
     return (
@@ -164,106 +173,125 @@ export default function DeliveriesScreen() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top || 16 }]}>
+    <View style={[styles.root, { paddingTop: insets.top || 16 }, isDesktopWeb && styles.rootDesktop]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header
-        onBack={goBack}
-        title={project.name}
-        subtitle={summarizeLookahead(look, horizon)}
-        styles={styles}
-        t={t}
-        onAdd={() => setShowAdd(true)}
-      />
+      {isDesktopWeb ? (
+        <DeliveriesRegister
+          projectId={projectId}
+          projectName={project.name}
+          look={look}
+          horizon={horizon}
+          onHorizon={setHorizon}
+          conflicts={conflicts}
+          projectConflicts={projectConflicts}
+          hasAccessRules={!!rules}
+          onConfirm={confirm}
+          onReceive={receive}
+          onAdd={() => setShowAdd(true)}
+          onOpenBuildingAccess={openBuildingAccess}
+        />
+      ) : (
+        <>
+          <Header
+            onBack={goBack}
+            title={project.name}
+            subtitle={summarizeLookahead(look, horizon)}
+            styles={styles}
+            t={t}
+            onAdd={() => setShowAdd(true)}
+          />
 
-      <ScrollView
-        {...fabScroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
-      >
-        {/* Building-wide blockers. Above everything: a COI the property manager
-            does not hold stops every load, not one. */}
-        {projectConflicts.map((c, i) => (
-          <TouchableOpacity
-            key={`${c.kind}-${i}`}
-            style={[styles.banner, c.severity === 'blocking' && styles.bannerBlocking]}
-            onPress={() => router.push({ pathname: '/building-access', params: { projectId } })}
-            accessibilityRole="button"
-            testID={`access-banner-${c.kind}`}
+          <ScrollView
+            {...fabScroll}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
           >
-            <Building2 size={15} color={c.severity === 'blocking' ? t.danger : t.accentLabel} strokeWidth={1.9} />
-            <View style={styles.bannerText}>
-              <Text style={[styles.bannerTitle, { color: c.severity === 'blocking' ? t.danger : t.accentLabel }]}>
-                {c.message}
-              </Text>
-              <Text style={styles.bannerAction}>{c.action}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {/* LATE — never inside the horizon toggle, never collapsed. */}
-        {look.late.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: t.danger }]}>
-              {look.late.length} late
-            </Text>
-            {look.late.map(v => (
-              <Row key={v.delivery.id} v={v} tone={t.danger} styles={styles} t={t}
-                   onConfirm={confirm} onReceive={receive}
-                   conflicts={conflictsForDelivery(conflicts, v.delivery.id)} />
+            {/* Building-wide blockers. Above everything: a COI the property manager
+                does not hold stops every load, not one. */}
+            {projectConflicts.map((c, i) => (
+              <TouchableOpacity
+                key={`${c.kind}-${i}`}
+                style={[styles.banner, c.severity === 'blocking' && styles.bannerBlocking]}
+                onPress={() => router.push({ pathname: '/building-access', params: { projectId } })}
+                accessibilityRole="button"
+                testID={`access-banner-${c.kind}`}
+              >
+                <Building2 size={15} color={c.severity === 'blocking' ? t.danger : t.accentLabel} strokeWidth={1.9} />
+                <View style={styles.bannerText}>
+                  <Text style={[styles.bannerTitle, { color: c.severity === 'blocking' ? t.danger : t.accentLabel }]}>
+                    {c.message}
+                  </Text>
+                  <Text style={styles.bannerAction}>{c.action}</Text>
+                </View>
+              </TouchableOpacity>
             ))}
-          </>
-        )}
 
-        <View style={styles.horizonRow}>
-          {LOOKAHEAD_DAYS.map(d => (
+            {/* LATE — never inside the horizon toggle, never collapsed. */}
+            {look.late.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: t.danger }]}>
+                  {look.late.length} late
+                </Text>
+                {look.late.map(v => (
+                  <Row key={v.delivery.id} v={v} tone={t.danger} styles={styles} t={t}
+                       onConfirm={confirm} onReceive={receive}
+                       conflicts={conflictsForDelivery(conflicts, v.delivery.id)} />
+                ))}
+              </>
+            )}
+
+            <View style={styles.horizonRow}>
+              {LOOKAHEAD_DAYS.map(d => (
+                <TouchableOpacity
+                  key={d}
+                  onPress={() => setHorizon(d)}
+                  style={[styles.horizonChip, isDesktop && segmentedDesktop.segment, horizon === d && styles.horizonChipOn]}
+                  accessibilityRole="button"
+                  testID={`deliveries-horizon-${d}`}
+                >
+                  <Text style={[styles.horizonText, horizon === d && styles.horizonTextOn]}>
+                    {d} days
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {look.upcoming.length === 0 && look.late.length === 0 ? (
+              <EmptyState
+                icon={<Truck size={36} color={t.accent} strokeWidth={1.6} />}
+                title="Nothing scheduled yet"
+                message="Add what you're expecting and the date it was promised. Anything that slips past its date shows up here and in Waiting On, so a late load gets chased before the crew is stood down."
+              />
+            ) : (
+              look.upcoming.map(v => (
+                <Row
+                  key={v.delivery.id}
+                  v={v}
+                  tone={v.flag === 'unconfirmed' ? t.accentLabel : t.textSecondary}
+                  styles={styles}
+                  t={t}
+                  onConfirm={confirm}
+                  onReceive={receive}
+                  conflicts={conflictsForDelivery(conflicts, v.delivery.id)}
+                />
+              ))
+            )}
+
+            {/* Always reachable, not only when something is already wrong — the
+                rules have to be recorded before the engine can catch anything. */}
             <TouchableOpacity
-              key={d}
-              onPress={() => setHorizon(d)}
-              style={[styles.horizonChip, isDesktop && segmentedDesktop.segment, horizon === d && styles.horizonChipOn]}
+              style={styles.buildingLink}
+              onPress={() => router.push({ pathname: '/building-access', params: { projectId } })}
               accessibilityRole="button"
-              testID={`deliveries-horizon-${d}`}
+              testID="deliveries-building-access"
             >
-              <Text style={[styles.horizonText, horizon === d && styles.horizonTextOn]}>
-                {d} days
+              <Building2 size={15} color={t.textSecondary} strokeWidth={1.8} />
+              <Text style={styles.buildingLinkText}>
+                {rules ? 'Building access & bookings' : 'Set up building access'}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {look.upcoming.length === 0 && look.late.length === 0 ? (
-          <EmptyState
-            icon={<Truck size={36} color={t.accent} strokeWidth={1.6} />}
-            title="Nothing scheduled yet"
-            message="Add what you're expecting and the date it was promised. Anything that slips past its date shows up here and in Waiting On, so a late load gets chased before the crew is stood down."
-          />
-        ) : (
-          look.upcoming.map(v => (
-            <Row
-              key={v.delivery.id}
-              v={v}
-              tone={v.flag === 'unconfirmed' ? t.accentLabel : t.textSecondary}
-              styles={styles}
-              t={t}
-              onConfirm={confirm}
-              onReceive={receive}
-              conflicts={conflictsForDelivery(conflicts, v.delivery.id)}
-            />
-          ))
-        )}
-
-        {/* Always reachable, not only when something is already wrong — the
-            rules have to be recorded before the engine can catch anything. */}
-        <TouchableOpacity
-          style={styles.buildingLink}
-          onPress={() => router.push({ pathname: '/building-access', params: { projectId } })}
-          accessibilityRole="button"
-          testID="deliveries-building-access"
-        >
-          <Building2 size={15} color={t.textSecondary} strokeWidth={1.8} />
-          <Text style={styles.buildingLinkText}>
-            {rules ? 'Building access & bookings' : 'Set up building access'}
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+          </ScrollView>
+        </>
+      )}
 
       <ReceiveSheet
         delivery={receiving}
@@ -389,6 +417,12 @@ function ReceiveSheet({
   styles: ReturnType<typeof makeStyles>; t: ThemeColors;
 }) {
   const [form, setForm] = useState<ReceiveForm>({ receivedBy: '', hasDamage: false, damageNotes: '', notes: '' });
+  // Desktop: a centred 560 card; a phone keeps its bottom sheet (every frame
+  // part is null there). Called before the early return below.
+  const isDesktop = useIsDesktop();
+  const f = useSheetFrame('form', { visible: !!delivery, animationType: 'slide' });
+  const save = () => onSave(form);
+  useSheetPrimaryHotkey(!!delivery, save);
 
   // Reset per delivery so last load's damage note never rides along to the next.
   React.useEffect(() => {
@@ -398,9 +432,9 @@ function ReceiveSheet({
   if (!delivery) return null;
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
+    <Modal visible animationType={f.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.overlay, f.overlay]}>
+        <View style={[styles.sheet, f.card]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Receive delivery</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -466,7 +500,7 @@ function ReceiveSheet({
           />
 
           <TouchableOpacity
-            style={styles.saveBtn}
+            style={[styles.saveBtn, isDesktop && styles.saveBtnDesktop]}
             onPress={() => onSave(form)}
             accessibilityRole="button"
             testID="receive-save"
@@ -490,15 +524,19 @@ function AddDeliverySheet({
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<Draft>({ description: '', supplier: '', expectedDate: todayLocal(), window: '' });
   const valid = draft.description.trim().length > 0 && draft.supplier.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(draft.expectedDate.trim());
+  const isDesktop = useIsDesktop();
+  const f = useSheetFrame('form', { visible, animationType: 'slide' });
+  const save = () => { if (valid) { onSave(draft); setDraft({ description: '', supplier: '', expectedDate: todayLocal(), window: '' }); } };
+  useSheetPrimaryHotkey(visible && valid, save);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={f.animationType} onRequestClose={onClose}>
       {/* UX-F15: four inputs + Save in a bottom-anchored sheet with no keyboard
           handling — the keyboard covered "Promised date", "Window" and the Save
           button, and the first tap on Save only dismissed the keyboard. Same
           pattern as app/login.tsx. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.overlay, f.overlay]}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }, f.card]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Expecting a delivery</Text>
             <TouchableOpacity onPress={onClose} style={styles.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -529,7 +567,7 @@ function AddDeliverySheet({
 
           <Text style={styles.fieldLabel}>Promised date</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]}
             value={draft.expectedDate}
             onChangeText={(x) => setDraft(p => ({ ...p, expectedDate: x }))}
             placeholder="YYYY-MM-DD"
@@ -542,7 +580,7 @@ function AddDeliverySheet({
             Window <Text style={styles.fieldHint}>optional — the dock slot, if there is one</Text>
           </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]}
             value={draft.window}
             onChangeText={(x) => setDraft(p => ({ ...p, window: x }))}
             placeholder="07:00-11:00"
@@ -551,7 +589,7 @@ function AddDeliverySheet({
           />
 
           <TouchableOpacity
-            style={[styles.saveBtn, !valid && styles.saveBtnOff]}
+            style={[styles.saveBtn, !valid && styles.saveBtnOff, isDesktop && styles.saveBtnDesktop]}
             onPress={() => { if (valid) { onSave(draft); setDraft({ description: '', supplier: '', expectedDate: todayLocal(), window: '' }); } }}
             disabled={!valid}
             accessibilityRole="button"
@@ -569,6 +607,8 @@ function AddDeliverySheet({
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  // Desktop web: the register draws its own title row inside the column.
+  rootDesktop: { paddingTop: 0 },
 
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, paddingHorizontal: 8, paddingBottom: 10, gap: 4 },
   headerBtn: { width: 40, height: 40, alignItems: 'center' as const, justifyContent: 'center' as const },
@@ -655,6 +695,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: 20, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: t.accentFill,
   },
   saveBtnOff: { opacity: 0.45 },
+  // Desktop: the sheet's primary hugs its label at the right, 40 tall.
+  saveBtnDesktop: { alignSelf: 'flex-end' as const, minWidth: Layout.button.minWidth.lg, height: Layout.control.md, minHeight: Layout.control.md, paddingHorizontal: 20 },
   receiveWhat: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, marginBottom: 4 },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' as const },
 

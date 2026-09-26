@@ -1,0 +1,64 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, iOS 390 1`] = `
+{
+  "lines": 436,
+  "sha256": "3e89b5d49c06ffb0a5507ce58e1744e5ec157949d7a8009bd54f281dfb96c6eb",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, web 390 1`] = `
+{
+  "lines": 436,
+  "sha256": "3e89b5d49c06ffb0a5507ce58e1744e5ec157949d7a8009bd54f281dfb96c6eb",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) coi-vault at rest, web 768 1`] = `
+{
+  "lines": 436,
+  "sha256": "3e89b5d49c06ffb0a5507ce58e1744e5ec157949d7a8009bd54f281dfb96c6eb",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) coi-vault?subId=S1 (the detail early return), iOS 390 1`] = `
+{
+  "lines": 696,
+  "sha256": "57553219d0e2afa957a37e6a0abc634f1afb70011d7c7c152e6a4cabcab4a87c",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) subs add sheet (add-sub), iOS 390 1`] = `
+{
+  "lines": 809,
+  "sha256": "183b8ff8c91ff56a53d63815cb6271f635ab5869103a7ebbe562ae61258c2118",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) subs at rest, iOS 390 1`] = `
+{
+  "lines": 809,
+  "sha256": "9cad1fda2f56e1f32691971f626200e7ee56716265f6b58bfeebf9e5bc6bf172",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) subs at rest, web 390 1`] = `
+{
+  "lines": 809,
+  "sha256": "9cad1fda2f56e1f32691971f626200e7ee56716265f6b58bfeebf9e5bc6bf172",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) subs at rest, web 768 1`] = `
+{
+  "lines": 809,
+  "sha256": "9cad1fda2f56e1f32691971f626200e7ee56716265f6b58bfeebf9e5bc6bf172",
+}
+`;
+
+exports[`lane R2 — the phone is unchanged (golden) subs detail open (sub-S1), iOS 390 1`] = `
+{
+  "lines": 986,
+  "sha256": "238de7610dfbd495f383248f93d1b2dec05598d9f177bf07d149a389f89c7c08",
+}
+`;

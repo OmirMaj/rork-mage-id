@@ -55,6 +55,9 @@ import UpgradeSheet from '@/components/UpgradeSheet';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
+import { EstimateWizardDesktop } from '@/components/estimate/EstimateWizardDesktop';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useProjectCapGate } from '@/hooks/useProjectCapGate';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -81,7 +84,7 @@ import {
   type WizardAnswers, type EstimateResult,
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { Button, cardSurface } from '@/components/ui';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -216,6 +219,9 @@ function EstimateWizardScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
+  // Wave 6d: desktop web asks all eight questions on one page
+  // (components/estimate/EstimateWizardDesktop). The phone keeps its stepper.
+  const isDesktopWeb = useIsDesktopWeb();
   const { settings, getProject, updateProject, addProject, projects, commitments } = useProjects();
   const { maybeAskForPush } = useNotifications();
   const { receipts } = useMaterialReceipts();
@@ -523,6 +529,12 @@ function EstimateWizardScreenInner() {
       return EMPTY_GROUNDING;
     }
   }, [costDb, projects, commitments]);
+
+  // The one-page wizard's rail prints the grounding line of the prompt these
+  // answers WOULD send — the same bundle generate() builds, the same label
+  // the result chip prints. Desktop web only (null elsewhere, never computed).
+  const deskGrounding = useMemo(() => (isDesktopWeb ? groundingFor(answers) : null), [isDesktopWeb, groundingFor, answers]);
+  const deskGroundingLine = deskGrounding ? groundingChipLabel(deskGrounding.counts, { calibration: deskGrounding.calibration }) : null;
 
   const next = useCallback(() => {
     if (!canAdvance) return;
@@ -1193,6 +1205,15 @@ function EstimateWizardScreenInner() {
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
+  // Wave 6d: the save and markup sheets become centred cards on desktop (the
+  // phone frame is all-null, so both sheets render exactly as before). Only
+  // the save sheet gets a primary shortcut: createFromEstimate refuses an
+  // empty name itself. The markup sheet's choices are deliberately equal (no
+  // preselected answer), so it has no primary — Cmd+S is only consumed.
+  const fSave = useSheetFrame('form', { visible: showSaveModal, animationType: 'slide' });
+  const fMarkup = useSheetFrame('form', { visible: showMarkupSheet, animationType: 'slide' });
+  useSheetPrimaryHotkey(showSaveModal, createFromEstimate);
+
   if (result) {
     // Group line items by category and compute subtotals + percentages.
     // Used for both the breakdown summary card AND the per-category
@@ -1832,10 +1853,10 @@ function EstimateWizardScreenInner() {
         {/* Save-to-project modal — cross-platform (no Alert.prompt). Lets a
             standalone user attach the estimate to an existing project or
             create a new one, folding the AI line items into its estimate. */}
-        <Modal visible={showSaveModal} transparent animationType="slide" onRequestClose={() => setShowSaveModal(false)}>
+        <Modal visible={showSaveModal} transparent animationType={fSave.animationType} onRequestClose={() => setShowSaveModal(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.saveOverlay}>
-              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={[styles.saveOverlay, fSave.overlay]}>
+              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }, fSave.card]}>
                 <View style={styles.saveHeader}>
                   <Text style={styles.saveTitle}>Save estimate</Text>
                   <TouchableOpacity onPress={() => setShowSaveModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -1955,10 +1976,10 @@ function EstimateWizardScreenInner() {
             this sheet from the share and save paths, so nothing at cost can
             reach a client without him having said, in as many words, that
             that is what he wants. */}
-        <Modal visible={showMarkupSheet} transparent animationType="slide" onRequestClose={dismissMarkupSheet} onDismiss={onMarkupSheetDismissed}>
+        <Modal visible={showMarkupSheet} transparent animationType={fMarkup.animationType} onRequestClose={dismissMarkupSheet} onDismiss={onMarkupSheetDismissed}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.saveOverlay}>
-              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={[styles.saveOverlay, fMarkup.overlay]}>
+              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }, fMarkup.card]}>
                 <View style={styles.saveHeader}>
                   <Text style={styles.saveTitle}>What do you add on top of cost?</Text>
                   <TouchableOpacity onPress={dismissMarkupSheet} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -2048,9 +2069,62 @@ function EstimateWizardScreenInner() {
     );
   }
 
+  // The two banners above the question, hoisted so the one-page desktop
+  // wizard shows the SAME elements (the phone renders them where it did).
+  const voiceBanner = (
+    <TouchableOpacity
+      style={styles.voiceBanner}
+      onPress={() => router.replace({ pathname: '/copilot', params: { capabilityId: 'estimate', projectId } } as never)}
+      activeOpacity={0.85}
+      testID="estimate-voice-entry"
+    >
+      <Mic size={18} color={themeColors.accent} strokeWidth={2} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.voiceBannerTitle}>Build by voice instead</Text>
+        <Text style={styles.voiceBannerDesc}>Say the scope — MAGE prices it from your past jobs</Text>
+      </View>
+      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+    </TouchableOpacity>
+  );
+  const onboardingBanner = (
+    <View style={styles.onboardingBanner} testID="estimate-onboarding-banner">
+      <Text style={styles.onboardingBannerTitle}>Your first bid</Text>
+      {/* Onboarding lets him skip the rate paste, and this line claimed
+          his rates were pricing the bid either way. Same discriminator
+          the grounding chip uses on the result screen (utils/groundingChip):
+          with no seeds and no closed jobs the number is a market average. */}
+      <Text style={styles.onboardingBannerSubtitle}>
+        {seedsLoading
+          // Neither claim until the seed query answers: an empty array
+          // before it does is not an answer, and guessing either way
+          // tells someone something about his own numbers that we do
+          // not know yet.
+          ? 'Send it when it looks right.'
+          : seeds.length > 0
+            ? 'Priced off the rates you added — send it when it looks right.'
+            : 'Priced off market averages until you add your rates — send it when it looks right.'}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ title: 'Quick Estimate', ...(isOnboarding ? { headerLeft: () => null, gestureEnabled: false } : {}) }} />
+      {isDesktopWeb ? (
+        <EstimateWizardDesktop
+          answers={answers}
+          set={set}
+          onGenerate={() => generate()}
+          loading={loading}
+          generateLabel={`Generate estimate${freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}`}
+          onCancel={() => (isOnboarding ? router.replace('/(tabs)/(home)') : safeBack())}
+          cancelLabel="Cancel"
+          stepHint={stepHint}
+          setStepHint={setStepHint}
+          banners={<>{projectId ? voiceBanner : null}{isOnboarding ? onboardingBanner : null}</>}
+          groundingLine={deskGroundingLine}
+        />
+      ) : (
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.progressWrap}>
           <View style={styles.progressTrack}>
@@ -2064,41 +2138,8 @@ function EstimateWizardScreenInner() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {step === 0 && !!projectId && (
-            <TouchableOpacity
-              style={styles.voiceBanner}
-              onPress={() => router.replace({ pathname: '/copilot', params: { capabilityId: 'estimate', projectId } } as never)}
-              activeOpacity={0.85}
-              testID="estimate-voice-entry"
-            >
-              <Mic size={18} color={themeColors.accent} strokeWidth={2} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.voiceBannerTitle}>Build by voice instead</Text>
-                <Text style={styles.voiceBannerDesc}>Say the scope — MAGE prices it from your past jobs</Text>
-              </View>
-              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
-          )}
-          {isOnboarding && (
-            <View style={styles.onboardingBanner} testID="estimate-onboarding-banner">
-              <Text style={styles.onboardingBannerTitle}>Your first bid</Text>
-              {/* Onboarding lets him skip the rate paste, and this line claimed
-                  his rates were pricing the bid either way. Same discriminator
-                  the grounding chip uses on the result screen (utils/groundingChip):
-                  with no seeds and no closed jobs the number is a market average. */}
-              <Text style={styles.onboardingBannerSubtitle}>
-                {seedsLoading
-                  // Neither claim until the seed query answers: an empty array
-                  // before it does is not an answer, and guessing either way
-                  // tells someone something about his own numbers that we do
-                  // not know yet.
-                  ? 'Send it when it looks right.'
-                  : seeds.length > 0
-                    ? 'Priced off the rates you added — send it when it looks right.'
-                    : 'Priced off market averages until you add your rates — send it when it looks right.'}
-              </Text>
-            </View>
-          )}
+          {step === 0 && !!projectId && voiceBanner}
+          {isOnboarding && onboardingBanner}
           <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
         </ScrollView>
 
@@ -2184,6 +2225,7 @@ function EstimateWizardScreenInner() {
           )}
         </View>
       </KeyboardAvoidingView>
+      )}
 
       <EstimateLoadingOverlay
         visible={loading}
@@ -2210,8 +2252,9 @@ function EstimateWizardScreenInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
-  // One-question-at-a-time wizard: a cap is correct, 680 was just tight.
-  contentDesktop: { width: '100%', maxWidth: 900, alignSelf: 'center' as const },
+  // The RESULT view's cap (the questions have their own desktop page). Wave
+  // 6d: the form column (760), like the other forms — was a 900 literal.
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' as const },
   progressWrap: {
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4,
   },

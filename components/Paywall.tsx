@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -28,6 +28,7 @@ import { chipReturnTo } from '@/utils/tutorial/entryPoints';
 import { useGlobalSearchParams, usePathname } from 'expo-router';
 import { paywallPracticeOffer, restoredRunId, runBlocksPaywallOffer } from '@/utils/paywallPracticeOffer';
 import { segmentedDesktop, useIsDesktop } from '@/components/ui';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 
 // resumeTarget() needs a StartCtx only to build params; handlePracticeFirst
 // reads just whether it is null, so any fixed dates do.
@@ -304,6 +305,10 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const isDesktop = useIsDesktop();
+  // Wave 6d: on desktop the WEB wall is a centred card over a scrim (it was an
+  // opaque full-window page whose "Open in App Store" button measured ~1,470
+  // px). On a phone the frame is all-null: the web Modal keeps today's props.
+  const pw = useSheetFrame('form', { visible, animationType: 'slide' });
   const [period, setPeriod] = useState<BillingPeriod>('annual');
 
   // ── Monetization funnel: top-of-funnel impression ──
@@ -531,8 +536,10 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
 
   if (Platform.OS === 'web') {
     return (
-      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleDismiss}>
-        <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <Modal visible={visible} transparent={pw.isDesktop || undefined} animationType={pw.animationType} presentationStyle={pw.isDesktop ? undefined : 'pageSheet'} onRequestClose={handleDismiss}>
+        <SheetOverlay frame={pw}>
+        {pw.isDesktop ? <Pressable style={[styles.webScrim, pw.backdrop]} onPress={handleDismiss} accessibilityRole="button" accessibilityLabel="Close" /> : null}
+        <View style={[styles.container, { paddingBottom: insets.bottom }, pw.card, pw.isDesktop && styles.webCardDesktop]}>
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
             <Text style={styles.headerTitle}>Continue on Mobile</Text>
@@ -605,6 +612,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
             </View>
           </ScrollView>
         </View>
+        </SheetOverlay>
       </Modal>
     );
   }
@@ -755,6 +763,11 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  // Wave 6d, the desktop web card: the scrim behind it (the app's overlay
+  // token), and the card sized to its content up to the frame's 85% max
+  // height — the ScrollView inside scrolls past that.
+  webScrim: { backgroundColor: Colors.overlay },
+  webCardDesktop: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', overflow: 'hidden' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

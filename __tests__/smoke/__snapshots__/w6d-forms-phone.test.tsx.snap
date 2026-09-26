@@ -1,0 +1,113 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane P2 — the phone is unchanged (golden) /paywall, iOS 390 (the native branch) 1`] = `
+{
+  "lines": 1005,
+  "sha256": "4cb09bb4bdbc6152368ad3409a8a8bea48e583d9a642e82b98a0b8478c2b6c36",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) /paywall, web 390 (WebPaywallView) 1`] = `
+{
+  "lines": 884,
+  "sha256": "8e4b21377e781de36f29e19fa2ab711b99d427b93a566110670173838e9e85ed",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) <Paywall> practiceTutorialId invoice-to-self, iOS 390 1`] = `
+{
+  "lines": 466,
+  "sha256": "7f19a365d1e0886c05a0b61b2c409158d46c7d02a0eec9ea7b2c1f80f173b56b",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) <Paywall> practiceTutorialId invoice-to-self, web 390 (not transparent, slide, pageSheet) 1`] = `
+{
+  "lines": 455,
+  "sha256": "d8c96c87973ce6dfd242be073982df8d7174c624c6d9ff737171042fe0d35874",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) estimate-wizard, iOS 390 1`] = `
+{
+  "lines": 453,
+  "sha256": "f00bf0ddf879f515ee7c8755617b4d778082601f6cd92d06649a9c2379cc93d5",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) estimate-wizard, web 390 1`] = `
+{
+  "lines": 453,
+  "sha256": "f00bf0ddf879f515ee7c8755617b4d778082601f6cd92d06649a9c2379cc93d5",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?onboarding=1, iOS 390 1`] = `
+{
+  "lines": 458,
+  "sha256": "ee995306c6368be4d4ca3a6c54057011831eb6e23f5b73e9e70e76e7048c4ec7",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?onboarding=1, web 390 1`] = `
+{
+  "lines": 458,
+  "sha256": "ee995306c6368be4d4ca3a6c54057011831eb6e23f5b73e9e70e76e7048c4ec7",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?projectId (voice banner), iOS 390 1`] = `
+{
+  "lines": 467,
+  "sha256": "9a335ac794de73cbba51b670284ad90dfd32b875a0bec33300168219fab4efc5",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) estimate-wizard?projectId (voice banner), web 390 1`] = `
+{
+  "lines": 467,
+  "sha256": "9a335ac794de73cbba51b670284ad90dfd32b875a0bec33300168219fab4efc5",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), iOS 390 1`] = `
+{
+  "lines": 1777,
+  "sha256": "45bb4fecaf203fbfde437c6bc644624aab4a841f96be2ec538b167b74a136097",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) settings as an owner email (Developer shown), web 390 1`] = `
+{
+  "lines": 1777,
+  "sha256": "45bb4fecaf203fbfde437c6bc644624aab4a841f96be2ec538b167b74a136097",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) settings as contractor, iOS 390 1`] = `
+{
+  "lines": 1745,
+  "sha256": "17555bf4c4e8fbdf0af2504655b47adf38da97db4b3952c711641403a6cf1f15",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) settings as contractor, web 390 1`] = `
+{
+  "lines": 1745,
+  "sha256": "17555bf4c4e8fbdf0af2504655b47adf38da97db4b3952c711641403a6cf1f15",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, iOS 390 1`] = `
+{
+  "lines": 1537,
+  "sha256": "28eeb19b310af60131e0ba210f36bc5df7d4867f73f0a02b5eccb462adffd470",
+}
+`;
+
+exports[`lane P2 — the phone is unchanged (golden) settings as property_manager, web 390 1`] = `
+{
+  "lines": 1537,
+  "sha256": "28eeb19b310af60131e0ba210f36bc5df7d4867f73f0a02b5eccb462adffd470",
+}
+`;

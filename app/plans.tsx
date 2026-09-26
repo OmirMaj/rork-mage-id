@@ -41,7 +41,9 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import AskPlansPanel from '@/components/plans/AskPlansPanel';
-import { Button } from '@/components/ui';
+import { Button, TileGrid, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import FilterChipRow from '@/components/FilterChipRow';
 import { useLocalPlanSheetUri } from '@/utils/planSheetLocalFiles';
 import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
 import { confirmQuotaFits } from '@/utils/quotaPrecheck';
@@ -49,7 +51,7 @@ import { TakeoffQuotaBadge } from '@/components/TakeoffQuotaBadge';
 import { useUsageStatus } from '@/hooks/useUsageStatus';
 import type { PlanSheet } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { addFloorPlan, attachFloorPlanImage, uploadDeviceOnlyFloorPlan, type FloorPlanActions } from '@/utils/addFloorPlan';
 import { pickFloorPlanImage } from '@/utils/pickFloorPlanImage';
@@ -64,6 +66,7 @@ import {
   titleBlockSuggestions, planBatchRenumber, chainColumnsPatch, planScreenGate, planControlBlock, effectivePlanRole, sheetDeleteBlock,
   type TitleBlockSuggestion,
 } from '@/utils/plans/revisionActions';
+import { disciplineChips, disciplineOf, type Discipline } from '@/utils/plans/planDiscipline';
 
 type PlanImageSource = 'camera' | 'library';
 
@@ -109,6 +112,11 @@ export default function PlansScreen() {
   // nor errored, and must not read as "no access" or "checking" forever.
   const offline = useSyncExternalStore(onlineManager.subscribe, () => !onlineManager.isOnline(), () => false);
   const sheetUri = useLocalPlanSheetUri();
+  // Wave 6d (P1): on desktop web the sheets are a thumbnail grid filtered by
+  // discipline chips. Every switch here — structure and style — reads
+  // isDesktopWeb, so an Android tablet keeps the phone list untouched.
+  const isDesktopWeb = useIsDesktopWeb();
+  const [discipline, setDiscipline] = useState<Discipline | 'all'>('all');
   // #163: Ask Your Plans opens HERE, in a sheet of its own, not on the Plan
   // Intelligence estimating screen. `ask=1` (from the plan viewer) opens it.
   const [askOpen, setAskOpen] = useState<boolean>(params.ask === '1');
@@ -175,6 +183,13 @@ export default function PlansScreen() {
     [allSheets, showSuperseded],
   );
   const supersededCount = useMemo(() => allSheets.filter(s => s.superseded).length, [allSheets]);
+  // Desktop web: the discipline chips over the shown set, and the set the grid
+  // draws. A chip whose discipline has gone (its last sheet deleted) silently
+  // falls back to All. The phone always draws `sheets`.
+  const chips = useMemo(() => disciplineChips(sheets), [sheets]);
+  const shownSheets = isDesktopWeb && discipline !== 'all' && chips.some(c => c.value === discipline)
+    ? sheets.filter(s => disciplineOf(s.sheetNumber) === discipline)
+    : sheets;
   // The set as it is NOW, for work that finishes after several awaits (the
   // title-block pass) — the render's allSheets would be stale by then.
   const allSheetsRef = useRef(allSheets);
@@ -499,6 +514,15 @@ export default function PlansScreen() {
     ]);
   }, [deletePlanSheet, deleteBlockFor]);
 
+  // The three sheets take the Sheet.tsx frame: a centred card on desktop web,
+  // today's bottom sheet on a phone. New sheet and the title-block numbers are
+  // saves, so Cmd+Enter / Cmd+S run them.
+  const fAsk = useSheetFrame('form', { visible: askOpen, animationType: 'slide' });
+  const fNew = useSheetFrame('form', { visible: !!newSheet, animationType: 'slide' });
+  const fTitle = useSheetFrame('form', { visible: !!titleReview, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!newSheet, () => { void confirmImport(); });
+  useSheetPrimaryHotkey(!!titleReview, applyTitleNumbers);
+
   // Project picker when launched without a project
   if (!projectId || !project) {
     return <PlansProjectPicker projects={projects} onPick={(id) => router.replace({ pathname: '/plans' as never, params: { projectId: id } as never })} onBack={() => router.back()} />;
@@ -514,6 +538,121 @@ export default function PlansScreen() {
       ? <PaywallView onUpgrade={() => router.push('/paywall' as never)} onBack={() => router.back()} insets={insets} />
       : <PlansAccessGate gate={gate} projectName={project.name} onRetry={roleState.refetch} onBack={() => router.back()} insets={insets} />;
   }
+
+  // One card per shown sheet: a row on the phone, a thumbnail tile in the
+  // desktop-web grid (the same element, three positive style appends).
+  const cards = shownSheets.map((s) => {
+    const pinCount = getPinsForPlan(s.id).length;
+    // 'device-only' / 'missing' = the image never reached storage
+    // (Import image before 2026-09-17). Said out loud, with the fix.
+    const imageState = planSheetImageState(s);
+    const repairing = repairingId === s.id;
+    const prev = s.previousSheetId ? allSheets.find(x => x.id === s.previousSheetId) : undefined;
+    return (
+      <TouchableOpacity
+        key={s.id}
+        style={[styles.sheetCard, s.superseded && styles.sheetCardSuperseded, isDesktopWeb && styles.sheetCardDesktop]}
+        onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: s.id } as never })}
+        activeOpacity={0.7}
+        testID={s.superseded ? `sheet-row-superseded-${s.id}` : undefined}
+      >
+        <View style={[styles.sheetThumbWrap, s.superseded && styles.sheetThumbWrapSuperseded, isDesktopWeb && styles.sheetThumbWrapDesktop]}>
+          {imageState === 'missing' ? (
+            <FileImage size={22} color={themeColors.textMuted} strokeWidth={1.75} />
+          ) : (
+            // #80: the day pack's on-device file first, so the list
+            // shows today's sheets with no signal too.
+            <Image source={{ uri: sheetUri(s) }} style={styles.sheetThumb} resizeMode="cover" />
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.sheetTagRow}>
+            {s.sheetNumber ? (
+              <Text style={[styles.sheetNumber, s.superseded && styles.sheetNumberSuperseded]}>{s.sheetNumber}</Text>
+            ) : null}
+            {/* Unconditional on `superseded` — NOT gated on revision.
+                The original copy of a re-uploaded sheet is Rev 1, so a
+                revision-gated badge left the single most dangerous row
+                in the list (the old one everyone already has printed)
+                completely unmarked. */}
+            {s.superseded ? (
+              <View style={styles.supersededBadge}>
+                <AlertTriangle size={10} color={themeColors.warningLabel} strokeWidth={2.5} />
+                <Text style={styles.supersededBadgeText}>Superseded</Text>
+              </View>
+            ) : null}
+            {s.revision && s.revision > 1 ? (
+              <View style={[styles.revPill, s.superseded && { backgroundColor: themeColors.surfaceAlt }]}>
+                <Text style={[styles.revPillText, s.superseded && { color: themeColors.textMuted }]}>
+                  Rev {s.revision}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[styles.sheetName, s.superseded && styles.sheetNameSuperseded]} numberOfLines={2}>{s.name}</Text>
+          {s.superseded ? (
+            <Text style={styles.supersededNote}>Replaced by a newer revision — do not build from it.</Text>
+          ) : null}
+          {imageState !== 'durable' ? (
+            <View style={styles.imageIssueRow}>
+              <Text style={styles.imageIssueText} numberOfLines={2}>
+                {imageState === 'missing'
+                  ? 'No image saved \u2014 this plan is blank on every device.'
+                  : 'Image is on this phone only \u2014 blank everywhere else.'}
+              </Text>
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation(); void handleRepairImage(s); }}
+                style={styles.ghostBtn}
+                disabled={repairing || !!repairingId}
+                accessibilityRole="button"
+                accessibilityLabel={imageState === 'missing' ? `Add the image for ${s.name}` : `Upload the image for ${s.name}`}
+                accessibilityState={{ disabled: repairing || !!repairingId, busy: repairing }}
+                testID={`sheet-repair-image-${s.id}`}
+              >
+                {repairing
+                  ? <ActivityIndicator size="small" color={themeColors.text} />
+                  : <Upload size={14} color={themeColors.text} strokeWidth={1.75} />}
+                <Text style={styles.ghostBtnText}>
+                  {repairing ? 'Saving' : imageState === 'missing' ? 'Add image' : 'Upload'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          <View style={styles.sheetMetaRow}>
+            <View style={styles.metaPill}>
+              <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.metaPillText}>{pinCount} {pinCount === 1 ? 'pin' : 'pins'}</Text>
+            </View>
+            <Text style={styles.sheetDate}>{new Date(s.updatedAt).toLocaleDateString()}</Text>
+          </View>
+          {/* #76: a revision already in the set compares with the one
+              it replaced — no upload, nothing filed twice. */}
+          {prev ? (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                if (compareBlock) { showAlert('Compare not available', compareBlock); return; }
+                router.push({ pathname: '/compare-drawings' as never, params: { projectId: s.projectId, oldSheetId: prev.id, newSheetId: s.id } as never });
+              }}
+              accessibilityHint={compareBlock ?? undefined}
+              style={[styles.ghostBtn, { alignSelf: 'flex-start', marginTop: 8 }, compareBlock ? { opacity: 0.5 } : null]}
+              accessibilityRole="button"
+              accessibilityLabel={`Compare ${s.sheetNumber || s.name} with revision ${prev.revision ?? 1}`}
+              testID={`sheet-compare-prev-${s.id}`}
+            >
+              <Layers size={14} color={themeColors.text} strokeWidth={1.75} />
+              <Text style={styles.ghostBtnText}>Compare with Rev {prev.revision ?? 1}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={[styles.iconBtn, deleteBlockFor(s) ? { opacity: 0.4 } : null, isDesktopWeb && styles.sheetDeleteDesktop]} hitSlop={10} accessibilityRole="button" accessibilityLabel="Delete" accessibilityHint={deleteBlockFor(s) ?? undefined} testID={`plans-delete-${s.id}`}>
+          <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
+        </TouchableOpacity>
+        {/* Desktop web: the whole tile is the link, so no chevron. */}
+        {isDesktopWeb ? null : <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />}
+      </TouchableOpacity>
+    );
+  });
 
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
@@ -560,6 +699,9 @@ export default function PlansScreen() {
       <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
         <TakeoffQuotaBadge variant="inline" onUpgrade={() => router.push('/paywall' as never)} />
       </View>
+      {isDesktopWeb && sheets.length > 0 ? (
+        <FilterChipRow chips={chips} value={discipline} onChange={setDiscipline} testID="plans-discipline-chips" />
+      ) : null}
 
       <ScrollView
         {...fabScroll}
@@ -586,117 +728,7 @@ export default function PlansScreen() {
             </Text>
           </View>
         ) : (
-          sheets.map((s) => {
-            const pinCount = getPinsForPlan(s.id).length;
-            // 'device-only' / 'missing' = the image never reached storage
-            // (Import image before 2026-09-17). Said out loud, with the fix.
-            const imageState = planSheetImageState(s);
-            const repairing = repairingId === s.id;
-            const prev = s.previousSheetId ? allSheets.find(x => x.id === s.previousSheetId) : undefined;
-            return (
-              <TouchableOpacity
-                key={s.id}
-                style={[styles.sheetCard, s.superseded && styles.sheetCardSuperseded]}
-                onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: s.id } as never })}
-                activeOpacity={0.7}
-                testID={s.superseded ? `sheet-row-superseded-${s.id}` : undefined}
-              >
-                <View style={[styles.sheetThumbWrap, s.superseded && styles.sheetThumbWrapSuperseded]}>
-                  {imageState === 'missing' ? (
-                    <FileImage size={22} color={themeColors.textMuted} strokeWidth={1.75} />
-                  ) : (
-                    // #80: the day pack's on-device file first, so the list
-                    // shows today's sheets with no signal too.
-                    <Image source={{ uri: sheetUri(s) }} style={styles.sheetThumb} resizeMode="cover" />
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.sheetTagRow}>
-                    {s.sheetNumber ? (
-                      <Text style={[styles.sheetNumber, s.superseded && styles.sheetNumberSuperseded]}>{s.sheetNumber}</Text>
-                    ) : null}
-                    {/* Unconditional on `superseded` — NOT gated on revision.
-                        The original copy of a re-uploaded sheet is Rev 1, so a
-                        revision-gated badge left the single most dangerous row
-                        in the list (the old one everyone already has printed)
-                        completely unmarked. */}
-                    {s.superseded ? (
-                      <View style={styles.supersededBadge}>
-                        <AlertTriangle size={10} color={themeColors.warningLabel} strokeWidth={2.5} />
-                        <Text style={styles.supersededBadgeText}>Superseded</Text>
-                      </View>
-                    ) : null}
-                    {s.revision && s.revision > 1 ? (
-                      <View style={[styles.revPill, s.superseded && { backgroundColor: themeColors.surfaceAlt }]}>
-                        <Text style={[styles.revPillText, s.superseded && { color: themeColors.textMuted }]}>
-                          Rev {s.revision}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={[styles.sheetName, s.superseded && styles.sheetNameSuperseded]} numberOfLines={2}>{s.name}</Text>
-                  {s.superseded ? (
-                    <Text style={styles.supersededNote}>Replaced by a newer revision — do not build from it.</Text>
-                  ) : null}
-                  {imageState !== 'durable' ? (
-                    <View style={styles.imageIssueRow}>
-                      <Text style={styles.imageIssueText} numberOfLines={2}>
-                        {imageState === 'missing'
-                          ? 'No image saved \u2014 this plan is blank on every device.'
-                          : 'Image is on this phone only \u2014 blank everywhere else.'}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation(); void handleRepairImage(s); }}
-                        style={styles.ghostBtn}
-                        disabled={repairing || !!repairingId}
-                        accessibilityRole="button"
-                        accessibilityLabel={imageState === 'missing' ? `Add the image for ${s.name}` : `Upload the image for ${s.name}`}
-                        accessibilityState={{ disabled: repairing || !!repairingId, busy: repairing }}
-                        testID={`sheet-repair-image-${s.id}`}
-                      >
-                        {repairing
-                          ? <ActivityIndicator size="small" color={themeColors.text} />
-                          : <Upload size={14} color={themeColors.text} strokeWidth={1.75} />}
-                        <Text style={styles.ghostBtnText}>
-                          {repairing ? 'Saving' : imageState === 'missing' ? 'Add image' : 'Upload'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-                  <View style={styles.sheetMetaRow}>
-                    <View style={styles.metaPill}>
-                      <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.metaPillText}>{pinCount} {pinCount === 1 ? 'pin' : 'pins'}</Text>
-                    </View>
-                    <Text style={styles.sheetDate}>{new Date(s.updatedAt).toLocaleDateString()}</Text>
-                  </View>
-                  {/* #76: a revision already in the set compares with the one
-                      it replaced — no upload, nothing filed twice. */}
-                  {prev ? (
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        if (compareBlock) { showAlert('Compare not available', compareBlock); return; }
-                        router.push({ pathname: '/compare-drawings' as never, params: { projectId: s.projectId, oldSheetId: prev.id, newSheetId: s.id } as never });
-                      }}
-                      accessibilityHint={compareBlock ?? undefined}
-                      style={[styles.ghostBtn, { alignSelf: 'flex-start', marginTop: 8 }, compareBlock ? { opacity: 0.5 } : null]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Compare ${s.sheetNumber || s.name} with revision ${prev.revision ?? 1}`}
-                      testID={`sheet-compare-prev-${s.id}`}
-                    >
-                      <Layers size={14} color={themeColors.text} strokeWidth={1.75} />
-                      <Text style={styles.ghostBtnText}>Compare with Rev {prev.revision ?? 1}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-                <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={[styles.iconBtn, deleteBlockFor(s) ? { opacity: 0.4 } : null]} hitSlop={10} accessibilityRole="button" accessibilityLabel="Delete" accessibilityHint={deleteBlockFor(s) ?? undefined} testID={`plans-delete-${s.id}`}>
-                  <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
-                </TouchableOpacity>
-                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-              </TouchableOpacity>
-            );
-          })
+          isDesktopWeb ? <TileGrid preset="action" testID="plans-sheet-grid">{cards}</TileGrid> : cards
         )}
 
         {/* Toggle to bring superseded revisions back into view. Only
@@ -780,20 +812,20 @@ export default function PlansScreen() {
 
       {/* #163: the Ask-only destination. The panel gets every sheet; it
           searches, indexes and cites only the current (non-superseded) ones. */}
-      <Modal visible={askOpen} transparent animationType="slide" onRequestClose={() => setAskOpen(false)}>
+      <Modal visible={askOpen} transparent animationType={fAsk.animationType} onRequestClose={() => setAskOpen(false)}>
         {/* The question box is the panel's first field and sits low in a
             bottom sheet; an RN Modal does not resize for the iOS keyboard, so
             without this the keyboard covers the box he is typing into. */}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalBackdrop}
+          style={[styles.modalBackdrop, fAsk.overlay]}
           testID="plans-ask-keyboard"
         >
           {/* maxHeight + a shrinking ScrollView: with the keyboard up the
               space left is ~470pt on a small iPhone, and the sheet must shrink
               into it (keeping the header and question box on screen) rather
               than push its top off the screen. */}
-          <View style={[styles.modalCard, { maxHeight: '92%' }]} testID="plans-ask-modal">
+          <View style={[styles.modalCard, { maxHeight: '92%' }, fAsk.card]} testID="plans-ask-modal">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Ask your plans</Text>
               <TouchableOpacity onPress={() => setAskOpen(false)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -808,9 +840,9 @@ export default function PlansScreen() {
       </Modal>
 
       {/* New-sheet naming modal */}
-      <Modal visible={!!newSheet} transparent animationType="slide" onRequestClose={() => setNewSheet(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+      <Modal visible={!!newSheet} transparent animationType={fNew.animationType} onRequestClose={() => setNewSheet(null)}>
+        <View style={[styles.modalBackdrop, fNew.overlay]}>
+          <View style={[styles.modalCard, fNew.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New sheet</Text>
               <TouchableOpacity onPress={() => setNewSheet(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -856,9 +888,9 @@ export default function PlansScreen() {
       {/* #75: title-block numbers, confirmed before anything is written. A
           misread number would supersede the wrong sheet, so each one is shown
           as what it is — a reading — and he ticks the ones to use. */}
-      <Modal visible={!!titleReview} transparent animationType="slide" onRequestClose={() => setTitleReview(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+      <Modal visible={!!titleReview} transparent animationType={fTitle.animationType} onRequestClose={() => setTitleReview(null)}>
+        <View style={[styles.modalBackdrop, fTitle.overlay]}>
+          <View style={[styles.modalCard, fTitle.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Sheet numbers from the title blocks</Text>
               <TouchableOpacity onPress={() => setTitleReview(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1082,6 +1114,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surfaceAlt, justifyContent: 'center', alignItems: 'center',
   },
   sheetThumbWrapSuperseded: { opacity: 0.45 },
+  // Desktop web (wave 6d, P1): the row becomes a grid tile — thumbnail on top
+  // at 4:3, the details under it, delete in the thumbnail's corner.
+  sheetCardDesktop: { flexDirection: 'column', alignItems: 'stretch', marginBottom: 0, gap: Layout.rowGap },
+  sheetThumbWrapDesktop: { width: '100%', height: undefined, aspectRatio: 4 / 3 },
+  sheetDeleteDesktop: {
+    position: 'absolute', top: Layout.rowGap, right: Layout.rowGap,
+    backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
+  },
   sheetThumb: { width: '100%', height: '100%' },
   sheetTagRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   sheetNumber: { color: t.accent, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },

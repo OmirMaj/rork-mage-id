@@ -1,0 +1,78 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane R3 — the phone is unchanged (golden) deliveries add sheet (header Add), iOS 390 1`] = `
+{
+  "lines": 465,
+  "sha256": "dbf56489ab427cb2d9e5cbb743fac439e153e29f4927ba4bebcce3b58ab0d851",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) deliveries at rest, iOS 390 1`] = `
+{
+  "lines": 465,
+  "sha256": "e9cf3aff86dbc332353b49a025d525501d38adb1feecb7353a7032d6e2d4df8a",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) deliveries at rest, web 390 1`] = `
+{
+  "lines": 465,
+  "sha256": "e9cf3aff86dbc332353b49a025d525501d38adb1feecb7353a7032d6e2d4df8a",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) deliveries at rest, web 768 1`] = `
+{
+  "lines": 465,
+  "sha256": "e9cf3aff86dbc332353b49a025d525501d38adb1feecb7353a7032d6e2d4df8a",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) deliveries receive sheet (receive-<id>), iOS 390 1`] = `
+{
+  "lines": 493,
+  "sha256": "6bb831d002285b923ef1802098ca416ba31174f97a94e239f69a4e2de671ece5",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) documents at rest, iOS 390 1`] = `
+{
+  "lines": 481,
+  "sha256": "329238f2f86e431b37b96322e35767d0525e2a2bf0647a11773d17dcaaecbc04",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) documents at rest, web 390 1`] = `
+{
+  "lines": 481,
+  "sha256": "329238f2f86e431b37b96322e35767d0525e2a2bf0647a11773d17dcaaecbc04",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) documents at rest, web 768 1`] = `
+{
+  "lines": 481,
+  "sha256": "329238f2f86e431b37b96322e35767d0525e2a2bf0647a11773d17dcaaecbc04",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) leads at rest, iOS 390 1`] = `
+{
+  "lines": 605,
+  "sha256": "2479e3c73831e7dbc05f13aceb09e09313b36c4b83abd96f11a48b8ac049a4d4",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) leads at rest, web 390 1`] = `
+{
+  "lines": 605,
+  "sha256": "2479e3c73831e7dbc05f13aceb09e09313b36c4b83abd96f11a48b8ac049a4d4",
+}
+`;
+
+exports[`lane R3 — the phone is unchanged (golden) leads at rest, web 768 1`] = `
+{
+  "lines": 605,
+  "sha256": "2479e3c73831e7dbc05f13aceb09e09313b36c4b83abd96f11a48b8ac049a4d4",
+}
+`;

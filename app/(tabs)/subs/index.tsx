@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import {View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking} from 'react-native';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import {View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking, type TextStyle} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useRouter } from 'expo-router';
@@ -20,7 +20,7 @@ import { computeSubScorecards, type SubGrade } from '@/utils/subScorecard';
 import type { Subcontractor, SubTrade } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { shareText } from '@/utils/shareText';
 import { generateUUID } from '@/utils/generateId';
 import { getLicenseLookupTarget } from '@/utils/licenseBoardLookup';
@@ -44,6 +44,11 @@ import {
 import { signW9Url } from '@/utils/coiFiles';
 import { readFileBytes } from '@/utils/fileBytes';
 import * as WebBrowser from 'expo-web-browser';
+import { desktopField, useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useSplitRecord } from '@/components/desktop/SplitView';
+import EmptyState from '@/components/EmptyState';
+import { SubsRegister } from '@/components/registers/SubsRegister';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -228,7 +233,24 @@ export default function SubsScreen() {
   const [filterTrade, setFilterTrade] = useState<SubTrade | 'All'>('All');
   const [showForm, setShowForm] = useState(false);
   const [editingSub, setEditingSub] = useState<Subcontractor | null>(null);
-  const [showDetail, setShowDetail] = useState<Subcontractor | null>(null);
+  // Desktop web (wave 6d, R2): the register — a table with the sub open
+  // beside it (?subId=). A phone, a native tablet and a narrow browser keep
+  // today's banners, stat cards and card list, with the detail sheet.
+  const isDesktopWeb = useIsDesktopWeb();
+  const isDesktop = useIsDesktop();
+  const [detailState, setDetailState] = useState<Subcontractor | null>(null);
+  const split = useSplitRecord({ param: 'subId' });
+  const showDetail = isDesktopWeb ? (subcontractors.find(s => s.id === split.openId) ?? null) : detailState;
+  // STABLE across renders (renderSub has deps [] and must never keep a
+  // desktop-era closure across a resize past the 900 px gate): it reads the
+  // live gate and split through a ref. Desktop web opens/closes the record
+  // in the URL; everywhere else it is today's sheet state.
+  const liveRef = useRef({ isDesktopWeb, split });
+  liveRef.current = { isDesktopWeb, split };
+  const setShowDetail = useCallback((s: Subcontractor | null) => {
+    const { isDesktopWeb: dw, split: sp } = liveRef.current;
+    if (dw) { if (s) sp.open(s.id); else sp.close(); } else setDetailState(s);
+  }, []);
 
   // The deterministic 0–100 grade, computed on THIS screen. It used to live
   // two navigation levels away (Discover ▸ Tools ▸ Sub Scorecard) while the
@@ -329,8 +351,9 @@ export default function SubsScreen() {
     setLegalName(sub.legalName ?? '');
     setW9DocPath(sub.w9DocPath);
     setShowForm(true);
-    setShowDetail(null);
-  }, []);
+    // Desktop web keeps the record open under the edit sheet.
+    if (!liveRef.current.isDesktopWeb) setShowDetail(null);
+  }, [setShowDetail]);
 
   const handleSave = useCallback(() => {
     const name = companyName.trim();
@@ -485,6 +508,187 @@ export default function SubsScreen() {
     return { approved, pending, issues, total: prequalPackets.length };
   }, [prequalPackets]);
 
+  // The open sub's body — the phone detail sheet's content, hoisted ONCE so
+  // the desktop register's record pane shows the same thing (a composite-
+  // level move: the sheet's host tree is unchanged).
+  const subDetailBody = showDetail ? (() => {
+    const sub = showDetail;
+    const status = getComplianceStatus(sub);
+    const statusColor = getStatusColor(status);
+    const statusTint = getStatusTint(status);
+    const missingDocs = missingComplianceDocs(sub);
+    return (
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.formHeader}>
+          <Text style={styles.formTitle}>{sub.companyName}</Text>
+          <TouchableOpacity onPress={() => setShowDetail(null)} accessibilityRole="button" accessibilityLabel="Close">
+            <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.detailStatusBar, { backgroundColor: statusTint, borderLeftColor: statusColor }]}>
+          {status === 'compliant'
+            ? <CheckCircle size={16} color={statusColor} strokeWidth={1.75} />
+            : status === 'expiring_soon'
+              ? <Clock size={16} color={statusColor} strokeWidth={1.75} />
+              : status === 'unknown'
+                ? <FileText size={16} color={statusColor} strokeWidth={1.75} />
+                : <AlertTriangle size={16} color={statusColor} strokeWidth={1.75} />}
+          {/* Name the gap. "Unknown" on its own tells the GC nothing
+              he can act on; the missing document does. */}
+          <Text style={[styles.detailStatusText, { color: statusColor }]} numberOfLines={2}>
+            {status === 'unknown'
+              ? (missingDocs.coi && missingDocs.license
+                  ? 'No license or COI expiry on file — insurance unverified'
+                  : missingDocs.coi
+                    ? 'No COI expiry on file — insurance unverified'
+                    : 'No license expiry on file')
+              : getStatusLabel(status, sub)}
+          </Text>
+        </View>
+
+        <View style={styles.detailSection}>
+          <Text style={styles.detailSectionTitle}>CONTACT</Text>
+          {sub.contactName ? <View style={styles.detailRow}><Users size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.contactName}</Text></View> : null}
+          {sub.phone ? <View style={styles.detailRow}><Phone size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.phone}</Text></View> : null}
+          {sub.email ? <View style={styles.detailRow}><Mail size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.email}</Text></View> : null}
+          {sub.address ? <View style={styles.detailRow}><MapPin size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.address}</Text></View> : null}
+        </View>
+
+        <View style={styles.detailSection}>
+          <Text style={styles.detailSectionTitle}>COMPLIANCE</Text>
+          <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not set'}</Text></View>
+          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License Expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
+          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI Expiry: {sub.coiExpiry || 'Not set'}</Text></View>
+          <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.successLabel : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
+
+          {/* Verification badges + deep-link to state board.
+              Two paths:
+                1. License state has first-class coverage → tap
+                   opens the official lookup deep-linked with
+                   the license number; GC stamps "verified".
+                2. No state set or unsupported → tap opens a
+                   Google search for the right board. */}
+          <LicenseVerificationCard
+            sub={sub}
+            onMarkVerified={(field) => {
+              const stamp = new Date().toISOString();
+              const updates = field === 'license'
+                ? { licenseVerifiedAt: stamp }
+                : { coiVerifiedAt: stamp };
+              updateSubcontractor(sub.id, updates);
+              // Refresh the open detail card so the badge state
+              // reflects what we just persisted.
+              setShowDetail({ ...sub, ...updates });
+            }}
+          />
+        </View>
+
+        {sub.bidHistory.length > 0 && (
+          <View style={styles.detailSection}>
+            <Text style={styles.detailSectionTitle}>BID HISTORY</Text>
+            {sub.bidHistory.map(bid => (
+              <View key={bid.id} style={styles.bidRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bidProject}>{bid.projectName}</Text>
+                  <Text style={styles.bidDate}>{new Date(bid.date).toLocaleDateString()}</Text>
+                </View>
+                <Text style={styles.bidAmount}>${bid.bidAmount.toLocaleString()}</Text>
+                <View style={[styles.bidOutcome, { backgroundColor: bid.outcome === 'won' ? Colors.successLight : bid.outcome === 'lost' ? Colors.errorLight : Colors.warningLight }]}>
+                  <Text style={[styles.bidOutcomeText, { color: bid.outcome === 'won' ? Colors.successLabel : bid.outcome === 'lost' ? Colors.dangerLabel : Colors.warningLabel }]}>
+                    {bid.outcome.charAt(0).toUpperCase() + bid.outcome.slice(1)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {sub.notes ? (
+          <View style={styles.detailSection}>
+            <Text style={styles.detailSectionTitle}>NOTES</Text>
+            <Text style={styles.detailNotes}>{sub.notes}</Text>
+          </View>
+        ) : null}
+
+        {/* Above the AI panel on purpose: this is the graded answer
+            built from the GC's own records, so it gets read first
+            and the model's opinion reads as commentary on it. */}
+        {(() => {
+          const card = openScorecard;
+          if (!card) return null;
+          const gradeColor = gradeLabelColor(card.grade);
+          return (
+            <View style={styles.detailSection}>
+              <Text style={styles.detailSectionTitle}>SCORECARD</Text>
+              <TouchableOpacity
+                style={styles.scorecardRow}
+                onPress={() => {
+                  // Close the sheet FIRST. This row lives inside a
+                  // transparent <Modal>, which iOS presents over the
+                  // whole app — pushing from under it leaves the
+                  // scorecard rendering behind the sheet and the tap
+                  // reads as dead. Same 350ms pageSheet-dismiss wait
+                  // components/UniversalSearch.tsx uses.
+                  const subId = sub.id;
+                  setShowDetail(null);
+                  setTimeout(
+                    () => router.push({ pathname: '/sub-scorecard', params: { subId } }),
+                    Platform.OS === 'ios' ? 350 : 0,
+                  );
+                }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Grade ${card.grade}, ${card.score} out of 100. ${card.topDriver}. Open the full scorecard.`}
+                testID="sub-detail-scorecard"
+              >
+                <View style={[styles.scorecardGrade, { backgroundColor: gradeColor + '1F' }]}>
+                  <Text style={[styles.scorecardGradeText, { color: gradeColor }]}>{card.grade}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.scorecardScore}>
+                    {card.score}/100 · {CONFIDENCE_LABEL[card.confidence]}
+                  </Text>
+                  {/* Say what the number is made of. `noHistory` means
+                      no signed commitment has ever been attributed to
+                      this sub, so the score is paperwork only — which
+                      is exactly the case where a bare grade would
+                      mislead a GC into treating it as a verdict. */}
+                  <Text style={styles.scorecardDriver} numberOfLines={3}>
+                    {card.noHistory
+                      ? 'No signed commitments yet — this grades compliance paperwork only. Award work through Buyout and the score gets real.'
+                      : card.topDriver}
+                  </Text>
+                </View>
+                <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
+
+        {/* Grounded in the scorecard card above (audit #115): the
+            evaluator used to read "0 bids, 0 assigned projects" —
+            fields nothing fills — for every sub. */}
+        <AISubEvaluator
+          sub={sub}
+          projectContext={evalGrounding.context}
+          grounding={evalGrounding}
+          subscriptionTier={tier as any}
+        />
+
+        <View style={[styles.detailActions, isDesktopWeb && styles.detailActionsDesktop]}>
+          <TouchableOpacity style={[styles.editDetailBtn, isDesktopWeb && styles.detailBtnDesktop]} onPress={() => openEdit(sub)} activeOpacity={0.7}>
+            <Text style={styles.editDetailBtnText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.deleteDetailBtn, isDesktopWeb && styles.detailBtnDesktop]} onPress={() => { void handleDelete(sub); }} activeOpacity={0.7}>
+            <Trash2 size={16} color={Colors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.deleteDetailBtnText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  })() : null;
+
   const renderSub = useCallback(({ item }: { item: Subcontractor }) => {
     const status = getComplianceStatus(item);
     const statusColor = getStatusColor(status);
@@ -529,8 +733,38 @@ export default function SubsScreen() {
     );
   }, []);
 
+  // The add/edit and detail sheets: centred 560 cards on desktop, today's
+  // bottom sheets on a phone (useSheetFrame's phone parts are all null). On
+  // desktop web the detail lives in the register's record pane instead.
+  const fForm = useSheetFrame('form', { visible: showForm, animationType: 'slide' });
+  const fDetail = useSheetFrame('form', { visible: !isDesktopWeb && showDetail !== null, animationType: 'slide' });
+  useSheetPrimaryHotkey(showForm, handleSave);
+
   return (
     <View style={styles.container}>
+      {isDesktopWeb ? (
+        <SubsRegister
+          subcontractors={subcontractors}
+          commitments={commitments}
+          changeOrders={changeOrders}
+          punchItems={punchItems}
+          projects={projects}
+          rfis={rfis}
+          split={split}
+          detail={showDetail ? subDetailBody : (
+            <EmptyState
+              icon={<Users size={28} color={Colors.primary} strokeWidth={1.75} />}
+              title="This sub isn't on your list any more"
+              message="He may have been deleted. Pick another sub from the list."
+              actionLabel="Close"
+              onAction={split.close}
+            />
+          )}
+          prequal={prequalSummary}
+          onNew={openCreate}
+          onInvite={() => { void handleInviteSubs(); }}
+        />
+      ) : (<>
       <FlatList
         {...fabScroll}
         data={filtered}
@@ -710,12 +944,13 @@ export default function SubsScreen() {
           </View>
         }
       />
+      </>)}
 
-      <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => { setShowForm(false); resetForm(); }}>
+      <Modal visible={showForm} transparent animationType={fForm.animationType} onRequestClose={() => { setShowForm(false); resetForm(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.modalOverlay, fForm.overlay]}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fForm.card]}>
                 <View style={styles.formHeader}>
                   <Text style={styles.formTitle}>{editingSub ? 'Edit Subcontractor' : 'Add Subcontractor'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
@@ -732,7 +967,7 @@ export default function SubsScreen() {
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Phone</Text>
-                    <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
+                    <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Email</Text>
@@ -761,14 +996,14 @@ export default function SubsScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>License Expiry</Text>
-                    <TextInput style={styles.input} value={licenseExpiry} onChangeText={setLicenseExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={licenseExpiry} onChangeText={setLicenseExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
                   </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>COI Expiry</Text>
-                    <TextInput style={styles.input} value={coiExpiry} onChangeText={setCoiExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={coiExpiry} onChangeText={setCoiExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
                   </View>
                   <View style={{ flex: 1, justifyContent: 'flex-end' }}>
                     <Text style={styles.fieldLabel}>W-9 On File</Text>
@@ -797,7 +1032,7 @@ export default function SubsScreen() {
                   <View style={{ width: 130 }}>
                     <Text style={styles.fieldLabel}>TIN (last 4)</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]}
                       value={taxIdLast4}
                       onChangeText={t => setTaxIdLast4(t.replace(/\D/g, '').slice(0, 4))}
                       placeholder="1234"
@@ -882,11 +1117,11 @@ export default function SubsScreen() {
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={Colors.textMuted} multiline />
 
-                <View style={styles.formActions}>
-                  <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
+                <View style={[styles.formActions, fForm.footer]}>
+                  <TouchableOpacity style={[styles.cancelBtn, fForm.footerButton]} onPress={() => { setShowForm(false); resetForm(); }}>
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-sub">
+                  <TouchableOpacity style={[styles.saveBtn, fForm.footerButton]} onPress={handleSave} activeOpacity={0.85} testID="save-sub">
                     <Text style={styles.saveBtnText}>{editingSub ? 'Update' : 'Add Subcontractor'}</Text>
                   </TouchableOpacity>
                 </View>
@@ -896,186 +1131,10 @@ export default function SubsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showDetail !== null} transparent animationType="slide" onRequestClose={() => setShowDetail(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.detailCard, { paddingBottom: insets.bottom + 20 }]}>
-            {showDetail && (() => {
-              const sub = showDetail;
-              const status = getComplianceStatus(sub);
-              const statusColor = getStatusColor(status);
-              const statusTint = getStatusTint(status);
-              const missingDocs = missingComplianceDocs(sub);
-              return (
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  <View style={styles.formHeader}>
-                    <Text style={styles.formTitle}>{sub.companyName}</Text>
-                    <TouchableOpacity onPress={() => setShowDetail(null)} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={[styles.detailStatusBar, { backgroundColor: statusTint, borderLeftColor: statusColor }]}>
-                    {status === 'compliant'
-                      ? <CheckCircle size={16} color={statusColor} strokeWidth={1.75} />
-                      : status === 'expiring_soon'
-                        ? <Clock size={16} color={statusColor} strokeWidth={1.75} />
-                        : status === 'unknown'
-                          ? <FileText size={16} color={statusColor} strokeWidth={1.75} />
-                          : <AlertTriangle size={16} color={statusColor} strokeWidth={1.75} />}
-                    {/* Name the gap. "Unknown" on its own tells the GC nothing
-                        he can act on; the missing document does. */}
-                    <Text style={[styles.detailStatusText, { color: statusColor }]} numberOfLines={2}>
-                      {status === 'unknown'
-                        ? (missingDocs.coi && missingDocs.license
-                            ? 'No license or COI expiry on file — insurance unverified'
-                            : missingDocs.coi
-                              ? 'No COI expiry on file — insurance unverified'
-                              : 'No license expiry on file')
-                        : getStatusLabel(status, sub)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>CONTACT</Text>
-                    {sub.contactName ? <View style={styles.detailRow}><Users size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.contactName}</Text></View> : null}
-                    {sub.phone ? <View style={styles.detailRow}><Phone size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.phone}</Text></View> : null}
-                    {sub.email ? <View style={styles.detailRow}><Mail size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.email}</Text></View> : null}
-                    {sub.address ? <View style={styles.detailRow}><MapPin size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.address}</Text></View> : null}
-                  </View>
-
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>COMPLIANCE</Text>
-                    <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not set'}</Text></View>
-                    <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License Expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
-                    <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI Expiry: {sub.coiExpiry || 'Not set'}</Text></View>
-                    <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.successLabel : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
-
-                    {/* Verification badges + deep-link to state board.
-                        Two paths:
-                          1. License state has first-class coverage → tap
-                             opens the official lookup deep-linked with
-                             the license number; GC stamps "verified".
-                          2. No state set or unsupported → tap opens a
-                             Google search for the right board. */}
-                    <LicenseVerificationCard
-                      sub={sub}
-                      onMarkVerified={(field) => {
-                        const stamp = new Date().toISOString();
-                        const updates = field === 'license'
-                          ? { licenseVerifiedAt: stamp }
-                          : { coiVerifiedAt: stamp };
-                        updateSubcontractor(sub.id, updates);
-                        // Refresh the open detail card so the badge state
-                        // reflects what we just persisted.
-                        setShowDetail({ ...sub, ...updates });
-                      }}
-                    />
-                  </View>
-
-                  {sub.bidHistory.length > 0 && (
-                    <View style={styles.detailSection}>
-                      <Text style={styles.detailSectionTitle}>BID HISTORY</Text>
-                      {sub.bidHistory.map(bid => (
-                        <View key={bid.id} style={styles.bidRow}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.bidProject}>{bid.projectName}</Text>
-                            <Text style={styles.bidDate}>{new Date(bid.date).toLocaleDateString()}</Text>
-                          </View>
-                          <Text style={styles.bidAmount}>${bid.bidAmount.toLocaleString()}</Text>
-                          <View style={[styles.bidOutcome, { backgroundColor: bid.outcome === 'won' ? Colors.successLight : bid.outcome === 'lost' ? Colors.errorLight : Colors.warningLight }]}>
-                            <Text style={[styles.bidOutcomeText, { color: bid.outcome === 'won' ? Colors.successLabel : bid.outcome === 'lost' ? Colors.dangerLabel : Colors.warningLabel }]}>
-                              {bid.outcome.charAt(0).toUpperCase() + bid.outcome.slice(1)}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {sub.notes ? (
-                    <View style={styles.detailSection}>
-                      <Text style={styles.detailSectionTitle}>NOTES</Text>
-                      <Text style={styles.detailNotes}>{sub.notes}</Text>
-                    </View>
-                  ) : null}
-
-                  {/* Above the AI panel on purpose: this is the graded answer
-                      built from the GC's own records, so it gets read first
-                      and the model's opinion reads as commentary on it. */}
-                  {(() => {
-                    const card = openScorecard;
-                    if (!card) return null;
-                    const gradeColor = gradeLabelColor(card.grade);
-                    return (
-                      <View style={styles.detailSection}>
-                        <Text style={styles.detailSectionTitle}>SCORECARD</Text>
-                        <TouchableOpacity
-                          style={styles.scorecardRow}
-                          onPress={() => {
-                            // Close the sheet FIRST. This row lives inside a
-                            // transparent <Modal>, which iOS presents over the
-                            // whole app — pushing from under it leaves the
-                            // scorecard rendering behind the sheet and the tap
-                            // reads as dead. Same 350ms pageSheet-dismiss wait
-                            // components/UniversalSearch.tsx uses.
-                            const subId = sub.id;
-                            setShowDetail(null);
-                            setTimeout(
-                              () => router.push({ pathname: '/sub-scorecard', params: { subId } }),
-                              Platform.OS === 'ios' ? 350 : 0,
-                            );
-                          }}
-                          activeOpacity={0.8}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Grade ${card.grade}, ${card.score} out of 100. ${card.topDriver}. Open the full scorecard.`}
-                          testID="sub-detail-scorecard"
-                        >
-                          <View style={[styles.scorecardGrade, { backgroundColor: gradeColor + '1F' }]}>
-                            <Text style={[styles.scorecardGradeText, { color: gradeColor }]}>{card.grade}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.scorecardScore}>
-                              {card.score}/100 · {CONFIDENCE_LABEL[card.confidence]}
-                            </Text>
-                            {/* Say what the number is made of. `noHistory` means
-                                no signed commitment has ever been attributed to
-                                this sub, so the score is paperwork only — which
-                                is exactly the case where a bare grade would
-                                mislead a GC into treating it as a verdict. */}
-                            <Text style={styles.scorecardDriver} numberOfLines={3}>
-                              {card.noHistory
-                                ? 'No signed commitments yet — this grades compliance paperwork only. Award work through Buyout and the score gets real.'
-                                : card.topDriver}
-                            </Text>
-                          </View>
-                          <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })()}
-
-                  {/* Grounded in the scorecard card above (audit #115): the
-                      evaluator used to read "0 bids, 0 assigned projects" —
-                      fields nothing fills — for every sub. */}
-                  <AISubEvaluator
-                    sub={sub}
-                    projectContext={evalGrounding.context}
-                    grounding={evalGrounding}
-                    subscriptionTier={tier as any}
-                  />
-
-                  <View style={styles.detailActions}>
-                    <TouchableOpacity style={styles.editDetailBtn} onPress={() => openEdit(sub)} activeOpacity={0.7}>
-                      <Text style={styles.editDetailBtnText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.deleteDetailBtn} onPress={() => { void handleDelete(sub); }} activeOpacity={0.7}>
-                      <Trash2 size={16} color={Colors.dangerLabel} strokeWidth={1.75} />
-                      <Text style={styles.deleteDetailBtnText}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                </ScrollView>
-              );
-            })()}
+      <Modal visible={!isDesktopWeb && showDetail !== null} transparent animationType={fDetail.animationType} onRequestClose={() => setShowDetail(null)}>
+        <View style={[styles.modalOverlay, fDetail.overlay]}>
+          <View style={[styles.detailCard, { paddingBottom: insets.bottom + 20 }, fDetail.card]}>
+            {subDetailBody}
           </View>
         </View>
       </Modal>
@@ -1193,4 +1252,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   deleteDetailBtn: { flexDirection: 'row', minHeight: 48, paddingHorizontal: 20, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center', gap: 6 },
   deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.dangerLabel },
+  // Desktop web (the record pane): Edit and Delete right-aligned at button size.
+  detailActionsDesktop: { justifyContent: 'flex-end' },
+  detailBtnDesktop: { flexGrow: 0, minWidth: Layout.button.minWidth.lg, minHeight: Layout.control.md, height: Layout.control.md },
 });

@@ -24,6 +24,8 @@ import { Tokens } from '@/constants/designTokens';
 import { parseCalendarDay, calendarDayOf, todayCalendarDay } from '@/utils/calendarDate';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { DocumentsRegister } from '@/components/registers/DocumentsRegister';
 
 // ── WHAT A ROW SAYS ABOUT ITSELF (audit 2026-09-23 #161) ────────────────────
 // This feed used to squeeze every document into the five e-signature states of
@@ -186,6 +188,9 @@ export default function DocumentsScreen() {
     projects, cois, permits, submittals, aiaPayApps, subcontractors, invoices,
   } = useProjects();
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  // Desktop web only: the feed becomes a table of links (the Project files
+  // rail beside it). The phone and a native tablet keep today's cards.
+  const isDesktopWeb = useIsDesktopWeb();
 
   const documents = useMemo<DocRow[]>(() => {
     const projectById = new Map(projects.map(p => [p.id, p.name]));
@@ -376,179 +381,193 @@ export default function DocumentsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
-      <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
-        {/* Centered icon-circle hero — same look as Construction AI,
-            AI Punch, Reports. Replaces the small explainer note that
-            used to live at the top so the screen has the same visual
-            anchor as the rest of the app. */}
-        <View style={styles.docsHero}>
-          <View style={styles.docsHeroIcon}>
-            <FileText size={26} color={themeColors.accent} strokeWidth={1.75} />
-          </View>
-          <Text style={styles.docsHeroTitle}>Documents</Text>
-          {/* No contracts here: contracts are not aggregated into this feed,
-              so the old 'Every contract, …' promise was false (#161). */}
-          <Text style={styles.docsHeroSub}>
-            Your COIs, permits, submittals and AIA pay apps across your projects — in one feed. Tap any card to open it where it lives.
-          </Text>
-        </View>
-        <View style={styles.alertsRow}>
-          {stats.coiFailed + stats.coiReview > 0 && (
-            <TouchableOpacity
-              style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}
-              onPress={() => router.push('/coi-vault' as never)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Open the COI Vault"
-              testID="documents-coi-risk"
-            >
-              <ShieldAlert size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>
-                  {[
-                    stats.coiFailed > 0 ? `${stats.coiFailed} COI${stats.coiFailed === 1 ? '' : 's'} failed the insurance check` : null,
-                    stats.coiReview > 0 ? `${stats.coiReview} need${stats.coiReview === 1 ? 's' : ''} review` : null,
-                  ].filter(Boolean).join(' · ')}
-                </Text>
-                <Text style={styles.alertDesc}>Open the COI Vault to see what is missing before the sub is on site</Text>
+      {isDesktopWeb ? (
+        <DocumentsRegister
+          documents={documents}
+          stats={stats}
+          selectedFilter={selectedFilter}
+          setSelectedFilter={setSelectedFilter}
+          fileProjects={fileProjects}
+          cois={cois}
+          aiaPayApps={aiaPayApps}
+        />
+      ) : (
+        <>
+          <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
+          <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
+            {/* Centered icon-circle hero — same look as Construction AI,
+                AI Punch, Reports. Replaces the small explainer note that
+                used to live at the top so the screen has the same visual
+                anchor as the rest of the app. */}
+            <View style={styles.docsHero}>
+              <View style={styles.docsHeroIcon}>
+                <FileText size={26} color={themeColors.accent} strokeWidth={1.75} />
               </View>
-              <ChevronRight size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
-            </TouchableOpacity>
-          )}
-          {stats.pending > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]}>
-              <Clock size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: themeColors.warningLabel }]}>{stats.pending} Waiting</Text>
-                <Text style={styles.alertDesc}>On a review, an inspection or a payment</Text>
-              </View>
+              <Text style={styles.docsHeroTitle}>Documents</Text>
+              {/* No contracts here: contracts are not aggregated into this feed,
+                  so the old 'Every contract, …' promise was false (#161). */}
+              <Text style={styles.docsHeroSub}>
+                Your COIs, permits, submittals and AIA pay apps across your projects — in one feed. Tap any card to open it where it lives.
+              </Text>
             </View>
-          )}
-          {stats.expiringSoon > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}>
-              <AlertCircle size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>{stats.expiringSoon} Expiring Soon</Text>
-                <Text style={styles.alertDesc}>COIs and permits expiring within 30 days</Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: themeColors.warningLabel }]}>{stats.pending}</Text>
-            <Text style={styles.statLabel}>Waiting</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: themeColors.success }]}>{stats.done}</Text>
-            <Text style={styles.statLabel}>Done</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: themeColors.dangerLabel }]}>{stats.expired}</Text>
-            <Text style={styles.statLabel}>Expired</Text>
-          </View>
-        </View>
-
-        {/* "Create Document" CTA removed when this screen converted to a
-            read-only aggregator. Each document type has its own home
-            screen with its own create flow (coi-vault, permits, etc.). */}
-
-        {fileProjects.length > 0 && (
-          <View style={styles.filesCard} testID="documents-project-files">
-            <View style={styles.filesHead}>
-              <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.filesTitle}>Uploaded files and scans</Text>
-            </View>
-            <Text style={styles.filesBody}>
-              Files you upload and documents Scan Anything files are kept in each project&apos;s Files, not in this feed.
-            </Text>
-            <View style={styles.filesList}>
-              {fileProjects.map(p => (
+            <View style={styles.alertsRow}>
+              {stats.coiFailed + stats.coiReview > 0 && (
                 <TouchableOpacity
-                  key={p.id}
-                  style={styles.filesRow}
-                  onPress={() => openProjectFiles(p.id)}
+                  style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}
+                  onPress={() => router.push('/coi-vault' as never)}
+                  activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open files for ${p.name}`}
+                  accessibilityLabel="Open the COI Vault"
+                  testID="documents-coi-risk"
                 >
-                  <Text style={styles.filesRowText} numberOfLines={1}>{p.name}</Text>
-                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                  <ShieldAlert size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>
+                      {[
+                        stats.coiFailed > 0 ? `${stats.coiFailed} COI${stats.coiFailed === 1 ? '' : 's'} failed the insurance check` : null,
+                        stats.coiReview > 0 ? `${stats.coiReview} need${stats.coiReview === 1 ? 's' : ''} review` : null,
+                      ].filter(Boolean).join(' · ')}
+                    </Text>
+                    <Text style={styles.alertDesc}>Open the COI Vault to see what is missing before the sub is on site</Text>
+                  </View>
+                  <ChevronRight size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                </TouchableOpacity>
+              )}
+              {stats.pending > 0 && (
+                <View style={[styles.alertCard, { backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]}>
+                  <Clock size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.alertTitle, { color: themeColors.warningLabel }]}>{stats.pending} Waiting</Text>
+                    <Text style={styles.alertDesc}>On a review, an inspection or a payment</Text>
+                  </View>
+                </View>
+              )}
+              {stats.expiringSoon > 0 && (
+                <View style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}>
+                  <AlertCircle size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>{stats.expiringSoon} Expiring Soon</Text>
+                    <Text style={styles.alertDesc}>COIs and permits expiring within 30 days</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{stats.total}</Text>
+                <Text style={styles.statLabel}>Total</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: themeColors.warningLabel }]}>{stats.pending}</Text>
+                <Text style={styles.statLabel}>Waiting</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: themeColors.success }]}>{stats.done}</Text>
+                <Text style={styles.statLabel}>Done</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={[styles.statValue, { color: themeColors.dangerLabel }]}>{stats.expired}</Text>
+                <Text style={styles.statLabel}>Expired</Text>
+              </View>
+            </View>
+
+            {/* "Create Document" CTA removed when this screen converted to a
+                read-only aggregator. Each document type has its own home
+                screen with its own create flow (coi-vault, permits, etc.). */}
+
+            {fileProjects.length > 0 && (
+              <View style={styles.filesCard} testID="documents-project-files">
+                <View style={styles.filesHead}>
+                  <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.filesTitle}>Uploaded files and scans</Text>
+                </View>
+                <Text style={styles.filesBody}>
+                  Files you upload and documents Scan Anything files are kept in each project&apos;s Files, not in this feed.
+                </Text>
+                <View style={styles.filesList}>
+                  {fileProjects.map(p => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={styles.filesRow}
+                      onPress={() => openProjectFiles(p.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open files for ${p.name}`}
+                    >
+                      <Text style={styles.filesRowText} numberOfLines={1}>{p.name}</Text>
+                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {filters.map(f => (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.filterChip, selectedFilter === f.id && styles.filterChipActive]}
+                  onPress={() => {
+                    setSelectedFilter(f.id);
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterChipText, selectedFilter === f.id && styles.filterChipTextActive]}>
+                    {f.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
+            </ScrollView>
+
+            <View style={styles.listSection}>
+              {filtered.length === 0 ? (
+                // This used to be an icon and the words "No documents found" —
+                // no body copy, no CTA, on a hub whose hero has just promised
+                // every contract, COI, permit, submittal and pay-app in one feed.
+                // The likeliest read was that the feature is broken, and universal
+                // search routes people here on "files" / "docs" / "folders"
+                // (utils/featureRegistry.ts). The screen is a read-only
+                // aggregator, so the honest CTA is a pointer to the four create
+                // homes it aggregates FROM — audit 2026-09-07 "Do now" list.
+                //
+                // Two different states share the block: nothing filed anywhere,
+                // and nothing matching the chip that is currently selected. The
+                // second one is the user's own filter, not an empty account.
+                <EmptyState
+                  icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.75} />}
+                  title={documents.length === 0 ? 'Nothing filed yet' : 'Nothing under this filter'}
+                  message={
+                    documents.length === 0
+                      ? 'This screen collects documents — it does not create them. Each kind is filed on its own screen and shows up here automatically.'
+                      : `You have ${documents.length} document${documents.length === 1 ? '' : 's'}, but none are filed under "${filters.find(f => f.id === selectedFilter)?.label ?? selectedFilter}". Nothing is missing — this is the filter, not the feed.`
+                  }
+                  steps={documents.length === 0 ? [
+                    'COIs: add a subcontractor certificate in the COI Vault.',
+                    'Permits: log an application on the Permits screen.',
+                    'Submittals and pay apps: open a project — both are filed inside one.',
+                  ] : undefined}
+                  actionLabel={documents.length === 0 ? 'Open COI Vault' : 'Show all'}
+                  onAction={() => {
+                    if (documents.length === 0) router.push('/coi-vault' as never);
+                    else setSelectedFilter('all');
+                  }}
+                  secondaryLabel={documents.length === 0 ? 'Open Permits' : undefined}
+                  onSecondaryAction={() => router.push('/permits' as never)}
+                />
+              ) : (
+                filtered.map(doc => (
+                  <DocumentCard key={doc.id} doc={doc} onPress={() => handleDocPress(doc)} />
+                ))
+              )}
             </View>
-          </View>
-        )}
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-        >
-          {filters.map(f => (
-            <TouchableOpacity
-              key={f.id}
-              style={[styles.filterChip, selectedFilter === f.id && styles.filterChipActive]}
-              onPress={() => {
-                setSelectedFilter(f.id);
-                if (Platform.OS !== 'web') void Haptics.selectionAsync();
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterChipText, selectedFilter === f.id && styles.filterChipTextActive]}>
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={styles.listSection}>
-          {filtered.length === 0 ? (
-            // This used to be an icon and the words "No documents found" —
-            // no body copy, no CTA, on a hub whose hero has just promised
-            // every contract, COI, permit, submittal and pay-app in one feed.
-            // The likeliest read was that the feature is broken, and universal
-            // search routes people here on "files" / "docs" / "folders"
-            // (utils/featureRegistry.ts). The screen is a read-only
-            // aggregator, so the honest CTA is a pointer to the four create
-            // homes it aggregates FROM — audit 2026-09-07 "Do now" list.
-            //
-            // Two different states share the block: nothing filed anywhere,
-            // and nothing matching the chip that is currently selected. The
-            // second one is the user's own filter, not an empty account.
-            <EmptyState
-              icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title={documents.length === 0 ? 'Nothing filed yet' : 'Nothing under this filter'}
-              message={
-                documents.length === 0
-                  ? 'This screen collects documents — it does not create them. Each kind is filed on its own screen and shows up here automatically.'
-                  : `You have ${documents.length} document${documents.length === 1 ? '' : 's'}, but none are filed under "${filters.find(f => f.id === selectedFilter)?.label ?? selectedFilter}". Nothing is missing — this is the filter, not the feed.`
-              }
-              steps={documents.length === 0 ? [
-                'COIs: add a subcontractor certificate in the COI Vault.',
-                'Permits: log an application on the Permits screen.',
-                'Submittals and pay apps: open a project — both are filed inside one.',
-              ] : undefined}
-              actionLabel={documents.length === 0 ? 'Open COI Vault' : 'Show all'}
-              onAction={() => {
-                if (documents.length === 0) router.push('/coi-vault' as never);
-                else setSelectedFilter('all');
-              }}
-              secondaryLabel={documents.length === 0 ? 'Open Permits' : undefined}
-              onSecondaryAction={() => router.push('/permits' as never)}
-            />
-          ) : (
-            filtered.map(doc => (
-              <DocumentCard key={doc.id} doc={doc} onPress={() => handleDocPress(doc)} />
-            ))
-          )}
-        </View>
-      </ScrollView>
+          </ScrollView>
+        </>
+      )}
     </View>
   );
 }

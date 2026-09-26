@@ -155,11 +155,16 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'construction-news': 'dashboard',
   'activity-feed': 'dashboard', 'ai-punch': 'dashboard', 'bill-from-estimate': 'dashboard',
   'building-access': 'dashboard', 'buyout': 'dashboard', 'buyout-scope-gap': 'dashboard',
-  'client-outbox': 'dashboard', 'coi-vault': 'dashboard', 'company-detail': 'dashboard',
-  'deliveries': 'dashboard', 'documents': 'dashboard',
+  'client-outbox': 'dashboard', 'company-detail': 'dashboard',
+  // Wave 6d, lane R3: Deliveries and Documents are registers too (the Pipeline
+  // stays 'bleed'; RegisterShell self-caps it at Layout.page.table).
+  'deliveries': 'table', 'documents': 'table',
   // Wave 6d, lane R1: Contacts and Crew are registers (a table with the record
   // beside it) — the logs' 'table' width, so 2560 splits 652 | 8 | 892.
   'contacts': 'table', 'crew': 'table',
+  // Wave 6d, lane R2: the COI Vault is a register too (the Subs tab's entry
+  // is in TAB_PAGE_TYPE).
+  'coi-vault': 'table',
   'estimate-accuracy': 'dashboard', 'estimate-calibration': 'dashboard',
   'estimate-confidence': 'dashboard', 'estimate-scorecard': 'dashboard',
   'extract-submittals': 'dashboard', 'handover': 'dashboard', 'integrations': 'dashboard',
@@ -212,6 +217,8 @@ export const SELF_CAPPED_ROUTES: ReadonlySet<string> = new Set([
 export const TAB_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'estimate': 'table',
   '(home)': 'table',
+  // Wave 6d, lane R2: Subs is a register (a table with the sub beside it).
+  'subs': 'table',
 };
 
 /** The top-level segment of a route name ('integrations/qbo/callback' → 'integrations'). */

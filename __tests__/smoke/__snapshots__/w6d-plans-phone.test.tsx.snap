@@ -1,0 +1,85 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane P1 — the phone is unchanged (golden) plans list, iOS 390 1`] = `
+{
+  "lines": 614,
+  "sha256": "287680e66a784c968fc6e52409788f17bf801e3374f66cd9b3f3532a5340c2a5",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) plans list, web 390 1`] = `
+{
+  "lines": 614,
+  "sha256": "287680e66a784c968fc6e52409788f17bf801e3374f66cd9b3f3532a5340c2a5",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) plans project picker, iOS 390 1`] = `
+{
+  "lines": 331,
+  "sha256": "91efd2ff8e2d137f8be3f42825ed239a9630d2d0148e32ef69a0a7bb09debd23",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) plans project picker, web 390 1`] = `
+{
+  "lines": 331,
+  "sha256": "91efd2ff8e2d137f8be3f42825ed239a9630d2d0148e32ef69a0a7bb09debd23",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) plans with superseded shown, iOS 390 1`] = `
+{
+  "lines": 656,
+  "sha256": "19ab852219829d836499faad65832c4e908ece7c831d77d64020471c58a9046d",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) plans with the Ask sheet open, iOS 390 1`] = `
+{
+  "lines": 614,
+  "sha256": "81053dd13d457d2417b39b1bd6450b4a43c081d9529682aa87a6febe137894e7",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) plans with the Ask sheet open, web 390 1`] = `
+{
+  "lines": 614,
+  "sha256": "81053dd13d457d2417b39b1bd6450b4a43c081d9529682aa87a6febe137894e7",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) viewer A-101 Rev 1 (superseded banner), iOS 390 1`] = `
+{
+  "lines": 466,
+  "sha256": "fc6fe5ca9851f15e69878d18295ca7f9b0266534a7623a1c62ec2927feed72a8",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) viewer A-101 Rev 1 (superseded banner), web 390 1`] = `
+{
+  "lines": 466,
+  "sha256": "fc6fe5ca9851f15e69878d18295ca7f9b0266534a7623a1c62ec2927feed72a8",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) viewer A-101 Rev 2, iOS 390 1`] = `
+{
+  "lines": 455,
+  "sha256": "98f35ed5a73c248d027ea0562da63fe0d5028be76716e8e3f133b5ba356ea47b",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) viewer A-101 Rev 2, web 390 1`] = `
+{
+  "lines": 455,
+  "sha256": "98f35ed5a73c248d027ea0562da63fe0d5028be76716e8e3f133b5ba356ea47b",
+}
+`;
+
+exports[`lane P1 — the phone is unchanged (golden) viewer with the pin sheet open, iOS 390 1`] = `
+{
+  "lines": 558,
+  "sha256": "bc7dcbfcb44fce09b5001667a0d84c1fd84c9488d47a8f13c097010ca11f648b",
+}
+`;

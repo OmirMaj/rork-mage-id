@@ -8,7 +8,7 @@
 // screens are pixel-identical by construction.
 
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, InputAccessoryView, Keyboard, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, InputAccessoryView, Keyboard, Platform, type TextStyle } from 'react-native';
 import { Building2, DollarSign, Home, Wrench } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import type { ThemeColors } from '@/constants/colors';
@@ -20,6 +20,7 @@ import {
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { desktopField, useIsDesktop } from '@/components/ui/desktop';
 
 // iOS numeric + multiline keyboards have no return key to dismiss, so if the
 // footer's Next button sits behind the keyboard the user is trapped (the
@@ -71,19 +72,25 @@ function StepCard({
   accent,
   Icon,
   children,
+  compact = false,
 }: {
   step: ScopeStep;
   styles: StylesFor;
   accent: string;
   Icon: React.ComponentType<{ size?: number; color?: string }>;
   children: React.ReactNode;
+  /** Wave 6d (desktop one-page wizard): no icon disc, a smaller title. The
+   *  default branch is the element tree above, unchanged. */
+  compact?: boolean;
 }) {
   return (
     <View>
-      <View style={styles.stepIconWrap}>
-        <Icon size={28} color={accent} />
-      </View>
-      <Text style={styles.stepTitle}>{step.title}</Text>
+      {compact ? null : (
+        <View style={styles.stepIconWrap}>
+          <Icon size={28} color={accent} />
+        </View>
+      )}
+      <Text style={compact ? [styles.stepTitle, styles.stepTitleCompact] : styles.stepTitle}>{step.title}</Text>
       <Text style={styles.stepSubtitle}>{step.subtitle}</Text>
       <View style={{ marginTop: 16 }}>{children}</View>
     </View>
@@ -103,6 +110,11 @@ export interface ScopeQuestionStepperProps {
   answers: WizardAnswers;
   onChange: <K extends keyof WizardAnswers>(key: K, value: WizardAnswers[K]) => void;
   testIDPrefix?: string;
+  /** 'compact' (wave 6d): the desktop one-page wizard stacks all eight steps,
+   *  so each drops its icon disc, takes a smaller title and caps its short
+   *  inputs at a field width on desktop. Default 'default' renders exactly
+   *  what it always has (app/project-scope.tsx and the phone wizard). */
+  density?: 'default' | 'compact';
 }
 
 export function ScopeQuestionStepper({
@@ -110,8 +122,11 @@ export function ScopeQuestionStepper({
   answers,
   onChange,
   testIDPrefix = 'scope',
+  density = 'default',
 }: ScopeQuestionStepperProps) {
   const { colors: themeColors } = useTheme();
+  const isDesktop = useIsDesktop();
+  const compact = density === 'compact';
   const styles = useThemedStyles(makeStyles);
   // Q6 · "Other (describe it)". Open when he tapped it, or when the answer is
   // already his own words (an Other job seeded by the wizard / scope screen,
@@ -233,7 +248,7 @@ export function ScopeQuestionStepper({
               placeholderTextColor={themeColors.textMuted}
               keyboardType="numeric"
               inputAccessoryViewID={KB_DONE_ID}
-              style={styles.input}
+              style={compact ? [styles.input, isDesktop && compact && (desktopField('sm') as TextStyle)] : styles.input}
               testID={`${testIDPrefix}-${stringKey}`}
             />
             {NUMERIC_HINTS[stringKey] ? (
@@ -252,7 +267,7 @@ export function ScopeQuestionStepper({
             onChangeText={(v) => onChange(stringKey, v)}
             placeholder={step.placeholder}
             placeholderTextColor={themeColors.textMuted}
-            style={styles.input}
+            style={compact ? [styles.input, isDesktop && compact && (desktopField('md') as TextStyle)] : styles.input}
             testID={`${testIDPrefix}-${stringKey}`}
           />
         );
@@ -286,7 +301,7 @@ export function ScopeQuestionStepper({
   };
 
   return (
-    <StepCard step={step} styles={styles} accent={themeColors.accent} Icon={Icon}>
+    <StepCard step={step} styles={styles} accent={themeColors.accent} Icon={Icon} compact={compact}>
       {renderInput()}
     </StepCard>
   );
@@ -314,6 +329,8 @@ const makeStyles = (themeColors: ThemeColors) =>
       color: themeColors.text,
       marginBottom: 6,
     },
+    // Compact density only (not a header role — the title stays the serif).
+    stepTitleCompact: { fontSize: Type.headline.fontSize },
     stepSubtitle: {
       fontSize: Type.subhead.fontSize,
       color: themeColors.textMuted,

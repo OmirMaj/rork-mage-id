@@ -19,7 +19,11 @@ import { listPriceLabel } from '@/constants/pricing';
 import type { PaidTier } from '@/constants/pricing';
 import { planFeatureBlurb } from '@/utils/planFeatureCopy';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { TileGrid } from '@/components/ui/TileGrid';
+import { useIsDesktop } from '@/components/ui/desktop';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { FORM_GRID_TWO_COL_MIN } from '@/utils/splitViewLayout';
 import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
 import type { SignupPlan } from '@/utils/signupIntent';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
@@ -763,6 +767,59 @@ function WebPaywallView({
   };
 }) {
   const wp = webPurchase;
+  // Wave 6d: on desktop the page is capped at the dashboard column and
+  // centred; the plan tiles sit side by side (TileGrid 'content'), and the
+  // two tables sit side by side once the content column is >= 1100. The
+  // phone renders exactly what it did.
+  const isDesktop = useIsDesktop();
+  const { width: pw, onLayout } = useContainerWidth();
+  const tablesSideBySide = isDesktop && Math.min(pw, Layout.page.dashboard) - 2 * Layout.gutter >= FORM_GRID_TWO_COL_MIN;
+  // The Feature matrix and AI-quota tables, hoisted so desktop can set them
+  // side by side (below). The phone renders the same two blocks in place.
+  const featureTable = (
+    <View style={[{ marginBottom: 24 }, isDesktop && tablesSideBySide && styles.webTableCol]}>
+      <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>What unlocks at each tier</Text>
+      <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
+        <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
+          <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Feature</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Free</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Pro</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Business</Text>
+        </View>
+        {FEATURES.map((row, i) => (
+          <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: i < FEATURES.length - 1 ? 1 : 0, borderColor: themeColors.line }}>
+            <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{row.label}</Text>
+            <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.free} note={row.freeNote} colors={themeColors} /></View>
+            <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.pro} colors={themeColors} /></View>
+            <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.business} colors={themeColors} /></View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+  const quotaTable = (
+    <View style={[{ marginBottom: 24 }, isDesktop && tablesSideBySide && styles.webTableCol]}>
+      <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>AI quotas</Text>
+      <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
+        <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
+          <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Quota</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Free</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Pro</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Bus</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Ent</Text>
+        </View>
+        {AI_LIMITS.map((row, i) => (
+          <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: i < AI_LIMITS.length - 1 ? 1 : 0, borderColor: themeColors.line }}>
+            <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{row.label}</Text>
+            <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textSecondary, fontSize: 13 }}>{row.free}</Text>
+            <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{row.pro}</Text>
+            <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{row.business}</Text>
+            <Text style={{ flex: 1, textAlign: 'center', color: themeColors.accent, fontSize: 13, fontWeight: '700' }}>{row.enterprise}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
   const openAppStore = useCallback(() => {
     void Linking.openURL('https://apps.apple.com/app/id6762229238');
   }, []);
@@ -780,7 +837,7 @@ function WebPaywallView({
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: 40 }, isDesktop && styles.webPageDesktop]} {...(isDesktop ? { onLayout } : null)}>
         {/* Hero */}
         <View style={{ alignItems: 'center', marginBottom: 24 }}>
           <IconWrapper icon={Crown} tone="accent" size="md" />
@@ -852,7 +909,7 @@ function WebPaywallView({
         </View>
 
         {/* Plan tiles — read-only on web */}
-        <View style={{ gap: 14, marginBottom: 28 }}>
+        <TileGrid preset="content" phoneStyle={{ gap: 14, marginBottom: 28 }}>
           {([
             // Blurbs derived from REQUIRED_TIER via utils/planFeatureCopy (#125/#171):
             // the Business tile used to sell RFIs, submittals and plans — all Pro.
@@ -901,51 +958,13 @@ function WebPaywallView({
               ) : null}
             </View>
           ))}
-        </View>
+        </TileGrid>
 
-        {/* Feature matrix */}
-        <View style={{ marginBottom: 24 }}>
-          <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>What unlocks at each tier</Text>
-          <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
-            <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
-              <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Feature</Text>
-              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Free</Text>
-              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Pro</Text>
-              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Business</Text>
-            </View>
-            {FEATURES.map((row, i) => (
-              <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: i < FEATURES.length - 1 ? 1 : 0, borderColor: themeColors.line }}>
-                <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{row.label}</Text>
-                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.free} note={row.freeNote} colors={themeColors} /></View>
-                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.pro} colors={themeColors} /></View>
-                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.business} colors={themeColors} /></View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* AI quota matrix */}
-        <View style={{ marginBottom: 24 }}>
-          <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>AI quotas</Text>
-          <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
-            <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
-              <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Quota</Text>
-              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Free</Text>
-              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Pro</Text>
-              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Bus</Text>
-              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Ent</Text>
-            </View>
-            {AI_LIMITS.map((row, i) => (
-              <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: i < AI_LIMITS.length - 1 ? 1 : 0, borderColor: themeColors.line }}>
-                <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{row.label}</Text>
-                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textSecondary, fontSize: 13 }}>{row.free}</Text>
-                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{row.pro}</Text>
-                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{row.business}</Text>
-                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.accent, fontSize: 13, fontWeight: '700' }}>{row.enterprise}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        {isDesktop ? (
+          <View style={tablesSideBySide ? styles.webTablesRow : undefined}>{featureTable}{quotaTable}</View>
+        ) : (
+          <>{featureTable}{quotaTable}</>
+        )}
 
         {/* Legal */}
         <View style={{ alignItems: 'center', marginTop: 8, gap: 6 }}>
@@ -1009,6 +1028,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 24,
   },
   planCardDesktop: { width: 'auto' as const, flexBasis: 220, flexGrow: 1 },
+  // WebPaywallView on desktop (wave 6d): the page capped at the dashboard
+  // column and centred; the Feature / AI-quota tables side by side.
+  webPageDesktop: { width: '100%' as const, maxWidth: Layout.page.dashboard, alignSelf: 'center' as const, paddingHorizontal: Layout.gutter },
+  webTablesRow: { flexDirection: 'row' as const, gap: Layout.gutter, alignItems: 'flex-start' as const },
+  webTableCol: { flex: 1, minWidth: 0 },
   hero: {
     backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
