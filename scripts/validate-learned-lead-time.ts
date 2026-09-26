@@ -28,6 +28,8 @@ import {
   resolveInspectionLead,
   leadTimeFactsFor,
   LEARNED_LEAD_FLOOR,
+  MEASURED_LEAD_FLOOR,
+  type MeasuredReviewLead,
 } from '../utils/automation/learnedLeadTime';
 import { leadTimeChipText, getLeadTime } from '../utils/automation/leadTimeLibrary';
 import { issuingAuthorityForAddress } from '../utils/codeJurisdiction';
@@ -356,6 +358,39 @@ console.log('\nwhat the roadmap prompt is told:');
     /this contractor with this office, not a national average/.test(learned.promptBlock));
   const noAuth = leadTimeFactsFor([reviewed(18), reviewed(25), reviewed(34)], null);
   eq('no authority → not grounded, whatever is on file', noAuth.grounded, false);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nthe measured tier (a public dataset, e.g. NYC DOB review times):');
+
+{
+  const NYC = 'NYC Department of Buildings';
+  const measured = (n: number, days = 41): MeasuredReviewLead => ({
+    days,
+    n,
+    detail: `median ${days}d · p75 77d · n=${n.toLocaleString('en-US')} · Brooklyn standard-plan-exam alteration filings approved in the last 12 mo · NYC Open Data w9ak-ipjd · approved filings only`,
+    appliesTo: ['building'],
+  });
+  eq('the floor is 30 filings', MEASURED_LEAD_FLOOR, 30);
+  const m = resolvePermitReviewLead({ permits: [], authority: NYC, permitType: 'building', authoredDays: 90, measured: measured(8851) });
+  eq('measured at the floor → source jurisdiction', m.lead.source, 'jurisdiction');
+  eq('...books the measured median', m.lead.days, 41);
+  eq('...is a hard date (a measurement)', m.hardDate, true);
+  eq('...n >= 300 is high confidence', m.lead.confidence, 'high');
+  eq('...says where it was measured', m.sourceLabel, 'measured from NYC DOB filings');
+  ok('...the chip carries n and "approved filings only"', /n=8,851/.test(m.chipLabel) && /approved filings only/.test(m.chipLabel), m.chipLabel);
+  ok('...and beats the ai_estimate', m.lead.source !== 'ai_estimate');
+  eq('n between the floor and 300 → med', resolvePermitReviewLead({ permits: [], authority: NYC, permitType: 'building', measured: measured(120) }).lead.confidence, 'med');
+  eq('exactly the floor (30) counts', resolvePermitReviewLead({ permits: [], authority: NYC, permitType: 'building', measured: measured(30) }).lead.source, 'jurisdiction');
+  const thin = resolvePermitReviewLead({ permits: [], authority: NYC, permitType: 'building', authoredDays: 90, measured: measured(29) });
+  ok('n=29 (under the floor) is IGNORED — the ai_estimate stands', thin.lead.source === 'ai_estimate' && thin.hardDate === false, JSON.stringify(thin.lead));
+  const elec = resolvePermitReviewLead({ permits: [], authority: NYC, permitType: 'electrical', authoredDays: 90, measured: measured(8851) });
+  ok('a type the benchmark does not describe (electrical) ignores it', elec.lead.source === 'ai_estimate', JSON.stringify(elec.lead));
+  const own = [reviewed(18, 'building', NYC), reviewed(25, 'building', NYC), reviewed(34, 'building', NYC)];
+  const learnedWins = resolvePermitReviewLead({ permits: own, authority: NYC, permitType: 'building', measured: measured(8851) });
+  eq('his own record (>= 3 permits) beats the public benchmark', learnedWins.lead.source, 'learned');
+  const none = resolvePermitReviewLead({ permits: [], authority: NYC, permitType: 'building', authoredDays: 90, measured: null });
+  eq('no benchmark → unchanged resolution', none.lead.source, 'ai_estimate');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

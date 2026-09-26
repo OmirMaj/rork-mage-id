@@ -1,0 +1,4506 @@
+{
+ "id": "6bgk-3dad",
+ "asOfHeader": "Fri, 25 Sep 2026 17:02:33 GMT",
+ "rows": [
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000000",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000001",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000002",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000003",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000004",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000005",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000006",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000007",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000008",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000009",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000010",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000011",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000012",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000013",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000014",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000015",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000016",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000017",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000018",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000019",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000020",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000021",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000022",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000023",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000024",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000025",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000026",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000027",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000028",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000029",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000030",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000031",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000032",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000033",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000034",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000035",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000036",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000037",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000038",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000039",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000040",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000041",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000042",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000043",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000044",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000045",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000046",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000047",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000048",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000049",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000050",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000051",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000052",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000053",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000054",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000055",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000056",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000057",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000058",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000059",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000060",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000061",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000062",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000063",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000064",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000065",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000066",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000067",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000068",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000069",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000070",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000071",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000072",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000073",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000074",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000075",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000076",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000077",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000078",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000079",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000080",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000081",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000082",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000083",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000084",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000085",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000086",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000087",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000088",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000089",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000090",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000091",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000092",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000093",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000094",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000095",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000096",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000097",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000098",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000099",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000100",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000101",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000102",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000103",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000104",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000105",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000106",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000107",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000108",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000109",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000110",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000111",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000112",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000113",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000114",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000115",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000116",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000117",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000118",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000119",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000120",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000121",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000122",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000123",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000124",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000125",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000126",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000127",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000128",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000129",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000130",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000131",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000132",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000133",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000134",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000135",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000136",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000137",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000138",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000139",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000140",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000141",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000142",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000143",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000144",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000145",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000146",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000147",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000148",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000149",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000150",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000151",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000152",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000153",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000154",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000155",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000156",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000157",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000158",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000159",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000160",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000161",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000162",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000163",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000164",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000165",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000166",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000167",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000168",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000169",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000170",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000171",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000172",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000173",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000174",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000175",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000176",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000177",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000178",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000179",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000180",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000181",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000182",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000183",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000184",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000185",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000186",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000187",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000188",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000189",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000190",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000191",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000192",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000193",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000194",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000195",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000196",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000197",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000198",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000199",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000200",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000201",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000202",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000203",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000204",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000205",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000206",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000207",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000208",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000209",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000210",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000211",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000212",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000213",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000214",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000215",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000216",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000217",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000218",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000219",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000220",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000221",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000222",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000223",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000224",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000225",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000226",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000227",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000228",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000229",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000230",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000231",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000232",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000233",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000234",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000235",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000236",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000237",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000238",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000239",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000240",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000241",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000242",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000243",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000244",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000245",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000246",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000247",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000248",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000249",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000250",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000251",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000252",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000253",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000254",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000255",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000256",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000257",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000258",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000259",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000260",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000261",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000262",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000263",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000264",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000265",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000266",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000267",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000268",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000269",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000270",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000271",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000272",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000273",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000274",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000275",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000276",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000277",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000278",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000279",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000280",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000281",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000282",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000283",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000284",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000285",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000286",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000287",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000288",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000289",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000290",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000291",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000292",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000293",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000294",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000295",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000296",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000297",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000298",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000299",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000300",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000301",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000302",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000303",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000304",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000305",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000306",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000307",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000308",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000309",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000310",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000311",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000312",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000313",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000314",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000315",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000316",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000317",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000318",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000319",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000320",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000321",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000322",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000323",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000324",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000325",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000326",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000327",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000328",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000329",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000330",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000331",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000332",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000333",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000334",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000335",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000336",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000337",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000338",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000339",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000340",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000341",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000342",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000343",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000344",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000345",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000346",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000347",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000348",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000349",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000350",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000351",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000352",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000353",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000354",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000355",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000356",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000357",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000358",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000359",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000360",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000361",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000362",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000363",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000364",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000365",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000366",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000367",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000368",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000369",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000370",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000371",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000372",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000373",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000374",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000375",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000376",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000377",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000378",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000379",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000380",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000381",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000382",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000383",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000384",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000385",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000386",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000387",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000388",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000389",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000390",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000391",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000392",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000393",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000394",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000395",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000396",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000397",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000398",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000399",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000400",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000401",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000402",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000403",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000404",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000405",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000406",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000407",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000408",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000409",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000410",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000411",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000412",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000413",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000414",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000415",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000416",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000417",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000418",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000419",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000420",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000421",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000422",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000423",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000424",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000425",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000426",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000427",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000428",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000429",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000430",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000431",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000432",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000433",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000434",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000435",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000436",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000437",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000438",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000439",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000440",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000441",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000442",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000443",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000444",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000445",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000446",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000447",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000448",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000449",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000450",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000451",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000452",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000453",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000454",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000455",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000456",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000457",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000458",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000459",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000460",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000461",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000462",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000463",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000464",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000465",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000466",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000467",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000468",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000469",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000470",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000471",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000472",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000473",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000474",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000475",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000476",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000477",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000478",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000479",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000480",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000481",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000482",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000483",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000484",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000485",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000486",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000487",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000488",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000489",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000490",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000491",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000492",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000493",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000494",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000495",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000496",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000497",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000498",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  },
+  {
+   "bin": "9999999",
+   "ecb_violation_number": "SYN000499",
+   "ecb_violation_status": "ACTIVE",
+   "severity": "CLASS - 2",
+   "issue_date": "20250101",
+   "violation_description": "SYNTHETIC ROW",
+   "balance_due": "10"
+  }
+ ]
+}

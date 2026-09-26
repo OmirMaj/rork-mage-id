@@ -360,6 +360,23 @@ const PERMIT_NOW_MS = new Date(2025, 0, 20, 12).getTime();
   ok('2d inspection → critical', permitAttention(p, [perm], PERMIT_NOW_MS)[0].severity === 'critical');
 }
 
+// Inspection Ready (step 2 L3): inside the 3-day prep window the line deep-links
+// to the job's checklist; outside it, Permits as before. Message unchanged.
+{
+  const p = mkProject();
+  const item2 = permitAttention(p, [mkPermit({ inspectionDate: '2025-01-22' })], PERMIT_NOW_MS)[0];
+  ok('2d inspection → route /project-detail', item2.route.pathname === '/project-detail');
+  ok('2d inspection → route id = project', item2.route.params?.id === 'p1');
+  ok('2d inspection → prep permit:<id>', item2.route.params?.prep === 'permit:perm1');
+  ok('2d inspection → message unchanged', /^Lakewood Residence: .+ inspection in 2d$/.test(item2.message));
+  const item3 = permitAttention(p, [mkPermit({ inspectionDate: '2025-01-23' })], PERMIT_NOW_MS)[0];
+  ok('3d inspection → route /project-detail (window edge)', item3.route.pathname === '/project-detail');
+  const item4 = permitAttention(p, [mkPermit({ inspectionDate: '2025-01-24' })], PERMIT_NOW_MS)[0];
+  ok('4d inspection → route /permits', item4.route.pathname === '/permits' && item4.route.params?.projectId === 'p1');
+  const item5 = permitAttention(p, [mkPermit({ inspectionDate: '2025-01-25' })], PERMIT_NOW_MS)[0];
+  ok('5d inspection → still /permits, no prep param', item5.route.pathname === '/permits' && item5.route.params?.prep === undefined);
+}
+
 // inspection in 8 days → empty (> 7)
 {
   const p = mkProject();

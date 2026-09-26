@@ -1,0 +1,87 @@
+{
+ "id": "rbx6-tga4",
+ "asOfHeader": "Fri, 25 Sep 2026 18:42:38 GMT",
+ "rows": [
+  {
+   "bin": "1001026",
+   "work_permit": "M01448433-I1-EW-SP",
+   "job_filing_number": "M01448433-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "Sprinklers",
+   "issued_date": "2026-08-31T00:00:00.000",
+   "expired_date": "2027-02-09T00:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01225881-I1-SH",
+   "job_filing_number": "M01225881-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "Sidewalk Shed",
+   "issued_date": "2026-08-14T00:00:00.000",
+   "expired_date": "2026-11-12T00:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01378888-I1-EW-SP",
+   "job_filing_number": "M01378888-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "Sprinklers",
+   "issued_date": "2026-08-04T00:00:00.000",
+   "expired_date": "2027-02-09T05:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01378876-I1-PL",
+   "job_filing_number": "M01378876-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "Plumbing",
+   "issued_date": "2026-07-31T00:00:00.000",
+   "expired_date": "2026-11-10T00:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01378278-I1-GC",
+   "job_filing_number": "M01378278-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "General Construction",
+   "issued_date": "2026-07-27T00:00:00.000",
+   "expired_date": "2027-04-20T00:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01378763-I1-MS",
+   "job_filing_number": "M01378763-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "Mechanical Systems",
+   "issued_date": "2026-07-27T00:00:00.000",
+   "expired_date": "2027-04-20T00:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01392399-I1-EW-SP",
+   "job_filing_number": "M01392399-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "Sprinklers",
+   "issued_date": "2026-06-22T00:00:00.000",
+   "expired_date": "2026-12-31T05:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01363422-I1-GC",
+   "job_filing_number": "M01363422-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "General Construction",
+   "issued_date": "2026-05-13T00:00:00.000",
+   "expired_date": "2027-01-01T05:00:00.000"
+  },
+  {
+   "bin": "1001026",
+   "work_permit": "M01232031-I1-SC",
+   "job_filing_number": "M01232031-I1",
+   "permit_status": "Permit Issued",
+   "work_type": "Suspended Scaffold",
+   "issued_date": "2025-12-30T00:00:00.000",
+   "expired_date": "2026-12-30T05:00:00.000"
+  }
+ ]
+}

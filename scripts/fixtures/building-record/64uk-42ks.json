@@ -1,0 +1,15 @@
+{
+ "id": "64uk-42ks",
+ "asOfHeader": "Mon, 24 Aug 2026 20:20:51 GMT",
+ "rows": [
+  {
+   "zonedist1": "C5-5",
+   "spdist1": "LM",
+   "landmark": "INDIVIDUAL LANDMARK",
+   "yearbuilt": "1915",
+   "numfloors": "41.0000000",
+   "bldgclass": "RB",
+   "version": "26v2"
+  }
+ ]
+}

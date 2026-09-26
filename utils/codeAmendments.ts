@@ -665,3 +665,44 @@ export function rungSummaryLine(evidence: readonly CitationEvidence[]): string {
 
 /** Re-exported so the screen has ONE import for the whole ladder. */
 export { groundingFactsFor };
+
+// ─────────────────────────────────────────────────────────────────────
+// Edition mismatch — the model cited an edition the jurisdiction row
+// does not adopt.
+// ─────────────────────────────────────────────────────────────────────
+
+/** A cited edition that differs from every edition the resolved row adopts. */
+export interface EditionMismatch {
+  family: CodeFamily;
+  citedYear: string;
+  adoptedYears: string[];
+  label: string;
+}
+
+/**
+ * Null unless the citation names BOTH a family and a year, the resolved row
+ * adopts that family, and none of its adopted editions carries that year.
+ *
+ * A family the row does not list is NOT a mismatch: the row is silent, and
+ * silence is not evidence the model is wrong. An unknown jurisdiction, a
+ * family-only citation or an unparseable one all give null.
+ */
+export function editionMismatchFor(
+  resolved: ResolvedCodeJurisdiction,
+  citedCode: string,
+): EditionMismatch | null {
+  if (resolved.kind === 'unknown') return null;
+  const fam = familyFromCitedCode(citedCode);
+  const year = yearFromCitedCode(citedCode);
+  if (!fam || !year) return null;
+  const adopted = resolved.entry.codes.filter((c) => c.family === fam);
+  if (adopted.length === 0) return null;
+  const adoptedYears = adopted.map((c) => yearFromCitedCode(c.edition) ?? c.edition);
+  if (adoptedYears.some((y) => y === year)) return null;
+  return {
+    family: fam,
+    citedYear: year,
+    adoptedYears,
+    label: `Edition doesn't match: cited ${fam} ${year}; ${resolved.entry.authorityName} adopts ${fam} ${adoptedYears.join('/')}`,
+  };
+}

@@ -179,6 +179,11 @@
     "schema": "{\"type\":\"object\",\"properties\":{\"hits\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"taskTitleGuess\":{\"type\":\"string\"},\"deltaDays\":{\"type\":\"number\"},\"quote\":{\"type\":\"string\"}},\"required\":[\"taskTitleGuess\",\"deltaDays\",\"quote\"]}}},\"required\":[\"hits\"]}",
     "schemaAt6065": "{\"type\":\"object\",\"properties\":{\"hits\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"taskTitleGuess\":{\"type\":\"string\"},\"deltaDays\":{\"type\":\"number\"},\"quote\":{\"type\":\"string\"}},\"required\":[\"taskTitleGuess\",\"deltaDays\",\"quote\"]}}},\"required\":[\"hits\"]}"
   },
+  "utils/inspectionPrepAI.ts schemaHint: #1": {
+    "hintSha": "45c6c333ba9e62a4",
+    "schema": "{\"type\":\"object\",\"properties\":{\"items\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"},\"codeRef\":{\"type\":\"string\"},\"confidence\":{\"type\":\"string\"},\"why\":{\"type\":\"string\"}},\"required\":[\"text\",\"codeRef\",\"confidence\",\"why\"]}},\"followUps\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"question\":{\"type\":\"string\"},\"options\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"question\",\"options\"]}}},\"required\":[\"items\",\"followUps\"]}",
+    "schemaAt6065": null
+  },
   "utils/materialEstimateAI.ts const schemaHint #1": {
     "hintSha": "63ce2840fa2a1161",
     "schema": "{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\"},\"overallRecommendations\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"laborEstimateRange\":{\"type\":\"object\",\"properties\":{\"low\":{\"type\":\"number\"},\"high\":{\"type\":\"number\"},\"rationale\":{\"type\":\"string\"}},\"required\":[\"low\",\"high\",\"rationale\"]},\"perItem\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"alias\":{\"type\":\"string\"},\"suggestedQuantity\":{\"type\":\"number\"},\"suggestedMarkup\":{\"type\":\"number\"},\"rationale\":{\"type\":\"string\"}},\"required\":[\"alias\",\"suggestedQuantity\",\"suggestedMarkup\",\"rationale\"]}}},\"required\":[\"summary\",\"overallRecommendations\",\"laborEstimateRange\",\"perItem\"]}",
