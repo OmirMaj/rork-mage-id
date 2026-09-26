@@ -21,6 +21,10 @@ import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { changeOrderBillKey, CO_BILL_KEY_PREFIX } from '@/utils/changeOrderBilling';
 import { CO_APPROVAL_ACTIONS } from '@/utils/coApproval';
 import { isGcOnlyEstimateLine, CLIENT_CONTINGENCY_LABEL } from '@/utils/clientEstimateView';
+// Wave 6d (M1): the desktop G703 grid's cell parser and the one money
+// formatter, so a refusal quotes the figure the way the screen prints it.
+import { parseGridNumber } from '@/utils/dataTable';
+import { formatMoney } from '@/utils/formatters';
 
 // Re-exported so the pay-app module keeps offering the retainage rule it is the
 // reference implementation of, and existing importers (utils/portalSnapshot)
@@ -722,6 +726,227 @@ export function findOverBilledLines(app: Pick<AIAPayApplication, 'lines'>): AIAO
 export function totalOverBill(app: AIAPayApplication): number {
   const totals = computeAIATotals(app);
   return roundCents(totals.totalCompletedAndStored - app.contractSumToDate);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE G703 CONTINUATION SHEET, ONE DEFINITION (wave 6d, lane M1)
+//
+// The PDF's per-line G703 math used to be inline in buildAIAPayAppHtml, and its
+// GRAND TOTAL G was roundCents(ΣD) + roundCents(ΣE) + roundCents(ΣF) while
+// G702 line 4 — "(Column G on G703)" — is roundCents(Σ(D+E+F)). With a
+// sub-cent draft on a line the two printed a cent apart on a legal document.
+// The PDF and the desktop grid both read these now, and the footer IS the
+// G702 math (computeAIATotals), so the sheet and the cover cannot disagree.
+// scripts/validate-money-grids.ts proves the PDF byte-identical on cent-exact
+// data and the footer equal to line 4 on sub-cent data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface G703LineFigures {
+  /** Column G = D + E + F (unrounded; every printer formats to the cent). */
+  completedAndStored: number;
+  /** G ÷ C × 100, or null when C is not positive (a deductive CO line). */
+  percent: number | null;
+  /** Column H = C − G, to the cent. */
+  balanceToFinish: number;
+  /** Column I: work-in-place and stored material, each at its own rate. */
+  retainage: number;
+}
+
+/** One G703 row's computed columns — the formulas the PDF has always printed. */
+export function g703LineFigures(
+  l: Pick<AIASOVLine, 'scheduledValue' | 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored' | 'retainagePercent' | 'storedRetainagePercent'>,
+): G703LineFigures {
+  const totalCompleted = l.fromPreviousApp + l.thisPeriod;
+  const completedAndStored = totalCompleted + l.materialsPresentlyStored;
+  const percent = l.scheduledValue > 0 ? (completedAndStored / l.scheduledValue) * 100 : null;
+  const balanceToFinish = roundCents(l.scheduledValue - completedAndStored);
+  // Split the same way computeAIATotals does (completed work + stored
+  // material, each at its own rate) so this column foots to G702 line 5.
+  const retainage = roundCents(
+    retainageOnWorkValue(totalCompleted, l.retainagePercent)
+    + retainageOnWorkValue(l.materialsPresentlyStored, storedRetainagePercentForLine(l)),
+  );
+  return { completedAndStored, percent, balanceToFinish, retainage };
+}
+
+export interface G703Footer {
+  scheduled: number;
+  fromPrevious: number;
+  thisPeriod: number;
+  stored: number;
+  /** === G702 line 4 (totals.totalCompletedAndStored). */
+  completedAndStored: number;
+  percent: number;
+  balanceToFinish: number;
+  /** === G702 line 5 (totals.totalRetainage). */
+  retainage: number;
+}
+
+/** The GRAND TOTAL row — the G702 cover's own figures where the cover has one. */
+export function g703Footer(app: AIAPayApplication): G703Footer {
+  const totals = computeAIATotals(app);
+  const sum = (key: 'scheduledValue' | 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored') =>
+    roundCents(app.lines.reduce((s, l) => s + (l[key] as number), 0));
+  return {
+    scheduled: sum('scheduledValue'),
+    fromPrevious: sum('fromPreviousApp'),
+    thisPeriod: sum('thisPeriod'),
+    stored: sum('materialsPresentlyStored'),
+    completedAndStored: totals.totalCompletedAndStored,
+    percent: totals.percentComplete,
+    balanceToFinish: roundCents(totals.totalScheduledValue - totals.totalCompletedAndStored),
+    retainage: totals.totalRetainage,
+  };
+}
+
+/** The G703 grid's editable columns (the others are computed). */
+export type G703Col = 'itemNo' | 'description' | 'scheduled' | 'thisPeriod' | 'stored' | 'percent';
+
+export type G703CellPlan =
+  | { kind: 'patch'; patch: Partial<Pick<AIASOVLine, 'itemNo' | 'description' | 'scheduledValue' | 'thisPeriod' | 'materialsPresentlyStored'>> }
+  | { kind: 'percent'; percent: number }
+  | { kind: 'invalid'; reason: string }
+  | { kind: 'ignore' };
+
+const G703_MONEY_FIELD = {
+  scheduled: 'scheduledValue',
+  thisPeriod: 'thisPeriod',
+  stored: 'materialsPresentlyStored',
+} as const;
+
+/** The header a refusal names ("Line 3 — This period"). */
+export const G703_COL_LABEL: Record<G703Col, string> = {
+  itemNo: 'Item',
+  description: 'Description of work',
+  scheduled: 'Scheduled value',
+  thisPeriod: 'This period',
+  stored: 'Stored',
+  percent: '% complete',
+};
+
+/**
+ * What one typed G703 cell means, decided before anything is written.
+ *
+ * Money (This period, Stored; Scheduled only while the schedule of values is
+ * being edited): blank is 0 (the phone's MoneyField does the same), text that
+ * is not an amount is REFUSED with the figure the line still carries, and a
+ * number is rounded to the cent at entry — so grid-typed data is cent-exact.
+ * Percent: blank is nothing yet; outside 0–100 is refused; and a line whose
+ * scheduled value is not positive (a deductive change order) refuses a percent
+ * outright, because applying one would zero its This period.
+ */
+export function planG703CellEdit(
+  line: Pick<AIASOVLine, 'scheduledValue' | 'thisPeriod' | 'materialsPresentlyStored'>,
+  col: G703Col,
+  text: string,
+  opts: { sovEditing: boolean },
+): G703CellPlan {
+  if (col === 'itemNo' || col === 'description') {
+    if (!opts.sovEditing) return { kind: 'ignore' };
+    return col === 'itemNo' ? { kind: 'patch', patch: { itemNo: text } } : { kind: 'patch', patch: { description: text } };
+  }
+  if (col === 'percent') {
+    if (!text.trim()) return { kind: 'ignore' };
+    const n = parseGridNumber(text);
+    if (n === null) return { kind: 'invalid', reason: `"${text}" is not a percent — type a number from 0 to 100.` };
+    if (n < 0 || n > 100) return { kind: 'invalid', reason: 'Percent complete is 0–100.' };
+    if (!(line.scheduledValue > 0)) {
+      return { kind: 'invalid', reason: 'Percent needs a positive scheduled value — type This period instead.' };
+    }
+    return { kind: 'percent', percent: n };
+  }
+  if (col === 'scheduled' && !opts.sovEditing) return { kind: 'ignore' };
+  const field = G703_MONEY_FIELD[col];
+  if (!text.trim()) return { kind: 'patch', patch: { [field]: 0 } };
+  const n = parseGridNumber(text);
+  if (n === null) {
+    return { kind: 'invalid', reason: `"${text}" is not an amount — this line still bills ${formatMoney(line[field], 2)}` };
+  }
+  return { kind: 'patch', patch: { [field]: roundCents(n) } };
+}
+
+const G703_COL_ORDER: readonly G703Col[] = ['itemNo', 'description', 'scheduled', 'thisPeriod', 'stored', 'percent'];
+
+/**
+ * A grid draft that is not a value (e.g. "12,5o") must not be saved or printed
+ * as whatever the line held before it — Save and Generate refuse, naming the
+ * line. Drafts are keyed `${lineId}:${col}`. The first invalid one in line
+ * order wins; null when there is none.
+ */
+export function g703DraftBlocker(
+  drafts: Readonly<Record<string, string>>,
+  lines: readonly Pick<AIASOVLine, 'id' | 'itemNo' | 'scheduledValue' | 'thisPeriod' | 'materialsPresentlyStored'>[],
+): { title: string; message: string } | null {
+  for (const line of lines) {
+    for (const col of G703_COL_ORDER) {
+      const text = drafts[`${line.id}:${col}`];
+      if (text === undefined) continue;
+      const plan = planG703CellEdit(line, col, text, { sovEditing: true });
+      if (plan.kind === 'invalid') {
+        return { title: `Line ${line.itemNo} — ${G703_COL_LABEL[col]}`, message: plan.reason };
+      }
+    }
+  }
+  return null;
+}
+
+/** The grid's column order, computed columns included (a paste skips them). */
+const G703_GRID_ORDER = ['itemNo', 'description', 'scheduled', 'fromPrevious', 'thisPeriod', 'stored', 'completed', 'percent', 'balance', 'retainage'] as const;
+
+/**
+ * A block pasted from Excel, starting at the focused cell. Pasted column j goes
+ * to the j-th PASTEABLE column at or right of `at` — Item, Description and
+ * Scheduled only while the schedule of values is being edited, then This
+ * period and Stored; % and the computed columns are skipped. One merged patch
+ * per line. `invalid` counts the cells that were refused or had no column to
+ * land in; `extraRows` the pasted rows past the last line (a pay application's
+ * lines are added on purpose, never by a paste).
+ */
+export function g703PastePlan(
+  lines: readonly Pick<AIASOVLine, 'id' | 'scheduledValue' | 'thisPeriod' | 'materialsPresentlyStored'>[],
+  cells: readonly (readonly string[])[],
+  at: { rowKey: string; colKey: string },
+  opts: { sovEditing: boolean },
+): { patches: { lineId: string; patch: Extract<G703CellPlan, { kind: 'patch' }>['patch'] }[]; invalid: number; extraRows: number } {
+  const pasteable: G703Col[] = opts.sovEditing
+    ? ['itemNo', 'description', 'scheduled', 'thisPeriod', 'stored']
+    : ['thisPeriod', 'stored'];
+  const startCol = (G703_GRID_ORDER as readonly string[]).indexOf(at.colKey);
+  const targets = startCol < 0 ? [] : pasteable.filter((c) => (G703_GRID_ORDER as readonly string[]).indexOf(c) >= startCol);
+  const startRow = lines.findIndex((l) => l.id === at.rowKey);
+  const patches: { lineId: string; patch: Extract<G703CellPlan, { kind: 'patch' }>['patch'] }[] = [];
+  let invalid = 0;
+  let extraRows = 0;
+  if (startRow < 0) return { patches, invalid: cells.reduce((n, r) => n + r.length, 0), extraRows };
+  for (let i = 0; i < cells.length; i++) {
+    const line = lines[startRow + i];
+    if (!line) { extraRows++; continue; }
+    let merged: Extract<G703CellPlan, { kind: 'patch' }>['patch'] | null = null;
+    for (let j = 0; j < cells[i].length; j++) {
+      const col = targets[j];
+      if (!col) { invalid++; continue; }
+      const plan = planG703CellEdit(line, col, cells[i][j], opts);
+      if (plan.kind === 'invalid') { invalid++; continue; }
+      if (plan.kind === 'patch') merged = { ...(merged ?? {}), ...plan.patch };
+    }
+    if (merged) patches.push({ lineId: line.id, patch: merged });
+  }
+  return { patches, invalid, extraRows };
+}
+
+/**
+ * A G703 money column wide enough for its longest figure, so a
+ * $12,345,678.90 total never ellipsizes: 112 px floor, else the text width at
+ * ~8.2 px per tabular digit plus the cell's padding, on an 8 px grid.
+ */
+export function g703MoneyColumnWidth(maxChars: number): number {
+  return Math.max(112, Math.ceil((maxChars * 8.2 + 20) / 8) * 8);
+}
+
+/** The grid's minimum width: A 48, B 200, seven money columns, % 56, and the
+ *  delete column while lines can be added and removed. 1088 (1124) at 112. */
+export function g703GridMinWidth(moneyW: number, rowsEditable: boolean): number {
+  return 48 + 200 + 7 * moneyW + 56 + (rowsEditable ? 36 : 0);
 }
 
 /**
@@ -1762,18 +1987,12 @@ export function buildAIAPayAppHtml(
   const provenanceContent = provenanceText.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
   const g703Rows = app.lines.map((l, i) => {
-    const totalCompleted = l.fromPreviousApp + l.thisPeriod;
-    const totalCompletedAndStored = totalCompleted + l.materialsPresentlyStored;
-    const pct = l.scheduledValue > 0
-      ? (totalCompletedAndStored / l.scheduledValue) * 100
-      : 0;
-    const balanceToFinish = roundCents(l.scheduledValue - totalCompletedAndStored);
-    // Split the same way computeAIATotals does (completed work + stored
-    // material, each rounded) so this column foots to G702 line 5 exactly.
-    const retainage = roundCents(
-      retainageOnWorkValue(totalCompleted, l.retainagePercent)
-      + retainageOnWorkValue(l.materialsPresentlyStored, storedRetainagePercentForLine(l)),
-    );
+    // The one definition the desktop grid reads too (g703LineFigures).
+    const f = g703LineFigures(l);
+    const totalCompletedAndStored = f.completedAndStored;
+    const pct = f.percent ?? 0;
+    const balanceToFinish = f.balanceToFinish;
+    const retainage = f.retainage;
     return `
       <tr class="${i % 2 === 0 ? 'alt' : ''}">
         <td class="ctr">${escapeHtml(l.itemNo)}</td>
@@ -1790,18 +2009,10 @@ export function buildAIAPayAppHtml(
     `;
   }).join('');
 
-  // G703 footer totals row
-  const sumCol = (key: 'scheduledValue' | 'fromPreviousApp' | 'thisPeriod' | 'materialsPresentlyStored') =>
-    roundCents(app.lines.reduce((s, l) => s + (l[key] as number), 0));
-
-  const g703TotalScheduled = sumCol('scheduledValue');
-  const g703TotalFromPrev = sumCol('fromPreviousApp');
-  const g703TotalThisPeriod = sumCol('thisPeriod');
-  const g703TotalStored = sumCol('materialsPresentlyStored');
-  const g703TotalCompletedStored = roundCents(g703TotalFromPrev + g703TotalThisPeriod + g703TotalStored);
-  // Same per-line, cent-rounded split as computeAIATotals, so the continuation
-  // sheet's retainage column total IS G702 line 5's "Total Retainage".
-  const g703TotalRetainage = totals.totalRetainage;
+  // G703 footer totals row — g703Footer. Column G's total IS G702 line 4
+  // (it used to be roundCents(ΣD)+roundCents(ΣE)+roundCents(ΣF), a cent off
+  // line 4 on sub-cent data), and column I's IS line 5.
+  const foot = g703Footer(app);
 
   return `<!DOCTYPE html>
 <html>
@@ -2303,14 +2514,14 @@ export function buildAIAPayAppHtml(
     <tfoot>
       <tr>
         <td colspan="2" class="ctr">GRAND TOTAL</td>
-        <td class="num">${fmt(g703TotalScheduled)}</td>
-        <td class="num">${fmt(g703TotalFromPrev)}</td>
-        <td class="num">${fmt(g703TotalThisPeriod)}</td>
-        <td class="num">${fmt(g703TotalStored)}</td>
-        <td class="num">${fmt(g703TotalCompletedStored)}</td>
-        <td class="num">${totals.percentComplete.toFixed(1)}%</td>
-        <td class="num">${fmt(roundCents(g703TotalScheduled - g703TotalCompletedStored))}</td>
-        <td class="num">${fmt(g703TotalRetainage)}</td>
+        <td class="num">${fmt(foot.scheduled)}</td>
+        <td class="num">${fmt(foot.fromPrevious)}</td>
+        <td class="num">${fmt(foot.thisPeriod)}</td>
+        <td class="num">${fmt(foot.stored)}</td>
+        <td class="num">${fmt(foot.completedAndStored)}</td>
+        <td class="num">${foot.percent.toFixed(1)}%</td>
+        <td class="num">${fmt(foot.balanceToFinish)}</td>
+        <td class="num">${fmt(foot.retainage)}</td>
       </tr>
     </tfoot>
   </table>

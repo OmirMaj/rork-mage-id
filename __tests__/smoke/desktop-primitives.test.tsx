@@ -716,3 +716,141 @@ describe('native keyboard is a no-op', () => {
     r.unmount();
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Wave 6d, lane M1 — LineItemGrid's additive props (readOnly, rowsEditable,
+// isCellEditable, onCellBlur, footerTotals, footerLabel). Every default is the
+// behaviour above; the phone branch is still today's cards.
+describe('LineItemGrid — wave 6d additive props', () => {
+  /** The TextInput mock shares one focus jest.fn on its prototype; its
+   *  recorded `this` says WHICH cell got focus. */
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const focusFn = (require('react-native') as { TextInput: { prototype: { focus: jest.Mock } } }).TextInput.prototype.focus;
+  const lastFocused = (): string | undefined => {
+    const ctx = focusFn.mock.contexts[focusFn.mock.contexts.length - 1] as { props?: { testID?: string } } | undefined;
+    return ctx?.props?.testID;
+  };
+  const keyPress = (testID: string, key: string, mods: Record<string, unknown> = {}) => {
+    fireEvent(screen.getByTestId(testID), 'keyPress', { nativeEvent: { key, ...mods }, preventDefault: () => {} });
+  };
+  const noop = () => {};
+
+  describe('390 native — phone identical', () => {
+    beforeEach(() => viewport('ios', 390, 844));
+    afterEach(resetViewport);
+    it('with every new prop set, the phone still renders exactly the line cards', () => {
+      expectIdenticalPhoneTree(
+        <>{LINES.map((l) => <React.Fragment key={l.id}>{lineCard(l)}</React.Fragment>)}</>,
+        <LineItemGrid rows={LINES} rowKey={(l) => l.id} columns={LINE_COLS} renderCard={lineCard}
+          onChangeCell={noop} onAddRow={noop} onDeleteRow={noop}
+          readOnly rowsEditable={false} isCellEditable={() => false} onCellBlur={noop}
+          footerTotals={{ total: 999 }} footerLabel="Grand total" />,
+      );
+    });
+  });
+
+  describe('1512 web — desktop', () => {
+    beforeEach(() => {
+      viewport('web', 1512, 945);
+      focusFn.mockClear();
+    });
+    afterEach(() => {
+      cleanup();
+      resetViewport();
+    });
+
+    it('readOnly: display text only — no TextInput, no add row, no delete column', () => {
+      render(
+        <Wrapper>
+          <LineItemGrid testID="ro" rows={LINES} rowKey={(l) => l.id} columns={LINE_COLS} renderCard={lineCard}
+            onChangeCell={noop} onAddRow={noop} onDeleteRow={noop} readOnly />
+        </Wrapper>,
+      );
+      expect(screen.UNSAFE_queryAllByType(TextInput)).toHaveLength(0);
+      expect(screen.queryByTestId('ro-add')).toBeNull();
+      expect(screen.queryAllByTestId(/^ro-delete-/)).toHaveLength(0);
+      expect(screen.getByTestId('ro-text-l1-description')).toBeTruthy();
+      expect(screen.getByText('Drywall')).toBeTruthy(); // text as typed
+      expect(screen.getByText('$4.50')).toBeTruthy(); // money through format
+    });
+
+    it('rowsEditable=false: Enter moves to the same column on the next line and never adds one; no delete, no add row', () => {
+      const onAdd = jest.fn();
+      const onDelete = jest.fn();
+      render(
+        <Wrapper>
+          <LineItemGrid testID="fx" rows={LINES} rowKey={(l) => l.id} columns={LINE_COLS} renderCard={lineCard}
+            onChangeCell={noop} onAddRow={onAdd} onDeleteRow={onDelete} rowsEditable={false} />
+        </Wrapper>,
+      );
+      fireEvent(screen.getByTestId('fx-cell-l1-qty'), 'submitEditing');
+      expect(onAdd).not.toHaveBeenCalled();
+      expect(lastFocused()).toBe('fx-cell-l2-qty');
+      focusFn.mockClear();
+      fireEvent(screen.getByTestId('fx-cell-l2-qty'), 'submitEditing'); // the last line: nothing
+      expect(onAdd).not.toHaveBeenCalled();
+      expect(focusFn).not.toHaveBeenCalled();
+      keyPress('fx-cell-l1-qty', 'Backspace', { metaKey: true });
+      expect(onDelete).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('fx-add')).toBeNull();
+      expect(screen.queryAllByTestId(/^fx-delete-/)).toHaveLength(0);
+    });
+
+    it('isCellEditable false: that cell is text, and Tab skips it', () => {
+      render(
+        <Wrapper>
+          <LineItemGrid testID="ce" rows={LINES} rowKey={(l) => l.id} columns={LINE_COLS} renderCard={lineCard}
+            onChangeCell={noop} onAddRow={noop} onDeleteRow={noop}
+            isCellEditable={(l, k) => !(l.id === 'l1' && k === 'qty')} />
+        </Wrapper>,
+      );
+      expect(screen.queryByTestId('ce-cell-l1-qty')).toBeNull();
+      expect(screen.getByTestId('ce-text-l1-qty')).toBeTruthy();
+      expect(screen.getByTestId('ce-cell-l2-qty')).toBeTruthy(); // only l1's is locked
+      keyPress('ce-cell-l1-description', 'Tab');
+      expect(lastFocused()).toBe('ce-cell-l1-unit'); // past the locked Qty
+      keyPress('ce-cell-l1-unit', 'Tab', { shiftKey: true });
+      expect(lastFocused()).toBe('ce-cell-l1-description'); // and back over it
+    });
+
+    it('onCellBlur reports the row and column that lost focus', () => {
+      const onBlur = jest.fn();
+      render(
+        <Wrapper>
+          <LineItemGrid testID="bl" rows={LINES} rowKey={(l) => l.id} columns={LINE_COLS} renderCard={lineCard}
+            onChangeCell={noop} onAddRow={noop} onDeleteRow={noop} onCellBlur={onBlur} />
+        </Wrapper>,
+      );
+      fireEvent(screen.getByTestId('bl-cell-l2-unit'), 'blur');
+      expect(onBlur).toHaveBeenCalledWith('l2', 'unit');
+    });
+
+    it('footerTotals REPLACES the column sum (null → —, no "not counted"); footerLabel names the row', () => {
+      render(
+        <Wrapper>
+          <LineItemGrid testID="ft" rows={LINES} rowKey={(l) => l.id} columns={LINE_COLS} renderCard={lineCard}
+            onChangeCell={noop} onAddRow={noop} onDeleteRow={noop}
+            footerTotals={{ total: 1234.5, qty: null }} footerLabel="Grand total" />
+        </Wrapper>,
+      );
+      expect(screen.getByText('$1,234.50')).toBeTruthy(); // the override…
+      expect(screen.getAllByText('$45.00')).toHaveLength(1); // …not the sum (only the line's own cell)
+      expect(screen.queryByText(/not counted/)).toBeNull(); // Qty's TBD line: no note under an override
+      expect(screen.getByText('Grand total')).toBeTruthy();
+      expect(screen.getAllByText('Total')).toHaveLength(1); // the column header only
+    });
+
+    it('defaults are today: "Total" label, the summed footer, delete column and add row', () => {
+      render(
+        <Wrapper>
+          <LineItemGrid testID="df" rows={LINES} rowKey={(l) => l.id} columns={LINE_COLS} renderCard={lineCard}
+            onChangeCell={noop} onAddRow={noop} onDeleteRow={noop} />
+        </Wrapper>,
+      );
+      expect(screen.getAllByText('Total')).toHaveLength(2); // the column header and the footer label
+      expect(screen.getAllByText('$45.00')).toHaveLength(2);
+      expect(screen.getByTestId('df-add')).toBeTruthy();
+      expect(screen.getAllByTestId(/^df-delete-/)).toHaveLength(2);
+    });
+  });
+});

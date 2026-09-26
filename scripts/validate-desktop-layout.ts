@@ -71,10 +71,13 @@ const ROOT = join(__dirname, '..');
 // Wave-6d phase 1 integration (orchestrator): stretchedButtons 5 → 0 (a flex:1
 //   Button inside an <ActionBar> no longer counts), unframedTransparentModalFiles
 //   28 → 24, pageSheetModals 27 → 23; 12 files reached sheet parity.
+// Wave-6d phase 2 integration (orchestrator): pageWidthLiterals 45 → 42,
+//   unframedTransparentModalFiles 24 → 21, growingDesktopTiles 13 → 11,
+//   hiddenScrollbarRails 109 → 108; 8 files reached sheet parity.
 const CEILING = {
   /** Numeric `maxWidth` literals ≥ 700 in app/ + components/ — page and
    *  column caps that should each be a Layout token. */
-  pageWidthLiterals: 45,
+  pageWidthLiterals: 42,
   /** seg/segment/tab/toggle/mode style entries that stretch (flex:1 /
    *  flexGrow:1) with no `segmentedDesktop` companion at their use site.
    *  Excludes components/schedule/mobile and `…Phone` styles. */
@@ -82,7 +85,7 @@ const CEILING = {
   /** Files with a transparent <Modal> and no desktop frame (no Sheet /
    *  useSheetFrame, no maxWidth anywhere in the file). SHEET_EXEMPT files are
    *  skipped (wave 6d): they never render a desktop sheet. */
-  unframedTransparentModalFiles: 24,
+  unframedTransparentModalFiles: 21,
   /** Non-transparent pageSheet <Modal>s (full-window on web). */
   pageSheetModals: 23,
   /** Percent-width tile literals (width / flexBasis / minWidth of 22–25%,
@@ -90,10 +93,10 @@ const CEILING = {
   percentTileLiterals: 26,
   /** Desktop tile styles that combine flexGrow:1 with a numeric flexBasis
    *  (the last row's orphan stretches across the page). */
-  growingDesktopTiles: 13,
+  growingDesktopTiles: 11,
   /** `showsHorizontalScrollIndicator={false}` — a desktop mouse has no swipe,
    *  so a hidden-scrollbar rail hides its own overflow. */
-  hiddenScrollbarRails: 109,
+  hiddenScrollbarRails: 108,
   /** `<Button style={{ flex: 1 }}>` — a stretched button; containerStyle is
    *  the replacement. */
   stretchedButtons: 0,
@@ -660,22 +663,16 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'app/(tabs)/schedule/index.tsx',
   'app/(tabs)/settings/index.tsx',
   'app/(tabs)/subs/index.tsx',
-  'app/aia-pay-app.tsx',
   'app/building-access.tsx',
   'app/buyout-package.tsx',
   'app/buyout.tsx',
-  'app/cash-flow.tsx',
   'app/client-view.tsx',
   'app/company-profile.tsx',
-  'app/contacts.tsx',
-  'app/crew.tsx',
   'app/deliveries.tsx',
   'app/equipment-detail.tsx',
   'app/estimate-wizard.tsx',
   'app/get-verified.tsx',
-  'app/job-costing.tsx',
   'app/lead-detail.tsx',
-  'app/lien-waivers.tsx',
   'app/managed-property.tsx',
   'app/oac-meeting.tsx',
   'app/plan-intelligence.tsx',
@@ -697,7 +694,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/ConfirmEmailModal.tsx',
   'components/CreateMenu.tsx',
   'components/DemoSeedPickerModal.tsx',
-  'components/EntityActionSheet.tsx',
   'components/EstimateComparison.tsx',
   'components/EstimateLoadingOverlay.tsx',
   'components/FeatureExplainerSheet.tsx',
@@ -713,7 +709,6 @@ const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
   'components/QuickUpdateClarifier.tsx',
   'components/RFITriageModal.tsx',
   'components/RateOverrideModal.tsx',
-  'components/RecordPaymentModal.tsx',
   'components/ReferralPrompt.tsx',
   'components/SquareFootEstimator.tsx',
   'components/SubDailyUpdateModal.tsx',
@@ -1019,6 +1014,11 @@ const PINS: Pin[] = [
     name: "schedule-pro's tabShellBody row holds only the shell and the inspector",
     file: 'app/schedule-pro.tsx', fixed: true,
     isFixed: (s) => { const n = directChildren(s, 'tabShellBody'); return n > 0 && n <= 2; },
+  },
+  {
+    name: "contacts' desktop web renders the register (no 1736 px search)",
+    file: 'app/contacts.tsx', fixed: true,
+    isFixed: (s) => /isDesktopWeb\s*\?\s*\(?\s*<ContactsRegister\b/.test(s),
   },
   {
     name: "TodayView's emptyActive has a desktop variant",

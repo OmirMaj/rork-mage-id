@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, Platform, Modal, KeyboardAvoidingView, ScrollView,
+  type TextStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -23,6 +24,10 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { desktopField, useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
+import { ChipRail, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useSplitRecord } from '@/components/desktop/SplitView';
+import { ContactsRegister } from '@/components/registers/ContactsRegister';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -79,6 +84,12 @@ export default function ContactsScreen() {
   const fabScroll = useBrainFabScroll();
   const { navigateTo } = useEntityNavigation();
   const { contacts, addContact, updateContact, deleteContact, projects, getInvoicesForProject } = useProjects();
+  // Desktop web (wave 6d, R1): the register — a table with the contact open
+  // beside it (?contactId=). A phone, a native tablet and a narrow browser
+  // keep today's search box and card list.
+  const isDesktopWeb = useIsDesktopWeb();
+  const isDesktop = useIsDesktop();
+  const split = useSplitRecord({ param: 'contactId' });
 
   const [query, setQuery] = useState('');
   const [filterRole, setFilterRole] = useState<ContactRole | 'all'>('all');
@@ -195,11 +206,12 @@ export default function ContactsScreen() {
         text: 'Delete', style: 'destructive', onPress: () => {
           deleteContact(contact.id);
           setShowDetailModal(false);
+          if (isDesktopWeb) split.close();
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         },
       },
     ]);
-  }, [deleteContact]);
+  }, [deleteContact, isDesktopWeb, split]);
 
   const openDetail = useCallback((contact: Contact) => {
     setSelectedContact(contact);
@@ -254,8 +266,154 @@ export default function ContactsScreen() {
     );
   }, [openDetail]);
 
+  // The contact's body — the phone detail sheet's content, hoisted once so the
+  // desktop register's record pane shows the same thing (composite-level move:
+  // the sheet's host tree is unchanged).
+  const renderContactDetail = (c: Contact, h: { onClose(): void; onEdit(): void }) => {
+    const displayName = `${c.firstName} ${c.lastName}`.trim() || c.companyName;
+    const roleColor = getRoleColor(c.role, themeColors);
+    const financials = getContactFinancials(c);
+    const linkedProjects = projects.filter(p => c.linkedProjectIds.includes(p.id));
+
+    return (
+      <>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{displayName}</Text>
+          <TouchableOpacity onPress={h.onClose} accessibilityRole="button" accessibilityLabel="Close">
+            <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={[styles.detailRoleBadge, { backgroundColor: roleColor + '15' }]}>
+            <Briefcase size={14} color={roleColor} strokeWidth={1.75} />
+            <Text style={[styles.detailRoleText, { color: roleColor }]}>{c.role}</Text>
+            {c.companyName && c.firstName ? (
+              <Text style={styles.detailCompany}> · {c.companyName}</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.detailSection}>
+            {c.email ? (
+              <View style={styles.detailRow}>
+                <Mail size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.detailText}>{c.email}</Text>
+              </View>
+            ) : null}
+            {c.phone ? (
+              <View style={styles.detailRow}>
+                <Phone size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.detailText}>{c.phone}</Text>
+              </View>
+            ) : null}
+            {c.address ? (
+              <View style={styles.detailRow}>
+                <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={styles.detailText}>{c.address}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {financials && (
+            <View style={styles.financialCard}>
+              <Text style={styles.financialTitle}>Financial Summary</Text>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Total Invoiced</Text>
+                <Text style={styles.financialValue}>${financials.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              </View>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Total Paid</Text>
+                <Text style={[styles.financialValue, { color: themeColors.success }]}>${financials.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              </View>
+              <View style={styles.financialDivider} />
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabelBold}>Outstanding</Text>
+                <Text style={[styles.financialValueBold, { color: financials.outstanding > 0 ? themeColors.danger : themeColors.success }]}>
+                  ${financials.outstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {linkedProjects.length > 0 && (
+            <View style={styles.linkedSection}>
+              <Text style={styles.linkedTitle}>Linked Projects</Text>
+              {linkedProjects.map(p => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.linkedProjectRow}
+                  onPress={() => {
+                    navigateTo(
+                      { kind: 'project', id: p.id, label: p.name },
+                      { onBeforeNavigate: h.onClose },
+                    );
+                  }}
+                >
+                  <Text style={styles.linkedProjectName}>{p.name}</Text>
+                  <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {c.notes ? (
+            <View style={styles.notesSection}>
+              <Text style={styles.notesTitle}>Notes</Text>
+              <Text style={styles.notesText}>{c.notes}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.detailActions}>
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={h.onEdit}
+            >
+              <Edit3 size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={() => handleDelete(c)}
+            >
+              <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+              <Text style={styles.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </>
+    );
+  };
+
+  const found = split.openId ? contacts.find(c => c.id === split.openId) ?? null : null;
+
+  // Add / edit and detail sheets: centred 560 cards on desktop, today's bottom
+  // sheets on a phone (useSheetFrame's phone parts are all null).
+  const fAdd = useSheetFrame('form', { visible: showAddModal, animationType: 'slide' });
+  const fDet = useSheetFrame('form', { visible: showDetailModal, animationType: 'slide' });
+  useSheetPrimaryHotkey(showAddModal, handleSave);
+
   return (
     <View style={styles.container}>
+      {isDesktopWeb ? (
+        <ContactsRegister
+          contacts={contacts}
+          split={split}
+          detail={found
+            ? renderContactDetail(found, { onClose: split.close, onEdit: () => openEditModal(found) })
+            : (
+              <EmptyState
+                icon={<User size={28} color={themeColors.accent} strokeWidth={1.75} />}
+                title="This contact isn't on your list any more"
+                message="It may have been deleted. Pick another contact from the list."
+                actionLabel="Close"
+                onAction={split.close}
+              />
+            )}
+          roles={CONTACT_ROLES}
+          onNew={openAddModal}
+          deleteContact={deleteContact}
+        />
+      ) : (<>
       <Stack.Screen options={{
         title: 'Contacts',
         headerStyle: { backgroundColor: themeColors.bg },
@@ -323,12 +481,13 @@ export default function ContactsScreen() {
           </View>
         }
       />
+      </>)}
 
       {/* Add/Edit Modal */}
-      <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
+      <Modal visible={showAddModal} transparent animationType={fAdd.animationType} onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fAdd.overlay]}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAdd.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingContact ? 'Edit Contact' : 'New Contact'}</Text>
                 <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
@@ -352,7 +511,7 @@ export default function ContactsScreen() {
                 <TextInput style={styles.formInput} value={companyName} onChangeText={setCompanyName} placeholder="Company name" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.formLabel}>Role</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleChipsRow}>
+                <ChipRail contentContainerStyle={styles.roleChipsRow}>
                   {CONTACT_ROLES.map(r => (
                     <TouchableOpacity
                       key={r.value}
@@ -362,13 +521,13 @@ export default function ContactsScreen() {
                       <Text style={[styles.roleChipText, role === r.value && styles.roleChipTextActive]}>{r.label}</Text>
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
+                </ChipRail>
 
                 <Text style={styles.formLabel}>Email</Text>
                 <TextInput style={styles.formInput} value={email} onChangeText={setEmail} placeholder="email@example.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" />
 
                 <Text style={styles.formLabel}>Phone</Text>
-                <TextInput style={styles.formInput} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
+                <TextInput style={[styles.formInput, isDesktop && (desktopField('sm') as TextStyle)]} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
 
                 <Text style={styles.formLabel}>Address</Text>
                 <TextInput style={styles.formInput} value={address} onChangeText={setAddress} placeholder="123 Main St, City, State" placeholderTextColor={themeColors.textMuted} />
@@ -376,7 +535,7 @@ export default function ContactsScreen() {
                 <Text style={styles.formLabel}>Notes</Text>
                 <TextInput style={[styles.formInput, { minHeight: 70 }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
+                <TouchableOpacity style={[styles.saveBtn, fAdd.footerButton]} onPress={handleSave} activeOpacity={0.85}>
                   <Text style={styles.saveBtnText}>{editingContact ? 'Save Changes' : 'Add Contact'}</Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -386,126 +545,16 @@ export default function ContactsScreen() {
       </Modal>
 
       {/* Detail Modal */}
-      <Modal visible={showDetailModal} transparent animationType="slide" onRequestClose={() => setShowDetailModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '85%' }]}>
-            {selectedContact && (() => {
-              const displayName = `${selectedContact.firstName} ${selectedContact.lastName}`.trim() || selectedContact.companyName;
-              const roleColor = getRoleColor(selectedContact.role, themeColors);
-              const financials = getContactFinancials(selectedContact);
-              const linkedProjects = projects.filter(p => selectedContact.linkedProjectIds.includes(p.id));
-
-              return (
-                <>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>{displayName}</Text>
-                    <TouchableOpacity onPress={() => setShowDetailModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView showsVerticalScrollIndicator={false}>
-                    <View style={[styles.detailRoleBadge, { backgroundColor: roleColor + '15' }]}>
-                      <Briefcase size={14} color={roleColor} strokeWidth={1.75} />
-                      <Text style={[styles.detailRoleText, { color: roleColor }]}>{selectedContact.role}</Text>
-                      {selectedContact.companyName && selectedContact.firstName ? (
-                        <Text style={styles.detailCompany}> · {selectedContact.companyName}</Text>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.detailSection}>
-                      {selectedContact.email ? (
-                        <View style={styles.detailRow}>
-                          <Mail size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                          <Text style={styles.detailText}>{selectedContact.email}</Text>
-                        </View>
-                      ) : null}
-                      {selectedContact.phone ? (
-                        <View style={styles.detailRow}>
-                          <Phone size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                          <Text style={styles.detailText}>{selectedContact.phone}</Text>
-                        </View>
-                      ) : null}
-                      {selectedContact.address ? (
-                        <View style={styles.detailRow}>
-                          <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                          <Text style={styles.detailText}>{selectedContact.address}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    {financials && (
-                      <View style={styles.financialCard}>
-                        <Text style={styles.financialTitle}>Financial Summary</Text>
-                        <View style={styles.financialRow}>
-                          <Text style={styles.financialLabel}>Total Invoiced</Text>
-                          <Text style={styles.financialValue}>${financials.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-                        </View>
-                        <View style={styles.financialRow}>
-                          <Text style={styles.financialLabel}>Total Paid</Text>
-                          <Text style={[styles.financialValue, { color: themeColors.success }]}>${financials.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-                        </View>
-                        <View style={styles.financialDivider} />
-                        <View style={styles.financialRow}>
-                          <Text style={styles.financialLabelBold}>Outstanding</Text>
-                          <Text style={[styles.financialValueBold, { color: financials.outstanding > 0 ? themeColors.danger : themeColors.success }]}>
-                            ${financials.outstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {linkedProjects.length > 0 && (
-                      <View style={styles.linkedSection}>
-                        <Text style={styles.linkedTitle}>Linked Projects</Text>
-                        {linkedProjects.map(p => (
-                          <TouchableOpacity
-                            key={p.id}
-                            style={styles.linkedProjectRow}
-                            onPress={() => {
-                              navigateTo(
-                                { kind: 'project', id: p.id, label: p.name },
-                                { onBeforeNavigate: () => setShowDetailModal(false) },
-                              );
-                            }}
-                          >
-                            <Text style={styles.linkedProjectName}>{p.name}</Text>
-                            <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-
-                    {selectedContact.notes ? (
-                      <View style={styles.notesSection}>
-                        <Text style={styles.notesTitle}>Notes</Text>
-                        <Text style={styles.notesText}>{selectedContact.notes}</Text>
-                      </View>
-                    ) : null}
-
-                    <View style={styles.detailActions}>
-                      <TouchableOpacity
-                        style={styles.editBtn}
-                        onPress={() => {
-                          setShowDetailModal(false);
-                          setTimeout(() => openEditModal(selectedContact), 350);
-                        }}
-                      >
-                        <Edit3 size={14} color={themeColors.accent} strokeWidth={1.75} />
-                        <Text style={styles.editBtnText}>Edit</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteBtn}
-                        onPress={() => handleDelete(selectedContact)}
-                      >
-                        <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-                        <Text style={styles.deleteBtnText}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </ScrollView>
-                </>
-              );
-            })()}
+      <Modal visible={showDetailModal} transparent animationType={fDet.animationType} onRequestClose={() => setShowDetailModal(false)}>
+        <View style={[styles.modalOverlay, fDet.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '85%' }, fDet.card]}>
+            {selectedContact && renderContactDetail(selectedContact, {
+              onClose: () => setShowDetailModal(false),
+              onEdit: () => {
+                setShowDetailModal(false);
+                setTimeout(() => openEditModal(selectedContact), 350);
+              },
+            })}
           </View>
         </View>
       </Modal>

@@ -26,8 +26,18 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { paymentReceivedAt } from '@/utils/billingFlowCore';
-import { dayOrInstantDate } from '@/utils/calendarDate';
-import { segmentedDesktop, useIsDesktop } from '@/components/ui';
+import { dayOrInstantDate, todayCalendarDay } from '@/utils/calendarDate';
+import { segmentedDesktop, useIsDesktop, useIsDesktopWeb, desktopCta, desktopProse, StatusPill, type StatusTone } from '@/components/ui';
+import { KpiStrip, type KpiCell } from '@/components/desktop/KpiStrip';
+import { DataTable, type DataTableColumn, type DataTableBulkAction } from '@/components/desktop/DataTable';
+import { routeHref } from '@/components/desktop/RowLink';
+import { computeARAgingReport } from '@/utils/financialReports';
+import { rowsToCsv } from '@/utils/dataTable';
+import { deliverTextFile } from '@/utils/platformFile';
+import {
+  paymentsArBuckets, paymentsFooter, paymentAppliedLabel, paymentFeeCell, paymentNetCell,
+  invoiceCountLabel, PAYMENTS_CSV_COLUMNS,
+} from '@/utils/paymentsDesk';
 
 function feeScheduleLabel(tier: string): string {
   return `${platformFeeLabel(tier)} + ${STRIPE_CARD_PROCESSING.percent}% + ${STRIPE_CARD_PROCESSING.fixedCents}¢`;
@@ -327,6 +337,15 @@ const statusConfig = (t: ThemeColors): Record<PaymentStatus, { label: string; co
   refunded: { label: 'Refunded', color: t.textSecondary, bgColor: t.surfaceAlt, icon: RefreshCw },
 });
 
+/** The desk's Status pill: the same five states, in StatusPill's tones. */
+const STATUS_TONE: Record<PaymentStatus, StatusTone> = {
+  pending: 'warning',
+  processing: 'info',
+  completed: 'success',
+  failed: 'error',
+  refunded: 'neutral',
+};
+
 function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -504,70 +523,183 @@ export default function PaymentsScreen() {
   }, [invoices, projects]);
 
   const isDesktop = useIsDesktop();
+  const isDesktopWeb = useIsDesktopWeb();
+
+  // ── The desk (desktop) ────────────────────────────────────────────────────
+  // Pending split by age: each pending row bucketed by its invoice's A/R aging
+  // row (utils/paymentsDesk), so Σ(Current … 90+) is the Pending figure to the
+  // cent — the validator proves it (scripts/validate-money-desk.ts).
+  const aging = useMemo(() => computeARAgingReport(invoices, projects), [invoices, projects]);
+  const ar = useMemo(() => paymentsArBuckets(payments.filter(isPendingRow), aging.rows), [payments, aging]);
+  const invoiceNumberById = useMemo(() => new Map(invoices.map(inv => [inv.id, inv.number] as [string, number])), [invoices]);
+
+  const kpiCells = useMemo<KpiCell[]>(() => {
+    const aged = (key: 'current' | 'd1_30' | 'd31_60' | 'd61_90' | 'd90p', label: string, tone?: KpiCell['tone'], first = false): KpiCell => ({
+      key,
+      label,
+      value: formatMoney(ar[key], 2),
+      sub: first ? `${invoiceCountLabel(ar.counts[key])} · retention excluded` : invoiceCountLabel(ar.counts[key]),
+      tone,
+      financial: true,
+    });
+    return [
+      { key: 'received', label: 'Received', value: formatMoney(stats.received, 2), sub: 'Amount paid, before fees', tone: 'good', financial: true },
+      {
+        key: 'pending',
+        label: 'Pending',
+        value: formatMoney(stats.pending, 2),
+        sub: !ar.reconciles
+          ? 'A/R buckets differ from Pending — see Reports'
+          : stats.pendingRetentionHeld > 0
+            ? `Excludes ${formatMoney(stats.pendingRetentionHeld, 2)} retention held`
+            : 'Owed to you now',
+        financial: true,
+      },
+      aged('current', 'Current', undefined, true),
+      aged('d1_30', 'Past due 1–30'),
+      aged('d31_60', '31–60'),
+      aged('d61_90', '61–90', 'warn'),
+      aged('d90p', '90+', 'bad'),
+      { key: 'fees', label: 'Est. fees', value: formatMoney(stats.totalFees, 2), sub: feeScheduleLabel(tier), financial: true },
+    ];
+  }, [ar, stats, tier]);
+
+  const columns = useMemo<DataTableColumn<PaymentRow>[]>(() => [
+    {
+      key: 'date', label: 'Date', width: 96,
+      sortValue: p => { const t = dayOrInstantDate(p.createdAt).getTime(); return Number.isNaN(t) ? null : t; },
+      value: p => dayOrInstantDate(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    },
+    { key: 'job', label: 'Job', flex: 1, minWidth: 160, sortValue: p => p.projectName, value: p => p.projectName },
+    { key: 'payer', label: 'Payer', width: 160, hideBelow: 1100, sortValue: p => p.clientName, value: p => p.clientName },
+    {
+      key: 'applied', label: 'Applied to', width: 104,
+      value: p => paymentAppliedLabel(p, invoiceNumberById),
+      sortValue: p => (p.invoiceId ? invoiceNumberById.get(p.invoiceId) ?? null : null),
+    },
+    { key: 'method', label: 'Method', width: 104, sortValue: p => providerLabel(p.provider), value: p => providerLabel(p.provider) },
+    {
+      key: 'amount', label: 'Amount', width: 128, numeric: true, sortValue: p => p.amount,
+      render: p => (
+        <Text style={[styles.deskMoney, p.status === 'failed' && { color: themeColors.dangerLabel }]} numberOfLines={1}>
+          {formatMoney(p.amount, 2)}
+        </Text>
+      ),
+    },
+    { key: 'fee', label: 'Fee', width: 104, numeric: true, sortValue: p => (p.fee > 0 ? p.fee : null), value: p => paymentFeeCell(p) },
+    { key: 'net', label: 'Net', width: 128, numeric: true, sortValue: p => (p.provider === 'card' ? null : p.netAmount), value: p => paymentNetCell(p) },
+    {
+      key: 'status', label: 'Status', width: 112, sortValue: p => p.status,
+      render: p => <StatusPill label={statusConfig(themeColors)[p.status].label} tone={STATUS_TONE[p.status]} size="compact" />,
+    },
+  ], [invoiceNumberById, styles, themeColors]);
+
+  const footer = useMemo(() => {
+    const f = paymentsFooter(selectedTab, filtered, stats);
+    const out: Record<string, string> = {};
+    if (f.job != null) out.job = f.job;
+    if (f.amount != null) out.amount = formatMoney(f.amount, 2);
+    if (f.fee != null) out.fee = formatMoney(f.fee, 2);
+    if (f.net != null) out.net = formatMoney(f.net, 2);
+    return out;
+  }, [selectedTab, filtered, stats]);
+
+  const bulkActions = useMemo<DataTableBulkAction[]>(() => [{
+    key: 'csv',
+    label: 'Export CSV',
+    run: (ids: string[]) => {
+      const pick = new Set(ids);
+      const picked = filtered.filter(p => pick.has(p.id));
+      void deliverTextFile(`payments-${todayCalendarDay()}.csv`, rowsToCsv(PAYMENTS_CSV_COLUMNS, picked), 'text/csv;charset=utf-8');
+    },
+  }], [filtered]);
+
+  const emptyList = (
+    <View style={{ minHeight: 360 }}>
+      <EmptyState
+        icon={<CreditCard size={32} color={themeColors.accent} strokeWidth={1.75} />}
+        title="No payments yet"
+        message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
+        steps={[
+          'Open a project and create an invoice with a Stripe pay link.',
+          'Send the invoice — the client taps Pay or you mark a check received.',
+          'Payments, fees, and provider details land on this screen automatically.',
+        ]}
+        actionLabel="Open Projects"
+        onAction={() => router.push(routeHref('/(tabs)/(home)'))}
+      />
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Payments', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroCards}>
-          <View style={[styles.heroCard, { flex: 1.2 }]}>
-            <View style={[styles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
-              <ArrowDownRight size={18} color={themeColors.success} strokeWidth={1.75} />
+        {isDesktop ? (
+          <KpiStrip testID="payments-kpis" style={isDesktop && styles.kpiDesktop} cells={kpiCells} />
+        ) : (
+          <>
+            <View style={styles.heroCards}>
+              <View style={[styles.heroCard, { flex: 1.2 }]}>
+                <View style={[styles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
+                  <ArrowDownRight size={18} color={themeColors.success} strokeWidth={1.75} />
+                </View>
+                {/* Cents kept; a long figure SHRINKS to fit rather than rounding
+                    (#109) — the whole point of this tile is matching the bank. */}
+                <Text
+                  style={[styles.heroValue, { color: themeColors.success }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
+                  {formatMoney(stats.received, 2)}
+                </Text>
+                <Text style={styles.heroLabel}>Received</Text>
+                {/* Labelled, per MONEY-01: this is the money in, before fees — the
+                    same figure the rows and each invoice's Amount Paid show. */}
+                <Text style={styles.heroNote}>Amount paid, before fees</Text>
+              </View>
+              <View style={styles.heroCard}>
+                <View style={[styles.heroIconWrap, { backgroundColor: themeColors.warningSoft }]}>
+                  <Clock size={18} color={themeColors.warningLabel} strokeWidth={1.75} />
+                </View>
+                <Text
+                  style={[styles.heroValue, { color: themeColors.warningLabel }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
+                  {formatMoney(stats.pending, 2)}
+                </Text>
+                <Text style={styles.heroLabel}>Pending</Text>
+                <Text style={styles.heroNote}>
+                  {stats.pendingRetentionHeld > 0
+                    ? `Excludes ${formatMoney(stats.pendingRetentionHeld, 2)} retention held`
+                    : 'Owed to you now'}
+                </Text>
+              </View>
             </View>
-            {/* Cents kept; a long figure SHRINKS to fit rather than rounding
-                (#109) — the whole point of this tile is matching the bank. */}
-            <Text
-              style={[styles.heroValue, { color: themeColors.success }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.5}
-            >
-              {formatMoney(stats.received, 2)}
-            </Text>
-            <Text style={styles.heroLabel}>Received</Text>
-            {/* Labelled, per MONEY-01: this is the money in, before fees — the
-                same figure the rows and each invoice's Amount Paid show. */}
-            <Text style={styles.heroNote}>Amount paid, before fees</Text>
-          </View>
-          <View style={styles.heroCard}>
-            <View style={[styles.heroIconWrap, { backgroundColor: themeColors.warningSoft }]}>
-              <Clock size={18} color={themeColors.warningLabel} strokeWidth={1.75} />
-            </View>
-            <Text
-              style={[styles.heroValue, { color: themeColors.warningLabel }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.5}
-            >
-              {formatMoney(stats.pending, 2)}
-            </Text>
-            <Text style={styles.heroLabel}>Pending</Text>
-            <Text style={styles.heroNote}>
-              {stats.pendingRetentionHeld > 0
-                ? `Excludes ${formatMoney(stats.pendingRetentionHeld, 2)} retention held`
-                : 'Owed to you now'}
-            </Text>
-          </View>
-        </View>
 
-        <View style={styles.feeRow}>
-          <View style={styles.feeItem}>
-            <View style={styles.feeItemText}>
-              <Text style={styles.feeItemLabel}>Est. fees on payments MAGE processed</Text>
-              <Text style={styles.feeItemSub}>{feeScheduleLabel(tier)}</Text>
+            <View style={styles.feeRow}>
+              <View style={styles.feeItem}>
+                <View style={styles.feeItemText}>
+                  <Text style={styles.feeItemLabel}>Est. fees on payments MAGE processed</Text>
+                  <Text style={styles.feeItemSub}>{feeScheduleLabel(tier)}</Text>
+                </View>
+                <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
+              </View>
+              {stats.failedCount > 0 && (
+                <View style={[styles.feeItem, { backgroundColor: themeColors.dangerSoft }]}>
+                  <Text style={[styles.feeItemLabel, { color: themeColors.dangerLabel }]}>Failed</Text>
+                  <Text style={[styles.feeItemValue, { color: themeColors.dangerLabel }]}>{stats.failedCount}</Text>
+                </View>
+              )}
             </View>
-            <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
-          </View>
-          {stats.failedCount > 0 && (
-            <View style={[styles.feeItem, { backgroundColor: themeColors.dangerSoft }]}>
-              <Text style={[styles.feeItemLabel, { color: themeColors.dangerLabel }]}>Failed</Text>
-              <Text style={[styles.feeItemValue, { color: themeColors.dangerLabel }]}>{stats.failedCount}</Text>
-            </View>
-          )}
-        </View>
+          </>
+        )}
 
         {stats.unknownFeeCount > 0 && (
-          <Text style={styles.feeNote}>
+          <Text style={[styles.feeNote, isDesktop && desktopProse]}>
             {stats.unknownFeeCount === 1
               ? '1 card payment was recorded by hand. MAGE did not process it, so its processor fee is unknown and none is deducted above.'
               : `${stats.unknownFeeCount} card payments were recorded by hand. MAGE did not process them, so their processor fees are unknown and none are deducted above.`}
@@ -575,7 +707,7 @@ export default function PaymentsScreen() {
         )}
 
         <TouchableOpacity
-          style={styles.sendButton}
+          style={[styles.sendButton, isDesktop && desktopCta]}
           onPress={handleSendInvoice}
           activeOpacity={0.85}
           accessibilityRole="button"
@@ -618,25 +750,45 @@ export default function PaymentsScreen() {
         </View>
 
         <View style={styles.listSection}>
-          {filtered.length === 0 ? (
-            <View style={{ minHeight: 360 }}>
-              <EmptyState
-                icon={<CreditCard size={32} color={themeColors.accent} strokeWidth={1.75} />}
-                title="No payments yet"
-                message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
-                steps={[
-                  'Open a project and create an invoice with a Stripe pay link.',
-                  'Send the invoice — the client taps Pay or you mark a check received.',
-                  'Payments, fees, and provider details land on this screen automatically.',
-                ]}
-                actionLabel="Open Projects"
-                onAction={() => router.push('/(tabs)/(home)' as any)}
-              />
-            </View>
+          {isDesktop ? (
+            <DataTable<PaymentRow>
+              tableId="payments"
+              testID="payments-table"
+              columns={columns}
+              rows={filtered}
+              rowKey={p => p.id}
+              defaultSort={{ key: 'date', dir: 'desc' }}
+              // NO searchText: the footers are the TAB's totals, and a search
+              // box would make them disagree with the rows left visible.
+              selectable={isDesktopWeb}
+              {...(isDesktopWeb ? { bulkActions } : null)}
+              getRowHref={p => routeHref('/invoice', { projectId: p.projectId, invoiceId: p.invoiceId ?? '' })}
+              onRowOpen={handlePaymentPress}
+              footerTotals={footer}
+              emptyState={emptyList}
+              renderCard={p => <PaymentCard key={p.id} payment={p} onPress={() => handlePaymentPress(p)} />}
+            />
           ) : (
-            filtered.map(payment => (
-              <PaymentCard key={payment.id} payment={payment} onPress={() => handlePaymentPress(payment)} />
-            ))
+            filtered.length === 0 ? (
+              <View style={{ minHeight: 360 }}>
+                <EmptyState
+                  icon={<CreditCard size={32} color={themeColors.accent} strokeWidth={1.75} />}
+                  title="No payments yet"
+                  message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
+                  steps={[
+                    'Open a project and create an invoice with a Stripe pay link.',
+                    'Send the invoice — the client taps Pay or you mark a check received.',
+                    'Payments, fees, and provider details land on this screen automatically.',
+                  ]}
+                  actionLabel="Open Projects"
+                  onAction={() => router.push('/(tabs)/(home)' as any)}
+                />
+              </View>
+            ) : (
+              filtered.map(payment => (
+                <PaymentCard key={payment.id} payment={payment} onPress={() => handlePaymentPress(payment)} />
+              ))
+            )
           )}
         </View>
       </ScrollView>
@@ -646,6 +798,9 @@ export default function PaymentsScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  // Desktop only (the KPI strip takes the hero + fee row's place).
+  kpiDesktop: { marginHorizontal: 16, marginTop: 16, marginBottom: 12 },
+  deskMoney: { ...Type.bodyCompact, color: t.text, textAlign: 'right', fontVariant: ['tabular-nums'] },
   heroCards: {
     flexDirection: 'row',
     paddingHorizontal: 16,

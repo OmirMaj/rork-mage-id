@@ -15,7 +15,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, KeyboardAvoidingView,
-  ActivityIndicator,
+  ActivityIndicator, type GestureResponderEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -59,10 +59,14 @@ import { buildCostDatabase } from '@/utils/costDatabase';
 import { openExcludedScope, awardedCommitmentOf } from '@/utils/projectFinancials';
 import { sharePurchaseOrderPDF } from '@/utils/purchaseOrderPdf';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
-import { segmentedDesktop, useIsDesktop } from '@/components/ui';
+import { segmentedDesktop, useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { DashboardColumns } from '@/components/desktop/DashboardColumns';
+import { KpiStrip, type KpiCell, type KpiTone } from '@/components/desktop/KpiStrip';
+import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
+import { jobCostFooter, jobCostPhaseCells, pctSpentText } from '@/utils/dashboardTables';
 
 // ─────────────────────────────────────────────────────────────
 // Root
@@ -90,6 +94,8 @@ function JobCostingInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
+  // Desktop web: KPI strip, main | rail columns, and the two tables (wave 6d).
+  const isDesktopWeb = useIsDesktopWeb();
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
@@ -342,26 +348,11 @@ function JobCostingInner() {
   // was exactly an inline re-derivation of the sign that got it backwards.
   const v = describeVariance(summary.variance);
 
-  return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
-        </TouchableOpacity>
-        <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
-        </View>
-        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add">
-          <Plus size={18} color={'#FFFFFF'} strokeWidth={1.75} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
-
+  // ── Sections. Each is today's JSX, moved verbatim; the phone renders them
+  // in today's order below, so its tree is unchanged. Desktop web lays the
+  // same sections out as KPI strip | main + rail | tables (wave 6d, B1).
+  const kpiGrid = (
+    <>
         {/* KPI cards */}
         <View style={styles.kpiGrid}>
           <KpiCard
@@ -394,7 +385,10 @@ function JobCostingInner() {
             testID="variance-kpi"
           />
         </View>
-
+    </>
+  );
+  const unpricedBanner = (
+    <>
         {/* #61: clocked hours on a trade with no rate price at $0 — MAGE never
             invents one — so every number above is missing that labor. Said
             once, here, with the way to fix it (the WIP report's wording).
@@ -417,7 +411,10 @@ function JobCostingInner() {
             </Text>
           </TouchableOpacity>
         ) : null}
-
+    </>
+  );
+  const projectionBanner = (
+    <>
         {/* Projection banner — the TL;DR */}
         <View
           testID="variance-banner"
@@ -431,7 +428,10 @@ function JobCostingInner() {
             Method: paid + remaining committed + uncommitted budget floor
           </Text>
         </View>
-
+    </>
+  );
+  const uncoveredNotice = (
+    <>
         {uncoveredScope.length > 0 && (
           <View style={[styles.section, styles.warningSectionAmber]} testID="uncovered-scope-notice">
             <View style={styles.warningHeader}>
@@ -452,7 +452,10 @@ function JobCostingInner() {
             </Text>
           </View>
         )}
-
+    </>
+  );
+  const bidCheckBanner = (
+    <>
         {/* Sub-bid reality check — non-blocking, dismissible. 'fair'/'unknown' stay silent.
             'low' (scope-gap risk) = danger red; 'high' (bid looks expensive) = amber warning.
             Container + icon + title all use the same severity colour for visual consistency. */}
@@ -477,7 +480,10 @@ function JobCostingInner() {
             <Text style={styles.warningItem}>{bidCheck.detail}</Text>
           </View>
         )}
-
+    </>
+  );
+  const crossLinks = (
+    <>
         {/* Cross-link to the margin view of this same data */}
         <TouchableOpacity
           style={styles.marginLink}
@@ -501,7 +507,10 @@ function JobCostingInner() {
           <Text style={styles.marginLinkText}>Snap a material receipt to log actual cost</Text>
           <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
-
+    </>
+  );
+  const biggestVariances = (
+    <>
         {/* Biggest variances call-out */}
         {summary.biggestVariances.length > 0 && (
           <View style={styles.section}>
@@ -540,7 +549,10 @@ function JobCostingInner() {
             ))}
           </View>
         )}
-
+    </>
+  );
+  const byPhase = (
+    <>
         {/* Per-phase stacked bars */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>By phase</Text>
@@ -552,7 +564,10 @@ function JobCostingInner() {
             ))
           )}
         </View>
-
+    </>
+  );
+  const overcommitted = (
+    <>
         {/* Overcommitted warning */}
         {summary.overcommittedCommitments.length > 0 && (
           <View style={[styles.section, styles.warningSection]}>
@@ -567,9 +582,10 @@ function JobCostingInner() {
             ))}
           </View>
         )}
-
-        {/* Commitments list */}
-        <View style={styles.section}>
+    </>
+  );
+  const commitmentsHeader = (
+    <>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Commitments ({projectCommitments.length})</Text>
             <TouchableOpacity onPress={() => setShowAdd(true)} style={styles.addLink}>
@@ -583,7 +599,10 @@ function JobCostingInner() {
               line items, order total and required-by date, ready to send.
             </Text>
           )}
-          {projectCommitments.length === 0 ? (
+    </>
+  );
+  const commitmentsEmpty = (
+    <>
             <View style={styles.emptyBox}>
               <FileSignature size={22} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyText}>
@@ -593,55 +612,68 @@ function JobCostingInner() {
                 <Text style={styles.emptyCtaText}>Add first commitment</Text>
               </TouchableOpacity>
             </View>
+    </>
+  );
+  const commitmentCard = (c: Commitment) => {
+    const sub = c.subcontractorId ? subcontractors.find(s => s.id === c.subcontractorId) : null;
+    const vendorLabel = sub?.companyName ?? c.vendorName ?? '—';
+    return (
+      <TouchableOpacity
+        key={c.id}
+        style={styles.commitmentRow}
+        onPress={() => setEditingCommitment(c)}
+      >
+        <View style={styles.commitmentNumBox}>
+          <Text style={styles.commitmentNumText}>{c.number || '—'}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.commitmentTitle} numberOfLines={1}>
+            {c.description || '(no description)'}
+          </Text>
+          <Text style={styles.commitmentSub} numberOfLines={1}>
+            {vendorLabel} · {c.type === 'subcontract' ? 'Subcontract' : 'PO'}
+            {c.phase ? ` · ${c.phase}` : ''}
+          </Text>
+        </View>
+        <Text style={styles.commitmentAmount}>
+          {formatMoney(c.amount + (c.changeAmount ?? 0))}
+        </Text>
+        <StatusChip status={c.status} />
+        {c.type === 'purchase_order' && (
+          <TouchableOpacity
+            onPress={() => { void handleIssuePO(c); }}
+            hitSlop={8}
+            style={styles.deleteBtn}
+            disabled={issuingPo === c.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Issue purchase order ${c.number || ''}`}
+          >
+            {issuingPo === c.id
+              ? <ActivityIndicator size="small" color={themeColors.accent} />
+              : <FileDown size={14} color={themeColors.accent} strokeWidth={1.75} />}
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
+          <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  };
+  const commitmentsSection = (
+    <>
+        {/* Commitments list */}
+        <View style={styles.section}>
+          {commitmentsHeader}
+          {projectCommitments.length === 0 ? (
+            commitmentsEmpty
           ) : (
-            projectCommitments.map(c => {
-              const sub = c.subcontractorId ? subcontractors.find(s => s.id === c.subcontractorId) : null;
-              const vendorLabel = sub?.companyName ?? c.vendorName ?? '—';
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={styles.commitmentRow}
-                  onPress={() => setEditingCommitment(c)}
-                >
-                  <View style={styles.commitmentNumBox}>
-                    <Text style={styles.commitmentNumText}>{c.number || '—'}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.commitmentTitle} numberOfLines={1}>
-                      {c.description || '(no description)'}
-                    </Text>
-                    <Text style={styles.commitmentSub} numberOfLines={1}>
-                      {vendorLabel} · {c.type === 'subcontract' ? 'Subcontract' : 'PO'}
-                      {c.phase ? ` · ${c.phase}` : ''}
-                    </Text>
-                  </View>
-                  <Text style={styles.commitmentAmount}>
-                    {formatMoney(c.amount + (c.changeAmount ?? 0))}
-                  </Text>
-                  <StatusChip status={c.status} />
-                  {c.type === 'purchase_order' && (
-                    <TouchableOpacity
-                      onPress={() => { void handleIssuePO(c); }}
-                      hitSlop={8}
-                      style={styles.deleteBtn}
-                      disabled={issuingPo === c.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Issue purchase order ${c.number || ''}`}
-                    >
-                      {issuingPo === c.id
-                        ? <ActivityIndicator size="small" color={themeColors.accent} />
-                        : <FileDown size={14} color={themeColors.accent} strokeWidth={1.75} />}
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                    <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              );
-            })
+            projectCommitments.map(commitmentCard)
           )}
         </View>
-
+    </>
+  );
+  const footerNote = (
+    <>
         {/* JOBCOST-CO-COST-1 and JOBCOST-PHASE-1 both changed what these two
             sentences describe, so both sentences changed with them. The old
             copy said "Budget includes approved change orders" (they now enter
@@ -661,6 +693,197 @@ function JobCostingInner() {
           and spend your estimate never priced is absorbed by budget still uncommitted rather than
           reported as an overrun. Tap any phase to see the records behind it.
         </Text>
+    </>
+  );
+
+  // ── Desktop web only ────────────────────────────────────────────────────
+  // The four KPI cards as one strip, from the SAME expressions the cards print.
+  const kpiCells: KpiCell[] = [
+    { key: 'budget', label: 'Budget', value: formatMoney(summary.budget), sub: `${project.linkedEstimate?.items.length ?? 0} line items` },
+    { key: 'committed', label: 'Committed', value: formatMoney(summary.committed), sub: `${summary.commitmentCoverage.toFixed(0)}% of budget` },
+    { key: 'actual', label: 'Actual paid', value: formatMoney(summary.actual), sub: `${summary.spendPercent.toFixed(0)}% of budget` },
+    {
+      key: 'variance',
+      label: v.label,
+      value: formatMoney(v.amount),
+      sub: `Projected ${formatMoney(summary.projectedFinal)}`,
+      tone: varianceTone(v),
+      testID: 'variance-kpi',
+    },
+  ];
+
+  const commitmentVendor = (c: Commitment): string => {
+    const sub = c.subcontractorId ? subcontractors.find(s => s.id === c.subcontractorId) : null;
+    return sub?.companyName ?? c.vendorName ?? '\u2014';
+  };
+
+  // One row per phase: the cells PhaseBar prints (utils/dashboardTables).
+  const money = (n: number) => <Text style={styles.tableMoney}>{formatMoney(n)}</Text>;
+  const phaseColumns: DataTableColumn<JobCostLine>[] = [
+    { key: 'phase', label: 'Phase', flex: 1, minWidth: 160, sortValue: p => p.phase, render: p => <Text style={styles.tablePhase} numberOfLines={1}>{p.phase}</Text> },
+    { key: 'budget', label: 'Budget', width: 110, numeric: true, sortValue: p => jobCostPhaseCells(p).budget, render: p => money(jobCostPhaseCells(p).budget) },
+    { key: 'committed', label: 'Committed', width: 110, numeric: true, sortValue: p => jobCostPhaseCells(p).committed, render: p => money(jobCostPhaseCells(p).committed) },
+    { key: 'actual', label: 'Actual', width: 110, numeric: true, sortValue: p => jobCostPhaseCells(p).actual, render: p => money(jobCostPhaseCells(p).actual) },
+    { key: 'eac', label: 'EAC', width: 110, numeric: true, sortValue: p => jobCostPhaseCells(p).eac, render: p => money(jobCostPhaseCells(p).eac) },
+    {
+      key: 'variance', label: 'Variance', width: 110, numeric: true,
+      sortValue: p => jobCostPhaseCells(p).variance,
+      render: p => (
+        <Text style={[styles.tableMoney, { color: varianceColor(describeVariance(p.variance), themeColors) }]}>
+          {formatMoney(jobCostPhaseCells(p).variance, { sign: true })}
+        </Text>
+      ),
+    },
+    { key: 'pctSpent', label: '% spent', width: 72, numeric: true, sortValue: p => jobCostPhaseCells(p).pctSpent, value: p => pctSpentText(jobCostPhaseCells(p).pctSpent) },
+    { key: 'status', label: 'Status', width: 110, render: p => <PhaseStatusPill line={p} /> },
+  ];
+
+  // The job's own totals (the KPI figures), never a sum of the visible rows —
+  // the headline takes the uncommitted floor once over the whole job.
+  const phaseFooter = jobCostFooter(summary);
+  const phaseTable = (
+    <View style={isDesktopWeb && styles.tableBlockDesktop}>
+      <Text style={styles.sectionTitle}>By phase</Text>
+      <DataTable
+        tableId="jobcost-phases"
+        testID="jobcost-phases"
+        columns={phaseColumns}
+        rows={summary.byPhase}
+        rowKey={p => p.phase}
+        onRowOpen={setSelectedPhase}
+        renderCard={p => <PhaseBar key={p.phase} line={p} onPress={() => setSelectedPhase(p)} />}
+        defaultSort={{ key: 'variance', dir: 'desc' }}
+        emptyState={<Text style={styles.emptyText}>No phases yet — add a commitment or estimate items.</Text>}
+        footerTotals={{
+          phase: 'Job total',
+          budget: formatMoney(phaseFooter.budget),
+          committed: formatMoney(phaseFooter.committed),
+          actual: formatMoney(phaseFooter.actual),
+          eac: formatMoney(phaseFooter.eac),
+          variance: (
+            <Text style={[styles.tableMoney, { color: varianceColor(describeVariance(phaseFooter.variance), themeColors) }]}>
+              {formatMoney(phaseFooter.variance, { sign: true })}
+            </Text>
+          ),
+          // No budget: the ratio is unknown, as the rows say ('—'), not 0%.
+          pctSpent: summary.budget > 0 ? `${summary.spendPercent.toFixed(0)}%` : '—',
+        }}
+      />
+      {phaseFooter.absorbed > 1 ? (
+        <Text style={styles.varianceAbsorbed} testID="jobcost-table-absorbed">
+          {`${formatMoney(phaseFooter.absorbed)} of the phase rows' spend is absorbed into uncommitted budget in the job total above — see Biggest variances.`}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const commitmentColumns: DataTableColumn<Commitment>[] = [
+    { key: 'number', label: '#', width: 80, sortValue: c => c.number, value: c => c.number || '\u2014' },
+    { key: 'description', label: 'Description', flex: 1, minWidth: 200, sortValue: c => c.description, value: c => c.description || '(no description)' },
+    { key: 'vendor', label: 'Vendor', width: 180, sortValue: c => commitmentVendor(c), value: c => commitmentVendor(c) },
+    { key: 'type', label: 'Type', width: 100, hideBelow: 1050, value: c => (c.type === 'subcontract' ? 'Subcontract' : 'PO') },
+    { key: 'phase', label: 'Phase', width: 140, hideBelow: 1100, sortValue: c => c.phase ?? null, value: c => c.phase || null },
+    {
+      key: 'amount', label: 'Amount', width: 120, numeric: true,
+      sortValue: c => c.amount + (c.changeAmount ?? 0),
+      value: c => formatMoney(c.amount + (c.changeAmount ?? 0)),
+    },
+    { key: 'status', label: 'Status', width: 90, render: c => <StatusChip status={c.status} /> },
+    {
+      key: 'actions', label: '', width: 88, align: 'center',
+      render: c => (
+        <View style={styles.tableActions}>
+          {c.type === 'purchase_order' && (
+            <TouchableOpacity
+              onPress={(e: GestureResponderEvent) => { stopRowOpen(e); void handleIssuePO(c); }}
+              hitSlop={8}
+              style={styles.deleteBtn}
+              disabled={issuingPo === c.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Issue purchase order ${c.number || ''}`}
+            >
+              {issuingPo === c.id
+                ? <ActivityIndicator size="small" color={themeColors.accent} />
+                : <FileDown size={14} color={themeColors.accent} strokeWidth={1.75} />}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={(e: GestureResponderEvent) => { stopRowOpen(e); handleDelete(c.id); }}
+            hitSlop={8}
+            style={styles.deleteBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Delete"
+          >
+            <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+          </TouchableOpacity>
+        </View>
+      ),
+    },
+  ];
+  const commitmentTable = (
+    <View style={isDesktopWeb && styles.tableBlockDesktop}>
+      {commitmentsHeader}
+      {projectCommitments.length === 0 ? (
+        <View style={styles.section}>{commitmentsEmpty}</View>
+      ) : (
+        <DataTable
+          tableId="jobcost-commitments"
+          testID="jobcost-commitments"
+          hotkeys={false}
+          columns={commitmentColumns}
+          rows={projectCommitments}
+          rowKey={c => c.id}
+          onRowOpen={setEditingCommitment}
+          searchText={c => `${c.number} ${c.description} ${commitmentVendor(c)}`}
+          searchPlaceholder="Search commitments"
+          renderCard={commitmentCard}
+        />
+      )}
+    </View>
+  );
+
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={goBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <View style={styles.headerText}>
+          <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
+        </View>
+        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add">
+          <Plus size={18} color={'#FFFFFF'} strokeWidth={1.75} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
+
+        {isDesktopWeb ? (
+          <DashboardColumns
+            kpis={<KpiStrip cells={kpiCells} testID="jobcost-kpis" />}
+            main={<>{unpricedBanner}{projectionBanner}{uncoveredNotice}{bidCheckBanner}{overcommitted}</>}
+            rail={<>{crossLinks}{biggestVariances}</>}
+            below={<>{phaseTable}{commitmentTable}{footerNote}</>}
+          />
+        ) : (
+          <>
+            {kpiGrid}
+            {unpricedBanner}
+            {projectionBanner}
+            {uncoveredNotice}
+            {bidCheckBanner}
+            {crossLinks}
+            {biggestVariances}
+            {byPhase}
+            {overcommitted}
+            {commitmentsSection}
+            {footerNote}
+          </>
+        )}
       </ScrollView>
 
       {/* Add / edit modal */}
@@ -719,6 +942,19 @@ function varianceSoftColor(v: VarianceDisplay, t: ThemeColors): string {
   return v.colorKey === 'danger' ? t.dangerSoft : v.colorKey === 'success' ? t.successSoft : t.surfaceAlt;
 }
 
+/** KpiStrip tone for the variance cell — the same colorKey the card paints. */
+function varianceTone(v: VarianceDisplay): KpiTone {
+  return v.colorKey === 'danger' ? 'bad' : v.colorKey === 'success' ? 'good' : 'neutral';
+}
+
+/** A button inside a table row: the row is a link on web, so this click must
+ *  not also open the record (components/portfolio/PortfolioTable does the same). */
+function stopRowOpen(e: GestureResponderEvent) {
+  const ev = e as unknown as { preventDefault?: () => void; stopPropagation?: () => void };
+  ev.preventDefault?.();
+  ev.stopPropagation?.();
+}
+
 const TREND_ICON: Record<VarianceDisplay['trend'], React.ComponentType<IconLike>> = {
   up: TrendingUp,
   down: TrendingDown,
@@ -730,15 +966,41 @@ function KpiCard({ label, value, subtitle, accent, icon: Icon, testID }: {
   icon: React.ComponentType<IconLike>; testID?: string;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const { isDesktop } = useResponsiveLayout();
   return (
-    <View testID={testID} style={[styles.kpiCard, isDesktop && styles.kpiCardDesktop, { borderLeftColor: accent }]}>
+    <View testID={testID} style={[styles.kpiCard, { borderLeftColor: accent }]}>
       <View style={styles.kpiHeader}>
         <Icon size={14} color={accent} />
         <Text style={styles.kpiLabel}>{label}</Text>
       </View>
       <Text style={[styles.kpiValue, { color: accent }]}>{value}</Text>
       {subtitle ? <Text style={styles.kpiSub}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+
+/** The phase status chip's fill / ink / projected-marker colours and label
+ *  (see PhaseBar for why the three tokens are separate). */
+function phaseStatusColors(line: JobCostLine, themeColors: ThemeColors): { fill: string; ink: string; mark: string; label: string } {
+  const { fill, ink, mark } = line.status === 'over'
+    ? { fill: themeColors.dangerSoft, ink: themeColors.dangerLabel, mark: themeColors.danger }
+    : line.status === 'warning' || line.status === 'unbudgeted'
+      ? { fill: themeColors.warningSoft, ink: themeColors.warningLabel, mark: themeColors.warningLabel }
+      : { fill: themeColors.successSoft, ink: themeColors.success, mark: themeColors.success };
+  const label = line.status === 'over' ? 'Over'
+    : line.status === 'warning' ? 'Watch'
+    : line.status === 'unbudgeted' ? 'Unbudgeted'
+    : 'On track';
+  return { fill, ink, mark, label };
+}
+
+/** The status pill PhaseBar draws; the desktop phase table's Status cell too. */
+function PhaseStatusPill({ line }: { line: JobCostLine }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { fill, ink, label } = phaseStatusColors(line, themeColors);
+  return (
+    <View style={[styles.phasePill, { backgroundColor: fill }]}>
+      <Text style={[styles.phasePillText, { color: ink }]}>{label}</Text>
     </View>
   );
 }
@@ -772,23 +1034,13 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
   // On the #FFFFFF card the dangerLabel ink reads 4.77:1 over the dangerSoft
   // fill, where plain `danger` would be 4.17:1 and miss AA. The 3px projected
   // marker is not text, so it keeps the saturated `danger` token.
-  const { fill: statusFill, ink: statusInk, mark: statusMark } = line.status === 'over'
-    ? { fill: themeColors.dangerSoft, ink: themeColors.dangerLabel, mark: themeColors.danger }
-    : line.status === 'warning' || line.status === 'unbudgeted'
-      ? { fill: themeColors.warningSoft, ink: themeColors.warningLabel, mark: themeColors.warningLabel }
-      : { fill: themeColors.successSoft, ink: themeColors.success, mark: themeColors.success };
-  const statusLabel = line.status === 'over' ? 'Over'
-    : line.status === 'warning' ? 'Watch'
-    : line.status === 'unbudgeted' ? 'Unbudgeted'
-    : 'On track';
+  const { ink: statusInk, mark: statusMark } = phaseStatusColors(line, themeColors);
 
   return (
     <TouchableOpacity style={styles.phaseWrap} onPress={onPress}>
       <View style={styles.phaseHeaderRow}>
         <Text style={styles.phaseName} numberOfLines={1}>{line.phase}</Text>
-        <View style={[styles.phasePill, { backgroundColor: statusFill }]}>
-          <Text style={[styles.phasePillText, { color: statusInk }]}>{statusLabel}</Text>
-        </View>
+        <PhaseStatusPill line={line} />
       </View>
 
       <View style={styles.phaseTrack}>
@@ -871,6 +1123,8 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
   const [signedDate, setSignedDate] = useState<string>(() => todayCalendarDay());
   const [subId, setSubId] = useState<string>('');
   const [vendorName, setVendorName] = useState<string>('');
+  // Desktop: a centred form card; Cmd+S / Cmd+Enter save (wave 6d).
+  const f = useSheetFrame('form', { visible, animationType: 'slide' });
 
   React.useEffect(() => {
     if (existing) {
@@ -966,14 +1220,15 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
     };
     onSave(c, !existing);
   };
+  useSheetPrimaryHotkey(visible, handleSave);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType={f.animationType} transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.modalOverlay}
+        style={[styles.modalOverlay, f.overlay]}
       >
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, f.card]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{existing ? 'Edit commitment' : 'New commitment'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -1042,7 +1297,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
             )}
           </ScrollView>
 
-          <View style={styles.modalFooter}>
+          <View style={[styles.modalFooter, f.footer]}>
             <TouchableOpacity onPress={onClose} style={styles.btnGhost}>
               <Text style={styles.btnGhostText}>Cancel</Text>
             </TouchableOpacity>
@@ -1325,6 +1580,9 @@ function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCo
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  // Above the early return, so hook order is fixed; no primary hotkey (its
+  // only button is Close).
+  const f = useSheetFrame('wide', { visible: line !== null, animationType: 'slide' });
   if (!line) return null;
   const v = describeVariance(line.variance);
   const groups = buildPhaseDrill(line, records, {
@@ -1343,9 +1601,9 @@ function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCo
     crew: () => { onClose(); router.push({ pathname: '/time-tracking', params: { projectId } } as never); },
   });
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+    <Modal visible animationType={f.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, f.overlay]}>
+        <View style={[styles.modalCard, f.card]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{line.phase}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -1404,7 +1662,7 @@ function PhaseDetailModal({ line, summary, records, projectId, onClose, onOpenCo
             </Text>
           </ScrollView>
 
-          <View style={styles.modalFooter}>
+          <View style={[styles.modalFooter, f.footer]}>
             <TouchableOpacity onPress={onClose} style={styles.btnPrimary}>
               <Text style={styles.btnPrimaryText}>Close</Text>
             </TouchableOpacity>
@@ -1439,7 +1697,9 @@ function DetailRow({ label, value, bold, color }: {
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   // Cost-to-complete dashboard — data-dense, so use the viewport on desktop.
-  contentDesktop: { width: '100%', maxWidth: 1400, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: Layout.page.table, alignSelf: 'center' as const },
+  // Desktop web: the tables below the columns (wave 6d).
+  tableBlockDesktop: { marginTop: Layout.groupGap },
   errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 },
   errorText: { fontSize: Type.subhead.fontSize, color: t.textSecondary },
   stateHint: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19 },
@@ -1466,8 +1726,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   // KPI grid
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
-  // Desktop: all four KPIs on one row instead of two 670px-wide cards.
-  kpiCardDesktop: { flexBasis: 200, flexGrow: 1 },
   kpiCard: {
     flexBasis: '48%', backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderLeftWidth: 3, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 1 },
@@ -1556,6 +1814,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   commitmentSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 1 },
   commitmentAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, fontVariant: ['tabular-nums'] },
   deleteBtn: { padding: 4 },
+  tableActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tableMoney: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text, fontVariant: ['tabular-nums'], textAlign: 'right' },
+  tablePhase: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   statusChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
   statusChipText: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 

@@ -44,8 +44,9 @@ import { z } from 'zod';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { cardSurface, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { DashboardColumns } from '@/components/desktop/DashboardColumns';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
@@ -715,6 +716,16 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
   const canAddExpense = newExpenseName.trim().length > 0 && newExpenseParsed !== null && newExpenseParsed > 0;
   const canAddPayment = newPaymentDesc.trim().length > 0 && newPaymentParsed !== null && newPaymentParsed !== 0;
 
+  // Desktop: centred cards instead of full-window sheets; Cmd+S / Cmd+Enter
+  // run the sheet's save — a blocked save does nothing (the note already says
+  // why). Phone: every frame style is null (wave 6d, B1).
+  const fBalance = useSheetFrame('dialog', { visible: showEditBalance && screenFocused, animationType: 'fade' });
+  const fExpense = useSheetFrame('form', { visible: showAddExpense && screenFocused, animationType: 'slide' });
+  const fPayment = useSheetFrame('form', { visible: showAddPayment && screenFocused, animationType: 'slide' });
+  useSheetPrimaryHotkey(showEditBalance && screenFocused, canUpdateBalance ? handleUpdateBalance : null);
+  useSheetPrimaryHotkey(showAddExpense && screenFocused, canAddExpense ? handleAddExpense : null);
+  useSheetPrimaryHotkey(showAddPayment && screenFocused, canAddPayment ? handleAddPayment : null);
+
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -746,6 +757,11 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Desktop web: the forecast story in the main column; expenses,
+            income and the AI read in the 360 rail. The rail is today's
+            contiguous tail, so a phone renders main + rail in today's order. */}
+        <DashboardColumns
+          main={<>
         <FeatureHeader
           eyebrow="Cash Flow"
           title="When will money come in?"
@@ -1113,6 +1129,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           </View>
         </View>
 
+          </>}
+          rail={<>
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('expenses')} activeOpacity={0.7}>
             <DollarSign size={18} color={themeColors.danger} strokeWidth={1.75} />
@@ -1405,6 +1423,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             </View>
           )}
         </View>
+          </>}
+        />
       </ScrollView>
 
       <CashFlowSetup
@@ -1413,10 +1433,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         onClose={() => setShowSetup(false)}
       />
 
-      <Modal visible={showEditBalance && screenFocused} transparent animationType="fade" onRequestClose={() => setShowEditBalance(false)}>
+      <Modal visible={showEditBalance && screenFocused} transparent animationType={fBalance.animationType} onRequestClose={() => setShowEditBalance(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
+          <View style={[styles.modalOverlay, fBalance.overlay]}>
+            <View style={[styles.modalCard, fBalance.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Balance</Text>
                 <TouchableOpacity onPress={() => setShowEditBalance(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -1456,10 +1476,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showAddExpense && screenFocused} transparent animationType="slide" onRequestClose={() => setShowAddExpense(false)}>
+      <Modal visible={showAddExpense && screenFocused} transparent animationType={fExpense.animationType} onRequestClose={() => setShowAddExpense(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fExpense.overlay]}>
+            <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }, fExpense.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Expense</Text>
                 <TouchableOpacity onPress={() => setShowAddExpense(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -1513,10 +1533,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showAddPayment && screenFocused} transparent animationType="slide" onRequestClose={() => setShowAddPayment(false)}>
+      <Modal visible={showAddPayment && screenFocused} transparent animationType={fPayment.animationType} onRequestClose={() => setShowAddPayment(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.modalOverlay, fPayment.overlay]}>
+            <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }, fPayment.card]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Expected Payment</Text>
                 <TouchableOpacity onPress={() => setShowAddPayment(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -1571,7 +1591,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   // Chart + ledger rows — wide reads better than a narrow column.
-  contentDesktop: { width: '100%', maxWidth: 1320, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: Layout.page.dashboard, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   heroCard: {
     marginHorizontal: 16,

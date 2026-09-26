@@ -156,7 +156,10 @@ export const ROUTE_PAGE_TYPE: Readonly<Record<string, LayoutPageType>> = {
   'activity-feed': 'dashboard', 'ai-punch': 'dashboard', 'bill-from-estimate': 'dashboard',
   'building-access': 'dashboard', 'buyout': 'dashboard', 'buyout-scope-gap': 'dashboard',
   'client-outbox': 'dashboard', 'coi-vault': 'dashboard', 'company-detail': 'dashboard',
-  'contacts': 'dashboard', 'crew': 'dashboard', 'deliveries': 'dashboard', 'documents': 'dashboard',
+  'deliveries': 'dashboard', 'documents': 'dashboard',
+  // Wave 6d, lane R1: Contacts and Crew are registers (a table with the record
+  // beside it) — the logs' 'table' width, so 2560 splits 652 | 8 | 892.
+  'contacts': 'table', 'crew': 'table',
   'estimate-accuracy': 'dashboard', 'estimate-calibration': 'dashboard',
   'estimate-confidence': 'dashboard', 'estimate-scorecard': 'dashboard',
   'extract-submittals': 'dashboard', 'handover': 'dashboard', 'integrations': 'dashboard',

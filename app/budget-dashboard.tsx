@@ -30,7 +30,9 @@ import {
 } from '@/utils/scheduleEarnedValue';
 import { mageAI } from '@/utils/mageAI';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { TileGrid } from '@/components/ui';
+import { DashboardColumns } from '@/components/desktop/DashboardColumns';
 import { showAlert } from '@/utils/alert';
 import { formatMoneyShort } from '@/utils/formatters';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
@@ -457,6 +459,11 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
             ],
           }}
         />
+        {/* Desktop web: the EVM story in the main column, the AI forecast in
+            the 360 rail beside it. The rail is today's contiguous tail, so on
+            a phone DashboardColumns renders main + rail in today's order. */}
+        <DashboardColumns
+          main={<>
         <View style={styles.projectHeader}>
           <Text style={styles.projectName}>{project.name}</Text>
           <Text style={styles.projectBudget}>Budget: {formatCurrency(metrics.budgetAtCompletion)}</Text>
@@ -498,9 +505,9 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
             </TouchableOpacity>
           </View>
         )}
-        <View style={styles.metricsGrid}>
+        <TileGrid preset="kpi" phoneStyle={styles.metricsGrid}>
           {metricCards.map((card) => (
-            <View key={card.label} style={[styles.metricCard, isDesktop && styles.metricCardDesktop, { borderLeftColor: card.color }]}>
+            <View key={card.label} style={[styles.metricCard, { borderLeftColor: card.color }]}>
               <View style={styles.metricHeader}>
                 <card.icon size={16} color={card.color} />
                 <Text style={styles.metricLabel}>{card.label}</Text>
@@ -509,7 +516,7 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
               <Text style={styles.metricCaption}>{card.caption}</Text>
             </View>
           ))}
-        </View>
+        </TileGrid>
 
         <Text style={styles.sectionTitle}>Cash Flow S-Curve</Text>
         <View style={styles.chartCard} onLayout={onChartCardLayout}>
@@ -546,7 +553,8 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
             </Text>
           )}
         </View>
-
+          </>}
+          rail={<>
         <Text style={styles.sectionTitle}>AI Forecast</Text>
         <View style={styles.forecastCard}>
           {forecast ? (
@@ -573,6 +581,8 @@ Never treat client payments as a cost. Be specific and actionable. Use construct
             )}
           </TouchableOpacity>
         </View>
+          </>}
+        />
       </ScrollView>
     </View>
   );
@@ -584,7 +594,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg,
   },
   // Budget dashboard — bars + cost-code rows benefit from the extra width.
-  contentDesktop: { width: '100%', maxWidth: 1320, alignSelf: 'center' as const },
+  contentDesktop: { width: '100%', maxWidth: Layout.page.dashboard, alignSelf: 'center' as const },
   center: {
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
@@ -718,9 +728,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 10,
     marginBottom: 24,
   },
-  // Desktop: pack the metric cards across the wider column rather than two
-  // 600px-wide cards per row.
-  metricCardDesktop: { width: 'auto' as any, flexBasis: 220, flexGrow: 1, maxWidth: 340 },
   metricCard: {
     width: '48%' as any,
     backgroundColor: t.surface,

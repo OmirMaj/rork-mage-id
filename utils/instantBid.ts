@@ -11,6 +11,7 @@
 
 import { mageAI } from '@/utils/mageAI';
 import { illustrativeMonthly } from '@/utils/financing';
+import { financingDisclosureText } from '@/utils/financingCore';
 import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import type { SeededRate } from '@/utils/costSeedCore';
 import { computeCalibration } from '@/utils/estimateCalibration';
@@ -26,12 +27,16 @@ import type {
   MaterialReceipt,
 } from '@/types';
 
-/** Build the illustrative "as low as $X/mo" line for a tier amount, or null
- *  when the financing config has no example terms / is disabled. */
+/** Build the illustrative monthly-payment line for a tier amount, or null
+ *  when the financing config has no example terms / is disabled. A monthly
+ *  figure shown to a homeowner carries its example rate, its term and whose
+ *  loan it is (fixq Q4(d)): "As low as $X/mo" alone was a payment claim with
+ *  no rate, no term and no lender. */
 function tierFinancingLine(amountUsd: number, cfg?: FinancingConfig): string | null {
   if (!cfg || !cfg.enabled) return null;
   const monthly = illustrativeMonthly(amountUsd * 100, cfg);
-  return monthly ? `As low as $${monthly.toLocaleString('en-US')}/mo` : null;
+  if (!monthly) return null;
+  return `Est. $${monthly.toLocaleString('en-US')}/mo at ${cfg.exampleApr}% APR for ${cfg.exampleTermMonths} months (example). ${financingDisclosureText(cfg.partnerName)}`;
 }
 
 export interface InstantBidRfp {

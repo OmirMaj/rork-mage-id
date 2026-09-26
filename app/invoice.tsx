@@ -32,13 +32,14 @@ import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
 import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
 import { financingEmailBlockHtml, isFinancingAvailable } from '@/utils/financing';
+import { invoiceFinancingOnLine, INVOICE_FINANCING_SETUP_LINE } from '@/utils/financingCore';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { createPaymentLink } from '@/utils/stripe';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
-import { Banknote, HandCoins } from 'lucide-react-native';
+import { Banknote } from 'lucide-react-native';
 import { fetchStripeConnectStatus, resolveStripeAccount } from '@/utils/stripeConnect';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -77,6 +78,7 @@ import { ActionBar } from '@/components/ui/ActionBar';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { usePrimaryAction } from '@/hooks/useHotkeys';
 import { InvoiceLog } from '@/components/logs/InvoiceLog';
+import { DataTable, type DataTableColumn, type DataTableBulkAction } from '@/components/desktop/DataTable';
 import { useLogAwareRouter } from '@/components/logs/LogRecordHost';
 import { logRouteMode } from '@/utils/logs/logRoutes';
 import { generateUUID } from '@/utils/generateId';
@@ -91,6 +93,7 @@ import {
   retainageOnWorkValue,
   pendingRetentionHeld,
   taxBasisRetentionOverhold,
+  billedAmountForLine,
 } from '@/utils/invoiceBilling';
 import { billFromEstimateUnitPrice } from '@/utils/billFromEstimateCore';
 import { isGcOnlyEstimateLine, CLIENT_CONTINGENCY_LABEL } from '@/utils/clientEstimateView';
@@ -2672,6 +2675,60 @@ function InvoiceInner() {
     reason: 'This invoice has been sent — it is locked. Void and reissue it to change it.',
   });
 
+  // ── Invoice lines as a register (desktop, wave 6d M2) ─────────────────────
+  // READ-ONLY, a documented deviation: invoice lines have no per-line edit on
+  // any platform, and progress lines are pre-scaled, so an editable grid would
+  // invent a money path nothing validates. The footer's Billed figure IS
+  // `subtotal` — the totals card's own number — never a re-sum of the rounded
+  // per-line cells (scripts/validate-money-desk.ts pins it).
+  const isDesktopWeb = useIsDesktopWeb();
+  const lineColumns = useMemo<DataTableColumn<InvoiceLineItem>[]>(() => {
+    const cols: DataTableColumn<InvoiceLineItem>[] = [
+      {
+        key: 'item', label: 'Item', flex: 1, minWidth: 140, sortValue: li => li.name,
+        render: li => (
+          <View>
+            <Text style={styles.lineItemName} numberOfLines={1}>{li.name}</Text>
+            {li.description ? <Text style={styles.lineItemMetaText} numberOfLines={1}>{li.description}</Text> : null}
+          </View>
+        ),
+      },
+      { key: 'qty', label: 'Qty', width: 64, numeric: true, sortValue: li => li.quantity, value: li => li.quantity },
+      { key: 'unit', label: 'Unit', width: 56, value: li => li.unit },
+      { key: 'unitPrice', label: 'Unit $', width: 112, numeric: true, sortValue: li => li.unitPrice, value: li => formatCurrency(li.unitPrice) },
+      { key: 'total', label: 'Line total', width: 120, numeric: true, sortValue: li => li.total, value: li => formatCurrency(li.total) },
+    ];
+    if (isProgressType) {
+      cols.push({
+        key: 'billed', label: 'Billed', width: 120, numeric: true,
+        value: li => formatCurrency(billedAmountForLine(li, { type: 'progress', progressPercent: pctValue }, anyPreScaledLine)),
+      });
+    }
+    if (anyPreScaledLine) {
+      cols.push({ key: 'billedPct', label: 'Billed %', width: 72, numeric: true, value: li => (li.billedPercent != null ? `${li.billedPercent}%` : null) });
+    }
+    return cols;
+  }, [styles, isProgressType, pctValue, anyPreScaledLine]);
+  const lineFooter = useMemo(() => {
+    const lineTotal = roundCents(lineItems.reduce((sum, li) => sum + (li.total || 0), 0));
+    const out: Record<string, string> = {
+      item: isProgressType && !anyPreScaledLine
+        ? `${pctValue}% of ${formatCurrency(lineTotal)}`
+        : `${lineItems.length} line${lineItems.length === 1 ? '' : 's'}`,
+      total: formatCurrency(lineTotal),
+    };
+    // EXACTLY the totals card's Subtotal (per-line cells round individually).
+    if (isProgressType) out.billed = formatCurrency(subtotal);
+    return out;
+  }, [lineItems, isProgressType, anyPreScaledLine, pctValue, subtotal]);
+  const lineBulkActions = useMemo<DataTableBulkAction[]>(() => [{
+    key: 'remove',
+    label: 'Remove from invoice',
+    destructive: true,
+    run: (ids: string[]) => ids.forEach(handleRemoveItem),
+    disabledReason: isLocked ? 'Sent invoices are locked — void and reissue to change lines.' : null,
+  }], [handleRemoveItem, isLocked]);
+
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -2977,24 +3034,58 @@ function InvoiceInner() {
 
           <View style={styles.fieldSection}>
             <Text style={styles.fieldLabel}>Line Items</Text>
-            {lineItems.map((item) => (
-              <View key={item.id} style={styles.lineItemCard}>
-                <View style={styles.lineItemHeader}>
-                  <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
-                  {!isLocked && (
-                    <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-                    </TouchableOpacity>
-                  )}
+            {isDesktop ? (
+              <DataTable<InvoiceLineItem>
+                tableId="invoice-lines"
+                testID="invoice-lines"
+                columns={lineColumns}
+                rows={lineItems}
+                rowKey={li => li.id}
+                // Off: the invoice can share a page with the InvoiceLog's table.
+                hotkeys={false}
+                selectable={isDesktopWeb && !isLocked}
+                {...(isDesktopWeb ? { bulkActions: lineBulkActions } : null)}
+                footerTotals={lineFooter}
+                emptyState={<Text style={styles.lineItemMetaText}>No line items yet.</Text>}
+                renderCard={(item) => (
+                  <View key={item.id} style={styles.lineItemCard}>
+                    <View style={styles.lineItemHeader}>
+                      <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
+                      {!isLocked && (
+                        <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
+                          <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <View style={styles.lineItemMeta}>
+                      <Text style={styles.lineItemMetaText}>
+                        {item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}
+                      </Text>
+                      <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
+                    </View>
+                  </View>
+                )}
+              />
+            ) : (
+              lineItems.map((item) => (
+                <View key={item.id} style={styles.lineItemCard}>
+                  <View style={styles.lineItemHeader}>
+                    <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
+                    {!isLocked && (
+                      <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
+                        <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <View style={styles.lineItemMeta}>
+                    <Text style={styles.lineItemMetaText}>
+                      {item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}
+                    </Text>
+                    <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
+                  </View>
                 </View>
-                <View style={styles.lineItemMeta}>
-                  <Text style={styles.lineItemMetaText}>
-                    {item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}
-                  </Text>
-                  <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
-                </View>
-              </View>
-            ))}
+              ))
+            )}
           </View>
 
           {/* The wrapper carries the card's outer margins so the coach's hole
@@ -3401,22 +3492,27 @@ function InvoiceInner() {
                       the strategy doc context. */}
                   {balanceDue > 0 && (
                     <>
+                      {/* Interest capture only (contract D8): no partner is
+                          signed, so no rate, speed, partner or date. */}
                       <RevenueEarlyAccessCard
                         eventKey="revenue.factoring.altline"
                         icon={Banknote}
-                        headline="Get paid today, not in 60 days"
-                        body="Advance up to 95% of this unpaid invoice from a factoring partner. 2-4% per 30 days. Funds your bank in 24 hours."
-                        footer="Partner LOI in progress · early access shipping Q3 2026"
+                        headline="Advances on unpaid invoices"
+                        body="We are looking at a factoring partner that could advance part of an unpaid invoice. No partner is signed yet, so there are no rates or timelines to show."
+                        footer="Not available yet — tap to be told when it is"
                         testID="invoice-factoring-cta"
                       />
-                      <RevenueEarlyAccessCard
-                        eventKey="revenue.financing.wisetack"
-                        icon={HandCoins}
-                        headline="Offer your client monthly payments"
-                        body="Give the homeowner a monthly option instead of one lump sum. We pre-fill the application from this invoice."
-                        footer="Wisetack-style partnership · early access shipping Q3 2026"
-                        testID="invoice-financing-cta"
-                      />
+                      {/* Client financing is bring-your-own-lender (fixq): the
+                          line says whose lender, or how to set one up. */}
+                      {!isSampleJob && (isFinancingAvailable(settings) ? (
+                        <Text style={styles.reminderHint} testID="invoice-financing-on">
+                          {invoiceFinancingOnLine(settings?.financing?.partnerName ?? '')}
+                        </Text>
+                      ) : (
+                        <TouchableOpacity onPress={() => router.push('/payments-setup')} accessibilityRole="link" testID="invoice-financing-setup">
+                          <Text style={styles.reminderHint}>{INVOICE_FINANCING_SETUP_LINE}</Text>
+                        </TouchableOpacity>
+                      ))}
                     </>
                   )}
                 </>

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, KeyboardAvoidingView, Switch,
+  type TextStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -38,6 +39,11 @@ import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { edgeErrorCode } from '@/utils/edgeError';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert, type AlertButton } from '@/utils/alert';
+import { desktopField, useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useSplitRecord } from '@/components/desktop/SplitView';
+import { CrewRegister } from '@/components/registers/CrewRegister';
+import { useRegisterRecordDirty } from '@/components/registers/RegisterRecordHost';
 
 export default function CrewScreen() {
   const router = useRouter();
@@ -239,7 +245,7 @@ function CrewScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { crewMembers, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, startClaimInvite } = useCrew();
+  const { crewMembers, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, startClaimInvite, isLoading: crewLoading } = useCrew();
   const { getCertificationsForWorker, certifications } = useSafety();
   const { projects } = useProjects();
   const auth = useAuth();
@@ -247,6 +253,14 @@ function CrewScreenInner() {
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+
+  // Desktop web (wave 6d, R1): the register — a table with the member open
+  // beside it (?crewId=). A phone, a native tablet and a narrow browser keep
+  // today's card roster and detail sheet (detailId).
+  const isDesktopWeb = useIsDesktopWeb();
+  const isDesktop = useIsDesktop();
+  const split = useSplitRecord({ param: 'crewId' });
+  const activeId = isDesktopWeb ? split.openId : detailId;
 
   // Add-form fields
   const [fullName, setFullName] = useState('');
@@ -267,7 +281,7 @@ function CrewScreenInner() {
   const [retainImage, setRetainImage] = useState(false); // default OFF = extract-then-purge
   const [scanTargetId, setScanTargetId] = useState<string | null>(null);
 
-  const member = useMemo(() => (detailId ? getCrewMember(detailId) : null), [detailId, getCrewMember]);
+  const member = useMemo(() => (activeId ? getCrewMember(activeId) : null), [activeId, getCrewMember]);
 
   // Active first, inactive last (#71): an inactive worker stays on the roster
   // (his certs, shifts and claim are kept) but out of the way. Stable sort —
@@ -288,7 +302,7 @@ function CrewScreenInner() {
   const [editTrades, setEditTrades] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  useEffect(() => { setEditOpen(false); setFocusEmail(false); }, [detailId]);
+  useEffect(() => { setEditOpen(false); setFocusEmail(false); }, [activeId]);
 
   // Once he has claimed his profile, phone / email / trades are HIS
   // (SelfEditCard), and the server keeps them from the owner's write
@@ -576,19 +590,233 @@ function CrewScreenInner() {
     buttons.push({
       text: 'Delete',
       style: 'destructive',
-      onPress: () => { deleteCrewMember(member.id); setDetailId(null); },
+      onPress: () => { deleteCrewMember(member.id); setDetailId(null); if (isDesktopWeb) split.close(); },
     });
     showAlert(
       'Delete crew member',
       `Remove ${member.fullName} from your roster? Any attached ID is purged, and his certificate links${member.claimedByUserId ? ' and claimed profile' : ''} go with him. To keep his certificates and history, mark him inactive instead.`,
       buttons,
     );
-  }, [member, deleteCrewMember, handleSetActive]);
+  }, [member, deleteCrewMember, handleSetActive, isDesktopWeb, split]);
 
   // A LOCAL calendar day, read at render (#167). The UTC slice named
   // tomorrow from ~8 pm Eastern and called a card expired on its last valid
   // day — and the memo froze it for the screen's lifetime.
   const today = todayCalendarDay();
+
+  // The member's body — the phone detail sheet's content, hoisted once so the
+  // desktop register's record pane shows the same thing (composite-level move:
+  // the sheet's host tree is unchanged; CrewDirtyProbe renders nothing).
+  const crewDetailBody = member ? (
+    <>
+      <CrewDirtyProbe open={editOpen} />
+      <View style={styles.detailHeader}>
+        <TouchableOpacity onPress={() => (isDesktopWeb ? split.close() : setDetailId(null))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={24} color={themeColors.text} strokeWidth={1.75} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.detailName} numberOfLines={1}>{member.fullName}</Text>
+          {member.trades.length > 0 ? (
+            <Text style={styles.detailTrades} numberOfLines={1}>{member.trades.join(' · ')}</Text>
+          ) : null}
+        </View>
+      </View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12, gap: 18 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Status (#71) — the read-only pill became this switch.
+            Time Tracking and the cert pickers already skip
+            status 'inactive'; nothing ever set it. */}
+        <View style={styles.retainRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.retainLabel}>{member.status === 'inactive' ? 'Inactive' : 'Active'}</Text>
+            <Text style={styles.retainHelp}>
+              Inactive workers drop off Clock In and cert pickers; their shifts and certs stay.
+            </Text>
+          </View>
+          <Switch
+            value={member.status !== 'inactive'}
+            onValueChange={handleSetActive}
+            trackColor={{ true: themeColors.accent, false: themeColors.line }}
+            accessibilityLabel="Active"
+            testID="crew-active-switch"
+          />
+        </View>
+
+        {/* Details (#71) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Details</Text>
+          {editOpen ? (
+            <>
+              <Text style={styles.fieldLabel}>Full name *</Text>
+              <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="e.g. Maria Gonzalez" placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
+              {contactLocked ? (
+                <Text style={styles.lockedNote} testID="crew-contact-locked">
+                  He manages his contact details now — he claimed his profile, so his phone, email and trades are his to change.
+                </Text>
+              ) : null}
+              <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
+              <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editTrades} onChangeText={setEditTrades} editable={!contactLocked} placeholder="e.g. Electrical, Framing" placeholderTextColor={themeColors.textMuted} testID="crew-edit-trades" />
+              <Text style={styles.fieldLabel}>Phone</Text>
+              <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editPhone} onChangeText={setEditPhone} editable={!contactLocked} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" testID="crew-edit-phone" />
+              <Text style={styles.fieldLabel}>Email</Text>
+              <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editEmail} onChangeText={setEditEmail} editable={!contactLocked} autoFocus={focusEmail && !contactLocked} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" testID="crew-edit-email" />
+              <View style={styles.formActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setEditOpen(false); setFocusEmail(false); }} accessibilityRole="button">
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveDetails} activeOpacity={0.85} accessibilityRole="button" testID="crew-edit-save">
+                  <Text style={styles.saveBtnText}>Save details</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.detailLine}>{member.phone || 'No phone'}</Text>
+              <Text style={styles.detailLine}>{member.email || 'No email'}</Text>
+              <TouchableOpacity style={styles.scanBtn} onPress={() => openEditor(false)} activeOpacity={0.85} accessibilityRole="button" testID="edit-crew-details">
+                <Pencil size={16} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.scanBtnText}>Edit details</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
+        {/* Identity (#165: an ID can always be re-scanned, and an
+            expired one says so instead of "ID Verified") */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Identity</Text>
+          {(() => {
+            const badge = verifiedBadge(member, today);
+            if (badge === 'id_verified') {
+              return (
+                <View style={styles.identityVerifiedRow}>
+                  <ShieldCheck size={16} color={themeColors.accent} strokeWidth={2} />
+                  <Text style={styles.identityVerifiedText}>
+                    ID Verified — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}
+                    {member.idExpiry ? `, exp ${member.idExpiry}` : ''}
+                  </Text>
+                </View>
+              );
+            }
+            if (badge === 'id_expired') {
+              return (
+                <View style={styles.identityExpiredRow} testID="crew-id-expired">
+                  <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={2} />
+                  <Text style={styles.identityVerifiedText}>
+                    {idExpiredLabel(member.idExpiry)} — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}. Re-scan his current ID.
+                  </Text>
+                </View>
+              );
+            }
+            return <Text style={styles.identityMutedText}>ID not verified</Text>;
+          })()}
+          <TouchableOpacity
+            style={styles.scanBtn}
+            onPress={() => openScan(member.id)}
+            activeOpacity={0.85}
+            testID="scan-id"
+          >
+            <ScanLine size={16} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.scanBtnText}>{member.idScannedAt || member.idMaskedLast4 ? 'Re-scan ID' : 'Scan ID'}</Text>
+          </TouchableOpacity>
+          {member.idVerified || member.idMaskedLast4 || member.idExpiry || member.idImagePath ? (
+            <Text style={styles.clearIdLink} onPress={handleClearId} accessibilityRole="button" testID="clear-id">
+              Remove ID
+            </Text>
+          ) : null}
+          <Text style={styles.disclaimer}>
+            MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.
+          </Text>
+        </View>
+
+        {/* Certifications — person-anchored via Certification.workerId === member.id (Safety Wave B). */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Certifications</Text>
+          {(() => {
+            const certs = getCertificationsForWorker(member.id);
+            if (certs.length === 0) {
+              return <Text style={styles.emptyRowText}>No certifications on file yet.</Text>;
+            }
+            return certs.map(cert => {
+              const status = crewCertRowStatus(cert.expiresDate, certExpiryStatus(cert.expiresDate, today));
+              return (
+                <View key={cert.id} style={styles.certRow}>
+                  <Text style={styles.certName} numberOfLines={1}>{cert.type}</Text>
+                  <Text style={[styles.certStatus, CERT_STATUS_STYLE(themeColors)[status]]}>{CERT_STATUS_LABEL[status]}</Text>
+                </View>
+              );
+            });
+          })()}
+        </View>
+
+        {/* Assigned projects */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Assigned projects</Text>
+          {member.projectIds.length > 0 ? (
+            <View style={styles.chipWrap}>
+              {projects.filter(p => member.projectIds.includes(p.id)).map(p => (
+                <View key={p.id} style={styles.projectChip}>
+                  <Text style={styles.projectChipText}>{p.name}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.emptyRowText}>Not assigned to any project.</Text>
+          )}
+          {projects.length > 0 ? (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Assign to project</Text>
+              <View style={styles.chipWrap}>
+                {projects.map(p => {
+                  const on = member.projectIds.includes(p.id);
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.assignChip, on && styles.assignChipActive]}
+                      onPress={() => handleToggleProject(p.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.assignChipText, on && styles.assignChipTextActive]} numberOfLines={1}>{p.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        {/* Claim */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Claim</Text>
+          {member.claimedByUserId ? (
+            <View style={styles.claimedRow}>
+              <UserCheck size={16} color={themeColors.success} strokeWidth={2} />
+              <Text style={styles.claimedRowText}>Claimed by this crew member.</Text>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite} activeOpacity={0.85} testID="invite-claim">
+              <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
+              <Text style={styles.inviteBtnText}>Invite to claim</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Delete */}
+        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.85} testID="delete-crew-member">
+          <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
+          <Text style={styles.deleteBtnText}>Delete crew member</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </>
+  ) : null;
+
+  // Add, detail and ID-scan sheets: centred 560 cards on desktop (the scan's
+  // Esc is dialog-scoped, so it never closes the record behind it); today's
+  // bottom sheets on a phone (useSheetFrame's phone parts are all null).
+  const fAdd = useSheetFrame('form', { visible: addOpen, animationType: 'slide' });
+  const fDet = useSheetFrame('form', { visible: detailId !== null, animationType: 'slide' });
+  const fScan = useSheetFrame('form', { visible: scanStage !== 'closed', animationType: 'slide' });
+  useSheetPrimaryHotkey(addOpen, handleAdd);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -597,6 +825,27 @@ function CrewScreenInner() {
           directly beneath it, costing ~90pt of the screen to a rendering bug.
           The row existed only to carry the title and the Add button, so the
           title goes back to the header and Add goes with it. */}
+      {isDesktopWeb ? (
+        <CrewRegister
+          members={sortedMembers}
+          certifications={certifications}
+          today={today}
+          loading={crewLoading}
+          split={split}
+          detail={crewDetailBody ?? (
+            <EmptyState
+              icon={<IdCard size={28} color={themeColors.accent} strokeWidth={1.75} />}
+              title={crewLoading ? 'Loading…' : "This crew member isn't on your roster any more"}
+              message={crewLoading ? 'Your crew roster appears here once it loads.' : 'It may have been deleted. Pick another member from the list.'}
+              actionLabel="Close"
+              onAction={split.close}
+            />
+          )}
+          onNew={() => setAddOpen(true)}
+          updateCrewMember={updateCrewMember}
+          onOpenCertifications={() => router.push('/safety-certifications')}
+        />
+      ) : (<>
       <Stack.Screen
         options={{
           title: 'Crew',
@@ -679,13 +928,14 @@ function CrewScreenInner() {
           })
         )}
       </ScrollView>
+      </>)}
 
       {/* ── Add crew member ─────────────────────────────────────── */}
-      <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
+      <Modal visible={addOpen} transparent animationType={fAdd.animationType} onRequestClose={() => setAddOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fAdd.scrollContent]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fAdd.card]}>
                 <View style={styles.formHeader}>
                   <TouchableOpacity onPress={() => setAddOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
@@ -705,7 +955,7 @@ function CrewScreenInner() {
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Phone</Text>
-                    <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
+                    <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Email</Text>
@@ -728,211 +978,11 @@ function CrewScreenInner() {
       </Modal>
 
       {/* ── Member detail ───────────────────────────────────────── */}
-      <Modal visible={detailId !== null} transparent animationType="slide" onRequestClose={() => setDetailId(null)}>
+      <Modal visible={detailId !== null} transparent animationType={fDet.animationType} onRequestClose={() => setDetailId(null)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.detailCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }]}>
-            {member ? (
-              <>
-                <View style={styles.detailHeader}>
-                  <TouchableOpacity onPress={() => setDetailId(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-                    <ChevronLeft size={24} color={themeColors.text} strokeWidth={1.75} />
-                  </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.detailName} numberOfLines={1}>{member.fullName}</Text>
-                    {member.trades.length > 0 ? (
-                      <Text style={styles.detailTrades} numberOfLines={1}>{member.trades.join(' · ')}</Text>
-                    ) : null}
-                  </View>
-                </View>
-
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12, gap: 18 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                  {/* Status (#71) — the read-only pill became this switch.
-                      Time Tracking and the cert pickers already skip
-                      status 'inactive'; nothing ever set it. */}
-                  <View style={styles.retainRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.retainLabel}>{member.status === 'inactive' ? 'Inactive' : 'Active'}</Text>
-                      <Text style={styles.retainHelp}>
-                        Inactive workers drop off Clock In and cert pickers; their shifts and certs stay.
-                      </Text>
-                    </View>
-                    <Switch
-                      value={member.status !== 'inactive'}
-                      onValueChange={handleSetActive}
-                      trackColor={{ true: themeColors.accent, false: themeColors.line }}
-                      accessibilityLabel="Active"
-                      testID="crew-active-switch"
-                    />
-                  </View>
-
-                  {/* Details (#71) */}
-                  <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Details</Text>
-                    {editOpen ? (
-                      <>
-                        <Text style={styles.fieldLabel}>Full name *</Text>
-                        <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="e.g. Maria Gonzalez" placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
-                        {contactLocked ? (
-                          <Text style={styles.lockedNote} testID="crew-contact-locked">
-                            He manages his contact details now — he claimed his profile, so his phone, email and trades are his to change.
-                          </Text>
-                        ) : null}
-                        <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
-                        <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editTrades} onChangeText={setEditTrades} editable={!contactLocked} placeholder="e.g. Electrical, Framing" placeholderTextColor={themeColors.textMuted} testID="crew-edit-trades" />
-                        <Text style={styles.fieldLabel}>Phone</Text>
-                        <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editPhone} onChangeText={setEditPhone} editable={!contactLocked} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" testID="crew-edit-phone" />
-                        <Text style={styles.fieldLabel}>Email</Text>
-                        <TextInput style={[styles.input, contactLocked && styles.inputLocked]} value={editEmail} onChangeText={setEditEmail} editable={!contactLocked} autoFocus={focusEmail && !contactLocked} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" testID="crew-edit-email" />
-                        <View style={styles.formActions}>
-                          <TouchableOpacity style={styles.cancelBtn} onPress={() => { setEditOpen(false); setFocusEmail(false); }} accessibilityRole="button">
-                            <Text style={styles.cancelBtnText}>Cancel</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveDetails} activeOpacity={0.85} accessibilityRole="button" testID="crew-edit-save">
-                            <Text style={styles.saveBtnText}>Save details</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.detailLine}>{member.phone || 'No phone'}</Text>
-                        <Text style={styles.detailLine}>{member.email || 'No email'}</Text>
-                        <TouchableOpacity style={styles.scanBtn} onPress={() => openEditor(false)} activeOpacity={0.85} accessibilityRole="button" testID="edit-crew-details">
-                          <Pencil size={16} color={themeColors.accent} strokeWidth={1.75} />
-                          <Text style={styles.scanBtnText}>Edit details</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-
-                  {/* Identity (#165: an ID can always be re-scanned, and an
-                      expired one says so instead of "ID Verified") */}
-                  <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Identity</Text>
-                    {(() => {
-                      const badge = verifiedBadge(member, today);
-                      if (badge === 'id_verified') {
-                        return (
-                          <View style={styles.identityVerifiedRow}>
-                            <ShieldCheck size={16} color={themeColors.accent} strokeWidth={2} />
-                            <Text style={styles.identityVerifiedText}>
-                              ID Verified — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}
-                              {member.idExpiry ? `, exp ${member.idExpiry}` : ''}
-                            </Text>
-                          </View>
-                        );
-                      }
-                      if (badge === 'id_expired') {
-                        return (
-                          <View style={styles.identityExpiredRow} testID="crew-id-expired">
-                            <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={2} />
-                            <Text style={styles.identityVerifiedText}>
-                              {idExpiredLabel(member.idExpiry)} — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}. Re-scan his current ID.
-                            </Text>
-                          </View>
-                        );
-                      }
-                      return <Text style={styles.identityMutedText}>ID not verified</Text>;
-                    })()}
-                    <TouchableOpacity
-                      style={styles.scanBtn}
-                      onPress={() => openScan(member.id)}
-                      activeOpacity={0.85}
-                      testID="scan-id"
-                    >
-                      <ScanLine size={16} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.scanBtnText}>{member.idScannedAt || member.idMaskedLast4 ? 'Re-scan ID' : 'Scan ID'}</Text>
-                    </TouchableOpacity>
-                    {member.idVerified || member.idMaskedLast4 || member.idExpiry || member.idImagePath ? (
-                      <Text style={styles.clearIdLink} onPress={handleClearId} accessibilityRole="button" testID="clear-id">
-                        Remove ID
-                      </Text>
-                    ) : null}
-                    <Text style={styles.disclaimer}>
-                      MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.
-                    </Text>
-                  </View>
-
-                  {/* Certifications — person-anchored via Certification.workerId === member.id (Safety Wave B). */}
-                  <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Certifications</Text>
-                    {(() => {
-                      const certs = getCertificationsForWorker(member.id);
-                      if (certs.length === 0) {
-                        return <Text style={styles.emptyRowText}>No certifications on file yet.</Text>;
-                      }
-                      return certs.map(cert => {
-                        const status = crewCertRowStatus(cert.expiresDate, certExpiryStatus(cert.expiresDate, today));
-                        return (
-                          <View key={cert.id} style={styles.certRow}>
-                            <Text style={styles.certName} numberOfLines={1}>{cert.type}</Text>
-                            <Text style={[styles.certStatus, CERT_STATUS_STYLE(themeColors)[status]]}>{CERT_STATUS_LABEL[status]}</Text>
-                          </View>
-                        );
-                      });
-                    })()}
-                  </View>
-
-                  {/* Assigned projects */}
-                  <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Assigned projects</Text>
-                    {member.projectIds.length > 0 ? (
-                      <View style={styles.chipWrap}>
-                        {projects.filter(p => member.projectIds.includes(p.id)).map(p => (
-                          <View key={p.id} style={styles.projectChip}>
-                            <Text style={styles.projectChipText}>{p.name}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : (
-                      <Text style={styles.emptyRowText}>Not assigned to any project.</Text>
-                    )}
-                    {projects.length > 0 ? (
-                      <>
-                        <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Assign to project</Text>
-                        <View style={styles.chipWrap}>
-                          {projects.map(p => {
-                            const on = member.projectIds.includes(p.id);
-                            return (
-                              <TouchableOpacity
-                                key={p.id}
-                                style={[styles.assignChip, on && styles.assignChipActive]}
-                                onPress={() => handleToggleProject(p.id)}
-                                activeOpacity={0.8}
-                              >
-                                <Text style={[styles.assignChipText, on && styles.assignChipTextActive]} numberOfLines={1}>{p.name}</Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </>
-                    ) : null}
-                  </View>
-
-                  {/* Claim */}
-                  <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Claim</Text>
-                    {member.claimedByUserId ? (
-                      <View style={styles.claimedRow}>
-                        <UserCheck size={16} color={themeColors.success} strokeWidth={2} />
-                        <Text style={styles.claimedRowText}>Claimed by this crew member.</Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite} activeOpacity={0.85} testID="invite-claim">
-                        <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
-                        <Text style={styles.inviteBtnText}>Invite to claim</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Delete */}
-                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.85} testID="delete-crew-member">
-                    <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
-                    <Text style={styles.deleteBtnText}>Delete crew member</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-              </>
-            ) : null}
+        <View style={[styles.modalOverlay, fDet.overlay]}>
+          <View style={[styles.detailCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fDet.card]}>
+            {crewDetailBody}
           </View>
         </View>
         </KeyboardAvoidingView>
@@ -942,12 +992,12 @@ function CrewScreenInner() {
       <Modal
         visible={scanStage !== 'closed'}
         transparent
-        animationType="slide"
+        animationType={fScan.animationType}
         onRequestClose={closeScan}
       >
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.scanCard, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.modalOverlay, fScan.overlay]}>
+            <View style={[styles.scanCard, { paddingBottom: insets.bottom + 20 }, fScan.card]}>
               <View style={styles.formHeader}>
                 <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close scan">
                   <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
@@ -1130,6 +1180,14 @@ function CrewScreenInner() {
       </Modal>
     </View>
   );
+}
+
+/** Tells a desktop register the open member's inline editor holds unsaved
+ *  edits, so a row click, j/k or Esc asks first. Renders nothing; without a
+ *  register host (every phone) it registers nothing. */
+function CrewDirtyProbe({ open }: { open: boolean }) {
+  useRegisterRecordDirty(() => open);
+  return null;
 }
 
 const ID_TYPE_OPTIONS: { value: IdDocumentType; label: string }[] = [

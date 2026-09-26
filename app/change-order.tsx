@@ -63,6 +63,9 @@ import { useServerChangeOrderNumber, coNumberHoldReason } from '@/hooks/useServe
 import { useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
 import { ActionBar, ActionBarReadout } from '@/components/ui/ActionBar';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { LineItemGrid, type LineItemColumn } from '@/components/desktop/LineItemGrid';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePrimaryAction } from '@/hooks/useHotkeys';
 import { ChangeOrderLog } from '@/components/logs/ChangeOrderLog';
 import { useLogAwareBack, useLogRecordHost } from '@/components/logs/LogRecordHost';
@@ -565,6 +568,68 @@ export function coCommitLineItems<T extends { quantity: number; unitPrice: numbe
     const unitPrice = coRoundCents(i.unitPrice);
     return { ...i, unitPrice, total: coRoundCents(i.quantity * unitPrice) };
   });
+}
+
+// ── Wave 6d (M1) — the desktop-web line grid ────────────────────────────────
+// The grid can make a line with no name (Enter adds a blank one; a paste can
+// too). A nameless line prints as an empty row on the change order the owner
+// signs, so a save names it and refuses. No phone path makes one: the Custom
+// sheet requires a name, coPrefillLines skips blank names, and a voice line
+// falls back to 'Voice line item' — so on the phone this is inert.
+export function coUnnamedLineBlocker(items: { name: string }[]): { title: string; message: string } | null {
+  const i = items.findIndex(it => !it.name.trim());
+  return i < 0 ? null : { title: `Line ${i + 1} has no name`, message: 'Name every line before saving — it prints on the change order.' };
+}
+
+/** One grid line's Total — the committed (whole-cent) figure a save writes. */
+export function coGridLineTotal<T extends { quantity: number; unitPrice: number; total: number }>(item: T): number {
+  return coCommitLineItems([item])[0].total;
+}
+
+/** The grid footer: EXACTLY persistCO's committedAmount (the lines, before tax). */
+export function coGridFooter<T extends { quantity: number; unitPrice: number; total: number }>(items: T[]): number {
+  return coRoundCents(coCommitLineItems(items).reduce((s, i) => s + i.total, 0));
+}
+
+/** A number as a GC pastes it from a sheet ("$1,250.50", "(250)", "12"); null
+ *  when the cell holds none. Kept inside this block so it runs standalone. */
+function coGridNumber(raw: string | undefined): number | null {
+  let t = (raw ?? '').trim();
+  if (!t) return null;
+  let negative = false;
+  if (/^\(.*\)$/.test(t)) { negative = true; t = t.slice(1, -1).trim(); }
+  t = t.replace(/[$\s,]/g, '');
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+  const n = parseFloat(t);
+  if (!Number.isFinite(n)) return null;
+  return negative ? -n : n;
+}
+
+/**
+ * Lines from a block pasted out of Excel: Item | Qty | Unit | Unit $. A row
+ * with no item name is skipped; a missing or zero quantity is 1 (the prefill
+ * rule); a blank unit is 'ea'; a blank or $0 price is tagged needs_price, so
+ * the existing send blocker refuses it until it is priced.
+ */
+export function coLinesFromPaste(
+  cells: readonly (readonly string[])[],
+  newId: () => string,
+): { id: string; name: string; description: string; quantity: number; unit: string; unitPrice: number; total: number; isNew: boolean; priceSource?: 'needs_price' }[] {
+  const out: { id: string; name: string; description: string; quantity: number; unit: string; unitPrice: number; total: number; isNew: boolean; priceSource?: 'needs_price' }[] = [];
+  for (const row of cells) {
+    const name = (row[0] ?? '').trim();
+    if (!name) continue;
+    const q = coGridNumber(row[1]);
+    const quantity = q != null && q !== 0 ? q : 1;
+    const unit = (row[2] ?? '').trim() || 'ea';
+    const unitPrice = coRoundCents(coGridNumber(row[3]) ?? 0);
+    out.push({
+      id: newId(), name, description: '', quantity, unit, unitPrice,
+      total: coRoundCents(quantity * unitPrice), isNew: true,
+      ...(unitPrice === 0 ? { priceSource: 'needs_price' as const } : {}),
+    });
+  }
+  return out;
 }
 
 /**
@@ -1626,6 +1691,99 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     setLineItems(prev => prev.map(item => item.id === id ? coCommitLineItems([item])[0] : item));
   }, [setLineDraft]);
 
+  // ── Wave 6d (M1): the desktop-web line grid (Grid | Cards) ────────────────
+  // Browser-only: a native tablet keeps the cards. The grid edits the same
+  // lineItems / lineDrafts through the same handlers, so Save, the send
+  // blockers and persistCO's whole-cent commit are unchanged.
+  const isDesktopWeb = useIsDesktopWeb();
+  const [linesView, setLinesViewState] = useState<'grid' | 'cards'>('grid');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const v = await AsyncStorage.getItem('mageid_co_lines_view');
+        if (!cancelled && (v === 'grid' || v === 'cards')) setLinesViewState(v);
+      } catch { /* the default stands */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const setLinesView = useCallback((v: 'grid' | 'cards') => {
+    setLinesViewState(v);
+    (async () => {
+      try { await AsyncStorage.setItem('mageid_co_lines_view', v); } catch { /* per-device convenience only */ }
+    })();
+  }, []);
+  const coGridOn = isDesktopWeb && linesView === 'grid';
+
+  const handleUpdateItemName = useCallback((id: string, v: string) => {
+    setLineItems(prev => prev.map(item => (item.id === id ? { ...item, name: v } : item)));
+  }, []);
+  const handleUpdateItemUnit = useCallback((id: string, v: string) => {
+    setLineItems(prev => prev.map(item => (item.id === id ? { ...item, unit: v } : item)));
+  }, []);
+
+  /** Enter in the grid: a blank line under this one, tagged needs_price — the
+   *  existing $0 send blocker refuses it until it is priced, and
+   *  coUnnamedLineBlocker until it is named. */
+  const handleGridAddLine = useCallback((afterId: string | null) => {
+    const blank: ChangeOrderLineItem = {
+      id: createId('coli'), name: '', description: '', quantity: 1, unit: 'ea', unitPrice: 0, total: 0, isNew: true, priceSource: 'needs_price',
+    };
+    setLineItems(prev => {
+      const at = afterId == null ? -1 : prev.findIndex(i => i.id === afterId);
+      if (at < 0) return [...prev, blank];
+      return [...prev.slice(0, at + 1), blank, ...prev.slice(at + 1)];
+    });
+  }, []);
+
+  const handleGridCell = useCallback((id: string, col: string, text: string) => {
+    if (col === 'name') handleUpdateItemName(id, text);
+    else if (col === 'quantity') handleUpdateItemQty(id, text);
+    else if (col === 'unit') handleUpdateItemUnit(id, text);
+    else if (col === 'unitPrice') handleUpdateItemPrice(id, text);
+  }, [handleUpdateItemName, handleUpdateItemQty, handleUpdateItemUnit, handleUpdateItemPrice]);
+
+  const handleGridBlur = useCallback((id: string, col: string) => {
+    if (col === 'quantity') commitLineDraft(id, 'qty');
+    else if (col === 'unitPrice') commitLineDraft(id, 'price');
+  }, [commitLineDraft]);
+
+  /** A block pasted from Excel (Item | Qty | Unit | Unit $) becomes lines
+   *  under the focused one — replacing it when it is the blank line Enter
+   *  just made. */
+  const handleGridPaste = useCallback((cells: string[][], at: { rowKey: string; colKey: string }) => {
+    if (at.colKey !== 'name') {
+      showAlert('Paste into the Item column', 'A block from Excel adds lines when it is pasted into the Item column, in the order Item, Qty, Unit, Unit $. To change one figure, type it.');
+      return;
+    }
+    const pasted = coLinesFromPaste(cells, () => createId('coli'));
+    if (pasted.length > 0) {
+      setLineItems(prev => {
+        const i = prev.findIndex(it => it.id === at.rowKey);
+        if (i < 0) return [...prev, ...pasted];
+        const blankHere = !prev[i].name.trim() && prev[i].unitPrice === 0;
+        return [...prev.slice(0, blankHere ? i : i + 1), ...pasted, ...prev.slice(i + 1)];
+      });
+    }
+    const skipped = cells.length - pasted.length;
+    if (skipped > 0) {
+      showAlert(
+        `Pasted ${pasted.length} ${pasted.length === 1 ? 'line' : 'lines'}`,
+        `${skipped} pasted ${skipped === 1 ? 'row has' : 'rows have'} no item name in the first column, so ${skipped === 1 ? 'it was' : 'they were'} left out. Paste columns in the order Item, Qty, Unit, Unit $.`,
+      );
+    }
+  }, []);
+
+  /** Item | Qty | Unit | Unit $ | Total. Qty and Unit $ show the typed draft
+   *  first (the cards' #126 rule); Total is the committed whole-cent figure. */
+  const coGridColumns: LineItemColumn<ChangeOrderLineItem>[] = [
+    { key: 'name', label: 'Item', flex: 1, maxWidth: Layout.field.search, placeholder: 'Name this line', getValue: (i) => i.name },
+    { key: 'quantity', label: 'Qty', kind: 'number', width: 88, getValue: (i) => lineDrafts[i.id]?.qty ?? String(i.quantity) },
+    { key: 'unit', label: 'Unit', width: 72, getValue: (i) => i.unit },
+    { key: 'unitPrice', label: 'Unit $', kind: 'money', width: 128, getValue: (i) => lineDrafts[i.id]?.price ?? i.unitPrice.toFixed(2) },
+    { key: 'total', label: 'Total', kind: 'money', width: 128, total: true, compute: (i) => coGridLineTotal(i) },
+  ];
+
   /**
    * Writes the CO — and ONLY writes it: no toast, no navigation. Split out of
    * handleSave so Send & Save can put the CO on disk and read where the write
@@ -1636,7 +1794,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   const persistCO = useCallback((status: ChangeOrderStatus, recipientName?: string, recipientEmail?: string, opts?: { recordRecipient?: boolean }): { id: string; number: number; isUpdate: boolean; status: ChangeOrderStatus; pricedEditOnSentCO: boolean; write: Promise<RecordWriteOutcome> } | null => {
     if (!projectId) return null;
     const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length })
-      ?? coEmptyLineDraftBlocker(lineDrafts, lineItems);
+      ?? coEmptyLineDraftBlocker(lineDrafts, lineItems) ?? coUnnamedLineBlocker(lineItems);
     if (blocked) {
       showAlert(blocked.title, blocked.message);
       return null;
@@ -1952,7 +2110,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       return;
     }
     // A signed directive must not print a price his screen isn't showing (#126).
-    const emptyDraft = coEmptyLineDraftBlocker(lineDrafts, lineItems);
+    const emptyDraft = coEmptyLineDraftBlocker(lineDrafts, lineItems) ?? coUnnamedLineBlocker(lineItems);
     if (emptyDraft) {
       showAlert(emptyDraft.title, emptyDraft.message);
       return;
@@ -2034,7 +2192,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     }
     // Refuse BEFORE anything goes out — see coSaveBlocker.
     const blocked = coSaveBlocker({ description, lineItemCount: lineItems.length })
-      ?? coEmptyLineDraftBlocker(lineDrafts, lineItems);
+      ?? coEmptyLineDraftBlocker(lineDrafts, lineItems) ?? coUnnamedLineBlocker(lineItems);
     if (blocked) {
       showAlert(blocked.title, blocked.message);
       return;
@@ -2853,6 +3011,15 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           <View style={styles.fieldSection}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.fieldLabel}>Line Items</Text>
+              {isDesktopWeb && (
+                <SegmentedControl
+                  size="sm"
+                  testID="co-lines-view"
+                  value={linesView}
+                  onChange={setLinesView}
+                  options={[{ value: 'grid', label: 'Grid' }, { value: 'cards', label: 'Cards' }]}
+                />
+              )}
               {!isLocked && (
                 <View style={styles.addBtnRow}>
                   <TouchableOpacity
@@ -2893,7 +3060,34 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               </View>
             )}
 
-            {lineItems.map((item) => (
+            {coGridOn ? (
+              <>
+                <LineItemGrid<ChangeOrderLineItem>
+                  testID="co-lines"
+                  rows={lineItems}
+                  rowKey={(i) => i.id}
+                  columns={coGridColumns}
+                  readOnly={isLocked}
+                  footerLabel="Lines subtotal (before tax)"
+                  footerTotals={{ total: coGridFooter(lineItems) }}
+                  rowWarning={(i) => (!i.name.trim()
+                    ? 'Name this line — it prints on the change order.'
+                    : i.priceSource === 'needs_price'
+                      ? 'Needs a price — it cannot be sent at $0.'
+                      : i.priceSource === 'ai_estimated'
+                        ? 'AI estimate from your cost book — type a price, or confirm it when you send.'
+                        : null)}
+                  onChangeCell={handleGridCell}
+                  onCellBlur={handleGridBlur}
+                  onAddRow={handleGridAddLine}
+                  onDeleteRow={handleRemoveItem}
+                  onPasteRows={handleGridPaste}
+                  addLabel="Add line"
+                  renderCard={() => null}
+                />
+                <Text style={styles.helperText}>CSI division, line notes and margin are in Cards.</Text>
+              </>
+            ) : lineItems.map((item) => (
               <View key={item.id} style={styles.lineItemCard}>
                 <View style={styles.lineItemHeader}>
                   <View style={styles.lineItemNameRow}>
