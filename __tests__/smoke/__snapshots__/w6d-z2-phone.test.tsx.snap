@@ -10,14 +10,14 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (a) contract with
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b1) daily-report, new report, jobsite 124 Park Slope (wttr answers) 1`] = `
 {
   "lines": 1134,
-  "sha256": "7f8fd7ed429c5e9ffb5f88372225edbbe1e1480ee4529e86726666045fa88af3",
+  "sha256": "603e45c1f2d8a6957c3d2acddfc0bf9e7d0fcf2ed788faa3ecfc574ac4cddf12",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b2) daily-report, new report, location 'United States' 1`] = `
 {
   "lines": 1132,
-  "sha256": "a2364e931b7b4c42816c051acca224eea2c450320ecc3f728ef095db16fad523",
+  "sha256": "cca07fdf28f6f34817c4c575571bad7a3b176ecacb5debc2944551580e6b0d48",
 }
 `;
 
@@ -52,7 +52,7 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-pa
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
   "lines": 1907,
-  "sha256": "129c7d17c98b2e87fc6ca175a266531a75cf3cdc38bf889b5b448e7c321dfc9f",
+  "sha256": "63d765bcc210a49a33cd79e70413cdab83f24d125a76dbca6e1a26cb271a0db6",
 }
 `;
 

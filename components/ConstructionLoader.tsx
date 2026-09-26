@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import Svg, { G, Line, Path, Rect, Polyline } from 'react-native-svg';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import ToppingOutMark from '@/components/loaders/ToppingOutMark';
 
 /**
  * House-construction loading animation used across the app wherever a loading
@@ -28,6 +29,11 @@ import { useTheme } from '@/contexts/ThemeContext';
  *
  * Accessibility: we label the animation container so screen readers announce
  * "Loading" once instead of narrating every frame.
+ *
+ * NATIVE 'lg': iOS/Android render ToppingOutMark (native driver, one native
+ * loop, no overshoot) in place of the JS-driven SVG, which froze whenever the
+ * JS thread was busy. 'sm'/'md' (too small for five floors) and the web keep
+ * the SVG.
  */
 
 type LoaderSize = 'sm' | 'md' | 'lg';
@@ -92,6 +98,8 @@ export default function ConstructionLoader({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const dims = SIZE_MAP[size];
+  // Read at render (never module scope): the golden harness flips Platform.OS.
+  const toppingOut = size === 'lg' && Platform.OS !== 'web';
 
   // Rotating-label state — advances through `labels` and holds on the last one.
   const rotating = Array.isArray(labels) && labels.length > 0;
@@ -112,6 +120,7 @@ export default function ConstructionLoader({
   const breathe = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    if (toppingOut) return;
     let mounted = true;
     const place = (v: Animated.Value) =>
       Animated.timing(v, { toValue: 1, duration: PLACE_MS, easing: Easing.out(Easing.back(1.3)), useNativeDriver: false });
@@ -136,7 +145,7 @@ export default function ConstructionLoader({
       loop.start();
     }
     return () => { mounted = false; loop.stop(); };
-  }, [p, breathe]);
+  }, [p, breathe, toppingOut]);
 
   // Each part fades in and rises a few units into place.
   const part = (i: number) => ({
@@ -193,6 +202,7 @@ export default function ConstructionLoader({
       accessibilityLabel={shownLabel ?? 'Loading'}
       testID="construction-loader"
     >
+      {toppingOut ? <ToppingOutMark size={dims.svg * 1.6} /> : (
       <Animated.View style={{ transform: [{ scale: breathe }] }}>
         {isCity ? (
           <Svg width={dims.svg * 1.35} height={dims.svg * 1.35 * 72 / 120} viewBox="0 0 120 72" fill="none">
@@ -239,6 +249,7 @@ export default function ConstructionLoader({
           </Svg>
         )}
       </Animated.View>
+      )}
       {!!shownLabel && (
         <Text style={[styles.label, { fontSize: dims.labelSize }]} numberOfLines={1}>
           {shownLabel}

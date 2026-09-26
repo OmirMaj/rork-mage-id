@@ -9,6 +9,8 @@ import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { useCountTo } from '@/components/animations/TapeRollNumber';
+import { AnimatedFill } from '@/components/animations/AnimatedFill';
 import { taskCalendarRange, verdictToneTokens, type PacedVerdict } from '@/utils/scheduleOps';
 
 interface ProgressTabProps {
@@ -53,6 +55,7 @@ export function ProgressTab({
   }, [startDate]);
 
   const overall = useMemo(() => weighted(tasks), [tasks]);
+  const shownOverall = useCountTo(overall, (n) => String(Math.round(n)));
   const phases = useMemo(() => {
     const order: string[] = [];
     const by = new Map<string, ScheduleTask[]>();
@@ -91,9 +94,9 @@ export function ProgressTab({
       )}
 
       <View style={styles.hero}>
-        <Text style={styles.heroPct}>{overall}%</Text>
+        <Text style={styles.heroPct}>{shownOverall}%</Text>
         <Text style={styles.heroLbl}>OVERALL COMPLETE</Text>
-        <View style={styles.heroTrack}><View style={[styles.heroFill, { width: `${Math.min(100, overall)}%` }]} /></View>
+        <View style={styles.heroTrack}><AnimatedFill value={Math.min(100, overall)} style={[styles.heroFill, { width: `${Math.min(100, overall)}%` }]} /></View>
       </View>
 
       <Text style={styles.section}>BY PHASE</Text>
@@ -107,7 +110,7 @@ export function ProgressTab({
           <View key={p.phase} style={[styles.prow, i > 0 ? styles.rowDivider : null]}>
             <View style={[styles.dot, { backgroundColor: getPhaseColor(p.phase) }]} />
             <Text style={styles.pname} numberOfLines={1}>{p.phase}</Text>
-            <View style={styles.miniTrack}><View style={[styles.miniFill, { width: `${Math.min(100, p.pct)}%`, backgroundColor: getPhaseColor(p.phase) }]} /></View>
+            <View style={styles.miniTrack}><AnimatedFill value={Math.min(100, p.pct)} style={[styles.miniFill, { width: `${Math.min(100, p.pct)}%`, backgroundColor: getPhaseColor(p.phase) }]} /></View>
             <Text style={styles.pval}>{p.pct}%</Text>
           </View>
         ))}

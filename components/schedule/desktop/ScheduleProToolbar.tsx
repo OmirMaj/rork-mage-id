@@ -27,6 +27,7 @@ import { View, Text, TextInput, Pressable, Modal, StyleSheet, useWindowDimension
 import { ChevronLeft, Undo2, Redo2, Download, Minus, Plus, ChevronDown, Maximize2, CalendarDays } from 'lucide-react-native';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/SegmentedControl';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { webMotion } from '@/components/ui/motion';
 import { SchedulerMenuBar, type SchedulerActions } from '@/components/schedule/SchedulerMenuBar';
 import { ScheduleHealthBadge, type ScheduleHealthBadgeProps } from '@/components/schedule/ScheduleHealthScore';
 import { Layout, Shadow, Tokens } from '@/constants/designTokens';
@@ -119,8 +120,12 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [morePos, setMorePos] = useState<{ top: number; left: number } | null>(null);
   const moreRef = useRef<View | null>(null);
+  // The More chevron glides (slicker pass): armed by the first open, so the
+  // bar at rest — and every golden — keeps today's bare icon.
+  const moreChevronArmed = useRef(false);
   useSheetDialogScope(moreOpen);
   const openMore = () => {
+    moreChevronArmed.current = true;
     setMoreOpen(true);
     const node = moreRef.current;
     if (typeof node?.measureInWindow !== 'function') { setMorePos({ top: Layout.control.toolbar * 2, left: Layout.gutter }); return; }
@@ -132,6 +137,8 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
     });
   };
   const moreActive = moreViews.includes(p.view);
+  // The More menu drops in (web CSS; null on native and under Reduce Motion).
+  const menuDrop = webMotion('dropIn');
 
   return (
     <View style={styles.root} testID="schedule-pro-toolbar" onLayout={onBarLayout}>
@@ -209,7 +216,13 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           testID="schedule-view-more"
         >
           <Text style={[styles.textBtnLabel, moreActive && styles.textBtnLabelOn]}>{moreActive ? VIEW_LABEL[p.view] : 'More'}</Text>
-          <ChevronDown size={14} color={moreActive ? t.text : t.textSecondary} strokeWidth={1.75} />
+          {moreChevronArmed.current ? (
+            <View style={[{ transform: [{ rotate: moreOpen ? '180deg' : '0deg' }] }, webMotion('rotateGlide')]}>
+              <ChevronDown size={14} color={moreActive ? t.text : t.textSecondary} strokeWidth={1.75} />
+            </View>
+          ) : (
+            <ChevronDown size={14} color={moreActive ? t.text : t.textSecondary} strokeWidth={1.75} />
+          )}
         </Pressable>
         <View style={styles.spacer} />
         <View style={styles.group} accessibilityLabel={zoomReason}>
@@ -260,7 +273,9 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
       <Modal visible={moreOpen} transparent animationType="fade" onRequestClose={() => setMoreOpen(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setMoreOpen(false)} accessibilityRole="button" accessibilityLabel="Close menu" />
         <View
-          style={[styles.menu, morePos ? { top: morePos.top, left: morePos.left } : styles.menuUnplaced]}
+          style={menuDrop
+            ? [styles.menu, morePos ? { top: morePos.top, left: morePos.left } : styles.menuUnplaced, menuDrop]
+            : [styles.menu, morePos ? { top: morePos.top, left: morePos.left } : styles.menuUnplaced]}
           accessibilityRole="menu"
           testID="schedule-view-more-menu"
         >

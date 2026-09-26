@@ -375,7 +375,7 @@ for (const [file, src, names] of [
 ] as const) {
   for (const n of names) {
     ok(`${file}: the ${n} Modal keeps transparent + animationType={${n}.animationType}, and its card takes ${n}.card`,
-      new RegExp(`<Modal visible=\\{[^}]+\\} transparent animationType=\\{${n}\\.animationType\\}`).test(src) && src.includes(`${n}.card]`) && src.includes(`${n}.overlay]`));
+      new RegExp(`<Modal visible=\\{[^}]+\\} transparent animationType=\\{${n}\\.animationType\\}`).test(src) && new RegExp(`${n}\\.card(, ${n}\\.cardMotion)?\\]`).test(src) && src.includes(`${n}.overlay]`));
   }
 }
 const sentinelAt = invSrc.indexOf('<TutorialTarget id="invoice.modalUp" />');

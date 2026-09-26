@@ -2599,25 +2599,29 @@ console.log('\na contract prints his terms or asks — never a guess (CONTRACT-T
   ok('…and saveDraftFrom takes the contract as an argument, not the render closure',
     /const saveDraftFrom = useCallback\(async \(c: ProjectContract\) => \{[\s\S]{0,200}saveContractDetailed\(\{ \.\.\.c, id: c\.id \|\| undefined \}\)/.test(code));
 
-  // ── ONE TOAST PER PRESS (review round 5). ──
+  // ── ONE TOAST PER PRESS (review round 5; re-anchored in round 2 'slicker'). ──
   //
   // The gate fires its own "Saved as your terms …" confirmation and then calls
   // `then` on the SAME call stack. The toast host holds exactly one message:
-  // showToast does setActive(event) and then opacity.setValue(0), which stops
-  // the in-flight animation, and the sequence's completion callback is
-  // `() => setActive(null)` with no `finished` check — so a second nailIt in
-  // that press resolves the first to null and NEITHER sentence is seen. The
-  // screen's "review it, then sign" line is therefore a notice on the page.
-  // Both halves of the trap are asserted, so the day the host learns to queue
-  // (or the gate stops confirming) this fails loudly instead of pinning air.
+  // its listener does setActive(event) and a message that arrives while a toast
+  // is up REPLACES the one showing (no queue) — so a second nailIt in that
+  // press wipes the gate's sentence before anyone can read it. The screen's
+  // "review it, then sign" line is therefore still a notice on the page, not a
+  // second toast. Both halves of the trap are asserted, so the day the host
+  // learns to queue (or the gate stops confirming) this fails loudly instead
+  // of pinning air.
   const gateSrc = read('hooks/useClientDocumentGate.ts');
   ok('the gate confirms the answer itself, in the same press, before it runs the caller',
     /nailIt\(confirmationForSheet\(facts, noun\)\);\s*\n\s*if \(then\) then\(/.test(gateSrc),
     'if the gate stopped confirming, the contract screen would owe that sentence');
   const host = read('components/animations/NailItToast.tsx');
-  ok('…and the toast host shows ONE message at a time — the trap this pins',
-    /setActive\(event\);\s*\n\s*opacity\.setValue\(0\);/.test(host)
-    && /\]\)\.start\(\(\) => setActive\(null\)\)/.test(host),
+  const hostCode = host.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const showAt = hostCode.indexOf('const showToast = useCallback((event: ToastEvent) => {');
+  const showBody = showAt < 0 ? '' : hostCode.slice(showAt, hostCode.indexOf('}, [', showAt));
+  ok('…and the toast host shows ONE message at a time — a second one REPLACES the first (the trap this pins)',
+    /setActive\(event\);/.test(showBody)
+    && /const listener = \(e: ToastEvent\) => showToast\(e\);/.test(hostCode)
+    && !/\bqueue\b|\bpending\w*\s*[=:]|\.push\((?:event|e)\)|setActive\(\s*\(?prev/i.test(hostCode),
     'a host that queued messages would make a second nailIt safe — revisit the notice below');
   const nailCalls = (askBody.match(/nailIt\(/g) ?? []).length;
   const reviewArm = askBody.indexOf("if (after === 'review') {");

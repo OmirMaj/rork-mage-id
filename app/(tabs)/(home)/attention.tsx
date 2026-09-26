@@ -41,6 +41,7 @@ import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable'
 import { routeHref } from '@/components/desktop/RowLink';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { cardSurface } from '@/components/ui';
+import { layoutNext } from '@/components/ui/motion';
 import { Tokens } from '@/constants/designTokens';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -317,7 +318,9 @@ export default function AttentionScreen() {
                 { value: 'high', label: 'High', count: items.filter((i) => i.severity === 'high').length },
               ]}
               value={severity}
-              onChange={setSeverity}
+              // Native: the cards ease (opacity-only LayoutAnimation). Web:
+              // DataTable fades the rows that appear.
+              onChange={(v) => { layoutNext(); setSeverity(v); }}
               variant="pill"
               accessibilityLabel="Filter by severity"
               testID="attention-severity"

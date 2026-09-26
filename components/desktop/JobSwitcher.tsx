@@ -39,6 +39,7 @@ import type { Project } from '@/types';
 import { jobSwitcherList } from '@/utils/activeProject';
 import { RowLink, routeHref } from '@/components/desktop/RowLink';
 import { cardSurface } from '@/components/ui';
+import { webMotion } from '@/components/ui/motion';
 
 /** The popover width the web-PM audit specified: wide enough for a full job
  *  name ("Henderson Residence — kitchen + primary suite") on one line, which
@@ -139,6 +140,14 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
   const sectionFor = (p: Project) =>
     recentSet.has(p.id) ? 'RECENT' : p.status === 'in_progress' ? 'IN PROGRESS' : 'OTHER JOBS';
 
+  // The popover drops in (web CSS; null on native and under Reduce Motion).
+  // It renders only while open, so nothing changes at rest.
+  const drop = webMotion('dropIn');
+  const popoverPlace = {
+    left: anchor?.x ?? 12,
+    top: (anchor?.y ?? 120) + (anchor?.h ?? 40) + 4,
+  };
+
   return (
     <>
       <Pressable
@@ -162,10 +171,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
       <Modal visible={open} transparent animationType="none" onRequestClose={close}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close job switcher" />
         <View
-          style={[styles.popover, {
-            left: anchor?.x ?? 12,
-            top: (anchor?.y ?? 120) + (anchor?.h ?? 40) + 4,
-          }]}
+          style={drop ? [styles.popover, popoverPlace, drop] : [styles.popover, popoverPlace]}
           testID="job-switcher-popover"
         >
           <TextInput

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
+  View, Animated, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
   FlatList, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -61,7 +61,7 @@ export default function ContactPickerModal({
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const fSheet = useSheetFrame('form', { visible, animationType: 'slide' });
+  const fSheet = useSheetFrame('form', { visible, animationType: 'slide', rise: true });
 
   const filtered = useMemo(() => {
     let list = contacts;
@@ -131,7 +131,7 @@ export default function ContactPickerModal({
     <Modal visible={visible} transparent animationType={fSheet.animationType} onRequestClose={handleClose}>
       <View style={[styles.overlay, fSheet.overlay]}>
         <Pressable style={[styles.overlayTouch, fSheet.isDesktop && StyleSheet.absoluteFill]} onPress={handleClose} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, fSheet.card]}>
+        <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, fSheet.card, fSheet.cardMotion]}>
           {fSheet.showHandle && <View style={styles.handle} />}
 
           <View style={styles.header}>
@@ -177,7 +177,7 @@ export default function ContactPickerModal({
               </View>
             }
           />
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

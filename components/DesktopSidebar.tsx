@@ -40,6 +40,7 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSidebarRail } from '@/hooks/useSidebarRail';
+import { webMotion } from '@/components/ui/motion';
 
 interface NavItem {
   key: string;
@@ -550,10 +551,15 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     );
   }, [pathname, canAccess, claimedCrewWorker, hrefFor, railRowStyle]);
 
+  // Group chevrons glide (slicker pass): a toggle the GC has pressed renders
+  // one chevron that rotates; an untouched one — the rail at rest, every
+  // golden — keeps today's Down/Right pair exactly.
+  const touchedToggles = useRef(new Set<string>());
   const renderToggle = (toggle: string, label: string, open: boolean, members: readonly string[]) => (
     <Pressable
       style={styles.sectionHeader}
       onPress={() => {
+        touchedToggles.current.add(toggle);
         // The group holding the current page: a session-only override.
         if (activeSection !== null && members.includes(activeSection)) {
           setForced(f => ({ ...f, [toggle]: !isOpen(toggle, members) }));
@@ -567,7 +573,11 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       testID={`sidebar-section-${toggle}`}
     >
       <Text style={styles.sectionLabel}>{label}</Text>
-      {open
+      {touchedToggles.current.has(toggle) ? (
+        <View style={[{ transform: [{ rotate: open ? '0deg' : '-90deg' }] }, webMotion('rotateGlide')]}>
+          <ChevronDown size={13} color={RAIL.muted} strokeWidth={2} />
+        </View>
+      ) : open
         ? <ChevronDown size={13} color={RAIL.muted} strokeWidth={2} />
         : <ChevronRight size={13} color={RAIL.muted} strokeWidth={2} />}
     </Pressable>

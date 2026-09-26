@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Image, Pressable,
+  View, Animated, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, Image, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -3869,11 +3869,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
 
   // Desktop sheets (wave 6c): each Modal below keeps its phone styles; on
   // desktop web the frame centres a capped card in the content column.
-  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide' });
+  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide', rise: true });
   // Sends email: Cmd+Enter only, never Cmd+S (components/ui/Sheet saveKey).
   useSheetPrimaryHotkey(showSendRecipient, handleConfirmSend, { saveKey: false });
-  const fTask = useSheetFrame('form', { visible: showTaskPicker, animationType: 'slide' });
-  const fCrew = useSheetFrame('form', { visible: showManpowerModal, animationType: 'slide' });
+  const fTask = useSheetFrame('form', { visible: showTaskPicker, animationType: 'slide', rise: true });
+  const fCrew = useSheetFrame('form', { visible: showManpowerModal, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(showManpowerModal, handleSaveManpower);
   const fDelay = useSheetFrame('dialog', { visible: delayTaskPickerIdx !== null, animationType: 'fade' });
   // Cmd/Ctrl+S and Cmd/Ctrl+Enter save a DRAFT — never Submit, which sends.
@@ -5649,7 +5649,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       <Modal visible={showSendRecipient} transparent animationType={fSend.animationType} onRequestClose={() => setShowSendRecipient(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fSend.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card]}>
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card, fSend.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Report To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5734,7 +5734,11 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                     </Text>
                   </View>
                   <View style={[styles.toggleSwitch, saveToProjectFiles && styles.toggleSwitchOn]}>
-                    <View style={[styles.toggleKnob, saveToProjectFiles && styles.toggleKnobOn]} />
+                    {/* Explicit close (same element as `<View … />`): validate-contrast
+                        balances <View>/</View> by name, and the send card is an
+                        Animated.View now, so a self-closing knob here would stretch
+                        this switch's scan into the crew sheet below. */}
+                    <View style={[styles.toggleKnob, saveToProjectFiles && styles.toggleKnobOn]}></View>
                   </View>
                 </TouchableOpacity>
               ) : (
@@ -5771,7 +5775,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -5808,7 +5812,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           can adjust pct via a quick-step row (0/25/50/75/100). */}
       <Modal visible={showTaskPicker} transparent animationType={fTask.animationType} onRequestClose={() => setShowTaskPicker(false)}>
         <View style={[styles.modalOverlay, fTask.overlay]}>
-          <View style={[styles.modalCard, fTask.card]}>
+          <Animated.View style={[styles.modalCard, fTask.card, fTask.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Work Progress</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5880,14 +5884,14 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             <TouchableOpacity style={styles.modalDoneBtn} onPress={() => setShowTaskPicker(false)} activeOpacity={0.85}>
               <Text style={styles.modalDoneBtnText}>Done</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
       <Modal visible={showManpowerModal} transparent animationType={fCrew.animationType} onRequestClose={() => setShowManpowerModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fCrew.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fCrew.card]}>
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fCrew.card, fCrew.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{mpEditingId ? 'Edit Crew' : 'Add Manpower'}</Text>
                 <TouchableOpacity onPress={() => setShowManpowerModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -5984,7 +5988,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               >
                 <Text style={styles.modalAddBtnText}>{mpEditingId ? 'Save changes' : 'Add Entry'}</Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>

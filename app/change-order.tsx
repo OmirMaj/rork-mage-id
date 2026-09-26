@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, FlatList,
+  View, Animated, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, FlatList,
   type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -2510,10 +2510,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   // Desktop: the sheets centre in the content column (null on a phone, and
   // each keeps its own 'slide'); Cmd+S / Cmd+Enter saves the draft, and says
   // why when the CO is locked. Send never binds Cmd+S — it leaves the app.
-  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide' });
-  const fAddItem = useSheetFrame('form', { visible: showAddItem, animationType: 'slide' });
-  const fEstimate = useSheetFrame('wide', { visible: showEstimateItems, animationType: 'slide' });
-  const fMaterial = useSheetFrame('wide', { visible: showMaterialSearch, animationType: 'slide' });
+  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide', rise: true });
+  const fAddItem = useSheetFrame('form', { visible: showAddItem, animationType: 'slide', rise: true });
+  const fEstimate = useSheetFrame('wide', { visible: showEstimateItems, animationType: 'slide', rise: true });
+  const fMaterial = useSheetFrame('wide', { visible: showMaterialSearch, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(showSendRecipient, sendInFlight ? null : () => void handleConfirmSend(), { saveKey: false });
   useSheetPrimaryHotkey(showAddItem, handleAddNewItem);
   usePrimaryAction(() => withConfirmedImpactDays(() => handleSave('draft')), {
@@ -3294,7 +3294,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       <Modal visible={showSendRecipient} transparent animationType={fSend.animationType} onRequestClose={() => setShowSendRecipient(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fSend.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card]}>
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card, fSend.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send for Approval To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3393,7 +3393,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                   <Text style={styles.sendBtnText}>{sendInFlight ? 'Sending…' : 'Send'}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -3416,7 +3416,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
       <Modal visible={showAddItem} transparent animationType={fAddItem.animationType} onRequestClose={() => setShowAddItem(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fAddItem.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAddItem.card]}>
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAddItem.card, fAddItem.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add New Item</Text>
                 <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -3468,14 +3468,14 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
               <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddNewItem} activeOpacity={0.85}>
                 <Text style={styles.modalAddBtnText}>Add Item</Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={showEstimateItems} transparent animationType={fEstimate.animationType} onRequestClose={() => setShowEstimateItems(false)}>
         <View style={[styles.modalOverlay, fEstimate.overlay]}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }, fEstimate.card]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }, fEstimate.card, fEstimate.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add from Estimate</Text>
               <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -3505,13 +3505,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
       <Modal visible={showMaterialSearch} transparent animationType={fMaterial.animationType} onRequestClose={() => setShowMaterialSearch(false)}>
         <View style={[styles.modalOverlay, fMaterial.overlay]}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }, fMaterial.card]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }, fMaterial.card, fMaterial.cardMotion]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Search Materials</Text>
               <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -3619,7 +3619,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 );
               }}
             />
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 

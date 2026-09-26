@@ -38,7 +38,7 @@ exports[`lane B1 — components (golden, 390 phone) EntityActionSheet rfi ref, w
 exports[`lane B1 — components (golden, 390 phone) RecordPaymentModal, open (iOS) 1`] = `
 {
   "lines": 355,
-  "sha256": "2b7ccf3a999a7d305d208cccf677fe85344c2fe1b20da7ed939b7314d362d0c6",
+  "sha256": "83ac43630be3b219f7919f59d3bee3dad870521d888eb106224ef39fbbd40846",
 }
 `;
 

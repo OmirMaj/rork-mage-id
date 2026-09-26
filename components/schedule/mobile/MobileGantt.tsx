@@ -6,7 +6,8 @@ import {
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
-import { CheckCircle2, CircleDot, Circle, Plus, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
+import { CheckCircle2, CircleDot, Circle, Plus, Check } from 'lucide-react-native';
+import { CollapseChevron } from '@/components/animations/CollapseChevron';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -573,7 +574,7 @@ export function MobileGantt({
           {topSpacerH > 0 && <View style={{ height: topSpacerH }} />}
           {visibleRows.map((r) => r.kind === 'phase' ? (
             <TouchableOpacity key={`p-${r.phase}`} style={[styles.lrow, styles.phaseRow]} activeOpacity={0.7} onPress={() => onTogglePhase(r.phase)}>
-              {collapsedPhases[r.phase] ? <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={14} color={colors.textMuted} strokeWidth={1.75} />}
+              <CollapseChevron open={!collapsedPhases[r.phase]} size={14} color={colors.textMuted} strokeWidth={1.75} />
               <View style={[styles.phaseDot, { backgroundColor: getPhaseColor(r.phase) }]} />
               <Text style={styles.phaseName} numberOfLines={1}>{r.phase}</Text>
               <Text style={styles.phasePct}>{r.pct}%</Text>

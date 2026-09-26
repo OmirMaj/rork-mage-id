@@ -62,7 +62,7 @@ import {
   boxToImageNorm, imageNormToBox, planScaleStatus, stampImageFrame, usableCalibration,
   PLAN_SCALE_RECHECK_COPY, type ImageRect,
 } from '@/utils/planScale';
-import { segmentedDesktop, useIsDesktop, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { segmentedDesktop, useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 
 type Mode = 'calibrate' | 'draw';
 type Kind = 'area' | 'linear' | 'count';
@@ -137,6 +137,9 @@ export default function AreaTakeoffScreen() {
 
 function AreaTakeoffInner() {
   const { colors: t } = useTheme();
+  // Desktop web only: the plan goes grayscale so the coloured measurement
+  // shapes stand out. The phone and a narrow browser are untouched.
+  const planWebFilter = useIsDesktopWeb();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   // Scrolling down slides the global Brain FAB away so it stops covering
@@ -626,7 +629,7 @@ function AreaTakeoffInner() {
               onResponderRelease={handleTap}
               testID="takeoff-canvas"
             >
-              <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" onLoad={onImageLoad} />
+              <Image source={{ uri: imageUri }} style={[styles.image, planWebFilter && PLAN_IMAGE_WEB_FILTER]} resizeMode="contain" onLoad={onImageLoad} />
               {imgRect && canvasSize && (
                 <Svg style={StyleSheet.absoluteFill} width={canvasSize.w} height={canvasSize.h}>
                   {calPoints.length === 2 && (
@@ -915,6 +918,10 @@ function ModeBtn({ active, icon, label, onPress, disabled, t, styles }: {
     </TouchableOpacity>
   );
 }
+
+/** RNW CSS passthrough; applied on desktop web only (see planWebFilter).
+ *  RN's ImageStyle does not type `filter`, hence the cast. */
+const PLAN_IMAGE_WEB_FILTER = { filter: 'grayscale(1) contrast(1.05)' } as unknown as import('react-native').ImageStyle;
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },

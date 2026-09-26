@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, Platform, KeyboardAvoidingView, Pressable, Switch,
+  View, Animated, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, Platform, KeyboardAvoidingView, Pressable, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -231,7 +231,7 @@ export default function PDFPreSendSheet({
 
   const docLabel = useMemo(() => getDocTypeLabel(documentType), [documentType]);
 
-  const f = useSheetFrame('form', { visible, animationType: 'slide' });
+  const f = useSheetFrame('form', { visible, animationType: 'slide', rise: true });
   // Cmd+Enter sends (by email when there is a recipient, else the share
   // sheet). Never Cmd+S: this send leaves the app.
   useSheetPrimaryHotkey(visible && !showContactPicker, () => handleSend(recipient.trim() ? 'email' : 'share'), { saveKey: false });
@@ -246,7 +246,7 @@ export default function PDFPreSendSheet({
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.overlay, f.overlay]}>
           <Pressable style={[styles.overlayTouch, f.backdrop]} onPress={onClose} />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, f.card]}>
+          <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, f.card, f.cardMotion]}>
             {f.showHandle && <View style={styles.handle} />}
 
             <View style={styles.header}>
@@ -395,7 +395,7 @@ export default function PDFPreSendSheet({
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
 

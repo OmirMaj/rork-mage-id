@@ -26,7 +26,7 @@ export const SIDEBAR_RAIL = 64; /* Layout.sidebar.rail */
 export const SIDEBAR_RAIL_KEY = 'mageid_sidebar_rail';
 
 /** Top-level route segments whose sidebar defaults to the 64 px rail. */
-export const CANVAS_ROUTES: ReadonlySet<string> = new Set(['schedule-pro', 'plan-viewer']);
+export const CANVAS_ROUTES: ReadonlySet<string> = new Set(['schedule-pro', 'plan-viewer', 'area-takeoff', 'takeoff']);
 
 /** Collapsed or not, remembered separately for canvases and for everything
  *  else — collapsing it on Schedule Pro must not collapse it on the RFI log. */

@@ -24,13 +24,13 @@ exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (d) /change-order, a draft with a needs_price and an ai_estimated line 1`] = `
 {
   "lines": 1994,
-  "sha256": "6fd5d38b1d226d0339fe77760261ee0d9f96049cc06d2d225d47d6c2ed4ad70d",
+  "sha256": "b2563a69a9a8dfca594d71c9363f5328151a621dd0f05545595080f0443067b5",
 }
 `;
 
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (e) /change-order, an approved CO: locked 1`] = `
 {
   "lines": 969,
-  "sha256": "c5864c21a9cd70a7014c8e87ffe746af706be9895ab637be5c06173e8cd0ba29",
+  "sha256": "3f6d5d977ea7232a265fff8986f77e2c67666f4ffc7548ceb0371d0474c2d978",
 }
 `;

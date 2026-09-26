@@ -33,6 +33,7 @@ export {
   layoutNext,
   useRiseOnOpen,
   useSwapFade,
+  useWebSwap,
   webMotion,
   registerWithMotion,
   type WebMotionKey,

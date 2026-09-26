@@ -9,7 +9,7 @@
 // payment as 'unreconciled' rather than blocking the flow.
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Animated, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -72,13 +72,13 @@ export default function RecordPaymentModal({
   // Desktop: a centred form card. It records a payment ledger entry, so the
   // primary takes Cmd+Enter only — never Cmd+S, which the open dialog still
   // swallows so "Save page as" does not open (contract C10).
-  const f = useSheetFrame('form', { visible, animationType: 'slide' });
+  const f = useSheetFrame('form', { visible, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(visible, submit, { saveKey: false });
 
   return (
     <Modal visible={visible} transparent animationType={f.animationType} onRequestClose={onCancel}>
       <View style={[styles.overlay, f.overlay]}>
-        <View style={[styles.card, { paddingBottom: insets.bottom + 20 }, f.card]}>
+        <Animated.View style={[styles.card, { paddingBottom: insets.bottom + 20 }, f.card, f.cardMotion]}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{mode === 'reconcile' ? 'Payment detail' : 'Record payment'}</Text>
@@ -151,7 +151,7 @@ export default function RecordPaymentModal({
               <Text style={styles.skipBtnText}>Mark paid, add detail later</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

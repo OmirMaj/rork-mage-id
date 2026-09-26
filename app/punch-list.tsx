@@ -79,6 +79,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProjectSubcontractors } from '@/hooks/useProjectSubcontractors';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
 import { nailIt } from '@/components/animations/NailItToast';
+import { useCountTo } from '@/components/animations/TapeRollNumber';
+import { AnimatedFill } from '@/components/animations/AnimatedFill';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
 import {
   buildPunchLocationOptions,
@@ -1182,6 +1184,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const closedCount = items.filter(i => i.status === 'closed').length;
   const totalCount = items.length;
   const progressPercent = totalCount > 0 ? Math.round((closedCount / totalCount) * 100) : 0;
+  const shownPct = useCountTo(progressPercent, (n) => String(Math.round(n)));
   // Closing the PROJECT is across both lists: an open crew item is still work.
   const allClosed = allItems.length > 0 && allItems.every(i => i.status === 'closed');
 
@@ -2488,10 +2491,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       <View style={styles.progressSection}>
         <View style={styles.progressHeader}>
           <Text style={styles.progressTitle}>{activeList === 'punch' ? 'Punch list completion' : 'Crew list completion'}</Text>
-          <Text style={styles.progressPercent}>{progressPercent}%</Text>
+          <Text style={styles.progressPercent}>{shownPct}%</Text>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+          <AnimatedFill value={progressPercent} style={[styles.progressFill, { width: `${progressPercent}%` }]} />
         </View>
         <Text style={styles.progressSub}>
           {closedCount} of {totalCount} {activeList === 'punch' ? 'punch' : 'crew list'} items closed

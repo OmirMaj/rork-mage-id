@@ -3,7 +3,7 @@
 exports[`lane H — components (golden, 390 phone) ContactPickerModal, open 1`] = `
 {
   "lines": 63,
-  "sha256": "25ea45a6aa07fc53e3bc5d1e69fa328e1a3f8282ae6c29fa2a553151e143f091",
+  "sha256": "77a297d3f67e34a2caa380361a80f9f3db6c4977d655e881b1b42d0d076cbf80",
 }
 `;
 
@@ -45,7 +45,7 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) cost-xray 1`
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
 {
   "lines": 1132,
-  "sha256": "1e04971cd34575b23d186be83d4a1b46290d9036587aef32fb212e3ce192266a",
+  "sha256": "c9033f270bf75d1716eca318bd21207b19b57c2e2b7815aa23ca9c20c406d245",
 }
 `;
 
@@ -72,8 +72,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) equipment 1`
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/full (dialogs and forms) 1`] = `
 {
-  "lines": 3934,
-  "sha256": "a150eac6f58466a0dde6fffd3033b8fc6fa4989fed013a6179c78cedfc203323",
+  "lines": 3906,
+  "sha256": "b0218ec69a039e77a369a07b11933ae2079629df64f5e1263845d02cec3bce5c",
 }
 `;
 
@@ -247,8 +247,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) scan 1`] = `
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) selections 1`] = `
 {
-  "lines": 884,
-  "sha256": "a4134f70f48ff88a39fd6b62f2266091629e2a75f965933da86c04dc978960e5",
+  "lines": 856,
+  "sha256": "b66c71060aa15398d9cb720caa726718b458c336eb11f65941a8016420cd553d",
 }
 `;
 
