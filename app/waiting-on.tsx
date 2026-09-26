@@ -50,13 +50,14 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, ChevronRight, Send, CheckCircle2, History, FileQuestion, FileCheck, FileSignature, Truck, HardHat } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Send, CheckCircle2, History, FileQuestion, FileCheck, FileSignature, Truck, HardHat, FileText } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useCoreData, useDocsData, useFinancialsData, useFieldData, usePreconData } from '@/contexts/ProjectContext';
 import { buildChaseList, chaseSummary, type ChaseItem, type ChaseKind } from '@/utils/systemOfAction';
+import { useOpenProposals } from '@/hooks/useOpenProposals';
 import {
   runFollowUpRulesForPortfolio, mergeHeldFollowUps, rankFollowUps,
   type FollowUpContext,
@@ -174,6 +175,8 @@ const KIND_ICON: Record<ChaseKind, typeof FileQuestion> = {
   // Not waiting on anyone — it never left the building. See the note on
   // ChaseKind in utils/systemOfAction.ts.
   unsent_rfi: Send,
+  // A sent proposal the client has not signed.
+  proposal: FileText,
 };
 
 export default function WaitingOnScreen() {
@@ -190,6 +193,7 @@ export default function WaitingOnScreen() {
   const { changeOrders, deliveries, commitments } = useFinancialsData();
   const { subcontractors } = usePreconData();
   const { isDesktop } = useResponsiveLayout();
+  const openProposals = useOpenProposals();
   // The held face: hold id → FollowUpHold. Loaded once from disk, written back
   // on every change. `holdsLoaded` exists so the persist effect below cannot
   // write the empty initial map over a log it has not finished reading.
@@ -244,8 +248,9 @@ export default function WaitingOnScreen() {
         deliveries: deliveries ?? [],
         dailyReportsByProject,
         nowMs: Date.now(),
+        proposals: openProposals.status === 'ok' ? openProposals.rows : undefined,
       }),
-    [rfis, submittals, changeOrders, projects, deliveries, dailyReportsByProject],
+    [rfis, submittals, changeOrders, projects, deliveries, dailyReportsByProject, openProposals],
   );
   const summary = useMemo(() => chaseSummary(items), [items]);
 
@@ -637,6 +642,12 @@ export default function WaitingOnScreen() {
             isDesktop={isDesktop}
           />
 
+          {openProposals.status === 'failed' ? (
+            <Text style={styles.cardNote} testID="proposalchase-failed">
+              Couldn’t check your sent proposals, so none are listed here.
+            </Text>
+          ) : null}
+
           {summary.total === 0 ? (
             // Only claimed when the warnings above are empty too. "Go build"
             // over a live COI warning is the app telling him to walk into the
@@ -670,6 +681,11 @@ export default function WaitingOnScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                      {item.note ? (
+                        <Text style={styles.cardNote} testID={item.kind === 'proposal' ? `proposalchase-note-${item.id}` : undefined}>
+                          {item.note}
+                        </Text>
+                      ) : null}
                       <Text style={styles.cardMeta} numberOfLines={1}>
                         {item.projectName} · with {item.waitingOn}
                       </Text>
@@ -786,6 +802,7 @@ const makeStyles = (t: ThemeColors) =>
     },
     cardTitle: { ...Type.footnoteEmphasized, color: t.text },
     cardMeta: { ...Type.caption1, color: t.textSecondary, marginTop: 1 },
+    cardNote: { ...Type.caption1, color: t.textMuted, marginTop: 1 },
     lateBox: { alignItems: 'flex-end' },
     lateNum: { ...Type.subheadEmphasized, fontVariant: ['tabular-nums'] },
     lateLabel: { ...Type.caption2, color: t.textMuted },

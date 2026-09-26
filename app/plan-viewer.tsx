@@ -59,6 +59,7 @@ import { containImageRect, imageLoadAspectRatio, planViewerImageRatio } from '@/
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import CodeCheckThisButton from '@/components/codeThread/CodeCheckThisButton';
 import { planScaleStatus, stampImageFrame, usableCalibration, PLAN_SCALE_RECHECK_COPY } from '@/utils/planScale';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
@@ -1083,6 +1084,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
               : <PanelLeftOpen size={20} color={themeColors.text} strokeWidth={1.75} />}
           </TouchableOpacity>
         ) : null}
+        <CodeCheckThisButton variant="icon" projectId={sheet.projectId} source="plan_sheet" sourceId={sheet.id} style={styles.headerBtn} testID="codethread-entry-plan" />
         {/* Ask Your Plans (#163) — opens the Ask box on this job's Plans
             screen. It used to open Plan Intelligence, the room-estimating
             tool, where tapping a sheet starts a metered AI estimate. */}

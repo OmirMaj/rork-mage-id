@@ -81,6 +81,8 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import BlueprintReveal from '@/components/animations/BlueprintReveal';
 import InspectionReadyCard from '@/components/inspectionPrep/InspectionReadyCard';
 import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
+import ProjectCodeChecksCard from '@/components/codeThread/ProjectCodeChecksCard';
+import ScopeGapsCard from '@/components/scopeGaps/ScopeGapsCard';
 import { fireConfetti } from '@/components/animations/Confetti';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { nailIt } from '@/components/animations/NailItToast';
@@ -2665,6 +2667,7 @@ export default function ProjectDetailScreen() {
                 </TouchableOpacity>
               );
             })()}
+            <ScopeGapsCard mode="project" projectId={project.id} />
           </View>
         )}
 
@@ -4642,6 +4645,7 @@ export default function ProjectDetailScreen() {
             />
             <InspectionReadyCard project={project} openKey={prepParam ?? null} />
             <BuildingRecordCard project={project} testID="project-building-record" />
+            <ProjectCodeChecksCard project={project} />
             {/* One row of quick actions. Closeout lives in the header's ⋯. */}
             <TileGrid preset="action" phoneStyle={styles.quickActions} desktopStyle={isDesktop && styles.quickActionsDesktop}>
               <TouchableOpacity
@@ -4918,6 +4922,7 @@ export default function ProjectDetailScreen() {
         </BlueprintReveal>
         <InspectionReadyCard project={project} openKey={prepParam ?? null} />
         <BuildingRecordCard project={project} testID="project-building-record" />
+        <ProjectCodeChecksCard project={project} />
 
         {/* Financial pulse — projected margin as the hero number, a margin-risk
             spirit level, and the numbers that move the finish. Renders nothing

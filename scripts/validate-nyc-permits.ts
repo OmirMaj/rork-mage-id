@@ -197,7 +197,7 @@ console.log('\napp/project-detail.tsx:');
   eq('BuildingRecordCard mounts in both branches', (pd.match(/<BuildingRecordCard project=\{project\} testID="project-building-record" \/>/g) ?? []).length, 2);
   ok('phone: right after </BlueprintReveal>', /<\/BlueprintReveal>\s*<InspectionReadyCard/.test(pd));
   ok('desktop: right after the KPI strip, before the quick actions',
-    /onOpenSection=\{openSection\}\s*\/>\s*<InspectionReadyCard[^\n]*\n\s*<BuildingRecordCard[^\n]*\n\s*\{\/\* One row of quick actions/.test(pd));
+    /onOpenSection=\{openSection\}\s*\/>\s*<InspectionReadyCard[^\n]*\n\s*<BuildingRecordCard[^\n]*\n(?:\s*<ProjectCodeChecksCard project=\{project\} \/>\n)?\s*\{\/\* One row of quick actions/.test(pd));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

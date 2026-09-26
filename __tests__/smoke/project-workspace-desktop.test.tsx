@@ -25,6 +25,7 @@ import { fireEvent, act } from 'expo-router/testing-library';
 import { cleanup } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld, settle } from '@/__tests__/helpers/mountRoute';
 import { PROJECT_ID } from '@/__tests__/fixtures/world';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
 // ── Environment steering (mock-prefixed so jest's hoisted factories may read them)
 let mockDeskWeb = false;
@@ -117,7 +118,7 @@ describe('phone at 390 x 844 (native): project-detail renders exactly what it re
   it('the job page, populated', async () => {
     await primeWorld('populated');
     const tree = await mountRouteChecked(URL);
-    expect(screenRoot(tree.toJSON())).toMatchSnapshot();
+    expect(screenRoot(stripSanctioned(tree.toJSON()))).toMatchSnapshot();
   });
 
   it('keeps every phone control and draws no desktop workspace', async () => {

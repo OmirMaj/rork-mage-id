@@ -15,6 +15,7 @@
 import type { RFI, Submittal, ChangeOrder, Project, DailyFieldReport } from '@/types';
 import { classifyDelivery, type Delivery } from '@/utils/deliverySchedule';
 import { buildCrewPresence, findQuietTrades } from '@/utils/crewPresence';
+import { formatMoney } from '@/utils/formatters';
 
 // 'delivery' joins the paperwork kinds because a late load is the same shape
 // of problem: someone else is holding something you need, and every day it
@@ -31,7 +32,7 @@ import { buildCrewPresence, findQuietTrades } from '@/utils/crewPresence';
  * him, it becomes the useful fact it always was: this question is still in your
  * drafts and the date you need it by is coming.
  */
-export type ChaseKind = 'rfi' | 'submittal' | 'co_approval' | 'delivery' | 'quiet_trade' | 'unsent_rfi';
+export type ChaseKind = 'rfi' | 'submittal' | 'co_approval' | 'delivery' | 'quiet_trade' | 'unsent_rfi' | 'proposal';
 export type ChaseSeverity = 'critical' | 'high' | 'normal';
 
 export interface ChaseItem {
@@ -51,11 +52,50 @@ export interface ChaseItem {
   /** True when the item has never been sent (the ball is his, not the other
    *  party's). Set on submittals, which share kind 'submittal' either way. */
   unsent?: boolean;
+  /** A muted line under the title (the proposal kind says what MAGE cannot
+   *  see: whether the client opened it). */
+  note?: string;
   /** Route to open the underlying record. */
   route: { pathname: string; params: Record<string, string> };
 }
 
 const DAY_MS = 86400000;
+
+/** A sent proposal (a project_contracts row, kind 'proposal'), as
+ *  utils/contractEngine.fetchOpenProposals reads it. */
+export interface ProposalChaseInput {
+  id: string;
+  projectId: string;
+  title: string;
+  contractValue: number;
+  status: string;
+  kind?: string;
+  sentAt?: string;
+  signedAt?: string;
+  voidedAt?: string;
+  supersededBy?: string;
+}
+
+/** A proposal gets two days before it is worth a follow-up. */
+export const PROPOSAL_GRACE_DAYS = 2;
+
+/** The follow-up for a sent proposal. It never claims the client opened (or
+ *  didn't open) it: portal-mark-viewed does not cover project_contracts, so
+ *  MAGE cannot know. */
+export function proposalNudge(a: { clientName: string; title: string; daysSinceSent: number; sentLabel: string }): string {
+  const client = a.clientName?.trim() || 'there';
+  const d = a.daysSinceSent;
+  if (d < 5) {
+    return `Hi ${client}, just checking you received the proposal for ${a.title}. Happy to walk through it or answer any questions.`;
+  }
+  if (d < 10) {
+    return `Hi ${client}, following up on the ${a.title} proposal I sent on ${a.sentLabel}. Is there anything you'd like changed (scope, timing or price)? I can adjust it this week.`;
+  }
+  return `Hi ${client}, I don't want to keep filling your inbox about ${a.title}. If the timing isn't right, just let me know and I'll close it out for now. If you'd like to go ahead, I can hold a start date for you.`;
+}
+
+/** Jobs already won or finished: a proposal on them is not worth chasing. */
+const PROPOSAL_DONE_STATUSES = new Set(['in_progress', 'completed', 'closed']);
 
 function daysPast(dueISO: string | undefined, nowMs: number): number | null {
   if (!dueISO) return null;
@@ -89,6 +129,9 @@ export function buildChaseList(opts: {
   nowMs: number;
   /** Include items not yet overdue (default false — overdue only). */
   includeUpcoming?: boolean;
+  /** Sent proposals (project_contracts, kind 'proposal'). Optional — omitted
+   *  means the list behaves exactly as it did before proposals were chased. */
+  proposals?: readonly ProposalChaseInput[];
 }): ChaseItem[] {
   const { rfis, submittals, changeOrders, projects, nowMs } = opts;
   const includeUpcoming = opts.includeUpcoming ?? false;
@@ -296,6 +339,42 @@ export function buildChaseList(opts: {
     }
   }
 
+  // ── Proposals the client has not signed ─────────────────────────────────
+  // A sent proposal with no signature is money waiting on the client. MAGE
+  // cannot see whether they opened it (portal-mark-viewed does not cover
+  // project_contracts), so the item says exactly that and never guesses.
+  if (opts.proposals) {
+    const projectById = new Map(projects.map((p) => [p.id, p]));
+    for (const pr of opts.proposals) {
+      if (pr.kind !== 'proposal' || pr.status !== 'sent') continue;
+      if (!pr.sentAt || pr.signedAt || pr.voidedAt || pr.supersededBy) continue;
+      const project = projectById.get(pr.projectId);
+      if (!project) continue;
+      if (PROPOSAL_DONE_STATUSES.has(String(project.status ?? ''))) continue;
+      const d = daysPast(pr.sentAt, nowMs);
+      if (d == null) continue;
+      const overdue = d - PROPOSAL_GRACE_DAYS;
+      if (!includeUpcoming && overdue <= 0) continue;
+      const late = Math.max(0, overdue);
+      const client = project.primaryContact?.name?.trim() || '';
+      const sentDay = new Date(Date.parse(pr.sentAt.length === 10 ? pr.sentAt + 'T12:00:00' : pr.sentAt));
+      const sentLabel = sentDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      items.push({
+        id: `proposal:${pr.id}`,
+        kind: 'proposal',
+        projectId: pr.projectId,
+        projectName: project.name ?? 'Project',
+        title: `Proposal: ${pr.title} (${formatMoney(pr.contractValue)})`,
+        waitingOn: client || 'the client',
+        daysOverdue: late,
+        severity: severityFor(late),
+        note: `Sent ${d} day(s) ago. MAGE can’t see whether they opened it.`,
+        nudge: proposalNudge({ clientName: client, title: pr.title, daysSinceSent: d, sentLabel }),
+        route: { pathname: '/contract', params: { projectId: pr.projectId } },
+      });
+    }
+  }
+
   return items.sort((a, b) => b.daysOverdue - a.daysOverdue);
 }
 
@@ -305,7 +384,7 @@ export function chaseSummary(items: ChaseItem[]): {
   critical: number;
   byKind: Record<ChaseKind, number>;
 } {
-  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0, delivery: 0, quiet_trade: 0, unsent_rfi: 0 };
+  const byKind: Record<ChaseKind, number> = { rfi: 0, submittal: 0, co_approval: 0, delivery: 0, quiet_trade: 0, unsent_rfi: 0, proposal: 0 };
   let critical = 0;
   for (const i of items) {
     byKind[i.kind] += 1;

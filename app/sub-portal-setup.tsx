@@ -18,6 +18,7 @@ import { loadLienWaiversChecked, WAIVER_LABELS } from '@/utils/lienWaiverEngine'
 import { shareText } from '@/utils/shareText';
 import { generateUUID } from '@/utils/generateId';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
+import { PayWhatsEarnedCard } from '@/components/subInvoice/PayWhatsEarnedCard';
 import { copyToClipboard } from '@/utils/clipboard';
 import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import RecordPaymentModal, { type PaymentDetail } from '@/components/RecordPaymentModal';
@@ -987,6 +988,7 @@ function SubPortalSetupEditor() {
                         ))}
                       </View>
                     )}
+                    {inv.status === 'submitted' && project && sub ? (<PayWhatsEarnedCard invoice={inv} siblings={submitted.invoices} commitment={allCommitments.find(c => c.id === inv.commitmentId)} project={project} sub={sub} />) : null}
                     {inv.status === 'submitted' && (
                       <View style={styles.invoiceCtas}>
                         <TouchableOpacity

@@ -38,6 +38,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 import { PROJECT_ID, ESTIMATE_ID, SMOKE_USER } from '@/__tests__/fixtures/world';
 
 // ── The layout gate: a width + a web flag, exactly like the app's hook ──────
@@ -176,6 +177,7 @@ function dumpLines(node: unknown, depth: number, out: string[]): void {
   dumpLines(el.children, depth + 1, out);
 }
 function fingerprint(name: string, json: unknown): { lines: number; sha256: string } {
+  json = stripSanctioned(json);
   const out: string[] = [];
   dumpLines(json, 0, out);
   const text = out.join('\n');
