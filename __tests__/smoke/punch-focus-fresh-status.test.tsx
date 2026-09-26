@@ -25,7 +25,9 @@ async function pump(n = 6) {
 
 describe('punch-list notification focus', () => {
   beforeEach(async () => { await primeWorld('populated'); });
-  jest.setTimeout(40000);
+  // 2 s alone; the full gate runs it under heavy load (57 s seen twice), so
+  // the budget is for the machine, not the screen.
+  jest.setTimeout(120000);
 
   it('focuses the item under its fresh status (Review), with the sub note', async () => {
     await mountRouteChecked(`/punch-list?projectId=${PROJECT_ID}`);

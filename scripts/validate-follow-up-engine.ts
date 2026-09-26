@@ -625,7 +625,8 @@ console.log('\nthe engine is actually wired to a screen');
 
   // "All clear" must not be printed over live warnings.
   ok('the "nothing to chase" empty state is gated on the warnings too',
-    /preventiveItems\.length === 0 \? \(/.test(screen),
+    // Wave 4: also only once proposals and selections were actually checked.
+    /preventiveItems\.length === 0 && openProposals\.status === 'ok' && selectionsLoad\.status === 'ok' \? \(/.test(screen),
     '"Nothing to chase. Go build." renders above a live COI warning — the app telling him to walk ' +
     'into the problem it just found');
 
