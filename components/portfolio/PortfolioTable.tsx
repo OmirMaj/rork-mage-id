@@ -37,6 +37,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { formatMoneyShort } from '@/utils/formatters';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { AnimatedFill } from '@/components/animations/AnimatedFill';
 import {
   formatOpenItems, relativeDaysLabel, scheduleCellDescription, scheduleCellLabel,
   PORTFOLIO_COLUMN_WIDTHS as W, PORTFOLIO_HIDE_BELOW as HIDE,
@@ -146,16 +147,18 @@ export function PortfolioTable({
       numeric: true,
       hideBelow: HIDE.pct,
       sortValue: (r) => r.pct,
-      render: (r) => (r.pct == null ? (
-        <Text style={[styles.cell, styles.numeric]}>{UNKNOWN}</Text>
-      ) : (
-        <View style={styles.pctCell}>
-          <Text style={[styles.cell, styles.numeric]}>{r.pct}%</Text>
-          <View style={styles.pctTrack}>
-            <View style={[styles.pctFill, { width: `${Math.max(0, Math.min(100, r.pct))}%` }]} />
+      render: (r) => {
+        if (r.pct == null) return <Text style={[styles.cell, styles.numeric]}>{UNKNOWN}</Text>;
+        const pct = Math.max(0, Math.min(100, r.pct));
+        return (
+          <View style={styles.pctCell}>
+            <Text style={[styles.cell, styles.numeric]}>{r.pct}%</Text>
+            <View style={styles.pctTrack}>
+              <AnimatedFill value={pct} style={[styles.pctFill, { width: `${pct}%` }]} />
+            </View>
           </View>
-        </View>
-      )),
+        );
+      },
     },
     {
       key: 'schedule',

@@ -163,6 +163,21 @@ const STICKY_HEADER: ViewStyle | null = Platform.OS === 'web'
 
 const CHECK_COL = 40;
 
+// Rows that APPEAR on a search or filter change fade in (slicker pass, web).
+// Hoist into Motion.duration after round 2.
+const ENTER_STAGGER_MS = 16;
+/** The stagger stops growing after this many rows (8 × 16 = 128 ms at most). */
+const ENTER_STAGGER_STEPS = 8;
+/** Past this many appearing rows the rest simply show (no fade at all). */
+const ENTER_MAX_ROWS = 30;
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
+function sameKeys(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 function eventShift(e: GestureResponderEvent | undefined): boolean {
   const n = e?.nativeEvent as unknown as { shiftKey?: boolean } | undefined;
   return !!n?.shiftKey;
@@ -275,6 +290,43 @@ function DesktopDataTable<T>({
   }, [rows, query, searchText, sort, columns]);
 
   const visibleKeys = useMemo(() => visibleRows.map(rowKey), [visibleRows, rowKey]);
+
+  // Which rows just APPEARED (a cleared search, another filter chip). Only a
+  // key that was NOT in the previous visibleKeys ever fades; a row that stays
+  // never flashes. The set persists until the visible keys change again, so
+  // the follow-up renders (the cursor/selection effects below, a hover) keep
+  // the same animation-name and never cancel a fade mid-flight. At mount it is
+  // empty, so nothing fades and no golden moves. A sort (same keys, new
+  // order) or a filter that only removes rows makes an empty set. Idempotent
+  // under StrictMode: a second pass sees the keys it already recorded. A
+  // caller whose rows/rowKey change identity every render gives a new array
+  // with the same keys — that is not a change, the set is kept.
+  const enterRef = useRef<{ keys: readonly string[]; entering: ReadonlySet<string> }>({ keys: visibleKeys, entering: EMPTY_SET });
+  if (enterRef.current.keys !== visibleKeys) {
+    if (sameKeys(enterRef.current.keys, visibleKeys)) {
+      enterRef.current = { keys: visibleKeys, entering: enterRef.current.entering };
+    } else {
+      const prev = new Set(enterRef.current.keys);
+      enterRef.current = { keys: visibleKeys, entering: new Set(visibleKeys.filter((k) => !prev.has(k))) };
+    }
+  }
+  const entering = enterRef.current.entering;
+  // The appearing rows' styles, in display order: a stagger of
+  // ENTER_STAGGER_MS per row, capped at ENTER_STAGGER_STEPS steps; the rows
+  // past ENTER_MAX_ROWS get none. null under Reduce Motion and on native
+  // (webMotion), and whenever nothing appeared.
+  const enterFade = entering.size > 0 ? webMotion('fadeIn') : null;
+  let enterStyles: Map<string, StyleProp<ViewStyle>> | null = null;
+  if (enterFade) {
+    enterStyles = new Map();
+    let n = 0;
+    for (const k of visibleKeys) {
+      if (!entering.has(k)) continue;
+      if (n >= ENTER_MAX_ROWS) break;
+      enterStyles.set(k, [enterFade, { animationDelay: `${Math.min(n, ENTER_STAGGER_STEPS) * ENTER_STAGGER_MS}ms` } as unknown as ViewStyle]);
+      n += 1;
+    }
+  }
 
   // A deleted or searched-away row must not stay selected: a bulk action acts
   // on exactly the rows he can see ticked, never on one hidden by the search.
@@ -588,6 +640,7 @@ function DesktopDataTable<T>({
           return (
             <DataRow
               key={key}
+              enter={enterStyles?.get(key)}
               rowRef={(n) => { rowRefs.current.set(i, n); }}
               height={rowHeight}
               focused={i === cursor}
@@ -653,13 +706,15 @@ interface DataRowProps {
   styles: Styles;
   testID?: string;
   checkColor: string;
+  /** The appear fade (web, a row that just appeared); appended only when set. */
+  enter?: StyleProp<ViewStyle>;
 }
 
 /** One row. Its own hover state, so moving the mouse re-renders one row, not
  *  the table. The checkbox sits OUTSIDE the link, so ticking a row never
  *  navigates. */
 function DataRow({
-  children, rowRef, height, focused, active, selected, selectable, onCheck, href, onOpen, onPlainLinkClick, styles, testID, checkColor,
+  children, rowRef, height, focused, active, selected, selectable, onCheck, href, onOpen, onPlainLinkClick, styles, testID, checkColor, enter,
 }: DataRowProps) {
   const [hovered, setHovered] = useState(false);
   // A real <a> only on web, where a link means Cmd-click / middle-click / copy
@@ -691,6 +746,7 @@ function DataRow({
         // The row has no role, so the global hover CSS never reaches it: its
         // hover/selection fill glides here (120 ms; null under Reduce Motion).
         Platform.OS === 'web' && webMotion('bgGlide'),
+        ...(enter ? [enter] : []),
       ]}
     >
       {selectable ? (

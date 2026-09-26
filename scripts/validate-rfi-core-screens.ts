@@ -304,8 +304,14 @@ console.log('\nSendToClientButton (#36 label, #58 no save-in-send)');
   ok('no bare "Send to Client" / "Re-send updated" left', !/'Send to Client'/.test(BTN) && !/'Re-send updated'/.test(BTN) && !/'Re-send to Client'/.test(BTN));
   const doSend = BTN.slice(BTN.indexOf('const doSend'), BTN.indexOf('const doRecall'));
   ok('no pre-send save hook (it would snapshot the pre-save record)', !/onBeforeSend/.test(BTN) && /await sendToClientPortal\(\{ kind, itemId, projectId \}\)/.test(doSend));
-  const resend = BTN.slice(BTN.indexOf('if (unsentEdits)'), BTN.indexOf('return (', BTN.indexOf('if (unsentEdits)') + 40) + 1200);
+  // Round 2 (commit morph): the bar that renders is `branch` (the tapped bar is
+  // held through the check), so the Re-send bar is the `branch === 'resend'` arm.
+  const resendAt = BTN.indexOf("if (branch === 'resend')");
+  const resend = resendAt < 0 ? '' : BTN.slice(resendAt, BTN.indexOf('return (', resendAt + 40) + 1200);
   ok('the Re-send bar honours canSend and shows its reason', /disabled=\{busy \|\| !canSend\}/.test(resend) && /!canSend && canSendReason/.test(resend));
+  ok('…and it is chosen by the record (unsentEdits) when no send is in flight',
+    /const computed: 'send' \| 'resend' \| 'shared' =\s*\(status === 'draft' \|\| status === 'recalled'\) \? 'send' : unsentEdits \? 'resend' : 'shared';/.test(BTN)
+    && /const branch = commit\.busy \? heldBranch : computed;/.test(BTN));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

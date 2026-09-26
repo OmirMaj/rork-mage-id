@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, ActivityIndicator, type LayoutChangeEvent} from 'react-native';
+import {View, Animated, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Modal, ActivityIndicator, type LayoutChangeEvent} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, useBrainFabLift, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
@@ -2660,10 +2660,10 @@ function InvoiceInner() {
   // each keeping its 'slide'). Cmd+Enter runs a sheet's primary; the ones that
   // record money or send never take Cmd+S. Cmd+S / Cmd+Enter on the editor
   // saves the draft, and says why when the invoice is locked or sent.
-  const fPayment = useSheetFrame('form', { visible: showPaymentModal, animationType: 'slide' });
-  const fRetainage = useSheetFrame('form', { visible: showRetainageAsk, animationType: 'slide' });
-  const fRetention = useSheetFrame('form', { visible: showRetentionModal, animationType: 'slide' });
-  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide' });
+  const fPayment = useSheetFrame('form', { visible: showPaymentModal, animationType: 'slide', rise: true });
+  const fRetainage = useSheetFrame('form', { visible: showRetainageAsk, animationType: 'slide', rise: true });
+  const fRetention = useSheetFrame('form', { visible: showRetentionModal, animationType: 'slide', rise: true });
+  const fSend = useSheetFrame('form', { visible: showSendRecipient, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(showPaymentModal, recordingPayment ? null : handleMarkPaid, { saveKey: false });
   useSheetPrimaryHotkey(showRetainageAsk, retainageAskValid ? () => handleRetainageAnswer(retainageAskValue) : null);
   useSheetPrimaryHotkey(showRetentionModal, handleReleaseRetention, { saveKey: false });
@@ -3715,7 +3715,7 @@ function InvoiceInner() {
       <Modal visible={showPaymentModal} transparent animationType={fPayment.animationType} onRequestClose={() => setShowPaymentModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fPayment.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fPayment.card]}>
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fPayment.card, fPayment.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Record Payment</Text>
                 <TouchableOpacity onPress={() => setShowPaymentModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3787,7 +3787,7 @@ function InvoiceInner() {
                 <Check size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>{recordingPayment ? 'Recording…' : 'Record Payment'}</Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
         {/* Inside the payment sheet's Modal so it presents over it. It emits a
@@ -3814,7 +3814,7 @@ function InvoiceInner() {
       <Modal visible={showRetainageAsk} transparent animationType={fRetainage.animationType} onRequestClose={handleRetainageUnknown}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fRetainage.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetainage.card]} testID="retainage-ask-modal">
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetainage.card, fRetainage.cardMotion]} testID="retainage-ask-modal">
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Retainage on this job</Text>
                 <TouchableOpacity onPress={handleRetainageUnknown} accessibilityRole="button" accessibilityLabel="Close">
@@ -3897,7 +3897,7 @@ function InvoiceInner() {
                   Not sure — check my contract (nothing will be recorded)
                 </Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -3905,7 +3905,7 @@ function InvoiceInner() {
       <Modal visible={showRetentionModal} transparent animationType={fRetention.animationType} onRequestClose={() => setShowRetentionModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fRetention.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetention.card]}>
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetention.card, fRetention.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Release Retention</Text>
                 <TouchableOpacity onPress={() => setShowRetentionModal(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3956,7 +3956,7 @@ function InvoiceInner() {
                 <Unlock size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>Release</Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -3964,7 +3964,7 @@ function InvoiceInner() {
       <Modal visible={showSendRecipient} transparent animationType={fSend.animationType} onRequestClose={() => setShowSendRecipient(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, fSend.overlay]}>
-            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card]}>
+            <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card, fSend.cardMotion]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Invoice To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -4076,7 +4076,7 @@ function InvoiceInner() {
                   <Text style={styles.sendBtnText}>{sendInFlight ? 'Sending…' : 'Send'}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>

@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef, useReducer } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, Pressable, ScrollView, KeyboardAvoidingView,
+  View, Animated, Text, StyleSheet, FlatList, TouchableOpacity, Platform, Modal, TextInput, Pressable, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -703,7 +703,7 @@ export default function HomeScreen() {
   // every frame part is null and animationType is the original literal, so the
   // sheets render exactly as before; on desktop they centre in the content
   // column (the create form at the 720 'wide' size, the next step at 440).
-  const createFrame = useSheetFrame('wide', { visible: showCreateModal, animationType: 'slide' });
+  const createFrame = useSheetFrame('wide', { visible: showCreateModal, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(showCreateModal, handleCreateProject);
   const nextStepFrame = useSheetFrame('dialog', { visible: showNextStepModal, animationType: 'fade' });
 
@@ -1568,7 +1568,7 @@ export default function HomeScreen() {
       <Modal visible={showCreateModal} transparent animationType={createFrame.animationType} onRequestClose={() => setShowCreateModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, createFrame.overlay]}>
-            <View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }, createFrame.card]}>
+            <Animated.View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }, createFrame.card, createFrame.cardMotion]}>
               <View style={styles.createModalHeader}>
                 <Text style={styles.createModalTitle}>New Project</Text>
                 <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
@@ -1760,7 +1760,7 @@ export default function HomeScreen() {
               <TouchableOpacity style={[styles.createBtn, createFrame.footerButton, responsive.isDesktop && styles.createBtnDesktop]} onPress={handleCreateProject} activeOpacity={0.85} testID="create-project-btn">
                 <Text style={styles.createBtnText}>Create Project</Text>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </KeyboardAvoidingView>
       </Modal>

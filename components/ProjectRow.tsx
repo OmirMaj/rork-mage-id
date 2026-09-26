@@ -23,6 +23,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
+import { AnimatedFill } from '@/components/animations/AnimatedFill';
 // Wave 6c (C2): the badge speaks utils/projectStage's words — the same ones as
 // the Home chips and the job page ('Construction', 'Post-Con', 'Closeout').
 import { statusLabel as stageStatusLabel } from '@/utils/projectStage';
@@ -155,7 +156,8 @@ const ProjectRow = React.memo(function ProjectRow({
           </Text>
         </View>
         <View style={styles.burnTrack}>
-          <View
+          <AnimatedFill
+            value={Math.min(100, burnPct)}
             style={[
               styles.burnFill,
               {

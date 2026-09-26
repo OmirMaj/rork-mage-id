@@ -34,6 +34,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import { cardSurface } from '@/components/ui/Card';
 import { labelOn } from '@/components/ui/ink';
+import { webMotion } from '@/components/ui/motion';
 
 type IconComponent = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 
@@ -116,6 +117,9 @@ export function ToolbarActions({ actions, breadcrumbs, maxVisible, style, testID
   useHotkeys(MENU_DIALOG_BINDINGS, { scope: 'dialog', enabled: menu !== null });
 
   const { visible, overflow } = splitToolbarActions(actions, maxVisible ?? (isDesktop ? 6 : 3));
+  // The ⋯ menu drops in (web CSS; null on native and under Reduce Motion). It
+  // renders only while open, so nothing changes at rest.
+  const menuDrop = webMotion('dropIn');
 
   const openMenu = () => {
     const node = triggerRef.current;
@@ -193,7 +197,7 @@ export function ToolbarActions({ actions, breadcrumbs, maxVisible, style, testID
       <Modal visible={menu !== null} transparent animationType="none" onRequestClose={() => setMenu(null)}>
         <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenu(null)} accessibilityRole="button" accessibilityLabel="Close menu" />
         {menu ? (
-          <View style={[styles.menu, { top: menu.top, left: menu.left }]} accessibilityRole="menu">
+          <View style={menuDrop ? [styles.menu, { top: menu.top, left: menu.left }, menuDrop] : [styles.menu, { top: menu.top, left: menu.left }]} accessibilityRole="menu">
             {overflow.map((a) => {
               const Icon = a.icon;
               const blocked = !!a.disabled;

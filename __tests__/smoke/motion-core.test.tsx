@@ -9,8 +9,10 @@
  */
 
 import React from 'react';
-import { LayoutAnimation, Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { LayoutAnimation, Platform, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { act, render } from '@testing-library/react-native';
+import { renderRouter, screen } from 'expo-router/testing-library';
+import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   Button,
@@ -19,6 +21,7 @@ import {
   useRiseOnOpen,
   useSheetFrame,
   useSwapFade,
+  useWebSwap,
   webMotion,
   type SheetFrame,
 } from '@/components/ui';
@@ -154,6 +157,101 @@ describe('hooks are null at rest', () => {
   });
 });
 
+describe('useWebSwap', () => {
+  function run(keys: string[]): (ViewStyle | null)[] {
+    const seen: (ViewStyle | null)[] = [];
+    function Probe({ k }: { k: string }) {
+      seen.push(useWebSwap(k));
+      return null;
+    }
+    const r = render(<Probe k={keys[0]} />);
+    for (const k of keys.slice(1)) r.rerender(<Probe k={k} />);
+    r.unmount();
+    return seen;
+  }
+
+  it('native: always null, even across key changes', () => {
+    expect(run(['a', 'b', 'c']).every((s) => s === null)).toBe(true);
+  });
+
+  it('web: null at mount and on a same-key re-render', () => {
+    web();
+    expect(run(['a', 'a'])).toEqual([null, null]);
+  });
+
+  it('web: two key changes alternate two DIFFERENT fades (distinct keyframes), stable on a same-key re-render', () => {
+    web();
+    const [mount, first, same, second] = run(['a', 'b', 'b', 'c']);
+    expect(mount).toBeNull();
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(same).toBe(first);
+    expect(second).not.toBe(first);
+    const a = flat(first);
+    const b = flat(second);
+    expect(a.animationDuration).toBe('140ms');
+    expect(b.animationDuration).toBe('140ms');
+    expect(a.animationFillMode).toBe('backwards');
+    expect(b.animationFillMode).toBe('backwards');
+    expect(JSON.stringify(a.animationKeyframes)).not.toBe(JSON.stringify(b.animationKeyframes));
+    expect(flat(webMotion('fadeIn'))).toEqual(a);
+  });
+});
+
+describe('DataTable: rows that APPEAR fade in (desktop web)', () => {
+  type Row = { id: string };
+  const COLS: DataTableColumn<Row>[] = [{ key: 'id', label: 'Id', flex: 1 }];
+  const mk = (ids: string[]) => ids.map((id) => ({ id }));
+  type Inst = { parent: Inst | null; props: Record<string, unknown>; type: unknown };
+  /** The row's own host View (the one DataRow styles), above its Pressable. */
+  function rowStyle(key: string): Record<string, unknown> {
+    let n = (screen.getByTestId(`t-row-${key}`) as unknown as Inst).parent;
+    while (n && typeof n.type !== 'string') n = n.parent;
+    return flat(n?.props.style);
+  }
+  const fading = (keys: string[]) => keys.filter((k) => Array.isArray(rowStyle(k).animationKeyframes));
+
+  it('mount: nothing fades; appearing rows fade with a capped string stagger; staying rows, a re-render, a reorder and a removal never do', () => {
+    web();
+    let setRows!: (r: Row[]) => void;
+    function Host() {
+      const [rows, set] = React.useState<Row[]>(mk(['a', 'b']));
+      setRows = set;
+      // An inline rowKey: a new function (and a new visibleKeys array) on
+      // every render — the same keys must not count as a change.
+      return <DataTable tableId="t" columns={COLS} rows={rows} rowKey={(r) => r.id} renderCard={(r) => <Text>{r.id}</Text>} hotkeys={false} testID="t" />;
+    }
+    renderRouter({ index: Host }, { initialUrl: '/' });
+    expect(fading(['a', 'b'])).toEqual([]);
+
+    act(() => setRows(mk(['a', 'b', 'c', 'd'])));
+    expect(fading(['a', 'b', 'c', 'd'])).toEqual(['c', 'd']);
+    expect(rowStyle('c').animationDelay).toBe('0ms');
+    expect(rowStyle('d').animationDelay).toBe('16ms');
+    expect(rowStyle('c').animationDuration).toBe('140ms');
+
+    // A follow-up render with the same keys keeps the fade (never cancelled mid-flight).
+    act(() => setRows(mk(['a', 'b', 'c', 'd'])));
+    expect(fading(['a', 'b', 'c', 'd'])).toEqual(['c', 'd']);
+
+    // A sort: same keys, new order → nothing fades.
+    act(() => setRows(mk(['d', 'c', 'b', 'a'])));
+    expect(fading(['a', 'b', 'c', 'd'])).toEqual([]);
+
+    // A filter that only removes rows → nothing fades.
+    act(() => setRows(mk(['d', 'a'])));
+    expect(fading(['a', 'd'])).toEqual([]);
+
+    // 40 appear: the first 30 fade, the stagger stops at 8 × 16 = 128 ms, the rest just show.
+    const many = Array.from({ length: 40 }, (_, i) => `n${i}`);
+    act(() => setRows(mk(['d', 'a', ...many])));
+    expect(fading(['d', 'a'])).toEqual([]);
+    expect(fading(many)).toEqual(many.slice(0, 30));
+    expect(rowStyle('n8').animationDelay).toBe('128ms');
+    expect(rowStyle('n29').animationDelay).toBe('128ms');
+  });
+});
+
 describe('useSheetFrame rise', () => {
   function frames(rise: boolean | undefined) {
     const seen: SheetFrame[] = [];
@@ -224,13 +322,13 @@ describe('Button', () => {
     r.unmount();
   });
 
-  it('phone: loading still swaps the label for the spinner (the pre-change tree)', () => {
-    const r = render(
-      <Wrap>
-        <Button label="Save" onPress={() => {}} loading />
-      </Wrap>,
-    );
-    expect(r.queryByText('Save')).toBeNull();
+  it('phone: loading keeps the label row (invisible) under the spinner too (round 2: the width holds)', () => {
+    const r = render(<Wrap><Button label="Save" onPress={() => {}} loading /></Wrap>);
+    type Inst = { parent: Inst | null; props: Record<string, unknown>; type: unknown };
+    const isRow = (x: Inst) => typeof x.type === 'string' && flat(x.props.style).flexDirection === 'row';
+    let n: Inst | null = r.getByText('Save') as unknown as Inst;
+    while (n && !isRow(n)) n = n.parent;
+    expect(n ? flat(n.props.style).opacity : null).toBe(0);
     r.unmount();
   });
 });

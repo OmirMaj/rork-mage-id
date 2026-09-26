@@ -129,6 +129,7 @@ import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
 import type { OnRampPath } from '@/utils/scheduleOnRamp';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
+import { AnimatedFill } from '@/components/animations/AnimatedFill';
 
 interface TaskDraft {
   title: string;
@@ -1986,7 +1987,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
 
         <View style={styles.progressRow}>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${task.progress}%` as any, backgroundColor: statusColor }]} />
+            <AnimatedFill value={task.progress} style={[styles.progressFill, { width: `${task.progress}%` as any, backgroundColor: statusColor }]} />
           </View>
           <Text style={styles.progressText}>{task.progress}%</Text>
         </View>
@@ -2131,7 +2132,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
           <Text style={styles.fieldCardTitle}>{task.title}</Text>
           <View style={styles.fieldProgressRow}>
             <View style={styles.fieldProgressTrack}>
-              <View style={[styles.fieldProgressFill, { width: `${task.progress}%` as any }]} />
+              <AnimatedFill value={task.progress} style={[styles.fieldProgressFill, { width: `${task.progress}%` as any }]} />
             </View>
             <Text style={styles.fieldProgressText}>{task.progress}%</Text>
           </View>
@@ -3564,7 +3565,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                 </View>
               </View>
               <View style={styles.overallProgress}>
-                <View style={[styles.overallProgressFill, { width: `${totalProgress}%` as any }]} />
+                <AnimatedFill value={totalProgress} style={[styles.overallProgressFill, { width: `${totalProgress}%` as any }]} />
               </View>
             </View>
 

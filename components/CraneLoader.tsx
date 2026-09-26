@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import Svg, { G, Line, Rect, Path } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
+import ToppingOutMark from '@/components/loaders/ToppingOutMark';
 
 /**
  * CraneLoader — the full-screen loading animation: a tower crane that hoists a
@@ -17,9 +18,18 @@ import { Type } from '@/constants/typography';
  * the load position in lockstep); the trolley traverses the jib and the load
  * sways like a real pendulum. Colours come from the theme — no raw hex.
  *
- * `CraneSvg` is the bare animated crane at a given pixel size — reuse it inside
- * cards (e.g. the estimate overlay). `CraneLoader` is the full-screen wrapper
- * (wordmark + crane + rotating facts).
+ * `CraneSvg` is the bare animated graphic at a given pixel size — reuse it
+ * inside cards (e.g. the estimate overlay). `CraneLoader` is the full-screen
+ * wrapper (wordmark + graphic + rotating facts).
+ *
+ * NATIVE vs WEB. On iOS/Android `CraneSvg` renders ToppingOutMark
+ * (components/loaders/ToppingOutMark.tsx): plain Views on the native driver,
+ * one native loop. The crane stays on the web only. On native it could not
+ * be made right: react-native-svg's native setNativeProps rebuilds a G's
+ * matrix from the animated keys alone and drops originX/originY, so the sway
+ * rotated about the SVG origin and the load floated off the end of the cable;
+ * and SVG props cannot use the native driver, so any JS stall froze it. The
+ * web's WebShape merges the props back in, so the crane is correct there.
  */
 
 const AG = Animated.createAnimatedComponent(G);
@@ -28,8 +38,18 @@ const ALine = Animated.createAnimatedComponent(Line);
 const VB_W = 340;
 const VB_H = 300;
 
-/** The bare animated crane graphic, scaled to `size` (its width in px). */
-export function CraneSvg({ size }: { size: number }) {
+/**
+ * The bare loading graphic, scaled to `size` (its width in px): the SVG crane
+ * on the web, ToppingOutMark on iOS/Android. Platform.OS is read HERE, at
+ * render (never at module scope): the golden harness flips it at runtime.
+ * `animate={false}` renders the native mark as its static finished tower.
+ */
+export function CraneSvg({ size, animate = true }: { size: number; animate?: boolean }) {
+  return Platform.OS === 'web' ? <CraneSvgWeb size={size} /> : <ToppingOutMark size={size} animate={animate} />;
+}
+
+/** The web's animated SVG crane (unchanged; validate-loader pins its body). */
+function CraneSvgWeb({ size }: { size: number }) {
   const { colors } = useTheme();
   const traverse = useRef(new Animated.Value(0)).current;
   const hoist = useRef(new Animated.Value(0)).current;

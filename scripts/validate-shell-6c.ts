@@ -180,7 +180,7 @@ ok("'schedule-pro' is not in DESKTOP_SHELL_EXEMPT (Pro has the sidebar again)", 
   const ghost = [...CANVAS_ROUTES].filter((r) => !existsSync(join(ROOT, 'app', `${r}.tsx`)));
   const exempt = [...CANVAS_ROUTES].filter((r) => DESKTOP_SHELL_EXEMPT.has(r));
   ok(`CANVAS_ROUTES are real route files that show the sidebar (${[...CANVAS_ROUTES].join(', ')})`,
-    CANVAS_ROUTES.size === 2 && ghost.length === 0 && exempt.length === 0, `ghost ${ghost.join(',')} exempt ${exempt.join(',')}`);
+    CANVAS_ROUTES.size === 4 && ghost.length === 0 && exempt.length === 0, `ghost ${ghost.join(',')} exempt ${exempt.join(',')}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

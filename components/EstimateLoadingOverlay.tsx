@@ -91,7 +91,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.scene}>
-            <CraneSvg size={288} />
+            <CraneSvg size={288} animate={visible} />
           </View>
 
           <Text style={styles.title}>{title ?? 'Generating estimate…'}</Text>

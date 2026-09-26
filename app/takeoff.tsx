@@ -830,7 +830,7 @@ function TakeoffInner() {
                 Architectural plans + schedules. Up to 16 pages. The AI reads dimensions, schedules, and callouts to produce LF / SF / EA / CY quantities.
               </Text>
               <View style={styles.uploadCta}>
-                <MageAIMark size={14} color="#FFF" />
+                <MageAIMark size={14} color={Colors.textOnAccent} />
                 <Text style={styles.uploadCtaText}>Pick a PDF</Text>
               </View>
               <Text style={styles.uploadHint}>
@@ -902,7 +902,7 @@ function TakeoffInner() {
                   : 'Kept. Retry analysis reads these pages again without uploading or charging takeoff pages again.'}
             </Text>
             <TouchableOpacity style={[styles.uploadCta, { alignSelf: 'flex-start' }]} onPress={handleRetryAnalysis} activeOpacity={0.85}>
-              <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
+              <RefreshCw size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
               <Text style={styles.uploadCtaText}>Retry analysis</Text>
             </TouchableOpacity>
           </View>
@@ -1062,7 +1062,7 @@ function BuyoutPreviewModal({
             disabled={busy}
             activeOpacity={0.85}
           >
-            {busy && <ActivityIndicator size="small" color="#FFF" />}
+            {busy && <ActivityIndicator size="small" color={Colors.textOnAccent} />}
             <Text style={styles.ctaPrimaryText}>
               {busy ? 'Creating…' : `Create all ${drafts.length} packages`}
             </Text>
@@ -1175,7 +1175,8 @@ function ResultView({
     [specMatch],
   );
   const modelMeta = modelUsed ? MODEL_DISPLAY[modelUsed] : null;
-  const confColor = confidenceColor(result.confidenceOverall);
+  const confColor = confidenceColor(result.confidenceOverall, themeColors);
+  const confSoft = confidenceSoft(result.confidenceOverall, themeColors);
 
   // Headline rollups (cheap to compute on each render). Rejected rows
   // drop out of every total — once you cross out a wall it stops feeding
@@ -1238,7 +1239,7 @@ function ResultView({
       {/* Summary card */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryHead}>
-          <View style={[styles.confidenceBadge, { backgroundColor: confColor + '15' }]}>
+          <View style={[styles.confidenceBadge, { backgroundColor: confSoft }]}>
             <View style={[styles.confidenceDot, { backgroundColor: confColor }]} />
             <Text style={[styles.confidenceText, { color: confColor }]}>
               {result.confidenceOverall.toUpperCase()} confidence
@@ -1262,8 +1263,8 @@ function ResultView({
           <Text style={styles.scaleText} numberOfLines={1}>
             Scale: {result.scale.label}
           </Text>
-          <View style={[styles.miniPill, { backgroundColor: confidenceColor(result.scale.confidence) + '15' }]}>
-            <Text style={[styles.miniPillText, { color: confidenceColor(result.scale.confidence) }]}>
+          <View style={[styles.miniPill, { backgroundColor: confidenceSoft(result.scale.confidence, themeColors) }]}>
+            <Text style={[styles.miniPillText, { color: confidenceColor(result.scale.confidence, themeColors) }]}>
               {result.scale.confidence}
             </Text>
           </View>
@@ -1336,7 +1337,7 @@ function ResultView({
           </Text>
           <View style={styles.teaserCta}>
             <Text style={styles.teaserCtaText}>Upgrade to Business</Text>
-            <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
+            <ChevronRight size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
           </View>
         </TouchableOpacity>
       )}
@@ -1649,12 +1650,12 @@ function ResultView({
         >
           {canConvertToEstimate ? (
             <>
-              <CheckCircle2 size={16} color="#FFF" strokeWidth={1.75} />
+              <CheckCircle2 size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
               <Text style={styles.ctaPrimaryText}>Convert to estimate</Text>
             </>
           ) : (
             <>
-              <Crown size={16} color="#FFF" strokeWidth={1.75} />
+              <Crown size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
               <Text style={styles.ctaPrimaryText}>See these priced — upgrade to Pro</Text>
             </>
           )}
@@ -1662,7 +1663,7 @@ function ResultView({
       </View>
       <View style={styles.ctaBarSecondary}>
         <TouchableOpacity style={styles.ctaPrimary} onPress={onPreviewBuyouts}>
-          <Gavel size={16} color="#FFF" strokeWidth={1.75} />
+          <Gavel size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
           <Text style={styles.ctaPrimaryText}>Generate sub-trade buyout packages</Text>
         </TouchableOpacity>
       </View>
@@ -1870,7 +1871,8 @@ function EditableRow({
   const styles = useThemedStyles(makeStyles);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(quantity));
-  const confColor = confidenceColor(confidence);
+  const confColor = confidenceColor(confidence, themeColors);
+  const confSoft = confidenceSoft(confidence, themeColors);
   const wasEdited = quantity !== originalQuantity;
 
   const commit = () => {
@@ -1934,7 +1936,7 @@ function EditableRow({
         </View>
       </View>
       <View style={styles.rowMeta}>
-        <View style={[styles.miniPill, { backgroundColor: confColor + '15' }]}>
+        <View style={[styles.miniPill, { backgroundColor: confSoft }]}>
           <Text style={[styles.miniPillText, { color: confColor }]}>{confidence}</Text>
         </View>
         {wasEdited && (
@@ -2018,8 +2020,8 @@ function EditableRow({
               </Text>
             )}
           </View>
-          <View style={[styles.miniPill, { backgroundColor: confidenceColor(specEntry.confidence) + '15' }]}>
-            <Text style={[styles.miniPillText, { color: confidenceColor(specEntry.confidence) }]}>
+          <View style={[styles.miniPill, { backgroundColor: confidenceSoft(specEntry.confidence, themeColors) }]}>
+            <Text style={[styles.miniPillText, { color: confidenceColor(specEntry.confidence, themeColors) }]}>
               {specEntry.confidence}
             </Text>
           </View>
@@ -2181,7 +2183,7 @@ function SpecMatchCard({
         </View>
       )}
       <TouchableOpacity style={styles.specCardCta} onPress={onMatch} activeOpacity={0.85}>
-        <Search size={14} color="#FFF" strokeWidth={1.75} />
+        <Search size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
         <Text style={styles.specCardCtaText}>Pick spec book PDF</Text>
       </TouchableOpacity>
     </View>
@@ -2206,8 +2208,15 @@ function sumOverridable<T extends { id: string }>(
   return items.reduce((s, t) => s + overridden(map, keyOf(t), pick(t)), 0);
 }
 
-function confidenceColor(c: TakeoffConfidence): string {
-  return c === 'high' ? '#16A34A' : c === 'medium' ? '#FF6A1A' : '#DC2626';
+/** The confidence ink (text / dot) — theme label tokens, so it follows the
+ *  palette and dark mode instead of the pre-rebrand hex. */
+function confidenceColor(c: TakeoffConfidence, t: ThemeColors): string {
+  return c === 'high' ? t.successLabel : c === 'medium' ? t.warningLabel : t.dangerLabel;
+}
+
+/** The matching soft tint behind a confidence pill / badge. */
+function confidenceSoft(c: TakeoffConfidence, t: ThemeColors): string {
+  return c === 'high' ? t.successSoft : c === 'medium' ? t.warningSoft : t.dangerSoft;
 }
 
 function formatNum(n: number): string {
@@ -2284,7 +2293,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   chipActive: { backgroundColor: themeColors.text, borderColor: themeColors.text },
   chipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.text },
-  chipTextActive: { color: '#FFF' },
+  chipTextActive: { color: Colors.textOnAccent },
 
   uploadCard: {
     backgroundColor: themeColors.accent + '0D', borderRadius: Tokens.radius.xl, padding: 28,
@@ -2304,7 +2313,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
-  uploadCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  uploadCtaText: { color: Colors.textOnAccent, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
   uploadHint: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
 
   blockedNote: {
@@ -2477,7 +2486,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.accentFill,
   },
-  ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
+  ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnAccent },
 
   measuredNotice: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
@@ -2509,7 +2518,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: 11, backgroundColor: themeColors.text,
   },
-  teaserCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  teaserCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.textOnAccent, letterSpacing: 0.2 },
 
   sisterToolCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -2553,7 +2562,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md,
     backgroundColor: themeColors.accentFill, alignSelf: 'flex-start',
   },
-  specCardCtaText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  specCardCtaText: { color: Colors.textOnAccent, fontSize: Type.footnote.fontSize, fontWeight: '700' },
   specCardStatRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingTop: 10, borderTopWidth: 1, borderTopColor: themeColors.line,

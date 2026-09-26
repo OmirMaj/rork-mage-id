@@ -19,9 +19,15 @@
 // drops anything whose row is no longer shared). A SEND is not — the overlay
 // can only take away — so an editor is told it reaches the client when the
 // GC's app next publishes this job, instead of assuming it is already there.
+//
+// Round 2 ('slicker'): the send is the app's standard pill primary Button
+// driven by useCommitFeedback — label → spinner → check on a teal fill at
+// full opacity, same width — and the send bar is HELD on screen through the
+// check (heldBranch), then fades into "Shared with client" (useSwapFade).
+// Reduce Motion: the check still shows, instantly; the bar swaps without a fade.
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Send, RotateCcw, Eye } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -32,6 +38,8 @@ import type { PortalState, SendableItemKind } from '@/types';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPortalOwner } from '@/utils/portalLiteSync';
+import { Button, useCommitFeedback } from '@/components/ui/Button';
+import { useSwapFade } from '@/components/ui/motion';
 
 /** What an editor (not the owner) is told after a send — exported so the
  *  validator pins the words. #17 (wave 4): the owner's app now republishes
@@ -68,22 +76,39 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
   // Unknown project → treat as the owner (no extra note): the send itself
   // refuses a project it cannot find.
   const isOwner = !project || isPortalOwner(project, user?.id);
-  const [busy, setBusy] = useState(false);
+  const commit = useCommitFeedback();
+  const runCommit = commit.run;
+  const [recallBusy, setRecallBusy] = useState(false);
+  const [heldBranch, setHeldBranch] = useState<'send' | 'resend'>('send');
+  // The tapped label is held with its bar: a recalled item's "Re-send" must
+  // not turn into "Send" under the check when the record flips to sent.
+  const [heldRecalled, setHeldRecalled] = useState(false);
+  const busy = commit.busy || recallBusy;
 
   const status = portalState?.status ?? 'sent';
   const unsentEdits = status === 'sent' && portalState?.sentAt && itemUpdatedAt &&
     new Date(itemUpdatedAt).getTime() > new Date(portalState.sentAt).getTime();
 
+  // What the bar would show from the record alone. While a send is in flight
+  // (and through the check's hold) the bar that was tapped stays up.
+  const computed: 'send' | 'resend' | 'shared' =
+    (status === 'draft' || status === 'recalled') ? 'send' : unsentEdits ? 'resend' : 'shared';
+  const branch = commit.busy ? heldBranch : computed;
+  const fade = useSwapFade(branch);
+  const Bar = fade ? Animated.View : View;
+
   const doSend = useCallback(async () => {
     if (busy) return;
-    setBusy(true);
+    setHeldBranch(computed === 'resend' ? 'resend' : 'send');
+    setHeldRecalled(status === 'recalled');
     try {
-      await sendToClientPortal({ kind, itemId, projectId });
+      await runCommit(async () => {
+        await sendToClientPortal({ kind, itemId, projectId });
+      });
       if (!isOwner) showAlert('Sent to the client portal', EDITOR_SEND_NOTE);
     }
     catch (e) { showAlert('Send failed', e instanceof Error ? e.message : 'Try again.'); }
-    finally { setBusy(false); }
-  }, [busy, kind, itemId, projectId, sendToClientPortal, isOwner]);
+  }, [busy, computed, status, runCommit, kind, itemId, projectId, sendToClientPortal, isOwner]);
 
   const doRecall = useCallback(() => {
     showAlert(
@@ -96,56 +121,62 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Recall', style: 'destructive', onPress: async () => {
-          setBusy(true);
+          setRecallBusy(true);
           try { await recallFromClientPortal({ kind, itemId, projectId }); }
           catch (e) { showAlert('Recall failed', e instanceof Error ? e.message : 'Try again.'); }
-          finally { setBusy(false); }
+          finally { setRecallBusy(false); }
         }},
       ],
     );
   }, [kind, itemId, projectId, recallFromClientPortal, isOwner]);
 
-  if (status === 'draft' || status === 'recalled') {
+  const barStyle = fade ? [styles.bar, fade] : styles.bar;
+
+  if (branch === 'send') {
     return (
-      <View style={styles.bar}>
-        <TouchableOpacity
-          style={[styles.primary, (busy || !canSend) && { opacity: 0.5 }]}
+      <Bar style={barStyle}>
+        <Button
+          label={(commit.busy ? heldRecalled : status === 'recalled') ? 'Re-send to client portal' : 'Send to client portal'}
           onPress={doSend}
           disabled={busy || !canSend}
+          loading={commit.loading}
+          done={commit.done}
+          iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
+          fullWidth
+          containerStyle={styles.primaryWrap}
           testID={`send-to-client-${kind}-${itemId}`}
-        >
-          <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
-          <Text style={styles.primaryText}>{busy ? 'Sending…' : status === 'recalled' ? 'Re-send to client portal' : 'Send to client portal'}</Text>
-        </TouchableOpacity>
+        />
         {!canSend && canSendReason ? <Text style={styles.hint}>{canSendReason}</Text> : null}
-      </View>
+      </Bar>
     );
   }
 
-  // Sent
-  if (unsentEdits) {
+  // Sent, with edits made since (or a re-send still showing its check).
+  if (branch === 'resend') {
     return (
-      <View style={styles.bar}>
-        <TouchableOpacity
-          style={[styles.primary, (busy || !canSend) && { opacity: 0.5 }]}
+      <Bar style={barStyle}>
+        <Button
+          label="Re-send to client portal"
           onPress={doSend}
           disabled={busy || !canSend}
+          loading={commit.loading}
+          done={commit.done}
+          iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
+          fullWidth
+          containerStyle={styles.primaryWrap}
           testID={`resend-to-client-${kind}-${itemId}`}
-        >
-          <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
-          <Text style={styles.primaryText}>{busy ? 'Sending…' : 'Re-send to client portal'}</Text>
-        </TouchableOpacity>
+        />
         <TouchableOpacity style={styles.secondary} onPress={doRecall} disabled={busy}>
           <RotateCcw size={14} color={colors.textMuted} strokeWidth={1.75} />
           <Text style={styles.secondaryText}>Recall</Text>
         </TouchableOpacity>
         {!canSend && canSendReason ? <Text style={styles.hint}>{canSendReason}</Text> : null}
-      </View>
+      </Bar>
     );
   }
 
   return (
-    <View style={styles.bar}>
+    <Bar style={barStyle}>
       <View style={styles.statusInline}>
         {portalState?.viewedAt ? <Eye size={14} color={colors.textMuted} strokeWidth={1.75} /> : null}
         <Text style={styles.statusInlineText}>{portalState?.viewedAt ? 'Client viewed this' : 'Shared with client'}</Text>
@@ -154,7 +185,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
         <RotateCcw size={14} color={colors.textMuted} strokeWidth={1.75} />
         <Text style={styles.secondaryText}>Recall</Text>
       </TouchableOpacity>
-    </View>
+    </Bar>
   );
 }
 
@@ -169,17 +200,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: t.line,
   },
-  primary: {
-    flex: 1,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 8,
-    paddingVertical: 13,
-    borderRadius: Tokens.radius.md,
-    backgroundColor: t.accentFill,
-  },
-  primaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' as const },
+  primaryWrap: { flex: 1 },
   secondary: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

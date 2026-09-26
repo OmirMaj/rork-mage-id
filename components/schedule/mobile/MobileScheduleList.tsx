@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, FlatList, StyleSheet, Platform,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { CheckCircle2, CircleDot, Circle, ChevronDown, ChevronRight, Plus, Check, Trash2, RotateCcw } from 'lucide-react-native';
+import { CheckCircle2, CircleDot, Circle, Plus, Check, Trash2, RotateCcw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -13,6 +13,8 @@ import { getPhaseColor } from '@/utils/scheduleEngine';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { parseCalendarDay } from '@/utils/calendarDate';
+import { AnimatedFill } from '@/components/animations/AnimatedFill';
+import { CollapseChevron } from '@/components/animations/CollapseChevron';
 import { scheduledTaskRange, scheduledWorkingDayLabel, type ScheduledPlacement } from '@/utils/scheduleOps';
 
 interface MobileScheduleListProps {
@@ -213,7 +215,7 @@ export function MobileScheduleList({
           activeOpacity={0.7}
           onPress={() => onTogglePhase(item.phase)}
         >
-          {item.collapsed ? <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={16} color={colors.textMuted} strokeWidth={1.75} />}
+          <CollapseChevron open={!item.collapsed} size={16} color={colors.textMuted} strokeWidth={1.75} />
           <View style={[styles.dot, { backgroundColor: item.color }]} />
           <Text style={styles.pname} numberOfLines={1}>{item.phase}</Text>
           <Text style={styles.ptasks}>{item.taskCount}</Text>
@@ -266,7 +268,7 @@ export function MobileScheduleList({
                 <Text style={styles.tpct}>{pct}%</Text>
               </View>
               <Text style={styles.tmeta} numberOfLines={1}>{range} · {isMilestone ? 0 : dur}d{crew ? ` · ${crew}` : ''}</Text>
-              <View style={styles.track}><View style={[styles.fill, { width: `${pct}%`, backgroundColor: done ? colors.textMuted : color }]} /></View>
+              <View style={styles.track}><AnimatedFill value={pct} style={[styles.fill, { width: `${pct}%`, backgroundColor: done ? colors.textMuted : color }]} /></View>
             </View>
           </TouchableOpacity>
         </SwipeRow>

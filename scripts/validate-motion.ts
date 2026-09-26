@@ -123,10 +123,18 @@ const motionSrc = read('components/ui/motion.ts');
 const barrel = stripComments(read('components/ui/index.ts'));
 ok('components/ui/motion.ts exists', motionSrc.length > 0);
 ok("the '@/components/ui' barrel re-exports ./motion", /export\s*\{[^}]*\}\s*from\s*'\.\/motion'/.test(barrel));
-for (const name of ['nativeDriver', 'reducedMotion', 'subscribeReducedMotion', 'useReducedMotion', 'layoutNext', 'useRiseOnOpen', 'useSwapFade', 'webMotion', 'registerWithMotion']) {
+for (const name of ['nativeDriver', 'reducedMotion', 'subscribeReducedMotion', 'useReducedMotion', 'layoutNext', 'useRiseOnOpen', 'useSwapFade', 'useWebSwap', 'webMotion', 'registerWithMotion']) {
   ok(`motion.ts exports ${name} and the barrel carries it`,
     new RegExp(`export\\s+(?:const|function)\\s+${name}\\b`).test(motionSrc) && new RegExp(`\\b${name}\\b`).test(barrel));
 }
+
+// useWebSwap restarts a CSS fade on the SAME element by switching between
+// fadeIn and fadeInB. RN-web names a keyframe from its content, so the two
+// RAW entries must differ byte-for-byte or the browser never restarts.
+const rawOf = (key: string) => (stripComments(motionSrc).match(new RegExp(`\\n\\s*${key}:\\s*(entry\\([^\\n]*\\)),`)) ?? [])[1];
+ok('RAW fadeIn and fadeInB both exist and differ (distinct keyframe names for useWebSwap)',
+  !!rawOf('fadeIn') && !!rawOf('fadeInB') && rawOf('fadeIn') !== rawOf('fadeInB'),
+  `fadeIn: ${rawOf('fadeIn') ?? '(missing)'}\nfadeInB: ${rawOf('fadeInB') ?? '(missing)'}`);
 
 // ── 2. every spring preset's damping ratio is in [0.75, 1.05] ────────────────
 const tokens = stripComments(read('constants/designTokens.ts'));

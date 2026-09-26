@@ -63,6 +63,7 @@ import {
   type SheetFrame,
 } from '@/components/ui';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
+import { useCommitFeedback } from '@/components/ui/Button';
 
 let mockWidth = 390;
 let mockWeb = false;
@@ -189,7 +190,8 @@ describe('phone (390 native): byte-identical to today', () => {
       { style: { flex: 1 } },
       { style: { marginTop: 8, alignSelf: 'flex-start' as const } },
       { disabled: true },
-      { loading: true },
+      // { loading: true } left this loop in round 2: the phone now keeps the
+      // label row under the spinner (see 'the commit morph' below).
       { iconLeft: <Plus size={16} />, iconRight: <Plus size={14} /> },
       { fullWidth: true, style: { paddingHorizontal: 10 }, testID: 'b' },
     ]) {
@@ -551,6 +553,196 @@ describe('desktop (1512 web): the desktop rules', () => {
     const card = all(r.toJSON(), (n) => flat(n.props?.style).maxWidth === 560)[0];
     expect(card).toBeTruthy();
     expect(r.queryByText('Body')).toBeTruthy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Round 2 ('slicker'): the commit morph. A Button whose loading/done never
+// CHANGES renders the static tree; the morph arms only on a phase change.
+// ─────────────────────────────────────────────────────────────────────────────
+type HostInst = { type: unknown; parent: HostInst | null; props: Record<string, unknown> };
+/** Every host ancestor of an instance, nearest first. */
+function hostAncestors(n: unknown): HostInst[] {
+  const out: HostInst[] = [];
+  let p = (n as HostInst).parent;
+  while (p) {
+    if (typeof p.type === 'string') out.push(p);
+    p = p.parent;
+  }
+  return out;
+}
+const a11yHidden = (n: { props: Record<string, unknown> }) =>
+  n.props.accessibilityElementsHidden === true && n.props.importantForAccessibility === 'no-hide-descendants';
+
+describe('the commit morph (round 2)', () => {
+  it('phone loading at mount holds the width: label row hidden under an overlay spinner, no Animated layers', () => {
+    phone();
+    const r = render(<Wrap><Button label="Save" onPress={noop} loading testID="b" /></Wrap>);
+    const row = hostParent(r.getByText('Save'));
+    expect(flat(row.props.style)).toMatchObject({ flexDirection: 'row', opacity: 0 });
+    const spinners = r.UNSAFE_getAllByType(ActivityIndicator);
+    expect(spinners).toHaveLength(1);
+    expect(flat(hostParent(spinners[0]).props.style)).toMatchObject({ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 });
+    // Only the press-scale wrapper is animated: nothing armed at mount.
+    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    // Static a11y state, and the at-rest disabled fade.
+    const b = r.getByTestId('b');
+    expect(b.props.accessibilityState).toEqual({ disabled: true });
+    expect(flat(b.props.style).opacity).toBe(0.5);
+  });
+
+  it('desktop loading at mount is unchanged: held-width row + overlay, 0.5 disabled, no busy, nothing armed', () => {
+    desktopWeb();
+    const r = render(<Wrap><Button label="Save" onPress={noop} loading testID="b" /></Wrap>);
+    const b = r.getByTestId('b');
+    expect(flat(b.props.style)).toMatchObject({ height: 40, paddingHorizontal: 20, minWidth: 96, opacity: 0.5 });
+    expect(b.props.accessibilityState).toEqual({ disabled: true });
+    expect(flat(hostParent(r.getByText('Save')).props.style)).toMatchObject({ flexDirection: 'row', opacity: 0 });
+    expect(r.UNSAFE_getAllByType(ActivityIndicator)).toHaveLength(1);
+    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    // Same shape as the phone's static tree, which is today's desktop tree.
+    const hidden = all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true);
+    expect(hidden).toHaveLength(0);
+  });
+
+  it('a phase change arms the morph: seeded from idle, spinner layer, full opacity, busy', () => {
+    phone();
+    const r = render(<Wrap><Button label="Save" onPress={noop} testID="b" /></Wrap>);
+    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    r.rerender(<Wrap><Button label="Save" onPress={noop} loading testID="b" /></Wrap>);
+    const b = r.getByTestId('b');
+    // styles.disabled (opacity 0.5) is dropped while morphing; the press is
+    // still blocked by the Pressable's disabled prop.
+    expect(flat(b.props.style).opacity).toBeUndefined();
+    expect(b.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    // First armed frame = the idle frame: the label row starts at opacity 1.
+    const row = hostParent(r.getByText('Save'));
+    expect(flat(row.props.style).opacity).toBe(1);
+    expect(a11yHidden(row)).toBe(false);
+    const spinners = r.UNSAFE_getAllByType(ActivityIndicator);
+    expect(spinners).toHaveLength(1);
+    expect(a11yHidden(hostParent(spinners[0]))).toBe(true);
+    expect(flat(hostParent(spinners[0]).props.style).opacity).toBe(0);
+    // wrapper + teal tint (primary) + label row + spinner + check
+    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(5);
+    // The tint, spinner and check layers are the ONLY a11y-hidden nodes.
+    expect(all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true)).toHaveLength(3);
+  });
+
+  it('mount loading → done arms from loading and shows the check; the label row stays readable', () => {
+    phone();
+    const r = render(<Wrap><Button label="Send" onPress={noop} variant="secondary" loading testID="b" /></Wrap>);
+    r.rerender(<Wrap><Button label="Send" onPress={noop} variant="secondary" loading={false} done testID="b" /></Wrap>);
+    const b = r.getByTestId('b');
+    expect(b.props.accessibilityState).toEqual({ disabled: true, busy: false });
+    expect(flat(b.props.style).opacity).toBeUndefined();
+    const label = r.getByText('Send');
+    const row = hostParent(label);
+    // Seeded from 'loading': the label is invisible, but still in the tree
+    // and NOT hidden from VoiceOver anywhere up to the button.
+    expect(flat(row.props.style).opacity).toBe(0);
+    expect(hostAncestors(label).some((n) => a11yHidden(n))).toBe(false);
+    // The check layer: a11y-hidden, absolute, scale seeded at 0.6 (secondary: no tint).
+    const layers = all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true);
+    expect(layers).toHaveLength(2);
+    const check = layers.find((n) => Array.isArray(flat(n.props.style).transform));
+    expect(check).toBeTruthy();
+    expect(flat(check!.props.style)).toMatchObject({ position: 'absolute', transform: [{ scale: 0.6 }] });
+  });
+
+  it('a Button that never changes phase is never armed (done=false, loading=false)', () => {
+    phone();
+    const r = render(<Wrap><Button label="Save" onPress={noop} testID="b" /></Wrap>);
+    r.rerender(<Wrap><Button label="Save 2" onPress={noop} disabled testID="b" /></Wrap>);
+    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    expect(r.getByTestId('b').props.accessibilityState).toEqual({ disabled: true });
+    expect(flat(r.getByTestId('b').props.style).opacity).toBe(0.5);
+  });
+
+  describe('useCommitFeedback', () => {
+    let c!: ReturnType<typeof useCommitFeedback>;
+    function Probe() {
+      c = useCommitFeedback();
+      return <Text testID="phase">{c.done ? 'done' : c.loading ? 'loading' : 'idle'}</Text>;
+    }
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+    const phaseOf = (r: ReturnType<typeof render>) => r.getByTestId('phase').props.children;
+
+    it('resolve → done → idle after the 900 ms hold', async () => {
+      const r = render(<Probe />);
+      let release!: (v: number) => void;
+      let result!: Promise<number | undefined>;
+      act(() => {
+        result = c.run(() => new Promise<number>((res) => { release = res; }));
+      });
+      expect(phaseOf(r)).toBe('loading');
+      expect(c.busy).toBe(true);
+      await act(async () => {
+        release(7);
+        await result;
+      });
+      await expect(result).resolves.toBe(7);
+      expect(phaseOf(r)).toBe('done');
+      expect(c.busy).toBe(true);
+      act(() => { jest.advanceTimersByTime(899); });
+      expect(phaseOf(r)).toBe('done');
+      act(() => { jest.advanceTimersByTime(1); });
+      expect(phaseOf(r)).toBe('idle');
+      expect(c.busy).toBe(false);
+    });
+
+    it('reject → idle, and the error is rethrown', async () => {
+      const r = render(<Probe />);
+      let result!: Promise<unknown>;
+      await act(async () => {
+        result = c.run(() => Promise.reject(new Error('offline')));
+        await result.catch(() => {});
+      });
+      await expect(result).rejects.toThrow('offline');
+      expect(phaseOf(r)).toBe('idle');
+      // …and the guard is released: the next run goes through.
+      const work = jest.fn(() => Promise.resolve(1));
+      await act(async () => { await c.run(work); });
+      expect(work).toHaveBeenCalledTimes(1);
+    });
+
+    it('two run() calls in the same tick run the work ONCE', async () => {
+      render(<Probe />);
+      const work = jest.fn(() => Promise.resolve('ok'));
+      let a!: Promise<string | undefined>;
+      let b!: Promise<string | undefined>;
+      await act(async () => {
+        a = c.run(work);
+        b = c.run(work);
+        await Promise.all([a, b]);
+      });
+      expect(work).toHaveBeenCalledTimes(1);
+      await expect(a).resolves.toBe('ok');
+      await expect(b).resolves.toBeUndefined();
+    });
+
+    it('unmount mid-run: the work still resolves, nothing is set afterwards', async () => {
+      const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const r = render(<Probe />);
+        let release!: (v: string) => void;
+        let result!: Promise<string | undefined>;
+        act(() => {
+          result = c.run(() => new Promise<string>((res) => { release = res; }));
+        });
+        r.unmount();
+        await act(async () => {
+          release('late');
+          await result;
+        });
+        await expect(result).resolves.toBe('late');
+        act(() => { jest.advanceTimersByTime(2000); });
+        expect(errors).not.toHaveBeenCalled();
+      } finally {
+        errors.mockRestore();
+      }
+    });
   });
 });
 

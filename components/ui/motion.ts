@@ -265,6 +265,7 @@ export function useSwapFade(key: string): ViewStyle | null {
 
 export type WebMotionKey =
   | 'fadeIn'
+  | 'fadeInB'
   | 'popIn'
   | 'dropIn'
   | 'slideInRight'
@@ -297,6 +298,14 @@ function glide(property: string, duration: string): ViewStyle {
 /** The raw CSS for each key, before registration. */
 const RAW: Record<WebMotionKey, ViewStyle> = {
   fadeIn: entry({ opacity: 0 }, '140ms'),
+  // fadeIn's byte-different twin, for useWebSwap. Switching an element's
+  // animation-name restarts its CSS animation WITHOUT a remount, and RN-web
+  // names a keyframe from its CONTENT: StyleSheet/compiler createKeyframes()
+  // → createIdentifier('r', 'animation', JSON.stringify(keyframes)), i.e.
+  // `r-animation-<hash>`. Identical keyframes would share one name (and the
+  // browser would not restart), so the twin starts at 0.001 — visually the
+  // same fade, a different name.
+  fadeInB: entry({ opacity: 0.001 }, '140ms'),
   popIn: entry({ opacity: 0, transform: 'translateY(6px) scale(0.98)' }, '180ms'),
   dropIn: entry({ opacity: 0, transform: 'translateY(-4px) scale(0.98)' }, '140ms', { transformOrigin: 'top' }),
   slideInRight: entry({ opacity: 0, transform: 'translateX(16px)' }, '200ms'),
@@ -333,4 +342,33 @@ export function webMotion(key: WebMotionKey): ViewStyle | null {
 export function registerWithMotion(base: ViewStyle, key: WebMotionKey): ViewStyle {
   if (webMotion(key) === null) return base;
   return StyleSheet.create({ s: { ...base, ...RAW[key] } }).s;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// useWebSwap — the CSS twin of useSwapFade, for a web element that must keep
+// its subtree (a chat draft, a scroll position) while its content changes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * null until `key` changes after mount; then the registered fadeIn, and on
+ * each LATER change it alternates fadeIn / fadeInB. The two have different
+ * animation-names (see RAW.fadeInB), so the browser restarts the 140 ms fade
+ * on the same element without a remount. The change is detected during render
+ * (like useSwapFade), so the render that shows the new content already carries
+ * the new animation-name. Web only; null on native and under Reduce Motion.
+ * Gate it on useIsDesktopWeb() wherever the element also renders in a
+ * phone-web golden.
+ */
+export function useWebSwap(key: string): ViewStyle | null {
+  const reduce = useReducedMotion();
+  const prevKey = useRef(key);
+  const count = useRef(0);
+  // Idempotent under StrictMode's double render: the second pass sees
+  // prevKey === key and leaves the counter alone.
+  if (prevKey.current !== key) {
+    prevKey.current = key;
+    count.current += 1;
+  }
+  if (Platform.OS !== 'web' || reduce || count.current === 0) return null;
+  return count.current % 2 === 1 ? REGISTERED.fadeIn : REGISTERED.fadeInB;
 }

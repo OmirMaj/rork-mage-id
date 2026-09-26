@@ -52,14 +52,14 @@ exports[`lane M2 golden — the phone (390 × 844 iOS) (k) /lien-waivers, a fail
 exports[`lane M2 golden — the phone (390 × 844 iOS) (l) /invoice, a draft with 3 lines 1`] = `
 {
   "lines": 1010,
-  "sha256": "f77aa6a4cd84b9eab77fb281b9d415515cfce7d529100e91a215877a8a596f13",
+  "sha256": "fb2d559155cde808665174e701d7233fd8cc9b432e0b9a6631687e84d2a4cf57",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (m) /invoice, sent with a pay link and a balance (the ONE intended delta) 1`] = `
 {
   "lines": 1023,
-  "sha256": "3e97f84c99a83c0b73b760340dda7f488711f7558b56eedb6c60eb5603a17b17",
+  "sha256": "9e5912ed2aee31255c7f84e9ef2028c909c1e3cdfc0126faa81a60a738cb692b",
 }
 `;
 

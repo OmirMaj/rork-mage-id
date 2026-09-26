@@ -82,6 +82,8 @@ import BlueprintReveal from '@/components/animations/BlueprintReveal';
 import { fireConfetti } from '@/components/animations/Confetti';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { nailIt } from '@/components/animations/NailItToast';
+import { AnimatedFill } from '@/components/animations/AnimatedFill';
+import { CollapseChevron } from '@/components/animations/CollapseChevron';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
@@ -3611,7 +3613,7 @@ export default function ProjectDetailScreen() {
                     </Text>
                   </View>
                   <View style={styles.punchProgressTrack}>
-                    <View style={[styles.punchProgressFill, { width: `${punchItems.length > 0 ? (punchItems.filter(pi => pi.status === 'closed').length / punchItems.length) * 100 : 0}%` }]} />
+                    <AnimatedFill value={punchItems.length > 0 ? (punchItems.filter(pi => pi.status === 'closed').length / punchItems.length) * 100 : 0} style={[styles.punchProgressFill, { width: `${punchItems.length > 0 ? (punchItems.filter(pi => pi.status === 'closed').length / punchItems.length) * 100 : 0}%` }]} />
                   </View>
                 </View>
               )}
@@ -4840,7 +4842,7 @@ export default function ProjectDetailScreen() {
                 {heroProgress.hasSchedule && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
                     <View style={{ width: 44, height: 6, borderRadius: 3, backgroundColor: themeColors.line, overflow: 'hidden' }}>
-                      <View style={{ width: `${heroProgress.pct}%`, height: 6, backgroundColor: themeColors.accent }} />
+                      <AnimatedFill value={heroProgress.pct} style={{ width: `${heroProgress.pct}%`, height: 6, backgroundColor: themeColors.accent }} />
                     </View>
                     <Text style={{ color: themeColors.text, fontSize: 12, fontWeight: '800' }}>{heroProgress.pct}% done</Text>
                   </View>
@@ -5215,7 +5217,7 @@ export default function ProjectDetailScreen() {
                           <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
                         </View>
                       )}
-                      {collapsed ? <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
+                      <CollapseChevron pair="downUp" open={!collapsed} size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                     </TutorialTarget>
                     {/* No wrapper — conditional render only. LayoutAnimation

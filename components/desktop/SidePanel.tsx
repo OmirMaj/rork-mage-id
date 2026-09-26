@@ -54,6 +54,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { isTypingTarget, targetWithin, useHotkeys, type HotkeyScope } from '@/hooks/useHotkeys';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useWebSwap, webMotion } from '@/components/ui/motion';
 import {
   SIDE_PANEL_DEFAULT,
   SIDE_PANEL_OVERLAY_BELOW,
@@ -179,6 +180,22 @@ export function SidePanel(props: SidePanelProps) {
     { enabled: isDesktop, scope: hotkeyScope },
   );
 
+  // Motion (slicker pass, desktop web only). The slide arms only once this
+  // panel has SEEN open go false → true after mount, so a panel that mounts
+  // open — and every golden — renders exactly as before. The panel View is
+  // re-inserted on each open (null while closed), so the 200 ms slide replays
+  // per open; a width drag never replays it. The body fades 140 ms when the
+  // section title or tab changes, WITHOUT a remount (a chat draft and the
+  // scroll position survive): useWebSwap alternates two keyframe names.
+  const prevOpen = useRef(open);
+  const slideArmed = useRef(false);
+  if (!prevOpen.current && open) slideArmed.current = true;
+  useEffect(() => { prevOpen.current = open; }, [open]);
+  const swap = useWebSwap(`${title}|${activeTab ?? ''}`);
+  // `body` is shared with the phone pageSheet: on phone-web it stays exactly
+  // styles.body.
+  const bodySwap = isDesktop ? swap : null;
+
   const header = (
     <View style={styles.header}>
       <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{title}</Text>
@@ -216,9 +233,10 @@ export function SidePanel(props: SidePanelProps) {
     </View>
   ) : null;
 
+  const bodyStyle = bodySwap ? [styles.body, bodySwap] : styles.body;
   const body = scroll
-    ? <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-    : <View style={styles.body}>{children}</View>;
+    ? <ScrollView style={bodyStyle} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+    : <View style={bodyStyle}>{children}</View>;
 
   if (!isDesktop) {
     return (
@@ -239,9 +257,12 @@ export function SidePanel(props: SidePanelProps) {
   const overlay = overlayBelow === SIDE_PANEL_OVERLAY_BELOW
     ? sidePanelMode(containerWidth) === 'overlay'
     : typeof containerWidth === 'number' && Number.isFinite(containerWidth) && containerWidth > 0 && containerWidth < overlayBelow;
+  const slide = slideArmed.current ? webMotion('slideInRight') : null;
   return (
     <View
-      style={[styles.panel, { width }, overlay ? styles.overlay : null, style]}
+      style={slide
+        ? [styles.panel, { width }, overlay ? styles.overlay : null, style, slide]
+        : [styles.panel, { width }, overlay ? styles.overlay : null, style]}
       testID={testID}
       nativeID={domId}
       {...(printHide && Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
