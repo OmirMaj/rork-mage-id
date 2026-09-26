@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Animated, ActivityIndicator, Switch,
+  Easing, type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -15,9 +16,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
 import { neutralInk, cardSurface } from '@/components/ui';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { Slot, useLaunchEntrance, useLaunchTarget } from '@/components/auth/authMotion';
+import {
+  AuthSubmitButton, FieldRing, Slot, useLaunchEntrance, useLaunchTarget, usePressSpring,
+} from '@/components/auth/authMotion';
+import { layoutNext, nativeDriver, reducedMotion, useSwapFade } from '@/components/ui/motion';
 import {
   INVITE_PARAM, postSignInHref, signupHrefForInvite, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
@@ -32,6 +36,16 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // The wordmark while the splash's own "MAGE ID" is still flying onto it.
 const HIDDEN = { opacity: 0 } as const;
+
+// "Sign in with password instead": the block fades in and rises the last few
+// points, then the password field takes focus (native only).
+// hoist into Motion.duration after round 3
+const PASSWORD_REVEAL_MS = 200;
+// hoist into Motion.duration after round 3
+const PASSWORD_FOCUS_MS = 60;
+const PASSWORD_RISE = 8;
+
+type Reveal = { opacity: Animated.Value; translateY: Animated.Value; style: ViewStyle };
 
 // #108: the session came from another tab, whose gate opens this invite for a
 // new account. Hedged on purpose: a set-up account is not redirected there, so
@@ -137,17 +151,75 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
 
-  const buttonScale = useRef(new Animated.Value(1)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const press = usePressSpring();
   const passwordRef = useRef<TextInput>(null);
+
+  // Form motion (slick round 3, lane A2). A field's ring: accent while it has
+  // focus, danger when the last attempt named it empty / malformed (danger
+  // outranks focus; an edit of that field clears it). A server error names no
+  // field. The Sign In button morphs label → spinner → check.
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [emailDanger, setEmailDanger] = useState(false);
+  const [passwordDanger, setPasswordDanger] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  // goAfterSignIn swallows a failed navigation and the root gate may leave
+  // him here (#93); a button that stayed on its check would be dead. Still
+  // mounted a few seconds after success → give the button back.
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    const t = setTimeout(() => setSignedIn(false), 4000);
+    return () => clearTimeout(t);
+  }, [signedIn]);
+  const [passwordReveal, setPasswordReveal] = useState<Reveal | null>(null);
+  const submitPhase = signedIn ? 'done' : isSubmitting ? 'loading' : 'idle';
+
+  // Every banner change goes through here: when it shows or hides, the rows
+  // below ease to their new place (layoutNext; native only) instead of jumping.
+  const errorShownRef = useRef(false);
+  const setError = useCallback((msg: string) => {
+    const flips = !!msg !== errorShownRef.current;
+    errorShownRef.current = !!msg;
+    if (flips) layoutNext();
+    setErrorMessage(msg);
+  }, []);
+  // The banner fades in (160 ms) whenever a new message arrives. Null at rest.
+  const bannerFade = useSwapFade(errorMessage);
+  // "Check your inbox" and the send button swap with a fade. Null at rest.
+  const magicSwap = useSwapFade(magicLinkSent ? 'sent' : 'idle');
+
+  const openPasswordMode = useCallback(() => {
+    if (!reducedMotion()) {
+      const opacity = new Animated.Value(0);
+      const translateY = new Animated.Value(PASSWORD_RISE);
+      setPasswordReveal({ opacity, translateY, style: { opacity, transform: [{ translateY }] } });
+    }
+    layoutNext();
+    setShowPasswordMode(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!showPasswordMode) return undefined;
+    if (passwordReveal) {
+      Animated.parallel([
+        Animated.timing(passwordReveal.opacity, {
+          toValue: 1, duration: PASSWORD_REVEAL_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
+        }),
+        Animated.spring(passwordReveal.translateY, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
+      ]).start();
+    }
+    if (Platform.OS === 'web') return undefined;
+    const t = setTimeout(() => passwordRef.current?.focus(), PASSWORD_FOCUS_MS);
+    return () => clearTimeout(t);
+  }, [showPasswordMode, passwordReveal]);
 
   // RT-R1: the app landed here because the server rejected the session and a
   // refresh could not save it (AuthContext). Say so — a silent bounce to the
   // sign-in screen reads as a crash. Cleared like any other error on the next
   // attempt.
   useEffect(() => {
-    if (sessionExpiredReason) setErrorMessage(sessionExpiredReason);
-  }, [sessionExpiredReason]);
+    if (sessionExpiredReason) setError(sessionExpiredReason);
+  }, [sessionExpiredReason, setError]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -165,16 +237,6 @@ export default function LoginScreen() {
     };
     void checkBiometrics();
   }, []);
-
-  const shake = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
-    ]).start();
-  }, [shakeAnim]);
 
   const handleBiometricLogin = useCallback(async () => {
     if (!hasStoredCredentials) {
@@ -205,21 +267,21 @@ export default function LoginScreen() {
   }, [hasStoredCredentials, loginWithBiometrics, goAfterSignIn]);
 
   const handleLogin = useCallback(async () => {
-    setErrorMessage('');
+    setError('');
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage('Please fill in all fields');
-      shake();
+    const emailEmpty = !email.trim();
+    const passwordEmpty = !password.trim();
+    if (emailEmpty || passwordEmpty) {
+      setEmailDanger(emailEmpty);
+      setPasswordDanger(passwordEmpty);
+      setError('Please fill in all fields');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       return;
     }
-
-    Animated.sequence([
-      Animated.timing(buttonScale, { toValue: 0.95, duration: 80, useNativeDriver: true }),
-      Animated.timing(buttonScale, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
+    setEmailDanger(false);
+    setPasswordDanger(false);
 
     setIsSubmitting(true);
     localSignInRef.current = true;
@@ -230,11 +292,12 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'email' });
+      // The button lands on its check as the screen goes (no hold).
+      setSignedIn(true);
       goAfterSignIn();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
-      setErrorMessage(message);
-      shake();
+      setError(message);
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -242,7 +305,7 @@ export default function LoginScreen() {
       localSignInRef.current = false;
       setIsSubmitting(false);
     }
-  }, [email, password, rememberMe, login, goAfterSignIn, buttonScale, shake]);
+  }, [email, password, rememberMe, login, goAfterSignIn, setError]);
 
   // Distinguish a normal user-cancel (closed the account chooser / dismissed
   // the Face ID sheet) from a real failure. Cancels are silent; real failures
@@ -265,7 +328,7 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = useCallback(async () => {
     setIsGoogleLoading(true);
-    setErrorMessage('');
+    setError('');
     localSignInRef.current = true;
     try {
       // #159: false = he closed the Google sheet (or it came back empty).
@@ -281,8 +344,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Google login failed:', err);
       if (isUserCancel(err)) return;
-      setErrorMessage("Couldn't sign in with Google. Please try again.");
-      shake();
+      setError("Couldn't sign in with Google. Please try again.");
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -290,11 +352,11 @@ export default function LoginScreen() {
       localSignInRef.current = false;
       setIsGoogleLoading(false);
     }
-  }, [signInWithGoogle, goAfterSignIn, isUserCancel, shake]);
+  }, [signInWithGoogle, goAfterSignIn, isUserCancel, setError]);
 
   const handleAppleLogin = useCallback(async () => {
     setIsAppleLoading(true);
-    setErrorMessage('');
+    setError('');
     localSignInRef.current = true;
     try {
       // #159: false = he closed the Apple sheet (or it came back empty).
@@ -310,8 +372,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Apple login failed:', err);
       if (isUserCancel(err)) return;
-      setErrorMessage("Couldn't sign in with Apple. Please try again.");
-      shake();
+      setError("Couldn't sign in with Apple. Please try again.");
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -319,40 +380,40 @@ export default function LoginScreen() {
       localSignInRef.current = false;
       setIsAppleLoading(false);
     }
-  }, [signInWithApple, goAfterSignIn, isUserCancel, shake]);
+  }, [signInWithApple, goAfterSignIn, isUserCancel, setError]);
 
   // Magic link handler — sends a one-tap login link to the user's
   // email. They tap the link from their inbox, the app's deep-link
   // handler in _layout.tsx redeems the tokens, and they're in. No
   // password to type, no SMS cost.
   const handleMagicLink = useCallback(async () => {
-    setErrorMessage('');
+    setError('');
     if (!email.trim()) {
-      setErrorMessage('Enter your email address first.');
-      shake();
+      setEmailDanger(true);
+      setError('Enter your email address first.');
       return;
     }
     if (!EMAIL_REGEX.test(email.trim())) {
-      setErrorMessage('That email address looks off — please double-check it.');
-      shake();
+      setEmailDanger(true);
+      setError('That email address looks off — please double-check it.');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     setIsMagicLinkLoading(true);
     try {
       await sendMagicLink(email);
+      layoutNext();
       setMagicLinkSent(true);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'magic_link_requested' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not send link. Try again.';
-      setErrorMessage(msg);
-      shake();
+      setError(msg);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsMagicLinkLoading(false);
     }
-  }, [email, sendMagicLink, shake]);
+  }, [email, sendMagicLink, setError]);
 
   return (
     <View style={styles.container}>
@@ -406,18 +467,20 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+          <View>
             {errorMessage ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>{errorMessage}</Text>
-              </View>
+              <Slot style={bannerFade}>
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorBannerText}>{errorMessage}</Text>
+                </View>
+              </Slot>
             ) : null}
             {elsewhereNotice ? (
               <View style={styles.noticeBanner} testID="login-invite-opened-elsewhere">
                 <Text style={styles.noticeBannerText}>{elsewhereNotice}</Text>
               </View>
             ) : null}
-          </Animated.View>
+          </View>
 
           {/* ─── Primary auth row (Apple / Google) ─────────────────
               Apple is iOS native — no Supabase URL prompt, no browser
@@ -482,7 +545,16 @@ export default function LoginScreen() {
                 placeholder="you@company.com"
                 placeholderTextColor={themeColors.textMuted}
                 value={email}
-                onChangeText={(v) => { setEmail(v); setMagicLinkSent(false); }}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  if (emailDanger) setEmailDanger(false);
+                  if (magicLinkSent) {
+                    layoutNext();
+                    setMagicLinkSent(false);
+                  }
+                }}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -491,7 +563,9 @@ export default function LoginScreen() {
                 onSubmitEditing={() => showPasswordMode ? passwordRef.current?.focus() : handleMagicLink()}
                 testID="login-email"
               />
+              <FieldRing visible={emailFocused || emailDanger} tone={emailDanger ? 'danger' : 'accent'} radius={Tokens.radius.lg} />
             </View>
+            <Slot style={magicSwap}>
             {magicLinkSent ? (
               <View style={[styles.magicLinkSuccess, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
                 <CheckCircle2 size={15} color={Colors.successDark} strokeWidth={2} />
@@ -500,23 +574,20 @@ export default function LoginScreen() {
                 </Text>
               </View>
             ) : (
-              <TouchableOpacity
+              <AuthSubmitButton
+                phase={isMagicLinkLoading ? 'loading' : 'idle'}
+                label="Email me a sign-in link"
+                leading={<KeyRound size={18} color={themeColors.accent} strokeWidth={2} />}
                 style={[styles.magicLinkButton, isMagicLinkLoading && styles.loginButtonDisabled]}
+                textStyle={styles.magicLinkButtonText}
+                spinnerColor={themeColors.accent}
                 onPress={handleMagicLink}
                 disabled={isMagicLinkLoading}
                 activeOpacity={0.85}
                 testID="login-magic-link"
-              >
-                {isMagicLinkLoading ? (
-                  <ActivityIndicator color={themeColors.accent} size="small" />
-                ) : (
-                  <>
-                    <KeyRound size={18} color={themeColors.accent} strokeWidth={2} />
-                    <Text style={styles.magicLinkButtonText}>Email me a sign-in link</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              />
             )}
+            </Slot>
           </View>
           </Slot>
 
@@ -549,13 +620,14 @@ export default function LoginScreen() {
           {!showPasswordMode ? (
             <TouchableOpacity
               style={styles.passwordModeToggle}
-              onPress={() => setShowPasswordMode(true)}
+              onPress={openPasswordMode}
               testID="login-show-password-mode"
             >
               <Text style={styles.passwordModeToggleText}>Sign in with password instead</Text>
             </TouchableOpacity>
           ) : (
-            <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+            <Slot style={passwordReveal ? passwordReveal.style : null}>
+            <View>
               <View style={[styles.inputGroup, { marginTop: 12 }]}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <View style={styles.inputWrapper}>
@@ -566,7 +638,12 @@ export default function LoginScreen() {
                     placeholder="Enter password"
                     placeholderTextColor={themeColors.textMuted}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(v) => {
+                      setPassword(v);
+                      if (passwordDanger) setPasswordDanger(false);
+                    }}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
                     secureTextEntry={!showPassword}
                     returnKeyType="go"
                     selectionColor={themeColors.accent}
@@ -583,6 +660,7 @@ export default function LoginScreen() {
                       <Eye size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                     )}
                   </TouchableOpacity>
+                  <FieldRing visible={passwordFocused || passwordDanger} tone={passwordDanger ? 'danger' : 'accent'} radius={Tokens.radius.lg} />
                 </View>
               </View>
               <View style={styles.rememberRow}>
@@ -595,25 +673,24 @@ export default function LoginScreen() {
                   testID="login-remember"
                 />
               </View>
-              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-                <TouchableOpacity
+              <Animated.View style={press.style}>
+                <AuthSubmitButton
+                  phase={submitPhase}
+                  label="Sign In"
+                  trailing={<ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />}
                   style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
+                  textStyle={styles.loginButtonText}
+                  spinnerColor={Colors.textOnAccent}
                   onPress={handleLogin}
-                  disabled={isSubmitting}
+                  onPressIn={press.onPressIn}
+                  onPressOut={press.onPressOut}
+                  disabled={isSubmitting || signedIn}
                   activeOpacity={0.85}
                   testID="login-submit"
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={Colors.textOnAccent} size="small" />
-                  ) : (
-                    <>
-                      <Text style={styles.loginButtonText}>Sign In</Text>
-                      <ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
-                    </>
-                  )}
-                </TouchableOpacity>
+                />
               </Animated.View>
-            </Animated.View>
+            </View>
+            </Slot>
           )}
 
           </Slot>
