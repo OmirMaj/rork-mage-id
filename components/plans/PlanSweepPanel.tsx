@@ -18,7 +18,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AlertTriangle, Lock, MapPin, Search, MessageSquare, FileText } from 'lucide-react-native';
+import { AlertTriangle, Lock, MapPin, Search, MessageSquare, FileText, ListChecks } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
@@ -32,8 +32,9 @@ import { PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
 import { groundingFactsFor, jobsiteAddressForProject, resolveCodeJurisdiction } from '@/utils/codeJurisdiction';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { sheetAttachmentFor } from '@/utils/plans/revisionActions';
+import { generateUUID } from '@/utils/generateId';
 import {
-  scopeTargetsFor, sweepFindingView, rfiFromSweepFinding, sweepCopy, type NotReviewedSheet, type SweepFindingView,
+  scopeTargetsFor, sweepFindingView, rfiFromSweepFinding, punchFromSweepFinding, sweepCopy, type NotReviewedSheet, type SweepFindingView,
 } from '@/utils/plans/planSweep';
 import { findSweepSheets, reviewSweepSheets, type FindSweepResult, type ReviewSweepResult } from '@/utils/plans/planSweepRun';
 import type { PlanSheet, Project } from '@/types';
@@ -52,12 +53,16 @@ type Phase = 'idle' | 'finding' | 'found' | 'reviewing' | 'done';
 
 const sheetNo = (s: PlanSheet) => (s.sheetNumber ?? '').trim() || s.name || 'Sheet';
 
+/** "Punch item added — …. Open punch list" → the sentence and the link words. */
+const OPEN_PUNCH = 'Open punch list';
+const withoutLink = (s: string) => (s.endsWith(OPEN_PUNCH) ? s.slice(0, -OPEN_PUNCH.length).trimEnd() : s);
+
 export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: Props) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { tier, isProOrAbove } = useTierAccess();
-  const { addRFI, addDrawingPin } = useProjects();
+  const { addRFI, addDrawingPin, addPunchItem } = useProjects();
   const { user } = useAuth();
 
   const current = useMemo(() => sheets.filter(s => !s.superseded), [sheets]);
@@ -77,13 +82,15 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
   const [progress, setProgress] = useState<{ label: string; i: number; n: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafted, setDrafted] = useState<Record<string, { rfiId: string; number: number }>>({});
+  const [punched, setPunched] = useState<Record<string, { pinned: boolean }>>({});
+  const punchedRef = useRef<Record<string, true>>({});
   const abort = useRef<{ aborted: boolean }>({ aborted: false });
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; abort.current.aborted = true; }, []);
 
   const onFind = useCallback(async () => {
     abort.current = { aborted: false };
-    setPhase('finding'); setFound(null); setReview(null); setError(null); setDrafted({});
+    setPhase('finding'); setFound(null); setReview(null); setError(null); setDrafted({}); setPunched({}); punchedRef.current = {};
     try {
       const out = await findSweepSheets({
         projectId: project.id, sheets, targets: scope.targets, userId: user?.id, monthlyCap, signal: abort.current,
@@ -135,6 +142,27 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
     }
     setDrafted(d => ({ ...d, [key]: { rfiId: rfi.id, number: rfi.number } }));
   }, [drafted, addRFI, addDrawingPin, project.id]);
+
+  // One punch item per finding: the ref guards a double tap inside one render.
+  // The pin is written only when the AI placed the finding — never invented.
+  const onPunch = useCallback((sheet: PlanSheet, view: SweepFindingView, key: string) => {
+    if (punchedRef.current[key]) return;
+    punchedRef.current[key] = true;
+    const punch = punchFromSweepFinding(sheet, view, generateUUID(), new Date().toISOString());
+    addPunchItem(punch);
+    if (view.location) {
+      addDrawingPin({
+        planSheetId: sheet.id, projectId: project.id, x: view.location.x, y: view.location.y,
+        kind: 'punch', label: view.title, linkedPunchItemId: punch.id,
+      });
+    }
+    setPunched(p => ({ ...p, [key]: { pinned: !!view.location } }));
+  }, [addPunchItem, addDrawingPin, project.id]);
+
+  const openPunchList = useCallback(() => {
+    onClose?.();
+    router.push({ pathname: '/punch-list', params: { projectId: project.id } });
+  }, [onClose, router, project.id]);
 
   const openRfi = useCallback((rfiId: string) => {
     onClose?.();
@@ -281,6 +309,9 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
       ) : null}
 
       {/* Findings, grouped by sheet */}
+      {review && review.reviewed.some(r => r.findings.length > 0) ? (
+        <Text style={styles.meta} testID="plansweep-approx-note">{sweepCopy.approxNote}</Text>
+      ) : null}
       {review ? review.reviewed.map(r => (
         <Card key={r.sheet.id} pad={Tokens.spacing.sm} style={styles.sheetCard} testID={`plansweep-sheet-${r.sheet.id}`}>
           <View style={styles.inlineRow}>
@@ -293,6 +324,7 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
             const key = `${r.sheet.id}#${i}`;
             const view = sweepFindingView(f, r.sheet, jurisdiction);
             const done = drafted[key];
+            const punchDone = punched[key];
             return (
               <View key={key} style={styles.findingRow} testID={`plansweep-finding-${key}`}>
                 <Text style={styles.question}>{view.title}</Text>
@@ -333,6 +365,26 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
                     iconLeft={<MessageSquare size={13} color={t.text} strokeWidth={1.75} />}
                     containerStyle={styles.draftBtn}
                     testID={`plansweep-draft-${key}`}
+                  />
+                )}
+                {punchDone ? (
+                  <View style={styles.inlineRow} testID={`plansweep-punched-${key}`}>
+                    <Text style={styles.draftedText}>
+                      {withoutLink(punchDone.pinned ? sweepCopy.punchAddedPinned : sweepCopy.punchAddedNoPin)}
+                    </Text>
+                    <TouchableOpacity onPress={openPunchList} accessibilityRole="link" testID={`plansweep-open-punch-${key}`}>
+                      <Text style={styles.link}>{OPEN_PUNCH}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Button
+                    label={sweepCopy.addPunch}
+                    onPress={() => onPunch(r.sheet, view, key)}
+                    variant="secondary"
+                    size="sm"
+                    iconLeft={<ListChecks size={13} color={t.text} strokeWidth={1.75} />}
+                    containerStyle={styles.draftBtn}
+                    testID={`plansweep-punch-${key}`}
                   />
                 )}
               </View>

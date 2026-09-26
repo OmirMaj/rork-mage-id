@@ -96,6 +96,10 @@ export function notificationRoute(event: string, data: Record<string, unknown> |
       return { pathname: '/brief', params: {} };
     case 'week_close':
       return { pathname: '/week-close', params: {} };
+    case 'tomorrow_lineup':
+      // The 3 pm weekday local reminder (utils/lineupReminder). It carries no
+      // project, so the lineup opens on whoever is signed in and their job.
+      return projectId ? { pathname: '/tomorrow-lineup', params: { projectId } } : { pathname: '/tomorrow-lineup', params: {} };
     // Wave 3 (#48 and the carried events). Snake_case from the outbox payload,
     // camelCase from the push data — pick() reads both.
     case 'client_invoice_paid':

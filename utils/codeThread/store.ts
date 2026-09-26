@@ -1,16 +1,21 @@
 /**
  * Code Thread — the saved code checks, per job (CONTRACT C8).
  *
- * SYNC DECISION: Local-first for this wave. These records live in AsyncStorage
- * under mageid_code_checks, so they stay on this device and are erased when he
- * signs out (wipeLocalUserCache sweeps mageid_*). Because sign-out erases them,
- * a synced code_checks table IS worth building. It is the recommended next
- * small wave (migration + RLS + an offline-queue mapper + a storage-hygiene
- * entry + a PGlite test, about an hour). It is not in this wave because this
- * wave ships with no migrations.
+ * SYNC DECISION: device first, account behind it. These records live in
+ * AsyncStorage under mageid_code_checks (erased on sign-out by the
+ * wipeLocalUserCache mageid_* sweep), and every successful local write is also
+ * pushed to the account table public.code_checks through utils/offlineQueue
+ * (utils/codeThread/cloudSync.ts pushCodeCheck — lazily required so this file
+ * stays importable by the bun validators). When the job page opens, the
+ * account copy is read and merged with this device's (utils/codeThread/
+ * syncMerge.ts), so a check saved on the phone shows on the web app and
+ * survives a sign-out. A push is skipped — and picked up by the next merge —
+ * while signed out, on a sample job, or on a seat RLS would refuse (viewer).
  *
- * Every surface that shows a saved check says so: 'on this device until you
- * sign out'.
+ * The surfaces say where a check is: 'Saved to your account' ONLY once the
+ * account read and every push for that job succeeded; otherwise the
+ * device-only line that fits (cloudSync CodeCheckSyncState →
+ * ProjectCodeChecksCard CODE_CHECKS_CAPTION).
  *
  * Shape on disk: Record<projectId, CodeCheckRecord[]>, newest first, at most
  * MAX_CHECKS_PER_PROJECT per job (the oldest drop off).
@@ -169,12 +174,31 @@ function notify(): void {
   }
 }
 
+/** Wake every listener without a write (the cloud sync's state changed). */
+export function notifyCodeChecks(): void {
+  notify();
+}
+
 async function readBlob(): Promise<CodeChecksBlob | null> {
   try {
     const raw = await AsyncStorage.getItem(CODE_CHECKS_KEY);
     return parseCodeChecksBlob(raw);
   } catch {
     return null;
+  }
+}
+
+/** Push a record to the account after a successful local write. Lazy require
+ *  (house pattern, utils/syncLedger queueModule): importing this store must not
+ *  pull supabase / the offline queue in at module load. Never throws. */
+function pushAfterLocalWrite(rec: CodeCheckRecord | undefined): void {
+  if (!rec) return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const cloud = require('./cloudSync') as typeof import('./cloudSync');
+    void cloud.pushCodeCheck(rec).catch(() => { /* the next merge re-pushes it */ });
+  } catch {
+    /* no cloud module (a bun validator): the device copy is the whole story */
   }
 }
 
@@ -196,13 +220,28 @@ export async function loadCodeChecks(
   return { ok: true, checks: blob[projectId] ?? [] };
 }
 
+// Every read-modify-write of the blob runs one at a time: the cloud merge and
+// a pushed stamp's write-back must never interleave with a save and drop it.
+let storeChain: Promise<unknown> = Promise.resolve();
+function withStoreLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = storeChain.then(fn, fn);
+  storeChain = run.then(() => undefined, () => undefined);
+  return run;
+}
+
 export async function saveCodeCheck(rec: CodeCheckRecord): Promise<boolean> {
   if (!rec?.id || !rec.projectId) return false;
-  const blob = await readBlob();
-  // An unreadable blob is never overwritten: that would erase every saved check.
-  if (!blob) return false;
-  blob[rec.projectId] = upsertCheck(blob[rec.projectId] ?? [], rec);
-  return writeBlob(blob);
+  const saved = await withStoreLock(async () => {
+    const blob = await readBlob();
+    // An unreadable blob is never overwritten: that would erase every saved check.
+    if (!blob) return null;
+    blob[rec.projectId] = upsertCheck(blob[rec.projectId] ?? [], rec);
+    const ok = await writeBlob(blob);
+    return ok ? blob[rec.projectId].find((r) => r.id === rec.id) ?? null : null;
+  });
+  // A failed local write pushes nothing.
+  if (saved) pushAfterLocalWrite(saved);
+  return !!saved;
 }
 
 export async function recordCodeThreadAction(
@@ -210,17 +249,50 @@ export async function recordCodeThreadAction(
   recordId: string,
   action: CodeThreadActionRecord,
 ): Promise<boolean> {
-  const blob = await readBlob();
-  if (!blob) return false;
-  const list = blob[projectId] ?? [];
-  const idx = list.findIndex((r) => r.id === recordId);
-  if (idx < 0) return false;
-  const rec = list[idx];
-  const next = [...list];
-  next[idx] = {
-    ...rec,
-    actions: appendAction(Array.isArray(rec.actions) ? rec.actions : [], action),
-  };
-  blob[projectId] = next;
-  return writeBlob(blob);
+  const out = await withStoreLock(async (): Promise<{ ok: boolean; changed: CodeCheckRecord | null }> => {
+    const blob = await readBlob();
+    if (!blob) return { ok: false, changed: null };
+    const list = blob[projectId] ?? [];
+    const idx = list.findIndex((r) => r.id === recordId);
+    if (idx < 0) return { ok: false, changed: null };
+    const rec = list[idx];
+    const prevActions = Array.isArray(rec.actions) ? rec.actions : [];
+    const actions = appendAction(prevActions, action);
+    const changed = actions.length !== prevActions.length;
+    const next = [...list];
+    next[idx] = {
+      ...rec,
+      actions,
+      // The record changed, so its stamp moves: the merge's newer-wins reads it.
+      ...(changed ? { updatedAt: new Date().toISOString() } : {}),
+    };
+    blob[projectId] = next;
+    const ok = await writeBlob(blob);
+    return { ok, changed: ok && changed ? next[idx] : null };
+  });
+  if (out.changed) pushAfterLocalWrite(out.changed);
+  return out.ok;
+}
+
+/**
+ * Replace one job's list (the cloud merge's result, or a pushed stamp written
+ * back). `list` may be a function of the job's CURRENT list, run under the
+ * store lock; returning that same array means "no change" (nothing written,
+ * true). An unreadable blob returns false and writes nothing — never
+ * overwrite what could not be read. Notifies on a write.
+ */
+export async function replaceProjectChecks(
+  projectId: string,
+  list: CodeCheckRecord[] | ((current: CodeCheckRecord[]) => CodeCheckRecord[]),
+): Promise<boolean> {
+  if (!projectId) return false;
+  return withStoreLock(async () => {
+    const blob = await readBlob();
+    if (!blob) return false;
+    const current = blob[projectId] ?? [];
+    const next = typeof list === 'function' ? list(current) : list;
+    if (next === current) return true;
+    blob[projectId] = next;
+    return writeBlob(blob);
+  });
 }

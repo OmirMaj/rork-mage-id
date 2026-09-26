@@ -191,6 +191,7 @@ const COLLABORATOR_FIELD_TABLES = [
   'permits', 'plan_sheets', 'time_entries',
   'drawing_pins', 'plan_markups', 'plan_calibrations', 'field_tickets',
   'deliveries', 'building_access_rules', 'access_reservations',
+  'code_checks', 'takeoff_docs',
 ];
 
 // Tables that hold the caller's tenant data but carry no user_id: they are
@@ -736,6 +737,14 @@ serve(async (req) => {
     //    owner's rows are indistinguishable from what he logged himself.
     //    field_tickets' `authorization` names the OWNER'S REP who signed, not
     //    the author, so it is left exactly as signed.
+    // A table that is not there yet (or was dropped) is benign in both passes:
+    // Postgres says 'relation … does not exist', and PostgREST, when its schema
+    // cache has never seen the table, answers PGRST205 'Could not find the
+    // table …'. A missing COLUMN is never tolerated — see validate-account-deletion.
+    const isMissingTable = (e: { message?: string; code?: string }) =>
+      e.code === 'PGRST205'
+      || /relation .* does not exist/i.test(e.message ?? '')
+      || /could not find the table/i.test(e.message ?? '');
     const handoverErrors: string[] = [];
     let rowsHandedOver = 0;
     for (const { projectId, ownerId } of handedOver) {
@@ -747,7 +756,7 @@ serve(async (req) => {
           .eq('project_id', projectId)
           .select('id');
         if (error) {
-          if (!/relation .* does not exist/i.test(error.message)) handoverErrors.push(`${table}: ${error.message}`);
+          if (!isMissingTable(error)) handoverErrors.push(`${table}: ${error.message}`);
           continue;
         }
         rowsHandedOver += Array.isArray(data) ? data.length : 0;
@@ -772,7 +781,7 @@ serve(async (req) => {
     // 'relation does not exist' is benign — the table was dropped or renamed.
     // Anything else (a column that does not exist, a constraint, a timeout)
     // is a real failure and is reported.
-    const isMissingRelation = (message: string) => /relation .* does not exist/i.test(message);
+    const isMissingRelation = (message: string) => isMissingTable({ message });
 
     // 2a. Tenant-scoped rows — the tables with no user_id (DB-F7 / AUTH-F1).
     //     Keyed by the project / portal / sub-portal ids collected above —

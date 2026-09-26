@@ -21,16 +21,24 @@
 // (`{editor ? <ConditionEditor/> : null}`), because an open dialog scope is
 // exclusive (hooks/useHotkeys) and a closed-but-mounted one would kill every
 // canvas key below.
+//
+// LIST-3 LANE TK-a: starter chips on an empty takeoff (utils/takeoff/
+// starterConditions, by the job's type label), the conditions filter ('/'
+// focuses it, Esc in it clears it), 1–9 activate the Nth VISIBLE row
+// (ConditionsPanel.visibleRows — the same rows he sees), hover a row to
+// thicken its shapes, per-measurement sub-rows (click → select + fit, on
+// another sheet after it opens: pendingFocus), and vertex dragging (the canvas
+// previews; onMoveVertex writes once = one undo entry).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, PanelLeftOpen, PanelRightOpen } from 'lucide-react-native';
 import { Sheet } from '@/components/ui';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useHotkeys, usePrimaryAction } from '@/hooks/useHotkeys';
+import { targetWithin, useHotkeys, usePrimaryAction, type HotkeyBinding } from '@/hooks/useHotkeys';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -50,15 +58,25 @@ import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { generateUUID } from '@/utils/generateId';
 import { formatLinearFt, formatSqFt, type NormPoint } from '@/utils/takeoffGeometry';
 import {
-  measurementQuantity, rollup,
+  KIND_UNIT, defaultConditionColor, measurementQuantity, rollup,
   type ConditionKind, type SheetCal, type TakeoffCondition, type TakeoffMeasurement,
 } from '@/utils/takeoff/conditions';
+import { resolveStarterTrade, starterConditionsFor, starterRateLine } from '@/utils/takeoff/starterConditions';
+import { projectTypeLabel } from '@/utils/projectTypes';
 import { fitRect, fitToPoints, zoomAt, IDENTITY_VIEW, type ViewT } from '@/utils/takeoff/viewTransform';
 import { applyTakeoffPush, pushBlockReason, pushLinesFrom } from '@/utils/takeoff/conditionPush';
+import {
+  conditionFromSuggestion, suggestionsFromTakeoff, takenSuggestionKeys, type AiSuggestion,
+} from '@/utils/takeoff/aiSuggestions';
+import { useSavedAiTakeoff } from '@/hooks/useSavedAiTakeoff';
 import TakeoffCanvas, { type CanvasShape, type TakeoffTool } from './TakeoffCanvas';
-import ConditionsPanel, { type PanelFilter } from './ConditionsPanel';
+import ConditionsPanel, {
+  TAKEOFF_FILTER_DOM_ID, visibleRows,
+  type MeasurementSubRow, type PanelFilter, type StarterChip, type TakeoffConflict,
+} from './ConditionsPanel';
 import ConditionEditor from './ConditionEditor';
 import TakeoffFirstRun from './TakeoffFirstRun';
+import RailDropZone, { useTakeoffPdfDrop } from './RailDropZone';
 
 const RAIL_OPEN_KEY = 'mageid_takeoff_rail_open';
 const PANEL_OPEN_KEY = 'mageid_takeoff_panel_open';
@@ -150,7 +168,13 @@ export default function TakeoffWorkspace() {
   const aspectFailed = !!active && (!uri || (aspectRead?.key === aspectKey && aspectRead.value === 'error'));
 
   // ── the doc ────────────────────────────────────────────────────────────
-  const { doc, loaded, update, record, undo, redo } = useTakeoffConditions(projectId);
+  const tk = useTakeoffConditions(projectId);
+  const drop = useTakeoffPdfDrop(projectId);
+  const { doc, loaded, update, record, undo, redo } = tk;
+  // Lane SYNC adds saveLine + conflict (account-sync wording). Until it lands these are undefined.
+  const sync = tk as typeof tk & { saveLine?: string; conflict?: { notice: string; hasBackup: boolean; restore: () => void; dismiss: () => void } | null };
+  const saveLine = sync.saveLine ?? 'Saved on this browser';
+  const conflict: TakeoffConflict | null = sync.conflict ?? null;
   const calFor = useCallback((sheetId: string): SheetCal | null => {
     const u = usableCalibration(getCalibrationForPlan(sheetId));
     return u ? { p1: u.p1, p2: u.p2, realDistanceFt: u.realDistanceFt } : null;
@@ -161,9 +185,38 @@ export default function TakeoffWorkspace() {
     () => (filter === 'sheet' && active ? rollup(doc, db, calFor, active.id).rows : rollupAll.rows),
     [filter, active, doc, db, calFor, rollupAll],
   );
+  // The filter box (the panel shows visibleRows of it; 1–9 read the same rows).
+  const [filterText, setFilterText] = useState('');
+  const shownRows = useMemo(() => visibleRows(panelRows, filterText), [panelRows, filterText]);
+  const filterRef = useRef<TextInput>(null);
+  // The condition whose row is hovered: its shapes draw thick.
+  const [hoverCondId, setHoverCondId] = useState<string | null>(null);
   const colorOf = useMemo(() => new Map(doc.conditions.map((c) => [c.id, c.color])), [doc.conditions]);
+  // Conditions drawn on any sheet (the AI-read subline on This sheet reads it).
+  const drawnAnywhere = useMemo(() => new Set(doc.measurements.map((m) => m.conditionId)), [doc.measurements]);
   const [activeCondId, setActiveCondId] = useState<string | null>(null);
   const activeCond = doc.conditions.find((c) => c.id === activeCondId) ?? null;
+
+  // ── AI suggestions (lane TK-b): the AI Takeoff saved on this browser ───
+  // Read-only and free: no AI runs here. A suggestion is not a condition — it
+  // is never drawn and never reaches the rollup, the cost line or the push
+  // until he accepts it (then it is a condition labelled "AI read — not measured").
+  const aiSaved = useSavedAiTakeoff(projectId);
+  // /area-takeoff stays mounted under /takeoff ("Run AI Takeoff" pushes it), so
+  // re-read on every return to this screen — else the panel keeps saying
+  // "nothing saved" (or shows the last run) until a page reload. The first
+  // focus is the mount, which the hook already reads.
+  const aiReload = aiSaved.reload;
+  const aiFocusSeen = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (aiFocusSeen.current) aiReload();
+    aiFocusSeen.current = true;
+  }, [aiReload]));
+  const aiTaken = useMemo(() => takenSuggestionKeys(doc), [doc]);
+  const aiSug = useMemo(
+    () => (aiSaved.saved ? suggestionsFromTakeoff(aiSaved.saved, aiTaken) : { rows: [] as AiSuggestion[], skipped: [] }),
+    [aiSaved.saved, aiTaken],
+  );
 
   // ── canvas state ───────────────────────────────────────────────────────
   const [tool, setTool] = useState<TakeoffTool>('select');
@@ -202,6 +255,7 @@ export default function TakeoffWorkspace() {
   const activeCal = active ? calFor(active.id) : null;
   const shapes = useMemo<CanvasShape[]>(() => sheetMeasurements.map((m) => ({
     id: m.id,
+    conditionId: m.conditionId,
     kind: m.kind,
     points: m.points,
     color: colorOf.get(m.conditionId) ?? t.textMuted,
@@ -283,6 +337,20 @@ export default function TakeoffWorkspace() {
     if (m) setActiveCondId(m.conditionId);
   }, [doc.measurements]);
 
+  // A vertex drag released on the sheet: ONE update = one undo entry.
+  const onMoveVertex = useCallback((id: string, index: number, point: NormPoint) => {
+    update((d) => ({
+      ...d,
+      measurements: d.measurements.map((m) => (m.id === id ? { ...m, points: m.points.map((q, i) => (i === index ? point : q)) } : m)),
+    }));
+  }, [update]);
+
+  // A sub-row's delete: undoable, and the selection goes with it.
+  const deleteMeasurement = useCallback((id: string) => {
+    update((d) => ({ ...d, measurements: d.measurements.filter((m) => m.id !== id) }));
+    setSelectedId((s) => (s === id ? null : s));
+  }, [update]);
+
   // ── zoom ───────────────────────────────────────────────────────────────
   const zoomBy = useCallback((f: number) => {
     if (!canvasSize) return;
@@ -294,6 +362,62 @@ export default function TakeoffWorkspace() {
   }, [canvasSize, paper]);
   const fit = useCallback(() => fitTo(sheetMeasurements.flatMap((m) => m.points)), [fitTo, sheetMeasurements]);
 
+  // ── sub-rows: click → select it and fit to it ─────────────────────────
+  // On another sheet, open that sheet first: openSheet resets the view, and the
+  // new sheet's paper exists only once its size is read, so the fit waits in
+  // pendingFocus until active.id and paper match.
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const pickMeasurement = useCallback((id: string) => {
+    const m = doc.measurements.find((x) => x.id === id);
+    if (!m) return;
+    setDraftPts([]);
+    setTool('select');
+    if (active && m.sheetId === active.id) {
+      setPendingFocus(null);
+      onSelect(id);
+      fitTo(m.points);
+      return;
+    }
+    openSheet(m.sheetId);
+    setActiveCondId(m.conditionId);
+    setPendingFocus(id);
+  }, [doc.measurements, active, onSelect, fitTo, openSheet]);
+  useEffect(() => {
+    if (!pendingFocus || !active || !paper) return;
+    const m = doc.measurements.find((x) => x.id === pendingFocus);
+    if (!m) { setPendingFocus(null); return; }
+    if (m.sheetId !== active.id) return;
+    setPendingFocus(null);
+    setSelectedId(m.id);
+    setActiveCondId(m.conditionId);
+    fitTo(m.points);
+  }, [pendingFocus, active, paper, doc.measurements, fitTo]);
+
+  // "A-101 · Area 2 · 212 SF", ordered by sheet (rail order) then createdAt;
+  // n counts that condition's measurements on that sheet. This sheet / All sheets applies.
+  const sheetOrder = useMemo(() => new Map(railSheets(projectSheets, '').map((s, i) => [s.id, i])), [projectSheets]);
+  const subRowsFor = useCallback((conditionId: string): MeasurementSubRow[] => {
+    const ms = doc.measurements
+      .filter((m) => m.conditionId === conditionId && (filter === 'all' || (active && m.sheetId === active.id)))
+      .slice()
+      .sort((a, b) => {
+        const sa = sheetOrder.get(a.sheetId) ?? Number.MAX_SAFE_INTEGER;
+        const sb = sheetOrder.get(b.sheetId) ?? Number.MAX_SAFE_INTEGER;
+        if (sa !== sb) return sa - sb;
+        if (a.sheetId !== b.sheetId) return a.sheetId < b.sheetId ? -1 : 1;
+        return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+      });
+    const nth = new Map<string, number>();
+    return ms.map((m) => {
+      const n = (nth.get(m.sheetId) ?? 0) + 1;
+      nth.set(m.sheetId, n);
+      const what = m.kind === 'area' ? 'Area' : m.kind === 'linear' ? 'Line' : 'Count';
+      const q = measurementQuantity(m, m.kind === 'count' ? null : calFor(m.sheetId));
+      const qty = q == null ? 'not measured — no scale' : qtyLabel(m.kind, q);
+      return { id: m.id, text: `${sheetLabel(m.sheetId)} · ${what} ${n} · ${qty}` };
+    });
+  }, [doc.measurements, filter, active, sheetOrder, calFor, sheetLabel]);
+
   const activateRow = useCallback((id: string) => {
     setActiveCondId(id);
     const c = doc.conditions.find((x) => x.id === id);
@@ -304,8 +428,12 @@ export default function TakeoffWorkspace() {
 
   // ── the condition editor ───────────────────────────────────────────────
   const editing = editor?.id ? doc.conditions.find((c) => c.id === editor.id) ?? null : null;
-  const saveCondition = useCallback((c: TakeoffCondition) => {
-    const isNew = !doc.conditions.some((x) => x.id === c.id);
+  const saveCondition = useCallback((edited: TakeoffCondition) => {
+    const prev = doc.conditions.find((x) => x.id === edited.id);
+    const isNew = !prev;
+    // The editor builds the condition from its fields; an accepted AI read rides
+    // along unless the kind changed (its unit would no longer match).
+    const c: TakeoffCondition = prev?.aiRead && !edited.aiRead && prev.kind === edited.kind ? { ...edited, aiRead: prev.aiRead } : edited;
     update((d) => ({
       ...d,
       conditions: isNew ? [...d.conditions, c] : d.conditions.map((x) => (x.id === c.id ? c : x)),
@@ -324,6 +452,50 @@ export default function TakeoffWorkspace() {
     setSelectedId(null);
     setEditor(null);
   }, [update, activeCondId]);
+  // Accept → a condition whose quantity of record is the AI number (undoable);
+  // "Accept & measure" also picks its tool so he traces it — the first drawn
+  // measurement replaces the AI number. Dismiss → remembered on the doc (undoable).
+  const acceptSuggestion = useCallback((s: AiSuggestion, measure: boolean) => {
+    // Nothing before the saved doc is read (update drops it), and a repeat of the same key is a no-op.
+    if (!loaded || doc.conditions.some((x) => x.aiRead?.key === s.key)) return;
+    const c = conditionFromSuggestion(s, db, doc.conditions.map((x) => x.color), generateUUID(), new Date().toISOString());
+    update((d) => (d.conditions.some((x) => x.aiRead?.key === s.key) ? d : { ...d, conditions: [...d.conditions, c] }));
+    setActiveCondId(c.id);
+    if (measure && !toolsOffReason) { setTool(c.kind); setDraftPts([]); }
+  }, [loaded, db, doc.conditions, update, toolsOffReason]);
+  const dismissSuggestion = useCallback((s: AiSuggestion) => {
+    update((d) => ({ ...d, aiDismissed: [...(d.aiDismissed ?? []).filter((k) => k !== s.key), s.key] }));
+  }, [update]);
+  const runAiTakeoff = useCallback(() => {
+    if (projectId) router.push({ pathname: '/takeoff', params: { projectId } });
+    else router.push('/takeoff');
+  }, [projectId, router]);
+
+  // ── starter chips (an empty takeoff), by the job's type label ─────────
+  const starterDefs = useMemo(() => starterConditionsFor(projectTypeLabel(project)), [project]);
+  // Not before the saved doc is read: a tap then would be dropped (edits before `loaded` are ignored).
+  const starters = useMemo<StarterChip[]>(() => (!loaded || doc.conditions.length > 0 ? [] : starterDefs.map((s) => {
+    const { entry } = resolveStarterTrade(db, s.tradeHint, s.kind);
+    return { key: s.key, name: s.name, unit: KIND_UNIT[s.kind], rateLine: starterRateLine(entry, s.kind) };
+  })), [loaded, doc.conditions.length, starterDefs, db]);
+  // One click = the condition, saved through the editor's own path (it activates and picks the tool).
+  const addStarter = useCallback((key: string) => {
+    const s = starterDefs.find((x) => x.key === key);
+    if (!s) return;
+    const { trade } = resolveStarterTrade(db, s.tradeHint, s.kind);
+    saveCondition({
+      id: generateUUID(),
+      name: s.name,
+      kind: s.kind,
+      trade,
+      rateOverride: null,
+      wastePct: 0,
+      heightFt: null,
+      color: defaultConditionColor(s.name, trade, doc.conditions.map((c) => c.color)),
+      createdAt: new Date().toISOString(),
+    });
+  }, [starterDefs, db, saveCondition, doc.conditions]);
+
   const newCondition = useCallback(() => {
     setEditor({ id: null, kind: activeCond?.kind ?? (DRAW_KINDS.includes(tool) ? tool as ConditionKind : 'area') });
   }, [activeCond, tool]);
@@ -389,8 +561,11 @@ export default function TakeoffWorkspace() {
     if (noRate) out.push(`${noRate} ${plural(noRate, 'has', 'have')} no rate yet — not pushed`);
     if (notMeasured) out.push(`${notMeasured} not measured (no scale on the sheet) — not pushed`);
     if (noQty) out.push(`${noQty} ${plural(noQty, 'has', 'have')} nothing measured — not pushed`);
+    // The AI label rides into the estimate: say so before he pushes.
+    const aiLines = lines.filter((l) => l.aiRead).length;
+    if (aiLines) out.push(`${aiLines} ${plural(aiLines, 'line is an', 'lines are')} AI read, not measured — pushed as “… — AI read, not measured”`);
     return out;
-  }, [skipped]);
+  }, [skipped, lines]);
   const lp = doc.lastPush && project && doc.lastPush.projectId === project.id ? doc.lastPush : null;
   const result = lp
     ? { line: `Estimate updated ${money(lp.before)} → ${money(lp.after)}`, counts: lp.updated + lp.added === 0 ? 'Already up to date — nothing changed' : `${lp.updated} updated, ${lp.added} added` }
@@ -422,8 +597,24 @@ export default function TakeoffWorkspace() {
   }
 
   // ── keys (page scope; dead while a dialog is open, back when it closes) ─
-  const live = useRef({ draftPts, selectedId, tool });
-  live.current = { draftPts, selectedId, tool };
+  const live = useRef({ draftPts, selectedId, tool, shownRows, panelOpen });
+  live.current = { draftPts, selectedId, tool, shownRows, panelOpen };
+  // '/' focuses the filter (opening the panel first if it is hidden).
+  const focusFilter = useCallback(() => {
+    if (filterRef.current) { filterRef.current.focus(); return; }
+    if (!live.current.panelOpen) togglePanel();
+    setTimeout(() => filterRef.current?.focus(), 0);
+  }, [togglePanel]);
+  // 1–9: the Nth VISIBLE row (after This sheet / All sheets and the filter text). No row N → nothing.
+  const pickNth = useCallback((n: number) => {
+    const row = live.current.shownRows[n - 1];
+    if (row) activateRow(row.condition.id);
+  }, [activateRow]);
+  const digitKeys = useMemo<HotkeyBinding[]>(() => [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+    n === 1
+      ? { combo: String(n), handler: () => pickNth(n), label: 'Pick condition 1–9', group: 'Takeoff' }
+      : { combo: String(n), handler: () => pickNth(n) }
+  )), [pickNth]);
   const flip = useCallback((dir: 1 | -1) => {
     const id = active ? adjacentSheetId(rail, active.id, dir) : null;
     if (id) openSheet(id);
@@ -458,6 +649,15 @@ export default function TakeoffWorkspace() {
     { combo: 'mod+z', handler: undo, label: 'Undo', group: 'Takeoff' },
     { combo: 'mod+shift+z', handler: redo, label: 'Redo', group: 'Takeoff' },
     { combo: 'n', handler: newCondition, label: 'New condition', group: 'Takeoff' },
+    { combo: '/', handler: focusFilter, label: 'Filter conditions', group: 'Takeoff' },
+    // Esc typed IN the filter box clears it and hands the keys back (it outranks the Esc above).
+    {
+      combo: 'escape',
+      handler: () => { setFilterText(''); filterRef.current?.blur(); },
+      when: (ev) => targetWithin(ev.target, TAKEOFF_FILTER_DOM_ID),
+      priority: 2,
+    },
+    ...digitKeys,
     { combo: 'plus', handler: () => zoomBy(1.25), label: 'Zoom in', group: 'Takeoff' },
     { combo: '=', handler: () => zoomBy(1.25) },
     { combo: '-', handler: () => zoomBy(0.8), label: 'Zoom out', group: 'Takeoff' },
@@ -522,20 +722,24 @@ export default function TakeoffWorkspace() {
         ) : null}
       </View>
 
+      {/* seam:first-run */}
       {!projectId || !active ? (
-        <TakeoffFirstRun projectId={projectId} jobs={estimateJobs} onPickJob={pickProject} />
+        <TakeoffFirstRun projectId={projectId} jobs={estimateJobs} onPickJob={pickProject} dropState={drop} onDropFile={async (f) => { const ids = await drop.importFile(f); if (ids[0]) openSheet(ids[0]); return ids; }} />
       ) : (
         <View style={styles.body}>
+          {/* seam:rail */}
           {railOpen ? (
-            <PlanSheetRail
-              sheets={rail}
-              activeId={active.id}
-              onPick={openSheet}
-              onClose={toggleRail}
-              sheetUri={sheetUri}
-              badgeFor={(s) => doc.measurements.filter((m) => m.sheetId === s.id).length}
-              scaleFor={(s) => planScaleStatus(getCalibrationForPlan(s.id))}
-            />
+            <RailDropZone drop={drop} onImported={(ids) => { if (ids[0]) openSheet(ids[0]); }} testID="takeoffws-rail-drop">
+              <PlanSheetRail
+                sheets={rail}
+                activeId={active.id}
+                onPick={openSheet}
+                onClose={toggleRail}
+                sheetUri={sheetUri}
+                badgeFor={(s) => doc.measurements.filter((m) => m.sheetId === s.id).length}
+                scaleFor={(s) => planScaleStatus(getCalibrationForPlan(s.id))}
+              />
+            </RailDropZone>
           ) : null}
           <TakeoffCanvas
             uri={uri}
@@ -547,6 +751,7 @@ export default function TakeoffWorkspace() {
             shapes={shapes}
             draft={draftPts.length ? { kind: tool === 'scale' ? 'scale' : (tool as ConditionKind), points: draftPts, color: tool === 'scale' ? t.text : draftColor } : null}
             selectedId={selectedId}
+            emphasisConditionId={panelOpen && hoverCondId && colorOf.has(hoverCondId) ? hoverCondId : null}
             tool={tool}
             onTool={chooseTool}
             toolsOffReason={toolsOffReason}
@@ -556,6 +761,7 @@ export default function TakeoffWorkspace() {
             onAddPoint={onAddPoint}
             onFinish={finish}
             onSelect={onSelect}
+            onMoveVertex={onMoveVertex}
             onZoomIn={() => zoomBy(1.25)}
             onZoomOut={() => zoomBy(0.8)}
             onFit={fit}
@@ -581,6 +787,31 @@ export default function TakeoffWorkspace() {
               result={result}
               onOpenEstimate={openEstimate}
               skippedLines={skippedLines}
+              saveLine={saveLine}
+              conflict={conflict}
+              filterText={filterText}
+              onFilterText={setFilterText}
+              filterInputRef={filterRef}
+              starters={starters}
+              onStarter={addStarter}
+              subRowsFor={subRowsFor}
+              selectedMeasurementId={selectedId}
+              onPickMeasurement={pickMeasurement}
+              onDeleteMeasurement={deleteMeasurement}
+              onHoverCondition={setHoverCondId}
+              drawnAnywhere={drawnAnywhere}
+              ai={{
+                // Until the doc is read, what he already took is unknown: show loading, not rows.
+                state: loaded ? aiSaved.state : 'loading',
+                savedAt: aiSaved.savedAt,
+                rows: aiSug.rows,
+                skipped: aiSug.skipped,
+                onAccept: (s) => acceptSuggestion(s, false),
+                onAcceptMeasure: (s) => acceptSuggestion(s, true),
+                onDismiss: dismissSuggestion,
+                onRunAi: runAiTakeoff,
+                onRetry: aiSaved.reload,
+              }}
             />
           ) : null}
         </View>

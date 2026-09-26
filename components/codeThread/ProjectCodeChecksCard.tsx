@@ -4,8 +4,9 @@
  * to run a new one for the job.
  *
  * HONESTY
- * - The saved checks live on this device and are erased when he signs out
- *   (the mageid_* sweep); the card says so under the list.
+ * - The caption under the list says where the checks are: on this device
+ *   (erased on sign-out by the mageid_* sweep) or, once the account read and
+ *   every push succeeded, on his account (CODE_CHECKS_CAPTION).
  * - An unreadable store says "Couldn't read…", never "No saved checks".
  * - A check with no jurisdiction on file says so instead of guessing one.
  */
@@ -20,6 +21,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCodeChecks } from '@/hooks/useCodeChecks';
+import { CODE_CHECKS_CAPTION } from '@/utils/codeThread/cloudSync';
 import { codeCheckRoute } from '@/utils/codeThread/actions';
 import type { CodeCheckRecord } from '@/utils/codeThread/types';
 import type { Project } from '@/types';
@@ -29,7 +31,12 @@ import { SavedCodeCheckSheet } from './SavedCodeCheckSheet';
 export const CODE_CHECKS_FAILED_TEXT = 'Couldn’t read the saved checks on this device.';
 export const CODE_CHECKS_EMPTY_TEXT =
   'No saved checks yet. A check you run for this job is saved here with its date, jurisdiction and edition.';
-export const CODE_CHECKS_LOCAL_CAPTION = 'Saved on this device until you sign out.';
+/** Where the saved checks are, by cloud-sync state. The map lives beside the
+ *  state machine (utils/codeThread/cloudSync) so the saved-check sheet reads
+ *  the same strings without importing this card. */
+export { CODE_CHECKS_CAPTION };
+/** The device-only line (kept for old imports). */
+export const CODE_CHECKS_LOCAL_CAPTION = CODE_CHECKS_CAPTION.local;
 const COLLAPSED_ROWS = 3;
 
 /** One saved check as a single line: date · category · jurisdiction · codes. */
@@ -49,7 +56,7 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { status, checks } = useCodeChecks(project.id);
+  const { status, checks, syncState } = useCodeChecks(project.id);
   const [expanded, setExpanded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -106,7 +113,9 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
           </View>
         )}
 
-        {status !== 'loading' ? <Text style={styles.caption}>{CODE_CHECKS_LOCAL_CAPTION}</Text> : null}
+        {status !== 'loading' ? (
+          <Text testID="codethread-sync-caption" style={styles.caption}>{CODE_CHECKS_CAPTION[syncState]}</Text>
+        ) : null}
       </Card>
 
       {open ? (

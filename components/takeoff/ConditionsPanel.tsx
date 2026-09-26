@@ -11,10 +11,23 @@
 //  - the push button, when blocked, says why under itself.
 //
 // Presentational: TakeoffWorkspace owns the doc, the rollups and the push.
+//
+// List-3 lane TK-a added: the "Start with" starter chips on an empty takeoff,
+// the filter box ('/' focuses it; the workspace owns the text and filters
+// with visibleRows, the same function its 1–9 keys read), hover-to-thicken
+// (onHoverCondition), one sub-row per measurement in an expanded row, and the
+// save line / conflict banner lane SYNC fills in.
+//
+// SEAM for lane TK-b: `{/* seam:ai-section */}` sits directly after the
+// "+ New condition" row inside the ScrollView.
+//
+// Lane TK-b renders "Suggested by AI" there (AiSuggestionsSection — never
+// counted until accepted) and gives an accepted AI condition its subline:
+// "AI read — not measured · p.3 · … · draw it to measure" until it is drawn.
 
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ChevronDown, ChevronRight, Hash, Minus, Plus, Square } from 'lucide-react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ChevronDown, ChevronRight, Hash, Minus, Plus, Square, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -23,12 +36,39 @@ import { Type } from '@/constants/typography';
 import EstimateJobPicker from '@/components/estimate/EstimateJobPicker';
 import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
-import type { ConditionKind, rollup } from '@/utils/takeoff/conditions';
+import { matchesConditionFilter, type ConditionKind, type rollup } from '@/utils/takeoff/conditions';
+import { filterSuggestions } from '@/utils/takeoff/aiSuggestions';
+import AiSuggestionsSection, { type AiSuggestionsSectionProps } from './AiSuggestionsSection';
 
 export type PanelRow = ReturnType<typeof rollup>['rows'][number];
 export type PanelFilter = 'sheet' | 'all';
 
+/** The rows the panel shows for this filter text (after the This sheet / All
+ *  sheets rollup). The workspace's 1–9 keys and lane TK-b's AI section read
+ *  the SAME function, so "the Nth row" is always the Nth row he can see. */
+export function visibleRows<R extends { condition: PanelRow['condition'] }>(rows: readonly R[], q: string): R[] {
+  return rows.filter((r) => matchesConditionFilter(r.condition, q));
+}
+
+/** The filter input's DOM id: the workspace's Esc binding clears the box only
+ *  when the key was typed in it (targetWithin). */
+export const TAKEOFF_FILTER_DOM_ID = 'takeoffws-filter-input-dom';
+
+/** Lane SYNC's account-sync conflict (useTakeoffConditions().conflict). */
+export type TakeoffConflict = { notice: string; hasBackup: boolean; restore: () => void; dismiss: () => void };
+
+/** One "Start with" chip: the name · unit, and its rate line ("$4.10/SF · from your jobs" / "no history"). */
+export interface StarterChip { key: string; name: string; unit: string; rateLine: string }
+
+/** One measurement under an expanded row: "A-101 · Area 1 · 212 SF". */
+export interface MeasurementSubRow { id: string; text: string }
+
 const KIND_ICON: Record<ConditionKind, typeof Square> = { area: Square, linear: Minus, count: Hash };
+
+/** The AI section's inputs; `rows` are every unhandled suggestion (the panel applies its text filter). */
+export type PanelAi = Omit<AiSuggestionsSectionProps, 'totalRows'>;
+
+const CONF_WORD = { high: 'High', medium: 'Medium', low: 'Low' } as const;
 
 export interface ConditionsPanelProps {
   rows: PanelRow[];
@@ -56,17 +96,62 @@ export interface ConditionsPanelProps {
   onOpenEstimate: () => void;
   /** "2 have no rate yet — not pushed" … */
   skippedLines: string[];
+  /** "Saved on this browser" until lane SYNC words it for account sync. */
+  saveLine: string;
+  conflict: TakeoffConflict | null;
+  /** The filter box's text (the workspace owns it). */
+  filterText: string;
+  onFilterText: (q: string) => void;
+  filterInputRef: React.RefObject<TextInput | null>;
+  /** The six starters, shown only while the takeoff has no conditions. */
+  starters: StarterChip[];
+  onStarter: (key: string) => void;
+  /** An expanded row's measurements (This sheet / All sheets already applied), in order. */
+  subRowsFor: (conditionId: string) => MeasurementSubRow[];
+  selectedMeasurementId: string | null;
+  onPickMeasurement: (id: string) => void;
+  onDeleteMeasurement: (id: string) => void;
+  /** Hovering a row (or its sub-rows) thickens that condition's shapes; null on leave. */
+  onHoverCondition: (id: string | null) => void;
+  /** "Suggested by AI" (lane TK-b). */
+  ai: PanelAi;
+  /** Condition ids with a measurement on ANY sheet (the whole doc, not this filter). */
+  drawnAnywhere: ReadonlySet<string>;
 }
 
-const qtyText = (row: PanelRow): string => {
-  if (row.totals.measuredCount === 0) return 'not measured';
-  return row.price.qty.toLocaleString('en-US', { maximumFractionDigits: 2 });
-};
+const fmtQty = (n: number): string => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+/** A number when it is drawn, or an accepted AI read in All sheets; else "not measured". */
+const hasQty = (row: PanelRow): boolean => row.totals.measuredCount > 0 || row.totals.source === 'ai_read';
+const qtyText = (row: PanelRow): string => (hasQty(row) ? fmtQty(row.price.qty) : 'not measured');
+
+/** An accepted AI condition's subline, or null (no AI read, or the no-scale warning already speaks). */
+function aiReadLine(row: PanelRow, filter: PanelFilter, drawnAnywhere: ReadonlySet<string>): string | null {
+  const ai = row.condition.aiRead;
+  if (!ai) return null;
+  const was = row.totals.aiReadQty != null ? `${fmtQty(row.totals.aiReadQty)} ${ai.unit}` : null;
+  if (row.totals.source === 'ai_read') {
+    return `AI read — not measured · ${ai.citation} · ${CONF_WORD[ai.confidence]} confidence · draw it to measure`;
+  }
+  if (row.totals.source === 'measured' && was) return `Measured · AI read was ${was}`;
+  // Only while nothing is drawn anywhere: drawn on another sheet, All sheets
+  // shows it measured and the AI number no longer counts.
+  if (row.totals.source === 'none' && was && filter === 'sheet' && row.totals.unmeasuredCount === 0
+    && !drawnAnywhere.has(row.condition.id)) {
+    return `AI read ${was} is for the whole plan set — see All sheets`;
+  }
+  return null;
+}
 
 export default function ConditionsPanel(p: ConditionsPanelProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // The sub-row under the pointer / with keyboard focus on its delete: shows the X.
+  const [hoverSub, setHoverSub] = useState<string | null>(null);
+  const [focusSub, setFocusSub] = useState<string | null>(null);
+  const shown = visibleRows(p.rows, p.filterText);
+  const q = p.filterText.trim();
+  const aiRows = filterSuggestions(p.ai.rows, p.filterText);
 
   return (
     <View style={styles.panel} testID="takeoffws-panel">
@@ -90,18 +175,57 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
           })}
         </View>
       </View>
+      <View style={styles.filterRow}>
+        <TextInput
+          ref={p.filterInputRef}
+          id={TAKEOFF_FILTER_DOM_ID}
+          value={p.filterText}
+          onChangeText={p.onFilterText}
+          placeholder="Filter conditions  /"
+          placeholderTextColor={t.textMuted}
+          style={styles.filterInput}
+          accessibilityLabel="Filter conditions"
+          autoCorrect={false}
+          autoCapitalize="none"
+          testID="takeoffws-filter-input"
+        />
+      </View>
 
       <ScrollView style={styles.list}>
+        {p.rows.length === 0 && p.starters.length > 0 ? (
+          <View style={styles.starters} testID="takeoffws-starters">
+            <Text style={styles.startersLabel}>Start with</Text>
+            <View style={styles.starterWrap}>
+              {p.starters.map((s) => (
+                <Pressable
+                  key={s.key}
+                  onPress={() => p.onStarter(s.key)}
+                  style={styles.starter}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Start a ${s.name} condition, ${s.unit}, ${s.rateLine}`}
+                  testID={`takeoffws-starter-${s.key}`}
+                >
+                  <Text style={styles.starterName} numberOfLines={1}>{`${s.name} · ${s.unit}`}</Text>
+                  <Text style={styles.starterRate} numberOfLines={1}>{s.rateLine}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
         {p.rows.length === 0 ? (
           <Text style={styles.emptyLine} testID="takeoffws-panel-empty">No conditions yet — press N or pick a tool to start one.</Text>
         ) : null}
-        {p.rows.map((row) => {
+        {p.rows.length > 0 && shown.length === 0 ? (
+          <Text style={styles.emptyLine} testID="takeoffws-filter-empty">{`No conditions match “${q}”`}</Text>
+        ) : null}
+        {shown.map((row) => {
           const c = row.condition;
           const active = c.id === p.activeId;
           const expanded = !!open[c.id];
           const Icon = KIND_ICON[c.kind];
           const unpriced = row.price.amountCents == null;
-          const measured = row.totals.measuredCount > 0;
+          const measured = hasQty(row);
+          const aiLine = aiReadLine(row, p.filter, p.drawnAnywhere);
           const unmeasured = row.totals.unmeasuredCount > 0
             ? `${row.totals.unmeasuredCount} not measured — set the scale on ${row.totals.unmeasuredSheetIds.map(p.sheetLabel).join(', ')}`
             : null;
@@ -120,13 +244,15 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
                 </Pressable>
                 <Pressable
                   onPress={() => p.onActivate(c.id)}
+                  onHoverIn={() => p.onHoverCondition(c.id)}
+                  onHoverOut={() => p.onHoverCondition(null)}
                   style={styles.rowMain}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={`${c.name}, ${qtyText(row)} ${measured ? row.totals.unit : ''}`}
                   testID={`takeoffws-row-press-${c.id}`}
                 >
-                  <View style={[styles.swatch, { backgroundColor: c.color }]} />
+                  <View style={[styles.swatch, { backgroundColor: c.color }]} testID={`takeoffws-swatch-${c.id}`} />
                   <Icon size={14} color={t.textMuted} strokeWidth={1.75} />
                   <Text style={styles.name} numberOfLines={1}>{c.name}</Text>
                   <Text style={[styles.qty, !measured && styles.qtyMuted]} numberOfLines={1} testID={`takeoffws-qty-${c.id}`}>{qtyText(row)}</Text>
@@ -143,6 +269,9 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
               ) : null}
               {unmeasured ? (
                 <Text style={[styles.subline, styles.warn]} testID={`takeoffws-unmeasured-${c.id}`}>{unmeasured}</Text>
+              ) : null}
+              {aiLine ? (
+                <Text style={[styles.subline, styles.aiLine]} testID={`takeoffws-airead-${c.id}`}>{aiLine}</Text>
               ) : null}
               {expanded ? (
                 <View style={styles.detail}>
@@ -164,6 +293,40 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
                   </TouchableOpacity>
                 </View>
               ) : null}
+              {expanded ? p.subRowsFor(c.id).map((m) => {
+                const sel = m.id === p.selectedMeasurementId;
+                const showX = hoverSub === m.id || focusSub === m.id;
+                return (
+                  <View key={m.id} style={[styles.sub, sel && styles.subSel]}>
+                    <Pressable
+                      onPress={() => p.onPickMeasurement(m.id)}
+                      onHoverIn={() => { setHoverSub(m.id); p.onHoverCondition(c.id); }}
+                      onHoverOut={() => { setHoverSub((h) => (h === m.id ? null : h)); p.onHoverCondition(null); }}
+                      style={styles.subMain}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: sel }}
+                      accessibilityLabel={`Show ${m.text}`}
+                      testID={`takeoffws-m-${m.id}`}
+                    >
+                      <Text style={styles.subText} numberOfLines={1}>{m.text}</Text>
+                    </Pressable>
+                    {/* Visible on hover; always in the tab order and read by a screen reader. */}
+                    <Pressable
+                      onPress={() => p.onDeleteMeasurement(m.id)}
+                      onHoverIn={() => setHoverSub(m.id)}
+                      onHoverOut={() => setHoverSub((h) => (h === m.id ? null : h))}
+                      onFocus={() => setFocusSub(m.id)}
+                      onBlur={() => setFocusSub((f) => (f === m.id ? null : f))}
+                      style={[styles.subDel, !showX && styles.subDelHidden]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${m.text}`}
+                      testID={`takeoffws-mdel-${m.id}`}
+                    >
+                      <X size={14} color={t.textMuted} strokeWidth={1.75} />
+                    </Pressable>
+                  </View>
+                );
+              }) : null}
             </View>
           );
         })}
@@ -171,13 +334,30 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
           <Plus size={14} color={t.textSecondary} strokeWidth={1.75} />
           <Text style={styles.newText}>New condition (N)</Text>
         </TouchableOpacity>
+        {/* seam:ai-section */}
+        <AiSuggestionsSection {...p.ai} rows={aiRows} totalRows={p.ai.rows.length} />
       </ScrollView>
 
       <View style={styles.footer}>
         <Text style={styles.cost} testID="takeoffws-cost-line">{p.costLine}</Text>
         {p.markupLine ? <Text style={styles.muted}>{p.markupLine}</Text> : null}
         <EstimateJobPicker label="Push to" jobs={p.jobs} selectedId={p.projectId ?? undefined} onPick={p.onPickJob} testID="takeoffws-push-to" />
-        <Text style={styles.muted}>Saved on this browser</Text>
+        <Text style={styles.muted} testID="takeoffws-save-line">{p.saveLine}</Text>
+        {p.conflict ? (
+          <View style={styles.conflict} testID="takeoffws-conflict">
+            <Text style={styles.muted}>{p.conflict.notice}</Text>
+            <View style={styles.conflictActions}>
+              {p.conflict.hasBackup ? (
+                <TouchableOpacity onPress={p.conflict.restore} accessibilityRole="button" testID="takeoffws-conflict-restore">
+                  <Text style={styles.link}>Restore this browser’s copy</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={p.conflict.dismiss} accessibilityRole="button" testID="takeoffws-conflict-dismiss">
+                <Text style={styles.link}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
         <TouchableOpacity
           onPress={p.onPush}
           disabled={!!p.pushReason}
@@ -223,7 +403,42 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   segBtnOn: { backgroundColor: t.surfaceAlt },
   segText: { ...Type.caption1, color: t.textMuted },
   segTextOn: { color: t.text, fontWeight: '600' },
+  filterRow: { paddingHorizontal: Layout.cardPad, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: t.line },
+  filterInput: {
+    height: 28,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: t.bg,
+    color: t.text,
+    fontSize: 13,
+  },
   list: { flex: 1 },
+  starters: { paddingHorizontal: Layout.cardPad, paddingTop: Layout.cardPad, gap: 8 },
+  startersLabel: { ...Type.caption1, color: t.textSecondary, fontWeight: '600' },
+  starterWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  starter: {
+    // Two per row in the 360 rail: (360 − 1 border − 2 × cardPad − 6 gap) / 2 ≈ 160.
+    width: 160,
+    minHeight: Layout.control.row,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.sm,
+    justifyContent: 'center',
+  },
+  starterName: { fontSize: 12, fontWeight: '600', color: t.text },
+  starterRate: { ...Type.caption2, color: t.textMuted },
+  sub: { height: 32, flexDirection: 'row', alignItems: 'center', paddingLeft: 28, paddingRight: 8 },
+  subSel: { backgroundColor: t.bg },
+  subMain: { flex: 1, height: 32, justifyContent: 'center', minWidth: 0 },
+  subText: { ...Type.caption1, color: t.textSecondary, fontVariant: ['tabular-nums'] },
+  subDel: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: Tokens.radius.sm },
+  subDelHidden: { opacity: 0 },
+  conflict: { gap: 4, paddingVertical: 6, paddingHorizontal: 8, borderRadius: Tokens.radius.sm, backgroundColor: t.surfaceAlt },
+  conflictActions: { flexDirection: 'row', gap: Layout.cardPad },
   emptyLine: { ...Type.footnote, color: t.textMuted, padding: Layout.cardPad },
   rowWrap: { borderBottomWidth: 1, borderBottomColor: t.line, borderLeftWidth: 3, borderLeftColor: 'transparent' },
   rowActive: { backgroundColor: t.surfaceAlt, borderLeftColor: t.accent },
@@ -239,6 +454,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   subline: { paddingLeft: 28 + 10 + Layout.rowGap, paddingRight: Layout.cardPad, paddingBottom: 6 },
   norate: { ...Type.caption1, color: t.accentLabel, fontWeight: '600' },
   warn: { ...Type.caption1, color: t.warningLabel },
+  aiLine: { ...Type.caption1, color: t.textMuted },
   detail: { paddingLeft: 28, paddingRight: Layout.cardPad, paddingBottom: 10, gap: 6, alignItems: 'flex-start' },
   detailText: { ...Type.caption1, color: t.textSecondary },
   link: { ...Type.caption1, color: t.accentLabel, fontWeight: '600' },

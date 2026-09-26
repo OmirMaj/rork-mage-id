@@ -36,6 +36,21 @@ export const KIND_UNIT: Record<ConditionKind, 'SF' | 'LF' | 'EA'> = { area: 'SF'
 export const WASTE_STEPS = [0, 5, 10, 15, 20] as const;
 export type WastePct = typeof WASTE_STEPS[number];
 
+/** What AI Takeoff read off the drawings for an ACCEPTED suggestion (lane
+ *  TK-b). Page-level only — AI Takeoff has no bounding boxes — so it is never
+ *  drawn. It is the quantity of record ONLY while nothing is drawn for the
+ *  condition and only in All sheets; the first drawn measurement replaces it. */
+export interface ConditionAiRead {
+  qty: number;
+  unit: 'SF' | 'LF' | 'EA';
+  confidence: 'high' | 'medium' | 'low';
+  /** "p.3, p.4 · plans.pdf" or "page not given". */
+  citation: string;
+  /** The suggestion key `${aiRunId(result)}|${section}:${id}` (utils/takeoff/aiSuggestions), so an accepted row is not suggested again. */
+  key: string;
+  readAt: string;
+}
+
 export interface TakeoffCondition {
   id: string;
   name: string;
@@ -47,6 +62,8 @@ export interface TakeoffCondition {
   heightFt: number | null;
   color: string;
   createdAt: string;
+  /** Set only when the condition came from an AI suggestion. */
+  aiRead?: ConditionAiRead;
 }
 
 export interface TakeoffMeasurement {
@@ -70,7 +87,12 @@ export interface TakeoffDoc {
   /** conditionId → the estimate line's materialId the last push wrote (the §G fallback match). */
   pushed: Record<string, string>;
   lastPush?: { at: string; projectId: string; before: number; after: number; added: number; updated: number };
+  /** AI suggestion keys he dismissed. Strings, deduped, capped at AI_DISMISSED_CAP, omitted when empty.
+   *  Lane SYNC's conflict merge unions it by this exact name. */
+  aiDismissed?: string[];
 }
+
+export const AI_DISMISSED_CAP = 500;
 
 /** Frozen all the way down: a caller that mutates it instead of returning a
  *  new doc from update() throws instead of leaking rows between jobs. */
@@ -88,6 +110,16 @@ const isStr = (v: unknown): v is string => typeof v === 'string';
 const isNonEmptyStr = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isKind = (v: unknown): v is ConditionKind => v === 'area' || v === 'linear' || v === 'count';
+const isConfidence = (v: unknown): v is ConditionAiRead['confidence'] => v === 'high' || v === 'medium' || v === 'low';
+
+/** A valid aiRead for this kind, or null (the condition is kept either way). */
+function parseAiRead(v: unknown, kind: ConditionKind): ConditionAiRead | null {
+  if (!isObj(v)) return null;
+  if (!isFiniteNum(v.qty) || v.qty <= 0) return null;
+  if (v.unit !== KIND_UNIT[kind]) return null;
+  if (!isConfidence(v.confidence) || !isStr(v.citation) || !isNonEmptyStr(v.key) || !isStr(v.readAt)) return null;
+  return { qty: v.qty, unit: KIND_UNIT[kind], confidence: v.confidence, citation: v.citation, key: v.key, readAt: v.readAt };
+}
 
 function parseCondition(r: unknown): TakeoffCondition | null {
   if (!isObj(r)) return null;
@@ -98,7 +130,24 @@ function parseCondition(r: unknown): TakeoffCondition | null {
   const heightFt = isFiniteNum(r.heightFt) && r.heightFt > 0 ? r.heightFt : null;
   const color = isNonEmptyStr(r.color) ? r.color : TAKEOFF_CONDITION_PALETTE[0];
   const createdAt = isStr(r.createdAt) ? r.createdAt : '';
-  return { id: r.id, name: r.name, kind: r.kind, trade, rateOverride, wastePct, heightFt, color, createdAt };
+  const c: TakeoffCondition = { id: r.id, name: r.name, kind: r.kind, trade, rateOverride, wastePct, heightFt, color, createdAt };
+  const aiRead = parseAiRead(r.aiRead, r.kind);
+  if (aiRead) c.aiRead = aiRead;
+  return c;
+}
+
+/** Strings only, deduped (the latest copy wins), the newest AI_DISMISSED_CAP kept. */
+export function normalizeAiDismissed(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (let i = v.length - 1; i >= 0 && out.length < AI_DISMISSED_CAP; i--) {
+    const k = v[i];
+    if (!isNonEmptyStr(k) || seen.has(k)) continue;
+    seen.add(k);
+    out.push(k);
+  }
+  return out.reverse();
 }
 
 function parsePoint(p: unknown): NormPoint | null {
@@ -157,6 +206,8 @@ export function parseTakeoffDoc(raw: string | null | undefined): TakeoffDoc {
     && isFiniteNum(lp.added) && isFiniteNum(lp.updated)) {
     doc.lastPush = { at: lp.at, projectId: lp.projectId, before: lp.before, after: lp.after, added: lp.added, updated: lp.updated };
   }
+  const aiDismissed = normalizeAiDismissed(v.aiDismissed);
+  if (aiDismissed.length) doc.aiDismissed = aiDismissed;
   return doc;
 }
 
@@ -200,6 +251,10 @@ export interface ConditionTotals {
   unmeasuredCount: number;
   measuredCount: number;
   unmeasuredSheetIds: string[];
+  /** Where `net` came from: drawn measurements, an accepted AI read, or nothing. */
+  source: 'measured' | 'ai_read' | 'none';
+  /** The accepted AI read's quantity (for comparison), or null when the condition has none. */
+  aiReadQty: number | null;
 }
 
 /**
@@ -209,6 +264,13 @@ export interface ConditionTotals {
  * usable scale; they add nothing. That is the ONLY unmeasured cause: a sheet
  * with a scale always measures, active or not, because the aspect travels with
  * the measurement. `sheetFilter` limits the totals to one sheet.
+ *
+ * AI READ (lane TK-b). An accepted AI read is the quantity ONLY when nothing
+ * at all is drawn for the condition in the whole doc AND the totals are for
+ * All sheets (sheetFilter == null) — it is a whole-plan-set number, so it
+ * never lands on one sheet's totals. Any drawn measurement in scope wins
+ * ('measured'); a no-scale drawing makes it 'none' and NEVER falls back to the
+ * AI number. Waste applies to an AI read exactly as to a measurement.
  */
 export function conditionTotals(
   c: TakeoffCondition,
@@ -232,11 +294,19 @@ export function conditionTotals(
     measuredCount++;
     net += q;
   }
+  const aiReadQty = c.aiRead ? c.aiRead.qty : null;
+  let source: ConditionTotals['source'] = measuredCount > 0 ? 'measured' : 'none';
+  // With sheetFilter == null every measurement of c is in scope, so "nothing
+  // measured and nothing unmeasured" IS "nothing drawn anywhere in the doc".
+  if (source === 'none' && unmeasuredCount === 0 && c.aiRead && sheetFilter == null) {
+    net = c.aiRead.qty;
+    source = 'ai_read';
+  }
   const billable = c.kind === 'count' ? net : net * (1 + c.wastePct / 100);
   const wallSf = c.kind === 'linear' && c.heightFt != null && c.heightFt > 0 ? billable * c.heightFt : null;
   return {
     conditionId: c.id, net, billable, unit: KIND_UNIT[c.kind], wallSf,
-    unmeasuredCount, measuredCount, unmeasuredSheetIds: unmeasured,
+    unmeasuredCount, measuredCount, unmeasuredSheetIds: unmeasured, source, aiReadQty,
   };
 }
 
@@ -325,6 +395,16 @@ export function defaultConditionColor(name: string, trade: string | null, used: 
   const free = TAKEOFF_CONDITION_PALETTE.find(p => !usedSet.has(p.toUpperCase()));
   if (free) return free;
   return TAKEOFF_CONDITION_PALETTE[used.length % TAKEOFF_CONDITION_PALETTE.length];
+}
+
+// ── filter ──────────────────────────────────────────────────────────────────
+
+/** The panel's "Filter conditions" box: a case-insensitive substring match on
+ *  the name or the trade. A blank (or whitespace-only) query matches every row. */
+export function matchesConditionFilter(c: TakeoffCondition, q: string): boolean {
+  const needle = (q ?? '').trim().toLowerCase();
+  if (!needle) return true;
+  return c.name.toLowerCase().includes(needle) || (c.trade ?? '').toLowerCase().includes(needle);
 }
 
 // ── rollup ──────────────────────────────────────────────────────────────────

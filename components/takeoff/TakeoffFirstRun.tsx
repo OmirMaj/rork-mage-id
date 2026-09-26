@@ -6,13 +6,15 @@
 // this does, one primary action, one line of steps.
 
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import EstimateJobPicker from '@/components/estimate/EstimateJobPicker';
+import RailDropZone from './RailDropZone';
+import type { TakeoffPdfDrop } from '@/hooks/useTakeoffPdfDrop';
 
 export interface TakeoffFirstRunProps {
   /** The job being taken off; null when there is none to pick yet. */
@@ -20,9 +22,13 @@ export interface TakeoffFirstRunProps {
   /** Jobs he can pick (estimateProjectCandidates) — shown when there is no job. */
   jobs: { id: string; name: string }[];
   onPickJob: (id: string) => void;
+  /** List-3 TK-c: a PDF dropped on this screen (hooks/useTakeoffPdfDrop).
+   *  With dropState, the column becomes a drop target (web only). */
+  onDropFile?: (file: File) => Promise<string[]>;
+  dropState?: Pick<TakeoffPdfDrop, 'importing' | 'status' | 'blockReason'>;
 }
 
-export default function TakeoffFirstRun({ projectId, jobs, onPickJob }: TakeoffFirstRunProps) {
+export default function TakeoffFirstRun({ projectId, jobs, onPickJob, onDropFile, dropState }: TakeoffFirstRunProps) {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
@@ -41,7 +47,9 @@ export default function TakeoffFirstRun({ projectId, jobs, onPickJob }: TakeoffF
     );
   }
 
-  return (
+  // A drop only exists in a browser; the phone harness keeps today's screen.
+  const droppable = !!onDropFile && !!dropState && Platform.OS === 'web';
+  const column = (
     <View style={styles.wrap} testID="takeoffws-firstrun">
       <View style={styles.col}>
         <Text style={styles.title} accessibilityRole="header">Measure a plan. Price it from your own jobs.</Text>
@@ -54,9 +62,16 @@ export default function TakeoffFirstRun({ projectId, jobs, onPickJob }: TakeoffF
         >
           <Text style={styles.primaryText}>Upload plans</Text>
         </TouchableOpacity>
+        {droppable ? <Text style={styles.steps} testID="takeoffws-firstrun-drop-hint">or drop a PDF here</Text> : null}
         <Text style={styles.steps}>1 Set scale (K) · 2 Pick a condition · 3 Click to measure</Text>
       </View>
     </View>
+  );
+  if (!droppable || !onDropFile || !dropState) return column;
+  return (
+    <RailDropZone drop={{ ...dropState, importFile: onDropFile }} style={styles.dropFill} testID="takeoffws-firstrun-drop">
+      {column}
+    </RailDropZone>
   );
 }
 
@@ -75,4 +90,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   primaryText: { ...Type.bodyCompactEmphasized, color: '#FFFFFF' },
   steps: { ...Type.footnote, color: t.textMuted, textAlign: 'center' },
+  dropFill: { flex: 1 },
 });

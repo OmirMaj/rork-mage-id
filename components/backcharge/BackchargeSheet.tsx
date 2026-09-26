@@ -25,8 +25,8 @@ import { Sheet, Button, SegmentedControl } from '@/components/ui';
 import { parseDecimalInput } from '@/utils/estimateLanding';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
-import { amountFromHours, BackchargeHoursError, formatCents, type Backcharge } from '@/utils/backcharges';
-import type { Commitment, Project, ProjectPhoto, Subcontractor } from '@/types';
+import { amountFromHours, BackchargeHoursError, backchargePrefillFromPunch, formatCents, type Backcharge } from '@/utils/backcharges';
+import type { Commitment, Project, ProjectPhoto, PunchItem, Subcontractor } from '@/types';
 
 export const NO_LABOR_RATE_TEXT = 'No labor rate on file — type the amount';
 
@@ -37,17 +37,21 @@ export interface BackchargeSheetProps {
   commitments: Commitment[];
   onClose: () => void;
   onSave: (b: Backcharge) => void;
+  /** Opened from this punch item: the reason and its photo start filled in.
+   *  The amount never does — he types it or uses hours × his rate. */
+  fromPunch?: PunchItem;
 }
 
 type AmountMode = 'typed' | 'hours';
 
-export function BackchargeSheet({ visible, project, sub, commitments, onClose, onSave }: BackchargeSheetProps) {
+export function BackchargeSheet({ visible, project, sub, commitments, onClose, onSave, fromPunch }: BackchargeSheetProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { addProjectPhoto, getPunchItemsForProject } = useProjects();
   const { rates } = useLaborRates();
 
-  const [reason, setReason] = useState('');
+  // The parent mounts this sheet only while open, so the initialisers are the reset.
+  const [reason, setReason] = useState(() => (fromPunch ? backchargePrefillFromPunch(fromPunch, [sub]).reason : ''));
   const [mode, setMode] = useState<AmountMode>('typed');
   const [amountText, setAmountText] = useState('');
   const [hoursText, setHoursText] = useState('');
@@ -55,7 +59,9 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
   const [rateKey, setRateKey] = useState<string | null>(null);
   const activeRateKey = rateKey && rates[rateKey] ? rateKey : rateKeys[0] ?? null;
   const rateCents = activeRateKey ? Math.round(rates[activeRateKey] * 100) : null;
-  const [photo, setPhoto] = useState<{ uri: string; photoId: string | null; punchItemId: string | null } | null>(null);
+  const [photo, setPhoto] = useState<{ uri: string; photoId: string | null; punchItemId: string | null } | null>(
+    () => (fromPunch ? backchargePrefillFromPunch(fromPunch, [sub]).photo : null),
+  );
   const [commitmentId, setCommitmentId] = useState<string | null>(commitments.length === 1 ? commitments[0].id : null);
 
   const punchWithPhotos = useMemo(() => {

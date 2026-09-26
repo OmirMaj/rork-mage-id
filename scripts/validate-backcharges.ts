@@ -16,6 +16,9 @@ import { dirname, join } from 'node:path';
 import {
   BACKCHARGES_KEY, parseBackcharges, openFor, amountFromHours, BackchargeHoursError,
   planDeduction, markApplied, backchargeNotice, invoiceDeduction, sumCents, type Backcharge,
+  backchargePrefillFromPunch, backchargeFromPunchBlock, backchargeTierWhy,
+  BACKCHARGE_NEEDS_SUB, BACKCHARGE_AMBIGUOUS_SUB, BACKCHARGE_SEAT_CHECKING, BACKCHARGE_SEAT_FIELD, BACKCHARGE_SEAT_VIEWER,
+  BACKCHARGE_SEAT_FAILED, BACKCHARGE_SEAT_OFFLINE, BACKCHARGE_SEAT_NONE,
 } from '../utils/backcharges';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -185,6 +188,81 @@ const portal = read('app/sub-portal-setup.tsx');
 ok('sub-portal-setup keeps the overage guard text "Overage:"', portal.includes('`Overage: ${formatMoney(guard.overage)}\\n\\n` +'));
 ok('the section sits directly above the Submitted invoices anchor', /<BackchargeSection [^\n]*\/> : null\}\n\n\s*\{\/\* Submitted invoices \*\/\}/.test(portal));
 ok('the deduction card follows PayWhatsEarnedCard under the same condition', /<PayWhatsEarnedCard[^\n]*\n\s*\{inv\.status === 'submitted' && project && sub \? \(<BackchargeDeductionCard invoice=\{inv\} project=\{project\} sub=\{sub\} \/>\) : null\}/.test(portal));
+
+console.log('\n§7 a backcharge from a punch item');
+{
+  const subs = [
+    { id: 'sA', companyName: 'Vega Painting' },
+    { id: 'sB', companyName: 'Northline Electric' },
+    { id: 'sC', companyName: 'Twin Tile' },
+    { id: 'sD', companyName: 'twin tile ' },
+  ];
+  const punch = (p: Partial<{ id: string; description: string; location: string; photoUri: string; assignedSub: string; assignedSubId: string }>) => ({
+    id: 'p-1', description: 'Drywall gouge at stair', location: 'Hall', assignedSub: '', ...p,
+  });
+  const T = 'TIER-WHY';
+
+  // The seat rule: first match wins, seat > tier > prefill.
+  ok('field seat → the costs sentence, even on a passing tier and a valid prefill',
+    backchargeFromPunchBlock('field', true, T, null) === BACKCHARGE_SEAT_FIELD);
+  ok('the costs sentence says money and costs', /money/.test(BACKCHARGE_SEAT_FIELD) && /costs/.test(BACKCHARGE_SEAT_FIELD));
+  ok('viewer seat → view-only', backchargeFromPunchBlock('viewer', true, T, null) === BACKCHARGE_SEAT_VIEWER && /view-only/.test(BACKCHARGE_SEAT_VIEWER));
+  ok('no seat yet (null) → checking', backchargeFromPunchBlock(null, true, T, null) === BACKCHARGE_SEAT_CHECKING && /Checking/.test(BACKCHARGE_SEAT_CHECKING));
+  ok('a failed role read never says Checking (#90)', backchargeFromPunchBlock(null, true, T, null, 'failed') === BACKCHARGE_SEAT_FAILED);
+  ok('a role read paused offline says offline', backchargeFromPunchBlock(null, true, T, null, 'offline') === BACKCHARGE_SEAT_OFFLINE && /offline/.test(BACKCHARGE_SEAT_OFFLINE));
+  ok('a settled empty read says not on this job', backchargeFromPunchBlock(null, true, T, null, 'none') === BACKCHARGE_SEAT_NONE && /not on this job/.test(BACKCHARGE_SEAT_NONE));
+  ok('only an in-flight read says Checking', backchargeFromPunchBlock(null, true, T, null, 'loading') === BACKCHARGE_SEAT_CHECKING);
+  {
+    const pl = readFileSync(join(ROOT, 'app/punch-list.tsx'), 'utf8');
+    ok('punch-list passes the role read status to the backcharge block', /backchargePrefill\.why,\s*backchargeSeatRead,/.test(pl) && /seatReadStatus\(\{/.test(pl));
+  }
+  ok('owner + tier ok + no why → null (can start)', backchargeFromPunchBlock('owner', true, T, null) === null);
+  ok('editor + tier ok + no why → null (can start)', backchargeFromPunchBlock('editor', true, T, null) === null);
+  ok('seat beats tier: field on a failing tier still reads the costs sentence', backchargeFromPunchBlock('field', false, T, BACKCHARGE_NEEDS_SUB) === BACKCHARGE_SEAT_FIELD);
+  ok('seat beats tier: null on a failing tier reads checking', backchargeFromPunchBlock(null, false, T, BACKCHARGE_NEEDS_SUB) === BACKCHARGE_SEAT_CHECKING);
+  ok('tier beats prefill: owner on a failing tier → the tier sentence', backchargeFromPunchBlock('owner', false, T, BACKCHARGE_NEEDS_SUB) === T);
+  ok('prefill last: owner on a passing tier with a why → that why', backchargeFromPunchBlock('owner', true, T, BACKCHARGE_AMBIGUOUS_SUB) === BACKCHARGE_AMBIGUOUS_SUB);
+  ok('the tier sentence names the plan', backchargeTierWhy('business') === 'Backcharges come with the Business plan — the same plan as sub portals.', backchargeTierWhy('business'));
+
+  // The prefill.
+  const byId = backchargePrefillFromPunch(punch({ assignedSubId: 'sB', assignedSub: 'Vega Painting' }), subs);
+  ok('by assignedSubId when that sub exists (the id outranks the name)', byId.subId === 'sB' && byId.why === null, byId);
+  const byName = backchargePrefillFromPunch(punch({ assignedSub: '  vega PAINTING ' }), subs);
+  ok('by a unique company name, trimmed and case-insensitive', byName.subId === 'sA' && byName.why === null, byName);
+  const staleId = backchargePrefillFromPunch(punch({ assignedSubId: 'gone', assignedSub: 'Northline Electric' }), subs);
+  ok('an id no sub has falls back to the unique name', staleId.subId === 'sB' && staleId.why === null, staleId);
+  const amb = backchargePrefillFromPunch(punch({ assignedSub: 'Twin Tile' }), subs);
+  ok('two subs share the name → no sub, the several-subs why', amb.subId === null && amb.why === BACKCHARGE_AMBIGUOUS_SUB, amb);
+  const none = backchargePrefillFromPunch(punch({ assignedSub: '' }), subs);
+  ok('unassigned → no sub, the assign-first why', none.subId === null && none.why === BACKCHARGE_NEEDS_SUB, none);
+  const unknown = backchargePrefillFromPunch(punch({ assignedSub: 'In-house' }), subs);
+  ok('a name no sub has → the assign-first why', unknown.subId === null && unknown.why === BACKCHARGE_NEEDS_SUB, unknown);
+  ok('the assign-first why says a backcharge comes off a sub\'s bill', /Assign this punch item to a sub first/.test(BACKCHARGE_NEEDS_SUB) && /bill/.test(BACKCHARGE_NEEDS_SUB));
+  ok('reason names the item and its room', byName.reason === 'Punch item: Drywall gouge at stair (Hall)', byName.reason);
+  ok('reason with no room has no parentheses', backchargePrefillFromPunch(punch({ location: '' }), subs).reason === 'Punch item: Drywall gouge at stair');
+  const longR = backchargePrefillFromPunch(punch({ description: 'y'.repeat(500) }), subs).reason;
+  ok('reason clipped to 200', longR.length === 200, longR.length);
+  const withPhoto = backchargePrefillFromPunch(punch({ photoUri: 'https://x.test/p.jpg', assignedSub: 'Vega Painting' }), subs);
+  ok('the punch photo is carried with its punchItemId and photoId null',
+    JSON.stringify(withPhoto.photo) === JSON.stringify({ uri: 'https://x.test/p.jpg', photoId: null, punchItemId: 'p-1' }), withPhoto.photo);
+  ok('no punch photo → photo null', byName.photo === null);
+  ok('the prefill has NO amount field (never an invented number)',
+    Object.keys(withPhoto).sort().join() === 'photo,reason,subId,why' && !Object.keys(withPhoto).some(k => /amount|cents|hours|rate/i.test(k)), Object.keys(withPhoto));
+  const sheetSrc = read('components/backcharge/BackchargeSheet.tsx');
+  ok('the sheet prefills reason and photo only from fromPunch, and the amount starts empty',
+    /useState\(\(\) => \(fromPunch \? backchargePrefillFromPunch\(fromPunch, \[sub\]\)\.reason : ''\)\)/.test(sheetSrc)
+    && /fromPunch \? backchargePrefillFromPunch\(fromPunch, \[sub\]\)\.photo : null/.test(sheetSrc)
+    && /const \[amountText, setAmountText\] = useState\(''\);/.test(sheetSrc) && /const \[hoursText, setHoursText\] = useState\(''\);/.test(sheetSrc));
+  const pl = read('app/punch-list.tsx');
+  ok('punch-list mounts the backcharge sheet only while a punch item is chosen',
+    /\{backchargeFor && project && backchargeSub \? \(\s*<BackchargeSheet\s*\n\s*visible/.test(pl));
+  ok('punch-list feeds the seat through pricingRoleFor (the offline-owner fallback) and the sub-portal plan gate',
+    /backchargeFromPunchBlock\(\s*pricingRoleFor\(pinRole, project\?\.ownerUserId, user\?\.id\),\s*canAccessTier\('subcontractor_management'\)/.test(pl));
+  ok('the saved alert says nothing was sent', /Nothing was sent\./.test(pl));
+  ok('punch-list opens the backcharge sheet AFTER the edit sheet closes (iOS refuses a modal over a dismissing modal)',
+    /setShowForm\(false\); resetForm\(\);\s*\n(?:\s*\/\/[^\n]*\n)?\s*setTimeout\(\(\) => setBackchargeFor\(item\), Platform\.OS === 'ios' \? 450 : 100\);/.test(pl)
+    && !/resetForm\(\);\s*\n\s*setBackchargeFor\(item\);/.test(pl));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

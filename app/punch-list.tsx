@@ -15,7 +15,7 @@ import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
   Trash2, Link2, ChevronDown, ListChecks, ChevronRight, Filter, MapPin,
   Camera, Square, SquareCheck, Users, Send, Layers, List, ArrowUpDown,
-  ArrowLeftRight, EyeOff, Wrench, CalendarClock, MapPinned, MapPinPlus, Images, ScanSearch,
+  ArrowLeftRight, EyeOff, Wrench, CalendarClock, MapPinned, MapPinPlus, Images, ScanSearch, Receipt,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -28,6 +28,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 // utils/collaboratorAccess.
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { seatReadStatus } from '@/utils/syncSeat';
 import {
   punchStatusPatch, punchRejectionBox, punchLocationText, invitedPunchProjects, latestRejectedAt,
   punchGateAnswer, punchFocusStep, punchItemFromQueryCache, punchItemsQueryKey, type PunchFocusApplied, isPunchReject, PUNCH_NO_ROOM_TEXT,
@@ -84,6 +85,11 @@ import { useCountTo } from '@/components/animations/TapeRollNumber';
 import { AnimatedFill } from '@/components/animations/AnimatedFill';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
 import CodeCheckThisButton from '@/components/codeThread/CodeCheckThisButton';
+import { BackchargeSheet } from '@/components/backcharge/BackchargeSheet';
+import { useBackcharges } from '@/hooks/useBackcharges';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import { pricingRoleFor } from '@/utils/fieldTicketCore';
+import { backchargePrefillFromPunch, backchargeFromPunchBlock, backchargeTierWhy } from '@/utils/backcharges';
 import {
   buildPunchLocationOptions,
   groupPunchItemsByLocation,
@@ -863,8 +869,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     itemId?: string;
   }>();
   const queryClient = useQueryClient();
-  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded } = useProjects();
+  const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded, getCommitmentsForProject } = useProjects();
   const { user } = useAuth();
+  // Backcharge the sub (edit sheet): the same plan gate sub-portal-setup puts
+  // in front of backcharges, and the device-local backcharge list.
+  const { canAccess: canAccessTier, requiredTierFor } = useTierAccess();
+  const { add: addBackcharge } = useBackcharges();
 
   // Reached from the sidebar, universal search or a deep link there is no
   // projectId, so ToolProjectPicker sets one locally (field-ticket pattern).
@@ -1101,6 +1111,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   // Photo Code Look on the viewer's photo. Mounted ONLY while set: a closed,
   // always-mounted sheet would hold a dialog hotkey scope on desktop.
   const [codeLookTarget, setCodeLookTarget] = useState<{ photoUri: string; sourcePhotoId?: string } | null>(null);
+  /** The punch item a backcharge is being recorded from (sheet mounted only while set). */
+  const [backchargeFor, setBackchargeFor] = useState<PunchItem | null>(null);
   // A signed URL expires, and legacy rows can still hold another device's
   // `file://`. Either way <Image> resolves to nothing and leaves an empty
   // frame that reads as "the photo is gone" — showing no thumbnail is the
@@ -2193,7 +2205,27 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   // The export's numbers (whole project list) — the edit sheet's "#14".
   const itemNumbers = useMemo(() => punchItemNumbers(allItems), [allItems]);
   const { writePin, removalFor, role: pinRole } = usePunchPinWriter(projectId ?? '');
+  // Why pinRole is null, when it is — so a failed or offline role read never
+  // reads 'Checking…' on the backcharge button (#90). Shares the query cache.
+  const seatRoleState = useProjectRoleState(projectId || undefined);
+  const backchargeSeatRead = seatReadStatus({
+    isLoading: seatRoleState.isLoading, isError: seatRoleState.isError, isPaused: seatRoleState.isPaused,
+  });
   const pinBlocked = pinWriteBlockedReason(pinRole);
+  // "Backcharge the sub": a money action — owner/editor seat that sees costs,
+  // then the plan, then a sub on the item. First blocked reason wins.
+  const backchargePrefill = editingItem && punchListTypeOf(editingItem) === 'punch'
+    ? backchargePrefillFromPunch(editingItem, subcontractors) : null;
+  const backchargeBlocked = backchargePrefill
+    ? backchargeFromPunchBlock(
+      pricingRoleFor(pinRole, project?.ownerUserId, user?.id),
+      canAccessTier('subcontractor_management'),
+      backchargeTierWhy(requiredTierFor('subcontractor_management')),
+      backchargePrefill.why,
+      backchargeSeatRead,
+    ) : null;
+  const backchargeSub = backchargeFor
+    ? subcontractors.find(s => s.id === backchargePrefillFromPunch(backchargeFor, subcontractors).subId) ?? null : null;
   const editingPinSeed = useMemo(
     () => (editingItem ? pinSeedFor(editingItem, sheetsById, drawingPins) : { initialPin: formPin, initialSheetId: null }),
     [editingItem, sheetsById, drawingPins, formPin],
@@ -2914,6 +2946,29 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           />
         </View>
       )}
+      {/* Backcharge the sub: closes the sheet, then records one (never sent). */}
+      {editingItem && backchargePrefill ? (
+        <View testID="backcharge-from-punch" style={styles.backchargeEntry}>
+          <Button
+            label="Backcharge the sub"
+            variant="secondary"
+            fullWidth
+            disabled={!!backchargeBlocked}
+            onPress={() => {
+              if (backchargeBlocked) return;
+              const item = editingItem;
+              setShowForm(false); resetForm();
+              // A modal over a modal is unreliable on iOS: close, then open after the fade.
+              setTimeout(() => setBackchargeFor(item), Platform.OS === 'ios' ? 450 : 100);
+            }}
+            iconLeft={<Receipt size={18} color={themeColors.text} strokeWidth={1.75} />}
+            testID="backcharge-from-punch-button"
+          />
+          {backchargeBlocked ? (
+            <Text style={styles.backchargeWhy} testID="backcharge-from-punch-why">{backchargeBlocked}</Text>
+          ) : null}
+        </View>
+      ) : null}
     </>
   );
   const formPhotoPreviewEl = (
@@ -3671,6 +3726,22 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         </View>
       </Modal>
 
+      {backchargeFor && project && backchargeSub ? (
+        <BackchargeSheet
+          visible
+          project={project}
+          sub={backchargeSub}
+          commitments={getCommitmentsForProject(project.id).filter(c => c.subcontractorId === backchargeSub.id)}
+          fromPunch={backchargeFor}
+          onClose={() => setBackchargeFor(null)}
+          onSave={(b) => {
+            addBackcharge(b);
+            setBackchargeFor(null);
+            showAlert('Backcharge saved', `It comes off ${backchargeSub.companyName}’s next bill only when you apply it on their sub page. Nothing was sent.`);
+          }}
+        />
+      ) : null}
+
       {codeLookTarget && project ? (
         <CodeLookSheet
           visible
@@ -3978,6 +4049,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 }
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  backchargeEntry: { marginBottom: 14 },
+  backchargeWhy: { ...Type.footnote, color: themeColors.textMuted, marginTop: 6 },
   container: { flex: 1, backgroundColor: themeColors.bg },
   gateWrap: { flex: 1, padding: 24, justifyContent: 'center' as const, alignItems: 'center' as const, gap: 12 },
   gateTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: themeColors.text, textAlign: 'center' as const },

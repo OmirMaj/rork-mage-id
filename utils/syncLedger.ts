@@ -591,6 +591,9 @@ const TABLE_LABELS: Record<string, string> = {
   profiles: 'Profile & settings',
   // Wave 5 (portfolio): the public project page's on/off flag.
   public_profiles: 'Project page',
+  // List round 3: the account copies of saved code checks and the desktop takeoff.
+  code_checks: 'Saved code check',
+  takeoff_docs: 'Desktop takeoff',
 };
 
 export function labelForTable(table: string): string {

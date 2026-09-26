@@ -345,5 +345,45 @@ console.log('\n7. the words on the panel, and nothing saved');
   ok('the sweep modal is mounted only while open', /\{sweepOpen \? \(\s*<Modal visible=\{sweepOpen\}/.test(cta));
 }
 
+// ── 8. A finding → a punch item (list-3 lane FB) ──────────────────────────
+console.log('\n8. "Add punch item": open, unassigned, pinned only where the AI placed it');
+{
+  const nj = resolveCodeJurisdiction({ city: 'Hoboken', state: 'NJ' });
+  const A2 = sheet('a2', 'A-201');
+  const base = PS.sweepFindingView({
+    category: 'egress', codeRef: 'IRC R310.1', requirement: 'r', observed: 'o', severity: 'high', confidence: 'med',
+    question: 'Does the bedroom 2 window meet the egress opening size?', location: { x: 0.25, y: 0.75 },
+  }, A2, nj);
+  // A view whose title still carries the model's verdict word — the punch
+  // builder must neutralise on its own, not trust its caller.
+  const raw = { ...base, title: 'Window violates R310 egress at bedroom 2' };
+  const pinned = PS.punchFromSweepFinding(A2, raw, 'pid-1', '2026-09-26T12:00:00.000Z');
+  ok('status open, unassigned, no due date, medium, on the punch list',
+    pinned.status === 'open' && pinned.assignedSub === '' && pinned.dueDate === '' && pinned.priority === 'medium' && pinned.listType === 'punch');
+  ok('id, project and both timestamps are the caller\'s', pinned.id === 'pid-1' && pinned.projectId === P
+    && pinned.createdAt === '2026-09-26T12:00:00.000Z' && pinned.updatedAt === pinned.createdAt);
+  ok('placed → the pin fields are the AI\'s spot on this sheet', pinned.planSheetId === 'a2' && pinned.pinX === 0.25 && pinned.pinY === 0.75);
+  ok('placed → the location says the spot is approximate', /approximate/.test(pinned.location) && /^A-201/.test(pinned.location), pinned.location);
+  ok('"violates" is gone from the description and R310 is kept',
+    !/violates/i.test(pinned.description) && /R310/.test(pinned.description) && !PS.FORBIDDEN_WORDS.test(pinned.description), pinned.description);
+  ok('the description names the sheet', pinned.description.startsWith('Check on A-201: '), pinned.description);
+  const unplaced = PS.punchFromSweepFinding(A2, { ...base, location: null }, 'pid-2', '2026-09-26T12:00:00.000Z');
+  ok('not placed → NO pin fields at all (never an invented spot)',
+    !('planSheetId' in unplaced) && !('pinX' in unplaced) && !('pinY' in unplaced), JSON.stringify(unplaced));
+  ok('not placed → the location is the sheet alone, never "approximate"', unplaced.location === 'A-201');
+  const long = PS.punchFromSweepFinding(A2, { ...base, title: 'x'.repeat(400) }, 'pid-3', 'n');
+  ok('the description is clipped to 240', long.description.length <= 240, String(long.description.length));
+  const extra = [PS.sweepCopy.addPunch, PS.sweepCopy.punchAddedPinned, PS.sweepCopy.punchAddedNoPin, PS.sweepCopy.approxNote];
+  ok('the four new strings exist and are free of verdict words',
+    extra.every(x => typeof x === 'string' && x.length > 0 && !PS.FORBIDDEN_WORDS.test(x) && !BAD.test(x)), extra.join(' | '));
+  ok('both "added" lines end in the Open punch list link words', extra.slice(1, 3).every(x => x.endsWith('Open punch list')));
+  ok('the approximate note says the AI estimates the spot', /approximate/.test(PS.sweepCopy.approxNote) && /AI estimates/.test(PS.sweepCopy.approxNote));
+  const panel = code('components/plans/PlanSweepPanel.tsx');
+  ok('the panel adds the drawing pin only inside `if (view.location)` with kind punch and the link back',
+    /if \(view\.location\) \{\s*addDrawingPin\(\{[^}]*kind: 'punch'[^}]*linkedPunchItemId: punch\.id/.test(panel));
+  ok('the punch action is idempotent per finding key', /if \(punchedRef\.current\[key\]\) return;/.test(panel));
+  ok('the punch button carries the finding key testID', /testID=\{`plansweep-punch-\$\{key\}`\}/.test(panel));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
