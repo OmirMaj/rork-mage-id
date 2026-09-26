@@ -26,13 +26,21 @@ import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { Type } from '@/constants/typography';
 import { Tokens, Layout } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
-import { Slot, useLaunchEntrance, useLaunchTarget } from '@/components/auth/authMotion';
+import {
+  AuthSubmitButton, FieldRing, Slot, useLaunchEntrance, useLaunchTarget, usePressSpring,
+} from '@/components/auth/authMotion';
+import { layoutNext, reducedMotion, useSwapFade } from '@/components/ui/motion';
 import {
   INVITE_PARAM, postSignInHref, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
 
 // The wordmark while the splash's own "MAGE ID" is still flying onto it.
 const HIDDEN = { opacity: 0 } as const;
+
+// After "Create Account" succeeds the button's check holds a beat, then the
+// confirm card rises into place. 0 under Reduce Motion.
+// hoist into Motion.duration after round 3
+const CONFIRM_HOLD_MS = 420;
 
 export default function SignupScreen() {
   const { colors: themeColors } = useTheme();
@@ -144,24 +152,48 @@ export default function SignupScreen() {
   const [confirmedElsewhere, setConfirmedElsewhere] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
 
-  const buttonScale = useRef(new Animated.Value(1)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const press = usePressSpring();
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
-  const shake = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
-    ]).start();
-  }, [shakeAnim]);
+  // Form motion (slick round 3, lane A2) — the same rules as login.tsx: a
+  // field's ring is accent while focused and danger when the last attempt
+  // named it (danger outranks focus; an edit of the field clears it); a server
+  // error names no field; the button morphs label → spinner → check.
+  const [focused, setFocused] = useState<'name' | 'email' | 'password' | null>(null);
+  const [nameDanger, setNameDanger] = useState(false);
+  const [emailDanger, setEmailDanger] = useState(false);
+  const [passwordDanger, setPasswordDanger] = useState(false);
+  const [submitDone, setSubmitDone] = useState(false);
+  const submitPhase = submitDone ? 'done' : isSubmitting ? 'loading' : 'idle';
+
+  // The hold between the check and the confirm card: cleared on unmount, and
+  // never fires into an unmounted screen.
+  const mountedRef = useRef(true);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, []);
+
+  // Every banner change goes through here: when it shows or hides, the rows
+  // below ease to their new place (layoutNext; native only) instead of jumping.
+  const errorShownRef = useRef(false);
+  const setError = useCallback((msg: string) => {
+    const flips = !!msg !== errorShownRef.current;
+    errorShownRef.current = !!msg;
+    if (flips) layoutNext();
+    setErrorMessage(msg);
+  }, []);
+  // The banner fades in (160 ms) whenever a new message arrives. Null at rest.
+  const bannerFade = useSwapFade(errorMessage);
 
   const handleGoogleSignup = useCallback(async () => {
     setIsGoogleLoading(true);
-    setErrorMessage('');
+    setError('');
     localSignInRef.current = true;
     try {
       // #159: false = he closed the Google sheet. Stay on Sign-up — a
@@ -178,11 +210,11 @@ export default function SignupScreen() {
       localSignInRef.current = false;
       setIsGoogleLoading(false);
     }
-  }, [signInWithGoogle, goAfterOAuth]);
+  }, [signInWithGoogle, goAfterOAuth, setError]);
 
   const handleAppleSignup = useCallback(async () => {
     setIsAppleLoading(true);
-    setErrorMessage('');
+    setError('');
     localSignInRef.current = true;
     try {
       // #159: false = he closed the Apple sheet. Stay on Sign-up — a
@@ -199,14 +231,22 @@ export default function SignupScreen() {
       localSignInRef.current = false;
       setIsAppleLoading(false);
     }
-  }, [signInWithApple, goAfterOAuth]);
+  }, [signInWithApple, goAfterOAuth, setError]);
 
   const handleSignup = useCallback(async () => {
-    setErrorMessage('');
+    // The keyboard's Go key is not disabled with the button: a second submit
+    // while one is in flight, or during the check's hold, must not send twice.
+    if (isSubmitting || submitDone) return;
+    setError('');
 
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setErrorMessage('Please fill in all fields');
-      shake();
+    const nameEmpty = !name.trim();
+    const emailEmpty = !email.trim();
+    const passwordEmpty = !password.trim();
+    if (nameEmpty || emailEmpty || passwordEmpty) {
+      setNameDanger(nameEmpty);
+      setEmailDanger(emailEmpty);
+      setPasswordDanger(passwordEmpty);
+      setError('Please fill in all fields');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -214,18 +254,18 @@ export default function SignupScreen() {
     }
 
     if (password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters');
-      shake();
+      setNameDanger(false);
+      setEmailDanger(false);
+      setPasswordDanger(true);
+      setError('Password must be at least 8 characters');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       return;
     }
-
-    Animated.sequence([
-      Animated.timing(buttonScale, { toValue: 0.95, duration: 80, useNativeDriver: true }),
-      Animated.timing(buttonScale, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
+    setNameDanger(false);
+    setEmailDanger(false);
+    setPasswordDanger(false);
 
     setIsSubmitting(true);
     localSignInRef.current = true;
@@ -244,12 +284,24 @@ export default function SignupScreen() {
       // confirmed session in ANOTHER tab is routed by the root gate (the
       // account's invite token first); THIS tab, if it gets the session
       // broadcast, is moved by the #108 watcher above.
-      setPendingEmail(email.trim());
-      setShowConfirmModal(true);
+      //
+      // The button lands on its check, holds CONFIRM_HOLD_MS, then the card
+      // rises; the button settles back to its label under the scrim.
+      const confirmedEmail = email.trim();
+      const openConfirm = () => {
+        confirmTimerRef.current = null;
+        if (!mountedRef.current) return;
+        setPendingEmail(confirmedEmail);
+        setShowConfirmModal(true);
+        setSubmitDone(false);
+      };
+      setSubmitDone(true);
+      const hold = reducedMotion() ? 0 : CONFIRM_HOLD_MS;
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(openConfirm, hold);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Signup failed. Please try again.';
-      setErrorMessage(message);
-      shake();
+      setError(message);
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -257,7 +309,7 @@ export default function SignupScreen() {
       localSignInRef.current = false;
       setIsSubmitting(false);
     }
-  }, [name, email, password, signup, buttonScale, shake, inviteToken]);
+  }, [name, email, password, signup, setError, inviteToken, isSubmitting, submitDone]);
 
   return (
     <View style={styles.container}>
@@ -298,13 +350,15 @@ export default function SignupScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+          <View>
             {errorMessage ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>{errorMessage}</Text>
-              </View>
+              <Slot style={bannerFade}>
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorBannerText}>{errorMessage}</Text>
+                </View>
+              </Slot>
             ) : null}
-          </Animated.View>
+          </View>
 
           {/* ─── One-tap signup with Apple / Google ──────────────
               Apple uses the iOS native sheet — no Supabase URL prompt.
@@ -364,7 +418,7 @@ export default function SignupScreen() {
           </Slot>
 
           <Slot style={entrance.slot(5)}>
-          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+          <View>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <View style={styles.inputWrapper}>
@@ -374,12 +428,18 @@ export default function SignupScreen() {
                   placeholder="John Doe"
                   placeholderTextColor={themeColors.textMuted}
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={(v) => {
+                    setName(v);
+                    if (nameDanger) setNameDanger(false);
+                  }}
+                  onFocus={() => setFocused('name')}
+                  onBlur={() => setFocused((f) => (f === 'name' ? null : f))}
                   autoCapitalize="words"
                   returnKeyType="next"
                   onSubmitEditing={() => emailRef.current?.focus()}
                   testID="signup-name"
                 />
+                <FieldRing visible={focused === 'name' || nameDanger} tone={nameDanger ? 'danger' : 'accent'} radius={Tokens.radius.lg} />
               </View>
             </View>
 
@@ -393,7 +453,12 @@ export default function SignupScreen() {
                   placeholder="you@company.com"
                   placeholderTextColor={themeColors.textMuted}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(v) => {
+                    setEmail(v);
+                    if (emailDanger) setEmailDanger(false);
+                  }}
+                  onFocus={() => setFocused('email')}
+                  onBlur={() => setFocused((f) => (f === 'email' ? null : f))}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -401,6 +466,7 @@ export default function SignupScreen() {
                   onSubmitEditing={() => passwordRef.current?.focus()}
                   testID="signup-email"
                 />
+                <FieldRing visible={focused === 'email' || emailDanger} tone={emailDanger ? 'danger' : 'accent'} radius={Tokens.radius.lg} />
               </View>
             </View>
 
@@ -414,7 +480,12 @@ export default function SignupScreen() {
                   placeholder="Min 8 characters"
                   placeholderTextColor={themeColors.textMuted}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(v) => {
+                    setPassword(v);
+                    if (passwordDanger) setPasswordDanger(false);
+                  }}
+                  onFocus={() => setFocused('password')}
+                  onBlur={() => setFocused((f) => (f === 'password' ? null : f))}
                   secureTextEntry={!showPassword}
                   returnKeyType="go"
                   onSubmitEditing={handleSignup}
@@ -430,30 +501,29 @@ export default function SignupScreen() {
                     <Eye size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                   )}
                 </TouchableOpacity>
+                <FieldRing visible={focused === 'password' || passwordDanger} tone={passwordDanger ? 'danger' : 'accent'} radius={Tokens.radius.lg} />
               </View>
             </View>
 
-          </Animated.View>
+          </View>
           </Slot>
 
           <Slot style={entrance.slot(6)}>
-          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-            <TouchableOpacity
+          <Animated.View style={press.style}>
+            <AuthSubmitButton
+              phase={submitPhase}
+              label="Create Account"
+              trailing={<ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />}
               style={[styles.signupButton, isSubmitting && styles.signupButtonDisabled]}
+              textStyle={styles.signupButtonText}
+              spinnerColor={Colors.textOnAccent}
               onPress={handleSignup}
-              disabled={isSubmitting}
+              onPressIn={press.onPressIn}
+              onPressOut={press.onPressOut}
+              disabled={isSubmitting || submitDone}
               activeOpacity={0.85}
               testID="signup-submit"
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color={Colors.textOnAccent} size="small" />
-              ) : (
-                <>
-                  <Text style={styles.signupButtonText}>Create Account</Text>
-                  <ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
-                </>
-              )}
-            </TouchableOpacity>
+            />
           </Animated.View>
           </Slot>
 
@@ -514,8 +584,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: t.bg,
   },
+  // The same fixed brand ink as login.tsx's hero (#0B0D10), so login → signup
+  // no longer jumps from ink to an accent slab (the accent never becomes the
+  // background). Every hero child below clears AA on it.
   topSection: {
-    backgroundColor: t.accentFill,
+    backgroundColor: '#0B0D10',
     paddingBottom: 28,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 32,

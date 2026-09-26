@@ -25467,7 +25467,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                       ],
                                       "props": {
                                         "style": {
-                                          "backgroundColor": "#BC440C",
+                                          "backgroundColor": "#0B0D10",
                                           "borderBottomLeftRadius": 32,
                                           "borderBottomRightRadius": 32,
                                           "paddingBottom": 28,
@@ -25485,16 +25485,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                               "children": [
                                                 {
                                                   "children": null,
-                                                  "props": {
-                                                    "collapsable": false,
-                                                    "style": {
-                                                      "transform": [
-                                                        {
-                                                          "translateX": 0,
-                                                        },
-                                                      ],
-                                                    },
-                                                  },
+                                                  "props": {},
                                                   "type": "View",
                                                 },
                                                 {
@@ -25937,7 +25928,9 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                               "children": null,
                                                               "props": {
                                                                 "autoCapitalize": "words",
+                                                                "onBlur": [Function],
                                                                 "onChangeText": [Function],
+                                                                "onFocus": [Function],
                                                                 "onSubmitEditing": [Function],
                                                                 "placeholder": "John Doe",
                                                                 "placeholderTextColor": "rgba(43,48,56,0.7)",
@@ -26105,7 +26098,9 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                                 "autoCapitalize": "none",
                                                                 "autoCorrect": false,
                                                                 "keyboardType": "email-address",
+                                                                "onBlur": [Function],
                                                                 "onChangeText": [Function],
+                                                                "onFocus": [Function],
                                                                 "onSubmitEditing": [Function],
                                                                 "placeholder": "you@company.com",
                                                                 "placeholderTextColor": "rgba(43,48,56,0.7)",
@@ -26270,7 +26265,9 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                             {
                                                               "children": null,
                                                               "props": {
+                                                                "onBlur": [Function],
                                                                 "onChangeText": [Function],
+                                                                "onFocus": [Function],
                                                                 "onSubmitEditing": [Function],
                                                                 "placeholder": "Min 8 characters",
                                                                 "placeholderTextColor": "rgba(43,48,56,0.7)",
@@ -26451,16 +26448,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                       "type": "View",
                                                     },
                                                   ],
-                                                  "props": {
-                                                    "collapsable": false,
-                                                    "style": {
-                                                      "transform": [
-                                                        {
-                                                          "translateX": 0,
-                                                        },
-                                                      ],
-                                                    },
-                                                  },
+                                                  "props": {},
                                                   "type": "View",
                                                 },
                                                 {

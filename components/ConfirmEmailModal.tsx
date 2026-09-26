@@ -28,7 +28,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Platform,
+  Platform, Animated, type StyleProp, type ViewStyle,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Mail, CheckCircle2, AlertTriangle, Inbox, Shield, RefreshCw } from 'lucide-react-native';
@@ -39,6 +39,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useRiseOnOpen } from '@/components/ui/motion';
 
 interface ConfirmEmailModalProps {
   visible: boolean;
@@ -53,12 +54,28 @@ interface ConfirmEmailModalProps {
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
+/**
+ * The card. A plain View until the modal has been SEEN opening (useRiseOnOpen
+ * arms on false → true after mount, native only, never under Reduce Motion);
+ * from then on an Animated.View whose rise style is appended LAST, so the card
+ * rises the last 20 pt while the Modal's own fade brings the scrim in.
+ */
+function Card({ rise, style, testID, children }: {
+  rise: ViewStyle | null; style: StyleProp<ViewStyle>; testID?: string; children: React.ReactNode;
+}) {
+  // testID only when given: the unarmed card must carry exactly today's props.
+  const id = testID ? { testID } : null;
+  if (!rise) return <View style={style} {...id}>{children}</View>;
+  return <Animated.View style={[style, rise]} {...id}>{children}</Animated.View>;
+}
+
 export default function ConfirmEmailModal({
   visible, email, inviteWaiting = false, confirmedElsewhere = false, onClose, onChangeEmail,
 }: ConfirmEmailModalProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { resendConfirmation } = useAuth();
+  const rise = useRiseOnOpen(visible, 20);
 
   const [isResending, setIsResending] = useState(false);
   const [resentAt, setResentAt] = useState<number | null>(null);
@@ -123,7 +140,7 @@ export default function ConfirmEmailModal({
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.overlay}>
-          <View style={styles.card} testID="confirm-email-confirmed-elsewhere">
+          <Card rise={rise} style={styles.card} testID="confirm-email-confirmed-elsewhere">
             <View style={styles.iconWrap}>
               <CheckCircle2 size={28} color={themeColors.accent} strokeWidth={2} />
             </View>
@@ -140,7 +157,7 @@ export default function ConfirmEmailModal({
             >
               <Text style={styles.primaryBtnText}>Got it</Text>
             </TouchableOpacity>
-          </View>
+          </Card>
         </View>
       </Modal>
     );
@@ -154,7 +171,7 @@ export default function ConfirmEmailModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.card}>
+        <Card rise={rise} style={styles.card}>
           <View style={styles.iconWrap}>
             <Mail size={28} color={themeColors.accent} strokeWidth={2} />
           </View>
@@ -241,7 +258,7 @@ export default function ConfirmEmailModal({
               <Text style={styles.secondaryBtnText}>I&apos;ll check now</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Card>
       </View>
     </Modal>
   );
