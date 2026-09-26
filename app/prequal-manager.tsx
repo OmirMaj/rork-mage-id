@@ -670,9 +670,9 @@ function PrequalManagerInner() {
           <RevenueEarlyAccessCard
             eventKey="revenue.insurance.coi_requote"
             icon={Scale}
-            headline="Compare renewal quotes from 3 brokers"
-            body="Coterie + Next Insurance + Hiscox quote your sub in 60 seconds. We pre-fill from the existing COI on file."
-            footer="Insurance partner LOI in progress · early access shipping Q3 2026"
+            headline="Renewal quotes for expiring sub insurance"
+            body="We are working on requesting renewal quotes for a sub's expiring coverage, pre-filled from the COI on file. No insurer or broker is signed up yet."
+            footer="Not available yet — tap to be told when it is"
             testID="coi-requote-cta"
           />
         )}

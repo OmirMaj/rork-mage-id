@@ -1,0 +1,71 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane R1 — the phone is unchanged (golden) contacts add sheet (header Plus), iOS 390 1`] = `
+{
+  "lines": 498,
+  "sha256": "cfc32196599a626476f635f9c175f5d45e50fe1a11d6fdc47eaa5c7c679a2588",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) contacts at rest, iOS 390 1`] = `
+{
+  "lines": 498,
+  "sha256": "5d52158531558f1a3b04cece5b30d0c4f43c3c3955f32b2629bfcc7daa5f75be",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) contacts at rest, web 390 1`] = `
+{
+  "lines": 498,
+  "sha256": "5d52158531558f1a3b04cece5b30d0c4f43c3c3955f32b2629bfcc7daa5f75be",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) contacts at rest, web 768 1`] = `
+{
+  "lines": 498,
+  "sha256": "5d52158531558f1a3b04cece5b30d0c4f43c3c3955f32b2629bfcc7daa5f75be",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) contacts detail open, iOS 390 1`] = `
+{
+  "lines": 593,
+  "sha256": "a980ae2b71f04f0625306b8f8bf921c3827197643794d856118ed22d5666a285",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) crew add sheet (add-crew-member), iOS 390 1`] = `
+{
+  "lines": 419,
+  "sha256": "21f4fa2e93d27c85cb1541f6de24082dbe9e1878073cae6382d306eef81b69f4",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) crew at rest, iOS 390 1`] = `
+{
+  "lines": 419,
+  "sha256": "e5aba2984b4578be53af963c552a8f88f3fdbee38dd666030a14c8b413b973cf",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) crew at rest, web 390 1`] = `
+{
+  "lines": 419,
+  "sha256": "e5aba2984b4578be53af963c552a8f88f3fdbee38dd666030a14c8b413b973cf",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) crew at rest, web 768 1`] = `
+{
+  "lines": 419,
+  "sha256": "e5aba2984b4578be53af963c552a8f88f3fdbee38dd666030a14c8b413b973cf",
+}
+`;
+
+exports[`lane R1 — the phone is unchanged (golden) crew detail open, iOS 390 1`] = `
+{
+  "lines": 518,
+  "sha256": "f740ce64295789da4fda2211cccb6eb42291487b88fe5d2c8dac456a55e89b2f",
+}
+`;

@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import {
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
@@ -68,11 +69,16 @@ export default function RecordPaymentModal({
   const [paidOn, setPaidOn] = useState(initial?.paidOn ?? todayLocalISO());
 
   const submit = () => onSubmit({ method, reference, paidOn });
+  // Desktop: a centred form card. It records a payment ledger entry, so the
+  // primary takes Cmd+Enter only — never Cmd+S, which the open dialog still
+  // swallows so "Save page as" does not open (contract C10).
+  const f = useSheetFrame('form', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, submit, { saveKey: false });
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { paddingBottom: insets.bottom + 20 }]}>
+    <Modal visible={visible} transparent animationType={f.animationType} onRequestClose={onCancel}>
+      <View style={[styles.overlay, f.overlay]}>
+        <View style={[styles.card, { paddingBottom: insets.bottom + 20 }, f.card]}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{mode === 'reconcile' ? 'Payment detail' : 'Record payment'}</Text>

@@ -169,6 +169,9 @@ expectKind('auth', ['login', 'signup', 'reset-password', 'accept-invite']);
 expectKind('bleed', ['schedule-pro', 'plan-viewer', 'takeoff', 'area-takeoff', 'drawing-analyzer', 'punch-pin',
   'photo-annotator', 'leads', 'onboarding', 'persona-select', 'client-view', 'shared-schedule', 'shared-photos',
   'shared-estimate', 'shared-plan', 'prequal-form', 'claim-crew', 'integrations/qbo/callback']);
+// Wave 6d, lane R1: Contacts and Crew are registers (RegisterShell self-caps at
+// Layout.page.table, like the logs), so their frame is 'table'.
+expectKind('table', ['contacts', 'crew']);
 const unexempted = ['cost-xray', 'scan', 'judges', 'quick-quote'].filter(r => DESKTOP_SHELL_EXEMPT.has(r));
 ok('cost-xray, scan, judges and quick-quote have the sidebar back (not shell-exempt)', unexempted.length === 0, unexempted.join(', '));
 ok('Ask and Copilot stay shell-exempt until the dock hosts them',

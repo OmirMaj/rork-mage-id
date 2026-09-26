@@ -88,6 +88,24 @@ export interface LineItemGridProps<R> {
   deleteBlockedReason?: (row: R) => string | null;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  // ── Wave 6d (lane M1) — additive, every default is the behaviour above. ──
+  /** Every cell shows its display text: no input, no delete column, no add
+   *  row, no paste listener (a certified pay application in review). */
+  readOnly?: boolean;
+  /** Default true. False: the line set is fixed — no delete column, no add
+   *  row, Cmd+Backspace does nothing, and Enter moves to the same column on
+   *  the next line instead of adding one (a no-op on the last line). */
+  rowsEditable?: boolean;
+  /** Per-cell editability on top of the column's own. False renders the
+   *  display text, and Tab / Shift-Tab skip the cell. */
+  isCellEditable?: (row: R, colKey: string) => boolean;
+  /** A cell lost focus (the screen commits a draft there). */
+  onCellBlur?: (rowKey: string, colKey: string) => void;
+  /** For each key present, REPLACES the column's footer sum with the screen's
+   *  own engine total (null → '—', and no "not counted" note). */
+  footerTotals?: Readonly<Record<string, number | null>>;
+  /** The footer's first-column label. Default 'Total'. */
+  footerLabel?: string;
 }
 
 const DELETE_COL = 36;
@@ -116,7 +134,10 @@ export function LineItemGrid<R>(props: LineItemGridProps<R>) {
 function DesktopLineItemGrid<R>({
   rows, rowKey, columns, onChangeCell, onAddRow, onDeleteRow, onPasteRows, rowWarning, addLabel = 'Add line',
   deleteBlockedReason, style, testID,
+  readOnly = false, rowsEditable = true, isCellEditable, onCellBlur, footerTotals, footerLabel,
 }: LineItemGridProps<R>) {
+  // The line set can change (delete column, add row, Cmd+Backspace, Enter adds).
+  const linesMutable = !readOnly && rowsEditable;
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const cellRefs = useRef(new Map<string, TextInput | null>());
@@ -131,6 +152,11 @@ function DesktopLineItemGrid<R>({
   const focusCell = useCallback((r: number, c: number) => {
     cellRefs.current.get(refKey(r, c))?.focus();
   }, []);
+  /** Is this cell an input right now (column editable, grid not read-only,
+   *  and the screen's per-cell rule agrees)? */
+  const cellIsInput = (c: LineItemColumn<R>, row: R): boolean => (
+    (c.editable ?? !c.compute) && !readOnly && (isCellEditable ? isCellEditable(row, c.key) : true)
+  );
 
   // A new line (Enter) or a deleted one moves the cursor once the rows render.
   useEffect(() => {
@@ -146,7 +172,7 @@ function DesktopLineItemGrid<R>({
   // same wall — components/schedule/GridPane listens on window too), so listen
   // while a cell has focus and take only multi-cell blocks.
   useEffect(() => {
-    if (Platform.OS !== 'web' || !onPasteRows || !focused) return undefined;
+    if (Platform.OS !== 'web' || !onPasteRows || !focused || readOnly) return undefined;
     const g = globalThis as unknown as { window?: { addEventListener?: (t: string, f: (e: unknown) => void) => void; removeEventListener?: (t: string, f: (e: unknown) => void) => void } };
     const w = g.window;
     if (!w?.addEventListener || !w.removeEventListener) return undefined;
@@ -162,7 +188,7 @@ function DesktopLineItemGrid<R>({
     };
     w.addEventListener('paste', handler);
     return () => w.removeEventListener?.('paste', handler);
-  }, [onPasteRows, focused, rows, columns, rowKey]);
+  }, [onPasteRows, focused, rows, columns, rowKey, readOnly]);
 
   const deleteRow = useCallback((r: number, colIndex: number) => {
     const row = rows[r];
@@ -179,19 +205,31 @@ function DesktopLineItemGrid<R>({
   const onKeyPress = (r: number, c: number) => (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
     const ne = e.nativeEvent as TextInputKeyPressEventData & { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean };
     if (ne.key === 'Tab') {
-      const next = nextGridCell(rows.length, editableCols, { row: r, col: c }, !!ne.shiftKey);
-      if (next) {
+      // Skip cells that are display text (isCellEditable false): walk on until
+      // a registered input exists, bounded by rows × cols.
+      let next = nextGridCell(rows.length, editableCols, { row: r, col: c }, !!ne.shiftKey);
+      for (let guard = rows.length * columns.length; next && guard > 0 && !cellRefs.current.get(refKey(next.row, next.col)); guard--) {
+        next = nextGridCell(rows.length, editableCols, next, !!ne.shiftKey);
+      }
+      if (next && cellRefs.current.get(refKey(next.row, next.col))) {
         e.preventDefault();
         focusCell(next.row, next.col);
       }
       return;
     }
     if (ne.key === 'Backspace' && (ne.metaKey || ne.ctrlKey)) {
+      if (!linesMutable) return;
       e.preventDefault();
       deleteRow(r, c);
     }
   };
 
+  /** Enter: add a line under this one — or, when the line set is fixed,
+   *  move to the same column on the next line (nothing on the last line). */
+  const onEnter = (r: number, c: number) => {
+    if (linesMutable) { addAfter(r); return; }
+    if (r + 1 < rows.length) focusCell(r + 1, c);
+  };
   const addAfter = (r: number | null) => {
     const firstEditable = editableCols[0] ?? 0;
     pendingFocus.current = { row: r === null ? rows.length : r + 1, col: firstEditable };
@@ -210,18 +248,53 @@ function DesktopLineItemGrid<R>({
     const v = (row as Record<string, unknown>)[c.key];
     return v === null || v === undefined ? '' : String(v);
   };
+  /** An editable column shown as text (readOnly / isCellEditable false):
+   *  numbers through the column's format, text as typed, blank as '—'. */
+  const displayText = (c: LineItemColumn<R>, row: R): string => {
+    const raw = cellValue(c, row);
+    if (c.kind === 'number' || c.kind === 'money') {
+      const n = parseGridNumber(raw);
+      return n === null ? (raw.trim() ? raw : UNKNOWN_CELL) : fmt(c, n);
+    }
+    return raw.trim() ? raw : UNKNOWN_CELL;
+  };
 
   const totals = useMemo(() => {
     const out: Record<string, ReturnType<typeof sumColumn>> = {};
     for (const c of columns) {
       if (!c.total) continue;
+      if (footerTotals && Object.prototype.hasOwnProperty.call(footerTotals, c.key)) {
+        // The screen's engine total, not a re-sum of the cells.
+        out[c.key] = { total: footerTotals[c.key] ?? null, unparsed: 0 };
+        continue;
+      }
       out[c.key] = sumColumn(rows.map((row) => (c.compute ? c.compute(row) : cellValue(c, row))));
     }
     return out;
     // cellValue is derived from columns
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, rows]);
+  }, [columns, rows, footerTotals]);
   const anyTotals = columns.some((c) => c.total);
+  // Only a screen-named footer label spans (the default keeps today's cells).
+  const firstTotal = columns.findIndex((c) => !!totals[c.key]);
+  const labelSpan = footerLabel !== undefined && firstTotal > 1 ? firstTotal : 0;
+  /** One cell as wide as `cols` side by side (fixed widths add; flex columns
+   *  keep their flex and their min / max). */
+  const spanBox = (cols: readonly LineItemColumn<R>[]): ViewStyle => {
+    let fixed = 0;
+    let flex = 0;
+    let min = 0;
+    let max = 0;
+    for (const c of cols) {
+      if (typeof c.width === 'number') { fixed += c.width; continue; }
+      flex += c.flex ?? 1;
+      min += 120;
+      max += c.maxWidth ?? Layout.field.search;
+    }
+    return flex === 0
+      ? { width: fixed, flexGrow: 0, flexShrink: 0 }
+      : { flex, minWidth: fixed + min, maxWidth: fixed + max };
+  };
 
   return (
     <View style={[styles.wrap, style]} testID={testID}>
@@ -231,7 +304,7 @@ function DesktopLineItemGrid<R>({
             <Text style={[styles.headerText, { textAlign: alignOf(c) }]} numberOfLines={1}>{c.label}</Text>
           </View>
         ))}
-        <View style={{ width: DELETE_COL }} />
+        {linesMutable ? <View style={{ width: DELETE_COL }} /> : null}
       </View>
 
       {rows.map((row, r) => {
@@ -242,6 +315,15 @@ function DesktopLineItemGrid<R>({
             <View style={styles.cells}>
               {columns.map((c, ci) => {
                 const editable = c.editable ?? !c.compute;
+                if (editable && !cellIsInput(c, row)) {
+                  return (
+                    <View key={c.key} style={[styles.cell, cellBox(c)]} testID={testID ? `${testID}-text-${key}-${c.key}` : undefined}>
+                      <Text style={[styles.computed, { textAlign: alignOf(c) }]} numberOfLines={1}>
+                        {displayText(c, row)}
+                      </Text>
+                    </View>
+                  );
+                }
                 if (!editable) {
                   const n = c.compute ? c.compute(row) : parseGridNumber(cellValue(c, row));
                   return (
@@ -259,9 +341,12 @@ function DesktopLineItemGrid<R>({
                       value={cellValue(c, row)}
                       onChangeText={(text) => onChangeCell(key, c.key, text)}
                       onKeyPress={onKeyPress(r, ci)}
-                      onSubmitEditing={() => addAfter(r)}
+                      onSubmitEditing={() => onEnter(r, ci)}
                       onFocus={() => setFocused({ row: r, col: ci })}
-                      onBlur={() => setFocused((f) => (f && f.row === r && f.col === ci ? null : f))}
+                      onBlur={() => {
+                        setFocused((f) => (f && f.row === r && f.col === ci ? null : f));
+                        onCellBlur?.(key, c.key);
+                      }}
                       blurOnSubmit={false}
                       placeholder={c.placeholder}
                       placeholderTextColor={t.textMuted}
@@ -273,15 +358,17 @@ function DesktopLineItemGrid<R>({
                   </View>
                 );
               })}
-              <Pressable
-                onPress={() => deleteRow(r, editableCols[0] ?? 0)}
-                style={styles.deleteCell}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete line ${r + 1}`}
-                testID={testID ? `${testID}-delete-${key}` : undefined}
-              >
-                <X {...Tokens.iconSize.small} color={t.textMuted} />
-              </Pressable>
+              {linesMutable ? (
+                <Pressable
+                  onPress={() => deleteRow(r, editableCols[0] ?? 0)}
+                  style={styles.deleteCell}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete line ${r + 1}`}
+                  testID={testID ? `${testID}-delete-${key}` : undefined}
+                >
+                  <X {...Tokens.iconSize.small} color={t.textMuted} />
+                </Pressable>
+              ) : null}
             </View>
             {warning ? (
               <View style={styles.warning}>
@@ -293,19 +380,29 @@ function DesktopLineItemGrid<R>({
         );
       })}
 
-      <Pressable
-        onPress={() => addAfter(rows.length > 0 ? rows.length - 1 : null)}
-        style={styles.addRow}
-        accessibilityRole="button"
-        testID={testID ? `${testID}-add` : undefined}
-      >
-        <Plus {...Tokens.iconSize.small} color={t.accentLabel} />
-        <Text style={styles.addText}>{addLabel}</Text>
-      </Pressable>
+      {linesMutable ? (
+        <Pressable
+          onPress={() => addAfter(rows.length > 0 ? rows.length - 1 : null)}
+          style={styles.addRow}
+          accessibilityRole="button"
+          testID={testID ? `${testID}-add` : undefined}
+        >
+          <Plus {...Tokens.iconSize.small} color={t.accentLabel} />
+          <Text style={styles.addText}>{addLabel}</Text>
+        </Pressable>
+      ) : null}
 
       {anyTotals && rows.length > 0 ? (
         <View style={styles.footerRow} testID={testID ? `${testID}-totals` : undefined}>
+          {labelSpan > 1 ? (
+            // A named footer ('Grand total') spans the leading columns that
+            // carry no total, so a 48 px item-number column never wraps it.
+            <View style={[styles.cell, spanBox(columns.slice(0, labelSpan))]}>
+              <Text style={styles.totalLabel} numberOfLines={1}>{footerLabel}</Text>
+            </View>
+          ) : null}
           {columns.map((c, ci) => {
+            if (ci < labelSpan && labelSpan > 1) return null;
             const tot = totals[c.key];
             return (
               <View key={c.key} style={[styles.cell, cellBox(c)]}>
@@ -321,12 +418,12 @@ function DesktopLineItemGrid<R>({
                     ) : null}
                   </>
                 ) : ci === 0 ? (
-                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalLabel}>{footerLabel ?? 'Total'}</Text>
                 ) : null}
               </View>
             );
           })}
-          <View style={{ width: DELETE_COL }} />
+          {linesMutable ? <View style={{ width: DELETE_COL }} /> : null}
         </View>
       ) : null}
     </View>

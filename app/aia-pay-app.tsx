@@ -61,6 +61,16 @@ import {
   payAppReviewNotice,
   coFiguresAdvice,
   resolveSovBasis,
+  // Wave 6d (M1): the desktop G703 grid reads the same per-line math the PDF
+  // prints, and its footer IS the G702 math.
+  g703LineFigures,
+  g703Footer,
+  planG703CellEdit,
+  g703DraftBlocker,
+  g703PastePlan,
+  g703MoneyColumnWidth,
+  g703GridMinWidth,
+  type G703Col,
 } from '@/utils/aiaBilling';
 // The one definition of "what is still owed on this invoice", net of held
 // retention — the same helper the portal and the invoice screen gate their Pay
@@ -80,12 +90,23 @@ import { createPaymentLink } from '@/utils/stripe';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import type { SavedAIAPayApp } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { Layout, Tokens } from '@/constants/designTokens';
+import {
+  cardSurface, useIsDesktop, useIsDesktopWeb, SegmentedControl, ActionBar, desktopProse, useSheetFrame,
+} from '@/components/ui';
+import { KpiStrip } from '@/components/desktop/KpiStrip';
+import { LineItemGrid, type LineItemColumn } from '@/components/desktop/LineItemGrid';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
 import { pdfFailureMessage } from '@/utils/platformFile';
+
+/** G703 money as the PDF prints it: two decimals, no "$". */
+function fmtG703(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export default function AIAPayAppScreen() {
   const router = useRouter();
@@ -725,6 +746,20 @@ function AIAPayAppScreenInner() {
   // unreachable in practice.
   const [sovEditing, setSovEditing] = useState(false);
 
+  // ── Wave 6d (M1): the desktop-web G703 grid ────────────────────────────────
+  // A typed grid cell is held as a draft (`${lineId}:${col}`) until it blurs,
+  // so "12,5o" is never silently saved as whatever the line held before:
+  // g703DraftBlocker refuses Save and Generate while one is invalid. The ref
+  // is what those handlers read, so their dependency lists do not change. On
+  // a phone no grid mounts and the drafts are always {}.
+  const [gridDrafts, setGridDrafts] = useState<Record<string, string>>({});
+  const gridDraftsRef = useRef<Record<string, string>>({});
+  const writeGridDrafts = useCallback((next: Record<string, string>) => {
+    gridDraftsRef.current = next;
+    setGridDrafts(next);
+  }, []);
+  useEffect(() => { writeGridDrafts({}); }, [invoice?.id, isReadOnly, writeGridDrafts]);
+
   const addSovLine = useCallback(() => {
     if (isReadOnly) return;
     setApp(prev => prev ? { ...prev, lines: [...prev.lines, newSovLine(prev.lines, prev.retainagePercent)] } : prev);
@@ -939,6 +974,8 @@ function AIAPayAppScreenInner() {
       );
       return;
     }
+    const gb = g703DraftBlocker(gridDraftsRef.current, app?.lines ?? []);
+    if (gb) { showAlert(gb.title, gb.message); return; }
     const rec = buildSavedRecord();
     if (!rec) return;
 
@@ -1049,7 +1086,7 @@ function AIAPayAppScreenInner() {
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, isReadOnly, savedPaidAt, pendingBankPayment, tier, invoice]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, isReadOnly, savedPaidAt, pendingBankPayment, tier, invoice, app?.lines]);
 
   /**
    * PERSIST THE ARCHITECT'S RESPONSE, and nothing else.
@@ -1104,6 +1141,8 @@ function AIAPayAppScreenInner() {
       );
       return;
     }
+    const gb = g703DraftBlocker(gridDraftsRef.current, app?.lines ?? []);
+    if (gb) { showAlert(gb.title, gb.message); return; }
     if (!app || !settings?.branding) return;
     setShowPreExportConfirm(true);
   }, [app, settings?.branding, isLocked]);
@@ -1147,6 +1186,103 @@ function AIAPayAppScreenInner() {
       setGenerating(false);
     }
   }, [app, settings?.branding, handleSave, printedCoSummary]);
+
+  // ── Wave 6d (M1) desktop hooks — above the first early return. ─────────────
+  const isDesktop = useIsDesktop();
+  const isDesktopWeb = useIsDesktopWeb();
+  const [sovView, setSovViewState] = useState<'grid' | 'cards'>('grid');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const v = await AsyncStorage.getItem('mageid_aia_sov_view');
+        if (!cancelled && (v === 'grid' || v === 'cards')) setSovViewState(v);
+      } catch { /* the default stands */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const setSovView = useCallback((v: 'grid' | 'cards') => {
+    setSovViewState(v);
+    (async () => {
+      try { await AsyncStorage.setItem('mageid_aia_sov_view', v); } catch { /* per-device convenience only */ }
+    })();
+  }, []);
+  const gridOn = isDesktopWeb && sovView === 'grid';
+  const sovBox = useContainerWidth();
+  const gridRowsEditable = !isReadOnly && sovEditing;
+  /** The G703 money columns fit their longest figure (cells AND footer). */
+  const gridMoneyW = useMemo(() => {
+    if (!app) return g703MoneyColumnWidth(0);
+    const foot = g703Footer(app);
+    let maxChars = 0;
+    const see = (n: number) => { maxChars = Math.max(maxChars, fmtG703(n).length); };
+    [foot.scheduled, foot.fromPrevious, foot.thisPeriod, foot.stored, foot.completedAndStored, foot.balanceToFinish, foot.retainage].forEach(see);
+    for (const l of app.lines) {
+      const f = g703LineFigures(l);
+      [l.scheduledValue, l.fromPreviousApp, l.thisPeriod, l.materialsPresentlyStored, f.completedAndStored, f.balanceToFinish, f.retainage].forEach(see);
+    }
+    return g703MoneyColumnWidth(maxChars);
+  }, [app]);
+  const gridMin = g703GridMinWidth(gridMoneyW, gridRowsEditable);
+
+  // The grid's handlers never call setApp: every write goes through the
+  // guarded mutators above (updateLine / applyPercentToLine / addSovLine /
+  // deleteSovLine), each of which refuses a read-only certificate itself.
+  const onGridCell = useCallback((lineId: string, col: string, text: string) => {
+    if (isReadOnly) return;
+    const line = app?.lines.find(l => l.id === lineId);
+    if (!line) return;
+    writeGridDrafts({ ...gridDraftsRef.current, [`${lineId}:${col}`]: text });
+    const plan = planG703CellEdit(line, col as G703Col, text, { sovEditing });
+    if (plan.kind === 'patch') updateLine(lineId, plan.patch);
+    else if (plan.kind === 'percent') applyPercentToLine(lineId, plan.percent);
+  }, [isReadOnly, app, sovEditing, updateLine, applyPercentToLine, writeGridDrafts]);
+
+  /** Blur drops the cell's draft so it shows the stored figure again — unless
+   *  the draft is not a value: that one stays, the row says why, and Save and
+   *  Generate refuse until it is fixed. */
+  const onGridBlur = useCallback((lineId: string, col: string) => {
+    const key = `${lineId}:${col}`;
+    const text = gridDraftsRef.current[key];
+    if (text === undefined) return;
+    const line = app?.lines.find(l => l.id === lineId);
+    if (line && planG703CellEdit(line, col as G703Col, text, { sovEditing }).kind === 'invalid') return;
+    const next = { ...gridDraftsRef.current };
+    delete next[key];
+    writeGridDrafts(next);
+  }, [app, sovEditing, writeGridDrafts]);
+
+  const onGridAdd = useCallback(() => {
+    if (isReadOnly) return;
+    addSovLine();
+  }, [isReadOnly, addSovLine]);
+
+  const onGridDelete = useCallback((lineId: string) => {
+    if (isReadOnly) return;
+    deleteSovLine(lineId);
+  }, [isReadOnly, deleteSovLine]);
+
+  const onGridPaste = useCallback((cells: string[][], at: { rowKey: string; colKey: string }) => {
+    if (isReadOnly || !app) return;
+    const plan = g703PastePlan(app.lines, cells, at, { sovEditing });
+    for (const p of plan.patches) updateLine(p.lineId, p.patch);
+    if (plan.invalid > 0 || plan.extraRows > 0) {
+      const parts: string[] = [];
+      if (plan.invalid > 0) {
+        parts.push(`${plan.invalid} pasted ${plan.invalid === 1 ? 'cell was' : 'cells were'} left out — not an amount, or past the columns you can type in (${sovEditing ? 'Item through Stored' : 'This period and Stored; tap Edit lines for Item, Description and Scheduled'}).`);
+      }
+      if (plan.extraRows > 0) {
+        parts.push(`${plan.extraRows} pasted ${plan.extraRows === 1 ? 'row runs' : 'rows run'} past the last line. Add lines first — a pay application's lines are never added by a paste.`);
+      }
+      showAlert(`Pasted ${plan.patches.length} ${plan.patches.length === 1 ? 'line' : 'lines'}`, parts.join(' '));
+    }
+  }, [isReadOnly, app, sovEditing, updateLine]);
+
+  // THE ARCHITECT'S CONFIRMATIONS are dialogs on desktop (useSheetFrame). No
+  // useSheetPrimaryHotkey: "Ready to certify?" is an attestation, and Save on
+  // this screen mints a Stripe pay link — so no Cmd+S / Cmd+Enter here either.
+  const fDisclaimer = useSheetFrame('dialog', { visible: showFirstUseDisclaimer, animationType: 'fade' });
+  const fConfirm = useSheetFrame('dialog', { visible: showPreExportConfirm, animationType: 'fade' });
 
   // Step 1 — which job.
   if (!project || forceProjectPick) {
@@ -1246,6 +1382,70 @@ function AIAPayAppScreenInner() {
     );
   }
 
+  // ── The desktop-web G703 continuation sheet (gridOn only) ─────────────────
+  // Columns A–I exactly as the PDF prints them; money as the PDF prints it
+  // (two decimals, no "$"). The computed columns and the footer are the
+  // engine's own figures (g703LineFigures / g703Footer), so the grid's GRAND
+  // TOTAL G is G702 line 4 and its I is line 5, to the cent.
+  const draftOf = (l: AIASOVLine, col: G703Col): string | undefined => gridDrafts[`${l.id}:${col}`];
+  const g703Foot = g703Footer(app);
+  const g703Columns: LineItemColumn<AIASOVLine>[] = [
+    { key: 'itemNo', label: 'A Item', width: 48, getValue: (l) => draftOf(l, 'itemNo') ?? l.itemNo },
+    { key: 'description', label: 'B Description of work', flex: 1, maxWidth: Layout.field.search, getValue: (l) => draftOf(l, 'description') ?? l.description },
+    { key: 'scheduled', label: 'C Scheduled value', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'scheduled') ?? l.scheduledValue.toFixed(2) },
+    { key: 'fromPrevious', label: 'D From previous', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => l.fromPreviousApp },
+    { key: 'thisPeriod', label: 'E This period', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'thisPeriod') ?? l.thisPeriod.toFixed(2) },
+    { key: 'stored', label: 'F Stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, getValue: (l) => draftOf(l, 'stored') ?? l.materialsPresentlyStored.toFixed(2) },
+    { key: 'completed', label: 'G Completed & stored', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).completedAndStored },
+    {
+      key: 'percent', label: '% (G ÷ C)', kind: 'number', width: 56, total: true, format: (n) => n.toFixed(1),
+      getValue: (l) => {
+        const pct = g703LineFigures(l).percent;
+        return draftOf(l, 'percent') ?? (pct == null ? '' : pct.toFixed(1));
+      },
+    },
+    { key: 'balance', label: 'H Balance to finish', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).balanceToFinish },
+    { key: 'retainage', label: 'I Retainage', kind: 'money', width: gridMoneyW, total: true, format: fmtG703, compute: (l) => g703LineFigures(l).retainage },
+  ];
+  const renderG703Grid = () => (
+    <LineItemGrid<AIASOVLine>
+      testID="aia-g703"
+      style={{ maxWidth: gridMin + 280 }}
+      rows={app.lines}
+      rowKey={(l) => l.id}
+      columns={g703Columns}
+      readOnly={isReadOnly}
+      rowsEditable={!isReadOnly && sovEditing}
+      // Item, Description and Scheduled are the negotiated schedule of values:
+      // typed only while Edit lines is on. % needs a positive C (a deductive
+      // change-order line would have its This period zeroed by a percent).
+      isCellEditable={(l, k) => (k === 'percent'
+        ? l.scheduledValue > 0
+        : k === 'itemNo' || k === 'description' || k === 'scheduled' ? sovEditing : true)}
+      footerLabel="Grand total"
+      footerTotals={{
+        scheduled: g703Foot.scheduled,
+        fromPrevious: g703Foot.fromPrevious,
+        thisPeriod: g703Foot.thisPeriod,
+        stored: g703Foot.stored,
+        completed: g703Foot.completedAndStored,
+        percent: g703Foot.percent,
+        balance: g703Foot.balanceToFinish,
+        retainage: g703Foot.retainage,
+      }}
+      rowWarning={(l) => (lineOverBill(l) > 0
+        ? `Billed ${formatMoney(lineOverBill(l), 2)} past its scheduled value`
+        : g703DraftBlocker(gridDrafts, [l])?.message ?? null)}
+      deleteBlockedReason={(l) => sovLineDeletionRefusal(l)?.body ?? null}
+      onChangeCell={onGridCell}
+      onCellBlur={onGridBlur}
+      onAddRow={() => onGridAdd()}
+      onDeleteRow={onGridDelete}
+      onPasteRows={onGridPaste}
+      renderCard={() => null}
+    />
+  );
+
   return (
     <>
       <Stack.Screen
@@ -1286,7 +1486,7 @@ function AIAPayAppScreenInner() {
             document in front of the GC. Now a saved application opens as the
             STORED record; editing an unsent draft is an explicit tap. */}
         {isReviewMode && (
-          <View style={styles.reviewBanner} testID="aia-review-banner">
+          <View style={[styles.reviewBanner, isDesktop && styles.formColumnDesktop]} testID="aia-review-banner">
             <View style={styles.reviewBannerRow}>
               <Lock size={16} color={themeColors.accent} strokeWidth={2} />
               <Text style={styles.reviewBannerTitle}>{reviewNotice.title}</Text>
@@ -1326,7 +1526,7 @@ function AIAPayAppScreenInner() {
             edits are being refused. CTA bounces back to the invoice so
             they can navigate to the next billing period. */}
         {isLocked && (
-          <View style={styles.lockedBanner}>
+          <View style={[styles.lockedBanner, isDesktop && styles.formColumnDesktop]}>
             <Text style={styles.lockedBannerTitle}>
               Period #{app.applicationNumber} locked
             </Text>
@@ -1357,7 +1557,7 @@ function AIAPayAppScreenInner() {
             rather than leave the owner looking at a card with no button and
             the GC wondering why nobody has paid. */}
         {isLocked && !!savedForThisAppNumber?.payLinkUrl && savedForThisAppNumber?.payLinkAmount == null && !savedPaidAt && (
-          <View style={styles.sovWarnBanner} testID="aia-paylink-amount-unknown">
+          <View style={[styles.sovWarnBanner, isDesktop && styles.formColumnDesktop]} testID="aia-paylink-amount-unknown">
             <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
             <Text style={styles.sovWarnText}>
               This application carries a payment link from before MAGE recorded what each link
@@ -1369,7 +1569,7 @@ function AIAPayAppScreenInner() {
         )}
 
         {/* Hero summary card */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, isDesktop && styles.formColumnDesktop]}>
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroTitleBlock}>
               <Text style={styles.heroLabel}>G702 · G703</Text>
@@ -1414,7 +1614,7 @@ function AIAPayAppScreenInner() {
         </View>
 
         {/* Header meta */}
-        <View style={styles.section}>
+        <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
           <Text style={styles.sectionTitle}>Application Details</Text>
           <View style={styles.formRow}>
             <Text style={styles.formLabel}>Owner Name</Text>
@@ -1692,7 +1892,7 @@ function AIAPayAppScreenInner() {
             one. With nowhere to record it, an architect certifying $58,200
             against a $64,000 application left the GC permanently $5,800 short
             in a number he believed was automatic. */}
-        <View style={styles.section}>
+        <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
           <Text style={styles.sectionTitle}>Architect&apos;s Certificate</Text>
           {/* RECORDABLE ON A LOCKED CERTIFICATE, deliberately. A GC with
               Stripe Connect gets a pay link on the first Save, so isReadOnly
@@ -1844,11 +2044,45 @@ function AIAPayAppScreenInner() {
           )}
         </View>
 
+        {/* G702 — the cover's figures in one row, in cents (desktop). Balance
+            to Finish stays on the G702 card: it is line 9, not the G703 H. */}
+        {isDesktop ? (
+          <KpiStrip
+            testID="aia-g702-strip"
+            style={isDesktop && styles.kpiDesktop}
+            cells={[
+              { key: 'original', label: 'Original contract', value: formatMoney(app.originalContractSum, 2) },
+              { key: 'net-co', label: 'Net COs', value: `${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}` },
+              { key: 'to-date', label: 'Contract to date', value: formatMoney(app.contractSumToDate, 2) },
+              { key: 'completed', label: 'Completed & stored', value: formatMoney(totals.totalCompletedAndStored, 2), sub: `${totals.percentComplete.toFixed(1)}% complete` },
+              {
+                key: 'retainage',
+                label: 'Retainage',
+                value: totals.totalRetainage < 0
+                  ? `+${formatMoney(Math.abs(totals.totalRetainage), 2)}`
+                  : `-${formatMoney(totals.totalRetainage, 2)}`,
+              },
+              { key: 'earned', label: 'Earned less retainage', value: formatMoney(totals.totalEarnedLessRetainage, 2) },
+              { key: 'previous', label: 'Previous certificates', value: `-${formatMoney(app.lessPreviousCertificates, 2)}` },
+              { key: 'due', label: 'Current payment due', value: formatMoney(totals.currentPaymentDue, 2), tone: 'good' },
+            ]}
+          />
+        ) : null}
+
         {/* Schedule of Values */}
-        <View style={styles.section}>
+        <View style={styles.section} {...(isDesktopWeb ? { onLayout: sovBox.onLayout } : null)}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Schedule of Values (G703)</Text>
             <View style={styles.sovHeaderActions}>
+              {isDesktopWeb && (
+                <SegmentedControl
+                  size="sm"
+                  testID="aia-sov-view"
+                  value={sovView}
+                  onChange={setSovView}
+                  options={[{ value: 'grid', label: 'Grid' }, { value: 'cards', label: 'Cards' }]}
+                />
+              )}
               {!isReadOnly && (
                 <TouchableOpacity
                   onPress={handleSyncFromSchedule}
@@ -1888,9 +2122,15 @@ function AIAPayAppScreenInner() {
               <Text style={styles.sectionTitleCount}>{app.lines.length} items</Text>
             </View>
           </View>
+          {gridOn ? (
+            <Text style={[styles.sectionHint, desktopProse]}>
+              Type This period, Stored or % — Tab moves right, Enter moves down, paste a column from Excel. Per-line retainage, reorder and stored-material moves are in Cards.
+            </Text>
+          ) : (
           <Text style={styles.sectionHint}>
             Tap a line to adjust this period&apos;s work completed. Use the % slider to quickly set line progress.
           </Text>
+          )}
 
           {/* Where column C came from. "Scheduled" is the whole contract line;
               "This Period" is this month's draw. They are equal only on a final
@@ -1902,14 +2142,14 @@ function AIAPayAppScreenInner() {
               values is negotiated with the owner and routinely does not match
               the estimate's line structure — so the note says where column C
               CAME FROM and points at both ways to change it. */}
-          <Text style={styles.sovBasisNote} testID="aia-sov-basis">
+          <Text style={[styles.sovBasisNote, isDesktop && desktopProse]} testID="aia-sov-basis">
             {sovBasis === 'linked_estimate'
               ? 'Scheduled Value is each line of the linked estimate plus each approved change order — the full contract, not this draw. This Period is what invoice #' + invoice.number + ' bills against it. Tap Edit lines to negotiate the schedule of values itself; anything you change there stays put, because a saved application is no longer rebuilt from the estimate when you reopen it.'
               : 'This project has no itemized estimate linked, so the Scheduled Value column could only be reconstructed from invoice #' + invoice.number + ' — it covers just the scope this invoice touched. Either link the job\u2019s estimate (Estimate \u2192 Link to Project) and refresh, or tap Edit lines and enter the agreed schedule of values directly.'}
           </Text>
 
           {sovReconciliation && !sovReconciliation.reconciled && (
-            <View style={styles.sovWarnBanner} testID="aia-sov-reconciliation">
+            <View style={[styles.sovWarnBanner, isDesktop && styles.formColumnDesktop]} testID="aia-sov-reconciliation">
               <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
               <Text style={styles.sovWarnText}>
                 The schedule of values totals {formatMoney(sovReconciliation.totalScheduledValue, 2)} but
@@ -1928,7 +2168,7 @@ function AIAPayAppScreenInner() {
               this should be unreachable — say so loudly rather than print a
               page that contradicts itself if it ever is. */}
           {!coFiguresAgree && printedCoSummary && (
-            <View style={styles.sovWarnBanner} testID="aia-co-figures-disagree">
+            <View style={[styles.sovWarnBanner, isDesktop && styles.formColumnDesktop]} testID="aia-co-figures-disagree">
               <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
               <Text style={styles.sovWarnText}>
                 G702 line 2 says {formatMoney(app.netChangeByCO, 2)} of net change by change
@@ -1944,7 +2184,7 @@ function AIAPayAppScreenInner() {
           )}
 
           {(overBilledLines.length > 0 || totalOverBilled > 0.01) && (
-            <View style={styles.sovWarnBanner} testID="aia-overbill-banner">
+            <View style={[styles.sovWarnBanner, isDesktop && styles.formColumnDesktop]} testID="aia-overbill-banner">
               <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
               <Text style={styles.sovWarnText}>
                 {overBilledLines.length > 0 && (
@@ -1962,7 +2202,13 @@ function AIAPayAppScreenInner() {
             </View>
           )}
 
-          {app.lines.map((line, lineIdx) => {
+          {gridOn ? (
+            sovBox.width < gridMin ? (
+              <ScrollView horizontal contentContainerStyle={{ minWidth: gridMin }}>
+                {renderG703Grid()}
+              </ScrollView>
+            ) : renderG703Grid()
+          ) : app.lines.map((line, lineIdx) => {
             const totalCompleted = line.fromPreviousApp + line.thisPeriod + line.materialsPresentlyStored;
             const pct = line.scheduledValue > 0 ? (totalCompleted / line.scheduledValue) * 100 : 0;
             // ONE definition, shared with findOverBilledLines — the row that
@@ -2091,7 +2337,7 @@ function AIAPayAppScreenInner() {
                         testID={`aia-scheduled-${line.id}`}
                       />
                     ) : (
-                      <Text style={styles.sovValueNum}>{formatMoney(line.scheduledValue)}</Text>
+                      <Text style={styles.sovValueNum}>{formatMoney(line.scheduledValue, 2)}</Text>
                     )}
                   </View>
                   <View style={styles.sovValueCol}>
@@ -2216,6 +2462,8 @@ function AIAPayAppScreenInner() {
 
           {!isReadOnly && (
             <View style={styles.sovEditorFooter}>
+              {/* The grid's own add row replaces this while it is editing lines. */}
+              {!(gridOn && sovEditing) && (
               <TouchableOpacity
                 onPress={addSovLine}
                 style={styles.sovFooterBtn}
@@ -2227,6 +2475,7 @@ function AIAPayAppScreenInner() {
                 <Plus size={15} color={themeColors.accent} strokeWidth={2} />
                 <Text style={styles.sovFooterBtnText}>Add line</Text>
               </TouchableOpacity>
+              )}
               <TouchableOpacity
                 onPress={renumberLines}
                 style={styles.sovFooterBtn}
@@ -2242,14 +2491,17 @@ function AIAPayAppScreenInner() {
         </View>
 
         {/* Running totals */}
-        <View style={styles.section}>
+        <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
           <Text style={styles.sectionTitle}>Summary (G702 Cover)</Text>
           <View style={styles.totalsCard}>
-            <Row label="Original Contract Sum" value={formatMoney(app.originalContractSum)} />
-            <Row label="Net Change by COs" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO))}`} />
-            <Row label="Contract Sum to Date" value={formatMoney(app.contractSumToDate)} bold />
+            {/* CENTS, on every platform: the PDF the GC certifies prints cents,
+                and a summary a dollar off it is two documents (founder
+                default 2, wave 6d). */}
+            <Row label="Original Contract Sum" value={formatMoney(app.originalContractSum, 2)} />
+            <Row label="Net Change by COs" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}`} />
+            <Row label="Contract Sum to Date" value={formatMoney(app.contractSumToDate, 2)} bold />
             <Divider />
-            <Row label="Total Completed & Stored" value={formatMoney(totals.totalCompletedAndStored)} />
+            <Row label="Total Completed & Stored" value={formatMoney(totals.totalCompletedAndStored, 2)} />
             {/* A deductive change-order line carries NEGATIVE retainage, which
                 can make the certificate's total retainage a net add-back. The
                 hardcoded "-" prefix printed "--$250.00" on that certificate,
@@ -2257,36 +2509,39 @@ function AIAPayAppScreenInner() {
             <Row
               label={`Retainage (${app.retainagePercent}% of work in place)`}
               value={totals.totalRetainage < 0
-                ? `+${formatMoney(Math.abs(totals.totalRetainage))}`
-                : `-${formatMoney(totals.totalRetainage)}`}
+                ? `+${formatMoney(Math.abs(totals.totalRetainage), 2)}`
+                : `-${formatMoney(totals.totalRetainage, 2)}`}
               dim
             />
-            <Row label="Total Earned Less Retainage" value={formatMoney(totals.totalEarnedLessRetainage)} />
-            <Row label="Less Previous Certificates" value={`-${formatMoney(app.lessPreviousCertificates)}`} dim />
+            <Row label="Total Earned Less Retainage" value={formatMoney(totals.totalEarnedLessRetainage, 2)} />
+            <Row label="Less Previous Certificates" value={`-${formatMoney(app.lessPreviousCertificates, 2)}`} dim />
             <Divider />
-            <Row label="Current Payment Due" value={formatMoney(totals.currentPaymentDue)} highlight />
-            <Row label="Balance to Finish" value={formatMoney(totals.balanceToFinish)} dim />
+            <Row label="Current Payment Due" value={formatMoney(totals.currentPaymentDue, 2)} highlight />
+            <Row label="Balance to Finish" value={formatMoney(totals.balanceToFinish, 2)} dim />
           </View>
 
-          {/* Fintech revenue CTAs — surfaced contextually next to the
-              dollar figures. Pay-app moments are the highest-value moment
-              for both factoring and lien-waiver products. */}
+          {/* Early-access interest capture, next to the figures they would
+              act on. HONEST COPY (contract D8, founder default 1b): neither
+              product exists and no partner is signed, so no card may state a
+              rate, an amount, a speed, a partner, a date or "today" — the
+              capture itself is unchanged. scripts/validate-money-grids.ts
+              pins these two spans. */}
           {totals.currentPaymentDue > 0 && (
             <>
               <RevenueEarlyAccessCard
                 eventKey="revenue.factoring.altline"
                 icon={Banknote}
-                headline={`Advance ${formatMoney(totals.currentPaymentDue * 0.9)} on this pay app today`}
-                body="Pay-app funds sit with the owner until they certify and release. A factoring partner would front the balance against this certified amount instead."
-                footer="Partner LOI in progress · early access shipping Q3 2026"
+                headline="Advances on certified pay apps"
+                body="Pay-app money waits with the owner until they certify and release it. We are looking at a factoring partner that could advance part of a certified amount. No partner is signed yet, so there are no rates or timelines to show."
+                footer="Not available yet — tap to be told when it is"
                 testID="aia-factoring-cta"
               />
               <RevenueEarlyAccessCard
                 eventKey="revenue.lien_waiver.escrow"
                 icon={FileSignature}
-                headline="Auto-generate lien waivers at payment"
-                body="When this pay app is funded, MAGE drafts conditional & unconditional waivers for every sub paid out of it. E-sign in one tap. Optional bank-held escrow for big jobs."
-                footer="Built on existing lien-waiver tool · escrow needs partner bank"
+                headline="Lien waivers drafted when a pay app is paid"
+                body="We are working on drafting conditional and unconditional waivers for every sub paid out of a funded pay app. Bank-held escrow would need a partner bank, and none is signed. For now, request and track waivers in Lien waivers."
+                footer="Not available yet — tap to be told when it is"
                 testID="aia-lienwaiver-cta"
               />
             </>
@@ -2310,7 +2565,7 @@ function AIAPayAppScreenInner() {
         {isReviewMode ? (
           // Review mode reprints the STORED record. No save, no pay link, no
           // re-derivation — that is the whole point of it.
-          <View style={styles.bottomBarRow}>
+          <ActionBar style={styles.bottomBarRow} width="table">
             <TouchableOpacity
               style={[styles.generateBtn, { flex: 1 }]}
               onPress={handleReprint}
@@ -2326,9 +2581,9 @@ function AIAPayAppScreenInner() {
                 {generating ? 'Generating…' : 'Print as saved'}
               </Text>
             </TouchableOpacity>
-          </View>
+          </ActionBar>
         ) : (
-        <View style={styles.bottomBarRow}>
+        <ActionBar style={styles.bottomBarRow} width="table">
           <TouchableOpacity
             style={[styles.saveBtn, savedFlash && styles.saveBtnDone]}
             onPress={handleSave}
@@ -2356,7 +2611,7 @@ function AIAPayAppScreenInner() {
               {generating ? 'Generating…' : 'Generate PDF'}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ActionBar>
         )}
         <Text style={styles.bottomBarHint}>
           A pay application reaches your client portal after you send it there and the portal updates — then owners and architects can review and download it.
@@ -2367,11 +2622,11 @@ function AIAPayAppScreenInner() {
       <Modal
         visible={showFirstUseDisclaimer}
         transparent
-        animationType="fade"
+        animationType={fDisclaimer.animationType}
         onRequestClose={dismissFirstUseDisclaimer}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+        <View style={[styles.modalBackdrop, fDisclaimer.overlay]}>
+          <View style={[styles.modalCard, fDisclaimer.card]}>
             <View style={styles.modalIconWrap}>
               <ShieldAlert size={26} color="#C26A00" strokeWidth={1.75} />
             </View>
@@ -2399,11 +2654,11 @@ function AIAPayAppScreenInner() {
       <Modal
         visible={showPreExportConfirm}
         transparent
-        animationType="fade"
+        animationType={fConfirm.animationType}
         onRequestClose={() => setShowPreExportConfirm(false)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+        <View style={[styles.modalBackdrop, fConfirm.overlay]}>
+          <View style={[styles.modalCard, fConfirm.card]}>
             <View style={styles.modalIconWrap}>
               <ShieldAlert size={24} color="#C26A00" strokeWidth={1.75} />
             </View>
@@ -2616,6 +2871,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   heroStatSub: { fontSize: 10, color: themeColors.textMuted, marginTop: 2 },
 
   section: { marginHorizontal: 16, marginBottom: 20 },
+  // Wave 6d (M1) desktop appends — margins and a width cap only, no surface.
+  formColumnDesktop: { maxWidth: Layout.page.form },
+  kpiDesktop: { marginHorizontal: 16, marginBottom: Layout.groupGap },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: themeColors.text, marginBottom: 4 },
   sectionTitleCount: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },

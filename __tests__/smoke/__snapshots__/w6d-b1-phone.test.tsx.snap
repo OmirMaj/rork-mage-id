@@ -1,0 +1,78 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane B1 — components (golden, 390 phone) EntityActionSheet on iOS renders nothing (the native sheet owns the UI) 1`] = `
+{
+  "lines": 304,
+  "sha256": "28ce3c1e9e14f7af77dafc7204fcd38b19331d77188ca94d989968f36a71840a",
+}
+`;
+
+exports[`lane B1 — components (golden, 390 phone) EntityActionSheet project ref, android 390 1`] = `
+{
+  "lines": 344,
+  "sha256": "f8ddc37e4225ff0ac8f2a466f74b4a529d871d23ad07cb36fd4facf567399376",
+}
+`;
+
+exports[`lane B1 — components (golden, 390 phone) EntityActionSheet project ref, web 390 1`] = `
+{
+  "lines": 344,
+  "sha256": "d2c631a210876eaab5510a92091aa26e2bf809e31117ed1eb2fe7d219f15ef49",
+}
+`;
+
+exports[`lane B1 — components (golden, 390 phone) EntityActionSheet rfi ref, android 390 1`] = `
+{
+  "lines": 352,
+  "sha256": "2e1b9826528ab0c9bd58b51e870da5b067d7afe510b5f164388f3db910ba74ca",
+}
+`;
+
+exports[`lane B1 — components (golden, 390 phone) EntityActionSheet rfi ref, web 390 1`] = `
+{
+  "lines": 352,
+  "sha256": "985821cfc713f88d71764213cabad8df601c023c8991a64098ac8ded1581f5ff",
+}
+`;
+
+exports[`lane B1 — components (golden, 390 phone) RecordPaymentModal, open (iOS) 1`] = `
+{
+  "lines": 355,
+  "sha256": "2b7ccf3a999a7d305d208cccf677fe85344c2fe1b20da7ed939b7314d362d0c6",
+}
+`;
+
+exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) budget-dashboard 1`] = `
+{
+  "lines": 454,
+  "sha256": "6d955d3ae582b3813af0673e4e11820e804f886e630b3f0f87ce9cab7f8ab004",
+}
+`;
+
+exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) cash-flow (no project) 1`] = `
+{
+  "lines": 724,
+  "sha256": "29b9493eb7b4dc5a645559c10267c52975134fa25b569dc73debd58e9b53b984",
+}
+`;
+
+exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) cash-flow with a project (balance, expense, payment sheets) 1`] = `
+{
+  "lines": 724,
+  "sha256": "4505f540a28c57525ce80f6d4eeb1af5622604a15ee89c3775545ad6b82f3bbd",
+}
+`;
+
+exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) job-costing (commitment editor + phase sheet mounted) 1`] = `
+{
+  "lines": 763,
+  "sha256": "0dc46bb9a373dc6500623b409ebd65c0f62637fcd96eefd9a4aad42a73ad224c",
+}
+`;
+
+exports[`lane B1 — the phone is unchanged (golden, 390 × 844 iOS) job-costing: the first phase pressed (PhaseDetailModal open) 1`] = `
+{
+  "lines": 815,
+  "sha256": "04cc9d8a918ea57c069805c16d6c24ce61c3f30fea30ba6e9cd66b334dbf2061",
+}
+`;

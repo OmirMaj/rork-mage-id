@@ -54,6 +54,14 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { formatCalendarDay, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import {
+  useIsDesktop, useIsDesktopWeb, desktopCta, useSheetFrame, useSheetPrimaryHotkey, StatusPill, type StatusTone,
+} from '@/components/ui';
+import { DataTable, type DataTableColumn, type DataTableBulkAction } from '@/components/desktop/DataTable';
+import { SplitView, useSplitRecord } from '@/components/desktop/SplitView';
+import { routeHref } from '@/components/desktop/RowLink';
+import { rowsToCsv } from '@/utils/dataTable';
+import { deliverTextFile } from '@/utils/platformFile';
 
 /** A calendar day from whatever the invoice screen passed as prefillThroughDate
  *  (see the seed below): 'YYYY-MM-DD' as-is, an ISO instant as its LOCAL day,
@@ -63,6 +71,38 @@ function normaliseThroughDate(value: string | undefined): string {
 }
 
 const LIEN_WAIVER_TYPES: LienWaiverType[] = ['conditional_partial', 'unconditional_partial', 'conditional_final', 'unconditional_final'];
+
+// ── The desktop log (wave 6d, lane M2) ──────────────────────────────────────
+// The same status words as the card's pill, in StatusPill's tones (the card's
+// statusPillStyle colours map one to one: done → success, awaiting → warning,
+// void → error).
+const WAIVER_STATUS_LABEL: Record<LienWaiver['status'], string> = {
+  requested: 'Requested', signed: 'Signed', received: 'Received', voided: 'Voided',
+};
+const WAIVER_STATUS_TONE: Record<LienWaiver['status'], StatusTone> = {
+  requested: 'warning', signed: 'success', received: 'success', voided: 'error',
+};
+
+/** The Signed column: the day the sub signed, "Paper" for a paper original the
+ *  GC recorded, '—' while unsigned. */
+function waiverSignedCell(w: LienWaiver): string | null {
+  if (!w.subSignature) return null;
+  if (w.subSignature.role === 'gc') return 'Paper';
+  return formatCalendarDay(calendarDayOf(w.subSignature.signedAt)) || null;
+}
+
+/** The log as CSV: money as a plain number, an unknown cell empty. */
+function waiverCsvColumns(formLabel: (w: LienWaiver) => string) {
+  return [
+    { key: 'sub', label: 'Sub', csvValue: (w: LienWaiver) => w.subName },
+    { key: 'type', label: 'Type', csvValue: (w: LienWaiver) => WAIVER_LABELS[w.waiverType]?.short ?? w.waiverType },
+    { key: 'through', label: 'Through', csvValue: (w: LienWaiver) => w.throughDate },
+    { key: 'amount', label: 'Amount', csvValue: (w: LienWaiver) => Math.round(w.paidAmount * 100) / 100 },
+    { key: 'status', label: 'Status', csvValue: (w: LienWaiver) => WAIVER_STATUS_LABEL[w.status] ?? w.status },
+    { key: 'signed', label: 'Signed', csvValue: (w: LienWaiver) => (w.subSignature ? (w.subSignature.role === 'gc' ? 'Paper' : calendarDayOf(w.subSignature.signedAt)) : null) },
+    { key: 'form', label: 'Form', csvValue: (w: LienWaiver) => formLabel(w) },
+  ];
+}
 
 /** "Offline" vs "the read failed" — two different sentences on screen. */
 function isOfflineError(message: string): boolean {
@@ -723,6 +763,45 @@ function LienWaiversScreenInner() {
     );
   }, [refresh]);
 
+  // ── The desktop log: the waivers as a table, the open one beside it ───────
+  // The record pane is today's WaiverCard with the SAME props the phone list
+  // passes — no new write path. The open waiver lives in the URL (?waiverId).
+  const isDesktop = useIsDesktop();
+  const isDesktopWeb = useIsDesktopWeb();
+  const { openId, open, close } = useSplitRecord({ param: 'waiverId' });
+  const openWaiver = openId ? waivers.find(w => w.id === openId) ?? null : null;
+  useEffect(() => {
+    // A deleted waiver, or a stale link: close the pane instead of showing an
+    // empty one.
+    if (isDesktop && !loading && openId && !openWaiver) close();
+  }, [isDesktop, loading, openId, openWaiver, close]);
+
+  const waiverColumns = useMemo<DataTableColumn<LienWaiver>[]>(() => [
+    { key: 'sub', label: 'Sub', flex: 1, minWidth: 160, sortValue: w => w.subName, value: w => w.subName },
+    { key: 'type', label: 'Type', width: 150, hideBelow: 600, sortValue: w => WAIVER_LABELS[w.waiverType]?.short ?? null, value: w => WAIVER_LABELS[w.waiverType]?.short ?? null },
+    { key: 'through', label: 'Through', width: 96, hideBelow: 560, sortValue: w => w.throughDate, value: w => formatCalendarDay(w.throughDate) || null },
+    { key: 'amount', label: 'Amount', width: 120, numeric: true, sortValue: w => w.paidAmount, value: w => formatMoney(w.paidAmount, 2) },
+    {
+      key: 'status', label: 'Status', width: 104, sortValue: w => w.status,
+      render: w => <StatusPill label={WAIVER_STATUS_LABEL[w.status] ?? w.status} tone={WAIVER_STATUS_TONE[w.status] ?? 'neutral'} size="compact" />,
+    },
+    { key: 'signed', label: 'Signed', width: 96, hideBelow: 760, sortValue: w => w.subSignature?.signedAt ?? null, value: w => waiverSignedCell(w) },
+    { key: 'form', label: 'Form', width: 220, hideBelow: 1100, value: w => lienWaiverFormLabel(w, docCtx) },
+  ], [docCtx]);
+
+  // Export CSV ONLY: every waiver write is online and single-flight
+  // (writeInFlight), so there is no safe bulk Void / Received / Delete.
+  const waiverBulkActions = useMemo<DataTableBulkAction[]>(() => [{
+    key: 'csv',
+    label: 'Export CSV',
+    run: (ids: string[]) => {
+      const pick = new Set(ids);
+      const picked = waivers.filter(w => pick.has(w.id));
+      const day = todayCalendarDay();
+      void deliverTextFile(`lien-waivers-${day}.csv`, rowsToCsv(waiverCsvColumns(w => lienWaiverFormLabel(w, docCtx)), picked), 'text/csv;charset=utf-8');
+    },
+  }], [waivers, docCtx]);
+
   if (!project) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
@@ -754,7 +833,7 @@ function LienWaiversScreenInner() {
           <Text style={styles.eyebrow}>{project.name}</Text>
           <Text style={styles.title}>Lien Waivers</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
+        <TouchableOpacity style={[styles.addBtn, isDesktop && desktopCta]} onPress={() => setAddModal(true)}>
           <Plus size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.addBtnText}>New</Text>
         </TouchableOpacity>
@@ -851,23 +930,85 @@ function LienWaiversScreenInner() {
           </View>
         )}
 
-        {waivers.map(w => (
-          <WaiverCard
-            key={w.id}
-            waiver={w}
-            exporting={exporting === w.id}
-            requesting={requesting === w.id}
-            busy={busy === w.id}
-            offline={!!loadError?.offline}
-            formLabel={lienWaiverFormLabel(w, docCtx)}
-            onExport={() => handleExport(w)}
-            onRequestSignature={() => handleRequestSignature(w)}
-            onRecordPaper={() => handleRecordPaper(w)}
-            onMarkReceived={() => handleStatusChange(w, 'received')}
-            onMarkVoid={() => { void handleVoid(w); }}
-            onDelete={() => handleDelete(w)}
-          />
-        ))}
+        {isDesktop ? (
+          waivers.length > 0 ? (
+            <SplitView
+              splitId="lien-waivers"
+              collapseWhenEmpty
+              testID="lien-waivers-split"
+              openId={openWaiver ? openId : null}
+              onClose={close}
+              list={(
+                <DataTable<LienWaiver>
+                  tableId="lien-waivers"
+                  testID="lien-waivers-table"
+                  columns={waiverColumns}
+                  rows={waivers}
+                  rowKey={w => w.id}
+                  activeKey={openId}
+                  onRowOpen={w => open(w.id)}
+                  getRowHref={w => routeHref('/lien-waivers', { projectId: project.id, waiverId: w.id })}
+                  defaultSort={{ key: 'through', dir: 'desc' }}
+                  searchText={w => `${w.subName} ${WAIVER_LABELS[w.waiverType]?.short ?? ''}`}
+                  selectable={isDesktopWeb}
+                  hotkeys={isDesktopWeb}
+                  {...(isDesktopWeb ? { bulkActions: waiverBulkActions } : null)}
+                  renderCard={w => (
+                    <WaiverCard
+                      key={w.id}
+                      waiver={w}
+                      exporting={exporting === w.id}
+                      requesting={requesting === w.id}
+                      busy={busy === w.id}
+                      offline={!!loadError?.offline}
+                      formLabel={lienWaiverFormLabel(w, docCtx)}
+                      onExport={() => handleExport(w)}
+                      onRequestSignature={() => handleRequestSignature(w)}
+                      onRecordPaper={() => handleRecordPaper(w)}
+                      onMarkReceived={() => handleStatusChange(w, 'received')}
+                      onMarkVoid={() => { void handleVoid(w); }}
+                      onDelete={() => handleDelete(w)}
+                    />
+                  )}
+                />
+              )}
+              detail={openWaiver ? (
+                <WaiverCard
+                  waiver={openWaiver}
+                  exporting={exporting === openWaiver.id}
+                  requesting={requesting === openWaiver.id}
+                  busy={busy === openWaiver.id}
+                  offline={!!loadError?.offline}
+                  formLabel={lienWaiverFormLabel(openWaiver, docCtx)}
+                  onExport={() => handleExport(openWaiver)}
+                  onRequestSignature={() => handleRequestSignature(openWaiver)}
+                  onRecordPaper={() => handleRecordPaper(openWaiver)}
+                  onMarkReceived={() => handleStatusChange(openWaiver, 'received')}
+                  onMarkVoid={() => { void handleVoid(openWaiver); }}
+                  onDelete={() => handleDelete(openWaiver)}
+                />
+              ) : null}
+            />
+          ) : null
+        ) : (
+          waivers.map(w => (
+            <WaiverCard
+              key={w.id}
+              waiver={w}
+              exporting={exporting === w.id}
+              requesting={requesting === w.id}
+              busy={busy === w.id}
+              offline={!!loadError?.offline}
+              formLabel={lienWaiverFormLabel(w, docCtx)}
+              onExport={() => handleExport(w)}
+              onRequestSignature={() => handleRequestSignature(w)}
+              onRecordPaper={() => handleRecordPaper(w)}
+              onMarkReceived={() => handleStatusChange(w, 'received')}
+              onMarkVoid={() => { void handleVoid(w); }}
+              onDelete={() => handleDelete(w)}
+            />
+          ))
+        )}
       </ScrollView>
 
       <NewWaiverModal
@@ -1037,6 +1178,9 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
   const [subEmail, setSubEmail] = useState('');
   const [throughDate, setThroughDate] = useState(todayCalendarDay()); // UX-F3: local day
   const [amount, setAmount] = useState('');
+  // The sheet recipe (components/ui/Sheet.tsx): a centred card on desktop, the
+  // phone's slide-up sheet unchanged below the gate.
+  const f = useSheetFrame('form', { visible, animationType: 'slide' });
 
   useEffect(() => {
     if (visible) {
@@ -1072,11 +1216,14 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
       paidAmount: numericAmount,
     });
   };
+  // Cmd+Enter / Cmd+S create it: Create is a save (it drafts the waiver; the
+  // signing link is a separate, explicit action on the card).
+  useSheetPrimaryHotkey(visible, handleSubmit);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+    <Modal visible={visible} animationType={f.animationType} transparent onRequestClose={onClose}>
+      <View style={[styles.modalOverlay, f.overlay]}>
+        <View style={[styles.modalCard, f.card]}>
           <Text style={styles.modalTitle}>New lien waiver</Text>
           <Text style={styles.modalBody}>Pick the type, fill in the sub + amount, generate the PDF.</Text>
 

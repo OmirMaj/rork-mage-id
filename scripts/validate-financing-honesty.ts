@@ -307,12 +307,93 @@ const html = read('marketing/portal/index.html');
     'app/paywall.tsx', 'marketing/portal/index.html', 'utils/emailService.ts'];
   const hits = files.filter(f => /may receive compensation/i.test(code(read(f))));
   ok('no financing surface says MAGE ID "may receive compensation"', hits.length === 0, hits.join(', '));
-  // app/invoice.tsx is another wave's file this lane may not edit; its
-  // "Wisetack-style partnership" early-access card is a HANDOFF, reported, not
-  // failed, until that wave applies it.
-  if (/Wisetack/.test(code(read('app/invoice.tsx')))) {
-    console.log('  ! HANDOFF: app/invoice.tsx still renders the "Wisetack-style partnership · early access" card (RevenueEarlyAccessCard eventKey revenue.financing.wisetack)');
+  // Wave 6d M2 applied the fixq HANDOFF: the invoice's Wisetack card is gone.
+  ok('app/invoice.tsx no longer names Wisetack (the "Wisetack-style partnership · early access" card is removed)',
+    !/Wisetack/i.test(code(read('app/invoice.tsx'))));
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 10 · wave 6d M2 — the invoice's financing line, the early-access cards
+//      (contract D8), the welcome / invoice email, instant-bid monthly line
+// ════════════════════════════════════════════════════════════════════════════
+{
+  const inv = code(read('app/invoice.tsx'));
+  // The executed copy.
+  const on = core.invoiceFinancingOnLine('  Acme Home Loans ');
+  ok('invoiceFinancingOnLine names the GC\'s own lender and says MAGE ID is not one and is not paid',
+    on === 'Financing is on: invoice emails you send and your client portal offer "Check financing options" from Acme Home Loans. '
+      + 'MAGE ID is not a lender and is not paid for referrals.', on);
+  ok('INVOICE_FINANCING_SETUP_LINE is bring-your-own-lender, pointing at Payments',
+    core.INVOICE_FINANCING_SETUP_LINE === 'Want to offer your client monthly payments? Bring your own lender — set it up in Payments →');
+  ok('…neither names a partner, a rate or a date',
+    !/Wisetack|%|Q3|20\d\d/i.test(on + core.INVOICE_FINANCING_SETUP_LINE));
+
+  // The wiring: the Wisetack card and its icon are gone; the line replaces it.
+  ok('the invoice-financing-cta card and its revenue.financing.wisetack event are removed',
+    !/invoice-financing-cta/.test(inv) && !/revenue\.financing\.wisetack/.test(inv));
+  ok('…HandCoins (used only by that card) is no longer imported', !/HandCoins/.test(inv));
+  ok('…financing on → the invoice-financing-on line renders invoiceFinancingOnLine(partner)',
+    /isFinancingAvailable\(settings\) \?\s*\(\s*<Text style=\{styles\.reminderHint\} testID="invoice-financing-on">\s*\{invoiceFinancingOnLine\(settings\?\.financing\?\.partnerName \?\? ''\)\}/.test(inv));
+  ok('…financing off → a link to /payments-setup with INVOICE_FINANCING_SETUP_LINE',
+    /<TouchableOpacity onPress=\{\(\) => router\.push\('\/payments-setup'\)\} accessibilityRole="link" testID="invoice-financing-setup">\s*<Text style=\{styles\.reminderHint\}>\{INVOICE_FINANCING_SETUP_LINE\}<\/Text>/.test(inv));
+  ok('…and a sample job shows neither', /\{!isSampleJob && \(isFinancingAvailable\(settings\) \?/.test(inv));
+
+  // Contract D8: the early-access cards on the invoice and prequal-manager.
+  const FOOTER = 'Not available yet — tap to be told when it is';
+  const D8: [string, string, string, string, string][] = [
+    ['app/invoice.tsx', 'invoice-factoring-cta', 'revenue.factoring.altline', 'Advances on unpaid invoices',
+      'We are looking at a factoring partner that could advance part of an unpaid invoice. No partner is signed yet, so there are no rates or timelines to show.'],
+    ['app/prequal-manager.tsx', 'coi-requote-cta', 'revenue.insurance.coi_requote', 'Renewal quotes for expiring sub insurance',
+      "We are working on requesting renewal quotes for a sub's expiring coverage, pre-filled from the COI on file. No insurer or broker is signed up yet."],
+  ];
+  const FORBIDDEN = ['LOI', 'Q3 2026', '24 hours', '60 seconds', 'Coterie', 'Hiscox', 'Next Insurance', '3 brokers', '%'];
+  for (const [file, testID, eventKey, headline, body] of D8) {
+    const src = read(file);
+    const at = src.indexOf(`testID="${testID}"`);
+    const from = at < 0 ? -1 : src.lastIndexOf('<RevenueEarlyAccessCard', at);
+    const to = at < 0 ? -1 : src.indexOf('/>', at);
+    const span = from >= 0 && to > at ? src.slice(from, to + 2) : '';
+    ok(`${file} ${testID}: the card is still there (eventKey ${eventKey}, interest capture kept)`,
+      !!span && span.includes(`eventKey="${eventKey}"`), span ? '' : 'card not found');
+    ok(`${file} ${testID}: D8's exact headline, body and footer`,
+      span.includes(`headline="${headline}"`) && span.includes(`body="${body}"`) && span.includes(`footer="${FOOTER}"`), span);
+    const bad = FORBIDDEN.filter(w => span.includes(w)).concat(/today/i.test(span) ? ['today'] : []);
+    ok(`${file} ${testID}: no rate, percentage, 'today', speed, partner, count, LOI or date`, !!span && bad.length === 0, bad.join(', '));
   }
+
+  // The welcome email and the invoice email (utils/emailService.ts).
+  const em = read('utils/emailService.ts');
+  const emc = code(em);
+  ok('emailService: no "1–2 business days" payout promise', !/1[–-]2 business days/.test(em));
+  ok('…the welcome email\'s "Get paid in-app" line renders PAYOUT_TIMING_SHORT from platformFees',
+    /import \{ PAYOUT_TIMING_SHORT \} from '@\/utils\/platformFees';/.test(emc)
+    && /title: 'Get paid in-app', body: `One-tap Pay button on every invoice\. \$\{PAYOUT_TIMING_SHORT\}\.` \}/.test(emc));
+  ok('…the Pay-link footer no longer promises bank payment (it exists only when ACH is on in Stripe)',
+    !/card &amp; bank payment/.test(em) && /Powered by Stripe · secure online payment/.test(emc));
+
+  // Instant-bid proposals: a monthly figure carries its APR, term and lender.
+  const ib = read('utils/instantBid.ts');
+  const tfl = liftFunction(ib, 'tierFinancingLine');
+  ok('instantBid tierFinancingLine states the APR, the term and financingDisclosureText(…)',
+    /\$\{cfg\.exampleApr\}% APR/.test(tfl) && /\$\{cfg\.exampleTermMonths\} months/.test(tfl) && /financingDisclosureText\(/.test(tfl)
+    && /import \{ financingDisclosureText \} from '@\/utils\/financingCore';/.test(ib));
+  ok('…and never a bare "As low as $"', !/As low as \$/.test(code(ib)));
+  // Executed: lifted with the real illustrativeMonthly (lifted from utils/financing.ts).
+  const im = liftFunction(read('utils/financing.ts'), 'illustrativeMonthly');
+  let line: string | null = null, off: string | null = 'unset', noTerms: string | null = 'unset';
+  try {
+    const js = new (globalThis as unknown as { Bun: { Transpiler: new (o: { loader: 'ts' }) => { transformSync: (c: string) => string } } }).Bun
+      .Transpiler({ loader: 'ts' }).transformSync(`${im}\n${tfl}`);
+    const run = new Function('financingDisclosureText', `${js}\nreturn tierFinancingLine;`)(core.financingDisclosureText) as
+      (a: number, c?: Record<string, unknown>) => string | null;
+    const cfg = { enabled: true, partnerName: 'Acme Home Loans', prequalBaseUrl: 'https://acme.example/p', exampleApr: 9.99, exampleTermMonths: 60, updatedAt: '' };
+    line = run(25000, cfg);
+    off = run(25000, { ...cfg, enabled: false });
+    noTerms = run(25000, { ...cfg, exampleApr: undefined });
+  } catch (e) { line = `threw: ${(e as Error).message}`; }
+  ok('…executed: "Est. $531/mo at 9.99% APR for 60 months (example)." + the lender disclosure',
+    line === `Est. $531/mo at 9.99% APR for 60 months (example). ${core.financingDisclosureText('Acme Home Loans')}`, String(line));
+  ok('…executed: no line when financing is off or has no example terms', off === null && noTerms === null, `${off} / ${noTerms}`);
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-financing-honesty: ${pass} passed, ${fail} failed\n`);

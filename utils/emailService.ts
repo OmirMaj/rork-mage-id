@@ -15,6 +15,7 @@ import {
   type UnsubscribeOpts,
 } from '@/utils/emailLayout';
 import { sampleInvoiceBannerHtml, samplePaySpecimenHtml } from '@/utils/invoiceSampleCore';
+import { PAYOUT_TIMING_SHORT } from '@/utils/platformFees';
 
 export interface SendEmailParams {
   to: string;
@@ -496,7 +497,7 @@ export function buildWelcomeEmailHtml(opts: {
   const features = [
     { icon: '🏗', title: 'Estimates that calculate themselves', body: 'Live material pricing, regional cost adjustments, AI quick estimates from a photo.' },
     { icon: '📋', title: 'Daily field reports in 60 seconds', body: 'Voice-record what happened on site; AI parses weather, manpower, work performed, issues.' },
-    { icon: '💰', title: 'Get paid in-app', body: 'One-tap Pay button on every invoice. Money lands in your bank in 1–2 business days.' },
+    { icon: '💰', title: 'Get paid in-app', body: `One-tap Pay button on every invoice. ${PAYOUT_TIMING_SHORT}.` },
     { icon: '📐', title: 'Plans, RFIs, COs, submittals', body: 'Full document workflow on your phone. Auto-export RFI logs and closeout packets to PDF.' },
     { icon: '📊', title: 'Cash flow forecaster', body: 'See when you\'ll be in the red weeks before it happens. No more A/R blindsides.' },
   ];
@@ -592,7 +593,7 @@ export function buildInvoiceEmailHtml(opts: {
     ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">A new invoice is ready for review and payment.</p>'}
     ${emailStatCard(stats)}
     ${financingHtml ?? ''}
-    ${payLinkUrl ? `<p style="margin:6px 0 0;text-align:center;color:#9AA3AD;font-size:11px;">Powered by Stripe · secure card &amp; bank payment</p>` : '<p style="margin:0 0 6px;color:#4A5159;font-size:13px;">Pay by check, ACH, or whatever method we agreed to. Reply to this email if you have any questions about the invoice.</p>'}
+    ${payLinkUrl ? `<p style="margin:6px 0 0;text-align:center;color:#9AA3AD;font-size:11px;">Powered by Stripe · secure online payment</p>` : '<p style="margin:0 0 6px;color:#4A5159;font-size:13px;">Pay by check, ACH, or whatever method we agreed to. Reply to this email if you have any questions about the invoice.</p>'}
   `;
 
   return wrapEmailHtml({

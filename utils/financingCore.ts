@@ -117,3 +117,18 @@ export function financingReferralSummary(counts: { created: number; clicked: num
   const clicked = Math.max(0, Math.floor(counts.clicked));
   return `Financing links: ${created} created · ${clicked} clicked`;
 }
+
+// ── Invoice screen copy (GC-facing, wave 6d M2) ──────────────────────────────
+// What the sent-invoice screen says where the old "Wisetack-style partnership"
+// card used to be: MAGE ID has no lending partner, so the screen says whose
+// lender the client is sent to, or how to set one up — nothing else.
+
+/** Financing is on: the one line under the Pay link. */
+export function invoiceFinancingOnLine(partnerName: string): string {
+  return `Financing is on: invoice emails you send and your client portal offer "Check financing options" from ${partnerName.trim()}. `
+    + 'MAGE ID is not a lender and is not paid for referrals.';
+}
+
+/** Financing is off: a link to Payments, where he brings his own lender. */
+export const INVOICE_FINANCING_SETUP_LINE =
+  'Want to offer your client monthly payments? Bring your own lender — set it up in Payments →';

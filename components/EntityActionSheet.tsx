@@ -6,6 +6,11 @@
 //
 // - iOS:     native ActionSheetIOS (inherits system look + destructive style).
 // - Android/web: modal with a button list (+ dim backdrop).
+// - Desktop web (wave 6d, B1): with an `anchor` (the pointer, a ⋯ press) a
+//   220–280 px popover at that point, no dim, flipped up near the bottom edge
+//   and clamped at the right (utils/popoverPosition); without one, the
+//   centred 440 dialog (useSheetFrame 'dialog'). Esc and an outside click close
+//   both; the open menu is a dialog to the shortcut registry.
 //
 // The sheet reads the action catalog from `utils/entityActions.ts` and wires
 // the verbs itself: Open → navigate; Copy link / Share → an https link on the
@@ -17,8 +22,8 @@
 // that closed the sheet and did nothing on the project page and activity feed.
 // ============================================================================
 
-import React, { useMemo } from 'react';
-import {View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, ActionSheetIOS, Platform} from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {View, Text, StyleSheet, Modal, TouchableOpacity, Pressable, ActionSheetIOS, Platform, Dimensions, type LayoutChangeEvent} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -40,7 +45,9 @@ import type { EntityRef, PunchItem, RFI } from '@/types';
 import type { EntityStore } from '@/utils/entityResolver';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Shadow, Tokens } from '@/constants/designTokens';
+import { cardSurface, useIsDesktopWeb, useSheetFrame } from '@/components/ui';
+import { popoverPosition } from '@/utils/popoverPosition';
 import { showAlert } from '@/utils/alert';
 
 export interface EntityActionSheetProps {
@@ -59,6 +66,19 @@ export interface EntityActionSheetProps {
   callerVerbs?: EntityActionId[];
   /** Optional filter — drop any actions whose id isn't in the allowlist. */
   allowed?: EntityActionId[];
+  /**
+   * Desktop web: open as a popover at this page point (a ⋯ press or a
+   * right-click). Without it desktop gets the centred dialog; ignored on
+   * native and on a phone-width web window.
+   */
+  anchor?: { x: number; y: number } | null;
+}
+
+/** The window a popover must stay inside (ScheduleRowMenu's windowViewport). */
+function windowViewport(): { width: number; height: number } {
+  const w = typeof window !== 'undefined' ? (window as { innerWidth?: number; innerHeight?: number }) : undefined;
+  const d = Dimensions.get('window');
+  return { width: w?.innerWidth || d.width, height: w?.innerHeight || d.height };
 }
 
 /** window.location.origin on web (so a deploy preview links to itself); null elsewhere. */
@@ -76,6 +96,7 @@ export default function EntityActionSheet({
   onAction,
   callerVerbs,
   allowed,
+  anchor,
 }: EntityActionSheetProps) {
   const projectsCtx = useProjects();
   const store = projectsCtx as unknown as EntityStore;
@@ -255,6 +276,20 @@ export default function EntityActionSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityRef]);
 
+  // Desktop web: the popover (anchor) or the centred dialog (no anchor). The
+  // frame also makes the open menu a dialog-scope entry for Esc; the Modal's
+  // onRequestClose closes it. Every hook sits above the iOS return.
+  const isDesktopWeb = useIsDesktopWeb();
+  const f = useSheetFrame('dialog', { visible: entityRef !== null, animationType: 'fade' });
+  const [menuH, setMenuH] = useState<number | null>(null);
+  const pop = isDesktopWeb && anchor
+    ? popoverPosition(anchor, { height: menuH ?? 40 + actions.length * Layout.control.row + 8 }, windowViewport())
+    : null;
+  const onMenuLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.height);
+    setMenuH((prev) => (prev === next ? prev : next));
+  };
+
   // iOS renders nothing — the native sheet owns the UI.
   if (Platform.OS === 'ios') return null;
 
@@ -263,15 +298,22 @@ export default function EntityActionSheet({
     <Modal
       visible={entityRef !== null}
       transparent
-      animationType="fade"
+      animationType={pop ? 'none' : f.animationType}
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable
+        style={[styles.backdrop, isDesktopWeb && pop ? styles.popoverBackdropDesktop : f.overlay]}
+        onPress={onClose}
+        // A right-click outside the popover closes it instead of opening the
+        // browser's own menu over it (ScheduleRowMenu does the same).
+        {...(isDesktopWeb ? ({ onContextMenu: (e: { preventDefault?: () => void }) => { e?.preventDefault?.(); onClose(); } } as object) : null)}
+      >
         <Pressable
-          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom + 12, 16) }]}
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom + 12, 16) }, isDesktopWeb && pop ? styles.popoverDesktop : f.card, pop && { left: pop.left, top: pop.top }]}
           onPress={e => e.stopPropagation()}
+          {...(pop ? { onLayout: onMenuLayout, accessibilityRole: 'menu' as const, testID: 'entity-action-popover' } : null)}
         >
-          <View style={styles.handle} />
+          {f.showHandle && <View style={styles.handle} />}
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
             <TouchableOpacity onPress={onClose} accessibilityLabel="Close" style={styles.closeBtn}>
@@ -284,7 +326,7 @@ export default function EntityActionSheet({
             return (
               <TouchableOpacity
                 key={action.id}
-                style={styles.row}
+                style={[styles.row, isDesktopWeb && pop && styles.rowPopoverDesktop]}
                 onPress={() => run(action.id)}
                 activeOpacity={0.7}
                 testID={`entity-action-${action.id}`}
@@ -307,6 +349,23 @@ export default function EntityActionSheet({
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  // Desktop web popover: no dim behind a pointer menu.
+  popoverBackdropDesktop: { backgroundColor: 'transparent' },
+  popoverDesktop: {
+    ...cardSurface(t, { radius: 'md', pad: 'none' }),
+    position: 'absolute' as const,
+    minWidth: Layout.menu.minWidth,
+    maxWidth: Layout.menu.maxWidth,
+    // The sheet's own corner radii and paddings are longhands, which beat a
+    // shorthand whatever the order — so the popover restates them.
+    borderTopLeftRadius: Tokens.radius.md,
+    borderTopRightRadius: Tokens.radius.md,
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: 4,
+    ...Shadow.heavy,
+  },
+  rowPopoverDesktop: { height: Layout.control.row, paddingVertical: 0 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

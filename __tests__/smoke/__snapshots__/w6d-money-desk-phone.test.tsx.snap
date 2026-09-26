@@ -1,0 +1,71 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (f) /payments, populated 1`] = `
+{
+  "lines": 518,
+  "sha256": "e307bfc67c57a44cba22bd64358a99e7375047d9221c7eca9a2f996c6486714d",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (g) /payments, Pending then Completed 1`] = `
+{
+  "lines": 425,
+  "sha256": "3992210daaf36a516b4e6ed29d9782f145c65e9b94c86a0e29cfb33c1ee2c206",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (g) /payments, Pending then Completed 2`] = `
+{
+  "lines": 454,
+  "sha256": "ec584957fa98437291b47b72adecb39e018fad1d8b7633f447b7fe732f7daa9e",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (h) /payments, empty 1`] = `
+{
+  "lines": 385,
+  "sha256": "8520e6923d80ec680bcf697488937b4d5138916b05e59f66ac0f4ef4d8ce606e",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (i) /lien-waivers, four waivers 1`] = `
+{
+  "lines": 713,
+  "sha256": "552eef35b022d124d501ba857e5df4009bf31ee36145c90efa40ba486905acca",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (j) /lien-waivers, a failed read with a cache (the stale banner) 1`] = `
+{
+  "lines": 600,
+  "sha256": "d27c1965eb20985d9a38aedb2db66e56257d56668464fee9183ee7cd864709f0",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (k) /lien-waivers, a failed read without a cache 1`] = `
+{
+  "lines": 449,
+  "sha256": "8aa1238df76fdbdee8e19682b2cd6043ad7ee754d56c9eee578114ef33107583",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (l) /invoice, a draft with 3 lines 1`] = `
+{
+  "lines": 1010,
+  "sha256": "f77aa6a4cd84b9eab77fb281b9d415515cfce7d529100e91a215877a8a596f13",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (m) /invoice, sent with a pay link and a balance (the ONE intended delta) 1`] = `
+{
+  "lines": 1023,
+  "sha256": "3e97f84c99a83c0b73b760340dda7f488711f7558b56eedb6c60eb5603a17b17",
+}
+`;
+
+exports[`lane M2 golden — the phone (390 × 844 iOS) (pq) /prequal-manager, a packet renewing within 30 days (the coi-requote card; intended copy delta) 1`] = `
+{
+  "lines": 473,
+  "sha256": "6eb9903312ee736e9917b51dbdbfe2eac5d6f2181dc8edbb75673e5013ffa0a1",
+}
+`;

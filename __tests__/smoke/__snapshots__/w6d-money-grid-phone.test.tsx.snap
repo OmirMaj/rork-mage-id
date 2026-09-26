@@ -1,0 +1,36 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (a) /aia-pay-app, a fresh progress period: an editable draft, one line over-billed, one with stored material 1`] = `
+{
+  "lines": 1189,
+  "sha256": "d7c549611bcd51a135a0a5e0d36d35ab5a1313afd6b5fb613701698ae04c5a5e",
+}
+`;
+
+exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (b) /aia-pay-app, the saved record: review mode, read-only 1`] = `
+{
+  "lines": 827,
+  "sha256": "27943c0f5bd5feaa035e2fce9737e183ad5e892499c39b4e2e7e4a625af15799",
+}
+`;
+
+exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (c) /aia-pay-app, the saved record with a pay link: locked 1`] = `
+{
+  "lines": 830,
+  "sha256": "3b3c594e10306e77a688e33c9175d2a6dd740f8d892861b1bd3820b980027f50",
+}
+`;
+
+exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (d) /change-order, a draft with a needs_price and an ai_estimated line 1`] = `
+{
+  "lines": 1994,
+  "sha256": "6fd5d38b1d226d0339fe77760261ee0d9f96049cc06d2d225d47d6c2ed4ad70d",
+}
+`;
+
+exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (e) /change-order, an approved CO: locked 1`] = `
+{
+  "lines": 969,
+  "sha256": "c5864c21a9cd70a7014c8e87ffe746af706be9895ab637be5c06173e8cd0ba29",
+}
+`;
