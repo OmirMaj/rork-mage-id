@@ -144,3 +144,45 @@ describe('permit office outside NYC', () => {
     expect(lookups()).toHaveLength(0);
   });
 });
+
+// Lane H (2026-09-26): Suffolk and Westchester hand-verified cards, over
+// Census answers recorded at each hall's address that day.
+const SUFFOLK_ID = '66666666-6666-4666-8666-666666666606';
+const WESTCHESTER_ID = '66666666-6666-4666-8666-666666666607';
+const SMITHTOWN_HAMLET = {
+  ...base, state: 'NY', match: 'address',
+  county: { name: 'Suffolk County', geoid: '36103' },
+  town: { name: 'Smithtown town', basename: 'Smithtown', geoid: '3610368000', kind: 'town' },
+  cdp: { name: 'Smithtown CDP', basename: 'Smithtown', geoid: '3667851', kind: 'CDP' },
+};
+const YONKERS_CITY = {
+  ...base, state: 'NY', match: 'address',
+  county: { name: 'Westchester County', geoid: '36119' },
+  town: { name: 'Yonkers city', basename: 'Yonkers', geoid: '3611984000', kind: 'city' },
+  incorporatedPlace: { name: 'Yonkers city', basename: 'Yonkers', geoid: '3684000', kind: 'city' },
+};
+
+describe('hand-verified Suffolk and Westchester offices', () => {
+  it('a Smithtown hamlet shows the Town of Smithtown card, sourced and dated, not name-only', async () => {
+    await seed([job(SUFFOLK_ID, 'Smithtown dormer', { street: '23 Redwood Ln', city: 'Smithtown', state: 'NY', zip: '11787' })]);
+    answer = () => ({ data: SMITHTOWN_HAMLET, error: null });
+    await mountRouteChecked(`/permits?projectId=${SUFFOLK_ID}`);
+    expect(await screen.findByText('Town of Smithtown Building Department')).toBeTruthy();
+    expect(screen.getAllByText('(631) 360-7520').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Source: smithtownny\.gov, checked 2026-09-26/)).toBeTruthy();
+    expect(screen.getByText(/Smithtown is a hamlet/)).toBeTruthy();
+    expect(screen.queryByText('Contact details not verified by MAGE')).toBeNull();
+    expect(screen.queryByTestId('permits-department-unverified')).toBeNull();
+  });
+
+  it('a Yonkers job shows the City of Yonkers card, keyed on its county subdivision', async () => {
+    await seed([job(WESTCHESTER_ID, 'Yonkers two-family', { street: '20 South Broadway', city: 'Yonkers', state: 'NY', zip: '10701' })]);
+    answer = () => ({ data: YONKERS_CITY, error: null });
+    await mountRouteChecked(`/permits?projectId=${WESTCHESTER_ID}`);
+    expect(await screen.findByText('City of Yonkers Department of Housing and Buildings')).toBeTruthy();
+    expect(screen.getAllByText('914-377-6500').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Source: yonkersny\.gov, checked 2026-09-26/)).toBeTruthy();
+    expect(screen.queryByText('Contact details not verified by MAGE')).toBeNull();
+    expect(screen.queryByText(/Villages usually run their own building department/)).toBeNull();
+  });
+});

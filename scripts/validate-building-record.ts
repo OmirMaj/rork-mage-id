@@ -25,10 +25,17 @@ import {
   BUILDING_RECORD_NOT_CHECKED, buildingConfirmKey, buildingLookupText, buildingRecordCacheKey,
   filingForPermit, isNycJobsite, parseBuildingRecordResponse, suggestPermitStatusFromDob,
   summarizeBuildingRecord, type BuildingRecord, type BuildingRecordSummary,
+  NJ_NOT_CHECKED, NJ_PERMIT_CAVEAT, isNjJobsite, njDollars, njParcelConfirmKey, parseNjBuildingRecordResponse, summarizeNjBuildingRecord,
 } from '../utils/buildingRecord';
 import {
   departmentFor, resolveCodeJurisdiction,
 } from '../utils/codeJurisdiction';
+import {
+  NJ_CANDIDATE_CAP, NJ_ERRORS, NJ_NOT_CHECKED as NJ_NOT_CHECKED_SRV, NJ_PERMIT_CAVEAT as NJ_PERMIT_CAVEAT_SRV, NJ_PERMIT_SELECT,
+  addressKey, assembleNjRecord, censusFirstMatch, censusLocationsUrl, dollarsToCents, failedNjPermits, mergeNjCandidates,
+  njMuniFreshnessUrl, njParcelAddressUrl, njParcelBufferUrl, njPermitsUrl, normalizeBlockLot, normalizeNjFreshness,
+  normalizeNjPermits, parseNjRequest, propLocMatches, rankNjCandidates, sanitizeBlockLot, sanitizeLat, sanitizeLon, sanitizeMuniCode,
+} from '../supabase/functions/building-record/nj';
 
 let pass = 0, fail = 0;
 function ok(name: string, cond: boolean, detail = '') {
@@ -376,7 +383,7 @@ ok('2. owner/respondent/permittee/phone columns are never selected', builtUrls.e
   ok('15. allow-headers include apikey and x-client-info', allow.split(',').map((x) => x.trim()).includes('apikey') && allow.split(',').map((x) => x.trim()).includes('x-client-info'));
   ok('15. the record cache key holds both bin and bbl', /const cacheKey = `\$\{bin\}:\$\{bbl\}`;/.test(src));
   const errorValues = [...src.matchAll(/[{,]\s*error:\s*([^,}\n]+)/g)].map((m) => m[1].trim());
-  ok('15. every `error:` in a response body is an ERRORS.<key> reference', errorValues.length >= 6 && errorValues.every((v) => /^ERRORS\.[a-z_]+$/.test(v)), errorValues.join(' | '));
+  ok('15. every `error:` in a response body is an ERRORS.<key> reference', errorValues.length >= 6 && errorValues.every((v) => /^(NJ_)?ERRORS\.[a-z_]+$/.test(v)), errorValues.join(' | '));
   ok('15. no leaked exception text (e.message / String(e) / res.text())', !/error:\s*e\.message|String\(e\)|String\(err\)|await res\.text\(\)|error:\s*`/.test(src));
   ok('15. the handler is wrapped in try/catch → 500 internal', /catch \(e\) \{\s*console\.error\('\[building-record\] error:', e\);\s*return json\(\{ status: 'error', code: 'internal', error: ERRORS\.internal \}, 500\);/.test(src));
   ok('15. every upstream fetch has an 8 s AbortController', /const UPSTREAM_TIMEOUT_MS = 8000;/.test(src) && /new AbortController\(\)/.test(src) && /signal: ac\.signal/.test(src) && (src.match(/await fetch\(/g) ?? []).length === 1);
@@ -432,6 +439,204 @@ ok('helpers: buildingLookupText', buildingLookupText({ street: '120 Broadway', c
   const fnBody = card.slice(card.indexOf('export function DepartmentCard('), card.indexOf('export default DepartmentCard'));
   ok('18. DepartmentCard.tsx returns null early, before any hook', /if \(!department \|\| resolved\.kind !== 'city'\) return null;/.test(fnBody) && !/\buse[A-Z]\w*\(/.test(fnBody));
   ok('18. DepartmentCard reads no storage and runs no effect', !/AsyncStorage|useEffect|useQuery/.test(card));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 19–30. NEW JERSEY (lane N). The pure half (supabase/functions/building-record/nj.ts)
+// over the live fixtures the probe saved on 2026-09-26 (94 Washington St,
+// Hoboken → 0905 block 199 lot 1), and the NJ renderer (summarizeNjBuildingRecord).
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nNew Jersey building record (state permit data):');
+{
+  const njFix = (name: string): any => JSON.parse(read(join(FIX, name)) || 'null');
+  const census = njFix('nj-census.json');
+  const parcel = njFix('nj-parcel.json');
+  const parcelAddr = njFix('nj-parcel-address.json');
+  const permitsFx = njFix('nj-permits.json');
+  const freshFx = njFix('nj-freshness.json');
+  ok('19. the five NJ fixtures exist', !!census && !!parcel && !!parcelAddr && !!permitsFx && !!freshFx);
+
+  // ── 19. fixtures hold no owner field ──
+  const njBlob = ['nj-census.json', 'nj-parcel.json', 'nj-parcel-address.json', 'nj-permits.json', 'nj-freshness.json'].map((f) => read(join(FIX, f))).join('\n');
+  const njKeys = new Set<string>();
+  JSON.parse(`[${[census, parcel, parcelAddr, permitsFx, freshFx].map((x) => JSON.stringify(x)).join(',')}]`, (k, v) => { if (k) njKeys.add(k); return v; });
+  ok('19. no NJ fixture key matches /OWN|ST_ADDRESS|CITY_STATE|ZIP_CODE/i', [...njKeys].every((k) => !/OWN|ST_ADDRESS|CITY_STATE|ZIP_CODE/i.test(k)), [...njKeys].filter((k) => /OWN|ST_ADDRESS|CITY_STATE|ZIP_CODE/i.test(k)).join(','));
+  ok('19. no NJ fixture names an owner column anywhere', !/OWNER_NAME|ST_ADDRESS|CITY_STATE|ZIP_CODE/.test(njBlob));
+
+  // ── 20. candidate ranking ──
+  const first = censusFirstMatch(census);
+  ok('20. the Census fixture matches 94 WASHINGTON ST, HOBOKEN on the street centreline', !!first && first.matchedAddress === '94 WASHINGTON ST, HOBOKEN, NJ, 07030' && Math.abs(first.lat - 40.736931) < 1e-4 && Math.abs(first.lon - -74.031127) < 1e-4, JSON.stringify(first));
+  const key = addressKey(first?.matchedAddress);
+  ok("20. addressKey('94 WASHINGTON ST, HOBOKEN, NJ, 07030') → { num: '94', street: ['WASHINGTON'] }", deepEqual(key, { num: '94', street: ['WASHINGTON'] }), JSON.stringify(key));
+  const cands = rankNjCandidates(parcel, key, 'nearby');
+  ok("20. 0905_199_1 is candidates[0] with match 'address'", cands[0]?.pin === '0905_199_1' && cands[0]?.match === 'address' && cands[0]?.block === '199' && cands[0]?.lot === '1' && cands[0]?.muniCode === '0905', JSON.stringify(cands[0]));
+  ok('20. at most 6 candidates, and more than one (nothing is narrowed to a pick)', cands.length > 1 && cands.length <= NJ_CANDIDATE_CAP && NJ_CANDIDATE_CAP === 6, String(cands.length));
+  ok("20. every other buffered lot is 'nearby'", cands.slice(1).every((c) => c.match === 'nearby'));
+  const approx = rankNjCandidates(parcel, null, 'approximate');
+  ok("20. from the map pin (no address key) every lot is 'approximate'", approx.length > 0 && approx.every((c) => c.match === 'approximate'));
+  ok('20. a malformed body → []', rankNjCandidates(null, key, 'nearby').length === 0 && rankNjCandidates({ features: 'x' }, key, 'nearby').length === 0 && rankNjCandidates([{ attributes: { PCL_MUN: "09'05", PCLBLOCK: '1', PCLLOT: '1' } }], key, 'nearby').length === 0);
+  const dupes = rankNjCandidates({ features: [...parcel.features, ...parcel.features] }, key, 'nearby');
+  ok('20. candidates are deduped by PAMS_PIN', new Set(dupes.map((c) => c.pin)).size === dupes.length);
+  const addrHits = rankNjCandidates(parcelAddr, key, 'nearby');
+  ok('20. the attribute query fixture returns exactly 0905_199_1', addrHits.length === 1 && addrHits[0].pin === '0905_199_1');
+  const noAddr = cands.filter((c) => c.pin !== '0905_199_1').map((c) => ({ ...c, match: 'nearby' as const }));
+  const merged = mergeNjCandidates(addrHits, noAddr);
+  ok("20. merge: the address-query hit goes first as 'address', the rest follow, capped", merged[0]?.pin === '0905_199_1' && merged[0]?.match === 'address' && merged.length <= 6 && merged.slice(1).every((c) => c.match !== 'address'));
+  ok("20. propLocMatches: '94' never matches '945 WASHINGTON ST'; a range '89-91' holds 90", !propLocMatches('945 WASHINGTON ST', key) && propLocMatches('89-91 WASHINGTON ST', { num: '90', street: ['WASHINGTON'] }) && !propLocMatches('94 HUDSON ST', key));
+
+  // ── 21. sanitizers and URL builders ──
+  ok('21. sanitizeMuniCode: 4 digits only', sanitizeMuniCode('0905') === '0905' && sanitizeMuniCode("0905'") === null && sanitizeMuniCode('905') === null && sanitizeMuniCode('0905 OR 1=1') === null && sanitizeMuniCode(905) === null);
+  ok('21. sanitizeBlockLot rejects quotes, spaces, %, ; and SoQL', sanitizeBlockLot('211.01') === '211.01' && sanitizeBlockLot('C0001') === 'C0001' && sanitizeBlockLot("199'") === null && sanitizeBlockLot('199 OR 1=1') === null && sanitizeBlockLot('19%') === null && sanitizeBlockLot('1;DROP') === null && sanitizeBlockLot('x'.repeat(17)) === null);
+  ok('21. lat/lon outside the loose NJ box → null', sanitizeLat(40.7) === 40.7 && sanitizeLat(45) === null && sanitizeLon(-74.03) === -74.03 && sanitizeLon(-80) === null && sanitizeLat(NaN) === null && sanitizeLat('40.7') === null);
+  ok('21. parseNjRequest: a bad nj_record body is null; lat without lon drops both', parseNjRequest({ mode: 'nj_record', muniCode: '0905', block: "1' OR '1'='1", lot: '1' }) === null
+    && deepEqual(parseNjRequest({ mode: 'nj_resolve', text: '94 Washington St', lat: 40.7, lon: null }), { mode: 'nj_resolve', text: '94 Washington St', lat: null, lon: null })
+    && deepEqual(parseNjRequest({ mode: 'nj_record', muniCode: '0905', block: '199', lot: '1' }), { mode: 'nj_record', muniCode: '0905', block: '199', lot: '1' })
+    && parseNjRequest({ mode: 'resolve', text: 'x' }) === null && parseRequest({ mode: 'nj_resolve', text: 'x' }) === null);
+  const bufUrl = njParcelBufferUrl(40.736931, -74.031127) ?? '';
+  const addrUrl = njParcelAddressUrl(['0905'], key) ?? '';
+  const outFields = (u: string) => decodeURIComponent(/[?&]outFields=([^&]*)/.exec(u)?.[1] ?? '');
+  ok('21. the buffer URL is a 30 m intersects query with the exact eight outFields', bufUrl.includes('distance=30&units=esriSRUnit_Meter') && bufUrl.includes('spatialRel=esriSpatialRelIntersects') && outFields(bufUrl) === 'PAMS_PIN,PCL_MUN,PCLBLOCK,PCLLOT,PCLQCODE,MUN_NAME,COUNTY,PROP_LOC', bufUrl);
+  ok("21. parcel URLs' outFields never name an owner field and are never '*'", [bufUrl, addrUrl].every((u) => !!u && !/OWN|ST_ADDRESS|CITY_STATE|ZIP_CODE/i.test(outFields(u)) && outFields(u) !== '*' && !outFields(u).includes('*')));
+  ok("21. njParcelAddressUrl builds PCL_MUN IN ('0905') AND PROP_LOC LIKE '94 WASHINGTON%'", decodeURIComponent(/where=([^&]*)/.exec(addrUrl)?.[1] ?? '') === "PCL_MUN IN ('0905') AND PROP_LOC LIKE '94 WASHINGTON%'", addrUrl);
+  ok('21. a street token with a quote, %, space or SQL word is never built', njParcelAddressUrl(['0905'], { num: '94', street: ["WASH'"] }) === null && njParcelAddressUrl(['0905'], { num: '94', street: ['WA%'] }) === null
+    && njParcelAddressUrl(['0905'], { num: '94', street: ['WASHINGTON ST'] }) === null && njParcelAddressUrl(['0905'], { num: '94', street: ['UNION'] }) === null && njParcelAddressUrl(['0905'], { num: '94', street: ['DROP'] }) === null
+    && njParcelAddressUrl(['0905'], { num: "94'", street: ['WASHINGTON'] }) === null && njParcelAddressUrl(['0905'], { num: '94', street: [] }) === null);
+  ok("21. addressKey drops a bad token (quote / % / SQL word / street type)", deepEqual(addressKey("94 O'BRIEN ST, X"), null) && deepEqual(addressKey('94 WASHINGTON% ST, X'), null) && deepEqual(addressKey('12 SELECT MAIN AVE, X'), { num: '12', street: ['MAIN'] }) && addressKey('WASHINGTON ST') === null);
+  ok('21. muni codes that fail /^\\d{4}$/ never reach the URL', njParcelAddressUrl(["0905') OR ('1'='1"], key) === null && njParcelAddressUrl(['905'], key) === null && njParcelAddressUrl(['0905', '09O5'], key) === null && njParcelAddressUrl([], key) === null);
+  const pUrl = njPermitsUrl('0905', '199', '1', TODAY) ?? '';
+  const pq = (name: string) => decodeURIComponent(new RegExp(`[?&]\\$${name}=([^&]*)`).exec(pUrl)?.[1] ?? '');
+  ok('21. the permits URL has an explicit $select with no name column', pq('select') === NJ_PERMIT_SELECT && !/\*|name(?!$)|owner|applicant/i.test(pq('select').replace('muniname', '')), pq('select'));
+  ok("21. the permits $where scopes the town, a block prefix and a LOT prefix, and today", pq('where') === "comu='0905' AND (block like '199%' OR block like '0%199%') AND (lot like '1%' OR lot like '0%1%') AND (permitdate <= '2026-09-26' OR permitdate IS NULL)" && pq('order') === 'permitdate DESC' && /\$limit=1000\b/.test(pUrl), pq('where'));
+  ok('21. njPermitsUrl uses the integer part as the prefix (211.01 → 211%)', decodeURIComponent(njPermitsUrl('0905', '211', '1.01', TODAY) ?? '').includes("lot like '1%'"));
+  ok('21. njPermitsUrl / njMuniFreshnessUrl refuse unsanitary input', njPermitsUrl("0905'", '199', '1', TODAY) === null && njPermitsUrl('0905', "199' OR '1'='1", '1', TODAY) === null && njMuniFreshnessUrl('09 05') === null);
+  ok("21. the freshness URL is max(processdate) for one town", decodeURIComponent(njMuniFreshnessUrl('0905') ?? '').includes("$select=max(processdate) as last, max(muniname) as muni&$where=comu='0905'"));
+  const njUrls = [censusLocationsUrl('94 Washington St, Hoboken, NJ 07030'), bufUrl, addrUrl, pUrl, njMuniFreshnessUrl('0905')];
+  ok('21. every NJ URL starts with one of the three upstream hosts', njUrls.every((u) => !!u && (u.startsWith('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?') || u.startsWith('https://services2.arcgis.com/XVOqAjTOJ5P6ngMu/arcgis/rest/services/Parcels_Composite_NJ_WM/FeatureServer/0/query?') || u.startsWith('https://data.nj.gov/resource/w9se-dmra.json?'))));
+
+  // ── 22. block / lot normalisation ──
+  const eqBL = (a: string, b2: string) => normalizeBlockLot(a) === normalizeBlockLot(b2);
+  ok("22. '199' = '199.0' = '0199' = '199.00' = ' 199 '", eqBL('199', '199.0') && eqBL('199', '0199') && eqBL('199', '199.00') && eqBL('199', ' 199 ') && normalizeBlockLot('199.') === '199');
+  ok("22. '211.01' = '211.010' = '0211.01'; '211' ≠ '211.01'", eqBL('211.01', '211.010') && eqBL('211.01', '0211.01') && !eqBL('211', '211.01') && normalizeBlockLot('000') === '0' && normalizeBlockLot('c0001') === 'C0001');
+
+  // ── 23. permits normalisation ──
+  const live = normalizeNjPermits(permitsFx.rows, '199', '1', permitsFx.asOfHeader, TODAY);
+  ok('23. the live Hoboken 199/1 page: 14 matched rows, asOf from the header, newest first, 5 kept', live.dataset.status === 'ok' && live.dataset.rowCount === 14 && live.dataset.returned === 14 && !live.dataset.truncated
+    && live.dataset.asOf === '2026-08-13T18:00:26.000Z' && live.dataset.rows.length === 5 && live.dataset.rows[0].primary === '20250836' && live.dataset.rows[0].date === '2025-08-14' && live.muniName === 'HOBOKEN', JSON.stringify({ ...live.dataset, rows: live.dataset.rows.slice(0, 1) }));
+  ok("23. row wording: status 'Permit', detail 'Alteration, use group R-5', cents 1767000", live.dataset.rows[0].status === 'Permit' && live.dataset.rows[0].detail === 'Alteration, use group R-5' && live.dataset.rows[0].amountCents === 1767000, JSON.stringify(live.dataset.rows[0]));
+  const synthRow = (o: Record<string, unknown>) => ({ block: '199', lot: '1', permitno: 'P1', permitstatusdesc: 'Permit', permitdate: '2025-01-02T00:00:00.000', permittypedesc: 'Alteration', ...o });
+  const junk = normalizeNjPermits([synthRow({ permitno: 'FUT', permitdate: '2925-01-01T00:00:00.000' }), synthRow({ permitno: 'FUTC', permitdate: null, certdate: '2096-05-05T00:00:00.000' }), synthRow({})], '199', '1', AS_OF, TODAY);
+  ok('23. a future-dated permitdate or certdate row is dropped', junk.dataset.rowCount === 1 && junk.dataset.rows[0].primary === 'P1');
+  ok('23. constcost "5100" → 510000 cents; non-numeric / negative → null', dollarsToCents('5100') === 510000 && dollarsToCents('12.345') === 1235 && dollarsToCents('abc') === null && dollarsToCents('') === null && dollarsToCents('-5') === null && dollarsToCents(null) === null);
+  const drift = normalizeNjPermits([synthRow({ block: '0199.0', lot: '001' }), synthRow({ block: '1990', lot: '1' }), synthRow({ block: '199', lot: '1.01' })], '199', '1', AS_OF, TODAY);
+  ok("23. format drift: '0199.0'/'001' matches 199/1; '1990' and lot '1.01' do not", drift.dataset.rowCount === 1);
+  ok('23. a certificate row reads status "Certificate — <type>"', normalizeNjPermits([synthRow({ permitstatusdesc: 'Certificate', certtypedesc: 'Certificate of Occupancy', permitdate: null, certdate: '2024-03-03T00:00:00.000' })], '199', '1', AS_OF, TODAY).dataset.rows[0]?.status === 'Certificate — Certificate of Occupancy');
+  ok('23. a non-array body is failed with rowCount null', normalizeNjPermits({ error: 'x' }, '199', '1', AS_OF, TODAY).dataset.status === 'failed' && normalizeNjPermits({ error: 'x' }, '199', '1', AS_OF, TODAY).dataset.rowCount === null);
+  const fresh = normalizeNjFreshness(freshFx.rows);
+  ok("23. the live freshness fixture: Hoboken's newest processdate 2026-08-07", fresh.status === 'ok' && fresh.date === '2026-08-07' && fresh.muniName === 'HOBOKEN', JSON.stringify(fresh));
+
+  // ── records + summaries ──
+  const FETCHED = new Date('2026-09-26T12:00:00Z');
+  const liveRec = assembleNjRecord({ muniCode: '0905', block: '199', lot: '1', fetchedAt: FETCHED, muniName: live.muniName, permits: live.dataset, muniLastReport: { status: fresh.status, date: fresh.date } });
+  const recWith = (over: { permits?: ReturnType<typeof failedNjPermits>; report?: { status: 'ok' | 'failed' | 'timeout'; date: string | null }; muniName?: string | null }) =>
+    assembleNjRecord({ muniCode: '0905', block: '199', lot: '1', fetchedAt: FETCHED, muniName: over.muniName === undefined ? 'HOBOKEN' : over.muniName, permits: over.permits ?? live.dataset, muniLastReport: over.report ?? { status: 'ok', date: '2026-08-07' } });
+  const sLive = summarizeNjBuildingRecord(liveRec);
+  ok("24. the live record: label 'Block 199 Lot 1, Hoboken', links the dataset page, carries the caveat", liveRec.label === 'Block 199 Lot 1, Hoboken' && liveRec.links.dataset === 'https://data.nj.gov/d/w9se-dmra' && liveRec.caveat === NJ_PERMIT_CAVEAT && deepEqual(liveRec.notChecked, NJ_NOT_CHECKED));
+  ok("24. the live summary is 'listed' with the newest permit, its cost and the town's report date", sLive.kind === 'listed'
+    && sLive.headline === 'State permit data for Block 199 Lot 1, Hoboken: 14 permits and certificates on file (as of 2026-08-13). Violations are not published statewide.'
+    && sLive.lines[0] === "14 permits and certificates on file for Block 199 Lot 1 (NJ Construction Permit Data, as of 2026-08-13); newest 20250836 'Permit' 2025-08-14, Alteration, use group R-5, declared cost $17,670"
+    && sLive.lines[1] === "Hoboken's latest report to the state is dated 2026-08-07", sLive.lines.join(' | '));
+
+  // ── 25. failed permits ──
+  const sFail = summarizeNjBuildingRecord(recWith({ permits: failedNjPermits('timeout') }));
+  const failRec = recWith({ permits: failedNjPermits('failed') });
+  const sFail2 = summarizeNjBuildingRecord(failRec);
+  ok('25. failed permits → "not checked (the request failed|timed out)", rowCount null, kind incomplete', sFail.lines[0] === 'NJ Construction Permit Data: not checked (the request timed out)' && sFail2.lines[0] === 'NJ Construction Permit Data: not checked (the request failed)' && failRec.permits.rowCount === null && sFail.kind === 'incomplete' && sFail2.kind === 'incomplete');
+  ok('25. and NO line or headline says " 0 permits" or "No permits"', [sFail, sFail2].every((x) => [x.headline, ...x.lines].every((l) => !/ 0 permits|^0 permits|No permits/.test(l))));
+  ok('25. failed permits headline: "Some New Jersey records could not be fully checked…"', sFail.headline === 'Some New Jersey records could not be fully checked for Block 199 Lot 1; see below.');
+  const sFreshFail = summarizeNjBuildingRecord(recWith({ report: { status: 'failed', date: null } }));
+  ok("25. failed freshness → \"Hoboken's last report date: not checked (the request failed)\", incomplete", sFreshFail.lines[1] === "Hoboken's last report date: not checked (the request failed)" && sFreshFail.kind === 'incomplete');
+
+  // ── 26. truncated ──
+  const truncated = { ...live.dataset, rowCount: 900, returned: 1000, truncated: true };
+  const sTrunc = summarizeNjBuildingRecord(recWith({ permits: truncated }));
+  ok("26. a full page reads 'at least', kind 'incomplete'", sTrunc.lines[0].startsWith('at least 900 permits and certificates on file') && sTrunc.kind === 'incomplete', sTrunc.lines[0]);
+  ok('26. normalizeNjPermits: returned === limit ⇒ truncated', normalizeNjPermits(Array.from({ length: 1000 }, () => ({ block: '5', lot: '5' })), '199', '1', AS_OF, TODAY).dataset.truncated);
+
+  // ── 27. zero rows ──
+  const zero = normalizeNjPermits([], '199', '1', AS_OF, TODAY).dataset;
+  const sZero = summarizeNjBuildingRecord(recWith({ permits: zero }));
+  ok('27. zero rows → the scoped "No permits or certificates for Block … in … (as of …)" line', sZero.lines[0] === 'No permits or certificates for Block 199 Lot 1 in Hoboken in the NJ Construction Permit Data (as of 2026-09-25)', sZero.lines[0]);
+  ok('27. zero rows headline names non-reporting towns and unpublished violations', sZero.kind === 'listed' && sZero.headline === "State permit data lists no permits or certificates for Block 199 Lot 1, Hoboken (as of 2026-09-25). Some towns don't report; violations are not published statewide.", sZero.headline);
+  const sStale = summarizeNjBuildingRecord(recWith({ report: { status: 'ok', date: '2025-06-01' } }));
+  ok('27. a town report over a year old adds the "over a year old" line', sStale.lines.includes('That report is over a year old — permits after it will not appear here.') && !sLive.lines.some((l) => l.includes('over a year old')));
+  const sNoTown = summarizeNjBuildingRecord(recWith({ permits: zero, report: { status: 'ok', date: null }, muniName: null }));
+  ok('27. a town with no reports at all says its permits would not appear; the label falls back to the code', sNoTown.lines[1] === 'municipality 0905 has no reports in the NJ Construction Permit Data — its permits would not appear here' && sNoTown.headline.includes('municipality 0905'));
+
+  // ── 28. no slop, caveat, Not checked last ──
+  const NJ_SLOP = /\b(clean|clear|all clear|compliant|no violations|no issues|safe)\b/i;
+  const every = [sLive, sFail, sFail2, sFreshFail, sTrunc, sZero, sStale, sNoTown];
+  ok('28. no NJ summary says clean / clear / compliant / no violations / no issues / safe', every.every((x) => [x.headline, x.chipLabel, ...x.lines].every((l) => !NJ_SLOP.test(l))), every.flatMap((x) => [x.headline, ...x.lines]).filter((l) => NJ_SLOP.test(l)).join(' | '));
+  ok('28. the last line of every NJ summary starts "Not checked:" and the caveat is present', every.every((x) => x.lines[x.lines.length - 1].startsWith('Not checked:') && x.lines.includes(NJ_PERMIT_CAVEAT)));
+  const none = summarizeNjBuildingRecord(null);
+  ok("28. no record → kind 'none', nothing to print", none.kind === 'none' && none.lines.length === 0 && none.headline === '' && summarizeNjBuildingRecord(undefined).kind === 'none');
+  ok('28. the promptBlock carries the headline, every line and the never-meets-code rule', sLive.promptBlock.includes(sLive.headline) && sLive.lines.every((l) => sLive.promptBlock.includes(l)) && /Never tell the contractor the property is free of problems or meets code/.test(sLive.promptBlock));
+  ok('28. cacheKey = brnj:muni:block:lot:asOf[+]:report', sLive.cacheKey === 'brnj:0905:199:1:2026-08-13T18:00:26.000Z:2026-08-07' && sTrunc.cacheKey.includes('+:') && sFail.cacheKey === 'brnj:0905:199:1:timeout:2026-08-07' && sFreshFail.cacheKey.endsWith(':failed'));
+  ok('28. njDollars: whole dollars without decimals, cents with two', njDollars(1767000) === '$17,670' && njDollars(130700000) === '$1,307,000' && njDollars(1250) === '$12.50' && njDollars(5) === '$0.05');
+
+  // ── 29. wire round trip ──
+  const trip = (x: unknown) => JSON.parse(JSON.stringify(x));
+  const candResp = { status: 'nj_candidates' as const, candidates: cands };
+  const recResp = { status: 'nj_record' as const, record: liveRec };
+  const failResp = { status: 'nj_record' as const, record: failRec };
+  ok('29. candidates round-trip through parseNjBuildingRecordResponse', deepEqual(parseNjBuildingRecordResponse(trip(candResp)), candResp));
+  ok('29. the live record round-trips', deepEqual(parseNjBuildingRecordResponse(trip(recResp)), recResp) && deepEqual(parseNjBuildingRecordResponse(trip(failResp)), failResp));
+  ok('29. an error round-trips; malformed → bad_response', deepEqual(parseNjBuildingRecordResponse({ status: 'error', code: 'upstream', error: NJ_ERRORS.upstream }), { status: 'error', code: 'upstream', error: NJ_ERRORS.upstream })
+    && parseNjBuildingRecordResponse({ status: 'nj_record', record: { ...liveRec, jurisdiction: 'nyc' } }).status === 'error'
+    && parseNjBuildingRecordResponse({ status: 'nj_candidates', candidates: [{ ...cands[0], match: 'picked' }] }).status === 'error'
+    && parseNjBuildingRecordResponse({ status: 'nj_record', record: { ...liveRec, permits: { ...liveRec.permits, rows: [{ ...liveRec.permits.rows[0], amountCents: 1.5 }] } } }).status === 'error'
+    && parseNjBuildingRecordResponse(null).status === 'error' && parseNjBuildingRecordResponse({ status: 'record' }).status === 'error');
+  ok('29. nothing is auto-picked: the candidates response has no "selected" / "picked" field', !/"(selected|picked|chosen)"/.test(JSON.stringify(candResp)) && Object.keys(candResp).join(',') === 'status,candidates');
+
+  // ── 30. parity, source scans, keys, NYC byte-identity ──
+  ok('30. NJ_NOT_CHECKED and NJ_PERMIT_CAVEAT are equal in nj.ts and the client', JSON.stringify(NJ_NOT_CHECKED) === JSON.stringify(NJ_NOT_CHECKED_SRV) && NJ_PERMIT_CAVEAT === NJ_PERMIT_CAVEAT_SRV);
+  ok("30. NJ_ERRORS.upstream is the fixed NJ text (never the NYC Open Data one)", NJ_ERRORS.upstream === "The New Jersey lookup didn't answer — nothing was checked." && !NJ_ERRORS.upstream.includes('NYC'));
+  const njSrc = read('supabase/functions/building-record/nj.ts');
+  ok('30. nj.ts is pure (no Deno, no import at all)', !/\bDeno\./.test(njSrc) && !/^\s*import\s/m.test(njSrc));
+  const idx = read('supabase/functions/building-record/index.ts');
+  const njSection = idx.slice(idx.indexOf('async function njResolve'), idx.indexOf('// ── handler'));
+  ok('30. the NJ handlers answer the NJ upstream text, never the NYC one', njSection.includes('error: NJ_ERRORS.upstream') && !/(?<!NJ_)ERRORS\.upstream/.test(njSection));
+  ok('30. index.ts routes nj_* before the NYC parseRequest', idx.indexOf('parseNjRequest(body)') > 0 && idx.indexOf('parseNjRequest(body)') < idx.indexOf('const parsed = parseRequest(body);'));
+  ok('30. nj_resolve never auto-picks (only nj_candidates leaves njResolve)', !/status: 'nj_record'/.test(idx.slice(idx.indexOf('async function njResolve'), idx.indexOf('async function njRecord'))));
+  ok('30. the NJ record cache holds only fully answered records under nj:muni:block:lot', /const cacheKey = `nj:\$\{muniCode\}:\$\{block\}:\$\{lot\}`;/.test(idx) && /if \(rec\.permits\.status === 'ok' && rec\.muniLastReport\.status === 'ok'\)/.test(idx));
+  ok("30. njParcelConfirmKey is under mageid_", njParcelConfirmKey('p1') === 'mageid_building_parcel_p1');
+  ok('30. isNjJobsite: NJ yes (code or name); NY / Portland / empty no', isNjJobsite({ state: 'NJ' }) && isNjJobsite({ state: 'New Jersey' }) && !isNjJobsite({ state: 'NY' }) && !isNjJobsite({ state: 'OR' }) && !isNjJobsite({}));
+  const client = read('utils/buildingRecordClient.ts');
+  ok("30. fetchNjBuildingRecord uses the LITERAL invoke('building-record') and parseNjBuildingRecordResponse(data)", /export async function fetchNjBuildingRecord\(req: NjBuildingRecordRequest\)/.test(client) && (client.match(/functions\.invoke\(\s*'building-record'/g) ?? []).length === 2 && /parseNjBuildingRecordResponse\(data\)/.test(client));
+  const brSrc = read('utils/buildingRecord.ts');
+  ok("30. BuildingRecordSummary['kind'] is textually unchanged", brSrc.includes("export interface BuildingRecordSummary { kind: 'none' | 'attention' | 'no_active_in_checked' | 'incomplete'; headline: string; lines: string[]; promptBlock: string; chipLabel: string; cacheKey: string; }"));
+  const card = read('components/buildingRecord/BuildingRecordCard.tsx');
+  ok('30. BuildingRecordCard dispatches NJ on the line directly above the unchanged NYC early return', card.includes("  if (!br.supported && njJob) return <NjBuildingRecordCard project={project} variant={variant} />;\n  if (!br.supported || br.phase === 'unsupported') return null;\n"));
+  const njCard = read('components/buildingRecord/NjBuildingRecordCard.tsx');
+  const tids = [...njCard.matchAll(/testID=\{?[`"']([^`"'}]*)/g)].map((m) => m[1]);
+  ok("30. every NJ card testID starts 'njrecord-' and the root is 'njrecord-card'", tids.length >= 8 && tids.every((t) => t.startsWith('njrecord-')) && /testID="njrecord-card"/.test(njCard), tids.join(','));
+  ok("30. the NJ card never renders the record success-green", !/tone="success"|\.success\b|successBg/.test(njCard));
+
+  // NYC byte-identity: the six NYC summaries recorded on the untouched base
+  // (4a5f6eb7, before this lane touched utils/buildingRecord.ts).
+  const baseline = njFix('nj-nyc-summary-baseline.json') as Record<string, BuildingRecordSummary> | null;
+  const NYC_AS_OF = 'Fri, 25 Sep 2026 17:00:00 GMT';
+  const nycRec = (datasets: BuildingRecordDataset[], ecbRaw: unknown = [], parcelIn = normalizeParcel([{ zonedist1: 'C5-5', version: '26v2' }], 'Mon, 24 Aug 2026 20:20:51 GMT')) =>
+    assembleRecord({ bin: BIN, bbl: BBL, label: '120 BROADWAY', fetchedAt: TODAY, datasets, parcel: parcelIn, ecbRaw });
+  const nycZero = () => RECORD_DATASET_IDS.map((id) => normalizeDataset(id, [], NYC_AS_OF, TODAY));
+  const now: Record<string, BuildingRecordSummary> = {};
+  now.fixture = summarizeBuildingRecord(fixtureRecord);
+  now.zero = summarizeBuildingRecord(nycRec(nycZero()));
+  { const ds = nycZero(); ds[0] = failedDataset('3h2n-5cm9', 'failed'); ds[1] = failedDataset('6bgk-3dad', 'timeout'); now.failed = summarizeBuildingRecord(nycRec(ds)); }
+  { const sy = fixture('synthetic-6bgk-3dad-full-page.json'); const ds = nycZero(); ds[1] = normalizeDataset('6bgk-3dad', sy.rows, sy.asOfHeader, TODAY); now.truncated = summarizeBuildingRecord(nycRec(ds, sy.rows)); }
+  now.failedPluto = summarizeBuildingRecord(nycRec(nycZero(), [], failedParcel('timeout')));
+  now.none = summarizeBuildingRecord(null);
+  ok('30. NYC byte-identity: summarizeBuildingRecord for all 6 NYC cases equals the base output', !!baseline && Object.keys(baseline).length === 6 && Object.keys(baseline).every((k) => JSON.stringify(baseline[k]) === JSON.stringify(now[k])),
+    baseline ? Object.keys(baseline).filter((k) => JSON.stringify(baseline[k]) !== JSON.stringify(now[k])).join(',') : 'no baseline');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

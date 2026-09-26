@@ -1,0 +1,101 @@
+{
+ "fixture": {
+  "kind": "attention",
+  "headline": "DOB's public records for BIN 1001026 show 9 active DOB violations, 2 active DOB safety violations, a landmark listing — ask your expeditor before you price.",
+  "lines": [
+   "9 active DOB violations — DOB Violations, as of 2026-09-25",
+   "No active ECB violations in DOB ECB Violations as of 2026-09-25",
+   "2 active DOB safety violations — DOB Safety Violations, as of 2026-09-25",
+   "No active DOB complaints in DOB Complaints Received as of 2026-09-25",
+   "Latest 25 DOB NOW filings (newest first, as of 2026-09-25); newest M01392399-P2 'Approved' (2026-09-08)",
+   "9 issued, unexpired DOB NOW permits — DOB NOW: Build – Approved Permits, as of 2026-09-25",
+   "Latest 25 BIS permits (newest job first, as of 2026-09-25); newest 140994271 'ISSUED'",
+   "Zoning C5-5, special district LM as published in PLUTO 26v2",
+   "PLUTO lists this lot as INDIVIDUAL LANDMARK",
+   "Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records."
+  ],
+  "promptBlock": "BUILDING RECORD (public NYC DOB datasets via NYC Open Data; each line names its dataset and date):\nDOB's public records for BIN 1001026 show 9 active DOB violations, 2 active DOB safety violations, a landmark listing — ask your expeditor before you price.\n- 9 active DOB violations — DOB Violations, as of 2026-09-25\n- No active ECB violations in DOB ECB Violations as of 2026-09-25\n- 2 active DOB safety violations — DOB Safety Violations, as of 2026-09-25\n- No active DOB complaints in DOB Complaints Received as of 2026-09-25\n- Latest 25 DOB NOW filings (newest first, as of 2026-09-25); newest M01392399-P2 'Approved' (2026-09-08)\n- 9 issued, unexpired DOB NOW permits — DOB NOW: Build – Approved Permits, as of 2026-09-25\n- Latest 25 BIS permits (newest job first, as of 2026-09-25); newest 140994271 'ISSUED'\n- Zoning C5-5, special district LM as published in PLUTO 26v2\n- PLUTO lists this lot as INDIVIDUAL LANDMARK\n- Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records.\nRULES: These are public records as published, not a finding by MAGE. Counts marked 'at least' are partial. Do not infer legal consequences (whether anything blocks a permit, a certificate of occupancy or the work). Never tell the contractor the building is free of problems or meets code. Tell the contractor to confirm with the applicant of record or expeditor.",
+  "chipLabel": "DOB's public records for BIN 1001026 show 9 active DOB violations, 2 active DOB safety violations, a landmark listing — ask your expeditor before you price.",
+  "cacheKey": "br:1001026:1000477501:3h2n-5cm9@2026-09-25T17:39:06.000Z,6bgk-3dad@2026-09-25T17:02:33.000Z,855j-jady@2026-09-25T18:07:01.000Z,eabe-havv@2026-09-25T16:10:50.000Z,w9ak-ipjd@2026-09-25T20:28:59.000Z+,rbx6-tga4@2026-09-25T18:42:38.000Z,ipu4-2q9a@2026-09-25T23:13:43.000Z+:26v2"
+ },
+ "zero": {
+  "kind": "no_active_in_checked",
+  "headline": "No active violations or complaints in the 4 DOB violation and complaint datasets MAGE checked for BIN 1001026 (as of 2026-09-25). Other agencies were not checked.",
+  "lines": [
+   "No active DOB violations in DOB Violations as of 2026-09-25",
+   "No active ECB violations in DOB ECB Violations as of 2026-09-25",
+   "No active DOB safety violations in DOB Safety Violations as of 2026-09-25",
+   "No active DOB complaints in DOB Complaints Received as of 2026-09-25",
+   "DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)",
+   "No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25",
+   "DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)",
+   "Zoning C5-5 as published in PLUTO 26v2",
+   "Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records."
+  ],
+  "promptBlock": "BUILDING RECORD (public NYC DOB datasets via NYC Open Data; each line names its dataset and date):\nNo active violations or complaints in the 4 DOB violation and complaint datasets MAGE checked for BIN 1001026 (as of 2026-09-25). Other agencies were not checked.\n- No active DOB violations in DOB Violations as of 2026-09-25\n- No active ECB violations in DOB ECB Violations as of 2026-09-25\n- No active DOB safety violations in DOB Safety Violations as of 2026-09-25\n- No active DOB complaints in DOB Complaints Received as of 2026-09-25\n- DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)\n- No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25\n- DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)\n- Zoning C5-5 as published in PLUTO 26v2\n- Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records.\nRULES: These are public records as published, not a finding by MAGE. Counts marked 'at least' are partial. Do not infer legal consequences (whether anything blocks a permit, a certificate of occupancy or the work). Never tell the contractor the building is free of problems or meets code. Tell the contractor to confirm with the applicant of record or expeditor.",
+  "chipLabel": "No active violations or complaints in the 4 DOB violation and complaint datasets MAGE checked for BIN 1001026 (as of 2026-09-25). Other agencies were not checked.",
+  "cacheKey": "br:1001026:1000477501:3h2n-5cm9@2026-09-25T17:00:00.000Z,6bgk-3dad@2026-09-25T17:00:00.000Z,855j-jady@2026-09-25T17:00:00.000Z,eabe-havv@2026-09-25T17:00:00.000Z,w9ak-ipjd@2026-09-25T17:00:00.000Z,rbx6-tga4@2026-09-25T17:00:00.000Z,ipu4-2q9a@2026-09-25T17:00:00.000Z:26v2"
+ },
+ "failed": {
+  "kind": "incomplete",
+  "headline": "Some DOB datasets could not be fully checked for BIN 1001026; see below.",
+  "lines": [
+   "DOB Violations: not checked (the request failed)",
+   "DOB ECB Violations: not checked (the request timed out)",
+   "No active DOB safety violations in DOB Safety Violations as of 2026-09-25",
+   "No active DOB complaints in DOB Complaints Received as of 2026-09-25",
+   "DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)",
+   "No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25",
+   "DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)",
+   "Zoning C5-5 as published in PLUTO 26v2",
+   "Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records."
+  ],
+  "promptBlock": "BUILDING RECORD (public NYC DOB datasets via NYC Open Data; each line names its dataset and date):\nSome DOB datasets could not be fully checked for BIN 1001026; see below.\n- DOB Violations: not checked (the request failed)\n- DOB ECB Violations: not checked (the request timed out)\n- No active DOB safety violations in DOB Safety Violations as of 2026-09-25\n- No active DOB complaints in DOB Complaints Received as of 2026-09-25\n- DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)\n- No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25\n- DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)\n- Zoning C5-5 as published in PLUTO 26v2\n- Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records.\nRULES: These are public records as published, not a finding by MAGE. Counts marked 'at least' are partial. Do not infer legal consequences (whether anything blocks a permit, a certificate of occupancy or the work). Never tell the contractor the building is free of problems or meets code. Tell the contractor to confirm with the applicant of record or expeditor.",
+  "chipLabel": "Some DOB datasets could not be fully checked for BIN 1001026; see below.",
+  "cacheKey": "br:1001026:1000477501:3h2n-5cm9@failed,6bgk-3dad@timeout,855j-jady@2026-09-25T17:00:00.000Z,eabe-havv@2026-09-25T17:00:00.000Z,w9ak-ipjd@2026-09-25T17:00:00.000Z,rbx6-tga4@2026-09-25T17:00:00.000Z,ipu4-2q9a@2026-09-25T17:00:00.000Z:26v2"
+ },
+ "truncated": {
+  "kind": "attention",
+  "headline": "DOB's public records for BIN 1001026 show at least 500 active ECB violations, at least $5,000.00 ECB balance due — ask your expeditor before you price.",
+  "lines": [
+   "No active DOB violations in DOB Violations as of 2026-09-25",
+   "at least 500 active ECB violations — DOB ECB Violations, as of 2026-09-25, at least $5,000.00 balance due as published (more rows than MAGE read)",
+   "No active DOB safety violations in DOB Safety Violations as of 2026-09-25",
+   "No active DOB complaints in DOB Complaints Received as of 2026-09-25",
+   "DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)",
+   "No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25",
+   "DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)",
+   "Zoning C5-5 as published in PLUTO 26v2",
+   "Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records."
+  ],
+  "promptBlock": "BUILDING RECORD (public NYC DOB datasets via NYC Open Data; each line names its dataset and date):\nDOB's public records for BIN 1001026 show at least 500 active ECB violations, at least $5,000.00 ECB balance due — ask your expeditor before you price.\n- No active DOB violations in DOB Violations as of 2026-09-25\n- at least 500 active ECB violations — DOB ECB Violations, as of 2026-09-25, at least $5,000.00 balance due as published (more rows than MAGE read)\n- No active DOB safety violations in DOB Safety Violations as of 2026-09-25\n- No active DOB complaints in DOB Complaints Received as of 2026-09-25\n- DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)\n- No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25\n- DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)\n- Zoning C5-5 as published in PLUTO 26v2\n- Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records.\nRULES: These are public records as published, not a finding by MAGE. Counts marked 'at least' are partial. Do not infer legal consequences (whether anything blocks a permit, a certificate of occupancy or the work). Never tell the contractor the building is free of problems or meets code. Tell the contractor to confirm with the applicant of record or expeditor.",
+  "chipLabel": "DOB's public records for BIN 1001026 show at least 500 active ECB violations, at least $5,000.00 ECB balance due — ask your expeditor before you price.",
+  "cacheKey": "br:1001026:1000477501:3h2n-5cm9@2026-09-25T17:00:00.000Z,6bgk-3dad@2026-09-25T17:02:33.000Z+,855j-jady@2026-09-25T17:00:00.000Z,eabe-havv@2026-09-25T17:00:00.000Z,w9ak-ipjd@2026-09-25T17:00:00.000Z,rbx6-tga4@2026-09-25T17:00:00.000Z,ipu4-2q9a@2026-09-25T17:00:00.000Z:26v2"
+ },
+ "failedPluto": {
+  "kind": "incomplete",
+  "headline": "Some DOB datasets could not be fully checked for BIN 1001026; see below.",
+  "lines": [
+   "No active DOB violations in DOB Violations as of 2026-09-25",
+   "No active ECB violations in DOB ECB Violations as of 2026-09-25",
+   "No active DOB safety violations in DOB Safety Violations as of 2026-09-25",
+   "No active DOB complaints in DOB Complaints Received as of 2026-09-25",
+   "DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)",
+   "No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25",
+   "DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)",
+   "PLUTO: not checked (the request timed out)",
+   "Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records."
+  ],
+  "promptBlock": "BUILDING RECORD (public NYC DOB datasets via NYC Open Data; each line names its dataset and date):\nSome DOB datasets could not be fully checked for BIN 1001026; see below.\n- No active DOB violations in DOB Violations as of 2026-09-25\n- No active ECB violations in DOB ECB Violations as of 2026-09-25\n- No active DOB safety violations in DOB Safety Violations as of 2026-09-25\n- No active DOB complaints in DOB Complaints Received as of 2026-09-25\n- DOB NOW: Build – Job Application Filings: none listed for this BIN (as of 2026-09-25)\n- No issued, unexpired permits in DOB NOW: Build – Approved Permits as of 2026-09-25\n- DOB Permit Issuance (BIS): none listed for this BIN (as of 2026-09-25)\n- PLUTO: not checked (the request timed out)\n- Not checked: HPD (housing maintenance), FDNY, DEP, LPC calendar, DOT, BIS-only paper records.\nRULES: These are public records as published, not a finding by MAGE. Counts marked 'at least' are partial. Do not infer legal consequences (whether anything blocks a permit, a certificate of occupancy or the work). Never tell the contractor the building is free of problems or meets code. Tell the contractor to confirm with the applicant of record or expeditor.",
+  "chipLabel": "Some DOB datasets could not be fully checked for BIN 1001026; see below.",
+  "cacheKey": "br:1001026:1000477501:3h2n-5cm9@2026-09-25T17:00:00.000Z,6bgk-3dad@2026-09-25T17:00:00.000Z,855j-jady@2026-09-25T17:00:00.000Z,eabe-havv@2026-09-25T17:00:00.000Z,w9ak-ipjd@2026-09-25T17:00:00.000Z,rbx6-tga4@2026-09-25T17:00:00.000Z,ipu4-2q9a@2026-09-25T17:00:00.000Z:nopluto"
+ },
+ "none": {
+  "kind": "none",
+  "headline": "",
+  "lines": [],
+  "promptBlock": "",
+  "chipLabel": "",
+  "cacheKey": "br:none"
+ }
+}

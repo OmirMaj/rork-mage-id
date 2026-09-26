@@ -22,6 +22,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { CraneSvg } from '@/components/CraneLoader';
 import { useBuildingRecord } from '@/hooks/useBuildingRecord';
+import { jobsiteAddressForProject } from '@/utils/codeJurisdiction';
+import { isNjJobsite } from '@/utils/buildingRecord';
+import { NjBuildingRecordCard } from '@/components/buildingRecord/NjBuildingRecordCard';
 
 export const ZOLA_SEARCH_URL = 'https://zola.planning.nyc.gov/';
 const COMPACT_LINES = 3;
@@ -51,7 +54,10 @@ export function BuildingRecordCard({
   const styles = useThemedStyles(makeStyles);
   const br = useBuildingRecord(project);
   const [showAll, setShowAll] = useState(false);
+  // New Jersey (never NYC) gets its own card; a plain call, not a hook.
+  const njJob = isNjJobsite(jobsiteAddressForProject(project));
 
+  if (!br.supported && njJob) return <NjBuildingRecordCard project={project} variant={variant} />;
   if (!br.supported || br.phase === 'unsupported') return null;
 
   const tid = testID ?? 'building-record';

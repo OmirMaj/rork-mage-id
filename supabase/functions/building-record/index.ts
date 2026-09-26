@@ -4,6 +4,12 @@
 // POST { mode: 'record', bin, bbl }         → 7 DOB datasets + the PLUTO parcel
 // POST { mode: 'permit', permitNumber }     → DOB NOW / BIS status, verbatim
 // POST { mode: 'benchmark', borough }       → DOB NOW Alteration review times
+// POST { mode: 'nj_resolve', text, lat, lon } → NJ tax-lot candidates (never auto-picked)
+// POST { mode: 'nj_record', muniCode, block, lot } → NJ state permit data + town freshness
+//
+// The two NJ modes are routed BEFORE the NYC switch and live in ./nj.ts (pure).
+// Their sources (Census geocoder, the NJGIN parcel layer, data.nj.gov) are
+// public and cost $0; they share the NYC auth, tier and rate-limit bucket.
 //
 // Everything it reads is PUBLIC (NYC Open Data + NYC Planning GeoSearch) and
 // costs MAGE $0, so it is FREE for every tier (founder decision 2026-09-25).
@@ -40,6 +46,26 @@ import {
   type DobPermitMatch,
   type ReviewBenchmark,
 } from './normalize.ts';
+import {
+  NJ_ERRORS,
+  addressKey,
+  assembleNjRecord,
+  censusFirstMatch,
+  censusLocationsUrl,
+  failedNjPermits,
+  mergeNjCandidates,
+  njMuniFreshnessUrl,
+  njParcelAddressUrl,
+  njParcelBufferUrl,
+  njPermitsUrl,
+  normalizeNjFreshness,
+  normalizeNjPermits,
+  parseNjRequest,
+  rankNjCandidates,
+  type NjBuildingRecord,
+  type NjBuildingRecordResponse,
+  type NjParcelCandidate,
+} from './nj.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -53,6 +79,13 @@ const RECORD_TTL_MS = 10 * 60 * 1000;
 const BENCHMARK_TTL_MS = 24 * 60 * 60 * 1000;
 
 function json(body: BuildingRecordResponse, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
+
+function njJson(body: NjBuildingRecordResponse, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
@@ -96,6 +129,7 @@ async function getJson(url: string, soda: boolean): Promise<Fetched> {
 
 const recordCache = new Map<string, { at: number; record: BuildingRecord }>();
 const benchmarkCache = new Map<string, { at: number; benchmark: ReviewBenchmark }>();
+const njRecordCache = new Map<string, { at: number; record: NjBuildingRecord }>();
 
 function prune<T extends { at: number }>(m: Map<string, T>, ttl: number) {
   const now = Date.now();
@@ -202,6 +236,86 @@ async function benchmark(borough: string): Promise<Response> {
   return json({ status: 'benchmark', benchmark: b });
 }
 
+// ── New Jersey modes ────────────────────────────────────────────────────────
+
+/** Census → the 30 m parcel buffer → ranked candidates. If no buffered lot
+ *  carries the street address, the address is looked up by PROP_LOC in the
+ *  same towns and its hits go first. No Census match + a map pin → the buffer
+ *  at the pin, every lot 'approximate'. ALWAYS candidates: never auto-picked. */
+async function njResolve(text: string, lat: number | null, lon: number | null): Promise<Response> {
+  const cUrl = censusLocationsUrl(text);
+  if (!cUrl) return njJson({ status: 'error', code: 'bad_request', error: ERRORS.bad_request }, 400);
+  try {
+    const census = await getJson(cUrl, false);
+    const first = censusFirstMatch(census.rows);
+    let candidates: NjParcelCandidate[] = [];
+    if (first) {
+      const key = addressKey(first.matchedAddress);
+      const bUrl = njParcelBufferUrl(first.lat, first.lon);
+      if (bUrl) candidates = rankNjCandidates((await getJson(bUrl, false)).rows, key, 'nearby');
+      if (candidates.length && !candidates.some((c) => c.match === 'address')) {
+        const aUrl = njParcelAddressUrl([...new Set(candidates.map((c) => c.muniCode))], key);
+        if (aUrl) {
+          try {
+            candidates = mergeNjCandidates(rankNjCandidates((await getJson(aUrl, false)).rows, key, 'nearby'), candidates);
+          } catch (e) {
+            // The buffered lots still stand; the address query only reorders.
+            console.error('[building-record] nj address query failed:', e);
+          }
+        }
+      }
+    } else if (lat !== null && lon !== null) {
+      const pUrl = njParcelBufferUrl(lat, lon);
+      if (pUrl) candidates = rankNjCandidates((await getJson(pUrl, false)).rows, null, 'approximate');
+    }
+    return njJson({ status: 'nj_candidates', candidates });
+  } catch (e) {
+    console.error('[building-record] nj resolve failed:', e);
+    return njJson({ status: 'error', code: 'upstream', error: NJ_ERRORS.upstream }, 502);
+  }
+}
+
+async function njRecord(muniCode: string, block: string, lot: string): Promise<Response> {
+  const cacheKey = `nj:${muniCode}:${block}:${lot}`;
+  prune(njRecordCache, RECORD_TTL_MS);
+  const hit = njRecordCache.get(cacheKey);
+  if (hit) return njJson({ status: 'nj_record', record: hit.record });
+
+  const today = new Date();
+  const pUrl = njPermitsUrl(muniCode, block, lot, today);
+  const fUrl = njMuniFreshnessUrl(muniCode);
+  const [ps, fs] = await Promise.allSettled([
+    pUrl ? getJson(pUrl, false) : Promise.reject(new Error('unbuildable url')),
+    fUrl ? getJson(fUrl, false) : Promise.reject(new Error('unbuildable url')),
+  ]);
+
+  let permits = failedNjPermits('failed');
+  let muniName: string | null = null;
+  if (ps.status === 'fulfilled') {
+    const n = normalizeNjPermits(ps.value.rows, block, lot, ps.value.lastModified, today);
+    permits = n.dataset;
+    muniName = n.muniName;
+  } else {
+    console.error('[building-record] nj permits failed:', ps.reason);
+    permits = failedNjPermits(ps.reason instanceof TimeoutError ? 'timeout' : 'failed');
+  }
+  let muniLastReport: { status: 'ok' | 'failed' | 'timeout'; date: string | null } = { status: 'failed', date: null };
+  if (fs.status === 'fulfilled') {
+    const f = normalizeNjFreshness(fs.value.rows);
+    muniLastReport = { status: f.status, date: f.date };
+    muniName = muniName ?? f.muniName;
+  } else {
+    console.error('[building-record] nj freshness failed:', fs.reason);
+  }
+
+  const rec = assembleNjRecord({ muniCode, block, lot, fetchedAt: today, muniName, permits, muniLastReport });
+  // Only a fully answered record is cached (a failed half is retried next open).
+  if (rec.permits.status === 'ok' && rec.muniLastReport.status === 'ok') {
+    njRecordCache.set(cacheKey, { at: Date.now(), record: rec });
+  }
+  return njJson({ status: 'nj_record', record: rec });
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -224,6 +338,12 @@ serve(async (req) => {
     } catch {
       body = null;
     }
+    const nj = parseNjRequest(body);
+    if (nj) {
+      if (nj.mode === 'nj_resolve') return await njResolve(nj.text, nj.lat, nj.lon);
+      return await njRecord(nj.muniCode, nj.block, nj.lot);
+    }
+
     const parsed = parseRequest(body);
     if (!parsed) return json({ status: 'error', code: 'bad_request', error: ERRORS.bad_request }, 400);
 

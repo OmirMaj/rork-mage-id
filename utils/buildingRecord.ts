@@ -15,7 +15,7 @@
 //     checked.
 
 import type { PermitStatus } from '@/types';
-import { resolveCodeJurisdiction, type JobsiteAddress } from '@/utils/codeJurisdiction';
+import { normalizeState, resolveCodeJurisdiction, type JobsiteAddress } from '@/utils/codeJurisdiction';
 
 export const BUILDING_RECORD_FUNCTION = 'building-record'; // documentation only: callers MUST pass the string literal to functions.invoke (see L2)
 export type DatasetStatus = 'ok' | 'failed' | 'timeout';
@@ -355,4 +355,162 @@ export function filingForPermit(rec: BuildingRecord, permitNumber?: string | nul
     const st = (r.status ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
     return !!st && !FILING_DONE.includes(st);
   }) ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// NEW JERSEY (lane N, 2026-09-26) — ADDITIVE. Everything above is the NYC
+// record and is unchanged. NJ gets its own types, parser and renderer, so the
+// NYC BuildingRecordSummary['kind'] union (read by Code Check grounding) never
+// widens. The NJ record renders in NjBuildingRecordCard only.
+//
+// Source: the state's "NJ Construction Permit Data" (data.nj.gov w9se-dmra,
+// GET https://data.nj.gov/api/views/w9se-dmra.json, checkedOn 2026-09-26):
+// raw and unaudited, purged after 60 months, "most, but not all
+// municipalities" report, permits and certificates only (no violations).
+// ─────────────────────────────────────────────────────────────────────
+
+export interface NjParcelCandidate { muniCode: string; muniName: string | null; county: string | null; block: string; lot: string; qualifier: string | null; pin: string | null; propLoc: string | null; match: 'address' | 'nearby' | 'approximate'; }
+export interface NjPermitRow { primary: string; date: string | null; status: string | null; detail: string | null; amountCents: number | null; }
+export interface NjPermitDataset { id: 'w9se-dmra'; name: 'NJ Construction Permit Data (DCA)'; url: string; asOf: string | null; status: DatasetStatus; rowCount: number | null; returned: number | null; limit: number; truncated: boolean; rows: NjPermitRow[]; }
+export interface NjBuildingRecord { jurisdiction: 'nj'; muniCode: string; muniName: string | null; block: string; lot: string; label: string; fetchedAt: string; permits: NjPermitDataset; muniLastReport: { status: DatasetStatus; date: string | null }; notChecked: string[]; caveat: string; links: { dataset: string }; }
+export type NjBuildingRecordRequest = { mode: 'nj_resolve'; text: string; lat: number | null; lon: number | null } | { mode: 'nj_record'; muniCode: string; block: string; lot: string };
+export type NjBuildingRecordResponse = { status: 'nj_candidates'; candidates: NjParcelCandidate[] } | { status: 'nj_record'; record: NjBuildingRecord } | { status: 'error'; code: string; error: string };
+export interface NjBuildingRecordSummary { kind: 'none' | 'listed' | 'incomplete'; headline: string; lines: string[]; promptBlock: string; chipLabel: string; cacheKey: string; }
+
+export const NJ_NOT_CHECKED = ['Violations (New Jersey publishes none statewide)', 'Local zoning', 'Fire inspections', 'Permits the town has not reported to the state'];
+export const NJ_PERMIT_CAVEAT = "This is the state's raw, unaudited permit data. It keeps about the last 60 months, and some towns don't report to it. It lists permits and certificates only.";
+
+const NJ_BAD_RESPONSE: NjBuildingRecordResponse = { status: 'error', code: 'bad_response', error: 'The building lookup returned something MAGE could not read.' };
+
+function pNjMatch(v: unknown): NjParcelCandidate['match'] { if (v === 'address' || v === 'nearby' || v === 'approximate') return v; throw new Bad(); }
+function pNjCandidate(v: unknown): NjParcelCandidate {
+  const o = obj(v);
+  return {
+    muniCode: s(o.muniCode), muniName: sN(o.muniName), county: sN(o.county), block: s(o.block), lot: s(o.lot),
+    qualifier: sN(o.qualifier), pin: sN(o.pin), propLoc: sN(o.propLoc), match: pNjMatch(o.match),
+  };
+}
+function pNjRow(v: unknown): NjPermitRow {
+  const o = obj(v);
+  const cents = nN(o.amountCents);
+  if (cents !== null && !Number.isInteger(cents)) throw new Bad();
+  return { primary: s(o.primary), date: sN(o.date), status: sN(o.status), detail: sN(o.detail), amountCents: cents };
+}
+function pNjPermits(v: unknown): NjPermitDataset {
+  const o = obj(v);
+  if (o.id !== 'w9se-dmra' || o.name !== 'NJ Construction Permit Data (DCA)') throw new Bad();
+  return {
+    id: 'w9se-dmra', name: 'NJ Construction Permit Data (DCA)', url: s(o.url), asOf: sN(o.asOf), status: dsStatus(o.status),
+    rowCount: nN(o.rowCount), returned: nN(o.returned), limit: n(o.limit), truncated: b(o.truncated), rows: arr(o.rows, pNjRow),
+  };
+}
+function pNjRecord(v: unknown): NjBuildingRecord {
+  const o = obj(v);
+  if (o.jurisdiction !== 'nj') throw new Bad();
+  const m = obj(o.muniLastReport);
+  const l = obj(o.links);
+  return {
+    jurisdiction: 'nj', muniCode: s(o.muniCode), muniName: sN(o.muniName), block: s(o.block), lot: s(o.lot), label: s(o.label),
+    fetchedAt: s(o.fetchedAt), permits: pNjPermits(o.permits), muniLastReport: { status: dsStatus(m.status), date: sN(m.date) },
+    notChecked: arr(o.notChecked, s), caveat: s(o.caveat), links: { dataset: s(l.dataset) },
+  };
+}
+
+export function parseNjBuildingRecordResponse(json: unknown): NjBuildingRecordResponse {
+  try {
+    const o = obj(json);
+    switch (o.status) {
+      case 'nj_candidates': return { status: 'nj_candidates', candidates: arr(o.candidates, pNjCandidate) };
+      case 'nj_record': return { status: 'nj_record', record: pNjRecord(o.record) };
+      case 'error': return { status: 'error', code: s(o.code), error: s(o.error) };
+      default: return { ...NJ_BAD_RESPONSE };
+    }
+  } catch {
+    return { ...NJ_BAD_RESPONSE };
+  }
+}
+
+/** Integer cents → "$1,307,000" (no decimals when whole) or "$12.50". */
+export function njDollars(cents: number): string {
+  const whole = Math.floor(Math.abs(cents) / 100);
+  const rem = Math.abs(cents) % 100;
+  const int = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${cents < 0 ? '-' : ''}$${int}${rem ? `.${String(rem).padStart(2, '0')}` : ''}`;
+}
+
+const NJ_NONE_SUMMARY: NjBuildingRecordSummary = { kind: 'none', headline: '', lines: [], promptBlock: '', chipLabel: '', cacheKey: 'brnj:none' };
+const NJ_STALE_REPORT_MS = 365 * 24 * 60 * 60 * 1000;
+
+export function summarizeNjBuildingRecord(rec: NjBuildingRecord | null | undefined): NjBuildingRecordSummary {
+  if (!rec) return { ...NJ_NONE_SUMMARY, lines: [] };
+  const p = rec.permits;
+  const muni = rec.muniName ?? `municipality ${rec.muniCode}`;
+  const where = `Block ${rec.block} Lot ${rec.lot}`;
+  const asOf = day(p.asOf);
+  const lines: string[] = [];
+
+  if (p.status !== 'ok') {
+    lines.push(`NJ Construction Permit Data: not checked (the request ${failedText(p)})`);
+  } else if (!p.rowCount && !p.truncated) {
+    lines.push(`No permits or certificates for ${where} in ${muni} in the NJ Construction Permit Data (as of ${asOf})`);
+  } else {
+    const count = p.truncated ? `at least ${p.rowCount ?? 0}` : `${p.rowCount ?? 0}`;
+    const newest = p.rows[0];
+    let line = `${count} permits and certificates on file for ${where} (NJ Construction Permit Data, as of ${asOf})`;
+    if (newest) {
+      line += `; newest ${newest.primary} '${newest.status ?? 'status not published'}' ${newest.date ?? 'date not published'}`;
+      if (newest.detail) line += `, ${newest.detail}`;
+      if (newest.amountCents !== null && newest.amountCents > 0) line += `, declared cost ${njDollars(newest.amountCents)}`;
+    }
+    lines.push(line);
+  }
+
+  const report = rec.muniLastReport;
+  if (report.status !== 'ok') {
+    lines.push(`${muni}'s last report date: not checked (the request ${failedText(report)})`);
+  } else if (!report.date) {
+    lines.push(`${muni} has no reports in the NJ Construction Permit Data — its permits would not appear here`);
+  } else {
+    lines.push(`${muni}'s latest report to the state is dated ${report.date}`);
+    const fetched = Date.parse(rec.fetchedAt);
+    const reported = Date.parse(`${report.date}T00:00:00Z`);
+    if (Number.isFinite(fetched) && Number.isFinite(reported) && fetched - reported > NJ_STALE_REPORT_MS) {
+      lines.push('That report is over a year old — permits after it will not appear here.');
+    }
+  }
+  lines.push(rec.caveat || NJ_PERMIT_CAVEAT);
+  lines.push(`Not checked: ${rec.notChecked.join(', ')}.`);
+
+  const incomplete = p.status !== 'ok' || p.truncated || report.status !== 'ok';
+  let kind: NjBuildingRecordSummary['kind'];
+  let headline: string;
+  if (incomplete) {
+    kind = 'incomplete';
+    headline = `Some New Jersey records could not be fully checked for ${where}; see below.`;
+  } else if (!p.rowCount) {
+    kind = 'listed';
+    headline = `State permit data lists no permits or certificates for ${where}, ${muni} (as of ${asOf}). Some towns don't report; violations are not published statewide.`;
+  } else {
+    kind = 'listed';
+    headline = `State permit data for ${where}, ${muni}: ${p.rowCount} permits and certificates on file (as of ${asOf}). Violations are not published statewide.`;
+  }
+
+  const promptBlock = 'NJ BUILDING RECORD (the state\'s NJ Construction Permit Data, data.nj.gov w9se-dmra; each line names its source and date):\n'
+    + `${headline}\n- ${lines.join('\n- ')}\n`
+    + "RULES: These are the state's raw permit records as published, not a finding by MAGE. Counts marked 'at least' are partial. "
+    + 'New Jersey publishes no violations statewide, and some towns do not report. '
+    + 'Never tell the contractor the property is free of problems or meets code. '
+    + "Tell the contractor to confirm with the town's construction office.";
+
+  const cacheKey = `brnj:${rec.muniCode}:${rec.block}:${rec.lot}:${p.asOf ?? p.status}${p.truncated ? '+' : ''}:${report.date ?? report.status}`;
+  return { kind, headline, lines, promptBlock, chipLabel: headline, cacheKey };
+}
+
+/** A New Jersey jobsite (state only; NYC is excluded by the caller). */
+export function isNjJobsite(addr: { state?: string }): boolean {
+  return normalizeState(addr.state) === 'NJ';
+}
+
+export function njParcelConfirmKey(projectId: string): string {
+  return `mageid_building_parcel_${projectId}`;
 }

@@ -19,7 +19,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Inbox, FileDown, Wallet, UserPlus, Gavel, Gauge, Library, PenTool, BellRing,
-  Hourglass, type LucideIcon,
+  Hourglass, ShieldCheck, CalendarCheck, type LucideIcon,
 } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -51,6 +51,8 @@ const SHEET_ROWS: SheetRow[] = [
   { feature: 'leads', route: '/leads', Icon: UserPlus, title: 'Pipeline', subtitle: 'Inquiries → qualified → proposal → won', testID: 'tools-pipeline' },
   { feature: 'buyout', route: '/buyout', Icon: Gavel, title: 'Buyout', subtitle: 'Sub package builder + bid award flow', testID: 'tools-buyout' },
   { feature: 'tax-1099', route: '/tax-1099-export', Icon: FileDown, title: '1099-NEC export', subtitle: 'Year-end CSV for your CPA — flags subs paid ≥ $600', testID: 'tools-tax-1099' },
+  { feature: 'insurance-audit', route: '/insurance-audit', Icon: ShieldCheck, title: 'Insurance audit pack', subtitle: "Sub payments vs. workers' comp certificates", testID: 'insaudit-tools' },
+  { feature: 'tomorrow-lineup', route: '/tomorrow-lineup', Icon: CalendarCheck, title: "Tomorrow's lineup", subtitle: 'A ready-to-send text per sub for the next work day', testID: 'lineup-tools' },
 ];
 
 interface ToolsSheetProps {

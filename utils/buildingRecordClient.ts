@@ -15,8 +15,11 @@
 import { supabase } from '@/lib/supabase';
 import {
   parseBuildingRecordResponse,
+  parseNjBuildingRecordResponse,
   type BuildingRecordRequest,
   type BuildingRecordResponse,
+  type NjBuildingRecordRequest,
+  type NjBuildingRecordResponse,
 } from '@/utils/buildingRecord';
 
 export const BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach NYC Open Data — nothing was checked.";
@@ -42,4 +45,18 @@ export function checkDobPermit(permitNumber: string): Promise<BuildingRecordResp
 
 export function fetchReviewBenchmark(borough: string): Promise<BuildingRecordResponse> {
   return invokeBuildingRecord({ mode: 'benchmark', borough });
+}
+
+export const NJ_BUILDING_RECORD_NETWORK_ERROR = "Couldn't reach the New Jersey lookup — nothing was checked.";
+
+/** The New Jersey modes (nj_resolve / nj_record) of the same function. Same
+ *  two rules: the LITERAL name, and one fixed sentence for every failure. */
+export async function fetchNjBuildingRecord(req: NjBuildingRecordRequest): Promise<NjBuildingRecordResponse> {
+  try {
+    const { data, error } = await supabase.functions.invoke('building-record', { body: req });
+    if (error || data == null) return { status: 'error', code: 'network', error: NJ_BUILDING_RECORD_NETWORK_ERROR };
+    return parseNjBuildingRecordResponse(data);
+  } catch {
+    return { status: 'error', code: 'network', error: NJ_BUILDING_RECORD_NETWORK_ERROR };
+  }
 }

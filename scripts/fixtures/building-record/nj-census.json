@@ -1,0 +1,13 @@
+{
+ "result": {
+  "addressMatches": [
+   {
+    "matchedAddress": "94 WASHINGTON ST, HOBOKEN, NJ, 07030",
+    "coordinates": {
+     "x": -74.031126950783,
+     "y": 40.736930588223
+    }
+   }
+  ]
+ }
+}
