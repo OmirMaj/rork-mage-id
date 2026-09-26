@@ -1,6 +1,18 @@
+/** The jobsite's hand-verified adoption record, as construction-answer's
+ *  jurisdictionBlockFor reads it. Built from resolveCodeJurisdiction. */
+export interface ConstructionAnswerJurisdiction {
+  authority: string;
+  codesInForce: string;
+  checkedOn: string;
+  sourceUrl: string;
+  place: string;
+  scope: 'city' | 'state';
+}
+
 export interface ConstructionAnswerRequest {
   question: string;
   projectId?: string | null;
+  jurisdiction?: ConstructionAnswerJurisdiction | null;
 }
 
 export interface AnswerCitation {

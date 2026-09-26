@@ -24,6 +24,7 @@
 
 import { readFileSync } from 'node:fs';
 import { departmentFor } from '../utils/codeJurisdiction';
+import { sameAuthority } from '../utils/permitInspectionFacts';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -231,10 +232,16 @@ console.log('\nthe verification receipt — every claim was read off a page:');
   // both, for the same row), and a row repeating a name against itself is a
   // harmless alias, not a clash.
   const clashes: string[] = [];
+  // postalCity is the CITY namespace too: it is matched against the same
+  // address field as matchCity.
+  const namespaces = {
+    matchCity: (e: (typeof LOCAL_ADOPTIONS)[number]) => [...(e.matchCity ?? []), ...(e.postalCity ?? [])],
+    matchCounty: (e: (typeof LOCAL_ADOPTIONS)[number]) => [...(e.matchCounty ?? [])],
+  };
   for (const field of ['matchCity', 'matchCounty'] as const) {
     const owner = new Map<string, string>();
     for (const e of LOCAL_ADOPTIONS) {
-      for (const m of e[field] ?? []) {
+      for (const m of namespaces[field](e)) {
         const k = `${e.state}|${normalizePlace(m)}`;
         const prev = owner.get(k);
         if (prev !== undefined && prev !== e.name) clashes.push(`${field} ${k}: ${prev} vs ${e.name}`);
@@ -304,6 +311,115 @@ ok('a city match beats a county match (the city is the more specific AHJ)', (() 
   const r = resolveCodeJurisdiction({ city: 'Brooklyn', county: 'Miami-Dade', state: 'NY' });
   return r.kind === 'city' && r.matchedOn === 'city';
 })());
+
+// ─────────────────────────────────────────────────────────────────────
+console.log('\nthe tristate — Queens postal cities, Nassau, Connecticut, New Jersey:');
+// ─────────────────────────────────────────────────────────────────────
+{
+  // THE QUEENS BUG. A job saved as "Astoria, NY" carries no borough and no
+  // county, and it used to resolve to the NEW YORK STATE row: the Uniform Code
+  // instead of the NYC Construction Codes, no DOB card, no building record
+  // (isNycJobsite reads this resolver). The addresses go through
+  // jobsiteAddressForProject exactly as a project's free-text location does.
+  const fromText = (location: string) => resolveCodeJurisdiction(jobsiteAddressForProject({ location }));
+  const isNyc = (r: ReturnType<typeof resolveCodeJurisdiction>) => r.kind === 'city' && r.entry.name === 'New York City';
+  for (const loc of ['Astoria, NY', 'Long Island City, NY', 'Flushing, NY', '31-10 Ditmars Blvd, Astoria NY 11105', 'Jamaica, NY', 'Far Rockaway, NY']) {
+    const r = fromText(loc);
+    ok(`"${loc}" resolves to New York City`, isNyc(r));
+    ok(`"${loc}" gets the DOB department card and names the DOB as issuer`,
+      departmentFor(r) !== null && issuingAuthorityForAddress(jobsiteAddressForProject({ location: loc })) === 'New York City Department of Buildings');
+  }
+  // Nassau places — a hamlet (Levittown), a village (Garden City) and a town
+  // (Hempstead) — must NOT become New York City. They are the state row.
+  for (const loc of ['Garden City, NY', 'Levittown, NY', 'Hempstead, NY']) {
+    const r = fromText(loc);
+    ok(`"${loc}" does NOT resolve to New York City`, !isNyc(r));
+    ok(`"${loc}" resolves to the New York STATE row`, r.kind === 'state' && r.entry.state === 'NY');
+  }
+  // The three Queens postal names the source excluded, pinned so nobody adds
+  // them back "for completeness": each is also an incorporated Nassau village.
+  for (const loc of ['Bellerose, NY', 'Floral Park, NY', 'New Hyde Park, NY']) {
+    ok(`"${loc}" does NOT resolve to New York City (it is also a Nassau village)`, !isNyc(fromText(loc)));
+  }
+  const nyc = LOCAL_ADOPTIONS.find((e) => e.name === 'New York City');
+  ok('no NYC match name is a ZIP or a ZIP prefix (110xx is split with Nassau)',
+    !!nyc && [...(nyc.matchCity ?? []), ...(nyc.postalCity ?? []), ...(nyc.matchCounty ?? [])].every((m) => !/\d/.test(m)));
+  // A postal name is an ADDRESS fact. When the address names a county that is
+  // not the row's own, the county wins: SAM files 15 "Far Rockaway" and 2
+  // "Rosedale" address points under Nassau.
+  for (const city of ['Far Rockaway', 'Rosedale']) {
+    const r = resolveCodeJurisdiction({ city, county: 'Nassau County', state: 'NY' });
+    ok(`"${city}" with county Nassau is NOT New York City (the county wins over a postal name)`,
+      !isNyc(r) && r.kind === 'state' && r.entry.state === 'NY');
+  }
+  ok('"Astoria" with county Queens is still New York City',
+    isNyc(resolveCodeJurisdiction({ city: 'Astoria', county: 'Queens County', state: 'NY' })));
+  // LONG ISLAND MUST NOT BECOME THE DOB THROUGH THE PERMIT-RECORD MATCHER.
+  // permitInspectionFacts reads matchCity as the permit OFFICE's names, word-set
+  // style with "city"/"village" dropped: "long island city" there is any text
+  // with "long" and "island" in it. That is why the postal names are
+  // postalCity, which that matcher never reads (review 2026-09-26).
+  const DOB = 'New York City Department of Buildings';
+  for (const j of ['Town of Huntington, Long Island, NY', 'Town of Islip, Long Island, NY', 'Long Island, NY',
+    'PSEG Long Island', 'Long Island Power Authority', 'Middle Island, NY',
+    'Town of Brookhaven, Middle Island NY', 'Village of Ridgewood', 'Ridgewood Building Dept']) {
+    ok(`permit jurisdiction "${j}" is NOT the NYC DOB's inspection record`, !sameAuthority(j, DOB));
+  }
+  ok('the borough names still fold into the DOB record ("Brooklyn, NY")', sameAuthority('Brooklyn, NY', DOB));
+  ok('Queens postal cities do not leak across the state line ("Astoria, OR" is not NYC)',
+    !isNyc(fromText('Astoria, OR')) && !isNyc(fromText('Ridgewood, NJ')));
+
+  // NEW YORK OUTSIDE NYC: the permit office is the municipality, never the county.
+  const nyState = STATE_ADOPTIONS.find((e) => e.state === 'NY');
+  const nyNotes = nyState?.notes ?? '';
+  ok('the NY row names all seven suburban counties it governs',
+    ['Nassau', 'Suffolk', 'Westchester', 'Rockland', 'Putnam', 'Orange', 'Dutchess'].every((c) => nyNotes.includes(c)));
+  ok('the NY row says the permit office is the village, city or town, not the county',
+    /village, the city, or the town/.test(nyNotes) && /not the county/.test(nyNotes));
+
+  // CONNECTICUT: a state row, keyed on the state and never on a county.
+  const ct = STATE_ADOPTIONS.find((e) => e.state === 'CT');
+  ok('Connecticut has a state row, from DAS\'s Office of the State Building Inspector',
+    !!ct && /Department of Administrative Services/.test(ct.authorityName) && /State Building Inspector/.test(ct.authorityName));
+  const stamford = fromText('Stamford, CT');
+  ok('"Stamford, CT" resolves to the Connecticut state row', stamford.kind === 'state' && stamford.entry.state === 'CT');
+  const region = resolveCodeJurisdiction({ city: 'Stamford', county: 'Western Connecticut Planning Region', state: 'CT' });
+  ok('a Census planning region in the county slot still lands on the Connecticut row',
+    region.kind === 'state' && region.entry.state === 'CT');
+  const ctCountyKeyed = (rows: readonly { state: string; matchCounty?: readonly string[] }[]) =>
+    rows.filter((e) => e.state === 'CT' && (e.matchCounty?.length ?? 0) > 0);
+  ok('the CT county-key guard can fail (a synthetic CT row keyed on a county is caught)',
+    ctCountyKeyed([{ state: 'CT', matchCounty: ['fairfield'] }, { state: 'NY', matchCounty: ['kings'] }]).length === 1);
+  ok('no Connecticut local row is ever keyed on a county (the Census returns planning regions)',
+    ctCountyKeyed(LOCAL_ADOPTIONS).length === 0);
+  const ctCode = (f: string) => ct?.codes.find((c) => c.family === f);
+  ok('CT claims the 2021 IBC as ICC\'s CT volume CTBC2022P1',
+    ctCode('IBC')?.edition === '2021' && ctCode('IBC')?.iccVolumeId === 'CTBC2022P1' &&
+    ctCode('IBC')?.name === '2022 Connecticut State Building Code - 2021 IBC Portion');
+  ok('CT claims the 2021 IRC as ICC\'s CT volume CTRC2022P1',
+    ctCode('IRC')?.edition === '2021' && ctCode('IRC')?.iccVolumeId === 'CTRC2022P1' &&
+    ctCode('IRC')?.name === '2022 Connecticut State Building Code - 2021 IRC Portion');
+  ok('CT claims IECC 2021, IEBC 2021 and NEC 2020, with no model-code link',
+    ctCode('IECC')?.edition === '2021' && ctCode('IEBC')?.edition === '2021' && ctCode('NEC')?.edition === '2020' &&
+    !ctCode('IECC')?.iccVolumeId && !ctCode('IEBC')?.iccVolumeId);
+  const ctNotes = ct?.notes ?? '';
+  ok('the CT note says the 2026 code is delayed pending the Regulation Review Committee',
+    /delayed/.test(ctNotes) && /Regulation Review Committee/.test(ctNotes) && /which code your permit date falls under/.test(ctNotes));
+  ok('the CT note cites DAS only — it never claims the package was rejected',
+    !/reject/i.test(ctNotes) && (ct?.noteSourceUrl ?? '').startsWith('https://portal.ct.gov/das/'));
+
+  // NEW JERSEY: its own editions, and no link to the model book in their place.
+  const nj = STATE_ADOPTIONS.find((e) => e.state === 'NJ');
+  const njCode = (f: string) => nj?.codes.find((c) => c.family === f);
+  ok('NJ names the IBC and IRC as the NJ editions',
+    /\(NJ edition\)/.test(njCode('IBC')?.name ?? '') && /\(NJ edition\)/.test(njCode('IRC')?.name ?? ''));
+  ok('NJ never links the model IBC/IRC under its NJ-edition names (NJBC2024P1/NJRC2024P1 404 today)',
+    !njCode('IBC')?.iccVolumeId && !njCode('IRC')?.iccVolumeId &&
+    !viewerLinksFor(fromText('Hoboken, NJ')).some((l) => /IBC2024P1|IRC2024P1/.test(l.url)));
+  ok('NJ keeps the 17 August 2026 effective date and claims no grace period',
+    /17 August 2026/.test(nj?.notes ?? '') && /no grace period/.test(nj?.notes ?? '') &&
+    !/grace period (of|until|ends|runs|lasts)/i.test(nj?.notes ?? ''));
+}
 
 // ─────────────────────────────────────────────────────────────────────
 console.log('\nunknown always carries a reason:');

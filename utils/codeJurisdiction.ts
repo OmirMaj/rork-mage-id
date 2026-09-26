@@ -212,6 +212,22 @@ export interface LocalAdoption extends BaseEntry {
   state: string;
   matchCity?: readonly string[];
   matchCounty?: readonly string[];
+  /**
+   * USPS postal-community names ("Astoria", "Long Island City") that place an
+   * ADDRESS inside this row. Read ONLY by `resolveCodeJurisdiction`, on the
+   * address's city field, by whole-name equality — and never when the address
+   * carries a county that is not one of this row's `matchCounty` names (a
+   * "Far Rockaway" address point filed under Nassau stays out).
+   *
+   * KEPT OUT OF `matchCity` ON PURPOSE. permitInspectionFacts.localEntryFor
+   * reads matchCity/matchCounty as an AUTHORITY-NAME matcher that drops
+   * "city"/"village" and compares the remaining words as a set, so "long
+   * island city" there means any text containing "long" and "island" — every
+   * Suffolk and Nassau town permit ("Town of Huntington, Long Island") — and
+   * "middle village" means anything containing "middle". A postal name is an
+   * address fact, not the name of a permit office; it lives here.
+   */
+  postalCity?: readonly string[];
   /** How to reach the building department. Only rows verified on the
    *  authority's own site carry one (NYC today); `departmentFor` returns null
    *  for every other row, so nothing is rendered from recall. */
@@ -392,7 +408,20 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
       // the first match for "Residential Code of New York State" on the page.
       { family: 'LOCAL', edition: '2025', name: '2025 Residential Code of New York State', sourceUrl: 'https://dos.ny.gov/notice-adoption', iccVolumeId: 'NYSRC2025P1', iccVolumeTitle: '2025 Residential Code of New York State (2025 RCNYS)' },
     ],
-    notes: 'The 2025 Uniform Code replaced the 2020 edition on 31 December 2025. The state states its basis as the 2024 ICC books collectively and does not publish separate IBC/IRC/IECC edition years, so none are claimed here — but it DOES publish separately-titled New York volumes under that umbrella, and the one a one- or two-family job is built to is the 2025 Residential Code of New York State (19 NYCRR § 1220.2(a); § 1219.2(a)(8) names the publication, July 2025). Which IRC edition sits under the RCNYS is still not stated by the state, so it is not claimed. NEW YORK CITY IS A PARTIAL, NOT A TOTAL, EXEMPTION: it writes its own Construction Codes in place of the Uniform Code, but the Energy Code is statewide and NYC enforces an approved, more-restrictive LOCAL version of it rather than being outside it. ONE LARGE PROVISION IS ON THE BOOKS BUT UNENFORCEABLE: the 2025 prohibition on fossil-fuel equipment and building systems in new buildings (19 NYCRR § 1240.6 and Subpart 1229-2) is suspended by court order and is neither effective nor enforceable — do not price a new build all-electric on the assumption that it applies.',
+    notes: 'The 2025 Uniform Code replaced the 2020 edition on 31 December 2025. The state states its basis as the 2024 ICC books collectively and does not publish separate IBC/IRC/IECC edition years, so none are claimed here — but it DOES publish separately-titled New York volumes under that umbrella, and the one a one- or two-family job is built to is the 2025 Residential Code of New York State (19 NYCRR § 1220.2(a); § 1219.2(a)(8) names the publication, July 2025). Which IRC edition sits under the RCNYS is still not stated by the state, so it is not claimed. NEW YORK CITY IS A PARTIAL, NOT A TOTAL, EXEMPTION: it writes its own Construction Codes in place of the Uniform Code, but the Energy Code is statewide and NYC enforces an approved, more-restrictive LOCAL version of it rather than being outside it. ONE LARGE PROVISION IS ON THE BOOKS BUT UNENFORCEABLE: the 2025 prohibition on fossil-fuel equipment and building systems in new buildings (19 NYCRR § 1240.6 and Subpart 1229-2) is suspended by court order and is neither effective nor enforceable — do not price a new build all-electric on the assumption that it applies. WHO ISSUES THE PERMIT OUTSIDE NEW YORK CITY: the Uniform Code applies in every part of the state except New York City, so this row governs Nassau, Suffolk, Westchester, Rockland, Putnam, Orange and Dutchess alike — but the permit office is the village, the city, or the town (for land outside any incorporated village), not the county. Executive Law § 381 puts enforcement on that local government; only if it has opted out by local law does enforcement pass to the county, and if the county has opted out too, to the Department of State. MAGE holds no list of which municipalities have opted out, so confirm the office with the village or town.',
+    // The "WHO ISSUES THE PERMIT" sentences were added 2026-09-26, read off the
+    // Department of State's Legal Memorandum LG03, "NYS Uniform Fire Prevention
+    // and Building Code: What Elected Officials Need to Know" —
+    //   https://dos.ny.gov/legal-memorandum-lg03-nys-uniform-fire-prevention-and-building-code-what-elected-officials-need
+    // (curl -L with a Safari UA, HTTP 200; the fetcher gets the same 403 as the
+    // FAQ). It says the Uniform Code is "applicable in every part of the State
+    // (except the City of New York)", defines "local government" as "a village,
+    // town (outside the area of any incorporated village) or city", and sets
+    // out the Executive Law § 381 opt-out chain: local government → county →
+    // Department of State. It names no county; the seven named in the note are
+    // the ones this app's contractors work in, and all seven are "every part
+    // of the State" outside New York City. The codes and checkedOn below are
+    // unchanged — that memorandum is about who enforces, not which edition.
     sourceUrl: 'https://dos.ny.gov/division-building-standards-and-codes-frequently-asked-questions',
     // Re-verified 2026-09-12: the FAQ (this sourceUrl) was re-read and still
     // states the 2025 Uniform Code + 2025 ECCCNYS on the 2024 ICC books, the
@@ -534,16 +563,92 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     stateName: 'New Jersey',
     authorityName: 'New Jersey Department of Community Affairs, Division of Codes and Standards (Uniform Construction Code)',
     codes: [
-      { family: 'IBC', edition: '2024', iccVolumeId: 'IBC2024P1', iccVolumeTitle: '2024 International Building Code (IBC)' },
-      { family: 'IRC', edition: '2024', iccVolumeId: 'IRC2024P1', iccVolumeTitle: '2024 International Residential Code (IRC)' },
+      // THE NJ EDITIONS, AND NO LINK FOR THEM. DCA's current-codes page (this
+      // row's sourceUrl, re-read 2026-09-26) lists the building subcode as
+      // "International Building Code/2024 , NJ ed" and the one- and two-family
+      // subcode as "International Residential Code/2024 , NJ ed" — New
+      // Jersey's own editions, not the model books. These two entries used to
+      // link IBC2024P1 and IRC2024P1, the MODEL codes, under a chip naming New
+      // Jersey: the wrong book, exactly as rule 3 on `iccVolumeId` forbids.
+      // ICC has not published the NJ 2024 editions as volumes — measured
+      // 2026-09-26 (curl, Safari UA): NJBC2024P1 → 404 "Digital Codes",
+      // NJRC2024P1 → 404 "Digital Codes"; the 2021 NJ edition does exist
+      // (NJBC2021P1 → 200 "2021 International Building Code New Jersey
+      // Edition") and is the wrong cycle. So no link until the 2024 NJ volumes
+      // appear; re-fetch those two ids then, record the titles, and add them.
+      // The energy, mechanical and fuel gas lines carry no "NJ ed" on that page,
+      // so their model-code volumes are what the state adopts and keep links.
+      { family: 'IBC', edition: '2024', name: '2024 International Building Code (NJ edition)' },
+      { family: 'IRC', edition: '2024', name: '2024 International Residential Code (NJ edition)' },
       { family: 'IECC', edition: '2024', iccVolumeId: 'IECC2024P1', iccVolumeTitle: '2024 International Energy Conservation Code (IECC)' },
       { family: 'IMC', edition: '2024', iccVolumeId: 'IMC2024P1', iccVolumeTitle: '2024 International Mechanical Code (IMC)' },
       { family: 'IFGC', edition: '2024', iccVolumeId: 'IFGC2024P1', iccVolumeTitle: '2024 International Fuel Gas Code (IFGC)' },
       { family: 'NEC', edition: '2023' },
     ],
-    notes: 'The 2024 I-Codes and the 2023 NEC became effective in the New Jersey Uniform Construction Code on 17 August 2026 — a very recent turnover, so a job permitted before that date is on the previous adoption. New Jersey does NOT use the International Plumbing Code: plumbing is the National Standard Plumbing Code (2024). The 2024 IECC governs low-rise residential only; commercial and other residential go to ASHRAE 90.1-2022.',
+    notes: 'The 2024 I-Codes and the 2023 NEC became effective in the New Jersey Uniform Construction Code on 17 August 2026 — a very recent turnover, and the state\'s page states no grace period for the previous editions, so confirm with the municipal construction office which adoption a permit applied for around that date falls under. The building and residential codes are New Jersey\'s OWN editions of the 2024 IBC and IRC, not the model books; ICC has not published them online yet, so MAGE links neither. New Jersey does NOT use the International Plumbing Code: plumbing is the National Standard Plumbing Code (2024). The 2024 IECC governs low-rise residential only; commercial and other residential go to ASHRAE 90.1-2022.',
     sourceUrl: 'https://www.nj.gov/dca/codes/codreg/current.shtml',
-    checkedOn: '2026-09-07',
+    // Re-read 2026-09-26 (curl, Safari UA): every line still says "Aug 17,
+    // 2026"; the building and one- and two-family subcodes say "NJ ed"; the
+    // page says nothing about a grace period, so the note claims none.
+    checkedOn: '2026-09-26',
+  },
+  {
+    // CONNECTICUT, added 2026-09-26. Every fact below was read that day, with
+    // curl and a Safari User-Agent, off the three DAS pages this row cites:
+    //   - sourceUrl, the OSBI regulations page: "The 2022 Connecticut State
+    //     Building Code (CSBC) is based on the International Code Council's
+    //     widely-adopted 2021 International Codes … It applies to projects
+    //     with permit applications filed from October 1, 2022." That page
+    //     never names a single code family, which is why every claim cites
+    //     the next document instead.
+    //   - the code itself, 2022-CSBC-Final.pdf through `pdftotext -layout`.
+    //     Its Introduction: "the following national model codes, as amended
+    //     herein, are adopted and shall be known as the 2022 Connecticut State
+    //     Building Code: 2021 International Building Code … 2021 International
+    //     Existing Building Code … 2021 International Energy Conservation Code
+    //     … 2020 NFPA 70, National Electrical Code … 2021 International
+    //     Residential Code" (plus the IPC, IMC and ISPSC, which are not
+    //     CodeFamily entries here, and ICC A117.1-2017).
+    //   - noteSourceUrl, the code-adoption-process page: the next codes "were
+    //     expected to take effect on July 1, 2026, but at this time, we await
+    //     approval of the next codes by the Legislative Regulation Review
+    //     Committee … and therefore the effective date has been delayed", and
+    //     it lists the 2024 I-Codes and the "2023 NFPA 70 National Electrical
+    //     Code" as the anticipated basis. A secondary source reports the
+    //     committee rejected the package; DAS does not say so, so neither does
+    //     this row.
+    // THE TWO LINKS ARE CONNECTICUT'S OWN VOLUMES, NOT THE MODEL BOOKS. ICC
+    // publishes the CT portions as single named volumes — measured 2026-09-26
+    // (curl, Safari UA): CTBC2022P1 → 200 "2022 Connecticut State Building
+    // Code - 2021 IBC Portion", CTRC2022P1 → 200 "… - 2021 IRC Portion" — so
+    // the entry's name IS the book's name and rule 3 is satisfied. The energy
+    // and existing-building entries carry no link: no CT volume for them was
+    // fetched, and the model volume would be the wrong book under this chip.
+    //
+    // NO LOCAL ROW, AND NEVER A COUNTY KEY. OSBI "maintains a list of Building
+    // Officials who are appointed to a local jurisdiction … in alphabetical
+    // order by the name of the municipality" (read 2026-09-26 at
+    // https://portal.ct.gov/das/oedm/list-of-local-building-officials), and
+    // the Census geocoder no longer returns a Connecticut county at all:
+    // queried 2026-09-26 for 888 Washington Blvd, Stamford, CT 06901 it
+    // answered Counties "Western Connecticut Planning Region", County
+    // Subdivisions "Stamford town". So any future Connecticut local row keys on
+    // `matchCity` (the town); validate-code-jurisdiction.ts fails a CT row that
+    // carries `matchCounty`.
+    state: 'CT',
+    stateName: 'Connecticut',
+    authorityName: 'Connecticut Department of Administrative Services, Office of the State Building Inspector',
+    codes: [
+      { family: 'IBC', edition: '2021', name: '2022 Connecticut State Building Code - 2021 IBC Portion', sourceUrl: 'https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf', iccVolumeId: 'CTBC2022P1', iccVolumeTitle: '2022 Connecticut State Building Code - 2021 IBC Portion' },
+      { family: 'IRC', edition: '2021', name: '2022 Connecticut State Building Code - 2021 IRC Portion', sourceUrl: 'https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf', iccVolumeId: 'CTRC2022P1', iccVolumeTitle: '2022 Connecticut State Building Code - 2021 IRC Portion' },
+      { family: 'IECC', edition: '2021', name: '2022 Connecticut State Building Code', sourceUrl: 'https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf' },
+      { family: 'IEBC', edition: '2021', name: '2022 Connecticut State Building Code', sourceUrl: 'https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf' },
+      { family: 'NEC', edition: '2020', sourceUrl: 'https://portal.ct.gov/-/media/DAS/Office-of-State-Building-Inspector/2022-State-Codes/2022-CSBC-Final.pdf' },
+    ],
+    notes: 'The 2022 Connecticut State Building Code applies to permit applications filed on or after 1 October 2022. It adopts the 2021 I-Codes and the 2020 NEC as amended by Connecticut, so the model books alone are not the code. THE NEXT CODE IS LATE: the 2026 code (2024 I-Codes, NEC 2023) was expected to take effect 1 July 2026, and DAS says its effective date is delayed pending the Legislative Regulation Review Committee — confirm which code your permit date falls under. The office to ask is the building official appointed to the town or city (DAS keeps that list by municipality), not the state.',
+    noteSourceUrl: 'https://portal.ct.gov/das/office-of-state-building-inspector/building-and-fire-code-adoption-process',
+    sourceUrl: 'https://portal.ct.gov/das/office-of-state-building-inspector/connecticut-state-building-code/regulations',
+    checkedOn: '2026-09-26',
   },
   {
     state: 'MN',
@@ -578,9 +683,72 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     state: 'NY',
     // All five boroughs are NYC and answer to the same DOB. The screen's own
     // placeholder says "Brooklyn, NY", so borough names have to resolve.
+    //
+    // THE POSTAL CITIES, AND WHY QUEENS NEEDED THEM. Mail in Queens is not
+    // addressed to "Queens": the Postal Service names each Queens ZIP after its
+    // old village, so a job the contractor saved as "Astoria, NY" or "Long
+    // Island City, NY" carried no borough, no county, and resolved to the NEW
+    // YORK STATE row — the Uniform Code instead of the NYC Construction Codes,
+    // no DOB department card, and no building record (isNycJobsite reads this
+    // same resolver). Manhattan, Brooklyn, the Bronx and Staten Island use the
+    // borough names already listed above.
+    //
+    // WHERE THE LIST CAME FROM (fetched 2026-09-26, not recalled): New York
+    // State's own address-point file, SAM Address Points, whose `ZipName` field
+    // is the postal community name of every addressed building in the state —
+    //   https://gisservices.its.ny.gov/arcgis/rest/services/SAM_Address_Points/MapServer/0
+    //   (statistics query: count by ZipName, CountyName, first for the five NYC
+    //   counties, then for every one of the names found, statewide).
+    // A name is here only when BOTH hold:
+    //   1. at least 99% of that name's address points statewide lie in the five
+    //      NYC counties (New York, Kings, Queens, Bronx, Richmond); and
+    //   2. no city, town or village OUTSIDE New York City carries that name in
+    //      NYS Civil Boundaries (layers 6 and 7 of
+    //      https://gisservices.its.ny.gov/arcgis/rest/services/NYS_Civil_Boundaries/FeatureServer).
+    // THREE QUEENS POSTAL NAMES FAIL AND ARE DELIBERATELY ABSENT: Floral Park
+    // (1,201 Queens points, 8,000 Nassau) and New Hyde Park (756 Queens, 14,328
+    // Nassau) are mostly Nassau and are incorporated Nassau villages; Bellerose
+    // is 99.6% Queens but is ALSO the Incorporated Village of Bellerose in
+    // Nassau, and a contractor there types exactly that. Those three keep
+    // resolving to the state row, which is the honest answer for an address
+    // this table cannot place. The near-misses that pass rule 1 — Far Rockaway
+    // (15 Nassau points of 8,944), Queens Village (4 of 16,295), Rosedale (2 of
+    // 6,812) — are border-line address points, not a Nassau community; and an
+    // address that names Nassau as its county never takes a postal name here
+    // (resolveCodeJurisdiction checks the county before a postalCity wins).
+    //
+    // NO ZIP RULE, ON PURPOSE. The 110xx prefix is split between Queens and
+    // Nassau — the same file, counted by ZipCode: 11004 is all Queens, 11001
+    // and 11040 straddle the county line, and 11003, 11010, 11020, 11021,
+    // 11023, 11024, 11030, 11042, 11050 and 11096 are all Nassau — so a prefix shortcut
+    // would send Nassau jobs to the DOB.
+    //
+    // 'st albans' is the only entry not spelled exactly as SAM spells it: it is
+    // "Saint Albans" abbreviated the way the address is usually written, and
+    // normalizePlace strips the period but cannot expand the word.
+    //
+    // THEY ARE `postalCity`, NOT `matchCity`. matchCity is also read by
+    // permitInspectionFacts as the names of the PERMIT OFFICE, word-set style
+    // with "city"/"village" dropped; there "long island city" matched "Town of
+    // Huntington, Long Island" and folded Long Island town permits into the
+    // DOB's inspection record (review 2026-09-26). postalCity is read only by
+    // resolveCodeJurisdiction, on an address's city, by whole name.
     matchCity: [
       'new york', 'new york city', 'nyc', 'manhattan', 'brooklyn',
       'queens', 'the bronx', 'bronx', 'staten island',
+    ],
+    postalCity: [
+      'brooklyn navy yard',
+      // Queens postal cities (SAM ZipName, rules 1 and 2 above).
+      'arverne', 'astoria', 'bayside', 'breezy point', 'cambria heights',
+      'college point', 'corona', 'east elmhurst', 'elmhurst', 'far rockaway',
+      'flushing', 'forest hills', 'fresh meadows', 'glen oaks', 'hollis',
+      'howard beach', 'jackson heights', 'jamaica', 'kew gardens', 'little neck',
+      'long island city', 'maspeth', 'middle village', 'oakland gardens',
+      'ozone park', 'queens village', 'rego park', 'richmond hill', 'ridgewood',
+      'rockaway park', 'rosedale', 'saint albans', 'st albans',
+      'south ozone park', 'south richmond hill', 'springfield gardens',
+      'sunnyside', 'whitestone', 'woodhaven', 'woodside',
     ],
     matchCounty: ['new york', 'kings', 'queens', 'bronx', 'richmond'],
     authorityName: 'New York City Department of Buildings',
@@ -1203,6 +1371,15 @@ export function resolveCodeJurisdiction(q: AddressQuery): ResolvedCodeJurisdicti
   for (const entry of LOCAL_ADOPTIONS) {
     if (entry.state !== state) continue;
     if (city && entry.matchCity?.some((m) => normalizePlace(m) === city)) {
+      return { kind: 'city', entry, matchedOn: 'city', state };
+    }
+    // A postal name wins only when the address names no county, or names one
+    // of this row's own counties.
+    if (
+      city &&
+      entry.postalCity?.some((m) => normalizePlace(m) === city) &&
+      (!county || (entry.matchCounty ?? []).some((m) => normalizePlace(m) === county))
+    ) {
       return { kind: 'city', entry, matchedOn: 'city', state };
     }
   }
