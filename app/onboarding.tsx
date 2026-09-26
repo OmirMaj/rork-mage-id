@@ -24,7 +24,7 @@
 //   - Hand-off to /estimate-wizard?onboarding=1 where the value
 //     is live before anything asks the user to upgrade.
 
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -36,10 +36,11 @@ import {
   Platform,
   Pressable,
   Dimensions,
-  AccessibilityInfo,
   KeyboardAvoidingView,
 } from 'react-native';
-import { continuousCorners, Tokens } from '@/constants/designTokens';
+import { continuousCorners, Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver, useReducedMotion } from '@/components/ui/motion';
+import GlideDots from '@/components/animations/GlideDots';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -102,6 +103,17 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Three-step flow: splash → preview cards → rates (terminal → estimate wizard).
 type Step = 'splash' | 'preview' | 'rates';
+const STEPS: Step[] = ['splash', 'preview', 'rates'];
+
+// Motion (slick-3). The entrance is a 50 ms stagger of 220 ms fades (≤ 400 ms
+// in all) with the lift on Motion.spring.rise; a step leaves 16 pt left over
+// EXIT_MS and the next arrives from 16 pt right.
+const STAGGER_MS = 50; // hoist into Motion.duration after round 3
+const ENTER_MS = 220; // hoist into Motion.duration after round 3
+const EXIT_MS = 140; // hoist into Motion.duration after round 3
+const CARD_FADE_MS = 160; // hoist into Motion.duration after round 3
+const STEP_SLIDE = 16;
+const CARD_SLIDE = 12;
 
 interface PreviewCard {
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -198,26 +210,21 @@ export default function OnboardingScreen() {
   const [rateReview, setRateReview] = useState<SeedParseResult | null>(null);
   const [rateHint, setRateHint] = useState<string | null>(null);
 
-  // Respect iOS Accessibility → Reduce Motion. When on, we cross-fade
-  // instead of slide-up + stagger. Apple HIG mandates this; premium apps
-  // ship it from day one.
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then(v => {
-      if (mounted) setReduceMotion(v);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => { mounted = false; sub.remove(); };
-  }, []);
+  // Respect iOS Accessibility → Reduce Motion (and the web's
+  // prefers-reduced-motion) through the app's one motion store. When on, we
+  // cross-fade instead of slide + stagger.
+  const reduceMotion = useReducedMotion();
 
-  // ── Reveal animations — staggered fade + 8px rise. ~120ms apart so
-  // the splash feels composed rather than dumped.
+  // ── Reveal animations — staggered fade + 8px rise, 50 ms apart, every step
+  // in under 0.4 s. slideX carries the step-to-step slide.
   const eyebrowOpacity = useRef(new Animated.Value(0)).current;
   const headlineOpacity = useRef(new Animated.Value(0)).current;
   const bodyOpacity = useRef(new Animated.Value(0)).current;
   const ctaOpacity = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(8)).current;
+  const slideX = useRef(new Animated.Value(0)).current;
+  // Set while a step is sliding out; the steps' CTAs ignore taps meanwhile.
+  const exitingRef = useRef(false);
 
   // CTA tap feedback.
   const ctaScale = useRef(new Animated.Value(1)).current;
@@ -233,27 +240,83 @@ export default function OnboardingScreen() {
     if (reduceMotion) {
       // Reduce-motion path: simple cross-fade, no stagger, no lift. Same
       // landing state in ~200ms.
+      slideX.setValue(0);
       Animated.parallel([
-        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(headlineOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(bodyOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.timing(ctaOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
+        Animated.timing(headlineOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
+        Animated.timing(bodyOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
+        Animated.timing(ctaOpacity, { toValue: 1, duration: 200, useNativeDriver: nativeDriver }),
       ]).start();
       return;
     }
 
+    const fadeIn = (v: Animated.Value) => Animated.timing(v, {
+      toValue: 1, duration: ENTER_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
+    });
     Animated.parallel([
-      Animated.timing(lift, {
-        toValue: 0, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-      Animated.stagger(120, [
-        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
-        Animated.timing(headlineOpacity, { toValue: 1, duration: 420, useNativeDriver: true }),
-        Animated.timing(bodyOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
-        Animated.timing(ctaOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
+      Animated.spring(lift, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
+      // The arriving step slides in from the right (a no-op on first mount,
+      // where slideX is already 0).
+      Animated.spring(slideX, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
+      Animated.stagger(STAGGER_MS, [
+        fadeIn(eyebrowOpacity),
+        fadeIn(headlineOpacity),
+        fadeIn(bodyOpacity),
+        fadeIn(ctaOpacity),
       ]),
     ]).start();
-  }, [step, eyebrowOpacity, headlineOpacity, bodyOpacity, ctaOpacity, lift, reduceMotion]);
+  }, [step, eyebrowOpacity, headlineOpacity, bodyOpacity, ctaOpacity, lift, slideX, reduceMotion]);
+
+  // A step change: the old step fades and leaves 16 pt left, then the new one
+  // mounts 16 pt right and the entrance above brings it home. Reduce Motion:
+  // the step changes at once.
+  const goStep = useCallback((next: Step) => {
+    if (exitingRef.current) return;
+    if (reduceMotion) { setStep(next); return; }
+    exitingRef.current = true;
+    const fadeOut = (v: Animated.Value) => Animated.timing(v, {
+      toValue: 0, duration: EXIT_MS, easing: Easing.in(Easing.cubic), useNativeDriver: nativeDriver,
+    });
+    Animated.parallel([
+      fadeOut(eyebrowOpacity),
+      fadeOut(headlineOpacity),
+      fadeOut(bodyOpacity),
+      fadeOut(ctaOpacity),
+      Animated.timing(slideX, {
+        toValue: -STEP_SLIDE, duration: EXIT_MS, easing: Easing.in(Easing.cubic), useNativeDriver: nativeDriver,
+      }),
+    ]).start(() => {
+      // Finished or interrupted, the step changes: an exit never strands him.
+      exitingRef.current = false;
+      slideX.setValue(STEP_SLIDE);
+      setStep(next);
+    });
+  }, [reduceMotion, eyebrowOpacity, headlineOpacity, bodyOpacity, ctaOpacity, slideX]);
+
+  // The preview card slides its content across on a cardIndex CHANGE after
+  // mount: the arriving card rises in from 12 pt right. Armed during render
+  // (a ref), so a first render carries no wrapper at all.
+  const cardSlide = useRef(new Animated.Value(0)).current;
+  const cardFade = useRef(new Animated.Value(1)).current;
+  const prevCardIndexRef = useRef(cardIndex);
+  const cardArmedRef = useRef(false);
+  if (prevCardIndexRef.current !== cardIndex && !reduceMotion) cardArmedRef.current = true;
+  useLayoutEffect(() => {
+    if (prevCardIndexRef.current === cardIndex) return;
+    prevCardIndexRef.current = cardIndex;
+    if (!cardArmedRef.current || reduceMotion) return;
+    cardSlide.setValue(CARD_SLIDE);
+    cardFade.setValue(0);
+    Animated.parallel([
+      Animated.spring(cardSlide, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
+      Animated.timing(cardFade, {
+        toValue: 1, duration: CARD_FADE_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
+      }),
+    ]).start();
+  }, [cardIndex, reduceMotion, cardSlide, cardFade]);
+  const cardMotionStyle = cardArmedRef.current && !reduceMotion
+    ? { opacity: cardFade, transform: [{ translateX: cardSlide }] }
+    : null;
 
   // Activation funnel — mark the top of the rates step so we can compute
   // viewed→completed. Fires once when the step first renders.
@@ -276,18 +339,22 @@ export default function OnboardingScreen() {
   }, [onTourCard, userRole]);
 
   const handleStarted = useCallback(() => {
+    if (exitingRef.current) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Animated.sequence([
-      Animated.timing(ctaScale, { toValue: 0.94, duration: 80, useNativeDriver: true }),
-      Animated.timing(ctaScale, { toValue: 1, duration: 100, useNativeDriver: true }),
-    ]).start();
-    setStep('preview');
-  }, [ctaScale]);
+    if (!reduceMotion) {
+      Animated.sequence([
+        Animated.spring(ctaScale, { toValue: 0.97, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+        Animated.spring(ctaScale, { toValue: 1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      ]).start();
+    }
+    goStep('preview');
+  }, [ctaScale, goStep, reduceMotion]);
 
   const handlePreviewNext = useCallback(() => {
+    if (exitingRef.current) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setStep('rates');
-  }, []);
+    goStep('rates');
+  }, [goStep]);
 
   // ── Try it on a sample job ───────────────────────────────────────────
   // utils/demoSeed builds a finished job — invoices, daily reports, punch
@@ -500,11 +567,19 @@ export default function OnboardingScreen() {
 
       {/* Step indicator — three dots for splash → preview → rates.
           The active dot grows wider; non-active stay small. */}
-      <View style={styles.stepDots}>
-        <View style={[styles.stepDot, step === 'splash' && styles.stepDotActive]} />
-        <View style={[styles.stepDot, step === 'preview' && styles.stepDotActive]} />
-        <View style={[styles.stepDot, step === 'rates' && styles.stepDotActive]} />
-      </View>
+      <GlideDots
+        count={STEPS.length}
+        active={STEPS.indexOf(step)}
+        dotW={styles.stepDot.width as number}
+        activeW={styles.stepDotActive.width as number}
+        height={styles.stepDot.height as number}
+        gap={styles.stepDots.gap as number}
+        color={styles.stepDot.backgroundColor as string}
+        activeColor={styles.stepDotActive.backgroundColor as string}
+        style={styles.stepDots}
+        dotStyle={styles.stepDot}
+        activeStyle={styles.stepDotActive}
+      />
 
       {/* Body — switches between splash and routing. Both use the same
           reveal animations so the transition feels coherent. */}
@@ -512,7 +587,7 @@ export default function OnboardingScreen() {
         <Animated.View
           style={[
             styles.body,
-            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }, { translateX: slideX }] },
           ]}
         >
           <View style={{ flex: 1 }} />
@@ -567,7 +642,7 @@ export default function OnboardingScreen() {
         <Animated.View
           style={[
             styles.body,
-            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }, { translateX: slideX }] },
           ]}
         >
           <View style={{ flex: 1 }} />
@@ -590,33 +665,45 @@ export default function OnboardingScreen() {
               const Icon = card.Icon;
               const isLast = cardIndex >= PREVIEW_CARDS.length - 1;
               const advance = () => {
+                if (exitingRef.current) return;
                 if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (isLast) { handlePreviewNext(); return; }
                 setCardIndex(i => i + 1);
               };
+              const cardEl = (
+                <Pressable
+                  onPress={advance}
+                  style={({ pressed }) => [styles.previewCard, pressed && { opacity: 0.92 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={card.title}
+                  testID={`onboarding-preview-card-${cardIndex}`}
+                >
+                  <View style={styles.previewIcon}>
+                    <Icon size={18} color={BRAND.orange} strokeWidth={2.2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.previewTitle}>{card.title}</Text>
+                    <Text style={styles.previewBody}>{card.body}</Text>
+                  </View>
+                </Pressable>
+              );
               return (
                 <>
-                  <Pressable
-                    onPress={advance}
-                    style={({ pressed }) => [styles.previewCard, pressed && { opacity: 0.92 }]}
-                    accessibilityRole="button"
-                    accessibilityLabel={card.title}
-                    testID={`onboarding-preview-card-${cardIndex}`}
-                  >
-                    <View style={styles.previewIcon}>
-                      <Icon size={18} color={BRAND.orange} strokeWidth={2.2} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.previewTitle}>{card.title}</Text>
-                      <Text style={styles.previewBody}>{card.body}</Text>
-                    </View>
-                  </Pressable>
+                  {cardMotionStyle ? <Animated.View style={cardMotionStyle}>{cardEl}</Animated.View> : cardEl}
 
-                  <View style={styles.pipRow}>
-                    {PREVIEW_CARDS.map((_, i) => (
-                      <View key={i} style={[styles.pip, i === cardIndex && styles.pipActive]} />
-                    ))}
-                  </View>
+                  <GlideDots
+                    count={PREVIEW_CARDS.length}
+                    active={cardIndex}
+                    dotW={styles.pip.width as number}
+                    activeW={styles.pipActive.width as number}
+                    height={styles.pip.height as number}
+                    gap={styles.pipRow.gap as number}
+                    color={styles.pip.backgroundColor as string}
+                    activeColor={styles.pipActive.backgroundColor as string}
+                    style={styles.pipRow}
+                    dotStyle={styles.pip}
+                    activeStyle={styles.pipActive}
+                  />
 
                   <Animated.View style={{ opacity: ctaOpacity, marginTop: 8, transform: [{ scale: ctaScale }] }}>
                     <Pressable
@@ -678,7 +765,7 @@ export default function OnboardingScreen() {
           <Animated.View
             style={[
               styles.body,
-              { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+              { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }, { translateX: slideX }] },
             ]}
           >
             <View style={{ flex: 1 }} />

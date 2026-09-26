@@ -15,6 +15,7 @@ import { useCoreData, useFinancialsData } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton, SkeletonCard } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
+import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { getContractValue } from '@/utils/projectFinancials';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
@@ -231,6 +232,10 @@ export default function SummaryScreen() {
     router.push(route as any);
   }, [router]);
 
+  // A skeleton that was on screen hands over with a short fade, not a cut
+  // (slick round 3). null at rest, so a first render is unchanged.
+  const landing = useLanding(isLoading);
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 12 }]}>
@@ -250,6 +255,7 @@ export default function SummaryScreen() {
   // to try again. Say what actually happened instead.
   if (projects.length === 0 && sourceFailed) {
     return (
+      <LandingSlot style={landing.fade} fill>
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
         <Text style={styles.heading}>Summary</Text>
         <EmptyState
@@ -266,11 +272,13 @@ export default function SummaryScreen() {
           onAction={retryRemoteReads}
         />
       </View>
+      </LandingSlot>
     );
   }
 
   if (projects.length === 0) {
     return (
+      <LandingSlot style={landing.fade} fill>
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
         <Text style={styles.heading}>Summary</Text>
         {/* Invites waiting for this email. login's no-invite fallback lands
@@ -293,6 +301,7 @@ export default function SummaryScreen() {
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
+      </LandingSlot>
     );
   }
 
@@ -369,6 +378,7 @@ export default function SummaryScreen() {
   // them. The phone keeps today's single column in today's order, below.
   if (isDesktop) {
     return (
+      <LandingSlot style={landing.fade} fill>
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <ScrollView
           {...fabScroll}
@@ -425,10 +435,12 @@ export default function SummaryScreen() {
         </ScrollView>
         <StatusBarMask />
       </View>
+      </LandingSlot>
     );
   }
 
   return (
+    <LandingSlot style={landing.fade} fill>
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <ScrollView
         {...fabScroll}
@@ -474,6 +486,7 @@ export default function SummaryScreen() {
 
       <ToolsSheet visible={toolsOpen} onClose={() => setToolsOpen(false)} onNavigate={onTool} />
     </View>
+    </LandingSlot>
   );
 }
 

@@ -1319,21 +1319,19 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
             }
           >
             <View
-              collapsable={false}
               style={
-                {
-                  "backgroundColor": "#FF6A1A14",
-                  "borderRadius": 28,
-                  "height": 96,
-                  "opacity": 0.6,
-                  "position": "absolute",
-                  "transform": [
-                    {
-                      "scale": 1,
-                    },
-                  ],
-                  "width": 96,
-                }
+                [
+                  {
+                    "borderRadius": 28,
+                    "height": 96,
+                    "position": "absolute",
+                    "width": 96,
+                  },
+                  {
+                    "backgroundColor": "#FF6A1A14",
+                    "opacity": 0.6,
+                  },
+                ]
               }
             />
             <View

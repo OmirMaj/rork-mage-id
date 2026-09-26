@@ -1919,18 +1919,12 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /rfi (s
                                                 {
                                                   "children": null,
                                                   "props": {
-                                                    "collapsable": false,
                                                     "style": {
                                                       "backgroundColor": "#FF6A1A14",
                                                       "borderRadius": 28,
                                                       "height": 96,
                                                       "opacity": 0.6,
                                                       "position": "absolute",
-                                                      "transform": [
-                                                        {
-                                                          "scale": 1,
-                                                        },
-                                                      ],
                                                       "width": 96,
                                                     },
                                                   },

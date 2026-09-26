@@ -131,8 +131,15 @@ console.log('\n#7 the root navigator survives a sign-in:');
   ok('…computes the mode from rootNavPresentation(prev, { bootstrapping, userId })',
     /rootNavPresentation\(navStateRef\.current, \{\s*bootstrapping,\s*userId: user\?\.id \?\? null,\s*\}\)/.test(LAYOUT)
     && /navStateRef\.current = navNext;/.test(LAYOUT));
+  // Slick round 3: the overlay lives in components/launch/ReloadVeil (a grace
+  // before it shows, a fade out). Same meaning: rendered in the Stack's own
+  // return (not instead of it), absoluteFill at zIndex 1000, the crane loader,
+  // and it blocks input while the reload runs.
   ok('…draws the loader OVER the mounted Stack while reloading',
-    /navMode === 'stack\+overlay' \? \([\s\S]{0,300}StyleSheet\.absoluteFill[\s\S]{0,200}<CraneLoader label="MAGE ID" \/>/.test(LAYOUT));
+    /<\/Stack>[\s\S]{0,600}<ReloadVeil active=\{navMode === 'stack\+overlay'\} \/>\s*<\/View>\s*\);/.test(LAYOUT)
+    && ((veil: string) => /StyleSheet\.absoluteFill, \{ zIndex: 1000 \}\]/.test(veil)
+      && /<CraneLoader label="MAGE ID" \/>/.test(veil)
+      && /pointerEvents=\{active \? 'auto' : 'none'\}/.test(veil))(code(read('components/launch/ReloadVeil.tsx'))));
   ok('…and keys the Stack container by the account generation',
     /<View style=\{\{ flex: 1 \}\} key=\{`stack-\$\{navNext\.generation\}`\}>\s*<Stack /.test(LAYOUT));
   ok('the gate still waits while the boot queries load (nothing routes under the overlay)',

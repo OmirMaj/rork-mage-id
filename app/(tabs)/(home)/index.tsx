@@ -34,6 +34,7 @@ import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseProjectFromTranscript } from '@/utils/voiceFormParsers';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import EmptyState from '@/components/EmptyState';
+import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import ErrorState from '@/components/ErrorState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
@@ -893,6 +894,10 @@ export default function HomeScreen() {
 
   const keyExtractor = useCallback((item: Project) => item.id, []);
 
+  // A skeleton that was on screen hands over with a short fade, not a cut
+  // (slick round 3). null at rest; the project rows cascade on their own.
+  const landing = useLanding(isLoading);
+
   if (isLoading) {
     // Show 3 skeleton cards instead of a centered spinner. Preserves the
     // visual rhythm of the project list so content appears to fade in
@@ -918,10 +923,10 @@ export default function HomeScreen() {
   // perf issue, split HomeScreen into two sibling components — one for
   // each persona — and dispatch at the route level.
   if (userRole === 'client') {
-    return <ClientHome />;
+    return <LandingSlot style={landing.fade} fill><ClientHome /></LandingSlot>;
   }
   if (userRole === 'property_manager') {
-    return <PropertyManagerHome />;
+    return <LandingSlot style={landing.fade} fill><PropertyManagerHome /></LandingSlot>;
   }
 
   // ── Today on site ──────────────────────────────────────────────
@@ -1168,6 +1173,7 @@ export default function HomeScreen() {
   ) : null;
 
   return (
+    <LandingSlot style={landing.fade} fill>
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <FlatList
         // At tablet+ widths the project list is rendered as a single bordered
@@ -1892,6 +1898,7 @@ export default function HomeScreen() {
         onClose={() => setProjectCapPaywall(false)}
       />
     </View>
+    </LandingSlot>
   );
 }
 

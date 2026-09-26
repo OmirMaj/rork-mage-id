@@ -14,6 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SkeletonCard } from '@/components/Skeleton';
+import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -295,6 +296,11 @@ export default function MageIdBidsTabScreen() {
   const isRefetching = mode === 'browse' ? browseQ.isRefetching : mineQ.isRefetching;
   const refetch = mode === 'browse' ? browseQ.refetch : mineQ.refetch;
   const queryError = mode === 'browse' ? browseQ.error : mineQ.error;
+  // The first browse cards land on a short stagger when a skeleton that was on
+  // screen hands over (slick round 3). null at rest. It arms once per mount,
+  // and isLoading follows `mode`, so only the browse list takes rows: the
+  // 'mine' list would only ever play it when the screen mounts in 'mine'.
+  const landing = useLanding(isLoading);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -505,7 +511,9 @@ export default function MageIdBidsTabScreen() {
           </View>
         )}
 
-        {mode === 'browse' && filteredBrowse.map(r => renderBrowseCard(r))}
+        {mode === 'browse' && filteredBrowse.map((r, i) => (
+          <LandingSlot key={r.id} style={landing.row(i)}>{renderBrowseCard(r)}</LandingSlot>
+        ))}
 
         {/* Location-unknown RFPs — posts whose address never geocoded, so we
             can't distance-filter them. Surfaced separately (not mixed into

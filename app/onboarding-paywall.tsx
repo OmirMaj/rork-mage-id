@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking,
+  Animated, Easing, type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
@@ -31,6 +32,11 @@ import { showAlert } from '@/utils/alert';
 import { readSignupIntent, clearSignupIntent } from '@/utils/signupIntent';
 import { useProjects } from '@/contexts/ProjectContext';
 import { INCLUDED_ADMIN_SEATS } from '@/utils/seatModel';
+import { nativeDriver, reducedMotion, useSwapFade } from '@/components/ui/motion';
+import { planSegmentGlide, type SegRect } from '@/components/ui/SegmentedControl';
+
+// Slick-3: a plan card's accent ring cross-fades over this long.
+const RING_MS = 140; // hoist into Motion.duration after round 3
 
 /**
  * Onboarding-style paywall — single-screen, trial-narrative, big-CTA
@@ -131,6 +137,69 @@ export default function OnboardingPaywallScreen() {
 
   const [selectedPlan, setSelectedPlan] = useState<Plan>('pro');
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('annual');
+
+  // ── The Annual/Monthly pill glides (the SegmentedControl recipe) ─────────
+  // At rest there is none: the selected option paints its own
+  // periodOptionActive, exactly as before. On a period change ONE pill mounts
+  // at the old option and runs its two edges to the new one on separate
+  // springs (edgeSprings via planSegmentGlide), then unmounts in the commit
+  // that paints the target's own fill. Reduce Motion: the instant swap.
+  const periodRects = useRef<Partial<Record<Period, SegRect>>>({});
+  const periodL = useRef(new Animated.Value(0)).current;
+  const periodR = useRef(new Animated.Value(0)).current;
+  const [periodGlide, setPeriodGlide] = useState<null | { w0: number; to: SegRect }>(null);
+  const prevPeriodRef = useRef(selectedPeriod);
+  const periodFlightRef = useRef(false);
+  useLayoutEffect(() => {
+    const prev = prevPeriodRef.current;
+    prevPeriodRef.current = selectedPeriod;
+    if (prev === selectedPeriod) return;
+    const plan = planSegmentGlide(periodRects.current[prev], periodRects.current[selectedPeriod], reducedMotion());
+    if (!plan) {
+      if (periodFlightRef.current) {
+        periodFlightRef.current = false;
+        periodL.stopAnimation();
+        periodR.stopAnimation();
+        setPeriodGlide(null);
+      }
+      return;
+    }
+    if (periodFlightRef.current) {
+      periodL.stopAnimation();
+      periodR.stopAnimation();
+    } else {
+      periodL.setValue(plan.from.x);
+      periodR.setValue(plan.from.x + plan.from.w);
+    }
+    periodFlightRef.current = true;
+    setPeriodGlide({ w0: plan.to.w, to: plan.to });
+    Animated.parallel([
+      Animated.spring(periodL, { toValue: plan.to.x, ...plan.leftSpring, useNativeDriver: nativeDriver }),
+      Animated.spring(periodR, { toValue: plan.to.x + plan.to.w, ...plan.rightSpring, useNativeDriver: nativeDriver }),
+    ]).start(({ finished }) => {
+      if (!finished) return; // superseded by a newer glide
+      periodFlightRef.current = false;
+      setPeriodGlide(null);
+    });
+  }, [selectedPeriod, periodL, periodR]);
+  useEffect(() => () => {
+    periodL.stopAnimation();
+    periodR.stopAnimation();
+  }, [periodL, periodR]);
+  const measurePeriod = (key: Period) => (e: LayoutChangeEvent) => {
+    const { x, y, width, height } = e.nativeEvent.layout;
+    periodRects.current[key] = { x, y, w: width, h: height };
+  };
+  const periodGlideW0 = periodGlide?.w0 ?? 0;
+  const periodGlideTransform = useMemo(
+    () => (periodGlideW0 > 0
+      ? [
+          { translateX: Animated.subtract(Animated.multiply(Animated.add(periodL, periodR), 0.5), periodGlideW0 / 2) },
+          { scaleX: Animated.divide(Animated.subtract(periodR, periodL), periodGlideW0) },
+        ]
+      : null),
+    [periodL, periodR, periodGlideW0],
+  );
   // intentTrialDays > 0 means the marketing handoff specified a trial —
   // surface trial framing near the CTA. Pre-selects + frames only.
   // Actual trial/purchase activation is the existing RevenueCat flow and
@@ -400,10 +469,30 @@ export default function OnboardingPaywallScreen() {
 
         {/* Period toggle */}
         <View style={styles.periodToggle}>
+          {periodGlide && periodGlideTransform ? (
+            <Animated.View
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={[
+                styles.periodOptionActive,
+                {
+                  position: 'absolute',
+                  left: 0,
+                  top: periodGlide.to.y,
+                  width: periodGlide.w0,
+                  height: periodGlide.to.h,
+                  borderRadius: styles.periodOption.borderRadius,
+                  transform: periodGlideTransform,
+                },
+              ]}
+            />
+          ) : null}
           <TouchableOpacity
+            onLayout={measurePeriod('annual')}
             style={[
               styles.periodOption,
-              selectedPeriod === 'annual' && styles.periodOptionActive,
+              selectedPeriod === 'annual' && !periodGlide && styles.periodOptionActive,
             ]}
             onPress={() => {
               if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -428,9 +517,10 @@ export default function OnboardingPaywallScreen() {
             )}
           </TouchableOpacity>
           <TouchableOpacity
+            onLayout={measurePeriod('monthly')}
             style={[
               styles.periodOption,
-              selectedPeriod === 'monthly' && styles.periodOptionActive,
+              selectedPeriod === 'monthly' && !periodGlide && styles.periodOptionActive,
             ]}
             onPress={() => {
               if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -579,13 +669,63 @@ function PlanCard({
 }: PlanCardProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+
+  // Native only (the web already glides border-colour through the global
+  // :where() rule): on an `active` CHANGE after mount an accent ring
+  // cross-fades over RING_MS — in as he picks the card (the border waits at
+  // its resting colour under it), out as he leaves it. The ring unmounts on
+  // its end, so at rest the tree is today's.
+  const ring = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const [ringing, setRinging] = useState(false);
+  const prevActiveRef = useRef(active);
+  useLayoutEffect(() => {
+    if (prevActiveRef.current === active) return;
+    prevActiveRef.current = active;
+    if (Platform.OS === 'web' || reducedMotion()) {
+      ring.stopAnimation();
+      setRinging(false);
+      return;
+    }
+    ring.stopAnimation();
+    ring.setValue(active ? 0 : 1);
+    setRinging(true);
+    Animated.timing(ring, {
+      toValue: active ? 1 : 0, duration: RING_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
+    }).start(({ finished }) => {
+      if (finished) setRinging(false);
+    });
+  }, [active, ring]);
+  useEffect(() => () => ring.stopAnimation(), [ring]);
+
+  // The price cross-fades when the period swaps it.
+  const priceFade = useSwapFade(priceTop ?? '');
+  const PriceBlock = priceFade ? Animated.View : View;
+  const priceBlockStyle = priceFade ? [styles.planPriceBlock, priceFade] : styles.planPriceBlock;
+
   return (
     <TouchableOpacity
-      style={[styles.planCard, active && styles.planCardActive]}
+      style={[styles.planCard, active && styles.planCardActive, ringing && active && { borderColor: themeColors.line }]}
       onPress={onPress}
       activeOpacity={0.85}
       testID={testID}
     >
+      {/* First child, so the POPULAR badge still paints over it. */}
+      {ringing ? (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: -styles.planCard.borderWidth,
+            left: -styles.planCard.borderWidth,
+            right: -styles.planCard.borderWidth,
+            bottom: -styles.planCard.borderWidth,
+            borderWidth: styles.planCard.borderWidth,
+            borderColor: themeColors.accent,
+            borderRadius: styles.planCard.borderRadius,
+            opacity: ring,
+          }}
+        />
+      ) : null}
       {featured && (
         <View style={styles.popularBadge}>
           <Text style={styles.popularBadgeText}>POPULAR</Text>
@@ -594,16 +734,16 @@ function PlanCard({
       <Text style={[styles.planLabel, active && styles.planLabelActive]}>{label}</Text>
       <Text style={styles.planTagline}>{tagline}</Text>
       {priceTop ? (
-        <View style={styles.planPriceBlock}>
+        <PriceBlock style={priceBlockStyle}>
           <Text style={[styles.planPriceTop, active && styles.planPriceTopActive]}>
             {priceTop}
           </Text>
           <Text style={styles.planPriceUnit}>/mo</Text>
-        </View>
+        </PriceBlock>
       ) : (
-        <View style={styles.planPriceBlock}>
+        <PriceBlock style={priceBlockStyle}>
           <Text style={styles.planPriceUnit}>{PRICE_AT_CHECKOUT}</Text>
-        </View>
+        </PriceBlock>
       )}
       <Text style={styles.planPriceBottom}>{priceBottom}</Text>
     </TouchableOpacity>

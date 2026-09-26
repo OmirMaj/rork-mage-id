@@ -24,7 +24,7 @@ exports[`lane M2 golden — the phone (390 × 844 iOS) (g) /payments, Pending th
 exports[`lane M2 golden — the phone (390 × 844 iOS) (h) /payments, empty 1`] = `
 {
   "lines": 385,
-  "sha256": "8520e6923d80ec680bcf697488937b4d5138916b05e59f66ac0f4ef4d8ce606e",
+  "sha256": "d9dadf006f05ea1c7cecf369950ee1be6036fe5161617d93c56db9a9f30319ff",
 }
 `;
 

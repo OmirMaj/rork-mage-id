@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (a) discover/bids 1`] = `
+{
+  "lines": 595,
+  "sha256": "9cc629a3c69277e4d45f602bb70b36bea0285083427c2058fec7439cdec87a2e",
+}
+`;
+
+exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (b) discover/companies 1`] = `
+{
+  "lines": 519,
+  "sha256": "db18b069dea2306166b1748ff964c1fa86615f96fdacc34b68a7dd4d5ed73861",
+}
+`;
+
+exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (c) discover/hire 1`] = `
+{
+  "lines": 453,
+  "sha256": "83ab1f09e225f6eb252dddcd9542e480c32f73d5549f9e73900f239e343d6182",
+}
+`;
+
+exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (d) mage-id-bids 1`] = `
+{
+  "lines": 492,
+  "sha256": "cd943a6143c81fb973211b6b4ca1d9b17ea2bf7d633b5fead63c9a2e533b7b1e",
+}
+`;

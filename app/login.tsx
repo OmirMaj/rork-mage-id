@@ -17,6 +17,7 @@ import { Type } from '@/constants/typography';
 import { neutralInk, cardSurface } from '@/components/ui';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { Slot, useLaunchEntrance, useLaunchTarget } from '@/components/auth/authMotion';
 import {
   INVITE_PARAM, postSignInHref, signupHrefForInvite, sanitizeInviteToken, signInElsewhereAction, markInviteTokenHandled,
 } from '@/utils/deepLinksInvite';
@@ -29,6 +30,9 @@ let _LocalAuthentication: typeof import('expo-local-authentication') | null = nu
 // authoritative validator.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+// The wordmark while the splash's own "MAGE ID" is still flying onto it.
+const HIDDEN = { opacity: 0 } as const;
+
 // #108: the session came from another tab, whose gate opens this invite for a
 // new account. Hedged on purpose: a set-up account is not redirected there, so
 // the card on Home is named as the other way in rather than promising the tab.
@@ -40,6 +44,10 @@ export default function LoginScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Cold-start hand-off from BrandSplash (components/auth/authMotion). Unarmed
+  // (and the tree unchanged) on every mount but the one under the splash.
+  const entrance = useLaunchEntrance(9);
+  const launchTarget = useLaunchTarget();
   // A collaboration invite the user opened before signing in rides this param
   // (utils/deepLinksInvite). A successful sign-in goes back to the invite
   // instead of Summary — the stored token never survived the round trip.
@@ -357,22 +365,36 @@ export default function LoginScreen() {
         <View pointerEvents="none" style={styles.heroGlow} />
 
         <View style={styles.brandRow}>
-          <View style={styles.logoChip}>
-            <HardHat size={16} color={Colors.orange} strokeWidth={2} />
-          </View>
-          <Text style={styles.brandWordmark}>MAGE ID</Text>
+          <Slot style={entrance.slot(0)}>
+            <View style={styles.logoChip}>
+              <HardHat size={16} color={Colors.orange} strokeWidth={2} />
+            </View>
+          </Slot>
+          <Text
+            ref={launchTarget.ref}
+            {...launchTarget.layoutProps}
+            style={entrance.showWordmark ? styles.brandWordmark : [styles.brandWordmark, HIDDEN]}
+          >MAGE ID</Text>
         </View>
 
-        <Text style={styles.heroEyebrow}>WELCOME BACK</Text>
-        <Text style={styles.heroLine}>
-          Build it. <Text style={styles.heroLineAccent}>Bill it.</Text>
-        </Text>
-        <Text style={styles.heroLine}>
-          Track every dollar.
-        </Text>
-        <Text style={styles.heroSub}>
-          The operating system for general contractors.
-        </Text>
+        <Slot style={entrance.slot(1)}>
+          <Text style={styles.heroEyebrow}>WELCOME BACK</Text>
+        </Slot>
+        <Slot style={entrance.slot(2)}>
+          <Text style={styles.heroLine}>
+            Build it. <Text style={styles.heroLineAccent}>Bill it.</Text>
+          </Text>
+        </Slot>
+        <Slot style={entrance.slot(3)}>
+          <Text style={styles.heroLine}>
+            Track every dollar.
+          </Text>
+        </Slot>
+        <Slot style={entrance.slot(4)}>
+          <Text style={styles.heroSub}>
+            The operating system for general contractors.
+          </Text>
+        </Slot>
       </View>
 
       <KeyboardAvoidingView
@@ -402,6 +424,7 @@ export default function LoginScreen() {
               redirect, just the system Face ID sheet. Google goes
               through the standard OAuth flow. Both at the top because
               they're the lowest-friction paths. */}
+          <Slot style={entrance.slot(5)}>
           <View style={styles.primaryAuthStack}>
             {Platform.OS === 'ios' || Platform.OS === 'web' ? (
               <TouchableOpacity
@@ -445,10 +468,12 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
           </View>
+          </Slot>
 
           {/* ─── Magic link path ───────────────────────────────────
               Type email → tap "Email me a sign-in link" → Resend
               delivers a one-tap login. No password, no SMS cost. */}
+          <Slot style={entrance.slot(6)}>
           <View style={styles.magicLinkStack}>
             <View style={styles.inputWrapper}>
               <Mail size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
@@ -493,7 +518,9 @@ export default function LoginScreen() {
               </TouchableOpacity>
             )}
           </View>
+          </Slot>
 
+          <Slot style={entrance.slot(7)}>
           {/* ─── Biometric (returning users) ──────────────────────── */}
           {biometricsAvailable && hasStoredCredentials && (
             <TouchableOpacity
@@ -589,10 +616,13 @@ export default function LoginScreen() {
             </Animated.View>
           )}
 
+          </Slot>
+
           {/* Guest sign-in removed — we require real accounts (Google / Apple / email)
               so project data persists across devices and the MAU count only reflects
               real users, not anonymous throwaway rows. */}
 
+          <Slot style={entrance.slot(8)}>
           <TouchableOpacity
             style={styles.forgotButton}
             onPress={async () => {
@@ -627,6 +657,7 @@ export default function LoginScreen() {
               <Text style={styles.signupLink}>Create Account</Text>
             </TouchableOpacity>
           </View>
+          </Slot>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

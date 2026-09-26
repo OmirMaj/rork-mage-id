@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
+import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import { supabase } from '@/lib/supabase';
 import {
   useUserLocation,
@@ -252,9 +253,16 @@ export default function CachedCompaniesScreen() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
-  const renderCompany = useCallback(({ item }: { item: CompanyWithDistance }) => (
-    <CompanyCard company={item} onPress={() => handleCompanyPress(item)} />
-  ), [handleCompanyPress]);
+  // The first rows land on a short stagger when a skeleton that was on screen
+  // hands over (slick round 3). null at rest and for every later row. The
+  // row getter is stable, so renderItem never re-renders the list.
+  const { row: landingRow } = useLanding(isLoading);
+
+  const renderCompany = useCallback(({ item, index }: { item: CompanyWithDistance; index: number }) => (
+    <LandingSlot style={landingRow(index)}>
+      <CompanyCard company={item} onPress={() => handleCompanyPress(item)} />
+    </LandingSlot>
+  ), [handleCompanyPress, landingRow]);
 
   // Only the data query drives the skeletons, and it is the ONLY thing allowed
   // to. This used to read `isLoading || locationLoading`: with the old mount

@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
+import { LandingSlot, useLanding } from '@/components/animations/Landing';
 import { supabase } from '@/lib/supabase';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import {
@@ -240,9 +241,16 @@ export default function CachedHireScreen() {
     }
   }, []);
 
-  const renderJob = useCallback(({ item }: { item: JobWithDistance }) => (
-    <JobCard job={item} onPress={() => handleJobPress(item)} />
-  ), [handleJobPress]);
+  // The first rows land on a short stagger when a skeleton that was on screen
+  // hands over (slick round 3). null at rest and for every later row. The
+  // row getter is stable, so renderItem never re-renders the list.
+  const { row: landingRow } = useLanding(isLoading);
+
+  const renderJob = useCallback(({ item, index }: { item: JobWithDistance; index: number }) => (
+    <LandingSlot style={landingRow(index)}>
+      <JobCard job={item} onPress={() => handleJobPress(item)} />
+    </LandingSlot>
+  ), [handleJobPress, landingRow]);
 
   // Only the data query drives the skeletons, and it is the ONLY thing allowed
   // to. This used to read `isLoading || locationLoading`: with the old mount
