@@ -277,6 +277,13 @@ const CHILD_ENV: NodeJS.ProcessEnv = (() => {
     EXPO_NO_TELEMETRY: '1',
     // Mechanism 2 — the Expo toolchain's own loader.
     EXPO_NO_DOTENV: '1',
+    // Every golden and every day-count validator was recorded in the
+    // founder's zone. GitHub's runner is UTC, where "today" and "25 days
+    // past due" land a calendar day apart for part of every day, so CI went
+    // red on 11 goldens + validate-g-logs while the Mac stayed green
+    // (2026-09-25..26). Pin the zone for every child so a check means the
+    // same thing on every machine. The app itself uses the device's zone.
+    TZ: 'America/New_York',
   };
   // Mechanism 3 — what bun already put in THIS process before we ran.
   for (const n of DOTENV_NAMES) delete env[n];
