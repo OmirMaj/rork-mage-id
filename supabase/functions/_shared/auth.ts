@@ -320,6 +320,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 0,
     scan_anything: 0,
     cost_xray: 0,
+    code_look: 0,
     project_memory: 0,
     plan_extract: 0,
     construction_answer: 0,
@@ -336,6 +337,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 20,
     scan_anything: 0,
     cost_xray: 0,
+    code_look: 20,
     // Project Memory metered PER DOCUMENT embedded (embed charges docs.length,
     // search charges 1) — a single embed call batches up to 250 docs × 8000
     // chars, so per-CALL metering under-counted the real Gemini cost by up to
@@ -358,6 +360,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 60,
     scan_anything: 120,
     cost_xray: 50,
+    code_look: 60,
     project_memory: 200000,
     plan_extract: 100,
     construction_answer: 100,
@@ -374,6 +377,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 150,
     scan_anything: 300,
     cost_xray: 150,
+    code_look: 150,
     project_memory: 600000,
     plan_extract: 300,
     construction_answer: 300,

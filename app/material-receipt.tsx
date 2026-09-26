@@ -31,6 +31,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useMaterialReceipts, receiptSavedMessage, type MaterialReceiptSaveOutcome } from '@/hooks/useMaterialReceipts';
+import { PriceWatchCard } from '@/components/priceWatch/PriceWatchCard';
 import Paywall from '@/components/Paywall';
 import { analyzeReceipt } from '@/utils/photoAnalyzer';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -458,6 +459,8 @@ function MaterialReceiptInner() {
             </TouchableOpacity>
           </View>
         )}
+
+        {!draft ? <PriceWatchCard projectId={projectId} /> : null}
 
         {/* Existing receipts for this project */}
         {!draft && existing.length > 0 && (

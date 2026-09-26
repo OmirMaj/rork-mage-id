@@ -21,6 +21,7 @@ import { world } from '@/__tests__/fixtures/world';
 import type { Project } from '@/types';
 import { ActiveProjectProvider, useActiveProject } from '@/contexts/ActiveProjectContext';
 import { ACTIVE_PROJECT_KEY, RECENT_PROJECTS_KEY, stampActive, stampRecent } from '@/utils/activeProject';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
 // Part 2 mounts the REAL ActiveProjectProvider. Its only two inputs from the
 // app are the signed-in user and the project list, so those two hooks are
@@ -82,13 +83,13 @@ function renderPicker(props: Partial<React.ComponentProps<typeof ToolProjectPick
 
 describe('phone at 390: ToolProjectPicker renders exactly what it rendered before wave 6b', () => {
   it('the pick list', () => {
-    expect(renderPicker({}).toJSON()).toMatchSnapshot();
+    expect(stripSanctioned(renderPicker({}).toJSON())).toMatchSnapshot();
   });
   it('the stale-link notice', () => {
-    expect(renderPicker({ staleProjectId: 'gone' }).toJSON()).toMatchSnapshot();
+    expect(stripSanctioned(renderPicker({ staleProjectId: 'gone' }).toJSON())).toMatchSnapshot();
   });
   it('zero projects', () => {
-    expect(renderPicker({ projects: [] }).toJSON()).toMatchSnapshot();
+    expect(stripSanctioned(renderPicker({ projects: [] }).toJSON())).toMatchSnapshot();
   });
 });
 

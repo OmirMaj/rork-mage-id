@@ -1599,6 +1599,10 @@ export interface LinkedEstimateItem {
    *  his measured cost book, 'seeded' = a rate he set himself, 'regional' =
    *  MAGE's typical-rate estimate. Absent on lines priced before it existed. */
   priceSource?: 'learned' | 'seeded' | 'regional';
+  /** Desktop takeoff (wave 4): the takeoff condition this line was pushed
+   *  from. A re-push UPDATES the line carrying this id instead of adding a
+   *  duplicate (utils/takeoff/conditionPush). Absent on every other line. */
+  sourceTakeoffConditionId?: string;
 }
 
 export interface ChangeOrderLineItem {

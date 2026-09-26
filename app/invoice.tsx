@@ -37,6 +37,7 @@ import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
+import { LienClockCard } from '@/components/invoice/LienClockCard';
 import { createPaymentLink } from '@/utils/stripe';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Banknote } from 'lucide-react-native';
@@ -3286,6 +3287,10 @@ function InvoiceInner() {
               />
             </View>
           )}
+
+          {existingInvoice && effectiveStatus === 'overdue' && daysPastDue >= 30 ? (
+            <LienClockCard projectId={existingInvoice.projectId || projectId} />
+          ) : null}
 
           {/* Payment reminders. Two jobs: (1) tell the GC whether the client
               has already been chased and at what escalation, so they stop

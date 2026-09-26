@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PREP_STORAGE_KEY, type RecallAnswer } from '@/utils/inspectionPrep';
+import { PREP_STORAGE_KEY, type PrepItem, type RecallAnswer } from '@/utils/inspectionPrep';
 
 export interface InspectionPrepEntry {
   na: string[];
@@ -19,7 +19,11 @@ export interface InspectionPrepEntry {
   answers: Record<string, string>;
   recall?: RecallAnswer;
   recallAt?: string;
+  /** Lines added from a Photo Code Look (group 'verify'; stable ids). */
+  extras?: PrepItem[];
 }
+
+const EXTRAS_CAP = 10;
 
 type PrepMap = Record<string, InspectionPrepEntry>;
 
@@ -54,7 +58,43 @@ function normalise(e: Partial<InspectionPrepEntry> | undefined): InspectionPrepE
     answers: e?.answers && typeof e.answers === 'object' ? { ...e.answers } : {},
     ...(e?.recall ? { recall: e.recall } : {}),
     ...(e?.recallAt ? { recallAt: e.recallAt } : {}),
+    ...(extrasOf(e).length > 0 ? { extras: extrasOf(e) } : {}),
   };
+}
+
+function extrasOf(e: Partial<InspectionPrepEntry> | undefined): PrepItem[] {
+  if (!Array.isArray(e?.extras)) return [];
+  const seen = new Set<string>();
+  const out: PrepItem[] = [];
+  for (const x of e!.extras) {
+    if (out.length >= EXTRAS_CAP) break;
+    if (!x || typeof x !== 'object') continue;
+    if (typeof x.id !== 'string' || typeof x.text !== 'string' || x.group !== 'verify') continue;
+    if (seen.has(x.id)) continue;
+    seen.add(x.id);
+    out.push(x);
+  }
+  return out;
+}
+
+/**
+ * Add one line to an inspection's "From your Code look" group, outside the
+ * sheet (the Code look opened from a photo viewer). Device-local like the rest
+ * of this file: read, normalise, dedupe by id, write — never throws.
+ */
+export async function appendPrepExtra(key: string, item: PrepItem): Promise<boolean> {
+  try {
+    const map = await readMap();
+    const cur = normalise(map[key]);
+    const next = normalise({ ...cur, extras: [...(cur.extras ?? []), item] });
+    await writeEntry(key, next);
+    // false when the list was already full (the cap drops it) — the caller
+    // must not say "Added" for a line that did not land.
+    return (next.extras ?? []).some((x) => x.id === item.id);
+  } catch {
+    // Device-local convenience only — see the header.
+    return false;
+  }
 }
 
 /**

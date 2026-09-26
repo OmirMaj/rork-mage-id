@@ -19,6 +19,8 @@ import { shareText } from '@/utils/shareText';
 import { generateUUID } from '@/utils/generateId';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { PayWhatsEarnedCard } from '@/components/subInvoice/PayWhatsEarnedCard';
+import { BackchargeSection } from '@/components/backcharge/BackchargeSection';
+import { BackchargeDeductionCard } from '@/components/backcharge/BackchargeDeductionCard';
 import { copyToClipboard } from '@/utils/clipboard';
 import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import RecordPaymentModal, { type PaymentDetail } from '@/components/RecordPaymentModal';
@@ -932,6 +934,8 @@ function SubPortalSetupEditor() {
           )}
         </View>
 
+        {project && sub ? <BackchargeSection project={project} sub={sub} commitments={commitments} invoices={submitted.invoices} /> : null}
+
         {/* Submitted invoices */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
@@ -989,6 +993,7 @@ function SubPortalSetupEditor() {
                       </View>
                     )}
                     {inv.status === 'submitted' && project && sub ? (<PayWhatsEarnedCard invoice={inv} siblings={submitted.invoices} commitment={allCommitments.find(c => c.id === inv.commitmentId)} project={project} sub={sub} />) : null}
+                    {inv.status === 'submitted' && project && sub ? (<BackchargeDeductionCard invoice={inv} project={project} sub={sub} />) : null}
                     {inv.status === 'submitted' && (
                       <View style={styles.invoiceCtas}>
                         <TouchableOpacity

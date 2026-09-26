@@ -34,6 +34,7 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { PROJECT_ID, ESTIMATE_ID } from '@/__tests__/fixtures/world';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
 // ── The layout gate: a width + a web flag, exactly like the app's hook ──────
 let mockWidth = 390;
@@ -169,6 +170,7 @@ function dumpText(json: unknown): string {
   return out.join('\n');
 }
 function fingerprint(name: string, json: unknown): { lines: number; sha256: string } {
+  json = stripSanctioned(json);
   const text = dumpText(json);
   const dir = process.env.M1_DUMP_DIR;
   if (dir) {

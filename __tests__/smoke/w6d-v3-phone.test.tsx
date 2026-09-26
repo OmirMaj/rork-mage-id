@@ -60,6 +60,7 @@ jest.mock('@/contexts/ProjectContext', () => ({
 
 // eslint-disable-next-line import/first
 import AttentionScreen from '@/app/(tabs)/(home)/attention';
+import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
 // ── A small world, dated against a pinned clock ─────────────────────────────
 const NOW = new Date('2026-09-16T15:00:00.000Z');
@@ -147,7 +148,7 @@ function mount(name: string): string {
       </ThemeProvider>
     </SafeAreaProvider>,
   );
-  const text = dump(tree.toJSON());
+  const text = dump(stripSanctioned(tree.toJSON()));
   const dir = process.env.W6D_DUMP_DIR;
   if (dir) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports

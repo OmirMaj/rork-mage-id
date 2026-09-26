@@ -12,6 +12,11 @@
 //
 // Free tier: groups 1-2 and Pass/Fail work fully with no AI at all; the recall
 // group says it needs Pro and offers the existing Paywall.
+//
+// Code look (wave 4, lane P): each line can open a Photo Code Look on a photo
+// picked the way Snap proof picks one. It renders INSIDE this sheet's own
+// Modal tree (covering the card), never as a second presented modal; its
+// lines land in a "From your Code look" group (entry.extras).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -20,7 +25,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { X, History, Ruler, BookOpen, HelpCircle, Camera, ListChecks, RefreshCw } from 'lucide-react-native';
+import { X, History, Ruler, BookOpen, HelpCircle, Camera, ListChecks, RefreshCw, ScanSearch } from 'lucide-react-native';
 import type { Permit, Project } from '@/types';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -33,6 +38,7 @@ import { useInspectionPrepState } from '@/hooks/useInspectionPrepState';
 import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { cardSurface } from '@/components/ui';
 import Paywall from '@/components/Paywall';
+import CodeLookSheet from '@/components/codeLook/CodeLookSheet';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
@@ -91,6 +97,12 @@ export default function InspectionReadySheet({
     recall: full.items.filter((i) => i.group === 'recall'),
     verify: full.items.filter((i) => i.group === 'verify'),
   }), [full.items]);
+  // Lines added from a Code look — their own group, not re-run through the
+  // checklist (they are what HIS photo showed, not recall).
+  const extras = useMemo(() => {
+    const shown = new Set(full.items.map((i) => i.id));
+    return (entry.extras ?? []).filter((x) => !shown.has(x.id));
+  }, [entry.extras, full.items]);
 
   // ── Recall (Pro and up) ────────────────────────────────────────────────
   const [recallBusy, setRecallBusy] = useState(false);
@@ -145,20 +157,25 @@ export default function InspectionReadySheet({
     return punch.id;
   }, [inspection, addPunchItem, update]);
 
+  // Camera on native, library on web. undefined = cancelled or refused.
+  const pickPhoto = useCallback(async (): Promise<string | undefined> => {
+    let result: ImagePicker.ImagePickerResult;
+    if (Platform.OS === 'web') {
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+    } else {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        showAlert('Camera access needed', 'Open Settings, then MAGE ID, then Camera to allow it.');
+        return undefined;
+      }
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false, exif: false });
+    }
+    return !result.canceled ? result.assets?.[0]?.uri : undefined;
+  }, []);
+
   const snapProof = useCallback(async (item: PrepItem) => {
     try {
-      let result: ImagePicker.ImagePickerResult;
-      if (Platform.OS === 'web') {
-        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
-      } else {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) {
-          showAlert('Camera access needed', 'Open Settings, then MAGE ID, then Camera to allow it.');
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false, exif: false });
-      }
-      const uri = !result.canceled ? result.assets?.[0]?.uri : undefined;
+      const uri = await pickPhoto();
       if (!uri) return;
       const linked = linkedPunch(item);
       if (linked) updatePunchItem(linked, { photoUri: uri });
@@ -167,7 +184,29 @@ export default function InspectionReadySheet({
     } catch {
       showAlert('Could not attach the photo', 'Try again, or add it from Punch List.');
     }
-  }, [linkedPunch, updatePunchItem, addToPunch, update]);
+  }, [pickPhoto, linkedPunch, updatePunchItem, addToPunch, update]);
+
+  // ── Code look (inside this Modal tree) ─────────────────────────────────
+  const [codeLookTarget, setCodeLookTarget] = useState<{ photoUri: string; item: PrepItem } | null>(null);
+  const openCodeLook = useCallback(async (item: PrepItem) => {
+    try {
+      const uri = await pickPhoto();
+      if (uri) setCodeLookTarget({ photoUri: uri, item });
+    } catch {
+      showAlert('Could not open the photo', 'Try again.');
+    }
+  }, [pickPhoto]);
+  const addCodeLookLine = useCallback((p: PrepItem) => {
+    update((e) => {
+      const list = [...(e.extras ?? []), p];
+      return { ...e, extras: list.filter((x, i) => list.findIndex((y) => y.id === x.id) === i) };
+    });
+  }, [update]);
+  // Back / Esc closes the Code look first, the prep sheet second.
+  const requestClose = useCallback(() => {
+    if (codeLookTarget) { setCodeLookTarget(null); return; }
+    onClose();
+  }, [codeLookTarget, onClose]);
 
   const toggleNA = useCallback((item: PrepItem) => {
     update((e) => ({ ...e, na: e.na.includes(item.id) ? e.na.filter((x) => x !== item.id) : [...e.na, item.id] }));
@@ -247,6 +286,16 @@ export default function InspectionReadySheet({
             <Text style={s.actionText}>{proof ? 'Proof attached' : 'Snap proof'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={s.action}
+            onPress={() => { void openCodeLook(item); }}
+            accessibilityRole="button"
+            accessibilityLabel="Code look"
+            testID={`codelook-prep-${item.id}`}
+          >
+            <ScanSearch size={13} color={t.textSecondary} strokeWidth={1.75} />
+            <Text style={s.actionText}>Code look</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[s.action, na && s.actionOn]}
             onPress={() => toggleNA(item)}
             accessibilityRole="button"
@@ -261,7 +310,7 @@ export default function InspectionReadySheet({
   };
 
   return (
-    <Modal visible={visible} animationType={f.animationType} presentationStyle="pageSheet" transparent={f.transparent} onRequestClose={onClose}>
+    <Modal visible={visible} animationType={f.animationType} presentationStyle="pageSheet" transparent={f.transparent} onRequestClose={requestClose}>
       <SheetOverlay frame={f}>
         <SheetScrim frame={f} onPress={onClose} />
         <View style={[s.container, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }, f.card]} testID="inspection-ready-sheet">
@@ -378,6 +427,17 @@ export default function InspectionReadySheet({
               </View>
             ) : null}
 
+            {/* Lines he added from a Code look photo. */}
+            {extras.length > 0 ? (
+              <View style={s.section} testID="codelook-prep-extras">
+                <View style={s.sectionHead}>
+                  <ScanSearch size={15} color={t.accentLabel} strokeWidth={1.75} />
+                  <Text style={s.sectionHeading}>From your Code look</Text>
+                </View>
+                {extras.map(renderItem)}
+              </View>
+            ) : null}
+
             {/* How did it go? */}
             <View style={s.section} testID="inspection-prep-result">
               <Text style={s.sectionHeading}>How did it go?</Text>
@@ -463,6 +523,21 @@ export default function InspectionReadySheet({
               )}
             </View>
           </ScrollView>
+          {codeLookTarget ? (
+            <View style={StyleSheet.absoluteFill} testID="codelook-embedded">
+              <CodeLookSheet
+                embedded
+                visible
+                onClose={() => setCodeLookTarget(null)}
+                project={project}
+                photoUri={codeLookTarget.photoUri}
+                checklist={[codeLookTarget.item.text]}
+                trade={inspection.category ?? undefined}
+                inspection={inspection}
+                onAddToPrep={addCodeLookLine}
+              />
+            </View>
+          ) : null}
         </View>
       </SheetOverlay>
       {paywallOpen ? (

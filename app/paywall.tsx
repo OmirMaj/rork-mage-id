@@ -186,6 +186,11 @@ const AI_LIMITS: AILimitRow[] = [
   { label: 'Cost X-Ray analyses /mo', free: '—', pro: '—', business: '50', enterprise: '150' },
   { label: 'Construction Answers /mo', free: '—', pro: '—', business: '100', enterprise: '300' },
 ];
+// Photo Code Look has its own monthly meter (MONTHLY_CAPS code_look). A
+// separate row rendered after both AI_LIMITS tables (testIDs 'codelook-…'),
+// so the tables above stay exactly as they were. scripts/validate-code-look.ts
+// pins these numbers to MONTHLY_CAPS.
+const CODE_LOOK_LIMIT: AILimitRow = { label: 'Photo Code Look /mo', free: '—', pro: '20', business: '60', enterprise: '150' };
 
 function FeatureCheck({ available, note, colors }: { available: boolean; note?: string; colors: ThemeColors }) {
   // A note wins over the icon: "1" says more about a capped tier than a cross.
@@ -661,6 +666,13 @@ export default function PaywallScreen() {
               <Text style={[styles.aiCell, styles.aiValueText, styles.aiValueTextEnt]}>{row.enterprise}</Text>
             </View>
           ))}
+          <View style={styles.compareRow} testID="codelook-ai-limit-row">
+            <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{CODE_LOOK_LIMIT.label}</Text>
+            <Text style={[styles.aiCell, styles.aiValueText]}>{CODE_LOOK_LIMIT.free}</Text>
+            <Text style={[styles.aiCell, styles.aiValueText]}>{CODE_LOOK_LIMIT.pro}</Text>
+            <Text style={[styles.aiCell, styles.aiValueText]}>{CODE_LOOK_LIMIT.business}</Text>
+            <Text style={[styles.aiCell, styles.aiValueText, styles.aiValueTextEnt]}>{CODE_LOOK_LIMIT.enterprise}</Text>
+          </View>
         </View>
 
         {/* Fintech & revenue perks. Surfaces the embedded-fintech bundle
@@ -817,6 +829,13 @@ function WebPaywallView({
             <Text style={{ flex: 1, textAlign: 'center', color: themeColors.accent, fontSize: 13, fontWeight: '700' }}>{row.enterprise}</Text>
           </View>
         ))}
+        <View testID="codelook-ai-limit-row-2" style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderTopWidth: 1, borderColor: themeColors.line }}>
+          <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{CODE_LOOK_LIMIT.label}</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textSecondary, fontSize: 13 }}>{CODE_LOOK_LIMIT.free}</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{CODE_LOOK_LIMIT.pro}</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{CODE_LOOK_LIMIT.business}</Text>
+          <Text style={{ flex: 1, textAlign: 'center', color: themeColors.accent, fontSize: 13, fontWeight: '700' }}>{CODE_LOOK_LIMIT.enterprise}</Text>
+        </View>
       </View>
     </View>
   );
