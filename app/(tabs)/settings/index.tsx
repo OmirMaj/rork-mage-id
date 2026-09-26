@@ -37,14 +37,19 @@ import type { AppSettings, PDFNamingSettings } from '@/types';
 import { resolvePricingMarket } from '@/constants/materials';
 import SignaturePad from '@/components/SignaturePad';
 import Paywall from '@/components/Paywall';
+import { SettingsPanes, SettingsSection } from '@/components/settings/SettingsPanes';
+import { TileGrid } from '@/components/ui/TileGrid';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { resolveSettingsParam, visibleIndex, type SettingsGroupKey, type SettingsSectionId } from '@/utils/settingsSections';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { selectTenantKeysToWipe } from '@/utils/localCacheKeys';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { fetchQboStatus, type QboStatus } from '@/utils/qboSync';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import Constants from 'expo-constants';
 import { useClientDocumentGate, useSavedPaymentTerms } from '@/hooks/useClientDocumentGate';
@@ -281,6 +286,15 @@ export default function SettingsScreen() {
   const { colors: themeColors, resolved: resolvedTheme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop } = useResponsiveLayout();
+  // Wave 6d: on desktop web Settings is an index and ONE group
+  // (components/settings/SettingsPanes), chosen by ?section=<group | section>.
+  // The phone keeps its one long list.
+  const isDesktopWeb = useIsDesktopWeb();
+  const params = useLocalSearchParams<{ section?: string }>();
+  const owner = isOwner(user?.email);
+  const { group: activeGroup, sectionId } = resolveSettingsParam(params.section, { isOwner: owner });
+  const settingsScrollRef = useRef<ScrollView>(null);
+  const pickSection = useCallback((key: SettingsGroupKey | SettingsSectionId) => router.setParams({ section: key }), [router]);
   // AI USAGE: no placeholder caps. This used to open on useState(10) /
   // useState(3) — the retired v1 free cap and a number no plan has — printed as
   // "Today: 0 of 10 requests" until the read landed, and forever when it threw
@@ -443,6 +457,9 @@ export default function SettingsScreen() {
   const [signatureData, setSignatureData] = useState<string[] | undefined>(branding.signatureData);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
+  // Wave 6d: the supplier form (already a centred 560 card on web) is a
+  // dialog to the shortcut registry while open — Esc and Cmd+S stay in it.
+  useSheetDialogScope(showSupplierForm);
   const [paywallTier, setPaywallTier] = useState<'pro' | 'business' | 'enterprise' | null>(null);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
@@ -927,12 +944,22 @@ export default function SettingsScreen() {
 
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <SettingsPanes
+        enabled={isDesktopWeb}
+        group={activeGroup}
+        activeSection={sectionId}
+        index={visibleIndex({ role: userRole, isOwner: owner, web: true })}
+        onPick={pickSection}
+        scrollRef={settingsScrollRef}
+      >
       <ScrollView
+        ref={settingsScrollRef}
         {...fabScroll}
         contentContainerStyle={[{ paddingTop: insets.top, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <SettingsSection id="account-type">
         {/* Profile hero — replaces the old "Settings" title + small ACCOUNT
             row. A bigger, branded entry point that turns the Settings page
             from a system-list into a proper "you" surface. Avatar shows the
@@ -1052,6 +1079,8 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="ai-usage">
         <Text style={styles.sectionHeader}>AI USAGE</Text>
         <View style={styles.group}>
           {/* Loading / couldn't-load replace BOTH daily rows: no number is shown
@@ -1191,6 +1220,8 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="location-units">
         <Text style={styles.sectionHeader}>LOCATION & UNITS</Text>
         <View style={styles.group}>
           <View style={styles.row}>
@@ -1256,10 +1287,12 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
         {/* Contractor-only (wave 6c, phase-0 D2): a property manager has no
             estimates, PDFs, cost book or supplier listing to set up. A persona
             gate, not a desktop one — contractor, client and 'both' unchanged. */}
         {userRole !== 'property_manager' && (<>
+        <SettingsSection id="estimate-defaults">
         <Text style={styles.sectionHeader}>ESTIMATE DEFAULTS</Text>
         <Text style={styles.sectionSubtext}>
           Sales tax is applied to invoices and change orders. Contingency is added to every AI estimate at this percentage of the line items.
@@ -1332,6 +1365,7 @@ export default function SettingsScreen() {
           <Text style={styles.howYouGetPaidText}>{howYouGetPaidLabel}</Text>
         </TouchableOpacity>
 
+        </SettingsSection>
         </>)}
         {/* COMPANY BRANDING / LOGO / SIGNATURE moved to /company-profile.
             Settings now points at it via the tappable profile hero at
@@ -1339,6 +1373,7 @@ export default function SettingsScreen() {
             to manage everything that lands on the GC's PDFs. */}
 
         {userRole !== 'property_manager' && (<>
+        <SettingsSection id="pdf-naming">
         <Text style={styles.sectionHeader}>PDF NAMING</Text>
         <Text style={styles.sectionSubtext}>
           Automatically name all PDFs with a custom format and sequential numbering.
@@ -1523,7 +1558,9 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
+        </SettingsSection>
         </>)}
+        <SettingsSection id="theme">
         <Text style={styles.sectionHeader}>APP THEME</Text>
         {/* The last sentence is honest, and temporary: 64 chrome sites across
             56 files still paint the brand hex directly (header tints, some
@@ -1537,7 +1574,7 @@ export default function SettingsScreen() {
         </Text>
         <View style={styles.group}>
           <View style={{ padding: 16 }}>
-            <View style={styles.themeGrid}>
+            <TileGrid preset="action" phoneStyle={styles.themeGrid}>
               {THEME_PRESETS.map(theme => {
                 // Preview the family this hue actually resolves to in the theme
                 // the user is looking at, not the raw preset hexes: the second
@@ -1584,12 +1621,14 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </TileGrid>
           </View>
         </View>
 
+        </SettingsSection>
         {Platform.OS !== 'web' && (
           <>
+            <SettingsSection id="security">
             <Text style={styles.sectionHeader}>SECURITY</Text>
             {/* #46 (interim, productDecision #46 open): this switch saved a
                 flag nothing read — no gate locks the app on reopen, and the
@@ -1622,9 +1661,11 @@ export default function SettingsScreen() {
                 />
               </View>
             </View>
+            </SettingsSection>
           </>
         )}
 
+        <SettingsSection id="notifications">
         <Text style={styles.sectionHeader}>NOTIFICATIONS</Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1644,6 +1685,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="payments">
         <Text style={styles.sectionHeader}>PAYMENTS</Text>
         <Text style={styles.sectionSubtext}>
           {/* MONEY-F8: the fee is the tier's, rendered from the one table
@@ -1683,6 +1726,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="integrations">
         <Text style={styles.sectionHeader}>INTEGRATIONS</Text>
         <Text style={styles.sectionSubtext}>
           Connect third-party services. QuickBooks Online syncs your invoices, payments, and customers in real time.
@@ -1736,6 +1781,8 @@ export default function SettingsScreen() {
             project id, so every tap landed on "Project not found." The copy
             now says what it does, and the screen asks which job when opened
             from here. */}
+        </SettingsSection>
+        <SettingsSection id="project-pages">
         <Text style={styles.sectionHeader}>PROJECT PAGES & VERIFICATION</Text>
         <Text style={styles.sectionSubtext}>
           Publish a finished job as a public portfolio page you can link from your website or send to a prospect.
@@ -1767,7 +1814,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
         {userRole !== 'property_manager' && (<>
+        <SettingsSection id="your-costs">
         {/* YOUR COSTS — the cold-start path. MAGE's whole pitch is "it learns
             your real costs", but it only learns from jobs closed here, so a
             veteran's day-one estimate was a beginner's. Seeding lets them bring
@@ -1807,7 +1856,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
         </>)}
+        <SettingsSection id="contacts-email">
         <Text style={styles.sectionHeader}>CONTACTS & EMAIL</Text>
         <View style={styles.group}>
           <TouchableOpacity
@@ -1824,6 +1875,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="your-data">
         <Text style={styles.sectionHeader}>YOUR DATA</Text>
         <Text style={styles.sectionSubtext}>
           Your data is yours. Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV — no lock-in, ever.
@@ -1867,8 +1920,10 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
         {isOwner(user?.email) && (
           <>
+            <SettingsSection id="developer">
             <Text style={styles.sectionHeader}>DEVELOPER (OWNER ONLY)</Text>
             <Text style={styles.sectionSubtext}>
               Visible to platform owner only. Demo data seeder for App Store screenshots.
@@ -1902,10 +1957,12 @@ export default function SettingsScreen() {
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
+            </SettingsSection>
           </>
         )}
 
         {userRole !== 'property_manager' && (<>
+        <SettingsSection id="supplier-marketplace">
         <Text style={styles.sectionHeader}>SUPPLIER MARKETPLACE</Text>
         <Text style={styles.sectionSubtext}>
           Register as a supplier to list your materials on the MAGE ID Marketplace and sell directly to contractors.
@@ -1960,7 +2017,9 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        </SettingsSection>
         </>)}
+        <SettingsSection id="subscription">
         <Text style={styles.sectionHeader}>SUBSCRIPTION PLAN</Text>
         <Text style={styles.sectionSubtext}>
           {tier === 'free'
@@ -2111,6 +2170,8 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        </SettingsSection>
+        <SettingsSection id="help">
         <Text style={styles.sectionHeader}>HELP & SUPPORT</Text>
         <View style={styles.group}>
           {/* The learn-by-doing hub (app/tutorials.tsx): real screens, a
@@ -2161,6 +2222,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="faq">
         <Text style={styles.sectionHeader}>FAQ</Text>
         <View style={styles.group}>
           {FAQ_ITEMS.map((item, i) => {
@@ -2199,6 +2262,8 @@ export default function SettingsScreen() {
           })}
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="about">
         <Text style={styles.sectionHeader}>ABOUT</Text>
         <View style={styles.group}>
           <View style={styles.row}>
@@ -2227,6 +2292,8 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="legal">
         {/* Legal — required for App Store 5.1.1 compliance (privacy
             disclosure accessible from "within the app"). Was previously
             only in the paywall, which doesn't reliably count. */}
@@ -2290,6 +2357,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        </SettingsSection>
+        <SettingsSection id="danger">
         <Text style={[styles.sectionHeader, { color: themeColors.danger }]}>DANGER ZONE</Text>
         <View style={styles.group}>
           <TouchableOpacity style={styles.row} onPress={() => { void handleClearAll(); }} activeOpacity={0.6} testID="clear-all" accessibilityRole="button">
@@ -2319,7 +2388,9 @@ export default function SettingsScreen() {
         <Text style={styles.dangerNote}>
           Both actions are permanent and cannot be undone.
         </Text>
+        </SettingsSection>
       </ScrollView>
+      </SettingsPanes>
 
       <Paywall
         visible={paywallTier !== null}
@@ -2580,7 +2651,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   // Settings rows are label-left / control-right — a cap keeps them legible,
   // but 760 wasted the desktop viewport.
-  contentDesktop: { width: '100%', maxWidth: 960, alignSelf: 'center' },
+  // Wave 6d: the form column (760) — on desktop web it is the right pane.
+  contentDesktop: { width: '100%', maxWidth: Layout.page.form, alignSelf: 'center' },
   rowHover: { backgroundColor: themeColors.surface },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,

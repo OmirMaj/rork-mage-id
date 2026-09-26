@@ -172,6 +172,12 @@ expectKind('bleed', ['schedule-pro', 'plan-viewer', 'takeoff', 'area-takeoff', '
 // Wave 6d, lane R1: Contacts and Crew are registers (RegisterShell self-caps at
 // Layout.page.table, like the logs), so their frame is 'table'.
 expectKind('table', ['contacts', 'crew']);
+// Wave 6d, lane R2: the COI Vault and the Subs tab are registers too.
+expectKind('table', ['coi-vault']);
+ok("the Subs tab is a table (a register)", pageTypeForTab('subs') === 'table');
+// Wave 6d, lane R3: Deliveries and Documents are registers (RegisterShell),
+// framed 'table'; leads stays 'bleed' (pinned above).
+expectKind('table', ['deliveries', 'documents']);
 const unexempted = ['cost-xray', 'scan', 'judges', 'quick-quote'].filter(r => DESKTOP_SHELL_EXEMPT.has(r));
 ok('cost-xray, scan, judges and quick-quote have the sidebar back (not shell-exempt)', unexempted.length === 0, unexempted.join(', '));
 ok('Ask and Copilot stay shell-exempt until the dock hosts them',
@@ -215,8 +221,8 @@ ok('a bleed route passes through', frameKindForRoute('schedule-pro') === null &&
 ok('a self-capped route passes through', frameKindForRoute('project-detail') === null && frameKindForRoute('login') === null);
 ok('a form route is framed as form', frameKindForRoute('contract') === 'form' && frameKindForRoute('copilot-hub') === 'form');
 ok('a table route is framed as table', frameKindForRoute('wip-report') === 'table');
-ok("the estimate and Home tabs are tables, every other tab a dashboard",
-  pageTypeForTab('estimate') === 'table' && pageTypeForTab('(home)') === 'table'
+ok("the estimate, Home and Subs tabs are tables, every other tab a dashboard",
+  pageTypeForTab('estimate') === 'table' && pageTypeForTab('(home)') === 'table' && pageTypeForTab('subs') === 'table'
   && pageTypeForTab('schedule') === 'dashboard' && pageTypeForTab(undefined) === 'dashboard');
 
 console.log('\ndesktop page map — wiring:');

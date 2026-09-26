@@ -16,7 +16,7 @@
 // a horizontally-scrolling row of stage columns. Each card is tappable
 // to /lead-detail.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable,
 } from 'react-native';
@@ -39,7 +39,23 @@ import { parseLeadFromTranscript } from '@/utils/voiceFormParsers';
 import { formatMoney } from '@/utils/formatters';
 import { statedBudgetOf } from '@/utils/widgetLeadCore';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Card, SegmentedControl } from '@/components/ui';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { KpiStrip } from '@/components/desktop/KpiStrip';
+import { routeHref } from '@/components/desktop/RowLink';
+import type { ToolbarAction } from '@/components/desktop/ToolbarActions';
+import EmptyState from '@/components/EmptyState';
+import { RegisterShell } from '@/components/registers/RegisterShell';
+import { LeadsTable, leadListRows } from '@/components/registers/LeadsTable';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { rowsToCsv } from '@/utils/dataTable';
+import { LEAD_CSV_COLUMNS, leadKpiCells, leadsBoardLayout } from '@/utils/registers/leadRows';
+
+/** Desktop web: the Pipeline's Board / List choice (contract D12). */
+const LEADS_VIEW_KEY = 'mageid_leads_view';
+type LeadsView = 'board' | 'list';
 
 const STAGE_COLORS: Record<LeadStage, string> = {
   new: '#FF6A1A',
@@ -57,7 +73,13 @@ export default function LeadsScreen() {
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
-  const { leads, addLead, getLeadsByStage } = useProjects();
+  const { leads, leadsLoaded, addLead, getLeadsByStage } = useProjects();
+  // Desktop web only: the Pipeline becomes a register (a board that fits the
+  // column, or a list). The phone and a native tablet keep today's board.
+  const isDesktopWeb = useIsDesktopWeb();
+  const [view, setView] = useState<LeadsView>('board');
+  const { width: boardWidth, onLayout: onBoardLayout } = useContainerWidth();
+  const board = leadsBoardLayout(boardWidth);
 
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -125,143 +147,259 @@ export default function LeadsScreen() {
     }
   }, [addLead, router]);
 
+  // The Board / List choice survives a reload (desktop web only).
+  useEffect(() => {
+    if (!isDesktopWeb) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(LEADS_VIEW_KEY);
+        if (alive && (stored === 'board' || stored === 'list')) setView(stored);
+      } catch { /* unreadable storage: the board */ }
+    })();
+    return () => { alive = false; };
+  }, [isDesktopWeb]);
+  const chooseView = useCallback((next: LeadsView) => {
+    setView(next);
+    (async () => {
+      try { await AsyncStorage.setItem(LEADS_VIEW_KEY, next); } catch { /* not remembered */ }
+    })();
+  }, []);
+
+  // 'n' and Add by hand: a PUSH, so Back returns to the Pipeline.
+  const onNew = useCallback(() => router.push(routeHref('/lead-detail', { mode: 'new' })), [router]);
+  const openLead = useCallback((id: string) => router.push(routeHref('/lead-detail', { leadId: id })), [router]);
+  const leadsCsv = useCallback(() => rowsToCsv(LEAD_CSV_COLUMNS, leadListRows(grouped, Date.now())), [grouped]);
+
+  const voiceModal = (
+    <VoiceCaptureModal
+      visible={voiceOpen}
+      onClose={() => setVoiceOpen(false)}
+      onTranscriptReady={handleVoiceTranscript}
+      title="Capture a lead"
+      contextLine="speak it the way the homeowner described it"
+      suggestions={[
+        'John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand budget, wants to start in spring',
+        'Jane Garcia, jane at email dot com, full bathroom renovation, referral from Bob, twenty-five thousand',
+        'Patel family, 312-555-0199, two-story addition, our website, two hundred thousand, no rush',
+        'Mike Doe, walk-in this morning, ADU in the back yard, ballpark one fifty',
+      ]}
+    />
+  );
+
+  const desktopActions: ToolbarAction[] = [
+    { key: 'import', label: 'Import clients', icon: Upload, onPress: () => router.push('/import-pipeline'), testID: 'leads-register-import' },
+    { key: 'add', label: 'Add by hand', icon: Plus, onPress: onNew, testID: 'leads-register-add' },
+    {
+      key: 'voice', label: 'New lead by voice', icon: Mic, primary: true, onPress: () => setVoiceOpen(true),
+      disabled: creating, disabledReason: creating ? 'Adding the last lead…' : null, testID: 'leads-register-voice',
+    },
+  ];
+  const boardRow = (
+    <View style={[styles.columnsRowStatic, isDesktopWeb && styles.boardRowDesktop]}>
+      {LEAD_STAGES.map((stage) => (
+        <View key={stage} style={[styles.column, isDesktopWeb && { width: board.colWidth }]} testID={`leads-board-${stage}`}>
+          <View style={styles.columnHead}>
+            <View style={[styles.stageDot, { backgroundColor: STAGE_COLORS[stage] }]} />
+            <Text style={styles.columnTitle}>{LEAD_STAGE_LABELS[stage]}</Text>
+            <View style={styles.countPill}>
+              <Text style={styles.countPillText}>{grouped[stage].length}</Text>
+            </View>
+          </View>
+          <View style={styles.cardsCol}>
+            {grouped[stage].length === 0 ? (
+              <Text style={styles.emptyColumn}>—</Text>
+            ) : (
+              grouped[stage].map((l) => (
+                <LeadCard key={l.id} lead={l} onPress={() => openLead(l.id)} />
+              ))
+            )}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Pipeline',
-          headerLargeTitle: false,
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => router.push('/import-pipeline' as never)}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Import clients"
-              testID="leads-import"
-            >
-              <Upload size={20} color={themeColors.accent} strokeWidth={1.75} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
-      {/* Native iOS header already accounts for the safe area (notch/
-          dynamic island). Manual `insets.top + 8` was double-counting
-          and producing a tall blank gap above the KPI strip. */}
-      <View style={[styles.root, { paddingTop: 8 }]}>
-        {/* KPI bar */}
-        <View style={styles.kpiBar}>
-          <View style={styles.kpiBlock}>
-            <Text style={styles.kpiNum}>{kpi.total}</Text>
-            <Text style={styles.kpiLabel}>Open leads</Text>
-          </View>
-          <View style={styles.kpiDivider} />
-          <View style={styles.kpiBlock}>
-            <Text style={[styles.kpiNum, kpi.outstanding > 0 && styles.kpiNumWarn]}>{kpi.outstanding}</Text>
-            <Text style={styles.kpiLabel}>Awaiting reply</Text>
-          </View>
-          <View style={styles.kpiDivider} />
-          <View style={styles.kpiBlock}>
-            <Text style={styles.kpiNum}>{kpi.avgResponseHours == null ? '—' : `${kpi.avgResponseHours}h`}</Text>
-            <Text style={styles.kpiLabel}>Avg first reply</Text>
-          </View>
-          <View style={styles.kpiDivider} />
-          <View style={styles.kpiBlock}>
-            <Text style={styles.kpiNum}>{kpi.winRate}%</Text>
-            <Text style={styles.kpiLabel}>Win rate</Text>
-          </View>
-        </View>
-
-        {leads.length === 0 && (
-          <View style={styles.emptyBanner}>
-            <MageAIMark size={20} color={themeColors.accent} />
-            <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
-            <Text style={styles.emptyBannerBody}>
-              Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyImportBtn}
-              onPress={() => router.push('/import-pipeline' as never)}
-              activeOpacity={0.85}
-              testID="leads-empty-import"
-            >
-              <Upload size={15} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.emptyImportBtnText}>Import your existing clients</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Reactivation nudge — surfaces clients who've gone quiet so the
-            relationship (and platform) stays warm. Self-hides when none. */}
-        <ReactivationBanner />
-
-        {/* Pipeline columns */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.columnsRow}
-        >
-          {LEAD_STAGES.map((stage) => (
-            <View key={stage} style={styles.column}>
-              <View style={styles.columnHead}>
-                <View style={[styles.stageDot, { backgroundColor: STAGE_COLORS[stage] }]} />
-                <Text style={styles.columnTitle}>{LEAD_STAGE_LABELS[stage]}</Text>
-                <View style={styles.countPill}>
-                  <Text style={styles.countPillText}>{grouped[stage].length}</Text>
+      {isDesktopWeb ? (
+        <>
+          <RegisterShell
+            registerId="leads"
+            title="Pipeline"
+            testID="leads-register"
+            csvStem="leads"
+            csv={leadsCsv}
+            onNew={onNew}
+            actions={desktopActions}
+            above={(
+              <>
+                <KpiStrip cells={leadKpiCells(kpi, leadsLoaded)} testID="leads-register-kpis" />
+                <SegmentedControl<LeadsView>
+                  options={[{ value: 'board', label: 'Board' }, { value: 'list', label: 'List' }]}
+                  value={view}
+                  onChange={chooseView}
+                  style={styles.viewSwitch}
+                  accessibilityLabel="Show the pipeline as a board or a list"
+                  testID="leads-register-view"
+                />
+                {leadsLoaded && leads.length === 0 ? (
+                  <Card testID="leads-register-empty">
+                    <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
+                    <Text style={[styles.emptyBannerBody, isDesktopWeb && styles.emptyBannerBodyDesktop]}>
+                      Capture every inbound — homeowner calls, web inquiries, referrals — so they don&apos;t slip past the first 24 hours. Use New lead by voice to dictate one, or Add by hand to type one in. Leads land in New and move through Qualified → Proposal → Won as you work them.
+                    </Text>
+                  </Card>
+                ) : null}
+                {leadsLoaded ? <ReactivationBanner /> : null}
+              </>
+            )}
+            renderTable={() => (
+              view === 'list' ? (
+                <LeadsTable grouped={grouped} loaded={leadsLoaded} stageColors={STAGE_COLORS} onNew={onNew} />
+              ) : !leadsLoaded ? (
+                <EmptyState
+                  icon={<Clock size={28} color={themeColors.accent} strokeWidth={1.75} />}
+                  title="Loading…"
+                  message="Your pipeline appears here once it loads."
+                />
+              ) : (
+                <View onLayout={onBoardLayout} testID="leads-board">
+                  {board.fits ? boardRow : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator>{boardRow}</ScrollView>
+                  )}
                 </View>
+              )
+            )}
+          />
+          {voiceModal}
+        </>
+      ) : (
+        <>
+          <Stack.Screen
+            options={{
+              title: 'Pipeline',
+              headerLargeTitle: false,
+              headerRight: () => (
+                <TouchableOpacity
+                  onPress={() => router.push('/import-pipeline' as never)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Import clients"
+                  testID="leads-import"
+                >
+                  <Upload size={20} color={themeColors.accent} strokeWidth={1.75} />
+                </TouchableOpacity>
+              ),
+            }}
+          />
+          {/* Native iOS header already accounts for the safe area (notch/
+              dynamic island). Manual `insets.top + 8` was double-counting
+              and producing a tall blank gap above the KPI strip. */}
+          <View style={[styles.root, { paddingTop: 8 }]}>
+            {/* KPI bar */}
+            <View style={styles.kpiBar}>
+              <View style={styles.kpiBlock}>
+                <Text style={styles.kpiNum}>{kpi.total}</Text>
+                <Text style={styles.kpiLabel}>Open leads</Text>
               </View>
-              <ScrollView {...fabScroll} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.cardsCol, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
-                {grouped[stage].length === 0 ? (
-                  <Text style={styles.emptyColumn}>—</Text>
-                ) : (
-                  grouped[stage].map((l) => (
-                    <LeadCard
-                      key={l.id}
-                      lead={l}
-                      onPress={() => router.push({ pathname: '/lead-detail' as never, params: { leadId: l.id } as never })}
-                    />
-                  ))
-                )}
-              </ScrollView>
+              <View style={styles.kpiDivider} />
+              <View style={styles.kpiBlock}>
+                <Text style={[styles.kpiNum, kpi.outstanding > 0 && styles.kpiNumWarn]}>{kpi.outstanding}</Text>
+                <Text style={styles.kpiLabel}>Awaiting reply</Text>
+              </View>
+              <View style={styles.kpiDivider} />
+              <View style={styles.kpiBlock}>
+                <Text style={styles.kpiNum}>{kpi.avgResponseHours == null ? '—' : `${kpi.avgResponseHours}h`}</Text>
+                <Text style={styles.kpiLabel}>Avg first reply</Text>
+              </View>
+              <View style={styles.kpiDivider} />
+              <View style={styles.kpiBlock}>
+                <Text style={styles.kpiNum}>{kpi.winRate}%</Text>
+                <Text style={styles.kpiLabel}>Win rate</Text>
+              </View>
             </View>
-          ))}
-        </ScrollView>
 
-        {/* Floating voice + manual add */}
-        <View style={[styles.fabRow, { bottom: insets.bottom + 18 }]}>
-          <TouchableOpacity
-            style={styles.fabSecondary}
-            onPress={() => router.push({ pathname: '/lead-detail' as never, params: { mode: 'new' } as never })}
-            activeOpacity={0.85}
-          >
-            <Plus size={18} color={themeColors.text} strokeWidth={1.75} />
-            <Text style={styles.fabSecondaryText}>Add by hand</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.fabPrimary}
-            onPress={() => setVoiceOpen(true)}
-            disabled={creating}
-            activeOpacity={0.85}
-          >
-            <Mic size={18} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.fabPrimaryText}>{creating ? 'Adding…' : 'New lead by voice'}</Text>
-            <MageAIMark size={12} color="#FFF" />
-          </TouchableOpacity>
-        </View>
+            {leads.length === 0 && (
+              <View style={styles.emptyBanner}>
+                <MageAIMark size={20} color={themeColors.accent} />
+                <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
+                <Text style={styles.emptyBannerBody}>
+                  Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyImportBtn}
+                  onPress={() => router.push('/import-pipeline' as never)}
+                  activeOpacity={0.85}
+                  testID="leads-empty-import"
+                >
+                  <Upload size={15} color="#FFF" strokeWidth={1.75} />
+                  <Text style={styles.emptyImportBtnText}>Import your existing clients</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-        <VoiceCaptureModal
-          visible={voiceOpen}
-          onClose={() => setVoiceOpen(false)}
-          onTranscriptReady={handleVoiceTranscript}
-          title="Capture a lead"
-          contextLine="speak it the way the homeowner described it"
-          suggestions={[
-            'John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand budget, wants to start in spring',
-            'Jane Garcia, jane at email dot com, full bathroom renovation, referral from Bob, twenty-five thousand',
-            'Patel family, 312-555-0199, two-story addition, our website, two hundred thousand, no rush',
-            'Mike Doe, walk-in this morning, ADU in the back yard, ballpark one fifty',
-          ]}
-        />
-      </View>
+            {/* Reactivation nudge — surfaces clients who've gone quiet so the
+                relationship (and platform) stays warm. Self-hides when none. */}
+            <ReactivationBanner />
+
+            {/* Pipeline columns */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.columnsRow}
+            >
+              {LEAD_STAGES.map((stage) => (
+                <View key={stage} style={styles.column}>
+                  <View style={styles.columnHead}>
+                    <View style={[styles.stageDot, { backgroundColor: STAGE_COLORS[stage] }]} />
+                    <Text style={styles.columnTitle}>{LEAD_STAGE_LABELS[stage]}</Text>
+                    <View style={styles.countPill}>
+                      <Text style={styles.countPillText}>{grouped[stage].length}</Text>
+                    </View>
+                  </View>
+                  <ScrollView {...fabScroll} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.cardsCol, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
+                    {grouped[stage].length === 0 ? (
+                      <Text style={styles.emptyColumn}>—</Text>
+                    ) : (
+                      grouped[stage].map((l) => (
+                        <LeadCard
+                          key={l.id}
+                          lead={l}
+                          onPress={() => router.push({ pathname: '/lead-detail' as never, params: { leadId: l.id } as never })}
+                        />
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Floating voice + manual add */}
+            <View style={[styles.fabRow, { bottom: insets.bottom + 18 }]}>
+              <TouchableOpacity
+                style={styles.fabSecondary}
+                onPress={() => router.push({ pathname: '/lead-detail' as never, params: { mode: 'new' } as never })}
+                activeOpacity={0.85}
+              >
+                <Plus size={18} color={themeColors.text} strokeWidth={1.75} />
+                <Text style={styles.fabSecondaryText}>Add by hand</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.fabPrimary}
+                onPress={() => setVoiceOpen(true)}
+                disabled={creating}
+                activeOpacity={0.85}
+              >
+                <Mic size={18} color="#FFF" strokeWidth={1.75} />
+                <Text style={styles.fabPrimaryText}>{creating ? 'Adding…' : 'New lead by voice'}</Text>
+                <MageAIMark size={12} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            {voiceModal}
+          </View>
+        </>
+      )}
     </>
   );
 }
@@ -455,4 +593,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  // Desktop web (the register): the board's row, sized by leadsBoardLayout.
+  columnsRowStatic: { paddingBottom: Layout.gutter },
+  boardRowDesktop: { flexDirection: 'row', gap: Layout.register.boardGap, alignItems: 'flex-start' },
+  viewSwitch: { alignSelf: 'flex-start' },
+  emptyBannerBodyDesktop: { maxWidth: Layout.prose, marginTop: 6 },
 });

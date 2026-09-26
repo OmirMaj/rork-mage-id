@@ -68,8 +68,13 @@ import {
 import { vaultCoiExpiry, vaultCoiStatus, type VaultCoiStatus } from '@/utils/subCompliance';
 import type { CertificateOfInsurance, COICoverage, COICoverageType, Subcontractor } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { ChipRail } from '@/components/ui';
+import { useSplitRecord } from '@/components/desktop/SplitView';
+import { CoiVaultRegister } from '@/components/registers/CoiVaultRegister';
+import { useRegisterRecordDirty } from '@/components/registers/RegisterRecordHost';
 
 export default function COIVaultScreen() {
   const { colors: themeColors } = useTheme();
@@ -157,12 +162,18 @@ function COIVaultInner() {
   const cois: CertificateOfInsurance[] = ctx.cois ?? [];
 
   const [activeSubId, setActiveSubId] = useState<string | null>(initialSubId ?? null);
+  // Desktop web (wave 6d, R2): the register — a table with the open sub's
+  // certificates beside it. ?subId= is today's deep-link param, so a pasted
+  // /coi-vault?subId=X opens X beside the list. A phone, a native tablet and a
+  // narrow browser keep today's list and full-screen detail (activeSubId).
+  const isDesktopWeb = useIsDesktopWeb();
+  const split = useSplitRecord({ param: 'subId' });
   const [busy, setBusy] = useState<null | 'uploading' | 'reading'>(null);
   const [pending, setPending] = useState<PendingMap>({});
   const [pendingLoaded, setPendingLoaded] = useState(false);
 
-  const activeSub = useMemo(() => subcontractors.find(s => s.id === activeSubId), [activeSubId, subcontractors]);
-  const subCOIs = useMemo(() => cois.filter(c => c.subcontractorId === activeSubId), [cois, activeSubId]);
+  const activeSub = useMemo(() => subcontractors.find(s => s.id === (isDesktopWeb ? split.openId : activeSubId)), [isDesktopWeb, split.openId, activeSubId, subcontractors]);
+  const subCOIs = useMemo(() => cois.filter(c => c.subcontractorId === activeSub?.id), [cois, activeSub?.id]);
 
   // ── Patches that wait for their certificate ─────────────────
   // One updateCOI per render: two in the same tick would both start from the
@@ -365,8 +376,55 @@ function COIVaultInner() {
     );
   }, [updatePending]);
 
+  // The phone detail's upload button and body, hoisted ONCE so the desktop
+  // register's record pane shows the same thing (composite-level moves: the
+  // phone detail's host tree is unchanged).
+  const uploadButton = (
+    <TouchableOpacity
+      style={[styles.uploadBtn, busy !== null && styles.btnDisabled, isDesktopWeb && styles.uploadBtnDesktop]}
+      onPress={handleUpload}
+      disabled={busy !== null}
+      testID="coi-upload"
+      accessibilityRole="button"
+      accessibilityLabel={busy === 'uploading' ? 'Uploading certificate' : busy === 'reading' ? 'Reading certificate' : 'Upload COI'}
+    >
+      {busy
+        ? <><ActivityIndicator size="small" color="#fff" /><Text style={styles.uploadBtnText}>{busy === 'uploading' ? 'Uploading…' : 'Reading…'}</Text></>
+        : <><Upload size={14} color="#fff" strokeWidth={1.75} /><Text style={styles.uploadBtnText}>Upload COI</Text></>}
+    </TouchableOpacity>
+  );
+  const coiDetailBody = activeSub ? (
+    <>
+      <View style={styles.titleBlock}>
+        <Text style={styles.eyebrow}>Insurance vault</Text>
+        <Text style={styles.title}>{activeSub.companyName}</Text>
+        <Text style={styles.subtitle}>{subCOIs.length} certificate{subCOIs.length === 1 ? '' : 's'} on file</Text>
+      </View>
+
+      {subCOIs.length === 0 ? (
+        <View style={styles.emptyState}>
+          <MageCOI size={36} color={themeColors.textMuted} />
+          <Text style={styles.emptyTitle}>No COIs yet</Text>
+          <Text style={styles.emptyBody}>
+            Upload the sub&apos;s Certificate of Insurance — a photo or the carrier&apos;s PDF — then record
+            each policy&apos;s expiry from it so you&apos;re reminded before it lapses. Anything MAGE ID reads
+            off the certificate stays unconfirmed until you check it.
+          </Text>
+        </View>
+      ) : subCOIs.map(coi => (
+        <COICard
+          key={coi.id}
+          coi={coi}
+          pendingUpload={pending[coi.id]}
+          onDelete={() => handleDeleteCoi(coi.id)}
+          onUpdate={(patch) => ctxRef.current.updateCOI?.(coi.id, patch)}
+        />
+      ))}
+    </>
+  ) : null;
+
   // Detail mode
-  if (activeSub) {
+  if (activeSub && !isDesktopWeb) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -375,46 +433,11 @@ function COIVaultInner() {
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>All subs</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.uploadBtn, busy !== null && styles.btnDisabled]}
-            onPress={handleUpload}
-            disabled={busy !== null}
-            testID="coi-upload"
-            accessibilityRole="button"
-            accessibilityLabel={busy === 'uploading' ? 'Uploading certificate' : busy === 'reading' ? 'Reading certificate' : 'Upload COI'}
-          >
-            {busy
-              ? <><ActivityIndicator size="small" color="#fff" /><Text style={styles.uploadBtnText}>{busy === 'uploading' ? 'Uploading…' : 'Reading…'}</Text></>
-              : <><Upload size={14} color="#fff" strokeWidth={1.75} /><Text style={styles.uploadBtnText}>Upload COI</Text></>}
-          </TouchableOpacity>
+          {uploadButton}
         </View>
 
         <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} keyboardShouldPersistTaps="handled">
-          <View style={styles.titleBlock}>
-            <Text style={styles.eyebrow}>Insurance vault</Text>
-            <Text style={styles.title}>{activeSub.companyName}</Text>
-            <Text style={styles.subtitle}>{subCOIs.length} certificate{subCOIs.length === 1 ? '' : 's'} on file</Text>
-          </View>
-
-          {subCOIs.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MageCOI size={36} color={themeColors.textMuted} />
-              <Text style={styles.emptyTitle}>No COIs yet</Text>
-              <Text style={styles.emptyBody}>
-                Upload the sub&apos;s Certificate of Insurance — a photo or the carrier&apos;s PDF — then record
-                each policy&apos;s expiry from it so you&apos;re reminded before it lapses. Anything MAGE ID reads
-                off the certificate stays unconfirmed until you check it.
-              </Text>
-            </View>
-          ) : subCOIs.map(coi => (
-            <COICard
-              key={coi.id}
-              coi={coi}
-              pendingUpload={pending[coi.id]}
-              onDelete={() => handleDeleteCoi(coi.id)}
-              onUpdate={(patch) => ctxRef.current.updateCOI?.(coi.id, patch)}
-            />
-          ))}
+          {coiDetailBody}
         </ScrollView>
       </View>
     );
@@ -423,6 +446,15 @@ function COIVaultInner() {
   // List mode
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {isDesktopWeb ? (
+        <CoiVaultRegister
+          subcontractors={subcontractors}
+          cois={cois}
+          split={split}
+          uploadButton={uploadButton}
+          detailBody={coiDetailBody}
+        />
+      ) : (<>
       <Stack.Screen options={{ title: 'Sub Insurance' }} />
       <FeatureHeader
         eyebrow="COI Tracker"
@@ -533,6 +565,7 @@ function COIVaultInner() {
           })
         )}
       </ScrollView>
+      </>)}
     </View>
   );
 }
@@ -602,6 +635,9 @@ function COICard({
   // ── Coverage rows (the manual path; AI rows land here unconfirmed) ──
   const [draft, setDraft] = useState<COICoverage[]>(() => (stored.length > 0 ? stored : [emptyRow()]));
   const [dirty, setDirty] = useState(false);
+  // Beside the desktop register, unsaved coverage rows hold j/k, another row
+  // and Esc behind "Discard changes?" (a no-op everywhere else).
+  useRegisterRecordDirty(() => dirty);
   // An AI read (or another device's edit) replaces the rows unless the GC is
   // mid-edit — his typing is never overwritten.
   useEffect(() => {
@@ -732,7 +768,7 @@ function COICard({
                 </TouchableOpacity>
               </View>
             ) : null}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+            <ChipRail contentContainerStyle={{ gap: 6 }}>
               {COVERAGE_TYPES.map(t => (
                 <TouchableOpacity
                   key={t.key}
@@ -744,7 +780,7 @@ function COICard({
                   <Text style={[styles.typeChipText, c.type === t.key && styles.typeChipTextActive]}>{t.label}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </ChipRail>
             <View style={styles.inlineRow}>
               <TextInput
                 style={[styles.notesInput, styles.inlineInput]}
@@ -954,6 +990,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accentFill, borderRadius: Tokens.radius.md,
   },
   uploadBtnText: { color: '#fff', fontWeight: '800' as const, fontSize: Type.caption1.fontSize },
+  // Desktop web (the record pane's header row): a button, not a stretched bar.
+  uploadBtnDesktop: { alignSelf: 'flex-start' as const, height: Layout.control.md },
   btnDisabled: { opacity: 0.5 },
   titleBlock: { marginBottom: 16 },
 

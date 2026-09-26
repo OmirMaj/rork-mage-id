@@ -24,8 +24,9 @@ import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-rou
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import {
   ChevronLeft, ChevronRight, MapPin, Pencil, Eraser, Camera, ClipboardList, X, Check,
-  Trash2, Undo2, Image as ImageIcon, Ruler, FileText, AlertTriangle, ArrowRight, Link2,
+  Trash2, Undo2, Image as ImageIcon, Ruler, FileText, AlertTriangle, ArrowRight, Link2, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
@@ -37,13 +38,17 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import Paywall from '@/components/Paywall';
-import { Button } from '@/components/ui';
+import { Button, ChipRail, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useHotkeys } from '@/hooks/useHotkeys';
+import PlanSheetRail from '@/components/plans/PlanSheetRail';
+import { PLAN_RAIL_OPEN_KEY, parseRailOpen, railSheets, adjacentSheetId } from '@/utils/plans/planRail';
 import { useLocalPlanSheetUri } from '@/utils/planSheetLocalFiles';
 import type { DrawingPin, DrawingPinKind, PunchItem, PunchItemStatus, RFI } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { planRevisionStatus, staleBannerCopy } from '@/utils/planRevisionCore';
 import {
@@ -641,6 +646,50 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
     setMode(m);
   }, []);
 
+  // ── Desktop web: the sheet rail and ↑ / ↓ flips (wave 6d, lane P1) ────
+  // A PM flips A-101 → A-102 → S-201 without going Back to the list. The
+  // rail and the keys are browser-only behaviour (isDesktopWeb); an Android
+  // tablet keeps today's screen, horizontal toolbar included.
+  const isDesktopWeb = useIsDesktopWeb();
+  const rail = useMemo(() => (sheet ? railSheets(projectSheets, sheet.id) : []), [sheet, projectSheets]);
+  // Open by default; his last choice is read back from the device (web
+  // localStorage answers at once, so a closed rail does not flash).
+  const [railOpen, setRailOpen] = useState(true);
+  useEffect(() => {
+    if (!isDesktopWeb) return undefined;
+    let live = true;
+    void (async () => {
+      let raw: string | null = null;
+      try { raw = await AsyncStorage.getItem(PLAN_RAIL_OPEN_KEY); } catch { /* a per-viewer convenience: open */ }
+      if (live) setRailOpen(parseRailOpen(raw));
+    })();
+    return () => { live = false; };
+  }, [isDesktopWeb]);
+  const toggleRail = useCallback(() => {
+    const next = !railOpen;
+    setRailOpen(next);
+    void (async () => {
+      try { await AsyncStorage.setItem(PLAN_RAIL_OPEN_KEY, next ? 'true' : 'false'); } catch { /* not remembered; the rail still toggles */ }
+    })();
+  }, [railOpen]);
+  // `replace`, like goToCurrentSheet: a flip is not a step Back returns through.
+  const openSheet = useCallback((id: string) => {
+    if (sheet && id !== sheet.id) router.replace({ pathname: '/plan-viewer', params: { sheetId: id } });
+  }, [sheet, router]);
+  // Page scope with the typing guard on: an arrow typed in a field is the
+  // field's, and an open sheet (a framed Modal's dialog scope) masks both.
+  useHotkeys([
+    { combo: 'arrowup', handler: () => { const id = adjacentSheetId(rail, sheet?.id ?? '', -1); if (id) openSheet(id); }, label: 'Previous sheet', group: 'Plans' },
+    { combo: 'arrowdown', handler: () => { const id = adjacentSheetId(rail, sheet?.id ?? '', 1); if (id) openSheet(id); }, label: 'Next sheet', group: 'Plans' },
+  ], { scope: 'page', enabled: isDesktopWeb && rail.length > 1 });
+
+  // The sheet-number and scale sheets take the Sheet.tsx frame (a centred
+  // dialog on desktop web, today's sheet on a phone). Both are saves.
+  const fNum = useSheetFrame('dialog', { visible: numberDraft !== null, animationType: 'fade' });
+  const fCal = useSheetFrame('dialog', { visible: !!calibrationInput?.visible, animationType: 'fade' });
+  useSheetPrimaryHotkey(numberDraft !== null, saveSheetNumber);
+  useSheetPrimaryHotkey(!!calibrationInput?.visible, confirmCalibration);
+
   if (!sheet) {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -654,6 +703,343 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
       </View>
     );
   }
+
+  // The header's scale pill. Hoisted with the three elements below and kept
+  // FIRST among them: it is the Re-check pill that validate-plan-scale-frame
+  // reads by the first "showAlert('Re-check scale', …)" in this file.
+  const scalePillEl = calibration ? (
+    <View style={[styles.modePill, { backgroundColor: Colors.successLight }]}>
+      <Text style={[styles.modePillText, { color: themeColors.success }]}>
+        Scale: {calibration.realDistanceFt} ft ref
+      </Text>
+    </View>
+  ) : scaleNeedsRecheck ? (
+    <TouchableOpacity
+      style={[styles.modePill, { backgroundColor: Colors.warningLight }]}
+      onPress={() => {
+        // Same up-front block as the Calibrate button: with the frame
+        // unknown he would tap two points and type a distance, only
+        // for confirmCalibration to refuse it.
+        if (refuseMarkup()) return;
+        if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+        switchMode('calibrate'); showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
+      }}
+      accessibilityRole="button"
+      accessibilityLabel="Re-check scale"
+    >
+      <Text style={[styles.modePillText, { color: Colors.warning }]}>Re-check scale</Text>
+    </TouchableOpacity>
+  ) : null;
+
+  // The canvas, the measure hint and the toolbar, hoisted so desktop web can
+  // lay them out beside the sheet rail. The phone renders the same three
+  // elements, in the same order, as siblings (a fragment adds no node).
+  const canvasEl = (
+    <View style={styles.canvasWrap} onLayout={handleContainerLayout}>
+      <ScrollView
+        maximumZoomScale={Platform.OS === 'ios' ? 3 : 1}
+        minimumZoomScale={1}
+        pinchGestureEnabled={Platform.OS === 'ios'}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.canvasScroll}
+        scrollEnabled={mode !== 'draw'}
+        bouncesZoom
+      >
+        <View
+          style={[styles.imageBox, imgLayout ? { width: imgLayout.w, height: imgLayout.h } : null]}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => mode === 'draw'}
+          onResponderGrant={handleDrawStart}
+          onResponderMove={handleDrawMove}
+          onResponderRelease={handleDrawEnd}
+          onResponderTerminate={handleDrawEnd}
+        >
+          {/* #80: the file the day pack saved on this phone when there is
+              one — it renders with no signal and after a cold start, when
+              imageUri is a bare storage path nothing can fetch. */}
+          <Image
+            source={{ uri: sheetUri(sheet) }}
+            style={styles.image}
+            resizeMode="contain"
+            onLoad={handleImageLoad}
+          />
+
+          {/* Pin-drop tap area (sits on top but only active in pin mode) */}
+          {mode === 'pin' ? (
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              onPress={handleImgPress}
+              activeOpacity={1}
+            />
+          ) : null}
+
+          {/* Persisted markup */}
+          {imgLayout && markups.length > 0 ? (
+            <Svg
+              style={StyleSheet.absoluteFill}
+              width={imgLayout.w}
+              height={imgLayout.h}
+              pointerEvents="none"
+            >
+              {markups.map(m => (
+                <Polyline
+                  key={m.id}
+                  points={m.points.map(p => `${p.x * imgLayout.w},${p.y * imgLayout.h}`).join(' ')}
+                  stroke={m.color}
+                  strokeWidth={m.strokeWidth ?? 3}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+            </Svg>
+          ) : null}
+
+          {/* Active freehand stroke (still being drawn) */}
+          {imgLayout && activeStroke.length > 1 ? (
+            <Svg
+              style={StyleSheet.absoluteFill}
+              width={imgLayout.w}
+              height={imgLayout.h}
+              pointerEvents="none"
+            >
+              <Polyline
+                points={activeStroke.map(p => `${p.x * imgLayout.w},${p.y * imgLayout.h}`).join(' ')}
+                stroke={themeColors.danger}
+                strokeWidth={3}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          ) : null}
+
+          {/* Measure / calibrate overlay */}
+          {imgLayout && (mode === 'measure' || mode === 'calibrate') && pointBuffer.length > 0 ? (
+            <Svg style={StyleSheet.absoluteFill} width={imgLayout.w} height={imgLayout.h} pointerEvents="none">
+              {pointBuffer.map((p, i) => (
+                <Circle key={`pt-${i}`} cx={p.x * imgLayout.w} cy={p.y * imgLayout.h} r={5} fill={themeColors.accent} stroke={themeColors.surface} strokeWidth={2} />
+              ))}
+              {pointBuffer.length === 2 ? (
+                <>
+                  <Line
+                    x1={pointBuffer[0].x * imgLayout.w}
+                    y1={pointBuffer[0].y * imgLayout.h}
+                    x2={pointBuffer[1].x * imgLayout.w}
+                    y2={pointBuffer[1].y * imgLayout.h}
+                    stroke={themeColors.accent}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                  />
+                  {mode === 'measure' && measuredFt != null ? (
+                    <>
+                      <SvgText
+                        x={(pointBuffer[0].x + pointBuffer[1].x) / 2 * imgLayout.w}
+                        y={(pointBuffer[0].y + pointBuffer[1].y) / 2 * imgLayout.h - 8}
+                        fontSize="14"
+                        fontWeight="700"
+                        fill={themeColors.surface}
+                        stroke={themeColors.surface}
+                        strokeWidth="4"
+                        textAnchor="middle"
+                      >
+                        {`${measuredFt.toFixed(1)} ft`}
+                      </SvgText>
+                      <SvgText
+                        x={(pointBuffer[0].x + pointBuffer[1].x) / 2 * imgLayout.w}
+                        y={(pointBuffer[0].y + pointBuffer[1].y) / 2 * imgLayout.h - 8}
+                        fontSize="14"
+                        fontWeight="700"
+                        fill={themeColors.accent}
+                        textAnchor="middle"
+                      >
+                        {`${measuredFt.toFixed(1)} ft`}
+                      </SvgText>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </Svg>
+          ) : null}
+
+          {/* Existing calibration reference line (always visible, faint) */}
+          {imgLayout && calibration && !(mode === 'calibrate' && pointBuffer.length > 0) ? (
+            <Svg style={StyleSheet.absoluteFill} width={imgLayout.w} height={imgLayout.h} pointerEvents="none">
+              <Line
+                x1={calibration.p1.x * imgLayout.w}
+                y1={calibration.p1.y * imgLayout.h}
+                x2={calibration.p2.x * imgLayout.w}
+                y2={calibration.p2.y * imgLayout.h}
+                stroke={themeColors.success}
+                strokeWidth={1.5}
+                strokeDasharray="2 4"
+                opacity={0.55}
+              />
+            </Svg>
+          ) : null}
+
+          {/* Pins */}
+          {imgLayout && pins.map(pin => (
+            <TouchableOpacity
+              key={pin.id}
+              style={[
+                styles.pin,
+                {
+                  left: pin.x * imgLayout.w - 14,
+                  top: pin.y * imgLayout.h - 28,
+                  backgroundColor: pin.color ?? PIN_COLORS[pin.kind],
+                  borderColor: selectedPinId === pin.id ? themeColors.accent : '#FFFFFF',
+                  borderWidth: selectedPinId === pin.id ? 3 : 2,
+                },
+              ]}
+              onPress={() => setSelectedPinId(pin.id)}
+              hitSlop={8} accessibilityRole="button" accessibilityLabel="View location">
+              <MapPin size={14} color={themeColors.surface} strokeWidth={2.5} />
+            </TouchableOpacity>
+          ))}
+
+          {/* Punch layer — walk-mode / AI punch items anchored to this sheet
+              that have no DrawingPin of their own. Colored by status; tapping
+              opens the punch list. */}
+          {/* The item he came from ("On plan" on the punch list passes its
+              id) is ringed in the accent and drawn last, on top — the same
+              marking a selected DrawingPin gets — so on a sheet with forty
+              markers he can tell which one he opened. */}
+          {imgLayout && [...punchOverlay]
+            .sort((a, b) => (a.id === punchIdParam ? 1 : 0) - (b.id === punchIdParam ? 1 : 0))
+            .map(p => {
+              const isTarget = !!punchIdParam && p.id === punchIdParam;
+              return (
+                <TouchableOpacity
+                  key={`punch-${p.id}`}
+                  style={[
+                    styles.pin,
+                    {
+                      left: (p.pinX ?? 0) * imgLayout.w - 14,
+                      top: (p.pinY ?? 0) * imgLayout.h - 28,
+                      backgroundColor: punchStatusColor(p.status, themeColors),
+                      borderColor: isTarget ? themeColors.accent : '#FFFFFF',
+                      borderWidth: isTarget ? 3 : 2,
+                    },
+                  ]}
+                  onPress={() => router.push({ pathname: '/punch-list' as never, params: { projectId: p.projectId } as never })}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${isTarget ? 'This punch item' : 'Punch item'}: ${p.description}`}
+                  testID={isTarget ? 'plan-viewer-punch-target' : undefined}
+                >
+                  <ClipboardList size={13} color={themeColors.surface} strokeWidth={2.5} />
+                </TouchableOpacity>
+              );
+            })}
+        </View>
+      </ScrollView>
+    </View>
+  );
+  const hintEl = (mode === 'measure' || mode === 'calibrate') && (
+    <View style={styles.hintBar}>
+      <Ruler size={14} color={themeColors.accent} strokeWidth={1.75} />
+      <Text style={styles.hintText}>
+        {mode === 'measure'
+          ? (scaleFtPerPx
+            ? (pointBuffer.length === 0 ? 'Tap the start of your measurement.' :
+               pointBuffer.length === 1 ? 'Tap the end point.' :
+               measuredFt != null ? `${measuredFt.toFixed(1)} ft — tap again to re-measure.` : 'Measuring\u2026')
+            : (scaleNeedsRecheck ? PLAN_SCALE_RECHECK_COPY : 'Calibrate the sheet first \u2014 tap Calibrate.'))
+          : (pointBuffer.length === 0 ? 'Tap one end of a known reference (e.g. a dimensioned wall).' :
+             pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
+      </Text>
+      <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+        <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
+      </TouchableOpacity>
+    </View>
+  );
+  const toolbarEl = (
+    <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, 10) }, isDesktopWeb && styles.toolbarDesktop]}>
+      <TouchableOpacity
+        style={[styles.toolBtn, mode === 'pin' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
+        onPress={() => { if (refuseMarkup()) return; switchMode('pin'); }}
+        accessibilityHint={markupBlock ?? undefined}
+      >
+        <MapPin size={18} color={mode === 'pin' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
+        <Text style={[styles.toolBtnText, mode === 'pin' && styles.toolBtnTextActive]}>Pin</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.toolBtn, mode === 'draw' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
+        onPress={() => { if (refuseMarkup()) return; switchMode('draw'); }}
+        accessibilityHint={markupBlock ?? undefined}
+        testID="plan-viewer-tool-draw"
+      >
+        <Pencil size={18} color={mode === 'draw' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
+        <Text style={[styles.toolBtnText, mode === 'draw' && styles.toolBtnTextActive]}>Draw</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.toolBtn, mode === 'measure' && styles.toolBtnActive, isDesktopWeb && styles.toolBtnDesktop]}
+        onPress={() => {
+          if (!scaleFtPerPx) {
+            // Calibrate must happen first — switch to calibrate mode and
+            // hint the user (mirrors area-takeoff.tsx:472 pattern). Same
+            // up-front frame block as Calibrate and the Re-check pill, and
+            // an older scale is called a re-check, not "no scale".
+            // No scale yet: Measure would route him into Calibrate, which
+            // writes the sheet's scale — a viewer is told why instead.
+            if (refuseMarkup()) return;
+            if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+            switchMode('calibrate');
+            if (scaleNeedsRecheck) {
+              showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
+            } else {
+              showAlert(
+                'Set sheet scale first',
+                'Tap two points a known distance apart (e.g. a door = 3 ft). Measure unlocks once the scale is set.',
+                [{ text: 'OK' }],
+              );
+            }
+            return;
+          }
+          switchMode('measure');
+        }}
+      >
+        <Ruler size={18} color={!scaleFtPerPx ? themeColors.textMuted : mode === 'measure' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
+        <Text style={[
+          styles.toolBtnText,
+          mode === 'measure' && styles.toolBtnTextActive,
+          !scaleFtPerPx && styles.toolBtnTextDisabled,
+        ]}>Measure</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]}
+        accessibilityHint={markupBlock ?? undefined}
+        testID="plan-viewer-tool-calibrate"
+        onPress={() => {
+          // Blocked, and says why: see markupBlock and imageFrameKnown.
+          if (refuseMarkup()) return;
+          if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
+          switchMode('calibrate');
+        }}
+      >
+        <Check size={18} color={mode === 'calibrate' ? '#FFFFFF' : (calibration ? themeColors.success : themeColors.text)} strokeWidth={1.75} />
+        <Text style={[styles.toolBtnText, mode === 'calibrate' && styles.toolBtnTextActive]}>
+          {calibration ? 'Re-cal' : 'Calibrate'}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]} onPress={() => { if (refuseMarkup()) return; undoLastMarkup(); }} disabled={markups.length === 0} accessibilityHint={markupBlock ?? undefined}>
+        <Undo2 size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
+        <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Undo</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null, isDesktopWeb && styles.toolBtnDesktop]} accessibilityHint={markupBlock ?? undefined} onPress={() => {
+        if (markups.length === 0) return;
+        if (refuseMarkup()) return;
+        showAlert('Clear markup', 'Remove all strokes on this sheet?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clear', style: 'destructive', onPress: () => markups.forEach(m => deletePlanMarkup(m.id)) },
+        ]);
+      }} disabled={markups.length === 0}>
+        <Eraser size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
+        <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Clear</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -680,32 +1066,23 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>{sheet.name}</Text>
         </View>
-        {calibration ? (
-          <View style={[styles.modePill, { backgroundColor: Colors.successLight }]}>
-            <Text style={[styles.modePillText, { color: themeColors.success }]}>
-              Scale: {calibration.realDistanceFt} ft ref
-            </Text>
-          </View>
-        ) : scaleNeedsRecheck ? (
-          <TouchableOpacity
-            style={[styles.modePill, { backgroundColor: Colors.warningLight }]}
-            onPress={() => {
-              // Same up-front block as the Calibrate button: with the frame
-              // unknown he would tap two points and type a distance, only
-              // for confirmCalibration to refuse it.
-              if (refuseMarkup()) return;
-              if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
-              switchMode('calibrate'); showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Re-check scale"
-          >
-            <Text style={[styles.modePillText, { color: Colors.warning }]}>Re-check scale</Text>
-          </TouchableOpacity>
-        ) : null}
+        {scalePillEl}
         <View style={styles.modePill}>
           <Text style={styles.modePillText}>{pins.length} {pins.length === 1 ? 'pin' : 'pins'}</Text>
         </View>
+        {isDesktopWeb ? (
+          <TouchableOpacity
+            onPress={toggleRail}
+            style={styles.headerBtn}
+            accessibilityRole="button"
+            accessibilityLabel={railOpen ? 'Hide sheet list' : 'Show sheet list'}
+            testID="plan-viewer-rail-toggle"
+          >
+            {railOpen
+              ? <PanelLeftClose size={20} color={themeColors.text} strokeWidth={1.75} />
+              : <PanelLeftOpen size={20} color={themeColors.text} strokeWidth={1.75} />}
+          </TouchableOpacity>
+        ) : null}
         {/* Ask Your Plans (#163) — opens the Ask box on this job's Plans
             screen. It used to open Plan Intelligence, the room-estimating
             tool, where tapping a sheet starts a metered AI estimate. */}
@@ -784,313 +1161,27 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
         </View>
       ) : null}
 
-      {/* Image + overlays */}
-      <View style={styles.canvasWrap} onLayout={handleContainerLayout}>
-        <ScrollView
-          maximumZoomScale={Platform.OS === 'ios' ? 3 : 1}
-          minimumZoomScale={1}
-          pinchGestureEnabled={Platform.OS === 'ios'}
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.canvasScroll}
-          scrollEnabled={mode !== 'draw'}
-          bouncesZoom
-        >
-          <View
-            style={[styles.imageBox, imgLayout ? { width: imgLayout.w, height: imgLayout.h } : null]}
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => mode === 'draw'}
-            onResponderGrant={handleDrawStart}
-            onResponderMove={handleDrawMove}
-            onResponderRelease={handleDrawEnd}
-            onResponderTerminate={handleDrawEnd}
-          >
-            {/* #80: the file the day pack saved on this phone when there is
-                one — it renders with no signal and after a cold start, when
-                imageUri is a bare storage path nothing can fetch. */}
-            <Image
-              source={{ uri: sheetUri(sheet) }}
-              style={styles.image}
-              resizeMode="contain"
-              onLoad={handleImageLoad}
-            />
-
-            {/* Pin-drop tap area (sits on top but only active in pin mode) */}
-            {mode === 'pin' ? (
-              <TouchableOpacity
-                style={StyleSheet.absoluteFill}
-                onPress={handleImgPress}
-                activeOpacity={1}
-              />
-            ) : null}
-
-            {/* Persisted markup */}
-            {imgLayout && markups.length > 0 ? (
-              <Svg
-                style={StyleSheet.absoluteFill}
-                width={imgLayout.w}
-                height={imgLayout.h}
-                pointerEvents="none"
-              >
-                {markups.map(m => (
-                  <Polyline
-                    key={m.id}
-                    points={m.points.map(p => `${p.x * imgLayout.w},${p.y * imgLayout.h}`).join(' ')}
-                    stroke={m.color}
-                    strokeWidth={m.strokeWidth ?? 3}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                ))}
-              </Svg>
-            ) : null}
-
-            {/* Active freehand stroke (still being drawn) */}
-            {imgLayout && activeStroke.length > 1 ? (
-              <Svg
-                style={StyleSheet.absoluteFill}
-                width={imgLayout.w}
-                height={imgLayout.h}
-                pointerEvents="none"
-              >
-                <Polyline
-                  points={activeStroke.map(p => `${p.x * imgLayout.w},${p.y * imgLayout.h}`).join(' ')}
-                  stroke={themeColors.danger}
-                  strokeWidth={3}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-            ) : null}
-
-            {/* Measure / calibrate overlay */}
-            {imgLayout && (mode === 'measure' || mode === 'calibrate') && pointBuffer.length > 0 ? (
-              <Svg style={StyleSheet.absoluteFill} width={imgLayout.w} height={imgLayout.h} pointerEvents="none">
-                {pointBuffer.map((p, i) => (
-                  <Circle key={`pt-${i}`} cx={p.x * imgLayout.w} cy={p.y * imgLayout.h} r={5} fill={themeColors.accent} stroke={themeColors.surface} strokeWidth={2} />
-                ))}
-                {pointBuffer.length === 2 ? (
-                  <>
-                    <Line
-                      x1={pointBuffer[0].x * imgLayout.w}
-                      y1={pointBuffer[0].y * imgLayout.h}
-                      x2={pointBuffer[1].x * imgLayout.w}
-                      y2={pointBuffer[1].y * imgLayout.h}
-                      stroke={themeColors.accent}
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                    />
-                    {mode === 'measure' && measuredFt != null ? (
-                      <>
-                        <SvgText
-                          x={(pointBuffer[0].x + pointBuffer[1].x) / 2 * imgLayout.w}
-                          y={(pointBuffer[0].y + pointBuffer[1].y) / 2 * imgLayout.h - 8}
-                          fontSize="14"
-                          fontWeight="700"
-                          fill={themeColors.surface}
-                          stroke={themeColors.surface}
-                          strokeWidth="4"
-                          textAnchor="middle"
-                        >
-                          {`${measuredFt.toFixed(1)} ft`}
-                        </SvgText>
-                        <SvgText
-                          x={(pointBuffer[0].x + pointBuffer[1].x) / 2 * imgLayout.w}
-                          y={(pointBuffer[0].y + pointBuffer[1].y) / 2 * imgLayout.h - 8}
-                          fontSize="14"
-                          fontWeight="700"
-                          fill={themeColors.accent}
-                          textAnchor="middle"
-                        >
-                          {`${measuredFt.toFixed(1)} ft`}
-                        </SvgText>
-                      </>
-                    ) : null}
-                  </>
-                ) : null}
-              </Svg>
-            ) : null}
-
-            {/* Existing calibration reference line (always visible, faint) */}
-            {imgLayout && calibration && !(mode === 'calibrate' && pointBuffer.length > 0) ? (
-              <Svg style={StyleSheet.absoluteFill} width={imgLayout.w} height={imgLayout.h} pointerEvents="none">
-                <Line
-                  x1={calibration.p1.x * imgLayout.w}
-                  y1={calibration.p1.y * imgLayout.h}
-                  x2={calibration.p2.x * imgLayout.w}
-                  y2={calibration.p2.y * imgLayout.h}
-                  stroke={themeColors.success}
-                  strokeWidth={1.5}
-                  strokeDasharray="2 4"
-                  opacity={0.55}
-                />
-              </Svg>
-            ) : null}
-
-            {/* Pins */}
-            {imgLayout && pins.map(pin => (
-              <TouchableOpacity
-                key={pin.id}
-                style={[
-                  styles.pin,
-                  {
-                    left: pin.x * imgLayout.w - 14,
-                    top: pin.y * imgLayout.h - 28,
-                    backgroundColor: pin.color ?? PIN_COLORS[pin.kind],
-                    borderColor: selectedPinId === pin.id ? themeColors.accent : '#FFFFFF',
-                    borderWidth: selectedPinId === pin.id ? 3 : 2,
-                  },
-                ]}
-                onPress={() => setSelectedPinId(pin.id)}
-                hitSlop={8} accessibilityRole="button" accessibilityLabel="View location">
-                <MapPin size={14} color={themeColors.surface} strokeWidth={2.5} />
-              </TouchableOpacity>
-            ))}
-
-            {/* Punch layer — walk-mode / AI punch items anchored to this sheet
-                that have no DrawingPin of their own. Colored by status; tapping
-                opens the punch list. */}
-            {/* The item he came from ("On plan" on the punch list passes its
-                id) is ringed in the accent and drawn last, on top — the same
-                marking a selected DrawingPin gets — so on a sheet with forty
-                markers he can tell which one he opened. */}
-            {imgLayout && [...punchOverlay]
-              .sort((a, b) => (a.id === punchIdParam ? 1 : 0) - (b.id === punchIdParam ? 1 : 0))
-              .map(p => {
-                const isTarget = !!punchIdParam && p.id === punchIdParam;
-                return (
-                  <TouchableOpacity
-                    key={`punch-${p.id}`}
-                    style={[
-                      styles.pin,
-                      {
-                        left: (p.pinX ?? 0) * imgLayout.w - 14,
-                        top: (p.pinY ?? 0) * imgLayout.h - 28,
-                        backgroundColor: punchStatusColor(p.status, themeColors),
-                        borderColor: isTarget ? themeColors.accent : '#FFFFFF',
-                        borderWidth: isTarget ? 3 : 2,
-                      },
-                    ]}
-                    onPress={() => router.push({ pathname: '/punch-list' as never, params: { projectId: p.projectId } as never })}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${isTarget ? 'This punch item' : 'Punch item'}: ${p.description}`}
-                    testID={isTarget ? 'plan-viewer-punch-target' : undefined}
-                  >
-                    <ClipboardList size={13} color={themeColors.surface} strokeWidth={2.5} />
-                  </TouchableOpacity>
-                );
-              })}
+      {isDesktopWeb ? (
+        <View style={styles.bodyRow}>
+          {railOpen && rail.length > 0 ? (
+            <PlanSheetRail sheets={rail} activeId={sheet.id} onPick={openSheet} onClose={toggleRail} sheetUri={sheetUri} />
+          ) : null}
+          <View style={{ flex: 1 }}>
+            {canvasEl}
+            {hintEl}
           </View>
-        </ScrollView>
-      </View>
-
-      {/* Mode hint line (measure / calibrate) */}
-      {(mode === 'measure' || mode === 'calibrate') && (
-        <View style={styles.hintBar}>
-          <Ruler size={14} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.hintText}>
-            {mode === 'measure'
-              ? (scaleFtPerPx
-                ? (pointBuffer.length === 0 ? 'Tap the start of your measurement.' :
-                   pointBuffer.length === 1 ? 'Tap the end point.' :
-                   measuredFt != null ? `${measuredFt.toFixed(1)} ft — tap again to re-measure.` : 'Measuring\u2026')
-                : (scaleNeedsRecheck ? PLAN_SCALE_RECHECK_COPY : 'Calibrate the sheet first \u2014 tap Calibrate.'))
-              : (pointBuffer.length === 0 ? 'Tap one end of a known reference (e.g. a dimensioned wall).' :
-                 pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
-          </Text>
-          <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-          </TouchableOpacity>
+          {toolbarEl}
         </View>
+      ) : (
+        <>
+          {/* Image + overlays */}
+          {canvasEl}
+          {/* Mode hint line (measure / calibrate) */}
+          {hintEl}
+          {/* Toolbar */}
+          {toolbarEl}
+        </>
       )}
-
-      {/* Toolbar */}
-      <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        <TouchableOpacity
-          style={[styles.toolBtn, mode === 'pin' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null]}
-          onPress={() => { if (refuseMarkup()) return; switchMode('pin'); }}
-          accessibilityHint={markupBlock ?? undefined}
-        >
-          <MapPin size={18} color={mode === 'pin' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
-          <Text style={[styles.toolBtnText, mode === 'pin' && styles.toolBtnTextActive]}>Pin</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toolBtn, mode === 'draw' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null]}
-          onPress={() => { if (refuseMarkup()) return; switchMode('draw'); }}
-          accessibilityHint={markupBlock ?? undefined}
-          testID="plan-viewer-tool-draw"
-        >
-          <Pencil size={18} color={mode === 'draw' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
-          <Text style={[styles.toolBtnText, mode === 'draw' && styles.toolBtnTextActive]}>Draw</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toolBtn, mode === 'measure' && styles.toolBtnActive]}
-          onPress={() => {
-            if (!scaleFtPerPx) {
-              // Calibrate must happen first — switch to calibrate mode and
-              // hint the user (mirrors area-takeoff.tsx:472 pattern). Same
-              // up-front frame block as Calibrate and the Re-check pill, and
-              // an older scale is called a re-check, not "no scale".
-              // No scale yet: Measure would route him into Calibrate, which
-              // writes the sheet's scale — a viewer is told why instead.
-              if (refuseMarkup()) return;
-              if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
-              switchMode('calibrate');
-              if (scaleNeedsRecheck) {
-                showAlert('Re-check scale', PLAN_SCALE_RECHECK_COPY);
-              } else {
-                showAlert(
-                  'Set sheet scale first',
-                  'Tap two points a known distance apart (e.g. a door = 3 ft). Measure unlocks once the scale is set.',
-                  [{ text: 'OK' }],
-                );
-              }
-              return;
-            }
-            switchMode('measure');
-          }}
-        >
-          <Ruler size={18} color={!scaleFtPerPx ? themeColors.textMuted : mode === 'measure' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
-          <Text style={[
-            styles.toolBtnText,
-            mode === 'measure' && styles.toolBtnTextActive,
-            !scaleFtPerPx && styles.toolBtnTextDisabled,
-          ]}>Measure</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive, markupBlock ? styles.blockedBtn : null]}
-          accessibilityHint={markupBlock ?? undefined}
-          testID="plan-viewer-tool-calibrate"
-          onPress={() => {
-            // Blocked, and says why: see markupBlock and imageFrameKnown.
-            if (refuseMarkup()) return;
-            if (!imageFrameKnown) { showAlert('Can\'t calibrate yet', CALIBRATE_FRAME_UNKNOWN_COPY); return; }
-            switchMode('calibrate');
-          }}
-        >
-          <Check size={18} color={mode === 'calibrate' ? '#FFFFFF' : (calibration ? themeColors.success : themeColors.text)} strokeWidth={1.75} />
-          <Text style={[styles.toolBtnText, mode === 'calibrate' && styles.toolBtnTextActive]}>
-            {calibration ? 'Re-cal' : 'Calibrate'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null]} onPress={() => { if (refuseMarkup()) return; undoLastMarkup(); }} disabled={markups.length === 0} accessibilityHint={markupBlock ?? undefined}>
-          <Undo2 size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
-          <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Undo</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.toolBtn, markupBlock ? styles.blockedBtn : null]} accessibilityHint={markupBlock ?? undefined} onPress={() => {
-          if (markups.length === 0) return;
-          if (refuseMarkup()) return;
-          showAlert('Clear markup', 'Remove all strokes on this sheet?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Clear', style: 'destructive', onPress: () => markups.forEach(m => deletePlanMarkup(m.id)) },
-          ]);
-        }} disabled={markups.length === 0}>
-          <Eraser size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
-          <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Clear</Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Pin detail modal */}
       <PinDetailModal
@@ -1146,11 +1237,11 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
       <Modal
         visible={numberDraft !== null}
         transparent
-        animationType="fade"
+        animationType={fNum.animationType}
         onRequestClose={() => setNumberDraft(null)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: 24 }]}>
+        <View style={[styles.modalBackdrop, fNum.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: 24 }, fNum.card]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -1186,11 +1277,11 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
       <Modal
         visible={!!calibrationInput?.visible}
         transparent
-        animationType="fade"
+        animationType={fCal.animationType}
         onRequestClose={() => { setCalibrationInput(null); setPointBuffer([]); }}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: 24 }]}>
+        <View style={[styles.modalBackdrop, fCal.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: 24 }, fCal.card]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ruler size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -1258,6 +1349,9 @@ function PinDetailModal({
   React.useEffect(() => {
     if (pin) { setDraftLabel(pin.label ?? ''); setView('main'); }
   }, [pin?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The pin sheet takes the Sheet.tsx frame; above the early return so the
+  // hook order is fixed. It has no primary action (every row is its own).
+  const f = useSheetFrame('form', { visible: !!pin, animationType: 'slide' });
 
   if (!pin) return null;
 
@@ -1269,9 +1363,9 @@ function PinDetailModal({
   };
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
+    <Modal visible transparent animationType={f.animationType} onRequestClose={onClose}>
+      <View style={[styles.modalBackdrop, f.overlay]}>
+        <View style={[styles.modalCard, f.card]}>
           <View style={styles.modalHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={[styles.modalPinBadge, { backgroundColor: pin.color ?? PIN_COLORS[pin.kind] }]}>
@@ -1436,13 +1530,13 @@ function PhotoPicker({ photos, onPick, onBack }: {
       {photos.length === 0 ? (
         <Text style={styles.emptyHint}>No photos on this project yet.</Text>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
+        <ChipRail contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
           {photos.map(p => (
             <TouchableOpacity key={p.id} onPress={() => onPick(p.id)} style={styles.photoTile} accessibilityRole="button" accessibilityLabel="Add image">
               <Image source={{ uri: p.uri }} style={styles.photoTileImg} />
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </ChipRail>
       )}
     </View>
   );
@@ -1598,6 +1692,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 8, paddingHorizontal: 6, borderRadius: Tokens.radius.md,
   },
   toolBtnActive: { backgroundColor: t.accentFill },
+  // Desktop web (wave 6d, P1): the canvas row — sheet rail | canvas | tools —
+  // and the toolbar as a narrow column on the right, buttons stacked from the
+  // top. The longhands beat the phone's flex:1 on RN-web.
+  bodyRow: { flex: 1, flexDirection: 'row' },
+  toolbarDesktop: {
+    flexDirection: 'column', width: Layout.button.minWidth.sm, justifyContent: 'flex-start',
+    borderTopWidth: 0, borderLeftWidth: 1, borderLeftColor: t.line,
+    paddingTop: Layout.rowGap, paddingBottom: Layout.rowGap, paddingHorizontal: Layout.rowGap, gap: Layout.rowGap,
+  },
+  toolBtnDesktop: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: Layout.control.lg },
   toolBtnText: { color: t.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: 2 },
   toolBtnTextActive: { color: '#FFFFFF' },
   toolBtnTextDisabled: { color: t.textMuted },
