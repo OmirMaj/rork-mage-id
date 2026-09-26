@@ -18,6 +18,13 @@
 //     would drop permits / contingency carried outside the lines.
 // quantity and rate are exactly what the panel priced (row.price.qty and
 // row.price.rateCents / 100), so the footer and the estimate agree to the cent.
+//
+// AI READ (lane TK-b). A line whose quantity is an accepted AI read (not
+// drawn) carries `aiRead: true`, and its estimate item is named
+// "<name> — AI read, not measured" on APPEND and UPDATE. Once he draws it the
+// line is no longer aiRead, so the next push's UPDATE writes the plain name:
+// the label leaves exactly when the quantity becomes measured. A measured
+// line has NO aiRead key, so it is byte-identical to before.
 
 import type { LinkedEstimate, LinkedEstimateItem, Project } from '@/types';
 import { roundCents } from '@/utils/invoiceBilling';
@@ -31,6 +38,15 @@ export interface PushLine {
   quantity: number;
   rate: number;
   priceSource: 'learned' | 'seeded' | undefined;
+  /** Present (true) only when the quantity is an accepted AI read, not a drawing. */
+  aiRead?: true;
+}
+
+export const AI_READ_LINE_SUFFIX = ' — AI read, not measured';
+
+/** The estimate item's name for a push line — the AI label rides along until it is measured. */
+export function pushLineName(line: Pick<PushLine, 'name' | 'aiRead'>): string {
+  return line.aiRead ? `${line.name}${AI_READ_LINE_SUFFIX}` : line.name;
 }
 
 export type PushSkipReason = 'no_rate' | 'no_quantity' | 'not_measured';
@@ -55,7 +71,7 @@ export function pushLinesFrom(rows: TakeoffRollup['rows']): {
     const priceSource: PushLine['priceSource'] = row.price.rateSource === 'book'
       ? (row.price.entry?.provenance === 'seeded' ? 'seeded' : 'learned')
       : undefined;
-    lines.push({
+    const pl: PushLine = {
       conditionId: id,
       name: row.condition.name,
       trade: row.condition.trade,
@@ -63,7 +79,9 @@ export function pushLinesFrom(rows: TakeoffRollup['rows']): {
       quantity,
       rate: row.price.rateCents / 100,
       priceSource,
-    });
+    };
+    if (row.totals.source === 'ai_read') pl.aiRead = true;
+    lines.push(pl);
   }
   return { lines, skipped };
 }
@@ -104,7 +122,7 @@ export function applyTakeoffPush(
 
   for (const line of lines) {
     const cost = roundCents(line.quantity * line.rate);
-    const name = line.name;
+    const name = pushLineName(line);
     const category = line.trade ?? line.name;
     let idx = items.findIndex(it => it.sourceTakeoffConditionId === line.conditionId);
     if (idx < 0 && pushed[line.conditionId]) {

@@ -40,7 +40,7 @@
 //
 // Run via: bun run scripts/validate-account-deletion-handover.ts
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -78,10 +78,31 @@ const missingSchema = collabInsert.filter(t => !handoverTables.has(t));
 ok('every table a collaborator can write (a _collab_insert policy) has a handover path',
   missingSchema.length === 0, `missing: ${missingSchema.join(', ')}`);
 
-// Each handover table must actually carry the two columns the UPDATE filters on.
+// schema.sql is a snapshot and goes stale: a migration that adds a
+// `_collab_insert` policy after it was taken is invisible above. So every
+// migration file is scanned too (list round 3: code_checks + takeoff_docs).
+const migDir = join(ROOT, 'supabase', 'migrations');
+const migFiles = readdirSync(migDir).filter(f => f.endsWith('.sql')).sort();
+const migSrc = new Map(migFiles.map(f => [f, readFileSync(join(migDir, f), 'utf8')] as const));
+const migCollab: Array<[string, string]> = [];
+for (const [f, src] of migSrc) {
+  for (const m of src.matchAll(/create policy "?(\w+)_collab_insert/gi)) migCollab.push([f, m[1]]);
+}
+ok('migration _collab_insert policies were found', migCollab.length >= 3, `found ${migCollab.length}`);
+const missingMigCollab = migCollab.filter(([, t]) => !handoverTables.has(t));
+ok('every migration that creates a <t>_collab_insert policy has <t> in COLLABORATOR_FIELD_TABLES',
+  missingMigCollab.length === 0, `missing: ${missingMigCollab.map(([f, t]) => `${t} (${f})`).join(', ')}`);
+
+// Each handover table must actually carry the two columns the UPDATE filters on
+// (schema.sql first, else the migration that creates it).
 const cols = (t: string) => {
   const m = schema.match(new RegExp(`^CREATE TABLE public\\.${t} \\(\\n([\\s\\S]*?)\\n\\);`, 'm'));
-  return m ? m[1] : '';
+  if (m) return m[1];
+  for (const src of migSrc.values()) {
+    const mm = src.match(new RegExp(`^create table if not exists public\\.${t} \\(\\n([\\s\\S]*?)\\n\\);`, 'mi'));
+    if (mm) return mm[1];
+  }
+  return '';
 };
 const noCols = [...handoverTables].filter(t => !/^\s+user_id\s/m.test(cols(t)) || !/^\s+project_id\s/m.test(cols(t)));
 ok('every handover table has user_id AND project_id (the update would 42703 otherwise)', noCols.length === 0,
@@ -148,6 +169,8 @@ const TABLE_WORDS: Record<string, RegExp> = {
   deliveries: /deliver/i,
   building_access_rules: /site-access/i,
   access_reservations: /site-access/i,
+  code_checks: /code checks/i,
+  takeoff_docs: /takeoffs/i,
 };
 const unmapped = [...handoverTables].filter(t => !TABLE_WORDS[t]);
 ok('every handed-over table has reader-facing words', unmapped.length === 0,

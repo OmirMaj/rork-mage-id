@@ -15,6 +15,9 @@
 // Pinned by scripts/validate-backcharges.ts.
 
 import { formatMoney } from '@/utils/formatters';
+import type { PunchItem } from '@/types';
+import type { ProjectRole } from '@/utils/projectRole';
+import type { SeatReadStatus } from '@/utils/syncSeat';
 
 export const BACKCHARGES_KEY = 'mageid_backcharges';
 
@@ -230,4 +233,87 @@ export function backchargeNotice(a: { subName: string; projectName: string; comp
     '',
     from ? `Thanks,\n${from}` : 'Thanks',
   ].join('\n');
+}
+
+// ── A backcharge from a punch item ─────────────────────────────────────────
+
+export const BACKCHARGE_NEEDS_SUB = 'Assign this punch item to a sub first — a backcharge comes off a sub’s bill.';
+export const BACKCHARGE_AMBIGUOUS_SUB = 'More than one sub has that name — pick the sub on the punch item first.';
+export const BACKCHARGE_SEAT_CHECKING = 'Checking your access to this job…';
+export const BACKCHARGE_SEAT_FIELD = 'Backcharges are money — your seat on this job doesn’t include costs.';
+export const BACKCHARGE_SEAT_VIEWER = 'Your seat on this job is view-only.';
+export const BACKCHARGE_SEAT_FAILED = 'Couldn’t check your role on this job — try again in a moment.';
+export const BACKCHARGE_SEAT_OFFLINE = 'You’re offline — your role on this job is checked when you reconnect.';
+export const BACKCHARGE_SEAT_NONE = 'You’re not on this job’s team, so you can’t backcharge on it.';
+
+/** The tier sentence, for the plan sub portals need (featureTiers). */
+export function backchargeTierWhy(requiredTier: string): string {
+  const name = requiredTier ? requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1) : 'a paid';
+  return `Backcharges come with the ${name} plan — the same plan as sub portals.`;
+}
+
+function clipText(s: string, max: number): string {
+  return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
+}
+
+export interface BackchargePrefill {
+  subId: string | null;
+  reason: string;
+  photo: { uri: string; photoId: null; punchItemId: string } | null;
+  /** Why no backcharge can start from this item yet; null when it can. */
+  why: string | null;
+}
+
+/**
+ * What the backcharge sheet starts with when it opens from a punch item: the
+ * sub (by id, else by a UNIQUE company name), a reason naming the item, and
+ * the item's photo — the same shape the sheet's own punch-photo picker sets.
+ * NEVER an amount: he types it, or uses hours × his rate.
+ */
+export function backchargePrefillFromPunch(
+  punch: Pick<PunchItem, 'id' | 'description' | 'location' | 'photoUri' | 'assignedSub' | 'assignedSubId'>,
+  subs: readonly { id: string; companyName: string }[],
+): BackchargePrefill {
+  let subId: string | null = null;
+  let why: string | null = null;
+  if (punch.assignedSubId && subs.some(s => s.id === punch.assignedSubId)) {
+    subId = punch.assignedSubId;
+  } else {
+    const name = (punch.assignedSub ?? '').trim().toLowerCase();
+    const named = name ? subs.filter(s => (s.companyName ?? '').trim().toLowerCase() === name) : [];
+    if (named.length === 1) subId = named[0].id;
+    else why = named.length > 1 ? BACKCHARGE_AMBIGUOUS_SUB : BACKCHARGE_NEEDS_SUB;
+  }
+  const description = (punch.description ?? '').trim();
+  const location = (punch.location ?? '').trim();
+  const reason = clipText(`Punch item: ${description}${location ? ` (${location})` : ''}`, 200);
+  const photo = punch.photoUri ? { uri: punch.photoUri, photoId: null, punchItemId: punch.id } : null;
+  return { subId, reason, photo, why };
+}
+
+/**
+ * Why "Backcharge the sub" is blocked, first match wins: the SEAT (a money
+ * action needs an owner or editor seat that can see costs), then the plan,
+ * then the item itself. null = he can start one. A null seat says WHY it is
+ * null (readStatus, from seatReadStatus): 'Checking…' only while the role read
+ * is in flight — a failed, offline or settled-empty read says so (#90).
+ */
+export function backchargeFromPunchBlock(
+  seat: ProjectRole,
+  tierOk: boolean,
+  tierWhy: string,
+  prefillWhy: string | null,
+  readStatus: SeatReadStatus = 'loading',
+): string | null {
+  if (seat == null) {
+    if (readStatus === 'failed') return BACKCHARGE_SEAT_FAILED;
+    if (readStatus === 'offline') return BACKCHARGE_SEAT_OFFLINE;
+    if (readStatus === 'none') return BACKCHARGE_SEAT_NONE;
+    return BACKCHARGE_SEAT_CHECKING;
+  }
+  if (seat === 'field') return BACKCHARGE_SEAT_FIELD;
+  if (seat === 'viewer') return BACKCHARGE_SEAT_VIEWER;
+  if (seat !== 'owner' && seat !== 'editor') return BACKCHARGE_SEAT_VIEWER;
+  if (!tierOk) return tierWhy;
+  return prefillWhy;
 }

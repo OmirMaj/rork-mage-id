@@ -113,7 +113,7 @@ describe('L4 — the job page shows Code checks', () => {
     const card = screen.getByTestId('codethread-project-card');
     expect(within(card).getByText('Code checks')).toBeTruthy();
     expect(within(card).getByText(/^No saved checks yet\./)).toBeTruthy();
-    expect(within(card).getByText('Saved on this device until you sign out.')).toBeTruthy();
+    expect(within(card).getByText('Saved to your account — on every device you sign in to.')).toBeTruthy();
   });
 
   it('a seeded saved check shows its date · category · jurisdiction · edition and its first summary line', async () => {

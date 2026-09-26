@@ -11,7 +11,7 @@
 import React, { useState } from 'react';
 import { View, Animated, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X } from 'lucide-react-native';
+import { X, AlertTriangle } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
@@ -53,10 +53,14 @@ interface Props {
   onSubmit: (detail: PaymentDetail) => void;
   /** Close the balance without detail — omitted in 'reconcile' mode. */
   onSkip?: () => void;
+  /** A heads-up for the date being entered (e.g. the sub's workers' comp
+   *  doesn't cover it). Shown above the buttons; it never disables or delays
+   *  the payment. */
+  notice?: (paidOn: string) => string | null;
 }
 
 export default function RecordPaymentModal({
-  visible, title, amountLabel, initial, mode = 'pay', onCancel, onSubmit, onSkip,
+  visible, title, amountLabel, initial, mode = 'pay', onCancel, onSubmit, onSkip, notice,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
@@ -69,6 +73,7 @@ export default function RecordPaymentModal({
   const [paidOn, setPaidOn] = useState(initial?.paidOn ?? todayLocalISO());
 
   const submit = () => onSubmit({ method, reference, paidOn });
+  const noticeText = notice ? notice(paidOn) : null;
   // Desktop: a centred form card. It records a payment ledger entry, so the
   // primary takes Cmd+Enter only — never Cmd+S, which the open dialog still
   // swallows so "Save page as" does not open (contract C10).
@@ -141,6 +146,13 @@ export default function RecordPaymentModal({
             </Text>
           </ScrollView>
 
+          {noticeText ? (
+            <View style={styles.notice} testID="insaudit-pay-warning" accessibilityRole="alert">
+              <AlertTriangle size={14} color={t.warningLabel} strokeWidth={1.75} style={styles.noticeIcon} />
+              <Text style={styles.noticeText}>{noticeText}</Text>
+            </View>
+          ) : null}
+
           <TouchableOpacity style={styles.primaryBtn} onPress={submit} accessibilityRole="button" testID="payment-save">
             <Text style={styles.primaryBtnText}>
               {mode === 'reconcile' ? 'Save payment detail' : 'Record payment'}
@@ -191,6 +203,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
     fontSize: Type.subhead.fontSize, color: t.text, backgroundColor: t.bg,
   },
+
+  notice: {
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
+    marginTop: 14, padding: 10, borderRadius: Tokens.radius.sm, backgroundColor: t.surfaceAlt,
+  },
+  noticeIcon: { marginTop: 2 },
+  noticeText: { ...Type.footnote, color: t.text, flex: 1 },
 
   primaryBtn: {
     marginTop: 18, minHeight: 50, borderRadius: Tokens.radius.lg,

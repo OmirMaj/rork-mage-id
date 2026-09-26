@@ -11,6 +11,11 @@
 // the book rate for the trade he picks, or the $/unit he types — never an
 // engine/catalog rate. The low–high band shows only when the spread was
 // observed (spreadMeaningful), never manufactured from typed numbers.
+//
+// COLOUR (list-3 lane TK-a, spec §6): a row of TAKEOFF_CONDITION_PALETTE
+// swatches under the name. Until he picks one (`color` state null — a new
+// condition), the swatch shown and saved follows defaultConditionColor exactly
+// as before; a pick is saved into the condition.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -19,7 +24,7 @@ import { Sheet } from '@/components/ui';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useHotkeys } from '@/hooks/useHotkeys';
-import type { ThemeColors } from '@/constants/colors';
+import { TAKEOFF_CONDITION_PALETTE, type ThemeColors } from '@/constants/colors';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
@@ -73,11 +78,12 @@ export default function ConditionEditor({
   const [rateText, setRateText] = useState(blankText(condition?.rateOverride));
   const [waste, setWaste] = useState<Waste>((condition?.wastePct ?? 10) as Waste);
   const [heightText, setHeightText] = useState(blankText(condition?.heightFt));
+  const [picked, setPicked] = useState<string | null>(condition?.color ?? null);
 
   const unit = KIND_UNIT[kind];
   const trades = useMemo(() => tradesForUnit(db, unit), [db, unit]);
   const bookPrice = useMemo(() => (trade ? priceTakeoff(db, trade, unit, 1) : null), [db, trade, unit]);
-  const color = condition?.color ?? defaultConditionColor(name, trade, usedColors);
+  const color = picked ?? defaultConditionColor(name, trade, usedColors);
 
   const rate = rateText.trim() === '' ? null : parseDecimalInput(rateText);
   const height = heightText.trim() === '' ? null : parseDecimalInput(heightText);
@@ -148,6 +154,22 @@ export default function ConditionEditor({
           accessibilityLabel="Condition name"
           testID="takeoffws-editor-name"
         />
+      </View>
+      <View style={styles.swatches} accessibilityRole="radiogroup" accessibilityLabel="Condition colour">
+        {TAKEOFF_CONDITION_PALETTE.map((hex, i) => {
+          const on = hex.toUpperCase() === color.toUpperCase();
+          return (
+            <Pressable
+              key={hex}
+              onPress={() => setPicked(hex)}
+              style={[styles.pick, { backgroundColor: hex }, on && styles.pickOn]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`Colour ${i + 1} of ${TAKEOFF_CONDITION_PALETTE.length}`}
+              testID={`takeoffws-color-${i}`}
+            />
+          );
+        })}
       </View>
       {!name.trim() && trades.length > 0 ? (
         <View style={styles.chips}>
@@ -258,6 +280,9 @@ export default function ConditionEditor({
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Layout.rowGap },
   swatch: { width: 14, height: 14, borderRadius: 3 },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Layout.rowGap },
+  pick: { width: 22, height: 22, borderRadius: 4 },
+  pickOn: { borderWidth: 2, borderColor: t.text },
   input: {
     flex: 1,
     minHeight: Layout.control.input,

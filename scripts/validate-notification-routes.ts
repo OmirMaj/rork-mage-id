@@ -96,7 +96,7 @@ const EVENTS = [
   'portal_message', 'budget_proposal', 'co_approval', 'contract_signed', 'selection_chosen',
   'closeout_binder_sent', 'closeout_binder_sent_confirmation', 'sub_invoice', 'sub_invoice_submitted',
   'sub_invoice_reviewed', 'nearby_rfp_posted', 'bid_question_asked', 'bid_question_answered',
-  'rfp_awarded', 'lead_received', 'margin_alert', 'morning_brief', 'week_close',
+  'rfp_awarded', 'lead_received', 'margin_alert', 'morning_brief', 'week_close', 'tomorrow_lineup',
   'client_invoice_paid', 'client_payment_failed', 'field_report_filed', 'pro_response_received', 'punch_marked_ready',
   'safety_incident_filed',
   // Wave 5 (CONTRACT 8)

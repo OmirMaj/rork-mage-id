@@ -9,8 +9,8 @@
 // Gated on 'schedule_gantt_pdf' — the key Last Planner (its door) checks —
 // through useProjectAccess, so a collaborator's grant on the job counts.
 
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarDays, Send, AlertTriangle } from 'lucide-react-native';
@@ -30,6 +30,7 @@ import { showAlert } from '@/utils/alert';
 import { shareText } from '@/utils/shareText';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { buildLineup, nextWorkingDay, lineupHeadline, type LineupSub } from '@/utils/tomorrowLineup';
+import { armLineupReminder, disarmLineupReminder, isLineupReminderArmed, lineupReminderCopy } from '@/utils/lineupReminder';
 
 export default function TomorrowLineupScreen() {
   const router = useRouter();
@@ -127,6 +128,8 @@ function TomorrowLineupInner() {
               <Text style={styles.dateBtnText}>For {formatCalendarDay(date, { weekday: 'long', month: 'short', day: 'numeric' })} · change</Text>
             </TouchableOpacity>
 
+            <LineupReminderRow />
+
             {lineup.emptyNote ? (
               <Card style={styles.card} testID="lineup-empty"><Text style={styles.body}>{lineup.emptyNote}</Text></Card>
             ) : null}
@@ -192,6 +195,66 @@ function TomorrowLineupInner() {
   );
 }
 
+/** The 3 pm weekday reminder toggle. Opt-in: the OS permission prompt comes
+ *  only from his tap here. The OS schedule is the source of truth — read on
+ *  mount, nothing stored. It sends nothing to any sub. */
+type ReminderNote = 'noPermission' | 'failed' | 'readFailed' | null;
+function LineupReminderRow() {
+  const { colors: t } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const isWeb = Platform.OS === 'web';
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<ReminderNote>(null);
+
+  useEffect(() => {
+    if (isWeb) return;
+    let alive = true;
+    void isLineupReminderArmed().then(armed => {
+      if (!alive) return;
+      setOn(armed === true);
+      setNote(armed === null ? 'readFailed' : null);
+    });
+    return () => { alive = false; };
+  }, [isWeb]);
+
+  const toggle = useCallback(async (next: boolean) => {
+    setBusy(true);
+    try {
+      if (next) {
+        const res = await armLineupReminder({ prompt: true });
+        setOn(res === 'armed');
+        setNote(res === 'armed' ? null : res === 'no_permission' ? 'noPermission' : 'failed');
+      } else {
+        await disarmLineupReminder();
+        setOn(false);
+        setNote(null);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const status = isWeb ? lineupReminderCopy.web : note ? lineupReminderCopy[note] : null;
+  return (
+    <View style={styles.reminder} testID="lineup-reminder">
+      <View style={styles.reminderRow}>
+        <Text style={styles.reminderLabel}>{lineupReminderCopy.toggle}</Text>
+        <Switch
+          value={on}
+          onValueChange={(v) => { void toggle(v); }}
+          disabled={isWeb || busy}
+          trackColor={{ false: t.line, true: t.accentFill }}
+          testID="lineup-reminder-switch"
+          accessibilityLabel={lineupReminderCopy.toggle}
+        />
+      </View>
+      <Text style={styles.muted}>{lineupReminderCopy.help}</Text>
+      {status ? <Text style={styles.reminderStatus} testID="lineup-reminder-status">{status}</Text> : null}
+    </View>
+  );
+}
+
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   sectionLabel: { ...Type.caption1, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
@@ -208,5 +271,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   subName: { ...Type.headline, color: t.text },
   body: { ...Type.footnote, color: t.text },
   muted: { ...Type.caption1, color: t.textMuted, lineHeight: 17 },
+  reminder: { marginBottom: 12, gap: 4 },
+  reminderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  reminderLabel: { ...Type.footnote, fontWeight: '700', color: t.text, flex: 1 },
+  reminderStatus: { ...Type.caption1, color: t.warningLabel, lineHeight: 17 },
   draftInput: { ...Type.footnote, color: t.text, minHeight: 96, padding: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt, textAlignVertical: 'top' },
 });

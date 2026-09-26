@@ -26,7 +26,7 @@ import PlanSweepPanel from '@/components/plans/PlanSweepPanel';
 import { FORBIDDEN_WORDS, sweepCopy } from '@/utils/plans/planSweep';
 import type { PlanSheet } from '@/types';
 
-// Record every router.push the panel makes; /rfi is recorded, not mounted.
+// Record every router.push the panel makes; /rfi and /punch-list are recorded, not mounted.
 const mockPushes: unknown[] = [];
 jest.mock('expo-router', () => {
   const actual = jest.requireActual('expo-router');
@@ -39,7 +39,7 @@ jest.mock('expo-router', () => {
         push: (href: unknown) => {
           mockPushes.push(href);
           const path = typeof href === 'string' ? href : (href as { pathname?: string })?.pathname;
-          if (path !== '/rfi') r.push(href);
+          if (path !== '/rfi' && path !== '/punch-list') r.push(href);
         },
       };
     },
@@ -63,7 +63,9 @@ const VIOLATING = {
   question: 'Does the bedroom 2 window meet the egress opening size?', location: { x: 0.2, y: 0.3 },
 };
 
-type Scenario = { search: 'ok' | 'cap'; review: 'findings' | 'none' | 'cap-second' };
+const UNPLACED = { ...VIOLATING, question: 'Is the stair handrail height shown on this sheet?', location: null };
+
+type Scenario = { search: 'ok' | 'cap'; review: 'findings' | 'none' | 'cap-second' | 'mixed' };
 let scenario: Scenario = { search: 'ok', review: 'findings' };
 let reviewCalls = 0;
 const sweepInvokes: string[] = [];
@@ -98,7 +100,7 @@ function installNetwork() {
     if (scenario.review === 'cap-second' && reviewCalls >= 2) {
       return refusal(429, 'monthly_cap_reached', 'Monthly plan-review limit reached (10 on pro). Resets on the 1st.');
     }
-    const findings = scenario.review === 'none' ? [] : [VIOLATING];
+    const findings = scenario.review === 'none' ? [] : scenario.review === 'mixed' ? [VIOLATING, UNPLACED] : [VIOLATING];
     return { data: { success: true, data: { findings, disclaimer: 'verify' }, usage: { used: 3, cap: 10 } }, error: null };
   }) as never));
   spies.push(jest.spyOn(supabase, 'rpc').mockImplementation(((fn: string, args?: unknown) => {
@@ -109,15 +111,19 @@ function installNetwork() {
 }
 
 function Harness() {
-  const { getProject, getRFIsForProject } = useProjects();
+  const { getProject, getRFIsForProject, getPunchItemsForProject, drawingPins } = useProjects();
   const [show, setShow] = useState(false);
   const project = getProject(PROJECT_ID);
   if (!project) return <Text>loading</Text>;
   const rfis = getRFIsForProject(PROJECT_ID).map(r => ({ ball: r.ballInCourt, to: r.assignedTo, status: r.status, q: r.question, n: r.number }));
+  const punches = getPunchItemsForProject(PROJECT_ID).filter(p => p.description.startsWith('Check on '));
+  const pins = drawingPins.filter(d => d.projectId === PROJECT_ID && d.kind === 'punch');
   return (
     <View style={{ flex: 1 }}>
       <TouchableOpacity testID="probe-show" onPress={() => setShow(true)}><Text>show</Text></TouchableOpacity>
       <Text testID="probe-rfis">{JSON.stringify(rfis)}</Text>
+      <Text testID="probe-punches">{JSON.stringify(punches)}</Text>
+      <Text testID="probe-pins">{JSON.stringify(pins)}</Text>
       {show ? <PlanSweepPanel project={project} sheets={SHEETS} onUpgrade={() => {}} onClose={() => {}} /> : null}
     </View>
   );
@@ -245,4 +251,52 @@ test('(7) zero findings: the scoped "No questions raised" sentence, never a pass
   await press('plansweep-review');
   expect(allText()).toContain(sweepCopy.noFindings('A-201'));
   expect(allText()).not.toMatch(/\b(passed|compliant)\b/i);
+});
+
+test('(8) Add punch item: pinned only where the AI placed it, unassigned, once per finding; the note says approximate', async () => {
+  scenario = { search: 'ok', review: 'mixed' };
+  await mountPanel('pro');
+  await press('plansweep-find');
+  await press('plansweep-review');
+  expect(screen.getByTestId('plansweep-approx-note')).toBeTruthy();
+  expect(allText()).toContain(sweepCopy.approxNote);
+  type P = { id: string; description: string; location: string; assignedSub: string; status: string; listType?: string; planSheetId?: string; pinX?: number; pinY?: number };
+  type D = { planSheetId: string; x: number; y: number; kind: string; linkedPunchItemId?: string };
+  const punches = () => JSON.parse(String(screen.getByTestId('probe-punches').props.children)) as P[];
+  const pins = () => JSON.parse(String(screen.getByTestId('probe-pins').props.children)) as D[];
+  expect(punches()).toEqual([]);
+  const pinsBefore = pins().length;
+
+  // A finding WITH a location → a punch item on that spot, and a linked pin.
+  await press('plansweep-punch-sw2#0');
+  const placed = punches();
+  expect(placed).toHaveLength(1);
+  expect(placed[0]).toEqual(expect.objectContaining({ planSheetId: 'sw2', pinX: 0.2, pinY: 0.3, assignedSub: '', status: 'open', listType: 'punch' }));
+  expect(placed[0].location).toMatch(/approximate/);
+  expect(FORBIDDEN_WORDS.test(placed[0].description)).toBe(false);
+  const newPins = pins().slice(pinsBefore);
+  expect(newPins).toHaveLength(1);
+  expect(newPins[0]).toEqual(expect.objectContaining({ planSheetId: 'sw2', x: 0.2, y: 0.3, kind: 'punch', linkedPunchItemId: placed[0].id }));
+  expect(allText()).toContain(sweepCopy.punchAddedPinned.replace(/\s*Open punch list$/, ''));
+
+  // A second tap does nothing: the button is gone, still one item, one pin.
+  expect(screen.queryByTestId('plansweep-punch-sw2#0')).toBeNull();
+  expect(punches()).toHaveLength(1);
+
+  // A finding WITHOUT a location → a punch item with no pin fields and NO pin.
+  await press('plansweep-punch-sw2#1');
+  const all = punches();
+  expect(all).toHaveLength(2);
+  const unplaced = all.find(p => p.id !== placed[0].id)!;
+  expect(unplaced.planSheetId).toBeUndefined();
+  expect(unplaced.pinX).toBeUndefined();
+  expect(unplaced.pinY).toBeUndefined();
+  expect(unplaced.location).toBe('A-201');
+  expect(pins().slice(pinsBefore)).toHaveLength(1);
+  expect(allText()).toContain(sweepCopy.punchAddedNoPin.replace(/\s*Open punch list$/, ''));
+
+  // The RFI action is unchanged beside it, and "Open punch list" goes there.
+  expect(screen.getByTestId('plansweep-draft-sw2#0')).toBeTruthy();
+  await press('plansweep-open-punch-sw2#0');
+  expect(mockPushes).toContainEqual(expect.objectContaining({ pathname: '/punch-list', params: { projectId: PROJECT_ID } }));
 });

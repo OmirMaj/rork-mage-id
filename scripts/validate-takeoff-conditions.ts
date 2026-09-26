@@ -10,12 +10,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   REF_W, EMPTY_TAKEOFF_DOC, parseTakeoffDoc, measurementQuantity, conditionTotals, pushQuantity,
-  rateToCents, priceCondition, defaultConditionColor, rollup,
+  rateToCents, priceCondition, defaultConditionColor, rollup, matchesConditionFilter, AI_DISMISSED_CAP,
   type TakeoffCondition, type TakeoffMeasurement, type TakeoffDoc, type SheetCal,
 } from '../utils/takeoff/conditions';
 import {
-  MIN_SCALE, MAX_SCALE, fitRect, zoomAt, panBy, canvasToNorm, normToCanvas, fitToPoints, snap45, type ViewT,
+  MIN_SCALE, MAX_SCALE, fitRect, zoomAt, panBy, canvasToNorm, normToCanvas, fitToPoints, snap45, hitVertex, type ViewT,
 } from '../utils/takeoff/viewTransform';
+import { starterConditionsFor, starterFamily, resolveStarterTrade, starterRateLine } from '../utils/takeoff/starterConditions';
 import { pushLinesFrom, applyTakeoffPush, pushBlockReason, type PushLine } from '../utils/takeoff/conditionPush';
 import { feetPerPixel, polygonAreaSqFt, polylineLengthFt, type NormPoint } from '../utils/takeoffGeometry';
 import { TAKEOFF_CONDITION_PALETTE } from '../constants/colors';
@@ -386,6 +387,141 @@ const typesSrc = readFileSync(join(ROOT, 'types/index.ts'), 'utf8');
 ok('LinkedEstimateItem.sourceTakeoffConditionId is declared optional', /interface LinkedEstimateItem \{[\s\S]*?sourceTakeoffConditionId\?: string;[\s\S]*?\n\}/.test(typesSrc));
 const pushSrc = readFileSync(join(ROOT, 'utils/takeoff/conditionPush.ts'), 'utf8');
 ok('the push never recomputes the whole estimate', !/recomputeEstimate\(|withMarkup\(/.test(pushSrc));
+
+// ── 6. list-3 lane TK-a: filter, hitVertex, starters, seams ────────────────
+console.log('\nmatchesConditionFilter:');
+const fc = cond({ name: 'LVT Flooring', trade: 'Resilient Floors' });
+ok('blank / whitespace query matches everything', matchesConditionFilter(fc, '') && matchesConditionFilter(fc, '   '));
+ok('case-insensitive substring of the name', matchesConditionFilter(fc, 'lvt fl') && matchesConditionFilter(fc, 'FLOORING'));
+ok('substring of the trade', matchesConditionFilter(fc, 'resil'));
+ok('no match → false', !matchesConditionFilter(fc, 'drywall'));
+ok('a null trade never matches a trade query', !matchesConditionFilter(cond({ name: 'Doors', trade: null }), 'null'));
+
+console.log('\nhitVertex:');
+const hvPaper = { w: 800, h: 600, left: 50, top: 40 };
+const hvPts: NormPoint[] = [{ x: 0.1, y: 0.1 }, { x: 0.5, y: 0.5 }, { x: 0.505, y: 0.5 }];
+const id1: ViewT = { scale: 1, tx: 0, ty: 0 };
+const v1 = normToCanvas(id1, hvPaper, hvPts[0]);
+eq('on the vertex → its index', hitVertex(hvPts, id1, hvPaper, v1.x, v1.y), 0);
+eq('6.9 px away (inside the 7 px radius) → hit', hitVertex(hvPts, id1, hvPaper, v1.x + 6.9, v1.y), 0);
+eq('7.1 px away (outside the radius) → -1', hitVertex(hvPts, id1, hvPaper, v1.x + 7.1, v1.y), -1);
+const v2 = normToCanvas(id1, hvPaper, hvPts[1]);
+eq('two vertices in range → the NEAREST one', hitVertex(hvPts, id1, hvPaper, v2.x + 3, v2.y), 2);
+eq('…and the other side picks the other', hitVertex(hvPts, id1, hvPaper, v2.x - 1, v2.y), 1);
+const z4: ViewT = { scale: 4, tx: -300, ty: -200 };
+const v1z = normToCanvas(z4, hvPaper, hvPts[0]);
+eq('respects zoom via view: the zoomed vertex is hit where it is drawn', hitVertex(hvPts, z4, hvPaper, v1z.x + 5, v1z.y), 0);
+eq('…and not where it sits at scale 1', hitVertex(hvPts, z4, hvPaper, v1.x, v1.y), -1);
+eq('the radius is in screen px (does not scale with zoom)', hitVertex(hvPts, z4, hvPaper, v1z.x + 7.5, v1z.y), -1);
+eq('a custom radius', hitVertex(hvPts, id1, hvPaper, v1.x + 10, v1.y, 12), 0);
+eq('no points → -1', hitVertex([], id1, hvPaper, 0, 0), -1);
+
+console.log('\nstarter conditions:');
+const families: [string | null, string][] = [
+  [null, 'default'], ['Remodel', 'default'], ['Kitchen remodel', 'kitchen-bath'], ['Master Bath', 'kitchen-bath'],
+  ['Roofing', 'roofing-exterior'], ['Exterior siding', 'roofing-exterior'], ['Commercial', 'commercial'], ['Tenant fit-out', 'commercial'],
+];
+for (const [label, fam] of families) {
+  const set = starterConditionsFor(label);
+  eq(`"${label}" → the ${fam} family`, starterFamily(label), fam);
+  ok(`"${label}" → exactly 6 starters with unique keys`, set.length === 6 && new Set(set.map((x) => x.key)).size === 6);
+}
+eq('default set, in order', starterConditionsFor(undefined).map((x) => `${x.name}:${x.kind}`),
+  ['LVT flooring:area', 'Drywall:linear', 'Paint:area', 'Doors:count', 'Base trim:linear', 'Tile:area']);
+eq('kitchen/bath set', starterConditionsFor('Kitchen').map((x) => x.name), ['Cabinets', 'Countertops', 'Tile', 'Plumbing fixtures', 'Drywall', 'Paint']);
+eq('roofing/exterior set', starterConditionsFor('Roofing').map((x) => x.name), ['Roofing', 'Drip edge', 'Siding', 'Windows', 'Trim', 'Vents']);
+eq('commercial set', starterConditionsFor('Retail').map((x) => x.name), ['Acoustic ceiling', 'Drywall', 'Carpet tile', 'Doors', 'Paint', 'Base']);
+const SDB: CostDatabase = {
+  entries: [entry('Drywall', 'LF', 4.1), entry('Paint', 'SF', 1.25, 'seeded'), entry('Interior Doors', 'EA', 310), entry('Drywall', 'SF', 3.3)],
+  jobsAnalyzed: 3, tradesTracked: 4, overallBidAccuracy: null, asOf: '2026-09-26',
+};
+eq('resolveStarterTrade with no match → a null trade and entry', resolveStarterTrade(SDB, /tile/, 'area'), { trade: null, entry: null });
+eq('resolveStarterTrade matches in the kind\'s unit only (Drywall LF, not SF)', resolveStarterTrade(SDB, /drywall/, 'linear').entry?.unit, 'LF');
+eq('resolveStarterTrade is case-insensitive', resolveStarterTrade(SDB, /door/, 'count').trade, 'Interior Doors');
+eq('a unit with no entries → null', resolveStarterTrade(SDB, /drywall/, 'count').trade, null);
+eq('rate line from your jobs', starterRateLine(resolveStarterTrade(SDB, /drywall/, 'linear').entry, 'linear'), '$4.10/LF · from your jobs');
+eq('rate line for a seeded rate says so', starterRateLine(resolveStarterTrade(SDB, /paint/, 'area').entry, 'area'), '$1.25/SF · starter rate, not from your jobs');
+eq('no entry → "no history", never $0', starterRateLine(null, 'area'), 'no history');
+eq('a zero rate → "no history"', starterRateLine(entry('X', 'SF', 0), 'area'), 'no history');
+
+console.log('\nwave-2 seams (TK-b / TK-c build on these lines):');
+const wsSrc = readFileSync(join(ROOT, 'components/takeoff/TakeoffWorkspace.tsx'), 'utf8');
+const panelSrc = readFileSync(join(ROOT, 'components/takeoff/ConditionsPanel.tsx'), 'utf8');
+ok('TakeoffWorkspace carries {/* seam:rail */}', wsSrc.includes('{/* seam:rail */}'));
+ok('TakeoffWorkspace carries {/* seam:first-run */}', wsSrc.includes('{/* seam:first-run */}'));
+ok('ConditionsPanel carries {/* seam:ai-section */} right after the New condition row',
+  /New condition \(N\)<\/Text>\s*<\/TouchableOpacity>\s*\{\/\* seam:ai-section \*\/\}/.test(panelSrc));
+ok('the workspace reads lane SYNC\'s saveLine / conflict through the typed widening',
+  /const tk = useTakeoffConditions\(projectId\);/.test(wsSrc) && /sync\.saveLine \?\? 'Saved on this browser'/.test(wsSrc) && /sync\.conflict \?\? null/.test(wsSrc));
+
+// ── 7. list-3 lane TK-b: AI read ──────────────────────────────────────────────────
+console.log('\nAI read (lane TK-b — an accepted AI suggestion):');
+const AIR = { qty: 1200, unit: 'SF' as const, confidence: 'medium' as const, citation: 'p.3 · plans.pdf', key: '2026-09-20T15:00:00.000Z|floor:f1', readAt: '2026-09-26' };
+const aiC = cond({ id: 'ai', aiRead: AIR });
+const pAi = parseTakeoffDoc(JSON.stringify({
+  version: 1,
+  conditions: [aiC, cond({ id: 'bad1', aiRead: { ...AIR, unit: 'LF' } as never }), cond({ id: 'bad2', aiRead: { ...AIR, qty: 0 } }),
+    { ...cond({ id: 'bad3' }), aiRead: { ...AIR, qty: 'x' } }, { ...cond({ id: 'bad4' }), aiRead: { ...AIR, confidence: 'certain' } }],
+  measurements: [], pushed: {}, aiDismissed: ['a', 'b', 'a', 7, '', 'c'],
+}));
+eq('parse keeps a valid aiRead', pAi.conditions[0].aiRead, AIR);
+eq('parse drops a malformed aiRead (unit ≠ the kind\'s, qty ≤ 0, qty not a number, bad confidence) but keeps the condition',
+  pAi.conditions.map((c) => [c.id, 'aiRead' in c]), [['ai', true], ['bad1', false], ['bad2', false], ['bad3', false], ['bad4', false]]);
+eq('aiDismissed: strings only, deduped', pAi.aiDismissed, ['b', 'a', 'c']);
+const many = parseTakeoffDoc(JSON.stringify({ conditions: [], measurements: [], aiDismissed: Array.from({ length: 600 }, (_, i) => `k${i}`) }));
+eq(`aiDismissed is capped at ${AI_DISMISSED_CAP}, keeping the newest`, [many.aiDismissed?.length, many.aiDismissed?.[0], many.aiDismissed?.[499]], [500, 'k100', 'k599']);
+ok('an empty aiDismissed is omitted', !('aiDismissed' in parseTakeoffDoc(JSON.stringify({ conditions: [], measurements: [], aiDismissed: [] }))));
+ok('a condition with no aiRead parses with no aiRead key (old docs byte-identical)', !('aiRead' in parseTakeoffDoc(JSON.stringify({ conditions: [cond()] })).conditions[0]));
+
+const tAi = conditionTotals(aiC, [], () => CAL100);
+eq('All sheets, nothing drawn → the AI read counts (source ai_read)', [tAi.source, tAi.net, tAi.billable, tAi.aiReadQty, tAi.measuredCount], ['ai_read', 1200, 1200, 1200, 0]);
+const tAiSheet = conditionTotals(aiC, [], () => CAL100, 'A1');
+eq('This sheet → source none, net 0, aiReadQty carried (a whole-set number never lands on one sheet)',
+  [tAiSheet.source, tAiSheet.net, tAiSheet.billable, tAiSheet.aiReadQty], ['none', 0, 0, 1200]);
+const tElse = conditionTotals(aiC, [meas({ id: 'e', conditionId: 'ai', sheetId: 'A2', points: sq, aspect: 1 })], () => CAL100, 'A1');
+eq('drawn on another sheet, This sheet → none, net 0', [tElse.source, tElse.net], ['none', 0]);
+const tDrawn = conditionTotals(aiC, [meas({ id: 'd1', conditionId: 'ai', points: sq, aspect: 1 })], () => CAL100);
+ok('a drawing flips it to measured (drawn wins) and aiReadQty carries the AI number',
+  tDrawn.source === 'measured' && near(tDrawn.net, 2000) && tDrawn.aiReadQty === 1200);
+const tNoScale = conditionTotals(aiC, [meas({ id: 'n1', conditionId: 'ai' })], () => null);
+eq('a no-scale drawing on an AI-read condition does NOT fall back to the AI number',
+  [tNoScale.source, tNoScale.net, tNoScale.unmeasuredCount, tNoScale.aiReadQty], ['none', 0, 1, 1200]);
+ok('waste applies to the AI read', near(conditionTotals(cond({ id: 'ai', wastePct: 10, aiRead: AIR }), [], () => CAL100).billable, 1320));
+eq('no aiRead: measured / nothing → measured / none, aiReadQty null',
+  [conditionTotals(cond(), [meas({ points: sq, aspect: 1 })], () => CAL100).source, conditionTotals(cond(), [], () => CAL100).source,
+    conditionTotals(cond(), [], () => CAL100).aiReadQty], ['measured', 'none', null]);
+
+const docAi: TakeoffDoc = {
+  version: 1,
+  conditions: [cond({ id: 'ai', aiRead: AIR }), cond({ id: 'd' })],
+  measurements: [meas({ id: 'md', conditionId: 'd', points: sq, aspect: 1 })],
+  pushed: {},
+};
+const PA = pushLinesFrom(rollup(docAi, DB, () => CAL100).rows);
+eq('pushLinesFrom: the ai_read row yields aiRead: true; the measured row does not',
+  PA.lines.map((l) => [l.conditionId, l.quantity, l.aiRead ?? null]), [['ai', 1200, true], ['d', 2000, null]]);
+ok('a measured line has NO aiRead key (byte-identical to before)', !('aiRead' in PA.lines[1]));
+eq('This sheet rollup: the AI read adds nothing', rollup(docAi, DB, () => CAL100, 'A1').rows.find((r) => r.condition.id === 'ai')?.price.qty, 0);
+const apA = applyTakeoffPush(cleanEstimate(), PA.lines, {}, newId);
+const aiItem = (e: LinkedEstimate) => e.items.find((i) => i.sourceTakeoffConditionId === 'ai')!;
+eq('APPEND: the AI line is named "… — AI read, not measured"; the measured one is plain',
+  [aiItem(apA.next).name, apA.next.items.find((i) => i.sourceTakeoffConditionId === 'd')!.name],
+  ['5/8 drywall — AI read, not measured', '5/8 drywall']);
+ok('APPEND with an AI line foots (Σ lineTotal === grandTotal)', foots(apA.next));
+const upA = applyTakeoffPush(apA.next, [{ ...PA.lines[0], quantity: 1300 }], apA.pushed, newId);
+eq('UPDATE of an AI line keeps the label', [aiItem(upA.next).name, aiItem(upA.next).quantity, upA.added, upA.updated],
+  ['5/8 drywall — AI read, not measured', 1300, 0, 1]);
+ok('…and foots', foots(upA.next));
+const docMeasured: TakeoffDoc = { ...docAi, measurements: [...docAi.measurements, meas({ id: 'ma', conditionId: 'ai', points: sq, aspect: 1 })] };
+const PM = pushLinesFrom(rollup(docMeasured, DB, () => CAL100).rows);
+const msA = applyTakeoffPush(upA.next, PM.lines, upA.pushed, newId);
+eq('a later MEASURED push of the same condition writes the plain name (no duplicate)',
+  [aiItem(msA.next).name, aiItem(msA.next).quantity, msA.added, msA.next.items.length], ['5/8 drywall', 2000, 0, upA.next.items.length]);
+ok('…and still foots', foots(msA.next));
+const baseR = rollup(DOC, DB, () => CAL100);
+const withDismissed = rollup({ ...DOC, aiDismissed: ['2026-09-20T15:00:00.000Z|doors:d1'] }, DB, () => CAL100);
+eq('the rollup of a doc is unchanged by suggestions (they are not conditions)',
+  [withDismissed.costCents, withDismissed.rows.length, withDismissed.pricedCount], [baseR.costCents, baseR.rows.length, baseR.pricedCount]);
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} validate-takeoff-conditions: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

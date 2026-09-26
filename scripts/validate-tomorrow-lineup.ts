@@ -239,5 +239,124 @@ console.log('\nstatic scan:');
   ok('no fetch( / Linking. / supabase. call in the code', !/\bfetch\(|\bLinking\.|\bsupabase\./.test(code));
 }
 
+// ── 10. The 3 pm weekday reminder (list 3, lane FA) ────────────────────────
+// utils/lineupReminder: five fixed-id WEEKLY local notifications, Mon–Fri at
+// 15:00, carrying no project/sub/schedule data; opt-in with the OS prompt only
+// from his tap on the lineup screen; the OS schedule is the only state.
+console.log('\nthe 3 pm weekday reminder:');
+{
+  const BUN_TEST = 'bun:test';
+  const { mock } = (await import(BUN_TEST)) as {
+    mock: { module: (specifier: string, factory: () => Record<string, unknown>) => void };
+  };
+  const platform = { OS: 'ios' as string };
+  const calls: string[] = [];
+  const scheduled = new Map<string, unknown>();
+  let permission = 'granted';
+  let promptAnswer = 'granted';
+  let failOnSchedule = -1;
+  let readThrows = false;
+  const fake = {
+    getPermissionsAsync: async () => { calls.push('getPermissions'); return { status: permission }; },
+    requestPermissionsAsync: async () => { calls.push('requestPermissions'); permission = promptAnswer; return { status: promptAnswer }; },
+    setNotificationChannelAsync: async (id: string) => { calls.push(`channel:${id}`); return null; },
+    scheduleNotificationAsync: async (req: { identifier: string }) => {
+      if (failOnSchedule >= 0 && scheduled.size === failOnSchedule) throw new Error('boom');
+      calls.push(`schedule:${req.identifier}`); scheduled.set(req.identifier, req); return req.identifier;
+    },
+    cancelScheduledNotificationAsync: async (id: string) => { calls.push(`cancel:${id}`); scheduled.delete(id); },
+    getAllScheduledNotificationsAsync: async () => {
+      if (readThrows) throw new Error('read');
+      return [...scheduled.keys(), 'some-other-nudge'].map(identifier => ({ identifier }));
+    },
+    AndroidImportance: { MAX: 5 },
+    SchedulableTriggerInputTypes: { WEEKLY: 'weekly', TIME_INTERVAL: 'timeInterval', DATE: 'date' },
+  };
+  mock.module('react-native', () => ({ Platform: platform }));
+  mock.module('expo-notifications', () => ({ ...fake, default: fake }));
+  const R = await import('../utils/lineupReminder');
+  const reset = () => { calls.length = 0; scheduled.clear(); permission = 'granted'; promptAnswer = 'granted'; failOnSchedule = -1; readThrows = false; platform.OS = 'ios'; };
+
+  const reqs = R.lineupReminderRequests();
+  eq('exactly five requests', reqs.length, 5);
+  eq('Mon–Fri in expo numbering (2–6)', reqs.map(r => (r.trigger as { weekday: number }).weekday), [2, 3, 4, 5, 6]);
+  ok('every trigger fires at 15:00', reqs.every(r => (r.trigger as { hour: number; minute: number }).hour === 15 && (r.trigger as { minute: number }).minute === 0));
+  ok('every trigger carries `type` === WEEKLY (a type-less trigger fires immediately)', reqs.every(r => !!r.trigger && (r.trigger as { type?: string }).type === 'weekly'));
+  const ids = reqs.map(r => r.identifier ?? '');
+  ok('unique fixed identifiers under the prefix', new Set(ids).size === 5 && ids.every(i => i.startsWith(R.LINEUP_REMINDER_ID_PREFIX)), ids.join(','));
+  ok("data is only { kind: 'tomorrow_lineup' }", reqs.every(r => JSON.stringify(r.content.data) === JSON.stringify({ kind: 'tomorrow_lineup' })));
+  ok('title and body carry no project / sub / schedule placeholder', reqs.every(r => !/\$\{|\{\{|project|job\b|sub\b.*:|Acme|\d{4}-\d{2}/i.test(`${r.content.title} ${r.content.body}`)), `${reqs[0].content.title} / ${reqs[0].content.body}`);
+  ok('iOS: no Android channel on the trigger', reqs.every(r => (r.trigger as { channelId?: string }).channelId === undefined));
+  platform.OS = 'android';
+  ok("Android: every trigger on the 'default' channel", R.lineupReminderRequests().every(r => (r.trigger as { channelId?: string }).channelId === 'default'));
+  platform.OS = 'ios';
+  ok('the help line says it can’t see the schedule', R.lineupReminderCopy.help.includes('can’t see your schedule'));
+  ok('the help line says nothing is sent', R.lineupReminderCopy.help.includes('Nothing is sent'));
+
+  reset();
+  eq('arm (granted) → armed', await R.armLineupReminder({ prompt: true }), 'armed');
+  eq('…all five scheduled', [...scheduled.keys()].sort(), [...ids].sort());
+  ok('…cancels all five BEFORE scheduling any', calls.findIndex(c => c.startsWith('schedule:')) > calls.filter(c => c.startsWith('cancel:')).length - 1
+    && calls.slice(0, calls.findIndex(c => c.startsWith('schedule:'))).filter(c => c.startsWith('cancel:')).length === 5, calls.join(','));
+  ok('…already granted → never prompts', !calls.includes('requestPermissions'));
+  eq('isLineupReminderArmed → true with all five', await R.isLineupReminderArmed(), true);
+  scheduled.delete(ids[2]);
+  eq('a partial set reads off (a tap re-arms cleanly)', await R.isLineupReminderArmed(), false);
+
+  reset();
+  permission = 'denied'; promptAnswer = 'denied';
+  eq('prompt:false with no permission → no_permission, no prompt', await R.armLineupReminder({ prompt: false }), 'no_permission');
+  ok('…never asked the OS', !calls.includes('requestPermissions') && scheduled.size === 0);
+  eq('prompt:true and he declines → no_permission', await R.armLineupReminder({ prompt: true }), 'no_permission');
+  ok('…asked once, scheduled nothing', calls.filter(c => c === 'requestPermissions').length === 1 && scheduled.size === 0);
+
+  reset();
+  failOnSchedule = 3;
+  eq('a schedule throw → failed', await R.armLineupReminder({ prompt: true }), 'failed');
+  eq('…and the half-armed week is cancelled', scheduled.size, 0);
+
+  reset();
+  platform.OS = 'android';
+  await R.armLineupReminder({ prompt: true });
+  ok("Android sets up the 'default' channel before scheduling", calls.indexOf('channel:default') >= 0 && calls.indexOf('channel:default') < calls.findIndex(c => c.startsWith('schedule:')));
+
+  reset();
+  await R.armLineupReminder({ prompt: true });
+  calls.length = 0;
+  await R.disarmLineupReminder();
+  eq('disarm cancels exactly the five', calls.filter(c => c.startsWith('cancel:')).sort(), ids.map(i => `cancel:${i}`).sort());
+  eq('isLineupReminderArmed → false with none', await R.isLineupReminderArmed(), false);
+  readThrows = true;
+  eq('an unreadable schedule → null (the screen says it couldn’t check)', await R.isLineupReminderArmed(), null);
+
+  reset();
+  platform.OS = 'web';
+  eq('web: arm → web', await R.armLineupReminder({ prompt: true }), 'web');
+  await R.disarmLineupReminder();
+  ok('web: arm and disarm touch nothing', calls.length === 0);
+  platform.OS = 'ios';
+
+  // Static: no storage, one prompt site, one route.
+  const RSRC = readFileSync(join(ROOT, 'utils/lineupReminder.ts'), 'utf8');
+  ok('utils/lineupReminder.ts has no AsyncStorage (the OS schedule is the state)', !/AsyncStorage|async-storage/.test(RSRC));
+  const { readdirSync, statSync } = await import('node:fs');
+  const hits: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (name === 'node_modules' || name.startsWith('.')) continue;
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(tsx?|jsx?)$/.test(name) && /armLineupReminder\(\{\s*prompt:\s*true\s*\}\)/.test(readFileSync(p, 'utf8'))) hits.push(p.slice(ROOT.length + 1));
+    }
+  };
+  for (const d of ['app', 'components', 'contexts', 'hooks', 'utils']) walk(join(ROOT, d));
+  eq('armLineupReminder({ prompt: true }) is called only from app/tomorrow-lineup.tsx', hits, ['app/tomorrow-lineup.tsx']);
+  const SCREEN = readFileSync(join(ROOT, 'app/tomorrow-lineup.tsx'), 'utf8');
+  ok('the screen reads the OS schedule on mount and shows the help line', /isLineupReminderArmed\(\)/.test(SCREEN) && /lineupReminderCopy\.help/.test(SCREEN));
+  ok('the reminder row is wrapped in a lineup- testID (stripped from goldens)', /testID="lineup-reminder"/.test(SCREEN));
+  const ROUTES_SRC = readFileSync(join(ROOT, 'supabase/functions/notify/routes.ts'), 'utf8');
+  ok("routes.ts maps tomorrow_lineup → /tomorrow-lineup", /case 'tomorrow_lineup':[\s\S]{0,300}pathname: '\/tomorrow-lineup'/.test(ROUTES_SRC));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
