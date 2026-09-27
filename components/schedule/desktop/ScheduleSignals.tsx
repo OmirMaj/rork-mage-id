@@ -45,7 +45,7 @@ export interface ScheduleSignalsProps {
   conflicts: CpmConflict[];
   /** Focus (and scroll to) a task — the conflicts chip sends the first one. */
   onFocusTask: (taskId: string) => void;
-  weather: Pick<WeatherReschedulePromptProps, 'forecasts' | 'projectStartDate' | 'onPushTasks' | 'dailyReports'>;
+  weather: Pick<WeatherReschedulePromptProps, 'forecasts' | 'projectStartDate' | 'onPushTasks' | 'dailyReports' | 'scheduleCalendar'>;
   /** Presence of the two self-loading chips, held by the screen. */
   subPresent: boolean;
   weatherPresent: boolean;

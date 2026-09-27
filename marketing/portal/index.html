@@ -4761,8 +4761,17 @@
    *  what is owed must not be shown. A snapshot that predates payLinkAmount
    *  carries none — trust the builder's own suppression in that case rather
    *  than hiding every legitimate button on an older portal. */
+  /** What the owner pays for this period NOW. MONEY-AIA-CERTIFIED-LINK: once
+   *  the architect's certificate is recorded that is the CERTIFIED amount, and
+   *  the builder re-mints the Pay link for it (snapshot `payableNow`). Line 8
+   *  as applied for (`currentPaymentDue`) is still what the G702 prints. A
+   *  snapshot built before payableNow existed falls back to line 8. */
+  function aiaPayable(a) {
+    return typeof a.payableNow === 'number' && isFinite(a.payableNow) ? a.payableNow : (a.currentPaymentDue || 0);
+  }
+
   function aiaCanPay(a) {
-    var due = a.currentPaymentDue || 0;
+    var due = aiaPayable(a);
     if (aiaIsPaid(a) || !a.payLinkUrl || due <= 0) return false;
     if (a.payLinkAmount == null) return true;
     return Math.abs(a.payLinkAmount - due) <= 0.01;
@@ -4779,7 +4788,7 @@
       // see app/aia-pay-app.tsx handleSave). Pre-audit (May 2026) AIA
       // apps had no payment wiring at all — homeowners got a print-only
       // PDF while regular invoices got Pay buttons. Now both have parity.
-      var due = a.currentPaymentDue || 0;
+      var due = aiaPayable(a);
       // MONEY-F2: a pay app the Stripe webhook stamped `paidAt` is settled —
       // show that, never a second Pay button.
       var aiaPaid = aiaIsPaid(a);
@@ -5396,7 +5405,7 @@
     // Drawer footer — Pay button (Stripe-hosted) takes precedence when a
     // payLinkUrl exists and there's a balance due. Print stays available
     // as a secondary action either way.
-    var aiaDue = a.currentPaymentDue || 0;
+    var aiaDue = aiaPayable(a);
     // MONEY-F2: `paidAt` (stamped by the Stripe webhook) wins over any link
     // that may still be on the record — a paid application shows Paid.
     var aiaPaid = aiaIsPaid(a);

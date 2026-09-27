@@ -101,16 +101,6 @@ export const INVOICED_MINUS_PAID_RE = GROSS_PATTERNS[GROSS_PATTERNS.length - 1]!
 // second definition; migrate it to invoiceOutstanding() when the file is next
 // touched and delete the entry.
 const ALLOW: { file: string; code: string; reason: string; dated: string }[] = [
-  // health 2026-09-26 — found by the `invoiced total - paid total` rule the day
-  // it was added; the file belongs to no health lane, so the fix is a handoff
-  // patch: MONEYREPORT-contacts-outstanding.patch (which also deletes this entry).
-  {
-    file: 'app/contacts.tsx',
-    code: 'return { totalInvoiced, totalPaid, outstanding: totalInvoiced - totalPaid };',
-    reason: 'KNOWN DEFECT awaiting handoff patch MONEYREPORT-contacts-outstanding.patch: client contact card sums drafts and is gross of held retention — replace with getInvoicedToDate / getPaidToDate / getOutstandingBalance',
-    dated: '2026-09-26',
-  },
-
   // utils/paymentPrediction.ts held the last hand-written copy of the
   // invoiceOutstanding formula. MONEY-05 (2026-09-07) replaced its body with a
   // call to the helper, so the entry is gone rather than re-dated — an
@@ -136,18 +126,6 @@ const ALLOW: { file: string; code: string; reason: string; dated: string }[] = [
     code: 'const held = Math.max(0, inv.retentionAmount ?? 0);',
     reason: 'SubSubmittedInvoice — retainage the GC holds from a SUB. That table stores a dollar amount and carries no retention_percent or subtotal, so there is no work-value basis to recompute from; the stored column is the only figure that exists.',
     dated: '2026-09-07',
-  },
-
-  // health 2026-09-26 (MONEY-CLIENTVIEW-DUE-NOW). app/client-view.tsx belongs
-  // to the d6r X3 run while this lands, so its fix is a handoff patch:
-  // MONEYREPORT-client-view-due-now.patch (move the money card onto
-  // utils/clientViewMoney.clientViewMoneyFigures). Applying
-  // MONEYREPORT-client-view-allowlist-removal.patch then deletes this entry.
-  {
-    file: 'app/client-view.tsx',
-    code: 'const outstanding = Math.max(0, invoicedTotal - paidTotal);',
-    reason: 'KNOWN DEFECT awaiting handoff patch MONEYREPORT-client-view-due-now.patch: "Due now" gross of held retention; the portal (getOutstandingBalance) is net',
-    dated: '2026-09-26',
   },
 ];
 

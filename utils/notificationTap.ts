@@ -14,7 +14,8 @@
 //
 // Both go through handleNotificationResponse with the same handled-id set,
 // so whichever runs second is a no-op. The id is the DELIVERY, not the
-// request: `<request.identifier>@<notification.date>`. Local reminders reuse
+// request: `<request.identifier>@<delivery ms>` (notification.date is seconds
+// on iOS and ms on Android; deliveryTimeMs normalises it). Local reminders reuse
 // one fixed identifier for every delivery ('mageid-morning-brief-nudge',
 // 'mageid-lineup-reminder-<weekday>', 'mageid-week-close-nudge'), so an
 // identifier-only key swallowed every later tap of the same reminder in one
@@ -39,7 +40,12 @@ export interface TapResponseLike {
       identifier?: string | null;
       content?: { data?: Record<string, unknown> | null } | null;
     } | null;
-    /** When this delivery was presented (ms since epoch; expo-notifications sets it). */
+    /** When this delivery was presented, as expo-notifications serializes it:
+     *  SECONDS since epoch as a double on iOS (EXNotificationSerializer:
+     *  `notification.date.timeIntervalSince1970`), MILLISECONDS on Android
+     *  (NotificationSerializer: `getOriginDate().getTime()`). Read only through
+     *  deliveryTimeMs, which normalises both to whole ms, and used only as part
+     *  of the dedupe key. */
     date?: number | null;
   } | null;
 }
@@ -59,17 +65,35 @@ function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+/** Below this a delivery date is SECONDS (iOS): 1e11 ms is March 1973, while
+ *  1e11 s is the year 5138, so no real delivery is ambiguous. */
+const SECONDS_CEILING = 1e11;
+
 /**
- * The id of this DELIVERY: `<request identifier>@<notification date>` when the
- * date is a finite number, the bare identifier otherwise, null with no
- * identifier. A repeating local reminder keeps its identifier across
- * deliveries; its date changes, so each delivery is its own tap.
+ * A delivery date in whole milliseconds since epoch, whichever unit the
+ * platform sent: iOS seconds (a double, e.g. 1790000000.123) are scaled by
+ * 1000, Android milliseconds pass through, and both are rounded so the key
+ * never carries float noise. Null for a missing, non-finite or non-positive
+ * date.
+ */
+export function deliveryTimeMs(date: unknown): number | null {
+  if (typeof date !== 'number' || !Number.isFinite(date) || date <= 0) return null;
+  return Math.round(date < SECONDS_CEILING ? date * 1000 : date);
+}
+
+/**
+ * The id of this DELIVERY: `<request identifier>@<delivery time in ms>` when
+ * the date is usable (deliveryTimeMs), the bare identifier otherwise, null
+ * with no identifier. A repeating local reminder keeps its identifier across
+ * deliveries; its date changes, so each delivery is its own tap. The listener
+ * and the cold-start read carry the same serialized date for one tap, so they
+ * normalise to the same key on either platform.
  */
 export function notificationResponseId(response: TapResponseLike | null | undefined): string | null {
   const identifier = str(response?.notification?.request?.identifier);
   if (!identifier) return null;
-  const date = response?.notification?.date;
-  return typeof date === 'number' && Number.isFinite(date) ? `${identifier}@${date}` : identifier;
+  const at = deliveryTimeMs(response?.notification?.date);
+  return at === null ? identifier : `${identifier}@${at}`;
 }
 
 /** Where a tapped push opens. Pure. */

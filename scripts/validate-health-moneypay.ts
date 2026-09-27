@@ -250,6 +250,69 @@ console.log('\n2b. Review round 1 — background re-mints the server refuses, an
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+console.log('\n2c. The client portal PAGE offers the re-minted certified link');
+{
+  // The builder's guard alone is not enough: marketing/portal/index.html runs
+  // its OWN aiaCanPay over the snapshot row, and before this it compared the
+  // link with line 8 as applied for — so a link correctly re-minted for the
+  // certified figure showed no Pay button at all (review round 1, major).
+  const page = read('marketing/portal/index.html');
+  const lift = (name: string): string => {
+    const at = page.indexOf(`function ${name}(`);
+    if (at < 0) return '';
+    let depth = 0;
+    for (let i = page.indexOf('{', at); i < page.length; i++) {
+      if (page[i] === '{') depth++;
+      else if (page[i] === '}' && --depth === 0) return page.slice(at, i + 1);
+    }
+    return '';
+  };
+  const src = ['aiaIsPaid', 'aiaPayable', 'aiaCanPay'].map(lift);
+  ok('the page defines aiaPayable next to aiaCanPay', src.every(Boolean), src.map(x => x.length));
+  // A page without aiaPayable printed line 8 on its Pay label; stand that in so
+  // the checks below run the page's REAL aiaCanPay either way (fail-before).
+  if (!src[1]) src[1] = 'function aiaPayable(a) { return a.currentPaymentDue || 0; }';
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  const pageFns = src[0] && src[2]
+    ? new Function('SETTLED_INVOICE_IDS', `${src.join('\n')}\nreturn { aiaCanPay: aiaCanPay, aiaPayable: aiaPayable };`)({}) as { aiaCanPay: (a: unknown) => boolean; aiaPayable: (a: unknown) => number }
+    : null;
+  const P = await load('utils/portalSnapshot.ts');
+  if (!pageFns || !fn(P.buildPortalSnapshot)) ok('page guard + builder load', false, 'missing');
+  else {
+    const base = {
+      id: 'a1', projectId: 'p1', invoiceId: 'inv1', applicationNumber: 2, applicationDate: '2026-09-30', periodTo: '2026-09-30',
+      ownerName: 'O', contractorName: 'GC', projectName: 'Job', originalContractSum: 200_000, netChangeByCO: 0, contractSumToDate: 200_000,
+      retainagePercent: 10, lessPreviousCertificates: 0, lines: [],
+      totals: { totalScheduledValue: 200_000, totalCompletedAndStored: 55_556, totalRetainage: 5_556, totalEarnedLessRetainage: 50_000, currentPaymentDue: 50_000, balanceToFinish: 150_000, percentComplete: 27.8 },
+      payLinkUrl: 'https://pay.stripe.com/x', payLinkId: 'plink_1', payLinkAmount: 50_000, savedAt: '2026-09-30', portalState: { status: 'sent' },
+    };
+    const inv = { id: 'inv1', projectId: 'p1', number: 2, type: 'progress', status: 'sent', issueDate: '2026-09-30', dueDate: '2026-10-30', lineItems: [], subtotal: 50_000, taxAmount: 0, totalDue: 50_000, amountPaid: 0, portalState: { status: 'sent' } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = (over: Record<string, unknown>): any => P.buildPortalSnapshot({
+      project: { id: 'p1', name: 'Job', status: 'active' }, portal: { showInvoices: true }, invoices: [inv], aiaPayApps: [{ ...base, ...over }],
+    }).sections.aiaPayApps?.[0];
+    const reminted = row({ amountCertified: 45_000, payLinkAmount: 45_000 });
+    ok('the snapshot row carries payableNow = the certified $45,000 (line 8 stays $50,000)',
+      reminted?.payableNow === 45_000 && reminted?.currentPaymentDue === 50_000, reminted && { payableNow: reminted.payableNow, due: reminted.currentPaymentDue });
+    ok('PAGE: the link re-minted for the certified $45,000 shows Pay', pageFns.aiaCanPay(reminted) === true);
+    ok('PAGE: …and the Pay label figure is $45,000, the amount the link charges', pageFns.aiaPayable(reminted) === 45_000);
+    const stale = row({ amountCertified: 45_000 });
+    ok('PAGE: the stale $50,000 link after the certificate still shows NO Pay', pageFns.aiaCanPay(stale) === false);
+    ok('PAGE: a cached row that still carries the stale URL is refused by the page too',
+      pageFns.aiaCanPay({ ...stale, payLinkUrl: 'https://pay.stripe.com/x' }) === false);
+    ok('PAGE: no certificate, link for line 8 → Pay for line 8 (unchanged)',
+      pageFns.aiaCanPay(row({})) === true && pageFns.aiaPayable(row({})) === 50_000);
+    ok('PAGE: a snapshot published before payableNow existed falls back to line 8',
+      pageFns.aiaCanPay({ currentPaymentDue: 50_000, payLinkUrl: 'u', payLinkAmount: 50_000 }) === true
+      && pageFns.aiaCanPay({ currentPaymentDue: 50_000, payLinkUrl: 'u', payLinkAmount: 45_000 }) === false);
+    ok('PAGE: certified $0 is nothing to pay', pageFns.aiaCanPay({ currentPaymentDue: 50_000, payableNow: 0, payLinkUrl: 'u', payLinkAmount: 0 }) === false);
+  }
+  const renderAIA = page.slice(page.indexOf('function renderAIA('), page.indexOf('function renderChangeOrders('));
+  ok('the card\'s "Pay $X" reads aiaPayable(a)', /var due = aiaPayable\(a\);/.test(renderAIA) && /' Pay ' \+ fmtMoney\(due, \{dec:2\}\)/.test(renderAIA));
+  ok('the drawer\'s "Pay $X" reads aiaPayable(a)', /var aiaDue = aiaPayable\(a\);/.test(page) && !/var aiaDue = a\.currentPaymentDue/.test(page));
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 console.log('\n3. MONEY-PAYLINK-AMOUNT-TRUST — never mint above the server balance');
 {
   const B = await load('supabase/functions/_shared/payLinkBalance.ts');

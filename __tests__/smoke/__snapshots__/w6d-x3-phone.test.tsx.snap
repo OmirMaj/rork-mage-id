@@ -10,9 +10,9 @@ exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, i
 
 exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /client-view?portalId=44444444-4444-4444-8444-444444444444 1`] = `
 {
-  "lines": 595,
+  "lines": 583,
   "modals": 7,
-  "sha256": "3dbebc52fc90fea5f8c179a900cf6c7aa35b226d1a16bf671024a6e4002e9176",
+  "sha256": "834850e42d21fce03176098545002170dc8588bba41e2349184952a13b8bcbd0",
 }
 `;
 

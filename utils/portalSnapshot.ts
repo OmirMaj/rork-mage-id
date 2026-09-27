@@ -594,6 +594,13 @@ export interface PortalSnapshot {
        *  against what is owed, so a CACHED snapshot published before the
        *  server-side guard existed still cannot offer a stale amount. */
       payLinkAmount?: number;
+      /** Dollars the owner pays for this period NOW: the architect's certified
+       *  amount once it is recorded, else line 8 as applied for
+       *  (aiaPayableNow). The Pay link is minted for this figure, so the page's
+       *  Pay guard and "Pay $X" label read it; `currentPaymentDue` stays line 8
+       *  for the G702 itself. Older snapshots carry none — the page falls back
+       *  to currentPaymentDue. */
+      payableNow?: number;
       /** The invoice this certificate certifies. One billing period is one
        *  obligation: the portal uses this to refuse a Pay button on a pay
        *  application whose invoice is already settled, even when a stale
@@ -1914,6 +1921,8 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         percentComplete: app.totals.percentComplete,
         payLinkUrl,
         payLinkAmount: app.payLinkAmount,
+        // MONEY-AIA-CERTIFIED-LINK: the figure the (re-minted) link charges.
+        payableNow: aiaPayableNow(app),
         invoiceId: app.invoiceId,
         // A period whose INVOICE was paid is settled even though the AIA row
         // carries no paid_at of its own. Say so, rather than leaving the card

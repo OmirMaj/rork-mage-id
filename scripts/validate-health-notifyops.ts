@@ -110,6 +110,13 @@ async function main() {
     ok('response id keys the DELIVERY: identifier@date', tap.notificationResponseId(respAt('abc', 1790000000000, {})) === 'abc@1790000000000');
     ok('a non-finite date falls back to the identifier', tap.notificationResponseId(respAt('abc', Number.NaN, {})) === 'abc');
     ok('no identifier → null even with a date', tap.notificationResponseId(respAt(null, 1790000000000, {})) === null);
+    // expo-notifications serializes notification.date as SECONDS (a double) on
+    // iOS and MILLISECONDS on Android. The key normalises both to whole ms.
+    ok('iOS seconds double → whole ms in the key', tap.notificationResponseId(respAt('abc', 1790000000.1234, {})) === 'abc@1790000000123');
+    ok('the same instant in iOS seconds and Android ms gives the same key',
+      tap.notificationResponseId(respAt('abc', 1790000000.5, {})) === tap.notificationResponseId(respAt('abc', 1790000000500, {})));
+    ok('a zero / negative date falls back to the identifier',
+      tap.notificationResponseId(respAt('abc', 0, {})) === 'abc' && tap.notificationResponseId(respAt('abc', -5, {})) === 'abc');
 
     const h = tap.createHandledResponses();
     ok('dedupe: first claim of an id is true', h.claim('x-1') === true);
@@ -157,6 +164,12 @@ async function main() {
     const w1 = tap.handleNotificationResponse(lineup(MON), rh, deps);
     const w2 = tap.handleNotificationResponse(lineup(MON + 7 * 86400000), rh, deps);
     ok('weekly reminder: week 2 opens after week 1 was tapped', w1 === true && w2 === true, JSON.stringify({ w1, w2 }));
+    // The same reminder on iOS, where the date arrives in seconds.
+    const iosNudge = (atMs: number) => respAt('mageid-week-close-nudge', atMs / 1000 + 0.000123, { kind: 'morning_brief' });
+    const iosFirst = tap.handleNotificationResponse(iosNudge(MON), rh, deps);
+    const iosAgain = tap.handleNotificationResponse(iosNudge(MON), rh, deps);
+    const iosNext = tap.handleNotificationResponse(iosNudge(TUE), rh, deps);
+    ok('iOS (seconds date): one tap once, the next day\'s delivery opens again', iosFirst === true && iosAgain === false && iosNext === true, JSON.stringify({ iosFirst, iosAgain, iosNext }));
   }
 
   const CTX = code('contexts/NotificationContext.tsx');

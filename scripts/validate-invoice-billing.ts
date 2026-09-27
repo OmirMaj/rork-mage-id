@@ -2792,7 +2792,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     };
     const gate = new Function(
       `var SETTLED_INVOICE_IDS={};
-       ${lift('noteSettledInvoices')}${lift('aiaIsPaid')}${lift('aiaCanPay')}
+       ${lift('noteSettledInvoices')}${lift('aiaIsPaid')}${lift('aiaPayable')}${lift('aiaCanPay')}
        return { noteSettledInvoices, aiaIsPaid, aiaCanPay };`,
     )() as {
       noteSettledInvoices: (i: unknown[]) => void;
