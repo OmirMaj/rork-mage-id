@@ -207,13 +207,13 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
     {
       "found": true,
       "lines": 38,
-      "sha256": "738fbaa3431fc24e4f344bcee9a35b7938d28fd054bfe90a1ab57114a6a386ae",
+      "sha256": "4a70b55c90f0964a1d57342f36233739e0cc8944463534ff040bcf01af356ed6",
       "title": "Draw Your Signature",
     },
   ],
   "whole": {
     "lines": 711,
-    "sha256": "7109daedd43ccbadd8c6531b40bcf276727d3ee8df27a32597257d0521dbe996",
+    "sha256": "e7d2c1c1be7fcf190b2d55d8bd34e8654efa39af7d99c31198b4074241fc3f31",
   },
 }
 `;

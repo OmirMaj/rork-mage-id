@@ -7,9 +7,14 @@
 //
 // Every call is guarded: a haptic is decoration and must never break a commit.
 // The web has no haptics, so momentHaptic is a no-op there.
+//
+// The three NOTIFICATIONS (success, warning, error) go through the app's one
+// haptics module (utils/haptics), whose 400 ms per-type de-dupe means a commit
+// that lands next to a success toast (NailItToast) buzzes once, not twice.
 
 import { AccessibilityInfo, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { haptic } from '@/utils/haptics';
 
 export type MomentHaptic = 'selection' | 'light' | 'medium' | 'rigid' | 'success' | 'warning' | 'error';
 
@@ -22,9 +27,9 @@ export function momentHaptic(k: MomentHaptic): void {
       case 'light': p = Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); break;
       case 'medium': p = Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); break;
       case 'rigid': p = Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid); break;
-      case 'success': p = Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); break;
-      case 'warning': p = Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); break;
-      case 'error': p = Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); break;
+      case 'success': haptic.success(); break;
+      case 'warning': haptic.warning(); break;
+      case 'error': haptic.error(); break;
     }
     p?.catch(() => {});
   } catch {
