@@ -5,7 +5,11 @@
  * sweep) loads first. Then, once this seat on the job is known, the account
  * copy (public.code_checks) is read and merged in ONCE per mount per job
  * (utils/codeThread/cloudSync syncCodeChecksForProject); the merge lands in
- * the store, whose listener reloads the list here.
+ * the store, whose listener reloads the list here. When the seat later goes
+ * from unknown (a role read that failed or went offline) or read-only back to
+ * writable, setCodeCheckSeat re-runs that sync once (codeCheckResyncOwed), so
+ * the caption never sticks on "couldn't reach your account" after the role
+ * read recovers.
  *
  * `syncState` says where the checks are (ProjectCodeChecksCard
  * CODE_CHECKS_CAPTION): 'synced' only after the account read and every push
@@ -94,7 +98,8 @@ export function useCodeChecks(projectId: string | null | undefined): {
     };
   }, [projectId, reload]);
 
-  // Register this seat for the job whenever it changes.
+  // Register this seat for the job whenever it changes. A recovery to a
+  // writable seat after this mount's sync re-syncs inside setCodeCheckSeat.
   useEffect(() => {
     if (projectId) setCodeCheckSeat(projectId, role, { sample, readStatus });
   }, [projectId, role, sample, readStatus]);
