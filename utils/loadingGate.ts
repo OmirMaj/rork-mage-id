@@ -81,7 +81,7 @@ export function gateRestart(state: GateState, now: number): GateState {
   return { ...state, phase: 'shown', shownAt: state.shownAt ?? now };
 }
 
-/** How long the scope's exit animation runs (the hook's backstop adds 150 ms). */
+/** How long the scope's exit animation runs (the hook's lost-callback backstop adds GATE_LOST_CALLBACK_MS). */
 export function gateExitMs(scope: GateScope, reduceMotion: boolean): number {
   if (reduceMotion) return 160;
   // settle: vis starts at +200 and runs 140 ms (gone at +340); fade: 120 ms.
@@ -90,6 +90,16 @@ export function gateExitMs(scope: GateScope, reduceMotion: boolean): number {
 
 /** The backstop that finishes an exit whose completion callback never arrived. */
 export const GATE_BACKSTOP_MS = 150;
+
+/**
+ * The LOST-callback backstop, past the exit: the gate hook's own exiting timer,
+ * and LevelMark's guard while it waits on amp.stopAnimation's async native
+ * round trip. Long on purpose — the normal completion is the mark's onSettled,
+ * timed from when its settle ACTUALLY starts (a JS stall right as content
+ * mounts must not cut the settle mid-fade); this only rescues a callback that
+ * never arrives.
+ */
+export const GATE_LOST_CALLBACK_MS = 500;
 
 // ── The hook's snapshot reducer (pure, so the validator can walk it) ─────────
 

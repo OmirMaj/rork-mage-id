@@ -8,17 +8,21 @@
  *  - The mark: static when animate={false} (no clock); animating → the bubble
  *    transform is exactly translateX, scaleX, scaleY; Reduce Motion → an
  *    animated opacity and no translateX; N marks share ONE clock start / stop.
+ *  - The settle backstop runs from the settle START (a late stopAnimation
+ *    callback never cuts it); a LOST callback is rescued at exitMs + 500; a
+ *    callback landing after a restart plays nothing.
  *  - ConstructionLoader sm/md/lg → 20/36/64; labels are honest (labels[0]
  *    only, a real elapsed clock after 8 s).
  *  - BootShell stub: the splash rect, no wordmark, amp pinned 0, holds the
  *    clock; Reduce Motion → a still frame.
- *  - CraneLoader 'MAGE ID' → BootShell before boot, ScreenLoader after.
+ *  - CraneLoader is always the status loader (the 'MAGE ID' heuristic is gone:
+ *    _layout and ReloadVeil mount BootShell / ScreenLoader explicitly).
  *  - <Loading>: cached → children only; fast → no loader, no Arrive; slow →
  *    held, then settled away; render-function children never run early.
  */
 
 import React from 'react';
-import { Dimensions, Platform, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Dimensions, Platform, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { act, cleanupAsync, render, within } from '@testing-library/react-native';
 import Svg from 'react-native-svg';
 import CraneLoader, { CraneSvg } from '@/components/CraneLoader';
@@ -156,6 +160,71 @@ describe('The Level', () => {
       expect(after.count).toBe(0);
       expect(after.stops - before.stops).toBe(1);
     });
+
+    // amp.stopAnimation's callback is an async native round trip on device; a JS
+    // stall as the content mounts delays it. Held here to simulate that.
+    const holdStopAnimation = () => {
+      const pending: (() => void)[] = [];
+      const spy = jest.spyOn(Animated.Value.prototype, 'stopAnimation').mockImplementation((cb?: (value: number) => void) => {
+        if (cb) pending.push(() => cb(0));
+      });
+      return { pending, restore: () => spy.mockRestore() };
+    };
+
+    it('the settle backstop runs from the settle START: a late stopAnimation callback never cuts the settle', () => {
+      const held = holdStopAnimation();
+      // Jest's NativeAnimatedModule mock ends every native animation after 16 ms;
+      // hold those too, so ONLY a backstop can finish the exit and its timing shows.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const nam = require('react-native').NativeModules.NativeAnimatedModule;
+      const endSpy = jest.spyOn(nam, 'startAnimatingNode').mockImplementation(() => {});
+      try {
+        const onSettled = jest.fn();
+        const r = render(<LevelMark size={64} revealDelayMs={0} onSettled={onSettled} />);
+        advance(1000);
+        r.rerender(<LevelMark size={64} revealDelayMs={0} done onSettled={onSettled} />);
+        advance(600); // past the old done-time backstop (340 + 150): the settle has not even started
+        expect(onSettled).not.toHaveBeenCalled();
+        expect(held.pending).toHaveLength(1);
+        act(() => { held.pending.shift()!(); }); // the callback lands late: the settle starts now
+        advance(489);
+        expect(onSettled).not.toHaveBeenCalled(); // settle start + 340 + 150 not reached: never cut mid-settle
+        advance(1);
+        expect(onSettled).toHaveBeenCalledTimes(1);
+        advance(2000);
+        expect(onSettled).toHaveBeenCalledTimes(1);
+        r.unmount();
+      } finally {
+        endSpy.mockRestore();
+        held.restore();
+      }
+    });
+
+    it('a LOST stopAnimation callback is rescued at exitMs + 500; one landing after a restart plays nothing', () => {
+      const held = holdStopAnimation();
+      try {
+        const onSettled = jest.fn();
+        const r = render(<LevelMark size={64} revealDelayMs={0} onSettled={onSettled} />);
+        advance(1000);
+        r.rerender(<LevelMark size={64} revealDelayMs={0} done onSettled={onSettled} />);
+        advance(839);
+        expect(onSettled).not.toHaveBeenCalled();
+        advance(1);
+        expect(onSettled).toHaveBeenCalledTimes(1);
+        // A second exit, then a restart while its callback is still in flight.
+        r.rerender(<LevelMark size={64} revealDelayMs={0} onSettled={onSettled} />);
+        advance(500);
+        held.pending.length = 0;
+        r.rerender(<LevelMark size={64} revealDelayMs={0} done onSettled={onSettled} />);
+        r.rerender(<LevelMark size={64} revealDelayMs={0} onSettled={onSettled} />);
+        act(() => { held.pending.shift()?.(); });
+        advance(2000);
+        expect(onSettled).toHaveBeenCalledTimes(1);
+        r.unmount();
+      } finally {
+        held.restore();
+      }
+    });
   });
 
   describe('ConstructionLoader', () => {
@@ -241,15 +310,17 @@ describe('The Level', () => {
   });
 
   describe('CraneLoader', () => {
-    it("'MAGE ID' → BootShell before the first boot, ScreenLoader after", () => {
+    it("no label heuristic: 'MAGE ID' and the default are plain status loaders, before and after the first boot", () => {
       const a = render(<CraneLoader label="MAGE ID" />);
-      expect(a.getByTestId('boot-shell')).toBeTruthy();
+      expect(a.getByTestId('crane-loader')).toBeTruthy();
+      expect(a.queryByTestId('boot-shell')).toBeNull();
       expect(a.queryByTestId('screen-loader')).toBeNull();
       a.unmount();
       setBootReady(true);
-      const b = render(<CraneLoader label="MAGE ID" />);
-      expect(b.getByTestId('screen-loader')).toBeTruthy();
-      expect(b.queryByTestId('boot-shell')).toBeNull();
+      const b = render(<CraneLoader />);
+      expect(b.getByTestId('crane-loader')).toBeTruthy();
+      expect(b.getByText('Loading')).toBeTruthy();
+      expect(b.queryByTestId('screen-loader')).toBeNull();
       b.unmount();
     });
 
@@ -296,7 +367,11 @@ describe('The Level', () => {
       expect(r.queryByText('kid')).toBeNull();
       advance(400); // the 400 ms hold ends at 700: the settle starts
       expect(r.getByText('kid')).toBeTruthy(); // content arrives under the settling level
-      advance(600); // settled (or backstopped at +340 + 150) → unmounted
+      // Jest's NativeAnimatedModule.getValue never answers, so amp.stopAnimation's
+      // callback is always LOST here: the lost-callback backstop (340 + 500) ends it.
+      advance(600);
+      expect(r.getByTestId('loading-screen')).toBeTruthy();
+      advance(300); // settled (or rescued at +340 + 500) → unmounted
       expect(r.queryByTestId('loading-screen')).toBeNull();
       expect(r.getByText('kid')).toBeTruthy();
       expect(kid).toHaveBeenCalled();

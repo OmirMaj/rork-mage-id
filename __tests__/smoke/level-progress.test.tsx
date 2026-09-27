@@ -15,7 +15,7 @@
 
 import React from 'react';
 import { Animated, Dimensions, Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { act, cleanupAsync, render } from '@testing-library/react-native';
+import { act, cleanupAsync, render, within } from '@testing-library/react-native';
 import WorkProgress from '@/components/loaders/WorkProgress';
 import CodeCheckLoader from '@/components/CodeCheckLoader';
 
@@ -117,6 +117,12 @@ describe('honest long waits', () => {
       const b = render(<WorkProgress title="Comparing sheets" onCancel={() => {}} onBackground={() => {}} />);
       expect(b.getByTestId('work-progress-cancel')).toBeTruthy();
       expect(b.getByTestId('work-progress-background')).toBeTruthy();
+      // VoiceOver: an `accessible` progressbar hides its children, so the
+      // actions must sit BESIDE it, never inside it.
+      const bar = within(b.getByRole('progressbar'));
+      expect(bar.queryByTestId('work-progress-cancel')).toBeNull();
+      expect(bar.queryByTestId('work-progress-background')).toBeNull();
+      expect(bar.getByTestId('work-progress-title')).toBeTruthy();
       b.unmount();
     });
 

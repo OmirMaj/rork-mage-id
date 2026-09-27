@@ -290,6 +290,8 @@ check('A skeletonPhase: unindexed = 0, row·0.10 + col·0.04 mod 1', L.skeletonP
   check('C snapshot: idle at mount when not loading', !G.gateInitial(false, 0).show);
   check('C exit durations: settle 340, fade 120, RM 160; backstop 150', G.gateExitMs('screen', false) === 340 && G.gateExitMs('inline', false) === 120
     && G.gateExitMs('screen', true) === 160 && G.GATE_BACKSTOP_MS === 150);
+  check('C the gate hook\'s exiting backstop only catches a LOST callback: exitMs + GATE_LOST_CALLBACK_MS (500)', G.GATE_LOST_CALLBACK_MS === 500
+    && /gateExitMs\(scope, reduce\) \+ GATE_LOST_CALLBACK_MS\)/.test(code(read('hooks/useLoadingGate.ts'))));
 }
 
 // ── D. Source rules over components/loaders/** ───────────────────────────────
@@ -370,7 +372,12 @@ for (const f of LOADER_FILES) {
   check('D LevelMark: pixel snapping via PixelRatio.roundToNearestPixel', /PixelRatio\.roundToNearestPixel/.test(mark));
   check('D LevelMark: decorative (hidden from screen readers, no touches)', /accessibilityElementsHidden: true/.test(mark)
     && /importantForAccessibility: 'no-hide-descendants'/.test(mark) && /pointerEvents: 'none'/.test(mark));
-  check('D LevelMark: a lost completion callback is backstopped (exitMs + 150)', /setTimeout\(finish, exitMsFor\(exitKind, reduce\) \+ 150\)/.test(mark));
+  check('D LevelMark: a lost completion callback is backstopped (exitMs + 150, from when the exit really starts)',
+    /const exitMs = exitMsFor\(exitKind, reduce\);/.test(mark) && /backstopRef\.current = setTimeout\(finish, ms\)/.test(mark)
+    && (mark.match(/armBackstop\(exitMs \+ 150\)/g) ?? []).length === 3);
+  check('D LevelMark: the stopAnimation settle re-arms its backstop at settle start (a stalled callback never cuts the settle)',
+    /const startSettle = \(withAmp: boolean\) => \{\s*if \(settledRef\.current \|\| !prevDone\.current\) return;\s*armBackstop\(exitMs \+ 150\);/.test(mark)
+    && /armBackstop\(exitMs \+ GATE_LOST_CALLBACK_MS\);\s*amp\.stopAnimation\(\(\) => startSettle\(true\)\)/.test(mark));
   check('D LevelMark: the clock comes from useLevelClock', /useLevelClock\(animate\)/.test(mark));
   const clock = code(read('components/loaders/levelClock.ts'));
   check('D levelClock.ts: no stopAnimation', !/stopAnimation/.test(clock));
@@ -381,8 +388,11 @@ for (const f of LOADER_FILES) {
     && (clock.match(/\.stop\(\)/g) ?? []).length === 1);
   check('D levelClock.ts: web acquires nothing', /Platform\.OS !== 'web'/.test(clock));
   const boot = code(read('components/loaders/BootShell.tsx'));
-  check('D BootShell stub: no useTheme, no Text (no wordmark), no timers, splash tone at splashRect', !/useTheme/.test(boot) && !/<Text\b/.test(boot)
-    && !/setTimeout|setInterval/.test(boot) && /tone="splash"/.test(boot) && /splashRect\(width, height, Platform\.OS\)/.test(boot)
+  // LAUNCH completed BootShell with the splash's adopted wordmark (an
+  // Animated.Text driven by the shared splash stage), so the rule pins that
+  // path instead of "no wordmark": never a plain <Text>, only the stage.
+  check('D BootShell: no useTheme, no timers, splash tone at splashRect; a wordmark only via the adopted splash stage', !/useTheme/.test(boot) && !/<Text\b/.test(boot)
+    && /useSplashStage\(\)/.test(boot) && !/setTimeout|setInterval/.test(boot) && /tone="splash"/.test(boot) && /splashRect\(width, height, Platform\.OS\)/.test(boot)
     && /animate=\{!reduce\}/.test(boot) && /revealDelayMs=\{0\}/.test(boot) && /exit="none"/.test(boot));
   const arrive = code(read('components/loaders/Arrive.tsx'));
   check('D Arrive: null style unless armed; never a setState on completion', /finished\.current \? null : motion\.current/.test(arrive) && !/useState/.test(arrive));
@@ -428,8 +438,9 @@ for (const f of LOADER_FILES) {
     else if (depth === 0 && crane.startsWith('Platform.OS', i)) moduleScopeRead = true;
   }
   check('E CraneLoader.tsx: no module-scope Platform.OS read', !moduleScopeRead);
-  check("E the 'MAGE ID' heuristic is documented and routes BootShell / ScreenLoader on getHasBooted()", /THIS IS A DOCUMENTED HEURISTIC/.test(craneRaw)
-    && /if \(label === 'MAGE ID' && !rotating\) \{\s*return getHasBooted\(\) \? <ScreenLoader style=\{style\} \/> : <BootShell \/>;/.test(crane));
+  check("E the 'MAGE ID' heuristic is gone (LAUNCH P3): no label routing, no BootShell / ScreenLoader import, a plain default label",
+    !/THIS IS A DOCUMENTED HEURISTIC/.test(craneRaw) && !/label === 'MAGE ID'/.test(crane)
+    && !/import (BootShell|ScreenLoader)\b/.test(crane) && /label = 'Loading'/.test(crane));
   check('E CraneLoader keeps testID crane-loader; the label is a Type.headline status line', /testID="crane-loader"/.test(crane) && /Type\.headline/.test(crane)
     && !/serifLargeTitle/.test(crane));
   check('E CraneLoader facts eyebrow is textMuted (was accent)', /WHILE WE WORK/.test(crane) && /Type\.monoCaption, styles\.factEyebrow, \{ color: colors\.textMuted \}/.test(crane));
@@ -494,7 +505,9 @@ for (const f of LOADER_FILES) {
 // CROSS-RUN COUPLING: the parallel d6r run (X1/X2/X3) edits files this scan
 // covers and may add spinners; the orchestrator re-measures and resets this
 // baseline after the d6r merge. Measured on the untouched base 974162b3: 238.
-const ACTIVITY_INDICATOR_BASELINE = 238;
+// Re-measured on the integrated tree (The Level + main ac528d3b, d6r phases A+B
+// merged, P1/P2/P3 applied): 231. It may only go down.
+const ACTIVITY_INDICATOR_BASELINE = 231;
 {
   let n = 0;
   for (const dir of ['app', 'components', 'hooks']) {

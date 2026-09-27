@@ -1,7 +1,7 @@
 // Loading — the one way to put a loader in front of content.
 //
 //   <Loading ready={!!data} scope="section" caption="Pricing your scope">
-//     {() => <Estimate data={data!} />}
+//     {() => (data ? <Estimate data={data} /> : null)}
 //   </Loading>
 //
 // - ready at MOUNT → the children render directly: no wrapper, no loader
@@ -15,6 +15,13 @@
 // - The content mounts when the exit starts (not during the hold, so it never
 //   shows through a holding loader); once mounted it stays mounted (a later
 //   restart puts the loader back over it, never remounts it).
+// - THE RESTART CONTRACT for render-function children: after a restart (ready
+//   goes false again once the content has mounted — a refetch, a query-key
+//   change) the content stays mounted UNDER the loader, so the function is
+//   still called while ready === false. It must tolerate stale or undefined
+//   data: guard it (`data ? <X data={data} /> : null`), never `data!`, or a
+//   cleared query throws mid-restart. (Adopters and the codemod wave: this
+//   is the one sharp edge of "once wrapped, stay wrapped".)
 
 import React, { useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';

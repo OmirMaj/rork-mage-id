@@ -576,7 +576,7 @@ const a11yHidden = (n: { props: Record<string, unknown> }) =>
   n.props.accessibilityElementsHidden === true && n.props.importantForAccessibility === 'no-hide-descendants';
 
 /** The Button's own Animated layers — LevelMark (the busy level) animates inside itself. */
-const buttonLayers = (r: { UNSAFE_queryAllByType: (t: unknown) => Array<{ parent: unknown }> }) =>
+const buttonLayers = (r: Pick<ReturnType<typeof render>, 'UNSAFE_queryAllByType'>) =>
   r.UNSAFE_queryAllByType(Animated.View).filter((n) => {
     let p = n.parent as { type: unknown; parent: unknown } | null;
     while (p) { if (p.type === LevelMark) return false; p = p.parent as typeof p; }

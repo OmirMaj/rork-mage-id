@@ -126,7 +126,7 @@ console.log('\n#7 the root navigator survives a sign-in:');
   ok('a cold start signed in owns the Stack from the first boot', cold.next.stackOwner === 'user-a');
 
   ok('_layout renders the loader alone ONLY in loader mode (no bare `if (bootstrapping) return`)',
-    /if \(navMode === 'loader'\) \{\s*return <CraneLoader label="MAGE ID" \/>;\s*\}/.test(LAYOUT)
+    /if \(navMode === 'loader'\) \{\s*return getHasBooted\(\) \? <ScreenLoader \/> : <BootShell \/>;\s*\}/.test(LAYOUT)
     && !/if \(bootstrapping\) \{\s*return <CraneLoader/.test(LAYOUT));
   ok('…computes the mode from rootNavPresentation(prev, { bootstrapping, userId })',
     /rootNavPresentation\(navStateRef\.current, \{\s*bootstrapping,\s*userId: user\?\.id \?\? null,\s*\}\)/.test(LAYOUT)

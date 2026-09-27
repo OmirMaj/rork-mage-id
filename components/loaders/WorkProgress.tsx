@@ -199,25 +199,32 @@ export default function WorkProgress({
 
   return (
     <View style={[styles.root, style]} testID={testID}>
-      <View
-        style={[styles.column, { width: colW }]}
-        accessible
-        accessibilityRole="progressbar"
-        accessibilityLabel={shownTitle}
-        accessibilityValue={count ? { min: 0, max: Math.max(0, count.total), now: Math.max(0, count.done) } : undefined}
-      >
-        {mark}
-        <Text
-          style={[Type.headline, styles.phase, { color: colors.text }]}
-          numberOfLines={2}
-          accessibilityLiveRegion="polite"
-          testID={`${testID}-title`}
+      <View style={[styles.column, { width: colW }]}>
+        {/* ONLY the mark + phase + clock are the progressbar. An `accessible`
+            View is read as ONE element on iOS and hides its children from
+            VoiceOver, so the count, the steps, the Cancel / background actions
+            and the facts footer sit BESIDE it, where VoiceOver can reach them. */}
+        <View
+          style={styles.status}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={shownTitle}
+          accessibilityValue={count ? { min: 0, max: Math.max(0, count.total), now: Math.max(0, count.done) } : undefined}
+          testID={`${testID}-status`}
         >
-          {shownTitle}
-        </Text>
-        <Text style={[Type.footnote, styles.elapsed, styles.tabular, { color: colors.textSecondary }]} testID={`${testID}-elapsed`}>
-          {elapsedLine(now - start, typical)}
-        </Text>
+          {mark}
+          <Text
+            style={[Type.headline, styles.phase, { color: colors.text }]}
+            numberOfLines={2}
+            accessibilityLiveRegion="polite"
+            testID={`${testID}-title`}
+          >
+            {shownTitle}
+          </Text>
+          <Text style={[Type.footnote, styles.elapsed, styles.tabular, { color: colors.textSecondary }]} testID={`${testID}-elapsed`}>
+            {elapsedLine(now - start, typical)}
+          </Text>
+        </View>
 
         {count ? (
           <View style={styles.countBlock}>
@@ -272,6 +279,8 @@ export default function WorkProgress({
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   column: { alignItems: 'center' },
+  // Stretched to the column so its centred children lay out exactly as before.
+  status: { alignSelf: 'stretch', alignItems: 'center' },
   phase: { marginTop: 16, textAlign: 'center' },
   elapsed: { marginTop: 6, textAlign: 'center' },
   tabular: { fontVariant: ['tabular-nums'] },

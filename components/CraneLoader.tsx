@@ -5,10 +5,7 @@ import { Type } from '@/constants/typography';
 import { nativeDriver } from '@/components/ui/motion';
 import LevelMark, { useLevelReveal } from '@/components/loaders/LevelMark';
 import CraneMarkWeb from '@/components/loaders/CraneMarkWeb';
-import ScreenLoader from '@/components/loaders/ScreenLoader';
-import BootShell from '@/components/loaders/BootShell';
 import { splashFallbackColors } from '@/components/loaders/themeFallback';
-import { getHasBooted } from '@/components/launch/launchCurtain';
 import { LOADER } from '@/utils/levelTimeline';
 
 /**
@@ -52,7 +49,7 @@ export function CraneSvg({ size, animate = true }: { size: number; animate?: boo
 }
 
 interface CraneLoaderProps {
-  /** Status line under the level. 'MAGE ID' with no facts = the boot / reload loader. */
+  /** Status line under the level (a plain status, never the brand wordmark). */
   label?: string;
   /** Rotating one-liners shown beneath (construction facts / tips — "did you know", not progress). */
   facts?: readonly string[];
@@ -64,18 +61,11 @@ interface CraneLoaderProps {
 
 const REVEAL_MS = LOADER.enter.defaultRevealMs;
 
-export default function CraneLoader({ label = 'MAGE ID', facts, factIntervalMs = 3800, style }: CraneLoaderProps) {
-  const rotating = Array.isArray(facts) && facts.length > 0;
-  // THIS IS A DOCUMENTED HEURISTIC that exists only because app/_layout.tsx:880
-  // and components/launch/ReloadVeil.tsx:99 render `<CraneLoader label="MAGE ID" />`
-  // and _layout is forbidden; the explicit mount ships as a handoff patch (LAUNCH
-  // lane). Before the first boot finishes it is the BootShell (the splash ink +
-  // level on the shared clock, so if BrandSplash's failsafe fires first it
-  // dissolves onto an identical frame); after it, an account switch gets the
-  // theme-ground ScreenLoader.
-  if (label === 'MAGE ID' && !rotating) {
-    return getHasBooted() ? <ScreenLoader style={style} /> : <BootShell />;
-  }
+// The boot and reload loaders are explicit now (app/_layout.tsx mounts
+// BootShell / ScreenLoader, ReloadVeil draws ScreenLoader), so the old
+// `label === 'MAGE ID'` routing heuristic is gone and the default label is a
+// plain status line.
+export default function CraneLoader({ label = 'Loading', facts, factIntervalMs = 3800, style }: CraneLoaderProps) {
   return <CraneStatus label={label} facts={facts} factIntervalMs={factIntervalMs} style={style} />;
 }
 

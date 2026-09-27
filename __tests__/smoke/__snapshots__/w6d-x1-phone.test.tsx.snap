@@ -50,17 +50,17 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailMo
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadingOverlay — dark 1`] = `
 {
-  "lines": 46,
+  "lines": 39,
   "modalCount": 1,
-  "sha256": "18ac67e47d9b1112bd4784065385173c0b13ac3c44a790450d0fc067c2505ec9",
+  "sha256": "2938e50523ae343c9ee05d0d3898ba461dbb8cb06d3635fff6dcc2c18e97c8fe",
 }
 `;
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadingOverlay — light 1`] = `
 {
-  "lines": 46,
+  "lines": 39,
   "modalCount": 1,
-  "sha256": "e46ac2c9c14bd0d77490b2dba5ffb57258cf21d24af130d90fff1d249f8af40d",
+  "sha256": "b80a9009f3eaa9a0006f54d1b53ed75e30df5ad259ef7e562f07d47591fa82fe",
 }
 `;
 
@@ -276,7 +276,7 @@ exports[`lane X1 — D: the classic schedule tab (golden, android 800 × 1280) /
 {
   "lines": 2150,
   "modalCount": 19,
-  "sha256": "f97a5c8f1f4055e9cf4dc46c72074fd47f7244d5bc232eec32de81f555525ca3",
+  "sha256": "116fb10376e9327a9692f6bc4f2b9bdd0c296ab78c8d53251e7a3d8510bf93a8",
 }
 `;
 

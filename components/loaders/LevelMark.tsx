@@ -25,6 +25,7 @@ import {
   ACCELERATE, DECELERATE, LOADER, beatRange, driftUnit, easeInOutSine, easeOutCubic, enterTimings,
   levelInput, levelParts, linear, plateau, retractRanges, rmBreath, speedUnit, type LevelRect,
 } from '@/utils/levelTimeline';
+import { GATE_LOST_CALLBACK_MS } from '@/utils/loadingGate';
 import { useLevelClock } from './levelClock';
 import { levelPalette, splashFallbackColors, type LevelTone } from './themeFallback';
 import LevelMarkWeb from './LevelMarkWeb';
@@ -181,15 +182,26 @@ function LevelMarkNative({
       settledRef.current = true;
       onSettledRef.current?.();
     };
-    clearBackstop();
-    backstopRef.current = setTimeout(finish, exitMsFor(exitKind, reduce) + 150);
+    // A lost completion callback must never strand the host: the backstop
+    // finishes the exit itself at exitMs + 150, timed from when the exit
+    // ACTUALLY starts. Every path below starts it in this tick except the
+    // settle behind amp.stopAnimation — an async native round trip that lands
+    // exactly as the content mounts and JS stalls — so that path holds only a
+    // lost-callback backstop here and re-arms the exact one inside startSettle.
+    const exitMs = exitMsFor(exitKind, reduce);
+    const armBackstop = (ms: number) => {
+      clearBackstop();
+      backstopRef.current = setTimeout(finish, ms);
+    };
     if (!animate) { finish(); return; }
     const onVisDone = ({ finished }: { finished: boolean }) => { if (finished) finish(); };
     if (reduce) {
+      armBackstop(exitMs + 150);
       Animated.timing(vis, { toValue: 0, duration: LOADER.rmSettleMs, easing: ACCELERATE, useNativeDriver: nativeDriver }).start(onVisDone);
       return;
     }
     if (exitKind === 'fade') {
+      armBackstop(exitMs + 150);
       Animated.timing(vis, { toValue: 0, duration: LOADER.fadeExitMs, easing: ACCELERATE, useNativeDriver: nativeDriver }).start(onVisDone);
       return;
     }
@@ -197,6 +209,10 @@ function LevelMarkNative({
     // the caps + graduations take the accent; the mark fades. All in ONE tick.
     const S = LOADER.settle;
     const startSettle = (withAmp: boolean) => {
+      // A late callback after the backstop finished, or after a restart
+      // (done went false again while stopAnimation was in flight), plays nothing.
+      if (settledRef.current || !prevDone.current) return;
+      armBackstop(exitMs + 150); // settle start + 340 + 150
       if (withAmp) {
         Animated.timing(amp, { toValue: 0, duration: S.ampMs, easing: easeOutCubic, useNativeDriver: nativeDriver }).start();
       }
@@ -208,7 +224,10 @@ function LevelMarkNative({
       Animated.timing(vis, { toValue: 0, duration: visTotal, easing: plateau(S.visAtMs / visTotal, ACCELERATE), useNativeDriver: nativeDriver }).start(onVisDone);
     };
     if (hostAmp) startSettle(false);
-    else amp.stopAnimation(() => startSettle(true));
+    else {
+      armBackstop(exitMs + GATE_LOST_CALLBACK_MS);
+      amp.stopAnimation(() => startSettle(true));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done]);
 

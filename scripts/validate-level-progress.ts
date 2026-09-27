@@ -223,6 +223,16 @@ const HEX = /#[0-9a-fA-F]{3,8}\b/;
   check('B WorkProgress: summary holds LOADER.workProgress.summaryHoldMs, then onDone', /LOADER\.workProgress\.summaryHoldMs/.test(src));
   check('B WorkProgress: progressbar role, live-region title, count value', /accessibilityRole="progressbar"/.test(src)
     && /accessibilityLiveRegion="polite"/.test(src) && /accessibilityValue=\{count \?/.test(src));
+  {
+    // VoiceOver: an `accessible` View reads as one element and hides its
+    // children, so the progressbar group holds only the mark + title + elapsed;
+    // the count, steps, actions and facts footer are its siblings.
+    const at = src.indexOf('accessibilityRole="progressbar"');
+    const group = at >= 0 ? src.slice(at, src.indexOf('</View>', at)) : '';
+    check('B WorkProgress: the progressbar group is only mark + title + elapsed (actions / facts reachable by VoiceOver)',
+      at >= 0 && /\{mark\}/.test(group) && /-title`/.test(group) && /-elapsed`/.test(group)
+      && !/onCancel|onBackground|hasFacts|steps|countLine|\{count \? \(/.test(group));
+  }
   check('B WorkProgress: Cancel / background render only when passed', /\{onCancel \? \(/.test(src) && /\{onBackground \? \(/.test(src));
   check('B WorkProgress: no hex literal', !HEX.test(src), (src.match(HEX) ?? [''])[0]);
 }

@@ -237,7 +237,7 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
   ],
   "whole": {
     "lines": 595,
-    "sha256": "18f7ed4161914abdaab5aca27eff311bd3c270e59587d84b6a48199d4cbd4f97",
+    "sha256": "d5c9d8c99c8a992479d716b87caa419317d69e08e7c8fe43d3e82660698b9be2",
   },
 }
 `;
@@ -325,7 +325,7 @@ exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS
   ],
   "whole": {
     "lines": 1645,
-    "sha256": "8616c9bb5f9b943d44dbffbb47e035b1ae183444e3155b56c3ee2f106849ff89",
+    "sha256": "2fb8ed2466555de90618acda1eb3b9ac0af5da37053e4e6c6599d17e23d6e14e",
   },
 }
 `;
