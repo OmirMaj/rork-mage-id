@@ -20,7 +20,7 @@ import { isTransportError } from '@/utils/networkErrors';
 import { isSampleProject } from '@/utils/sampleGuard';
 import { seatCanWrite, type SeatReadStatus, type SyncSeatRole } from '@/utils/syncSeat';
 import { parseTakeoffDoc, type TakeoffDoc } from '@/utils/takeoff/conditions';
-import { EMPTY_TAKEOFF_SYNC_META, takeoffDocRow, type TakeoffSyncMeta } from '@/utils/takeoff/takeoffDocMerge';
+import { EMPTY_TAKEOFF_SYNC_META, isTakeoffWriteFor, takeoffDocRow, type TakeoffSyncMeta } from '@/utils/takeoff/takeoffDocMerge';
 
 export type TakeoffSaveState = 'local' | 'seat' | 'syncing' | 'synced' | 'offline' | 'failed' | 'refused';
 export type TakeoffSyncVerdict = 'ok' | 'local' | 'seat' | 'seat_unknown';
@@ -160,6 +160,62 @@ export async function pushTakeoffDoc(projectId: string, userId: string, doc: Tak
   } catch {
     return 'failed';
   }
+}
+
+// ── the offline hold (one queued write per job) ─────────────────────────────
+/**
+ * Does this session's offline queue still hold a takeoff_docs write for the
+ * job? null when the queue could not be read (the hook then pushes: a second
+ * queued copy is safe, a held save that never goes out is not).
+ */
+export async function takeoffWriteQueued(projectId: string): Promise<boolean | null> {
+  const cloud = cloudModules();
+  if (!cloud) return false;
+  try {
+    const { entries, readFailed } = await cloud.queue.getOwnOfflineQueueDetailed();
+    if (readFailed) return null;
+    return entries.some((m) => isTakeoffWriteFor(m, projectId));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A push was held behind this job's queued write: start one drain now. A
+ * write queued behind an earlier one used to do this itself (offlineQueue's
+ * ordering guard schedules a drain); a held push never reaches that guard, so
+ * without this a reconnect waited for OfflineSyncManager's backoff (up to
+ * 5 min). processOfflineQueue is single-flight, so a drain already running is
+ * joined, never doubled. No copy is added to the queue.
+ */
+export function kickTakeoffQueueDrain(): void {
+  const cloud = cloudModules();
+  if (!cloud) return;
+  try {
+    void cloud.queue.processOfflineQueue().catch(() => { /* OfflineSyncManager retries */ });
+  } catch {
+    /* no queue module: nothing is ever held */
+  }
+}
+
+/**
+ * Called when the offline queue moved: after every enqueue and every flush
+ * write-back (onQueueChanged — which also covers a drop, a discard and the
+ * sign-out clear) and after a flush that landed a takeoff_docs write
+ * (onQueueFlushed). The hook then re-reads takeoffWriteQueued; the signal
+ * itself proves nothing. Returns the unsubscribe.
+ */
+export function onTakeoffQueueSignal(listener: () => void): () => void {
+  const cloud = cloudModules();
+  if (!cloud) return () => {};
+  const offs: (() => void)[] = [];
+  try {
+    offs.push(cloud.queue.onQueueChanged(() => listener()));
+    offs.push(cloud.queue.onQueueFlushed((tables) => { if (tables.has('takeoff_docs')) listener(); }));
+  } catch {
+    /* no queue module: nothing is ever held */
+  }
+  return () => { for (const off of offs) off(); };
 }
 
 // ── meta ────────────────────────────────────────────────────────────────────

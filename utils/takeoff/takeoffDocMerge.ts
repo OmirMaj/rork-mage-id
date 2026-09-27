@@ -194,3 +194,81 @@ export function mergeTakeoffDocs({ local: localIn, meta, server }: TakeoffMergeI
     rule: 5,
   };
 }
+
+// ── one queued write per job (the offline hold) ─────────────────────────────
+// utils/offlineQueue appends and never coalesces a record, so every debounced
+// push made while offline used to park ANOTHER full copy of the takeoff in the
+// queue (on web: localStorage, ~5 MB shared with the Supabase session). Now,
+// while this job's last push still sits in the queue, a new push is HELD: the
+// edit stays on this browser, the hold is marked, and ONE push of the latest
+// doc goes out once that write has left the queue (a queue signal) or at the
+// next edit after it has. The queue replays a record's writes oldest-first, so
+// the latest doc is always the last write.
+
+/** The push this browser left in the offline queue for a job. */
+export interface TakeoffQueuedPush {
+  /** The updated_at it carries (meta.pendingStamp when it was sent). */
+  stamp: string;
+  /** This device's clock when it was sent (→ lastSyncedLocalAt once it lands). */
+  sentAt: string;
+  /** The hook's edit count when its doc was taken. */
+  seq: number;
+  /** A later push was held behind it: the takeoff owes one more push. */
+  held: boolean;
+}
+
+/**
+ * Before a push. 'hold' while this job's queued push is still in the queue;
+ * 'settle' once it has left (verify what landed, then push); 'push' when
+ * nothing is queued. An unreadable queue (null) never holds: a second queued
+ * copy is safe (replayed oldest-first), a save that never goes out is not.
+ */
+export function takeoffPushGate(queued: TakeoffQueuedPush | null, stillQueued: boolean | null): 'push' | 'hold' | 'settle' {
+  if (!queued) return 'push';
+  if (stillQueued === true) return 'hold';
+  if (stillQueued === false) return 'settle';
+  return 'push';
+}
+
+/** A queue signal (a flush, a drop, a clear): settle only once the write has left. */
+export function takeoffQueueSignal(queued: TakeoffQueuedPush | null, stillQueued: boolean | null): 'settle' | 'wait' {
+  return queued && stillQueued === false ? 'settle' : 'wait';
+}
+
+/**
+ * The queued push has left the queue: what landed? `server` is the row's
+ * updated_at read back (null: no row; 'error' / 'offline': the read failed).
+ *   'synced' — the account holds exactly that push, and nothing is owed;
+ *   'push'   — it holds that push, and the takeoff changed since: push the
+ *              latest now (straight after the verify, never through rule 3,
+ *              whose clock comparison could call a held edit older);
+ *   'merge'  — anything else (another device wrote after it, the write was
+ *              dropped, the read failed): fetch + merge, which pushes what the
+ *              account lacks. The hold never decides the account copy alone.
+ */
+export function takeoffLandedAction(stamp: string, server: string | null, dirty: boolean): 'synced' | 'push' | 'merge' {
+  const sMs = stampMs(stamp);
+  const vMs = server == null ? null : stampMs(server);
+  if (sMs != null && vMs != null && sMs === vMs) return dirty ? 'push' : 'synced';
+  return 'merge';
+}
+
+/** Is this offline-queue entry a takeoff_docs write for the job? (id === project_id === the job.) */
+export function isTakeoffWriteFor(m: { table?: unknown; data?: unknown } | null | undefined, projectId: string): boolean {
+  if (!m || m.table !== 'takeoff_docs' || !projectId) return false;
+  const d = m.data as { id?: unknown; project_id?: unknown } | null | undefined;
+  return !!d && (d.id === projectId || d.project_id === projectId);
+}
+
+/**
+ * meta.localEditedAt for an edit made while a push is held behind a queued
+ * write: now, or 1 ms past that write's stamp, whichever is later. The stamp
+ * can run ahead of this device's clock (nextPushStamp steps past the server's
+ * newest), and rule 3 keeps the server's copy unless the edit is LATER than
+ * the stamp — so a held edit must always read as later, or a reload before
+ * the hold is released would drop it.
+ */
+export function takeoffHeldEditedAt(nowMs: number, queuedStamp: string): string {
+  const q = stampMs(queuedStamp);
+  return new Date(q == null ? nowMs : Math.max(nowMs, q + 1)).toISOString();
+}

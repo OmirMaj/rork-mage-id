@@ -67,8 +67,26 @@ function cloudModules(): { queue: OfflineQueueModule; sb: SupabaseModule } | nul
 }
 
 // ── seat registry ───────────────────────────────────────────────────────────
-interface SeatEntry { role: SyncSeatRole; sample: boolean; readStatus: SeatReadStatus }
+export interface SeatEntry { role: SyncSeatRole; sample: boolean; readStatus: SeatReadStatus }
 const seats = new Map<string, SeatEntry>();
+
+/** May this registered seat push code checks? (A sample job never does.) */
+const seatWrites = (e: SeatEntry): boolean => !e.sample && seatCanWrite(e.role, 'field') === true;
+
+/**
+ * Is a re-sync owed on this seat change? Yes only on a TRANSITION into a
+ * writable seat — from role null (a failed / offline / loading role read) or a
+ * read-only seat — for a job whose sync has already run this session. The
+ * first sync is useCodeChecks' own (once per mount per job); after it, a role
+ * read that fails and then recovers would otherwise leave the caption on
+ * 'failed' until a remount or the next save. One sync per transition: a seat
+ * that stays writable owes nothing, and syncCodeChecksForProject never starts
+ * a second sync while one is in flight for the job.
+ */
+export function codeCheckResyncOwed(prev: SeatEntry | undefined, next: SeatEntry, syncedBefore: boolean): boolean {
+  if (!prev || !syncedBefore) return false;
+  return !seatWrites(prev) && seatWrites(next);
+}
 
 /**
  * hooks/useCodeChecks registers the job's seat (effectivePlanRole) whenever it
@@ -88,6 +106,12 @@ export function setCodeCheckSeat(
     // A seat that became readable-only (or unknown) must not keep a stale caption.
     const quick = quickVerdictState(projectId);
     if (next.role === null || quick === 'seat' || quick === 'local') setState(projectId, quick);
+    // …and one that became writable again re-syncs once, saying 'syncing'
+    // (never over a 'refused' the sync itself keeps until it ends clean).
+    if (quick === 'syncing' && codeCheckResyncOwed(prev, next, syncAttempted.has(projectId))) {
+      if (states.get(projectId) !== 'refused') setState(projectId, 'syncing');
+      void syncCodeChecksForProject(projectId).catch(() => { /* the state says why */ });
+    }
   }
 }
 
@@ -216,8 +240,12 @@ export async function pushCodeCheck(rec: CodeCheckRecord): Promise<WriteOutcome 
 
 // ── the full sync (read → merge → write → push) ─────────────────────────────
 const inFlight = new Map<string, Promise<CodeCheckSyncState>>();
+// Jobs whose sync has been asked for this session (setCodeCheckSeat re-syncs
+// only these: before the first sync, useCodeChecks runs it).
+const syncAttempted = new Set<string>();
 
 export function syncCodeChecksForProject(projectId: string): Promise<CodeCheckSyncState> {
+  syncAttempted.add(projectId);
   const running = inFlight.get(projectId);
   if (running) return running;
   const p = runSync(projectId).finally(() => { inFlight.delete(projectId); });
