@@ -85,7 +85,25 @@ async function mount(url: string) {
 
 const mask = (s: string) => s.replace(/tomorrow \([^)]*\)|on [A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}/g, '<day>');
 
-beforeEach(() => { mockShare.mockClear(); allowConsoleErrors(); });
+// The shared expo-notifications mock (__tests__/setup/edge-mocks.js) has no
+// WEEKLY trigger type and no getAllScheduledNotificationsAsync; add them here
+// for this file only (the shared setup is not edited).
+type NotifMock = Record<string, jest.Mock> & { SchedulableTriggerInputTypes: Record<string, string> };
+const N = jest.requireMock('expo-notifications') as NotifMock;
+let osPermission = 'undetermined';
+let promptAnswer = 'granted';
+
+beforeEach(() => {
+  mockShare.mockClear(); allowConsoleErrors();
+  N.SchedulableTriggerInputTypes.WEEKLY = 'weekly';
+  N.getAllScheduledNotificationsAsync = jest.fn(async () => []);
+  osPermission = 'undetermined'; promptAnswer = 'granted';
+  N.getPermissionsAsync.mockImplementation(async () => ({ status: osPermission, granted: osPermission === 'granted' }));
+  N.requestPermissionsAsync.mockImplementation(async () => { osPermission = promptAnswer; return { status: promptAnswer, granted: promptAnswer === 'granted' }; });
+});
+
+const flush = async () => { await act(async () => { for (let k = 0; k < 20; k++) await Promise.resolve(); }); };
+
 
 describe("tomorrow's lineup", () => {
   jest.setTimeout(120000);
@@ -116,6 +134,60 @@ describe("tomorrow's lineup", () => {
     await act(async () => { fireEvent.press(screen.getByTestId(`lineup-send-${A}`)); });
     expect(mockShare).toHaveBeenCalledTimes(1);
     expect(mockShare.mock.calls[0][0].message).toBe('Edited lineup text');
+  });
+
+  it('the 3 pm reminder: on schedules five weekly reminders, asking permission only then', async () => {
+    await mount(`/tomorrow-lineup?projectId=${P}`);
+    expect(screen.getByText(/It can’t see your schedule, so it rings even when tomorrow is empty\. Nothing is sent to your subs/)).toBeTruthy();
+    const sw = screen.getByTestId('lineup-reminder-switch');
+    expect(sw.props.value).toBe(false);
+    expect(sw.props.accessibilityLabel).toBe('Remind me at 3 pm on weekdays');
+    N.requestPermissionsAsync.mockClear();
+    N.scheduleNotificationAsync.mockClear();
+    await act(async () => { fireEvent(sw, 'valueChange', true); });
+    await flush();
+    expect(N.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(N.scheduleNotificationAsync).toHaveBeenCalledTimes(5);
+    const reqs = N.scheduleNotificationAsync.mock.calls.map(c => c[0] as { identifier: string; content: { data: unknown }; trigger: { type: string; weekday: number; hour: number; minute: number } });
+    expect(reqs.map(r => r.trigger.type)).toEqual(['weekly', 'weekly', 'weekly', 'weekly', 'weekly']);
+    expect(reqs.map(r => r.trigger.weekday)).toEqual([2, 3, 4, 5, 6]);
+    expect(reqs.every(r => r.trigger.hour === 15 && r.trigger.minute === 0)).toBe(true);
+    expect(reqs.every(r => JSON.stringify(r.content.data) === '{"kind":"tomorrow_lineup"}')).toBe(true);
+    expect(screen.getByTestId('lineup-reminder-switch').props.value).toBe(true);
+    expect(mockShare).not.toHaveBeenCalled();
+
+    N.cancelScheduledNotificationAsync.mockClear();
+    N.scheduleNotificationAsync.mockClear();
+    await act(async () => { fireEvent(screen.getByTestId('lineup-reminder-switch'), 'valueChange', false); });
+    await flush();
+    expect(N.cancelScheduledNotificationAsync).toHaveBeenCalledTimes(5);
+    expect(N.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(screen.getByTestId('lineup-reminder-switch').props.value).toBe(false);
+  });
+
+  it('the 3 pm reminder: permission denied says so and stays off', async () => {
+    promptAnswer = 'denied';
+    await mount(`/tomorrow-lineup?projectId=${P}`);
+    N.scheduleNotificationAsync.mockClear();
+    await act(async () => { fireEvent(screen.getByTestId('lineup-reminder-switch'), 'valueChange', true); });
+    await flush();
+    expect(N.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(screen.getByText('Notifications are off for MAGE ID. Turn them on in Settings to get this reminder.')).toBeTruthy();
+    expect(screen.getByTestId('lineup-reminder-switch').props.value).toBe(false);
+  });
+
+  it('the 3 pm reminder: reads on from the OS schedule, and says so when it cannot read it', async () => {
+    N.getAllScheduledNotificationsAsync = jest.fn(async () => [2, 3, 4, 5, 6].map(w => ({ identifier: `mageid-lineup-reminder-${w}` })));
+    await mount(`/tomorrow-lineup?projectId=${P}`);
+    expect(screen.getByTestId('lineup-reminder-switch').props.value).toBe(true);
+    expect(N.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('the 3 pm reminder: an unreadable schedule reads off with a sentence', async () => {
+    N.getAllScheduledNotificationsAsync = jest.fn(async () => { throw new Error('nope'); });
+    await mount(`/tomorrow-lineup?projectId=${P}`);
+    expect(screen.getByTestId('lineup-reminder-switch').props.value).toBe(false);
+    expect(screen.getByText('Couldn’t check whether the reminder is on.')).toBeTruthy();
   });
 
   it('/last-planner carries the door to the lineup', async () => {

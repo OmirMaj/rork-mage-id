@@ -103,7 +103,7 @@ function countNoun(n: number, noun: string): string {
 // scripts/validate-account-deletion-handover.ts section 6 fails if this list
 // and the function's table list drift apart, or if the absolute wording returns.
 const ACCOUNT_DELETE_HANDOVER_NOTE =
-  'Work you logged on other contractors\u2019 jobs is not deleted: daily reports, photos, punch items, RFIs, submittals, permits, plan sheets and markups, time entries (with their GPS location and notes), signed T&M tickets, and delivery and site-access bookings stay with those jobs, and the job\u2019s owner keeps them.';
+  'Work you logged on other contractors\u2019 jobs is not deleted: daily reports, photos, punch items, RFIs, submittals, permits, plan sheets and markups, time entries (with their GPS location and notes), signed T&M tickets, delivery and site-access bookings, and saved code checks and desktop takeoffs stay with those jobs, and the job\u2019s owner keeps them.';
 
 // ── Plan copy, derived from the gates (audit #134) ──────────────────────────
 // The plan cards used to be typed lists that had drifted from the gates: Free

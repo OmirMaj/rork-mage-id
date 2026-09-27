@@ -321,6 +321,52 @@ export function coverageStatusFor(
   return 'not_covered';
 }
 
+// ─── The pay-flow warning ─────────────────────────────────────────────────
+
+/** Workers' comp status for one sub on one pay day — the same candidates and
+ *  verdict the audit pack uses for a payment on that job. */
+export function workersCompStatusOn(
+  cois: readonly CertificateOfInsurance[],
+  subId: string,
+  projectId: string | undefined,
+  payDay: string | null,
+): CoverageStatus {
+  return coverageStatusFor(payDay, candidatesFor(cois, subId, projectId, 'workers_comp'));
+}
+
+/** What every pay-flow warning ends with: it never stops the payment. */
+export const PAY_WARNING_TAIL =
+  ' You can still record this payment. At your insurance audit, payroll paid to an uninsured sub can be charged to your policy.';
+
+/**
+ * The sentence shown in the record-payment sheet, or null when there is
+ * nothing to say (covered, or no usable date yet). It explains; it never
+ * blocks or delays the payment.
+ */
+export function payWarningFor(status: CoverageStatus, subName: string, dayLabel: string): string | null {
+  let lead: string;
+  switch (status) {
+    case 'covered':
+    case 'undated':
+      return null;
+    case 'not_covered':
+      lead = `${subName}’s workers’ comp certificate on file doesn’t cover ${dayLabel}.`;
+      break;
+    case 'no_certificate':
+      lead = `No workers’ comp certificate on file for ${subName}.`;
+      break;
+    case 'dates_missing':
+      lead = `${subName}’s workers’ comp certificate is missing dates, so MAGE can’t tell whether ${dayLabel} is covered.`;
+      break;
+    case 'unconfirmed':
+      lead = `${subName}’s workers’ comp dates were read by AI and aren’t confirmed yet.`;
+      break;
+    default:
+      return null;
+  }
+  return `${lead}${PAY_WARNING_TAIL} ${EXEMPTION_NOTE}`;
+}
+
 // ─── The pack ──────────────────────────────────────────────────────────────
 
 export interface InsuranceAuditInput {

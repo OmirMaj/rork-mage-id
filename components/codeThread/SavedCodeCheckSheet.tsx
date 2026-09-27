@@ -26,7 +26,8 @@ import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
-import { useCodeChecks } from '@/hooks/useCodeChecks';
+import { useCodeChecks, useCodeCheckSyncState } from '@/hooks/useCodeChecks';
+import { CODE_CHECKS_CAPTION } from '@/utils/codeThread/cloudSync';
 import { codeCheckRoute } from '@/utils/codeThread/actions';
 import type { CodeCheckRecord, CodeThreadSection, CodeThreadSourceKind } from '@/utils/codeThread/types';
 import type { Project } from '@/types';
@@ -86,6 +87,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
   const styles = useThemedStyles(makeStyles);
   const f = useSheetFrame('panel', { visible, animationType: 'slide' });
   const { checks } = useCodeChecks(recordProp.projectId);
+  const syncState = useCodeCheckSyncState(recordProp.projectId);
   const record = checks.find((c) => c.id === recordProp.id) ?? recordProp;
   const g = record.grounding;
 
@@ -168,7 +170,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
 
             {record.recallNote ? <Text style={styles.fine}>{record.recallNote}</Text> : null}
             {record.disclaimer ? <Text style={styles.fine}>{record.disclaimer}</Text> : null}
-            <Text style={styles.fine}>Saved on this device until you sign out.</Text>
+            <Text style={styles.fine}>{CODE_CHECKS_CAPTION[syncState]}</Text>
 
             <View style={styles.footer}>
               <Button

@@ -11,7 +11,7 @@
 //    the add succeeded, drafts that never send;
 //  - every navigation that can start inside an RN Modal closes it first and
 //    pushes 350 ms later on iOS;
-//  - the saved-check surfaces say they are on this device until sign-out, an
+//  - the saved-check surfaces say where the check is saved (device / account), an
 //    unreadable store never reads as "none", and the frozen disclaimer and
 //    recall note are shown verbatim.
 //
@@ -209,9 +209,10 @@ check("the sheet's re-run closes the sheet before its delayed push, with the sam
   && count(sheet, 'router.push(') === 1);
 check('the sheet hands its onClose to every CodeThreadActions as onBeforeNavigate',
   count(sheet, '<CodeThreadActions') === 1 && /<CodeThreadActions[\s\S]{0,300}?onBeforeNavigate=\{onClose\}/.test(sheet));
-check('the sheet shows record.disclaimer and record.recallNote verbatim, and the device note',
+check('the sheet shows record.disclaimer and record.recallNote verbatim, and where the check is saved (the sync caption)',
   sheet.includes('{record.disclaimer}') && sheet.includes('{record.recallNote}')
-  && sheet.includes('>Saved on this device until you sign out.</Text>'));
+  && sheet.includes('>{CODE_CHECKS_CAPTION[syncState]}</Text>')
+  && /const syncState = useCodeCheckSyncState\(recordProp\.projectId\);/.test(sheet));
 check("the sheet shows 'Sent from this job: …' and the grounding chip",
   sheet.includes('`Sent from this job: ${') && sheet.includes('{g.chipLabel}'));
 check('the sheet reads the live record by id, falling back to the prop',
@@ -224,8 +225,11 @@ check("the card's root is codethread-project-card", card.includes('<View testID=
 check('an unreadable store says "Couldn’t read…" — and is decided BEFORE the empty case, so it never reads as none',
   card.includes("'Couldn’t read the saved checks on this device.'")
   && /status === 'failed' \? \(\s*<Text style=\{styles\.note\}>\{CODE_CHECKS_FAILED_TEXT\}<\/Text>\s*\) : checks\.length === 0 \?/.test(card));
-check("the card says 'Saved on this device until you sign out.'",
-  card.includes("'Saved on this device until you sign out.'") && card.includes('{CODE_CHECKS_LOCAL_CAPTION}'));
+const cloudSyncSrc = stripComments(read('utils', 'codeThread', 'cloudSync.ts'));
+check("the card says where the checks are saved: CODE_CHECKS_CAPTION[syncState], whose device-only line is 'Saved on this device until you sign out.'",
+  cloudSyncSrc.includes("local: 'Saved on this device until you sign out.',")
+  && card.includes('<Text testID="codethread-sync-caption" style={styles.caption}>{CODE_CHECKS_CAPTION[syncState]}</Text>')
+  && /export const CODE_CHECKS_LOCAL_CAPTION = CODE_CHECKS_CAPTION\.local;/.test(card));
 check("'Code check this job' opens the Code Check for the job (source project)",
   card.includes('label="Code check this job"')
   && /router\.push\(codeCheckRoute\(\{ projectId: project\.id, source: 'project' \}\)\)/.test(card));

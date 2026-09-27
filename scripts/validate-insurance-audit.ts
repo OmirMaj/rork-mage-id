@@ -293,5 +293,56 @@ console.log('\nno verdict words:');
     samples.every(s => !BANNED.test(s)), samples.find(s => BANNED.test(s)) ?? '');
 }
 
+// ── 10. The pay-flow warning (list 3, lane FA) ─────────────────────────────
+// Paying a sub in the sub portal tells him when the sub's workers' comp does
+// not cover the day he enters — and never stops the payment.
+console.log('\npay-flow workers\' comp warning:');
+{
+  const cois = [
+    coi('pw-span', 'A', [WC('2026-03-01', '2026-06-30')]),
+    coi('pw-nodates', 'D', [WC('2026-01-01', undefined)]),
+    coi('pw-ai', 'E', [{ type: 'workers_comp', source: 'ai', aiEffectiveDate: '2026-01-01', aiExpiresAt: '2026-12-31' }]),
+    coi('pw-otherjob', 'F', [WC('2026-01-01', '2026-12-31')], 'P-OTHER'),
+    coi('pw-gl-only', 'G', [{ type: 'general_liability', carrierName: 'X', policyNumber: 'GL', effectiveDate: '2026-01-01', expiresAt: '2026-12-31', source: 'manual' }]),
+  ];
+  eq('workersCompStatusOn: a certificate spanning the day → covered', M.workersCompStatusOn(cois, 'A', 'P1', '2026-04-01'), 'covered');
+  eq('workersCompStatusOn: the day after expiry → not_covered', M.workersCompStatusOn(cois, 'A', 'P1', '2026-07-01'), 'not_covered');
+  eq('workersCompStatusOn: no WC certificate for the sub → no_certificate', M.workersCompStatusOn(cois, 'B', 'P1', '2026-04-01'), 'no_certificate');
+  eq('workersCompStatusOn: a GL-only certificate is not WC → no_certificate', M.workersCompStatusOn(cois, 'G', 'P1', '2026-04-01'), 'no_certificate');
+  eq('workersCompStatusOn: a WC certificate with no expiry → dates_missing', M.workersCompStatusOn(cois, 'D', 'P1', '2026-04-01'), 'dates_missing');
+  eq('workersCompStatusOn: AI-read dates only → unconfirmed', M.workersCompStatusOn(cois, 'E', 'P1', '2026-04-01'), 'unconfirmed');
+  eq('workersCompStatusOn: a certificate scoped to another job → no_certificate', M.workersCompStatusOn(cois, 'F', 'P1', '2026-04-01'), 'no_certificate');
+  eq('workersCompStatusOn: …and an unknown project never borrows it', M.workersCompStatusOn(cois, 'F', undefined, '2026-04-01'), 'no_certificate');
+  eq('workersCompStatusOn: …but on its own job it covers', M.workersCompStatusOn(cois, 'F', 'P-OTHER', '2026-04-01'), 'covered');
+  eq('workersCompStatusOn: no usable pay day → undated', M.workersCompStatusOn(cois, 'A', 'P1', M.calendarDayOfValue('2026-04')), 'undated');
+
+  eq('payWarningFor: covered → null', M.payWarningFor('covered', 'Acme', 'Apr 1, 2026'), null);
+  eq('payWarningFor: undated → null (nothing said while the date is half-typed)', M.payWarningFor('undated', 'Acme', ''), null);
+  const WARN: Array<Parameters<typeof M.payWarningFor>[0]> = ['not_covered', 'no_certificate', 'dates_missing', 'unconfirmed'];
+  const msgs = WARN.map(st => M.payWarningFor(st, 'Acme Framing', 'Jul 1, 2026'));
+  ok('payWarningFor: every other status says something', msgs.every(m => typeof m === 'string' && m.length > 0));
+  ok('payWarningFor: every message says the payment can still be recorded', msgs.every(m => !!m && m.includes('You can still record this payment')));
+  ok('payWarningFor: every message carries the exemption note', msgs.every(m => !!m && m.endsWith(` ${M.EXEMPTION_NOTE}`)));
+  ok('payWarningFor: every message names the sub', msgs.every(m => !!m && m.includes('Acme Framing')));
+  ok('payWarningFor: not_covered / dates_missing name the day', !!msgs[0]?.includes('Jul 1, 2026') && !!msgs[2]?.includes('Jul 1, 2026'));
+  const BLOCKING = /\b(blocked|can’t pay|can't pay|cannot pay|stop)\b/i;
+  ok('payWarningFor: no message says blocked / can’t pay / cannot pay / stop', msgs.every(m => !BLOCKING.test(m ?? '')), msgs.find(m => BLOCKING.test(m ?? '')) ?? '');
+
+  // Static: the notice is display-only in RecordPaymentModal — it never feeds
+  // the submit, the skip, the primary button or the Cmd+Enter hotkey.
+  const { readFileSync } = await import('node:fs');
+  const { join, dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const ROOT_PW = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const MODAL = readFileSync(join(ROOT_PW, 'components', 'RecordPaymentModal.tsx'), 'utf8');
+  const lines = MODAL.split('\n');
+  const touching = lines.filter(l => /\bdisabled\b|const submit\b|onPress=\{submit\}|onPress=\{onSkip\}|useSheetPrimaryHotkey\(|onSubmit\(/.test(l));
+  ok('RecordPaymentModal: the submit / skip / hotkey / disabled lines never read `notice`', touching.length >= 3 && touching.every(l => !/notice/i.test(l)), touching.join(' | '));
+  ok('RecordPaymentModal: the modal has no `disabled` on its buttons at all', !/\bdisabled\b/.test(MODAL));
+  ok('RecordPaymentModal: the warning block is an alert with its testID', /testID="insaudit-pay-warning"[^>]*accessibilityRole="alert"/.test(MODAL));
+  const SETUP = readFileSync(join(ROOT_PW, 'app', 'sub-portal-setup.tsx'), 'utf8');
+  ok('sub-portal-setup passes the WC notice to the payment sheet', /notice=\{sub \? \(d\) => payWarningFor\(workersCompStatusOn\(cois, sub\.id, projectId \?\? undefined, calendarDayOfValue\(d\)\)/.test(SETUP));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

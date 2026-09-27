@@ -16,6 +16,16 @@
 // scroll/zoom, and a middle-button / Space / Pan-tool drag pans. Coordinates
 // are clientX/Y minus the node's bounding rect. Every listener is removed on
 // unmount. Native: none of this attaches (the workspace never renders there).
+//
+// VERTEX DRAG (list-3 lane TK-a). With Select on and a measurement selected,
+// a left press within 7 px of one of ITS vertices (hitVertex, checked BEFORE
+// hitShape) drags that point. The move is a LOCAL preview (dragPreview) drawn
+// in place of the stored point; only the release writes, through ONE
+// onMoveVertex call (one undo entry). A release off the sheet, or Esc during
+// the drag, cancels and writes nothing. Shift snaps to 0/45/90° against the
+// previous vertex. The Esc listener is a window CAPTURE listener that stops
+// the key while a drag is live, so the page's Esc (clear the selection) does
+// not also fire.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -29,7 +39,7 @@ import { Layout, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { centroid, type NormPoint } from '@/utils/takeoffGeometry';
 import {
-  canvasToNorm, normToCanvas, panBy, snap45, zoomAt,
+  canvasToNorm, hitVertex, normToCanvas, panBy, snap45, zoomAt,
   type PaperRect, type ViewT,
 } from '@/utils/takeoff/viewTransform';
 import type { ConditionKind } from '@/utils/takeoff/conditions';
@@ -38,6 +48,8 @@ export type TakeoffTool = 'select' | 'pan' | 'area' | 'linear' | 'count' | 'scal
 
 export interface CanvasShape {
   id: string;
+  /** The condition it measures — hovering that condition's row thickens it. */
+  conditionId: string;
   kind: ConditionKind;
   points: NormPoint[];
   color: string;
@@ -56,6 +68,8 @@ export interface TakeoffCanvasProps {
   /** The in-progress shape (area/linear), or the scale's first point. */
   draft: { kind: ConditionKind | 'scale'; points: NormPoint[]; color: string } | null;
   selectedId: string | null;
+  /** The condition whose panel row is hovered: its shapes draw as `selected` draws. null = none. */
+  emphasisConditionId: string | null;
   tool: TakeoffTool;
   onTool: (t: TakeoffTool) => void;
   /** Why the drawing tools are off (reading the sheet size / couldn't), or null. */
@@ -67,6 +81,8 @@ export interface TakeoffCanvasProps {
   onAddPoint: (p: NormPoint) => void;
   onFinish: () => void;
   onSelect: (id: string | null) => void;
+  /** A vertex drag was released on the sheet: called ONCE per drag (one undo entry). */
+  onMoveVertex: (id: string, index: number, point: NormPoint) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFit: () => void;
@@ -124,14 +140,25 @@ export function hitShape(shapes: CanvasShape[], view: ViewT, paper: PaperRect, x
   return null;
 }
 
+/** A vertex drag in progress: the shape, the vertex, and where it would land. */
+export type DragPreview = { id: string; index: number; point: NormPoint };
+
+/** The shape's points with the dragged vertex replaced (the stored points otherwise). */
+export function previewPoints(s: CanvasShape, drag: DragPreview | null): NormPoint[] {
+  if (!drag || drag.id !== s.id || drag.index < 0 || drag.index >= s.points.length) return s.points;
+  return s.points.map((q, i) => (i === drag.index ? drag.point : q));
+}
+
 export default function TakeoffCanvas(props: TakeoffCanvasProps) {
   const { colors: t, resolved } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { uri, paper, view, shapes, draft, selectedId, tool, toolsOffReason } = props;
+  const { uri, paper, view, shapes, draft, selectedId, tool, toolsOffReason, emphasisConditionId } = props;
   const nodeRef = useRef<View>(null);
   const live = useRef(props);
   live.current = props;
   const [hover, setHover] = useState<NormPoint | null>(null);
+  const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
+  const [overHandle, setOverHandle] = useState(false);
   const fillAlpha = resolved === 'dark' ? '4D' : '38';
 
   // ── native DOM listeners (web) ─────────────────────────────────────────
@@ -141,9 +168,27 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
     if (!node || typeof node.addEventListener !== 'function') return undefined;
     let space = false;
     let drag: { x: number; y: number } | null = null;
+    // The vertex drag (see VERTEX DRAG above): the stored points at press time, the
+    // vertex, and the preview point (null until the pointer has moved onto the sheet).
+    let vdrag: { id: string; index: number; points: NormPoint[]; point: NormPoint | null } | null = null;
+    let handleHover = false;
     const local = (e: MouseEvent | WheelEvent) => {
       const r = node.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    const selectedShape = (p: TakeoffCanvasProps) =>
+      (p.tool === 'select' && p.selectedId && !p.toolsOffReason ? p.shapes.find((s) => s.id === p.selectedId) ?? null : null);
+    /** The pointer's sheet point for a vertex drag: canvasToNorm, Shift-snapped against the previous vertex. */
+    const dragPoint = (p: TakeoffCanvasProps, e: MouseEvent): NormPoint | null => {
+      if (!vdrag || !p.paper) return null;
+      const { x, y } = local(e);
+      let n = canvasToNorm(p.view, p.paper, x, y);
+      if (n && e.shiftKey && p.aspect && vdrag.index > 0) n = snap45(vdrag.points[vdrag.index - 1], n, p.aspect);
+      return n;
+    };
+    const endVertexDrag = () => {
+      vdrag = null;
+      setDragPreview(null);
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -175,6 +220,15 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
       if (e.button !== 0 || !p.paper) return;
       const { x, y } = local(e);
       if (p.tool === 'select') {
+        // A handle of the selected shape wins over picking another shape.
+        const sel = selectedShape(p);
+        const idx = sel ? hitVertex(sel.points, p.view, p.paper, x, y, 7) : -1;
+        if (sel && idx >= 0) {
+          e.preventDefault();
+          vdrag = { id: sel.id, index: idx, points: sel.points, point: null };
+          setDragPreview({ id: sel.id, index: idx, point: sel.points[idx] });
+          return;
+        }
         p.onSelect(hitShape(p.shapes, p.view, p.paper, x, y));
         return;
       }
@@ -196,6 +250,24 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
 
     const onMove = (e: MouseEvent) => {
       const p = live.current;
+      if (vdrag) {
+        const n = dragPoint(p, e);
+        // Off the sheet: the preview holds its last point; a release there cancels.
+        if (n) {
+          vdrag.point = n;
+          const cur = vdrag;
+          setDragPreview({ id: cur.id, index: cur.index, point: n });
+        }
+        return;
+      }
+      // The 'move' cursor over a handle of the selected shape.
+      const sel = selectedShape(p);
+      let onHandle = false;
+      if (sel && p.paper) {
+        const { x, y } = local(e);
+        onHandle = hitVertex(sel.points, p.view, p.paper, x, y, 7) >= 0;
+      }
+      if (onHandle !== handleHover) { handleHover = onHandle; setOverHandle(onHandle); }
       if (drag) {
         const dx = e.clientX - drag.x;
         const dy = e.clientY - drag.y;
@@ -211,7 +283,26 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
         setHover(n);
       }
     };
-    const onUp = () => { drag = null; };
+    const onUp = (e: MouseEvent) => {
+      drag = null;
+      if (!vdrag) return;
+      const cur = vdrag;
+      const n = dragPoint(live.current, e);
+      endVertexDrag();
+      // Released off the sheet → cancelled. Never moved → nothing to write.
+      if (!n || !cur.point) return;
+      const was = cur.points[cur.index];
+      if (was && was.x === n.x && was.y === n.y) return;
+      live.current.onMoveVertex(cur.id, cur.index, n);
+    };
+    // Esc during a vertex drag cancels it — and only it (capture + stop, so the
+    // page's Esc does not also clear the selection).
+    const onEscCapture = (e: KeyboardEvent) => {
+      if (!vdrag || e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      endVertexDrag();
+    };
     const onDbl = (e: MouseEvent) => { if (onControl(e)) return; e.preventDefault(); live.current.onFinish(); };
     const onContext = (e: MouseEvent) => { if (live.current.draft) e.preventDefault(); };
     const onKey = (e: KeyboardEvent) => {
@@ -231,6 +322,7 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
     window.addEventListener('mouseup', onUp);
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', onKey);
+    window.addEventListener('keydown', onEscCapture, true);
     return () => {
       node.removeEventListener('wheel', onWheel);
       node.removeEventListener('mousedown', onDown);
@@ -240,6 +332,7 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
+      window.removeEventListener('keydown', onEscCapture, true);
     };
   }, []);
 
@@ -259,7 +352,14 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
   );
 
   const k = view.scale > 0 ? view.scale : 1;
-  const cursor = tool === 'pan' ? 'grab' : tool === 'select' ? 'default' : toolsOffReason ? 'not-allowed' : 'crosshair';
+  const cursor = dragPreview || (tool === 'select' && overHandle && selectedId)
+    ? 'move'
+    : tool === 'pan' ? 'grab' : tool === 'select' ? 'default' : toolsOffReason ? 'not-allowed' : 'crosshair';
+  // Selected, or its condition's row is hovered: drawn thicker.
+  const thick = (s: CanvasShape) => s.id === selectedId || (emphasisConditionId != null && s.conditionId === emphasisConditionId);
+  const statusText = dragPreview
+    ? `Moving point ${dragPreview.index + 1} · release to place · Esc cancels`
+    : props.statusLine;
 
   return (
     <View ref={nodeRef} style={[styles.canvas, { cursor } as object]} onLayout={onLayout} testID="takeoffws-canvas">
@@ -285,8 +385,11 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
             testID="takeoffws-sheet-image"
           />
           <Svg style={StyleSheet.absoluteFill} width={paper.w} height={paper.h}>
-            {shapeAttrs.map(({ s, pts }) => {
-              const sel = s.id === selectedId;
+            {shapeAttrs.map(({ s, pts: stored }) => {
+              const sel = thick(s);
+              const dragged = dragPreview?.id === s.id;
+              const livePts = dragged ? previewPoints(s, dragPreview) : s.points;
+              const pts = dragged ? pointsAttr(livePts, paper) : stored;
               if (s.kind === 'area') {
                 return <Polygon key={s.id} points={pts} fill={s.color + fillAlpha} stroke={s.color} strokeWidth={(sel ? 3.5 : 2) / k} />;
               }
@@ -295,13 +398,13 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
               }
               return (
                 <React.Fragment key={s.id}>
-                  {s.points.map((q, i) => (
+                  {livePts.map((q, i) => (
                     <Circle key={i} cx={q.x * paper.w} cy={q.y * paper.h} r={(sel ? 7 : 5) / k} fill={s.color} stroke={t.surface} strokeWidth={1.5 / k} />
                   ))}
                 </React.Fragment>
               );
             })}
-            {selectedId ? shapes.filter((s) => s.id === selectedId && s.kind !== 'count').flatMap((s) => s.points.map((q, i) => (
+            {selectedId ? shapes.filter((s) => s.id === selectedId && s.kind !== 'count').flatMap((s) => previewPoints(s, dragPreview).map((q, i) => (
               <Circle key={`h-${s.id}-${i}`} cx={q.x * paper.w} cy={q.y * paper.h} r={3 / k} fill={t.surface} stroke={s.color} strokeWidth={1.5 / k} />
             ))) : null}
             {draft && draft.points.length > 0 ? (
@@ -326,7 +429,7 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
       {/* Quantity chips at each shape's centroid, in canvas space (so the text never scales). */}
       {paper && view.scale >= 0.6 ? shapes.map((s) => {
         if (!s.label || s.kind === 'count') return null;
-        const c = normToCanvas(view, paper, centroid(s.points));
+        const c = normToCanvas(view, paper, centroid(previewPoints(s, dragPreview)));
         return (
           <View key={`l-${s.id}`} pointerEvents="none" style={[styles.chip, { left: c.x, top: c.y }]}>
             <Text style={styles.chipText} numberOfLines={1}>{s.label}</Text>
@@ -376,7 +479,7 @@ export default function TakeoffCanvas(props: TakeoffCanvasProps) {
       </View>
 
       <View style={styles.status} pointerEvents="none">
-        <Text style={styles.statusText} numberOfLines={1} testID="takeoffws-status">{toolsOffReason ?? props.statusLine}</Text>
+        <Text style={styles.statusText} numberOfLines={1} testID="takeoffws-status">{toolsOffReason ?? statusText}</Text>
       </View>
     </View>
   );

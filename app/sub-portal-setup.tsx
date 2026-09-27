@@ -24,6 +24,8 @@ import { BackchargeDeductionCard } from '@/components/backcharge/BackchargeDeduc
 import { copyToClipboard } from '@/utils/clipboard';
 import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import RecordPaymentModal, { type PaymentDetail } from '@/components/RecordPaymentModal';
+import { payWarningFor, workersCompStatusOn, calendarDayOfValue } from '@/utils/insuranceAuditPack';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import { reconciliationState, reconciliationLabel, paymentSummary } from '@/utils/apReconciliation';
 import {
   buildSubPortalSnapshot, buildSubPortalUrl, buildShortSubPortalUrl,
@@ -320,7 +322,7 @@ function SubPortalSetupEditor() {
     getProject, subcontractors, settings,
     getCommitmentsForProject, getPunchItemsForProject, getPlanSheetsForProject,
     getSubPortalLinkFor, upsertSubPortalLink, adoptSubPortalToken,
-    commitments: allCommitments,
+    commitments: allCommitments, cois,
   } = useProjects();
 
   const project = useMemo(() => projectId ? getProject(projectId) : undefined, [projectId, getProject]);
@@ -1146,6 +1148,7 @@ function SubPortalSetupEditor() {
             onCancel={() => setPayingId(null)}
             onSubmit={(detail) => commitPayment(detail)}
             onSkip={isCorrection ? undefined : () => commitPayment(undefined)}
+            notice={sub ? (d) => payWarningFor(workersCompStatusOn(cois, sub.id, projectId ?? undefined, calendarDayOfValue(d)), sub.companyName, formatCalendarDay(d)) : undefined}
           />
         );
       })()}

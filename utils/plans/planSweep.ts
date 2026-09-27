@@ -20,7 +20,7 @@
 // Honesty: this is a pre-check that raises questions. It is not plan review;
 // nothing here says "passed", "compliant" or "violation".
 
-import type { PlanSheet, ProjectType } from '@/types';
+import type { PlanSheet, ProjectType, PunchItem } from '@/types';
 import { CODE_SCOPE_RULES, type CodeScopeRule } from '@/utils/codeScopeTriggers';
 import { normalizeScopeText, phraseInNorm } from '@/utils/scopeCoverage';
 import { confidentMatches } from './memoryIndexCore';
@@ -79,6 +79,10 @@ export const sweepCopy = {
   noLocation: 'The AI could not place this on the sheet, so no pin will be added.',
   draftRfi: 'Draft RFI to architect',
   drafted: (n: number) => `RFI #${n} drafted — not sent`,
+  addPunch: 'Add punch item',
+  punchAddedPinned: 'Punch item added — pinned at the approximate spot. Open punch list',
+  punchAddedNoPin: 'Punch item added — no pin, the AI couldn’t place it on the sheet. Open punch list',
+  approxNote: 'Pins from the sweep are approximate — the AI estimates where the item is on the sheet.',
   noFindings: (sheet: string) =>
     `No questions raised on ${sheet} for your scope. The AI only flags what it can see; this is not a plan review.`,
   notSaved: 'This sweep isn\'t saved — draft the RFIs you want before closing.',
@@ -383,4 +387,41 @@ export function rfiFromSweepFinding(
     + attached,
   );
   return { ...base, question };
+}
+
+// ── 5. The punch item ──────────────────────────────────────────────────────
+
+function clip(s: string, max: number): string {
+  return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
+}
+
+/**
+ * The addPunchItem input for "Add punch item": plan-viewer's pin → punch shape
+ * (open, unassigned, no due date, medium), on the formal punch list. The pin
+ * fields are set ONLY when the AI placed the finding on the sheet — and then
+ * the location says the spot is approximate. A finding with no location gets
+ * no pin, never an invented one. The description is neutralised again: it is
+ * the model's words, copied onto a record the sub may see.
+ */
+export function punchFromSweepFinding(
+  sheet: { id: string; projectId: string; sheetNumber?: string; name: string },
+  view: SweepFindingView,
+  id: string,
+  nowIso: string,
+): PunchItem {
+  const no = sheetNo(sheet);
+  return {
+    id,
+    projectId: sheet.projectId,
+    description: clip(neutralizeModelText(`Check on ${no}: ${view.title}`), 240),
+    location: view.location ? `${no} — approximate spot (AI placement)` : no,
+    assignedSub: '',
+    dueDate: '',
+    priority: 'medium',
+    status: 'open',
+    listType: 'punch',
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    ...(view.location ? { planSheetId: sheet.id, pinX: view.location.x, pinY: view.location.y } : {}),
+  };
 }

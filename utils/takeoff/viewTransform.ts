@@ -100,6 +100,22 @@ export function fitToPoints(canvas: { w: number; h: number }, paper: PaperRect, 
   return { scale, tx: canvas.w / 2 - paper.left - scale * midX, ty: canvas.h / 2 - paper.top - scale * midY };
 }
 
+/**
+ * The vertex of `points` under a canvas point: the index of the NEAREST vertex
+ * within `radius` canvas px (screen px — the radius does not grow with zoom),
+ * or -1 when none is that close. Ties go to the lower index.
+ */
+export function hitVertex(points: NormPoint[], view: ViewT, paper: PaperRect, x: number, y: number, radius = 7): number {
+  let best = -1;
+  let bestD = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const c = normToCanvas(view, paper, points[i]);
+    const d = Math.hypot(c.x - x, c.y - y);
+    if (d <= radius && d < bestD) { best = i; bestD = d; }
+  }
+  return best;
+}
+
 const R = Math.SQRT1_2;
 /** The eight 45° directions, exact on the axes (cos 90° is not exactly 0 in floating point). */
 const DIRS: [number, number][] = [[1, 0], [R, R], [0, 1], [-R, R], [-1, 0], [-R, -R], [0, -1], [R, -R]];
