@@ -1094,7 +1094,7 @@ export function buildRFIEmailHtml(opts: {
     <p style="margin:14px 0 6px;font-weight:700;color:#0B0D10;">Question</p>
     ${emailQuote(question)}
     ${emailStatCard(stats.join(''))}
-    <p style="margin:0;padding:12px 14px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;color:#0B0D10;font-size:13px;line-height:1.55;">
+    <p style="margin:0;padding:12px 14px;background:#ECEDE9;border:1px solid #D7DAD4;border-radius:10px;color:#0B0D10;font-size:13px;line-height:1.55;">
       <strong>${replyPortalUrl ? 'Two ways to respond:' : 'How to respond:'}</strong> ${replyPortalUrl ? 'tap the button above for a one-tap response form, or simply reply to this email.' : 'simply reply to this email.'} Either way, your response is filed against RFI #${rfiNumber}.
     </p>
   `;

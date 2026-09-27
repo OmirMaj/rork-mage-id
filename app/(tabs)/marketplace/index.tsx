@@ -672,8 +672,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
   },
+  // accentFill, not Colors.primary, under the textOnPrimary labels here and in
+  // categoryChipActive: the dark-theme brand #5DB36E gives white 2.58:1;
+  // accentFill is solved for white in both themes (4.83:1 dark).
   modeBtnActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   modeBtnText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -703,7 +706,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   categoryChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   categoryChipText: {
     fontSize: Type.caption1.fontSize,

@@ -294,7 +294,7 @@ async function bumpRoadmapTodayUsage(userId: string | null | undefined): Promise
 }
 
 // ── Plan Review constants / helpers (mirrors roadmap + code-check) ───────
-const SEVERITY_COLORS: Record<CodeFinding['severity'], string> = { high: '#FF3B30', med: '#FF9500', low: '#34C759' };
+const SEVERITY_COLORS: Record<CodeFinding['severity'], string> = { high: '#FF3B30', med: '#FF9500', low: Colors.success };
 const SEVERITY_LABEL: Record<CodeFinding['severity'], string> = { high: 'High', med: 'Medium', low: 'Low' };
 const CONFIDENCE_LABEL: Record<CodeFinding['confidence'], string> = { high: 'High confidence', med: 'Medium confidence', low: 'Low confidence' };
 const FINDING_STATUS_LABEL: Record<CodeFinding['status'], string> = { open: 'Open', resolved: 'Resolved', dismissed: 'Dismissed' };
@@ -2693,7 +2693,7 @@ function RoadmapPermitRow({
 const INSP_STATUS_COLORS: Record<RoadmapInspection['status'], string> = {
   pending: '#8E8E93',
   scheduled: '#FF9500',
-  passed: '#34C759',
+  get passed() { return Colors.successLabel; },
   failed: '#FF3B30',
 };
 

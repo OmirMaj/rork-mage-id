@@ -150,7 +150,7 @@ export function emailStatRow(label: string, value: string, opts?: { valueColor?:
     </tr>`;
 }
 
-/** Boxed pale-cream card wrapping a stack of stat rows. */
+/** Boxed concrete card wrapping a stack of stat rows. */
 export function emailStatCard(rowsHtml: string): string {
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CONCRETE};border:1px solid ${HAIRLINE};border-radius:14px;margin:18px 0;">

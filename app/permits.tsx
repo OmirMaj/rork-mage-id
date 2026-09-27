@@ -2322,8 +2322,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   historyResultBtnOn: { backgroundColor: t.accentSoft, borderColor: t.accentLabel },
   historyResultText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   historyResultTextOn: { color: t.accentLabel, fontWeight: '700' as const },
-  // accentFill (#BC440C at 5.29:1) is the ONE accent tone white text may sit
-  // on. t.accent behind #fff is 2.87:1.
+  // accentFill (#2F6B3A light, white 6.39:1) is the ONE accent tone white text
+  // may sit on. t.accent in dark (#5DB36E) behind #fff is 2.58:1.
   historySaveBtn: {
     minHeight: 44, alignItems: 'center' as const, justifyContent: 'center' as const,
     borderRadius: Tokens.radius.md, backgroundColor: t.accentFill,

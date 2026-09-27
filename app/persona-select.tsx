@@ -8,7 +8,7 @@
 //
 // Design intentionally mirrors app/onboarding.tsx so the two screens
 // feel like one continuous flow: same greenDeep gradient bg, same
-// Fraunces serif headline with italic emphasis, same cream "band card"
+// Barlow display headline with italic emphasis, same light "band card"
 // CTA pattern. The persona pick is more consequential than the
 // size-band question (it changes the whole UI), so this screen comes
 // FIRST — the existing onboarding follows after.

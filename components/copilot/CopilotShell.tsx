@@ -2,10 +2,11 @@
 //
 // Renders the conversational interview by phase (spec §3.7 visual design):
 //   listening → VoiceCaptureModal (voice in) → thinking → asking (resolved
-//   chips + Fraunces question + mono grounding + tap-to-pick options + editable
-//   transcript) → review (confirm-back) → applying → done. Ink ground, cream
-//   text, MAGE-orange the single accent, amber the "your data" signal, Fraunces
-//   for the question only, JetBrains-Mono for every grounded citation. Built
+//   chips + display-face question + mono grounding + tap-to-pick options +
+//   editable transcript) → review (confirm-back) → applying → done. Ink ground,
+//   light text, MAGE green the single accent (it also rules the "your data"
+//   grounding lines), Barlow for the question only, JetBrains-Mono for every
+//   grounded citation. Built
 //   from Colors/Type/Tokens (no raw hex / inline fontSize / borderRadius).
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';

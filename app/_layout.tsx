@@ -1727,7 +1727,7 @@ export default Sentry.wrap(function RootLayout() {
   // Splash hand-off state.
   //   nativeHidden — the pre-JS native splash (app.json level-line) has been
   //     dismissed. We hide it only once fonts are ready (or a failsafe fires)
-  //     so the animated BrandSplash below already has its display wordmark.
+  //     so the animated BrandSplash below already has its Fraunces wordmark.
   //   brandSplashDone — the animated BrandSplash has finished playing and the
   //     app should now be fully revealed. It plays exactly once per cold
   //     start (guarded by the fact this component mounts once).

@@ -91,14 +91,14 @@ const CATEGORIES: CategoryDef[] = [
     key: 'selection_chosen',
     label: 'Selection picked',
     description: 'Your client picks a tile, fixture, or other allowance option.',
-    icon: <ShoppingCart size={18} color={Colors.orange} strokeWidth={1.75} />,
+    icon: <ShoppingCart size={18} color={Colors.primary} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'budget_proposal',
     label: 'Budget proposals',
     description: 'Your client proposes a target budget from the portal.',
-    icon: <HandCoins size={18} color={Colors.orange} strokeWidth={1.75} />,
+    icon: <HandCoins size={18} color={Colors.primary} strokeWidth={1.75} />,
     group: 'client',
   },
   {

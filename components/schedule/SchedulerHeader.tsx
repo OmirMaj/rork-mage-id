@@ -306,7 +306,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     minHeight: 32,
     justifyContent: 'center',
   },
-  phoneExportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
+  phoneExportBtnText: { fontSize: 11, color: Colors.textOnAccent, fontWeight: '700' },
   chip: {
     backgroundColor: t.surfaceAlt,
     borderRadius: 9,

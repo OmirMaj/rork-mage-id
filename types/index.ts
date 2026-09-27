@@ -1420,13 +1420,20 @@ export const THEME_PRESETS: { id: string; label: string; primary: string; accent
   //     copy of the default, not a choice.
   //   Teal #1A7A6D sat DeltaE 4.4 from the new SUCCESS teal #12806E — a user on
   //     Teal would see every primary button and every "done" badge converge.
-  // Plum and Ochre each clear DeltaE 18 against every semantic colour and every
-  // kept preset, and carry white text at AA. They get NEW ids on purpose: a user
-  // who had saved Forest or Teal falls back to the default green at boot
-  // (app/_layout.tsx only applies a saved colour that is still a preset) — the
-  // nearest thing to what they chose — instead of being silently repainted.
+  // Walnut and Ochre replace them. Each clears DeltaE 18 against the brand
+  // family, the success teal and every other preset, in BOTH themes (the dark
+  // theme compares the solved dark accents, which is where two presets tend to
+  // converge), and carries white text at AA — scripts/validate-contrast.ts
+  // check 12d holds all three. Walnut is timber and canvas-duck workwear; a
+  // Plum was tried first and dropped, because purple and pink are the other
+  // half of the generated-app look this rebrand exists to get away from (and
+  // check 12d now refuses a preset in that hue band). Both get NEW ids on
+  // purpose: a user who had saved Forest or Teal falls back to the default
+  // green at boot (app/_layout.tsx only applies a saved colour that is still a
+  // preset) — the nearest thing to what they chose — instead of being silently
+  // repainted.
   { id: 'mage', label: 'MAGE Green', primary: '#2F6B3A', accent: '#3D9A4E' },
-  { id: 'plum', label: 'Plum', primary: '#5E3A6E', accent: '#8A5C9E' },
+  { id: 'walnut', label: 'Walnut', primary: '#634E36', accent: '#8B6D4C' },
   { id: 'ocean', label: 'Ocean Blue', primary: '#0A5EB0', accent: '#FF6B35' },
   { id: 'slate', label: 'Slate', primary: '#3D4F5F', accent: '#E8A838' },
   { id: 'charcoal', label: 'Charcoal', primary: '#2C2C2E', accent: '#FF453A' },

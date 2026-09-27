@@ -325,7 +325,7 @@ export default function MageIdBidsTabScreen() {
             <Text style={styles.eyebrow}>MAGE ID Bids</Text>
             {/* NAV-13: one line truncated the screen's own name mid-word
                 ("Your posted pro…") on a stock iPhone at default text size —
-                22pt Fraunces does not fit beside a 38pt icon and the "Post
+                22pt display face does not fit beside a 38pt icon and the "Post
                 project" CTA. Two lines, so it never truncates at any dynamic
                 type size. Type stays Type.serifHeadline (test:type-identity). */}
             <Text style={styles.title} numberOfLines={2}>
@@ -669,9 +669,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   eyebrow: { fontSize: 10, fontWeight: '800' as const, color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' as const },
-  // Screen title — Fraunces serif per the type rule in constants/typography.ts
-  // (serif for screen titles + numbers that matter, system sans for everything
-  // else). No fontWeight override: the display face already carries its weight.
+  // Screen title — display face (Barlow) per the type rule in constants/typography.ts
+  // (display face for screen titles + numbers that matter, system sans for
+  // everything else). No fontWeight override: the display face already carries its weight.
   // Pre-fix this was Type.subheadline.fontSize (18px, 800) — literally half the
   // size of every other tab header — then largeTitle/700 sans.
   title: { ...Type.serifHeadline, color: t.text, marginTop: 2 },
@@ -726,7 +726,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
   },
   // Active radius chip now flips to the brand accent. Pre-fix it
-  // inverted to t.text (black-on-cream in light, white-on-ink in dark)
+  // inverted to t.text (black-on-concrete in light, white-on-ink in dark)
   // — a pre-rebrand legacy that doesn't read as "selected" in either
   // theme.
   radiusChipActive: { backgroundColor: t.accentFill, borderColor: t.accent },

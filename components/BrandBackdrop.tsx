@@ -30,7 +30,7 @@ const GREEN_ON_INK = BRAND_ACCENT_ON_DARK;
  * Foregrounds that are legible ON the ink field this component paints.
  *
  * These are deliberately NOT ThemeColors. The backdrop is the same opaque ink
- * (#0B0D10 → #14181D) in light AND dark mode, so a hero drawn on it must be
+ * (#151816 → #1D211F) in light AND dark mode, so a hero drawn on it must be
  * light-on-ink in both — swapping these for `t.text` / `t.textSecondary` puts
  * near-black type (#2B3038) on the ink field at 1.34:1 in the light theme.
  *

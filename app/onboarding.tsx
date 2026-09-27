@@ -547,7 +547,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
       {/* Background — ink field with corner accent glows.
-          The large field is ink; accent orange lives only in the
+          The large field is ink; accent green lives only in the
           corner-glow layers (doctrine: accent is never the background). */}
       <BrandBackdrop />
 
@@ -599,10 +599,10 @@ export default function OnboardingScreen() {
             <Text style={styles.eyebrowDot}>●</Text>  the operating system for builders
           </Animated.Text>
 
-          {/* Display headline. Italic for the middle phrase to introduce
-              expressive serif feel using system fonts (Georgia on iOS,
-              the platform serif fallback elsewhere). No new font
-              dependency required. */}
+          {/* Display headline. The middle phrase is set in the italic
+              Barlow display (Barlow_700Bold_Italic, loaded in _layout.tsx)
+              for emphasis; it falls back to the system face if the font
+              has not loaded. */}
           <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
             <Text style={styles.headlineRoman}>Build it.{' '}</Text>
             <Text style={styles.headlineItalic}>Bill it.{' '}</Text>
@@ -985,8 +985,8 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   headlineRoman: {
-    // Fraunces 700 Bold — loaded in _layout.tsx via @expo-google-fonts.
-    // Falls back to Georgia / serif when the font network-blips on first
+    // Barlow 700 Bold — loaded in _layout.tsx via @expo-google-fonts.
+    // Falls back to the system face when the font network-blips on first
     // launch (we never block the user on it).
     fontFamily: 'Barlow_700Bold',
     fontWeight: '700',

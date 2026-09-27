@@ -22,6 +22,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { SchedulableTriggerInputTypes } from 'expo-notifications';
+import { BRAND_ACCENT } from '@/constants/colors';
 import { nextFridayFireDate } from '@/utils/brief/nudgeTime';
 
 export const WEEK_CLOSE_NUDGE_IDENTIFIER = 'mageid-week-close-nudge';
@@ -58,7 +59,7 @@ export async function armWeekCloseNudge(opts: {
         name: 'Default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#1A6B3C',
+        lightColor: BRAND_ACCENT,
       });
     }
 

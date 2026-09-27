@@ -633,7 +633,7 @@ export function toPdfHtml(audit: InsuranceAudit, branding?: CompanyBranding | nu
     ${pdfStatGrid([
       { label: 'Paid in period', value: formatCents(audit.paidTotalCents) },
       { label: 'No WC certificate on the date', value: formatCents(audit.uncoveredWcCents), accent: audit.uncoveredWcCents > 0 ? 'error' : undefined },
-      { label: "Can't tell from the records", value: formatCents(audit.cantTellWcCents), accent: audit.cantTellWcCents > 0 ? 'amber' : undefined },
+      { label: "Can't tell from the records", value: formatCents(audit.cantTellWcCents), accent: audit.cantTellWcCents > 0 ? 'brand' : undefined },
     ])}
     ${pdfSectionHeader('Payments')}
     ${pdfTable([

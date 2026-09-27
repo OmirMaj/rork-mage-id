@@ -180,14 +180,14 @@ export function SendPortalLinkModal({
                   onPress={() => { setMode('email'); setError(null); }}
                   style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'email' && styles.modeBtnActive]}
                 >
-                  <Mail size={14} color={mode === 'email' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
+                  <Mail size={14} color={mode === 'email' ? Colors.textOnAccent : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'email' && styles.modeBtnTextActive]}>Email</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => { setMode('text'); setError(null); }}
                   style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'text' && styles.modeBtnActive]}
                 >
-                  <MessageSquare size={14} color={mode === 'text' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
+                  <MessageSquare size={14} color={mode === 'text' ? Colors.textOnAccent : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'text' && styles.modeBtnTextActive]}>Text</Text>
                 </Pressable>
               </View>
@@ -226,7 +226,7 @@ export function SendPortalLinkModal({
                 </Pressable>
                 <Pressable onPress={submit} style={styles.sendBtn} disabled={busy}>
                   {busy
-                    ? <ActivityIndicator size="small" color="#0B0D10" />
+                    ? <ActivityIndicator size="small" color={Colors.textOnAccent} />
                     : <Text style={styles.sendText}>
                         Send{recipients.length > 0 ? ` (${recipients.length})` : ''}
                       </Text>}
@@ -319,7 +319,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   modeBtnActive: { backgroundColor: Colors.tradeColors.general, borderColor: Colors.tradeColors.general },
   modeBtnText: { fontSize: 13, fontWeight: '600', color: themeColors.text },
-  modeBtnTextActive: { color: '#0B0D10' },
+  modeBtnTextActive: { color: Colors.textOnAccent },
   label: {
     fontSize: 11,
     fontWeight: '600',
@@ -375,5 +375,5 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     minWidth: 110,
     alignItems: 'center',
   },
-  sendText: { color: '#0B0D10', fontWeight: '700', fontSize: 13 },
+  sendText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: 13 },
 });

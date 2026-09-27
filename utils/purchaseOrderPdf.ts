@@ -245,7 +245,7 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
   });
 
   const partyCell = (label: string, body: string) => `
-    <td style="width:50%;vertical-align:top;padding:14px 16px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone2};border-radius:12px">
+    <td style="width:50%;vertical-align:top;padding:14px 16px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline2};border-radius:12px">
       <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:${PDF_PALETTE.textMuted};margin-bottom:5px">${escHtml(label)}</div>
       <div style="font-size:13px;line-height:1.6;color:${PDF_PALETTE.text}">${body}</div>
     </td>`;
@@ -282,7 +282,7 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
           `<span class="num" style="font-weight:700">${fmtMoney(l.extended, { decimals: 2 })}</span>`,
         ]),
       )
-    : `<div style="padding:14px 16px;border:1px solid ${PDF_PALETTE.bone};border-radius:12px;margin-bottom:18px;font-size:13px;line-height:1.6;color:${PDF_PALETTE.text}">
+    : `<div style="padding:14px 16px;border:1px solid ${PDF_PALETTE.hairline};border-radius:12px;margin-bottom:18px;font-size:13px;line-height:1.6;color:${PDF_PALETTE.text}">
          <strong>${escHtml(doc.scope || 'Materials per this order')}</strong>
          <div style="margin-top:6px;font-size:11.5px;color:${PDF_PALETTE.text2}">This order is not itemised. Link the estimate lines it covers in Job Costing to print quantities and unit prices.</div>
        </div>`;
@@ -291,19 +291,19 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
     `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${muted ? PDF_PALETTE.textMuted : PDF_PALETTE.text2}">${escHtml(label)}</span><span class="num" style="color:${muted ? PDF_PALETTE.textMuted : PDF_PALETTE.text2}">${value}</span></div>`;
 
   const totalsHtml = `
-    <div class="no-break" style="background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone2};border-radius:14px;padding:18px 20px;margin-top:4px">
+    <div class="no-break" style="background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline2};border-radius:14px;padding:18px 20px;margin-top:4px">
       ${doc.lines.length > 0 ? row('Line item subtotal (at cost)', fmtMoney(doc.lineSubtotal, { decimals: 2 })) : ''}
       ${row('Sales tax', 'Not itemised — see terms', true)}
       <div style="height:1.5px;background:${PDF_PALETTE.ink};margin:8px 0"></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
         <span style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700">Order total</span>
-        <span class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:24px;font-weight:700;color:${PDF_PALETTE.amber};letter-spacing:-0.012em">${fmtMoney(doc.orderTotal, { decimals: 2 })}</span>
+        <span class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:24px;font-weight:700;color:${PDF_PALETTE.brand};letter-spacing:-0.012em">${fmtMoney(doc.orderTotal, { decimals: 2 })}</span>
       </div>
       ${doc.adjustmentNote ? `<div style="margin-top:8px;font-size:11px;line-height:1.55;color:${PDF_PALETTE.text2}">${escHtml(doc.adjustmentNote)}</div>` : ''}
     </div>`;
 
   const deliveryHtml = pdfSectionHeader('Delivery') + `
-    <div style="padding:14px 16px;border:1px solid ${PDF_PALETTE.bone};border-radius:12px;margin-bottom:18px;font-size:13px;line-height:1.6;color:${PDF_PALETTE.text}">
+    <div style="padding:14px 16px;border:1px solid ${PDF_PALETTE.hairline};border-radius:12px;margin-bottom:18px;font-size:13px;line-height:1.6;color:${PDF_PALETTE.text}">
       <div><strong>Required by:</strong> ${doc.requiredBy ? escHtml(poDay(doc.requiredBy)) : 'not scheduled'}</div>
       <div style="margin-top:5px;font-size:11.5px;color:${PDF_PALETTE.text2}">${escHtml(doc.requiredByNote)}</div>
     </div>`;
@@ -314,7 +314,7 @@ function buildPurchaseOrderHtml(doc: PurchaseOrderDoc, branding: CompanyBranding
     </ol>`;
 
   const authHtml = `
-    <div class="no-break" style="margin-top:8px;padding:18px 20px;border:1px solid ${PDF_PALETTE.bone};border-radius:12px">
+    <div class="no-break" style="margin-top:8px;padding:18px 20px;border:1px solid ${PDF_PALETTE.hairline};border-radius:12px">
       <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:${PDF_PALETTE.textMuted}">Authorised by</div>
       <div style="margin-top:26px;height:1.5px;background:${PDF_PALETTE.ink2};max-width:300px"></div>
       <div style="font-size:11px;color:${PDF_PALETTE.textMuted};margin-top:6px">${escHtml(branding.contactName || branding.companyName || '')} &middot; ${escHtml(branding.companyName || '')}${branding.licenseNumber ? ` &middot; License ${escHtml(branding.licenseNumber)}` : ''}</div>

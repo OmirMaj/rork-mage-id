@@ -2356,8 +2356,8 @@ export default function ProjectDetailScreen() {
   // Same 4 colors used by the group headers below. Defined here
   // because `allTiles` is built before `groups` and needs the
   // per-tile color at construction time.
-  const FIELD_COLOR  = themeColors.accent;   // orange
-  const MONEY_COLOR  = themeColors.success;  // green
+  const FIELD_COLOR  = themeColors.accent;   // brand
+  const MONEY_COLOR  = themeColors.success;  // teal (success)
   const DOCS_COLOR   = themeColors.info;     // blue
   const PEOPLE_COLOR = themeColors.info;     // blue (same as docs)
   const GROUP_BY_KEY: Partial<Record<SectionKey, string>> = {
@@ -6111,7 +6111,7 @@ export default function ProjectDetailScreen() {
       )}
 
       {/* No local mic FAB here — hands-on UI pass 2026-09-07, finding 8.
-          BrainSurface already mounts the global orange Brain FAB on every
+          BrainSurface already mounts the global brand Brain FAB on every
           screen, and this was the only screen in the app that ALSO drew
           UniversalMicButton's own floating dark mic, stacking two circles over
           the Cash Flow tile and giving the screen a GC lives in three

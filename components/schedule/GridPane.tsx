@@ -190,7 +190,7 @@ const makeResizeHandleStyles = (t: ThemeColors) => StyleSheet.create({
   // Inner visible bar — 2 px wide, faint by default. Sits flush with the
   // right edge so it visually anchors to the column boundary.
   // The bar was a fixed `rgba(0,0,0,0.18)` — black-on-black, i.e. invisible,
-  // on the dark theme's #14181D header (audit 2026-09-07). `t.line` is the
+  // on the dark theme's header (then #14181D, now #1D211F) (audit 2026-09-07). `t.line` is the
   // same "column boundary" identity in both themes.
   bar: {
     width: 2,
@@ -2119,8 +2119,9 @@ const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
 // ---------------------------------------------------------------------------
 
 // Takes the resolved theme rather than reading the static Colors module: the
-// pale *Light tints (#E8FAF0, #EBF3FF) and the light inks (#2E7D44, #1565C0)
-// were the same on both themes, so a Done chip in dark mode was mid-green type
+// pale *Light tints (#E8FAF0, #EBF3FF) and the light inks (#2E7D44 — the
+// retired pre-rebrand success green; Done is teal successLabel now — and
+// #1565C0) were the same on both themes, so a Done chip in dark mode was mid-green type
 // on a near-white slab inside an otherwise dark grid (audit 2026-09-07). The
 // *Soft/*Label pairs are the tint-and-ink split constants/colors.ts documents.
 function statusChip(status: TaskStatus, t: ThemeColors): { bg: string; fg: string; label: string; Icon?: any } {

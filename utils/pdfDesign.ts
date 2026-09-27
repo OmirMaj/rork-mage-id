@@ -56,20 +56,6 @@ export const PDF_PALETTE = {
   warningTint: '#FFF4E0',
   error: '#C0392B',
   errorTint: '#FBEAE7',
-
-  // ── Legacy names ──────────────────────────────────────────────────────
-  // The pre-rebrand keys, kept as ALIASES so the other PDF builders
-  // (closeoutBinderEngine, financialReportPdf, lienWaiverDocument,
-  // purchaseOrderPdf) recolour with this file instead of breaking or staying
-  // orange. New code reads the names above. `amberDark` was used for brand
-  // emphasis in the stat grid, so it maps to brandDark, not the warning ink.
-  amber: BRAND,
-  amberDark: '#24562E',
-  amberTint: '#E9F1EA',
-  cream: CONCRETE,
-  cream2: '#F6F6F4',
-  bone: HAIRLINE,
-  bone2: SURFACE_ALT,
 };
 
 /** The PDF display face. Barlow is loaded by pdfShell's <link>; the fallback
@@ -172,10 +158,9 @@ export function pdfTitle(opts: { eyebrow?: string; title: string; subtitle?: str
 }
 
 // Stat card grid — used for AIA totals, project KPIs, etc. Each card
-// has an uppercase label + display value. 'amber' is the legacy spelling of
-// 'brand' and renders identically.
-export function pdfStatGrid(stats: { label: string; value: string; accent?: 'brand' | 'amber' | 'success' | 'error' }[]): string {
-  const tint = (a?: string) => a === 'brand' || a === 'amber' ? PDF_PALETTE.brandDark
+// has an uppercase label + display value.
+export function pdfStatGrid(stats: { label: string; value: string; accent?: 'brand' | 'success' | 'error' }[]): string {
+  const tint = (a?: string) => a === 'brand' ? PDF_PALETTE.brandDark
     : a === 'success' ? PDF_PALETTE.success
     : a === 'error' ? PDF_PALETTE.error
     : PDF_PALETTE.text;
@@ -193,16 +178,13 @@ export function pdfSectionHeader(label: string): string {
 }
 
 // Pill — for status badges in the body (Approved / Pending / etc.)
-// 'amber' is the legacy spelling of 'brand'. A success pill prefixes a check
-// so the state is never carried by the teal alone.
-export function pdfPill(label: string, kind: 'success' | 'warning' | 'error' | 'brand' | 'amber' | 'muted' = 'muted'): string {
-  const brand = { bg: PDF_PALETTE.brandTint, fg: PDF_PALETTE.brandDark };
+// A success pill prefixes a check so the state is never carried by the teal alone.
+export function pdfPill(label: string, kind: 'success' | 'warning' | 'error' | 'brand' | 'muted' = 'muted'): string {
   const palette = {
     success: { bg: PDF_PALETTE.successTint, fg: PDF_PALETTE.success },
     warning: { bg: PDF_PALETTE.warningTint, fg: PDF_PALETTE.warningInk },
     error: { bg: PDF_PALETTE.errorTint, fg: PDF_PALETTE.error },
-    brand,
-    amber: brand,
+    brand: { bg: PDF_PALETTE.brandTint, fg: PDF_PALETTE.brandDark },
     muted: { bg: PDF_PALETTE.hairline2, fg: PDF_PALETTE.text2 },
   }[kind];
   const text = kind === 'success' ? `&#10003;&nbsp;${escHtml(label)}` : escHtml(label);

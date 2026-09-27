@@ -24,8 +24,12 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { useSheetFrame } from '@/components/ui/Sheet';
 
+// `good` is success, which is TEAL since the 2026-09-16 rebrand (the old
+// #2E7D44 read as the brand green). A getter so it follows the theme at read
+// time and still returns a hex, which keeps the '+14' / '+40' alpha suffixes
+// valid.
 const TONE_COLOR: Record<'good' | 'warn' | 'bad', string> = {
-  good: "#2E7D44",
+  get good() { return Colors.successLabel; },
   warn: Colors.warningLabel,
   bad: "#C84038",
 };

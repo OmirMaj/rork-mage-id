@@ -593,13 +593,13 @@ function buildEstimateHtml(
       const progress = Math.max(0, Math.min(100, task.progress ?? 0));
 
       const barStyle = isMilestone
-        ? `left:calc(${leftPct}% - 4px);width:8px;height:8px;transform:rotate(45deg);background:${critical ? '#FF3B30' : '#1A6B3C'};top:8px;border-radius:1px;`
+        ? `left:calc(${leftPct}% - 4px);width:8px;height:8px;transform:rotate(45deg);background:${critical ? '#FF3B30' : PDF_PALETTE.brand};top:8px;border-radius:1px;`
         : isSummary
           ? `left:${leftPct}%;width:${widthPct}%;height:5px;background:#1a1a1a;top:10px;border-radius:1px;`
-          : `left:${leftPct}%;width:${widthPct}%;height:12px;top:6px;background:${critical ? '#FFDDDA' : '#E8F3EC'};border:1.4px solid ${critical ? '#FF3B30' : '#1A6B3C'};border-radius:3px;`;
+          : `left:${leftPct}%;width:${widthPct}%;height:12px;top:6px;background:${critical ? '#FFDDDA' : PDF_PALETTE.brandTint};border:1.4px solid ${critical ? '#FF3B30' : PDF_PALETTE.brand};border-radius:3px;`;
 
       const progressOverlay = !isSummary && !isMilestone && progress > 0
-        ? `<div class="gx-progress" style="left:${leftPct}%;width:${(widthPct * progress) / 100}%;top:9px;background:${critical ? '#FF3B30' : '#1A6B3C'};"></div>`
+        ? `<div class="gx-progress" style="left:${leftPct}%;width:${(widthPct * progress) / 100}%;top:9px;background:${critical ? '#FF3B30' : PDF_PALETTE.brand};"></div>`
         : '';
 
       const flags: string[] = [];
@@ -664,11 +664,11 @@ function buildEstimateHtml(
       </table>
 
       <div class="gx-legend">
-        <div class="gx-legend-item"><span class="gx-swatch" style="background:#E8F3EC;border:1.4px solid #1A6B3C"></span>On-time task</div>
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:${PDF_PALETTE.brandTint};border:1.4px solid ${PDF_PALETTE.brand}"></span>On-time task</div>
         <div class="gx-legend-item"><span class="gx-swatch" style="background:#FFDDDA;border:1.4px solid #FF3B30"></span>Critical</div>
         <div class="gx-legend-item"><span class="gx-swatch" style="background:#1a1a1a;height:4px"></span>Summary roll-up</div>
-        <div class="gx-legend-item"><span class="gx-swatch" style="background:#1A6B3C;width:8px;height:8px;transform:rotate(45deg);border-radius:0"></span>Milestone</div>
-        <div class="gx-legend-item"><span class="gx-swatch" style="background:#1A6B3C;opacity:0.85;height:5px"></span>% complete</div>
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:${PDF_PALETTE.brand};width:8px;height:8px;transform:rotate(45deg);border-radius:0"></span>Milestone</div>
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:${PDF_PALETTE.brand};opacity:0.85;height:5px"></span>% complete</div>
       </div>
 
       ${criticalTasks.length > 0 ? `
@@ -716,42 +716,42 @@ function buildEstimateHtml(
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; padding: 40px; font-size: 12px; line-height: 1.5; }
-  .company-header { text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 3px solid #1A6B3C; }
+  .company-header { text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 3px solid ${PDF_PALETTE.brand}; }
   .logo-wrap { margin-bottom: 12px; }
   .company-logo { max-height: 60px; max-width: 240px; object-fit: contain; }
-  .company-name { font-size: 28px; font-weight: 800; color: #1A6B3C; letter-spacing: -0.5px; }
+  .company-name { font-size: 28px; font-weight: 800; color: ${PDF_PALETTE.brand}; letter-spacing: -0.5px; }
   .tagline { font-size: 13px; color: #666; margin-top: 4px; font-style: italic; }
   .company-info-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin-top: 10px; }
   .info-item { font-size: 11px; color: #555; }
   .info-label { font-weight: 600; color: #333; margin-right: 4px; }
-  .project-info { background: linear-gradient(135deg, #f8f9fa, #eef2f0); border-radius: 8px; padding: 18px; margin-bottom: 24px; border-left: 4px solid #1A6B3C; }
+  .project-info { background: linear-gradient(135deg, #f8f9fa, #eef2f0); border-radius: 8px; padding: 18px; margin-bottom: 24px; border-left: 4px solid ${PDF_PALETTE.brand}; }
   .project-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; color: #1a1a1a; }
   .project-meta { font-size: 11px; color: #666; display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  h2 { font-size: 16px; font-weight: 700; color: #1A6B3C; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #1A6B3C20; }
+  h2 { font-size: 16px; font-weight: 700; color: ${PDF_PALETTE.brand}; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 2px solid ${PDF_PALETTE.brand}20; }
   h3 { font-size: 14px; font-weight: 600; color: #333; margin: 16px 0 8px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-  th { background: #1A6B3C08; padding: 8px 10px; text-align: center; font-weight: 600; color: #555; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; border-bottom: 2px solid #1A6B3C20; }
+  th { background: ${PDF_PALETTE.brand}08; padding: 8px 10px; text-align: center; font-weight: 600; color: #555; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; border-bottom: 2px solid ${PDF_PALETTE.brand}20; }
   td { padding: 7px 10px; text-align: center; border-bottom: 1px solid #eee; }
   tr.alt { background: #fafbfa; }
   .summary-box { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-top: 12px; border: 1px solid #e8e8e8; }
   .summary-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
-  .summary-row.total { font-size: 18px; font-weight: 800; color: #1A6B3C; padding: 10px 0 0; }
-  .summary-row.savings { color: #34C759; font-weight: 500; }
+  .summary-row.total { font-size: 18px; font-weight: 800; color: ${PDF_PALETTE.brand}; padding: 10px 0 0; }
+  .summary-row.savings { color: ${PDF_PALETTE.success}; font-weight: 500; }
   .summary-row.sub { font-size: 11px; color: #888; padding: 2px 0; }
   .summary-divider { height: 1px; background: #ddd; margin: 8px 0; }
-  .summary-divider.thick { height: 2px; background: #1A6B3C; }
+  .summary-divider.thick { height: 2px; background: ${PDF_PALETTE.brand}; }
   .schedule-stats { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
   .schedule-stat { background: #f0f4f2; border-radius: 6px; padding: 8px 14px; font-size: 12px; border: 1px solid #e0e8e4; }
-  .schedule-stat strong { color: #1A6B3C; }
+  .schedule-stat strong { color: ${PDF_PALETTE.brand}; }
   .flag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
-  .flag.milestone { background: #FFF3E0; color: #FF9500; }
+  .flag.milestone { background: ${PDF_PALETTE.brandTint}; color: ${PDF_PALETTE.brandDark}; }
   .flag.critical { background: #FFF0EF; color: #FF3B30; }
   .critical-path-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 16px; }
   .critical-node { background: #FFF0EF; color: #FF3B30; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; }
   .critical-arrow { color: #FF3B30; font-weight: 700; }
   .milestones-list { margin-bottom: 16px; }
   .milestone-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
-  .milestone-flag { color: #FF9500; }
+  .milestone-flag { color: ${PDF_PALETTE.brandDark}; }
   .milestone-name { font-weight: 500; flex: 1; }
   .milestone-day { color: #888; font-size: 11px; }
   .signature-section { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
@@ -982,7 +982,7 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
   const approvalLineHtml = approval
     ? `<div data-co-approval="${D.escHtml(approval.kind)}" style="font-size:12px;color:${D.PDF_PALETTE.text};line-height:1.55;margin-bottom:${approval.kind === 'client_signed' ? '0' : '18px'}">${D.escHtml(approval.text)}</div>`
     : '';
-  const sigBlock = `<div class="no-break" style="margin-top:36px;padding-top:24px;border-top:1px solid ${D.PDF_PALETTE.bone}">
+  const sigBlock = `<div class="no-break" style="margin-top:36px;padding-top:24px;border-top:1px solid ${D.PDF_PALETTE.hairline}">
     <div style="font-size:9px;font-weight:700;color:${D.PDF_PALETTE.textMuted};letter-spacing:1px;text-transform:uppercase;margin-bottom:${approval ? '10px' : '24px'}">Client approval</div>
     ${approvalLineHtml}${approval?.kind === 'client_signed' ? '' : blankSigLines}
   </div>`;
@@ -1346,8 +1346,8 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
       : '';
     const caption = [`Photo ${i + 1}`, when, p.caption ?? '', p.markup && p.markup.length ? 'marked up' : ''].filter(Boolean).join(' · ');
     const frame = p.src
-      ? `<div style="position:relative;width:100%;padding-top:100%;border-radius:10px;overflow:hidden;background:${D.PDF_PALETTE.bone2}"><img src="${D.escHtml(p.src)}" alt="" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover"/>${dfrMarkupSvg(p.markup)}</div>`
-      : `<div style="width:100%;padding:28px 12px;border-radius:10px;border:1px dashed ${D.PDF_PALETTE.bone};font-size:11px;color:${D.PDF_PALETTE.textMuted};text-align:center;line-height:1.45">${p.notUploaded
+      ? `<div style="position:relative;width:100%;padding-top:100%;border-radius:10px;overflow:hidden;background:${D.PDF_PALETTE.hairline2}"><img src="${D.escHtml(p.src)}" alt="" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover"/>${dfrMarkupSvg(p.markup)}</div>`
+      : `<div style="width:100%;padding:28px 12px;border-radius:10px;border:1px dashed ${D.PDF_PALETTE.hairline};font-size:11px;color:${D.PDF_PALETTE.textMuted};text-align:center;line-height:1.45">${p.notUploaded
           ? 'Not uploaded yet — this photo is still only on the phone that took it.'
           : 'This photo could not be loaded into the PDF. It is on the report in MAGE ID.'}</div>`;
     return `<td style="width:33.33%;padding:6px;vertical-align:top" class="no-break">${frame}<div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:4px">${D.escHtml(caption)}</div></td>`;
@@ -1476,7 +1476,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
         <div><span>Submitted</span><strong>${formatRfiDate(r.dateSubmitted)}</strong></div>
         <div><span>Required</span><strong style="${isOverdue ? 'color:#FF3B30' : ''}">${formatRfiDate(r.dateRequired)}</strong></div>
         ${r.dateResponded ? `<div><span>Responded</span><strong>${formatRfiDate(r.dateResponded)}</strong></div>` : ''}
-        <div><span>Priority</span><strong style="${r.priority === 'urgent' ? 'color:#FF3B30' : r.priority === 'normal' ? 'color:#1A6B3C' : 'color:#888'}">${r.priority.charAt(0).toUpperCase() + r.priority.slice(1)}</strong></div>
+        <div><span>Priority</span><strong style="${r.priority === 'urgent' ? 'color:#FF3B30' : r.priority === 'normal' ? `color:${PDF_PALETTE.brand}` : 'color:#888'}">${r.priority.charAt(0).toUpperCase() + r.priority.slice(1)}</strong></div>
         ${r.linkedDrawing ? `<div><span>Linked Drawing</span><strong>${escapeHtml(r.linkedDrawing)}</strong></div>` : ''}
       </div>
       <div class="rfi-section">
@@ -1493,9 +1493,9 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:36px; font-size:11.5px; line-height:1.5; }
-    .company-header { text-align:center; margin-bottom:24px; padding-bottom:18px; border-bottom:3px solid #1A6B3C; }
+    .company-header { text-align:center; margin-bottom:24px; padding-bottom:18px; border-bottom:3px solid ${PDF_PALETTE.brand}; }
     .logo-wrap { margin-bottom:10px; } .company-logo { max-height:54px; max-width:240px; object-fit:contain; }
-    .company-name { font-size:24px; font-weight:800; color:#1A6B3C; }
+    .company-name { font-size:24px; font-weight:800; color:${PDF_PALETTE.brand}; }
     .company-info-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin-top:8px; }
     .info-item { font-size:10px; color:#555; } .info-label { font-weight:600; color:#333; margin-right:4px; }
     .doc-header { background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:18px; border-left:4px solid #007AFF; }
@@ -1506,16 +1506,16 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
     .rfi-summary-item .num { display:block; font-size:20px; font-weight:800; color:#1a1a1a; }
     .rfi-summary-item .lbl { display:block; font-size:9px; font-weight:600; color:#666; text-transform:uppercase; margin-top:2px; letter-spacing:0.5px; }
     .rfi-summary-item.warn .num { color:#FF9500; } .rfi-summary-item.alert .num { color:#FF3B30; }
-    .rfi-summary-item.info .num { color:#007AFF; } .rfi-summary-item.ok .num { color:#34C759; }
-    h2 { font-size:14px; font-weight:700; color:#1A6B3C; margin:18px 0 8px; padding-bottom:5px; border-bottom:2px solid #1A6B3C20; }
+    .rfi-summary-item.info .num { color:#007AFF; } .rfi-summary-item.ok .num { color:${PDF_PALETTE.success}; }
+    h2 { font-size:14px; font-weight:700; color:${PDF_PALETTE.brand}; margin:18px 0 8px; padding-bottom:5px; border-bottom:2px solid ${PDF_PALETTE.brand}20; }
     table { width:100%; border-collapse:collapse; margin-bottom:18px; font-size:10.5px; }
-    th { background:#1A6B3C08; padding:7px 8px; text-align:center; font-weight:700; color:#555; text-transform:uppercase; font-size:9px; letter-spacing:0.5px; border-bottom:2px solid #1A6B3C20; }
+    th { background:${PDF_PALETTE.brand}08; padding:7px 8px; text-align:center; font-weight:700; color:#555; text-transform:uppercase; font-size:9px; letter-spacing:0.5px; border-bottom:2px solid ${PDF_PALETTE.brand}20; }
     td { padding:6px 8px; text-align:center; border-bottom:1px solid #eee; vertical-align:top; }
     tr.alt { background:#fafbfa; }
     .status-pill { display:inline-block; padding:2px 8px; border-radius:4px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; }
     .status-open { background:#FFF7E6; color:#FF9500; }
     .status-answered { background:#EBF3FF; color:#007AFF; }
-    .status-closed { background:#E8FAF0; color:#34C759; }
+    .status-closed { background:${PDF_PALETTE.successTint}; color:${PDF_PALETTE.success}; }
     .status-void { background:#f0f0f0; color:#888; }
     .rfi-card { background:#fff; border:1px solid #e8e8e8; border-radius:8px; padding:14px; margin-bottom:12px; page-break-inside:avoid; }
     .rfi-card.overdue { border-left:4px solid #FF3B30; }
@@ -1971,7 +1971,7 @@ export function buildEstimateTextForEmail(
  * ============================================================ */
 function statusColor(status: string): string {
   switch (status) {
-    case 'approved': return '#2E7D32';
+    case 'approved': return PDF_PALETTE.success;
     case 'approved_as_noted': return '#1565C0';
     case 'in_review': return '#1565C0';
     case 'pending': return '#C77700';
@@ -2154,9 +2154,9 @@ export function buildSubmittalEmailHtml(opts: {
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
             <tr><td style="padding:18px 20px;">
               <p style="margin:0 0 8px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Action codes</p>
-              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#16a34a;">Approved</strong> &middot; proceed as submitted</p>
-              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#0891b2;">Approved as Noted</strong> &middot; proceed with the noted comments</p>
-              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#d97706;">Revise &amp; Resubmit</strong> &middot; revise per comments and re-submit</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:${PDF_PALETTE.success};">Approved</strong> &middot; proceed as submitted</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#0E7490;">Approved as Noted</strong> &middot; proceed with the noted comments</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:${PDF_PALETTE.warningInk};">Revise &amp; Resubmit</strong> &middot; revise per comments and re-submit</p>
               <p style="margin:0;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#dc2626;">Rejected</strong> &middot; not in compliance with contract documents</p>
             </td></tr>
           </table>
@@ -2171,10 +2171,10 @@ export function buildSubmittalEmailHtml(opts: {
               <p style="margin:0;color:#9ca3af;font-size:11px;">Pick an action code &middot; submit comments &middot; no login</p>
             </td></tr>
           </table>
-          <p style="margin:18px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
+          <p style="margin:18px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#ECEDE9;border:1px solid #D7DAD4;border-radius:8px;padding:12px 14px;">
             <strong>Two ways to respond:</strong> tap the button above for the structured review form, or reply to this email with your action code. Your response is filed as a new cycle against Submittal #${submittalNumber}.
           </p>` : `
-          <p style="margin:24px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
+          <p style="margin:24px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#ECEDE9;border:1px solid #D7DAD4;border-radius:8px;padding:12px 14px;">
             <strong>How to respond:</strong> reply to this email with your action code (attach any markups to your reply). Your response will be filed against Submittal #${submittalNumber} for this project.
           </p>`}
           <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">

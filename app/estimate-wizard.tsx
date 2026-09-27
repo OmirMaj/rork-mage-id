@@ -2655,7 +2655,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
-  includedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: '#1B5E20' },
+  includedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.successLabel },
   includedFootnote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 18 },
   // Exclusions card
   excludedCard: {

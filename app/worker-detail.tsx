@@ -23,7 +23,7 @@ const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {
   available: 'Available Now', employed: 'Currently Employed', open_to_offers: 'Open to Offers',
 };
 const AVAILABILITY_COLORS: Record<AvailabilityStatus, string> = {
-  available: '#2E7D32', employed: '#E65100', open_to_offers: '#1565C0',
+  get available() { return Colors.successLabel; }, employed: '#E65100', open_to_offers: '#1565C0',
 };
 
 export default function WorkerDetailScreen() {
