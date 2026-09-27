@@ -19,6 +19,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EmptyState from '@/components/EmptyState';
 import type { Contact, ContactRole } from '@/types';
+import { getInvoicedToDate, getPaidToDate, getOutstandingBalance } from '@/utils/projectFinancials';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
@@ -220,16 +221,17 @@ export default function ContactsScreen() {
 
   const getContactFinancials = useCallback((contact: Contact) => {
     if (contact.role !== 'Client') return null;
-    let totalInvoiced = 0;
-    let totalPaid = 0;
-    contact.linkedProjectIds.forEach(pid => {
-      const invoices = getInvoicesForProject(pid);
-      invoices.forEach(inv => {
-        totalInvoiced += inv.totalDue;
-        totalPaid += inv.amountPaid;
-      });
-    });
-    return { totalInvoiced, totalPaid, outstanding: totalInvoiced - totalPaid };
+    // health 2026-09-26: through the shared definitions. The inline sums
+    // counted DRAFT invoices as invoiced and their logged payments as paid, and
+    // `outstanding` was invoiced − paid — gross of the retention the contract
+    // lets the client hold (MONEY-F5), so a client paid up to retention showed
+    // a red balance the portal and A/R both call $0.
+    const invoices = contact.linkedProjectIds.flatMap(pid => getInvoicesForProject(pid));
+    return {
+      totalInvoiced: getInvoicedToDate(invoices),
+      totalPaid: getPaidToDate(invoices),
+      outstanding: getOutstandingBalance(invoices),
+    };
   }, [getInvoicesForProject]);
 
   const renderContact = useCallback(({ item }: { item: Contact }) => {

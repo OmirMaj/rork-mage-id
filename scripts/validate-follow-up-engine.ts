@@ -645,5 +645,31 @@ console.log('\nthe engine is actually wired to a screen');
     'a row with no Send button and no explanation reads as a broken screen');
 }
 
+console.log('\nstartDay is a WORKING ordinal (health lane SCHEDDAYS, LS-2)');
+{
+  // iso(0) = Mon 2026-09-14. Working day 11 on a Mon-Fri week is Mon Sep 28;
+  // the old calendar offset said Thu Sep 24, so a COI lapsing Fri Sep 25 was
+  // read as valid past the start and closed.
+  const lapse = runFollowUpRules([coiExpiresBeforeSubIsOnSite], emptyCtx({
+    scheduleStartDate: iso(0),
+    scheduleCalendar: { workingDaysPerWeek: 5, nonWorkingDates: [] },
+    subcontractors: [sub({ coiExpiry: iso(11) })],
+    tasks: [task({ startDay: 11, assignedSubId: 's1' })],
+  }));
+  eq('a COI lapsing Fri Sep 25 before a working-day-11 start (Mon Sep 28) mints', lapse.items.length, 1);
+  ok('  …and the evidence names Mon Sep 28', lapse.items[0]?.evidence.some(e => e.says.includes(`starts ${iso(14)}`)) === true);
+  ok('  …and it is NOT closed by evidence', !lapse.closedByEvidence.includes('coi_expires_before_sub_is_on_site:subcontractor:s1'));
+  // The calendar qualifies scheduleStartDate; it is not a collection. A caller
+  // that omits it gets the 5-day default, never a G3 refusal.
+  const noCal = runFollowUpRules([coiExpiresBeforeSubIsOnSite], emptyCtx({
+    scheduleStartDate: iso(0),
+    subcontractors: [sub({ coiExpiry: iso(11) })],
+    tasks: [task({ startDay: 11, assignedSubId: 's1' })],
+  }));
+  eq('omitting scheduleCalendar is not a refusal', noCal.refusals.length, 0);
+  ok('no rule declares scheduleCalendar as a read',
+    FOLLOW_UP_RULES.every(r => !(r.reads as readonly string[]).includes('scheduleCalendar')));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

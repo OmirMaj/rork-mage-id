@@ -104,6 +104,9 @@ import { Tokens } from '@/constants/designTokens';
 import { neutralInk, labelOn } from '@/components/ui/ink';
 import { segmentedDesktop, useIsDesktop, useSheetFrame } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
+// LS-5: a viewer seat cannot file punch items (RLS needs 'field').
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import { addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import PlanPinStep from '@/components/punch/PlanPinStep';
 import {
@@ -338,6 +341,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   // The voice parser needs the project; `punchItems` feeds the location chips.
   const { getProject, punchItems, getPlanSheetsForProject, updatePunchItemPin } = useProjects();
   const project = getProject(projectId);
+  // LS-5: punch_items_collab_insert needs a field/editor/owner seat. A
+  // viewer's walk would save optimistically and then be refused, item by
+  // item, so Save is off for him and says why. Shares the role query cache.
+  const writeSeat = useProjectRoleState(projectId);
+  const writeBlock = projectRecordWriteBlock(writeSeat.role);
 
   // Draft — what the user is building right now. Each save clears it
   // back to an empty draft seeded with the last location (see persist).
@@ -836,6 +844,11 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   }, [draft.description, projectId]);
 
   const handleSave = useCallback(() => {
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (!draft.description.trim()) {
       showAlert('Nothing to save', 'Dictate or type a description first.');
       return;
@@ -953,7 +966,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
       Keyboard.dismiss();
       openPinStep();
     }
-  }, [draft, listType, subChoice, subs, userId, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep, getPlanSheetsForProject]);
+  }, [draft, listType, subChoice, subs, userId, projectId, onAdd, updatePunchItemPin, pinFirst, planSheetCount, dismissedNoPlan, openPinStep, getPlanSheetsForProject, writeBlock]);
 
   const handleUndo = useCallback((id: string) => {
     onDelete(id);
@@ -1468,9 +1481,9 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
 
           <TutorialTarget id="punch.save">
           <TouchableOpacity
-            style={[styles.saveBtn, !draft.description.trim() && styles.saveBtnDisabled]}
+            style={[styles.saveBtn, (!draft.description.trim() || !!writeBlock) && styles.saveBtnDisabled]}
             onPress={handleSave}
-            disabled={!draft.description.trim()}
+            disabled={!draft.description.trim() || !!writeBlock}
             activeOpacity={0.85}
             testID="walk-save"
           >
@@ -1480,6 +1493,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             <Text style={styles.saveBtnText}>Save to {isPunch ? 'punch list' : 'crew list'}</Text>
           </TouchableOpacity>
           </TutorialTarget>
+          {/* LS-5: a viewer seat cannot file — the control says why. */}
+          {writeBlock ? <Text style={styles.hint} testID="walk-viewer-block">{writeBlock}</Text> : null}
 
           {pinFirst && (
             <Text style={styles.hint}>

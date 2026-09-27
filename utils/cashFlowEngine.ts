@@ -1,6 +1,6 @@
-import type { Invoice, ChangeOrder, Commitment, Project } from '@/types';
+import type { Invoice, ChangeOrder, Commitment, Project, SubSubmittedInvoice } from '@/types';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
-import { netBalanceDue, pendingRetentionHeld } from '@/utils/invoiceBilling';
+import { netBalanceDue, pendingRetentionHeld, roundCents } from '@/utils/invoiceBilling';
 import { commitmentUnpaid } from '@/utils/jobCostEngine';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { parseCalendarDay, calendarDayStart, addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
@@ -522,6 +522,133 @@ export function buildCommittedOutflows({
   };
 }
 
+/**
+ * The sub-bill money the commitment rollup hides (health 2026-09-26,
+ * MONEY-CASH-SUB-APPROVED).
+ *
+ * `commitments.paid_to_date` is a SERVER rollup (supabase/schema.sql
+ * recompute_commitment_paid_to_date) of `amount` over sub invoices with status
+ * IN ('approved','paid'). So the moment the GC taps Approve on a $40,000 sub
+ * bill — no check cut — commitmentUnpaid drops by $40,000, and the retainage he
+ * withholds from the sub is counted as paid too. A $100k subcontract with that
+ * bill approved at 10% retainage forecast $60,000 of outflow; the $36,000
+ * check he now owes and the $4,000 retainage due the sub at closeout vanished
+ * from the one screen that answers "can I make payroll Friday".
+ *
+ * THIS PUTS BACK EXACTLY WHAT THE ROLLUP TOOK, and nothing else:
+ *   • each APPROVED (not yet paid) bill → a week-0 one-time outflow of
+ *     amount − retainage: it is due now. (The rollup subtracted the gross
+ *     amount from commitmentUnpaid, so this row plus the retainage below
+ *     restores the whole of it — never counted twice.)
+ *   • retainage on approved AND paid bills → `retainagePayable`, an UNDATED
+ *     figure reported beside the runway the way receivable retention is:
+ *     nothing here knows the closeout date. (SubSubmittedInvoice records no
+ *     retainage release, so there is nothing to net off yet.)
+ *   • …unless the job is OVER (project completed/closed, or the commitment
+ *     closed): then the check goes to `approvedOnFinishedJobs`, undated and
+ *     reported beside the runway — buildCommittedOutflows' rule for a finished
+ *     job's leftover balance, for the same reason: a bill paid by check outside
+ *     MAGE and never marked paid would otherwise sit in week 0 forever.
+ *   • a bill against a commitment a hand-typed expense row CLAIMS is skipped:
+ *     that row is the GC's own schedule for the whole commitment and
+ *     buildCommittedOutflows already generated nothing for it — the rollup took
+ *     nothing from his row, so there is nothing to restore (door 1).
+ *
+ * `subInvoices` undefined means the caller did not read them. That is NOT
+ * "no sub bills": `checked` is false and `retainagePayable` is null, and a
+ * surface that renders the forecast must say sub bills were not checked.
+ */
+export interface SubBillOutflows {
+  /** False when the caller did not read the sub invoices — never shown as $0. */
+  checked: boolean;
+  /** Week-0 one-time rows, one per approved-but-unpaid bill. */
+  rows: CashFlowExpense[];
+  /** Σ rows — the checks due now. */
+  approvedUnpaid: number;
+  /** Approved-but-unpaid bills on FINISHED jobs — undated, reported beside the
+   *  runway rather than dated to week 0 (see buildCommittedOutflows' `undated`). */
+  approvedOnFinishedJobs: number;
+  /** Retainage withheld from subs, owed at closeout. null when not checked. */
+  retainagePayable: number | null;
+  /** Bills skipped because a hand-typed row claims their commitment. */
+  claimedSkippedIds: string[];
+}
+
+/** The retainage the GC withheld on one sub bill — the stored dollar figure,
+ *  the only one that table carries (no percent, no subtotal; see
+ *  utils/tax1099Export cashPaidOf). Never negative, never NaN. */
+export function subBillRetainage(inv: Pick<SubSubmittedInvoice, 'retentionAmount'>): number {
+  const held = Number(inv.retentionAmount);
+  return Number.isFinite(held) && held > 0 ? roundCents(held) : 0;
+}
+
+export function buildSubBillOutflows(args: {
+  subInvoices: readonly SubSubmittedInvoice[] | null | undefined;
+  commitments: readonly Commitment[];
+  /** For the job-is-over test. Optional: omitted = every job is live. */
+  projects?: readonly Project[];
+  /** buildCommittedOutflows().suppressedCommitmentIds */
+  claimedCommitmentIds: readonly string[];
+  projectNames?: Map<string, string>;
+  now?: Date;
+}): SubBillOutflows {
+  if (args.subInvoices == null) {
+    return { checked: false, rows: [], approvedUnpaid: 0, approvedOnFinishedJobs: 0, retainagePayable: null, claimedSkippedIds: [] };
+  }
+  const projectById = new Map((args.projects ?? []).map(p => [p.id, p]));
+  const today = new Date(args.now ?? new Date());
+  today.setHours(0, 0, 0, 0);
+  const claimed = new Set(args.claimedCommitmentIds);
+  const commitmentById = new Map(args.commitments.map(c => [c.id, c]));
+  const names = args.projectNames ?? new Map<string, string>();
+
+  const rows: CashFlowExpense[] = [];
+  const claimedSkippedIds: string[] = [];
+  let approvedUnpaid = 0;
+  let approvedOnFinishedJobs = 0;
+  let retainagePayable = 0;
+
+  for (const inv of args.subInvoices) {
+    if (inv.status !== 'approved' && inv.status !== 'paid') continue;
+    if (inv.commitmentId && claimed.has(inv.commitmentId)) {
+      claimedSkippedIds.push(inv.id);
+      continue;
+    }
+    const held = subBillRetainage(inv);
+    retainagePayable = roundCents(retainagePayable + held);
+    if (inv.status !== 'approved') continue;
+
+    const gross = Number(inv.amount);
+    const cash = Math.max(0, roundCents((Number.isFinite(gross) ? gross : 0) - held));
+    if (cash <= 0) continue;
+    const c = inv.commitmentId ? commitmentById.get(inv.commitmentId) : undefined;
+    const project = projectById.get(inv.projectId ?? c?.projectId ?? '');
+    const jobIsOver = c?.status === 'closed' || project?.status === 'completed' || project?.status === 'closed';
+    if (jobIsOver) {
+      approvedOnFinishedJobs = roundCents(approvedOnFinishedJobs + cash);
+      continue;
+    }
+    const who = c?.vendorName?.trim() || c?.description?.trim() || inv.submittedByName?.trim() || 'Subcontractor';
+    const billNo = inv.invoiceNumber ? ` #${inv.invoiceNumber}` : '';
+    rows.push({
+      id: `subbill-${inv.id}`,
+      name: withJobName(names, inv.projectId ?? c?.projectId, `Approved sub bill — ${who}${billNo}, not yet paid`),
+      amount: cash,
+      frequency: 'one_time',
+      category: 'subcontractor',
+      // Week 0: an approved bill is due now. An instant, like the committed
+      // rows, so shouldExpenseOccurInWeek's `new Date(...)` reads the local day.
+      startDate: today.toISOString(),
+      // Derived: rebuilt from the sub invoices on every forecast and never
+      // persisted (stripDerivedExpenses), so it cannot be frozen and re-counted.
+      derived: true,
+    });
+    approvedUnpaid = roundCents(approvedUnpaid + cash);
+  }
+
+  return { checked: true, rows, approvedUnpaid, approvedOnFinishedJobs, retainagePayable, claimedSkippedIds };
+}
+
 export function generateForecast(
   startingBalance: number,
   expenses: CashFlowExpense[],
@@ -749,6 +876,16 @@ export interface ForecastInputs {
   /** Project id → name, so income lines name the job (#108). Optional so a
    *  hand-built ForecastInputs still type-checks; missing = no names. */
   projectNames?: Map<string, string>;
+  /** Approved-but-unpaid sub bills (week-0 rows, already inside `expenses`)
+   *  and the retainage withheld from subs (undated). Optional so a hand-built
+   *  ForecastInputs still type-checks. */
+  subBills?: SubBillOutflows;
+  /** False when the caller did not read the sub invoices: the forecast may be
+   *  missing approved sub bills, and a surface must say so, never show $0. */
+  subBillsChecked?: boolean;
+  /** Retainage the GC withheld from subs — owed at closeout, not on a week.
+   *  null when sub bills were not checked. */
+  subRetainagePayable?: number | null;
 }
 
 /**
@@ -792,10 +929,26 @@ export function buildForecastInputs(args: {
    * so job B's promised check stops showing up as income in job A's weeks.
    */
   expectedPayments?: ExpectedPayment[];
+  /**
+   * The GC's sub-submitted invoices, for the approved-but-unpaid bills and the
+   * retainage withheld from subs that commitments.paid_to_date hides (see
+   * buildSubBillOutflows). Omitted = not read: the result says
+   * subBillsChecked: false rather than pretending there were none.
+   */
+  subInvoices?: SubSubmittedInvoice[] | null;
 }): ForecastInputs {
   const { cashData, invoices, commitments, projects, changeOrders, now } = args;
   const typed = cashData?.expenses ?? [];
   const committed = buildCommittedOutflows({ commitments, projects, expenses: typed, now });
+  const projectNames = new Map(projects.map(p => [p.id, p.name?.trim() ?? '']));
+  const subBills = buildSubBillOutflows({
+    subInvoices: args.subInvoices,
+    commitments,
+    projects,
+    claimedCommitmentIds: committed.suppressedCommitmentIds,
+    projectNames,
+    now,
+  });
   return {
     startingBalance: cashData
       ? getEffectiveStartingBalance(cashData.startingBalance, cashData.balanceAsOf, args.balanceInvoices ?? invoices)
@@ -804,7 +957,7 @@ export function buildForecastInputs(args: {
     // handed to saveCashFlowData, so nothing generated from a commitment can be
     // frozen into `mage_cashflow_data` and then counted a second time against
     // the live commitment on the next load.
-    expenses: [...typed, ...committed.scheduled],
+    expenses: [...typed, ...committed.scheduled, ...subBills.rows],
     invoices,
     expectedPayments: args.expectedPayments ?? cashData?.expectedPayments ?? [],
     defaultPaymentTerms: cashData?.defaultPaymentTerms ?? 'net_30',
@@ -813,7 +966,10 @@ export function buildForecastInputs(args: {
     // From the projects it already receives, so every surface built on this
     // assembly (the screen, the Summary tile, the brief, the AI facts) names
     // the job on an income line instead of an id fragment (#108).
-    projectNames: new Map(projects.map(p => [p.id, p.name?.trim() ?? ''])),
+    projectNames,
+    subBills,
+    subBillsChecked: subBills.checked,
+    subRetainagePayable: subBills.retainagePayable,
   };
 }
 
@@ -844,6 +1000,8 @@ export function fourWeekCashPosition(args: {
   commitments: Commitment[];
   projects: Project[];
   changeOrders: ChangeOrder[];
+  /** Passed through to buildForecastInputs — approved-but-unpaid sub bills. */
+  subInvoices?: SubSubmittedInvoice[] | null;
 }): number | null {
   if (!args.setupComplete || !args.cashData) return null;
   const inputs = buildForecastInputs(args);

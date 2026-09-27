@@ -167,8 +167,19 @@ console.log('\n  4. both screens use the shared path');
     !/generateForecast\(/.test(summary));
   check('summary computes the tile from fourWeekCashPosition with invoices, commitments and COs',
     /fourWeekCashPosition\(\{[\s\S]{0,200}invoices, commitments, projects, changeOrders/.test(summary) &&
-    /\}, \[cashSettings, invoices, commitments, projects, changeOrders\]\)/.test(summary),
-    'Recording a payment or signing a sub must refresh the tile.');
+    /\}, \[cashSettings, invoices, commitments, projects, changeOrders, subInvoices\]\)/.test(summary),
+    'Recording a payment, signing a sub or approving a sub bill must refresh the tile.');
+  // health 2026-09-26 (MONEY-CASH-SUB-APPROVED): the tile reads the approved
+  // sub bills the same company-wide way /cash-flow does, and shows "—" until
+  // that read has answered rather than a figure that never checked them.
+  check('summary passes the company-wide sub invoices into the tile, and only once they were read',
+    /useSubSubmittedInvoices\(\{ companyWide: true \}\)/.test(summary) &&
+    /const subInvoices = subBillRead\.subBillsChecked \? subBillRead\.invoices : undefined;/.test(summary) &&
+    /if \(!subInvoices\) return null;/.test(summary) &&
+    /changeOrders, subInvoices,\s*\}\);/.test(summary));
+  check('/cash-flow passes the company-wide sub invoices into buildForecastInputs',
+    /useSubSubmittedInvoices\(\{ companyWide: true \}\)/.test(read('app/cash-flow.tsx')) &&
+    /subInvoices: relevantSubInvoices,/.test(read('app/cash-flow.tsx')));
   check('summary re-reads the setup when the tab regains focus',
     /useFocusEffect\(loadCash\)/.test(summary));
   check('summary shows how old the balance is',

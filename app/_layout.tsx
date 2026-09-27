@@ -938,12 +938,12 @@ function RootLayoutNav() {
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
       <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
-      <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling' }} />
-      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer' }} />
-      <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal' }} />
-      <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt' }} />
-      <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
-      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
+      <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling', headerShown: false }} />
+      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer', headerShown: false }} />
+      <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal', headerShown: false }} />
+      <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt', headerShown: false }} />
+      <Stack.Screen name="last-planner" options={{ title: 'Last Planner', headerShown: false }} />
+      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence', headerShown: false }} />
       {/* gestureEnabled:false — the wizard holds an unsaved multi-task draft.
           A swipe-down (iOS) discarded it with no prompt; the in-app back
           button's confirm can't intercept the gesture. */}
@@ -960,8 +960,8 @@ function RootLayoutNav() {
       <Stack.Screen name="extract-submittals" options={{ headerShown: false }} />
       <Stack.Screen name="compare-drawings" options={{ headerShown: false }} />
       <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC Export' }} />
-      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance Audit Pack' }} />
-      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's Lineup" }} />
+      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance Audit Pack', headerShown: false }} />
+      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's Lineup", headerShown: false }} />
       <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
         name="login"
@@ -1147,7 +1147,7 @@ function RootLayoutNav() {
           ...headerTitled,
         }}
       />
-      <Stack.Screen name="wip-report" options={{ title: 'WIP Report' }} />
+      <Stack.Screen name="wip-report" options={{ title: 'WIP Report', headerShown: false }} />
       {/* Construction News (founder request 2026-09-22): publisher feed
           headlines, merged by the construction-news edge function. Doors:
           the Discover ▸ Tools tile and the desktop sidebar's WORKSPACE row. */}
@@ -1208,7 +1208,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="estimate-calibration"
-        options={{ title: 'Estimate Calibration' }}
+        options={{ title: 'Estimate Calibration', headerShown: false }}
       />
       <Stack.Screen
         name="cost-database"
@@ -1618,6 +1618,17 @@ function RootLayoutNav() {
       <Stack.Screen name="quick-quote" options={{ presentation: "modal", headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="project-scope" options={{ headerShown: false }} />
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
+      {/* Sentry REACT-NATIVE-M: client-view hides the header from inside
+          (<Stack.Screen options={{ headerShown: false }} /> in every branch)
+          while the route started with it shown. Pushed on top of a modal, iOS
+          renders a shown header through a nested ScreenStack, so the flip
+          remounts the whole screen (react-native-screens warns about exactly
+          this) and client-view / win-optimizer hit "Maximum update depth
+          exceeded" from Screen's setOptions. Hidden from the first frame means
+          nothing flips. win-optimizer and the other self-headed tool screens
+          carry the same headerShown:false on their own lines above;
+          scripts/validate-static-header-hidden.ts keeps the two in step. */}
+      <Stack.Screen name="client-view" options={{ title: 'Client Portal', headerShown: false }} />
         </Stack>
       </View>
       </NavThemeProvider>

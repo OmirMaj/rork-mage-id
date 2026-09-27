@@ -12,6 +12,7 @@ import type { FollowUpBasis } from '@/types';
 import {
   type FollowUpRule, type FollowUpContext, type MintedFollowUp, daysBetween,
 } from './engine';
+import { taskCalendarDay } from '@/utils/scheduleCalendarDate';
 
 const NONE: FollowUpBasis = { kind: 'none' };
 
@@ -24,12 +25,21 @@ function dayMs(iso: string | undefined): number | null {
 /** A schedule day number as a calendar date, using the schedule's own anchor.
  *  Returns null on an undated schedule — the rule then refuses rather than
  *  inventing an anchor of "today", which is the bug that made every task on
- *  two real schedules march forward a day, every day. */
-function dateForStartDay(startDay: number | undefined, scheduleStartDate: string | undefined): string | null {
+ *  two real schedules march forward a day, every day.
+ *
+ *  `startDay` is a WORKING ordinal, walked on the schedule's own week and
+ *  closures (utils/scheduleCalendarDate — the same walk the Gantt renders
+ *  with). It used to add (startDay − 1) CALENDAR days, which put a sub's first
+ *  day too early by every weekend before it, so a COI lapsing in that gap read
+ *  as fine. The anchor is always `scheduleStartDate`, never the calendar
+ *  object's, so an undated schedule still refuses. */
+function dateForStartDay(
+  startDay: number | undefined,
+  scheduleStartDate: string | undefined,
+  calendar: FollowUpContext['scheduleCalendar'],
+): string | null {
   if (startDay == null || !scheduleStartDate) return null;
-  const base = dayMs(scheduleStartDate);
-  if (base === null) return null;
-  return new Date(base + (startDay - 1) * 86400000).toISOString().slice(0, 10);
+  return taskCalendarDay({ ...calendar, startDate: scheduleStartDate.slice(0, 10) }, startDay);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,7 +214,7 @@ export const coiExpiresBeforeSubIsOnSite: FollowUpRule = {
         .sort((a, b) => (a.startDay ?? 0) - (b.startDay ?? 0))[0];
       if (!upcoming) continue;
 
-      const startDate = dateForStartDay(upcoming.startDay, ctx.scheduleStartDate);
+      const startDate = dateForStartDay(upcoming.startDay, ctx.scheduleStartDate, ctx.scheduleCalendar);
       // An undated schedule cannot answer "before". Refusing is correct —
       // the alternative is anchoring on today, which is a bug this codebase
       // has already been bitten by twice.
@@ -259,7 +269,7 @@ export const coiExpiresBeforeSubIsOnSite: FollowUpRule = {
       const upcoming = tasks
         .filter(t => t.assignedSubId === sub.id && t.status !== 'done')
         .sort((a, b) => (a.startDay ?? 0) - (b.startDay ?? 0))[0];
-      const startDate = upcoming ? dateForStartDay(upcoming.startDay, ctx.scheduleStartDate) : null;
+      const startDate = upcoming ? dateForStartDay(upcoming.startDay, ctx.scheduleStartDate, ctx.scheduleCalendar) : null;
       const startMs = startDate ? dayMs(startDate) : null;
       const resolved = expiryMs !== null && (startMs === null || expiryMs >= startMs);
       if (resolved) out.push(`coi_expires_before_sub_is_on_site:subcontractor:${sub.id}`);

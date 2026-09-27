@@ -41,7 +41,8 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { portalFinancingBlock, portalFinancingRedirectUrl, portalFinancingPreviewNote } from '@/utils/financingCore';
 import { linkState } from '@/utils/portalLinkExpiry';
-import { resolveContractSum, getPaidToDate, getInvoicedToDate } from '@/utils/projectFinancials';
+import { resolveContractSum } from '@/utils/projectFinancials';
+import { clientViewMoneyFigures } from '@/utils/clientViewMoney';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import {
   buildOwnerDecisions, summarizeOwnerDecisions, buildCOConsentRecord, coCarriesTax, buildCOAuditDetail,
@@ -923,23 +924,24 @@ export default function ClientViewScreen() {
   /** True when this render COULD have seen a contract and found none. */
   // isSuccess, not !isPending: a read that FAILED checked nothing (#122).
   const contractWasChecked = !isSnapshotMode && !!localProject?.id && contractQ.isSuccess;
-  // MONEY-PAID-DRAFT-1: through the shared definitions, not re-derived here.
-  // These two reduces used to be inline and unfiltered, so this screen counted
-  // payments logged against DRAFT invoices as money collected while
-  // utils/portalSnapshot.ts (the web portal, same homeowner) did not — two
-  // views of one job disagreeing about "Paid to date".
-  const invoicedTotal = getInvoicedToDate(invoices);
-  const paidTotal = getPaidToDate(invoices);
+  // MONEY-PAID-DRAFT-1 + MONEY-CLIENTVIEW-DUE-NOW (health 2026-09-26): every
+  // figure on this card comes from utils/clientViewMoney.clientViewMoneyFigures,
+  // the same arithmetic on the same population utils/portalSnapshot.ts
+  // publishes to the web portal. "Due now" used to be invoiced − paid — GROSS
+  // of the retention the contract lets the client hold ($1,000 due where the
+  // portal said $0) — and "Remaining" / "Balance Remaining" subtracted
+  // tax-inclusive invoice money from the pre-tax contract, the mix the portal
+  // removed on purpose (PORTAL-01). Paid + Due now + Retention held is what
+  // has been billed; the contract stays in its own rows above.
+  const money = clientViewMoneyFigures({ invoices, contractValue, changeOrders });
+  const invoicedTotal = money.invoicedToDate;
+  const paidTotal = money.paidToDate;
   const approvedCOs = changeOrders.filter(c => c.status === 'approved');
-  const coTotal = approvedCOs.reduce((s, c) => s + c.changeAmount, 0);
-  const revisedContract = contractValue + coTotal;
-  // Financial-truth metrics tied to the estimate spine: what's paid, what's
-  // billed-but-unpaid, what's still to come, and the homeowner's remaining
-  // balance against the projected final (revised contract).
-  const outstanding = Math.max(0, invoicedTotal - paidTotal);
-  const notYetBilled = Math.max(0, revisedContract - invoicedTotal);
-  const balanceRemaining = Math.max(0, revisedContract - paidTotal);
-  const pctOf = (n: number) => (revisedContract > 0 ? Math.round((n / revisedContract) * 100) : 0);
+  const coTotal = money.approvedChanges;
+  const revisedContract = money.revisedContract;
+  const outstanding = money.outstanding;
+  const retentionHeld = money.retentionHeld;
+  const pctOfBilled = (n: number) => (money.barTotal > 0 ? Math.round((n / money.barTotal) * 100) : 0);
 
   // Schedule metrics
   const tasks = project?.schedule?.tasks ?? [];
@@ -1451,41 +1453,47 @@ export default function ClientViewScreen() {
                 </View>
                 {outstanding > 0 && (
                   <View style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>Invoiced, awaiting payment</Text>
+                    <Text style={styles.budgetLabel}>Invoiced, due now</Text>
                     <Text style={[styles.budgetValue, { color: themeColors.accent }]}>{formatMoney(outstanding)}</Text>
                   </View>
                 )}
-                <View style={[styles.budgetRow, styles.budgetRowTotal]}>
-                  <Text style={styles.budgetLabelTotal}>Balance Remaining</Text>
-                  <Text style={styles.budgetValueTotal}>{formatMoney(balanceRemaining)}</Text>
-                </View>
+                {retentionHeld > 0 && (
+                  <View style={styles.budgetRow} testID="client-view-retention-held">
+                    <Text style={styles.budgetLabel}>Retention held (due at closeout)</Text>
+                    <Text style={styles.budgetValue}>{formatMoney(retentionHeld)}</Text>
+                  </View>
+                )}
 
-                {/* Where your money stands — paid / due now / remaining, as one bar */}
+                {/* Where the billed money stands — paid / due now / retention
+                    held, as one bar over what has been invoiced (the portal's
+                    BILLED TO DATE bar). The pre-tax contract is not on this axis. */}
                 <View style={styles.moneyBarWrap}>
                   <View style={styles.moneyBar}>
-                    {revisedContract > 0 ? (
+                    {money.barTotal > 0 ? (
                       <>
                         {paidTotal > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.success, flexGrow: paidTotal }]} />}
                         {outstanding > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.accent, flexGrow: outstanding }]} />}
-                        {notYetBilled > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.line, flexGrow: notYetBilled }]} />}
+                        {retentionHeld > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.line, flexGrow: retentionHeld }]} />}
                       </>
                     ) : null}
                   </View>
                   <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: themeColors.success }]} />
-                      <Text style={styles.legendText}>Paid {pctOf(paidTotal)}%</Text>
+                      <Text style={styles.legendText}>Paid {pctOfBilled(paidTotal)}%</Text>
                     </View>
                     {outstanding > 0 && (
                       <View style={styles.legendItem}>
                         <View style={[styles.legendDot, { backgroundColor: themeColors.accent }]} />
-                        <Text style={styles.legendText}>Due now {pctOf(outstanding)}%</Text>
+                        <Text style={styles.legendText}>Due now {pctOfBilled(outstanding)}%</Text>
                       </View>
                     )}
-                    <View style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: themeColors.line }]} />
-                      <Text style={styles.legendText}>Remaining {pctOf(notYetBilled)}%</Text>
-                    </View>
+                    {retentionHeld > 0 && (
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: themeColors.line }]} />
+                        <Text style={styles.legendText}>Retention held {pctOfBilled(retentionHeld)}%</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
 

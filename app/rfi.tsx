@@ -24,6 +24,8 @@ import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+// LS-5: a viewer seat reads RFIs but cannot file one (RLS needs 'field').
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import {
   useCollectionSettled, useRefetchCollectionOnOpen, useServerRecordNumber,
   recordGate, changedFields, rfiBallAfterSave, rfiRegressionReason, recordNumberLabel, numberHoldReason, sendBlockReason,
@@ -322,6 +324,15 @@ function RFIForm() {
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingRFIs = useMemo(() => getRFIsForProject(projectId ?? ''), [projectId, getRFIsForProject]);
   const existingRFI = useMemo(() => rfiId ? existingRFIs.find(r => r.id === rfiId) : null, [rfiId, existingRFIs]);
+  // LS-5: the seat on the job this form writes to (the picked project wins).
+  // A viewer's save would be refused by RLS after landing optimistically, so
+  // Create/Update is off for him and says why. Shares the role query cache.
+  const writeSeat = useProjectRoleState(projectId || undefined);
+  const writeBlock = projectRecordWriteBlock(writeSeat.role);
+  // Spread AFTER `disabled={!!responseConflict}` on the two Save buttons, so a
+  // viewer seat also turns them off without re-shaping the conflict prop that
+  // validate-w4-rfi-core-screens pins.
+  const viewerSaveOff = writeBlock ? { disabled: true } : null;
 
   // When arriving from photo-annotator with `prefillPhotoId`, look up the whole
   // photo — not just its URI. The photo already knows which schedule task it
@@ -436,7 +447,8 @@ function RFIForm() {
   const numberHold = existingRFI ? numberHoldReason('RFI', numberInfo.state) : null;
   // #58: every send (architect email, client portal) is off while there are
   // unsaved edits — Send never saves; see sendBlockReason.
-  const sendBlock = existingRFI ? sendBlockReason({ isDirty, numberHold }) : null;
+  // LS-5: a send writes the hand-off onto the row, which RLS refuses a viewer.
+  const sendBlock = existingRFI ? (writeBlock ?? sendBlockReason({ isDirty, numberHold })) : null;
   // The state initializers above run on the FIRST render only, and the photo
   // cache can hydrate a beat after this screen opens — so a prefill that
   // arrives late would be dropped on the floor. Latched so it fills each field
@@ -680,6 +692,11 @@ function RFIForm() {
   }), [navigation]);
 
   const handleSave = useCallback(() => {
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (existingRFI) {
       if (!persistForm()) return;
     } else {
@@ -741,7 +758,7 @@ function RFIForm() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     allowLeave.current = true;
     router.back();
-  }, [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, linkedDrawing, linkedTaskId, existingRFI, projectId, addRFI, router, attachments, sourcePhotoId, persistForm]);
+  }, [subject, question, assignedTo, assignedSubId, submittedBy, dateRequired, priority, linkedDrawing, linkedTaskId, existingRFI, projectId, addRFI, router, attachments, sourcePhotoId, persistForm, writeBlock]);
 
   // #58: "Save changes" — the save half of Update, staying on the screen so
   // he can send next. The send runs in a LATER render, whose context closures
@@ -1043,8 +1060,8 @@ function RFIForm() {
   usePrimaryAction(existingRFI ? handleSaveInPlace : handleSave, {
     label: 'Save RFI',
     enabled: isDesktop,
-    disabled: !!responseConflict,
-    reason: RFI_RESPONSE_CONFLICT_REASON,
+    disabled: !!responseConflict || !!writeBlock,
+    reason: writeBlock ?? RFI_RESPONSE_CONFLICT_REASON,
   });
   const [showAllSubs, setShowAllSubs] = useState(false);
 
@@ -1702,14 +1719,16 @@ function RFIForm() {
         {/* #58: save and stay, so the sends below can go. */}
         {/* #25: Save waits for his pick, and says why. */}
         {!!responseConflict && <Text style={styles.attachmentNote} testID="rfi-save-conflict">{RFI_RESPONSE_CONFLICT_REASON}</Text>}
+        {/* LS-5: a viewer seat cannot file — the control says why. */}
+        {writeBlock ? <Text style={styles.attachmentNote} testID="rfi-save-viewer">{writeBlock}</Text> : null}
         {existingRFI && isDirty && (
-          <TouchableOpacity style={[styles.sendToProBtn, !!responseConflict && { opacity: 0.5 }, isDesktop && desktopCta]} onPress={handleSaveInPlace} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save-in-place">
+          <TouchableOpacity style={[styles.sendToProBtn, (!!responseConflict || !!writeBlock) && { opacity: 0.5 }, isDesktop && desktopCta]} onPress={handleSaveInPlace} disabled={!!responseConflict} {...viewerSaveOff} accessibilityState={{ disabled: !!responseConflict || !!writeBlock }} activeOpacity={0.85} testID="rfi-save-in-place">
             <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.sendToProBtnText}>Save changes</Text>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={[styles.saveBtn, !!responseConflict && { opacity: 0.5 }, isDesktop && desktopCta]} onPress={handleSave} disabled={!!responseConflict} accessibilityState={{ disabled: !!responseConflict }} activeOpacity={0.85} testID="rfi-save">
+        <TouchableOpacity style={[styles.saveBtn, (!!responseConflict || !!writeBlock) && { opacity: 0.5 }, isDesktop && desktopCta]} onPress={handleSave} disabled={!!responseConflict} {...viewerSaveOff} accessibilityState={{ disabled: !!responseConflict || !!writeBlock }} activeOpacity={0.85} testID="rfi-save">
           <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>{existingRFI ? 'Update RFI' : 'Create RFI'}</Text>
         </TouchableOpacity>
