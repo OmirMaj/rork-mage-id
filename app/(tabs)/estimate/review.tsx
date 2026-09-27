@@ -524,10 +524,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Type.eyebrow is the house uppercase micro-label (11 / 700 / 1.4 tracking).
   // Hand-rolled weight '800' is off the four-weight ladder in typography.ts.
   // The three hero foregrounds are `OnInk`, not ThemeColors, because `hero`
-  // renders <BrandBackdrop /> — an OPAQUE ink field (#0B0D10 → #14181D) that is
+  // renders <BrandBackdrop /> — an OPAQUE ink field (#151816 → #1D211F) that is
   // identical in light and dark mode. See components/BrandBackdrop.tsx.
   heroEyebrow: { ...Type.eyebrow, color: OnInk.eyebrow, marginBottom: 4 },
-  // Fraunces display face — same hero band as the estimate hub + wizard.
+  // Barlow display face — same hero band as the estimate hub + wizard.
   heroTitle: { ...Type.serifTitle, color: OnInk.title },
   heroSub: { ...Type.subhead, color: OnInk.subtitle, marginTop: 4 },
   atCostBand: {

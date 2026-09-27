@@ -57,6 +57,99 @@ export interface CreatePaymentLinkResult {
   url?: string;
   id?: string;
   error?: string;
+  /**
+   * The function's refusal code, read from the non-2xx body
+   * (supabase-js collapses every non-2xx into one generic sentence; the reason
+   * hangs off `error.context`). 'payment_pending', 'sample_project',
+   * 'not_connected', and — health MONEY-PAYLINK-AMOUNT-TRUST — 'balance_changed'
+   * (the amount is above what the SERVER says is owed) and 'nothing_due'.
+   * For those two, `error` is the sentence to show and `serverBalanceCents`
+   * is the server's figure.
+   */
+  code?: string;
+  /** Integer cents the server row says is owed, on 'balance_changed' / 'nothing_due'. */
+  serverBalanceCents?: number;
+}
+
+/** The two refusals where the SERVER balance, not the device's, decides. */
+export const PAY_LINK_BALANCE_CODES = ['balance_changed', 'nothing_due'] as const;
+export type PayLinkBalanceCode = typeof PAY_LINK_BALANCE_CODES[number];
+export function isPayLinkBalanceCode(code: unknown): code is PayLinkBalanceCode {
+  return code === 'balance_changed' || code === 'nothing_due';
+}
+
+/** Same words as the server's payLinkRefusalMessage, for a body without one. */
+export function payLinkBalanceFallback(
+  code: PayLinkBalanceCode,
+  serverBalanceCents?: number,
+  recordType: 'invoice' | 'aia_pay_app' = 'invoice',
+): string {
+  const noun = recordType === 'aia_pay_app' ? 'pay application' : 'invoice';
+  if (code === 'nothing_due') return `Nothing is owed on this ${noun} any more.`;
+  const now = typeof serverBalanceCents === 'number'
+    ? ` (now $${(serverBalanceCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+    : '';
+  return `This ${noun}'s balance changed on the server${now}. Refresh the ${noun} before sending.`;
+}
+
+/**
+ * A background re-mint the SERVER refused because its balance has not caught
+ * up with this device yet — a write that is still queued, not a payment that
+ * landed elsewhere. Returns the sentence to show, or null when the refusal is
+ * not that case (any other failure keeps its existing handling).
+ *
+ *  - 'retention_release': the release raised the balance on this device; the
+ *    server still holds the pre-release figure until the queued write lands.
+ *  - 'certificate': a certificate recorded ABOVE the amount applied for; the
+ *    server compares against line 8 until the certificate sidecar lands.
+ */
+export function payLinkRemintRefusalNotice(
+  code: unknown,
+  context: 'retention_release' | 'certificate',
+): string | null {
+  if (code !== 'balance_changed') return null;
+  if (context === 'retention_release') {
+    return 'The release is saved on this device but has not reached the server yet, so the Pay link was not replaced. '
+      + 'The client portal hides the old link. Tap Regenerate pay link, or send the invoice, once the release has synced.';
+  }
+  return 'The server has not received the architect’s certificate yet, so it still checks the Pay link against the amount applied for. '
+    + 'Try replacing the Pay link again in a moment.';
+}
+
+/**
+ * Read a create-payment-link non-2xx body ONCE (a Response body can be read a
+ * single time) into a result. Pure apart from the body read, so the validator
+ * drives it with a fake FunctionsHttpError.
+ */
+export async function paymentLinkErrorResult(
+  error: unknown,
+  recordType: 'invoice' | 'aia_pay_app' = 'invoice',
+): Promise<CreatePaymentLinkResult> {
+  const err = error as { message?: unknown; context?: { json?: () => Promise<unknown> } } | null;
+  const fallback = typeof err?.message === 'string' && err.message ? err.message : 'Failed to create payment link';
+  const ctx = err?.context;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = await ctx.json() as { error?: unknown; code?: unknown; serverBalanceCents?: unknown; message?: unknown } | null;
+      const bodyError = typeof body?.error === 'string' && body.error.trim() ? body.error.trim() : '';
+      const code = typeof body?.code === 'string' && body.code.trim() ? body.code.trim() : bodyError;
+      if (isPayLinkBalanceCode(code)) {
+        const cents = typeof body?.serverBalanceCents === 'number' && Number.isFinite(body.serverBalanceCents)
+          ? Math.max(0, Math.round(body.serverBalanceCents))
+          : undefined;
+        // The server's own sentence (_shared/payLinkBalance payLinkRefusalMessage)
+        // names the balance it compared against. Not imported here: that file
+        // is Deno-side and imports paymentMath with a `.ts` path the app
+        // bundle does not take. The fallback says the same thing.
+        const serverSentence = typeof body?.message === 'string' && body.message.trim() ? body.message.trim() : '';
+        return { success: false, code, serverBalanceCents: cents, error: serverSentence || payLinkBalanceFallback(code, cents, recordType) };
+      }
+      if (bodyError || code) return { success: false, error: bodyError || code, code: code || undefined };
+    } catch {
+      // Not JSON, or already read — fall through to the transport message.
+    }
+  }
+  return { success: false, error: fallback };
 }
 
 export async function createPaymentLink(
@@ -110,7 +203,7 @@ export async function createPaymentLink(
 
     if (error) {
       console.error('[Stripe] Edge function error:', error);
-      return { success: false, error: error.message || 'Failed to create payment link' };
+      return paymentLinkErrorResult(error, params.recordType ?? 'invoice');
     }
 
     const result = data as CreatePaymentLinkResult | null;

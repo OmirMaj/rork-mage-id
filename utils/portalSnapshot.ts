@@ -21,7 +21,7 @@ import { contractTimeline } from '@/utils/contractTimelineCore';
 import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
-import { roundCents } from '@/utils/aiaBilling';
+import { roundCents, aiaPayableNow } from '@/utils/aiaBilling';
 import { paymentReceivedDay, type RecordedPaymentFields } from '@/utils/billingFlowCore';
 import {
   getEffectiveInvoiceStatus, getOutstandingBalance, getInvoicedToDate,
@@ -594,6 +594,13 @@ export interface PortalSnapshot {
        *  against what is owed, so a CACHED snapshot published before the
        *  server-side guard existed still cannot offer a stale amount. */
       payLinkAmount?: number;
+      /** Dollars the owner pays for this period NOW: the architect's certified
+       *  amount once it is recorded, else line 8 as applied for
+       *  (aiaPayableNow). The Pay link is minted for this figure, so the page's
+       *  Pay guard and "Pay $X" label read it; `currentPaymentDue` stays line 8
+       *  for the G702 itself. Older snapshots carry none — the page falls back
+       *  to currentPaymentDue. */
+      payableNow?: number;
       /** The invoice this certificate certifies. One billing period is one
        *  obligation: the portal uses this to refuse a Pay button on a pay
        *  application whose invoice is already settled, even when a stale
@@ -1867,8 +1874,14 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         // rather than leaving an unpayable card unexplained; hiding the button
         // stays correct either way, because a Payment Link charges the one
         // amount it was minted for and this row cannot say what that was.
+        //
+        // MONEY-AIA-CERTIFIED-LINK (health 2026-09-26): "what is owed" is the
+        // CERTIFIED figure once the architect's certificate is recorded — the
+        // owner pays that (aiaPayableNow). Compared against line 8 as applied
+        // for, a link minted before a lower certificate kept its Pay button
+        // and the owner could overpay by exactly the cut.
         const amountStillMatches = app.payLinkAmount != null
-          && Math.abs(app.payLinkAmount - due) <= 0.01;
+          && Math.abs(app.payLinkAmount - aiaPayableNow(app)) <= 0.01;
         // THE SECOND PAY BUTTON. Paying the INVOICE credits it and nulls the
         // invoice's own pay link, but nothing on the server clears the AIA
         // side (stripe-webhook creditInvoice touches only `invoices`), so a
@@ -1908,6 +1921,8 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         percentComplete: app.totals.percentComplete,
         payLinkUrl,
         payLinkAmount: app.payLinkAmount,
+        // MONEY-AIA-CERTIFIED-LINK: the figure the (re-minted) link charges.
+        payableNow: aiaPayableNow(app),
         invoiceId: app.invoiceId,
         // A period whose INVOICE was paid is settled even though the AIA row
         // carries no paid_at of its own. Say so, rather than leaving the card

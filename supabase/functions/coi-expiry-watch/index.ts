@@ -65,14 +65,14 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const INK = '#0B0D10';
-const AMBER = '#FF6A1A';
-const CREAM = '#F4EFE6';
-const SAND = '#E8DFCD';
+const BRAND = '#2F6B3A';
+const CONCRETE = '#ECEDE9';
+const HAIRLINE = '#D7DAD4';
 const FOG = '#9AA3AD';
 const STONE = '#4A5159';
 const PAPER = '#FFFFFF';
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 function escapeHtml(text: unknown): string {
   if (text == null) return '';
@@ -201,7 +201,7 @@ function buildEmailHtml(opts: {
 
   const contactLines: string[] = [];
   if (opts.subContactName) contactLines.push(`<strong style="color:#0B0D10;">Contact:</strong> ${escapeHtml(opts.subContactName)}`);
-  if (opts.subEmail) contactLines.push(`<strong style="color:#0B0D10;">Email:</strong> <a href="mailto:${escapeHtml(opts.subEmail)}" style="color:#FF6A1A;text-decoration:none;">${escapeHtml(opts.subEmail)}</a>`);
+  if (opts.subEmail) contactLines.push(`<strong style="color:#0B0D10;">Email:</strong> <a href="mailto:${escapeHtml(opts.subEmail)}" style="color:#2F6B3A;text-decoration:none;">${escapeHtml(opts.subEmail)}</a>`);
   if (opts.subPhone) contactLines.push(`<strong style="color:#0B0D10;">Phone:</strong> ${escapeHtml(opts.subPhone)}`);
 
   const bodyHtml = `

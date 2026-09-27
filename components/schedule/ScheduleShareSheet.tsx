@@ -291,7 +291,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.card,
     backgroundColor: t.neutralSoft,
   },
-  modeBtnActive: { backgroundColor: Colors.primary },
+  // accentFill, not Colors.primary, under the white labels here and on
+  // shareBtn: the dark-theme brand #5DB36E gives white 2.58:1 (accentFill 4.83:1).
+  modeBtnActive: { backgroundColor: t.accentFill },
   modeBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   modeBtnTextActive: { color: '#FFF' },
 
@@ -318,7 +320,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     minHeight: 52,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
   },
   shareBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

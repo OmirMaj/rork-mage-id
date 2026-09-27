@@ -75,13 +75,15 @@
   ];
 
   /* Every selector is .mie-* prefixed so the fallback (no Shadow DOM) path is
-   * still safe to drop on any site. Palette matches mageid.app. */
+   * still safe to drop on any site. Palette matches mageid.app: hairline
+   * #D7DAD4 and concrete #ECEDE9 neutrals, so nothing but the accent is ours —
+   * the host page's own brand goes in data-mage-accent. */
   var CSS = [
     ':host{all:initial;display:block}',
     '.mie-root{',
     '  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;',
     '  color:#1c2530;line-height:1.5;font-size:15px;text-align:left;',
-    '  background:#fff;border:1px solid #E8DFCD;border-radius:16px;padding:22px;',
+    '  background:#fff;border:1px solid #D7DAD4;border-radius:16px;padding:22px;',
     '  box-shadow:0 1px 2px rgba(11,13,16,.04),0 8px 24px rgba(11,13,16,.06);',
     '  max-width:460px;box-sizing:border-box;',
     '}',
@@ -94,7 +96,7 @@
     '.mie-hint{font-size:12px;color:#5b6775;font-weight:400;margin-left:4px}',
     '.mie-input,.mie-select{',
     '  width:100%;font-size:15px;font-weight:500;color:#1c2530;background:#fff;appearance:none;',
-    '  padding:11px 12px;border:1.5px solid #E8DFCD;border-radius:10px;line-height:1.3;',
+    '  padding:11px 12px;border:1.5px solid #D7DAD4;border-radius:10px;line-height:1.3;',
     '}',
     '.mie-select{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%235b6775\' stroke-width=\'1.8\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}',
     '.mie-input:focus,.mie-select:focus{outline:none;border-color:var(--mie-accent);box-shadow:0 0 0 3px rgba(0,0,0,.06)}',
@@ -110,24 +112,26 @@
     '.mie-btn-ghost{background:transparent;color:#5b6775;font-weight:600;font-size:13px;padding:9px;margin-top:8px;border-radius:8px}',
     '.mie-btn-ghost:hover{color:#0B0D10;filter:none}',
     '.mie-hp{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}',
-    '.mie-err{background:#FFF1E6;border-left:4px solid var(--mie-accent);border-radius:8px;padding:11px 13px;font-size:13.5px;color:#14181D;margin-bottom:12px}',
+    '.mie-err{background:#ECEDE9;border-left:4px solid var(--mie-accent);border-radius:8px;padding:11px 13px;font-size:13.5px;color:#14181D;margin-bottom:12px}',
     '.mie-result{text-align:center}',
     '.mie-band{background:#0B0D10;border-radius:12px;padding:20px 16px;color:#fff;margin-bottom:14px}',
     '.mie-band .mie-cap{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.72}',
     '.mie-band .mie-range{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:6px 0 4px;line-height:1.1}',
     '.mie-band .mie-likely{font-size:13px;opacity:.85}',
-    '.mie-band .mie-likely b{color:var(--mie-accent);font-weight:700}',
+    // The likely figure sits on the #0B0D10 band, where a dark accent (the
+    // default #2F6B3A makes 3.0:1) cannot carry text — white text, accent underline.
+    '.mie-band .mie-likely b{color:#fff;font-weight:700;text-decoration:underline;text-decoration-color:var(--mie-accent);text-decoration-thickness:2px;text-underline-offset:3px}',
     '.mie-chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;',
-    '  padding:4px 9px;border-radius:999px;background:#FAF7F0;border:1px solid #E8DFCD;color:#5b6775;margin-bottom:12px}',
-    '.mie-notes{text-align:left;border:1px solid #E8DFCD;border-radius:10px;overflow:hidden;margin-bottom:12px}',
-    '.mie-notes summary{cursor:pointer;padding:11px 13px;font-size:13px;font-weight:600;color:#0B0D10;list-style:none;background:#FAF7F0}',
+    '  padding:4px 9px;border-radius:999px;background:#ECEDE9;border:1px solid #D7DAD4;color:#5b6775;margin-bottom:12px}',
+    '.mie-notes{text-align:left;border:1px solid #D7DAD4;border-radius:10px;overflow:hidden;margin-bottom:12px}',
+    '.mie-notes summary{cursor:pointer;padding:11px 13px;font-size:13px;font-weight:600;color:#0B0D10;list-style:none;background:#ECEDE9}',
     '.mie-notes summary::-webkit-details-marker{display:none}',
     '.mie-notes summary::after{content:"+";float:right;color:var(--mie-accent);font-weight:800}',
     '.mie-notes[open] summary::after{content:"\\2013"}',
     '.mie-notes ul{padding:10px 15px 12px 28px}',
     '.mie-notes li{font-size:12.5px;color:#5b6775;margin-bottom:6px;line-height:1.45}',
-    '.mie-sent{font-size:13.5px;color:#1c2530;background:#FAF7F0;border:1px solid #E8DFCD;border-radius:10px;padding:11px 13px;margin-bottom:12px}',
-    '.mie-foot{margin-top:14px;padding-top:12px;border-top:1px solid #E8DFCD;text-align:center}',
+    '.mie-sent{font-size:13.5px;color:#1c2530;background:#ECEDE9;border:1px solid #D7DAD4;border-radius:10px;padding:11px 13px;margin-bottom:12px}',
+    '.mie-foot{margin-top:14px;padding-top:12px;border-top:1px solid #D7DAD4;text-align:center}',
     '.mie-foot a{font-size:11.5px;font-weight:600;color:#5b6775;text-decoration:none;letter-spacing:.02em}',
     '.mie-foot a:hover{color:#0B0D10}',
     '.mie-foot .mie-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mie-accent);margin-right:6px;vertical-align:middle}',
@@ -485,7 +489,7 @@
       var cfg = {
         contractorId: opts.contractorId || attr(host, 'data-mage-contractor', ''),
         contractorName: opts.contractorName || attr(host, 'data-mage-name', 'us'),
-        accent: opts.accent || attr(host, 'data-mage-accent', '#FF6A1A'),
+        accent: opts.accent || attr(host, 'data-mage-accent', '#2F6B3A'),
         title: opts.title || attr(host, 'data-mage-title', 'Get an instant ballpark'),
         subtitle: opts.subtitle || attr(host, 'data-mage-subtitle', 'A few details and you will see a real price range in seconds. No obligation.'),
         cta: opts.cta || attr(host, 'data-mage-cta', 'Continue'),
@@ -547,7 +551,7 @@
         ? {
             contractorId: attr(script, 'data-mage-contractor', ''),
             contractorName: attr(script, 'data-mage-name', 'us'),
-            accent: attr(script, 'data-mage-accent', '#FF6A1A'),
+            accent: attr(script, 'data-mage-accent', '#2F6B3A'),
             title: attr(script, 'data-mage-title', 'Get an instant ballpark'),
             subtitle: attr(script, 'data-mage-subtitle', 'A few details and you will see a real price range in seconds. No obligation.'),
             cta: attr(script, 'data-mage-cta', 'Continue'),

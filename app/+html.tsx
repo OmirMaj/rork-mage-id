@@ -25,11 +25,15 @@ import {
   WEB_DOCUMENT_CSS,
   WEB_DOCUMENT_STYLE_ID,
 } from '@/components/desktop/webDocument';
+import { BRAND_ACCENT } from '@/constants/colors';
 
 const APP_NAME = 'MAGE ID';
 const APP_DESCRIPTION = 'The operating system for general contractors — plans, estimates, daily reports, pay applications, and a live client portal. One app for the jobsite.';
 const THEME_COLOR_INK = '#0B0D10';
-const THEME_COLOR_AMBER = '#FF6A1A';
+// The brand, re-exported for web-only callers. Read from the colour module
+// (which has no imports, so it is safe in this static-render entry point)
+// rather than spelled again, so the rebrand cannot leave a stale hex here.
+const THEME_COLOR_BRAND = BRAND_ACCENT;
 
 /**
  * Root HTML document for every page served by app.mageid.app.
@@ -108,4 +112,4 @@ export default function Root({ children }: PropsWithChildren) {
 
 // Re-export the theme color so other places can reference it without
 // duplicating the constant. (e.g., a future deep-link landing page.)
-export { THEME_COLOR_INK, THEME_COLOR_AMBER, APP_NAME, APP_DESCRIPTION };
+export { THEME_COLOR_INK, THEME_COLOR_BRAND, APP_NAME, APP_DESCRIPTION };

@@ -29,6 +29,7 @@ import { ASSEMBLIES, type AssemblyItem } from '@/constants/assemblies';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface CartItem {
   material: MaterialItem;
@@ -104,6 +105,9 @@ export default React.memo(function AIQuickEstimate({
   const { colors: t } = useTheme();
   const { tier } = useSubscription();
   const router = useRouter();
+  // Desktop: the estimator is the 880 px right-docked panel over the page
+  // (d6r X3, R-PANEL); a phone keeps its native page sheet (every part null).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
   const [description, setDescription] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
@@ -780,10 +784,12 @@ export default React.memo(function AIQuickEstimate({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
-      <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle="pageSheet" transparent={fP.transparent} onRequestClose={handleClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={handleClose} />
+      <KeyboardAvoidingView style={[s.container, fP.card]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={s.modalHeader}>
-          <View style={s.modalHandle} />
+          {fP.showHandle && <View style={s.modalHandle} />}
           <View style={s.modalTitleRow}>
             <View style={s.modalTitleLeft}>
               <MageAIMark size={20} color={Colors.primary} />
@@ -797,6 +803,7 @@ export default React.memo(function AIQuickEstimate({
         {step === 'loading' && renderInput() /* keep input mounted underneath; overlay covers it */}
         {step === 'result' && renderResult()}
       </KeyboardAvoidingView>
+      </SheetOverlay>
 
       {/* No `subtitle` prop on purpose. EstimateLoadingOverlay's own default
           already says the honest thing — the model is estimating from the
@@ -1006,8 +1013,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   typeChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: t.accentFill,
+    borderColor: t.accentFill,
   },
   typeChipText: {
     fontSize: Type.footnote.fontSize,
@@ -1082,7 +1089,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.panel,
     paddingVertical: 18,
     marginTop: 8,
@@ -1421,7 +1428,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.panel,
     paddingVertical: 18,
     shadowColor: Colors.primary,

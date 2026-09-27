@@ -64,7 +64,8 @@ import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
 import { formatMoney, formatNumber, parseLenientNumber, displayText } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -479,8 +480,8 @@ export default function EstimateScreen() {
       source: 'ai',
     }).then(() => getRecentMaterials().then(setRecentMaterials)).catch(() => {});
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [cartAnim, ctxAddToCart]);
 
@@ -580,8 +581,8 @@ export default function EstimateScreen() {
     setCustomPrice('');
     setCustomNotes('');
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [customName, customPrice, customUnit, customCategory, customNotes, cartAnim, ctxAddToCart]);
 
@@ -892,8 +893,8 @@ export default function EstimateScreen() {
       return Array.from(map.values());
     });
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.4, useNativeDriver: true, speed: 30, bounciness: 12 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [cartAnim, ctxAddManyToCart]);
 
@@ -1008,8 +1009,8 @@ export default function EstimateScreen() {
       ctxAddToCart(selectedMaterial, qty);
     }
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
     addRecentMaterial({
       id: selectedMaterial.id,
@@ -4363,6 +4364,10 @@ export default function EstimateScreen() {
   );
 }
 
+// Solid fills under a white label or glyph use themeColors.accentFill, never
+// Colors.primary: the dark theme's primary #5DB36E carries white at 2.58:1,
+// accentFill at 4.83:1 (6.39:1 light, where the two are the same #2F6B3A).
+// Colors.primary stays on icons, text, borders, tints and text-free dots.
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
@@ -4587,7 +4592,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 6,
   },
-  // Fraunces display face at the shared page-title size — matches PageHeader
+  // The display face (Barlow) at the shared page-title size — matches PageHeader
   // (every primary tab) instead of a one-off 32px system-font title.
   headerTitle: {
     ...Type.serifTitle,
@@ -4634,7 +4639,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     height: 34,
     paddingHorizontal: 12,
     borderRadius: 17,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   aiEstimateBtnText: {
     fontSize: Type.caption1.fontSize,
@@ -4653,7 +4658,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4724,7 +4729,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   markupChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   markupChipText: {
     fontSize: Type.footnote.fontSize,
@@ -4774,7 +4779,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   categoryChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   categoryChipText: {
     fontSize: Type.caption1.fontSize,
@@ -4932,7 +4937,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -5052,7 +5057,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     position: 'absolute' as const,
     left: 16,
     right: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.xl,
     flexDirection: 'row',
     alignItems: 'center',
@@ -5166,8 +5171,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   repriceBtnPrimary: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
+    borderColor: themeColors.accentFill,
   },
   repriceBtnText: {
     fontSize: Type.subhead.fontSize,
@@ -5388,7 +5393,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     shadowColor: Colors.primary,
@@ -5527,7 +5532,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   cartEmptyBtn: {
     marginTop: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
@@ -5738,7 +5743,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 4,
@@ -5817,7 +5822,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 4,
@@ -5917,7 +5922,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
@@ -6152,7 +6157,7 @@ const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.card,
     paddingVertical: 12,
   },
@@ -6230,7 +6235,7 @@ const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
     height: 16,
     paddingHorizontal: 3,
     borderRadius: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -6324,7 +6329,7 @@ const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -6473,7 +6478,7 @@ const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

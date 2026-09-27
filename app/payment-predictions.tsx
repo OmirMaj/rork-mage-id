@@ -37,7 +37,7 @@ function formatShortDate(iso: string): string {
 type KnownRisk = NonNullable<InvoicePrediction['riskLevel']>;
 
 const RISK_COLOR: Record<KnownRisk, string> = {
-  low: '#2E7D44',
+  get low() { return Colors.successLabel; },
   medium: Colors.warningLabel,
   high: '#C84038',
 };

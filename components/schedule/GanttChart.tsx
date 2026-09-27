@@ -18,10 +18,13 @@ import {
   getPhaseColor,
 } from '@/utils/scheduleEngine';
 import { findWeatherRisk, type DayForecast } from '@/utils/weatherService';
+import { scheduleCalendarOf } from '@/utils/scheduleCalendarDate';
 import { SimulatedWeatherBanner } from '@/components/schedule/SimulatedWeatherNotice';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ganttPxPerDay, GANTT_CHROME } from '@/utils/scheduleRoute';
+import { useIsDesktop } from '@/components/ui/desktop';
+import { usePrintFit } from '@/hooks/usePrintFit';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -54,6 +57,10 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
   // Colors.borderLight/textMuted/surfaceAlt/text at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
+  // Cmd+P on desktop web zooms the timeline to fit the sheet (lane Z1; `{}`
+  // and no listener anywhere else).
+  const isDesktop = useIsDesktop();
+  const printFit = usePrintFit(isDesktop);
   const totalDays = schedule.totalDurationDays;
   const fitPxPerDay = ganttPxPerDay(viewportWidth, totalDays);
   const ganttWidth = fitPxPerDay === null
@@ -96,6 +103,17 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
     return index;
   }, [showBaseline, schedule.baseline]);
 
+  // startDay is a WORKING ordinal: the weather badge checks the task's working
+  // days on the schedule's own calendar (utils/scheduleCalendarDate).
+  // Keyed on the four calendar fields, NOT the whole `schedule`: renderGanttRow
+  // lists weatherCalendar, and a task edit must not re-create the row renderer
+  // (validate-gantt-baseline-index).
+  const { startDate: calStart, workingDaysPerWeek: calWeek, nonWorkingDates: calClosures, startDayBasis: calBasis } = schedule;
+  const weatherCalendar = useMemo(
+    () => scheduleCalendarOf({ startDate: calStart, workingDaysPerWeek: calWeek, nonWorkingDates: calClosures, startDayBasis: calBasis }),
+    [calStart, calWeek, calClosures, calBasis],
+  );
+
   const todayOffset = useMemo(() => {
     const now = new Date();
     const diff = Math.ceil((now.getTime() - projectStartDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -115,6 +133,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
             task.startDay,
             task.durationDays,
             forecast,
+            weatherCalendar,
           )
         : null;
 
@@ -186,7 +205,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
         </View>
       </TouchableOpacity>
     );
-  }, [totalDays, baselineById, onTaskPress, forecast, projectStartDate]);
+  }, [totalDays, baselineById, onTaskPress, forecast, projectStartDate, weatherCalendar]);
 
   /**
    * The forecast days that actually reach the screen: one per rendered
@@ -200,14 +219,14 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
     const out: DayForecast[] = [];
     for (const t of tasks) {
       if (!t.isWeatherSensitive) continue;
-      const risk = findWeatherRisk(projectStartDate, t.startDay, t.durationDays, forecast);
+      const risk = findWeatherRisk(projectStartDate, t.startDay, t.durationDays, forecast, weatherCalendar);
       if (risk) out.push(risk);
     }
     return out;
-  }, [tasks, forecast, projectStartDate]);
+  }, [tasks, forecast, projectStartDate, weatherCalendar]);
 
   return (
-    <View style={s.container}>
+    <View ref={printFit.ref} style={s.container} {...printFit.printProps}>
       {/* Self-hiding when every badge is backed by a live reading. */}
       <SimulatedWeatherBanner days={displayedRiskDays} style={s.simBannerSpacing} />
       <ScrollView horizontal showsHorizontalScrollIndicator style={s.horizontalScroll}>

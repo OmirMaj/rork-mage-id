@@ -8,7 +8,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome, CheckCircle2 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
+import { Colors, BRAND_ACCENT_ON_DARK } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -466,7 +466,7 @@ export default function LoginScreen() {
         <View style={styles.brandRow}>
           <Slot style={entrance.slot(0)}>
             <View style={styles.logoChip}>
-              <HardHat size={16} color={Colors.orange} strokeWidth={2} />
+              <HardHat size={16} color={BRAND_ACCENT_ON_DARK} strokeWidth={2} />
             </View>
           </Slot>
           <Text
@@ -786,11 +786,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg,
   },
   // Premium dark hero — matches the marketing site at https://mageid.app
-  // Palette: --ink #0B0D10 + --amber #FF6A1A + --cream #F4EFE6.
-  // A single soft amber glow gives the "industrial concrete × tech" feel
+  // Palette (rebrand 2026-09-16): the dark ground #151816 + equipment green on
+  // dark (BRAND_ACCENT_ON_DARK #5DB36E) + cream type. The hero is dark in BOTH
+  // themes, so its green is the dark-UI brand — #2F6B3A would be 2.80:1 here —
+  // and never the themed accent, which is the light brand in light mode.
+  // A single soft green glow gives the "industrial concrete × tech" feel
   // without an image asset — and without ruled lines behind the copy.
   topSection: {
-    backgroundColor: '#0B0D10',
+    backgroundColor: '#151816',
     paddingHorizontal: 28,
     paddingBottom: 40,
     alignItems: 'flex-start' as const,
@@ -803,7 +806,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: 'rgba(255,106,26,0.18)',
+    backgroundColor: 'rgba(93,179,110,0.18)', // BRAND_ACCENT_ON_DARK at 18%
   },
   brandRow: {
     flexDirection: 'row' as const,
@@ -816,11 +819,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: 'rgba(255,106,26,0.12)',
+    backgroundColor: 'rgba(93,179,110,0.12)',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     borderWidth: 1,
-    borderColor: 'rgba(255,106,26,0.24)',
+    borderColor: 'rgba(93,179,110,0.24)',
   },
   brandWordmark: {
     fontSize: Type.footnote.fontSize,
@@ -831,7 +834,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroEyebrow: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.orange,
+    color: BRAND_ACCENT_ON_DARK,
     letterSpacing: 2.5,
     marginBottom: 12,
     zIndex: 1,
@@ -846,7 +849,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     zIndex: 1,
   },
   heroLineAccent: {
-    color: Colors.orange,
+    color: BRAND_ACCENT_ON_DARK,
     fontStyle: 'italic' as const,
     fontWeight: '700' as const,
   },
@@ -942,7 +945,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0B0D10',
+    // #151816, the dark ground since the 2026-09-16 rebrand (was #0B0D10). It
+    // also has to MATCH Theme.dark.bg: scripts/validate-contrast.ts check 13
+    // recognises this file as painting a real ink field by comparing against
+    // that token, and prints its exemption on that basis.
+    backgroundColor: '#151816',
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,
@@ -956,10 +963,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loginButtonDisabled: {
     opacity: 0.7,
   },
-  // Colors.textOnAccent, NOT t.surface. This sits on a FIXED fill (ink #0B0D10 /
+  // Colors.textOnAccent, NOT t.surface. This sits on a FIXED fill (ink #151816 /
   // Apple black / t.accentFill) that does not change with the theme, so the
-  // foreground must not either. In dark mode t.surface is #14181D: the Sign In
-  // label was 1.09:1 on its own button, and the page behind it is #0B0D10 too,
+  // foreground must not either. In dark mode t.surface is the dark surface: the
+  // Sign In label was 1.09:1 on its own button, and the page behind it is ink too,
   // so the button had no edge and the label no contrast. validate-contrast.ts
   // passes on this file — it prints an explicit allowance for it.
   loginButtonText: {
@@ -1061,9 +1068,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: '#1E8E4A' + '12',
+    backgroundColor: '#12806E' + '12',
     borderWidth: 1,
-    borderColor: '#1E8E4A' + '40',
+    borderColor: '#12806E' + '40',
   },
   magicLinkSuccessText: {
     fontSize: Type.footnote.fontSize,
@@ -1123,7 +1130,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   signupLink: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: '#0B0D10',
+    // t.accentLabel, not ink. The literal '#0B0D10' was ink TEXT on t.bg — fine
+    // on the light ground and roughly 1.1:1 on the dark one, so "Sign up" simply
+    // vanished in dark mode. The theme-aware brand label clears AA in both, and
+    // a link reads as a link in the brand colour.
+    color: t.accentLabel,
   },
   forgotButton: {
     flexDirection: 'row' as const,
@@ -1136,6 +1147,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   forgotText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.orange,
+    // A brand text link on the themed page: accentLabel is the AA ink in both
+    // themes. (This was Colors.orange — the system WARNING orange, not brand.)
+    color: t.accentLabel,
   },
 });

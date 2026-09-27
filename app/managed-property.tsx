@@ -38,6 +38,7 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import {
   parseBudgetInput, parseUnitsInput, workOrderStatusTone, workOrderPriorityTone,
   propertyEditForm, propertyEditUpdates, type PropertyEditForm,
@@ -163,6 +164,15 @@ export default function ManagedPropertyScreen() {
     router.push({ pathname: '/work-order' as never, params: { workOrderId: created.id } as never });
   }, [woTitle, woDesc, woCategory, woPriority, woBudget, propertyId, addWorkOrder, router, resetWoDraft]);
 
+  // Desktop: both sheets are centred form cards (d6r X3, batch F); a phone
+  // keeps its bottom sheets (every frame part is null there). Cmd/Ctrl+Enter
+  // (and Cmd+S) run the sheet's own Save / Create — each guards its own
+  // blocked state, exactly like its disabled button.
+  const fEdit = useSheetFrame('form', { visible: editOpen, animationType: 'slide' });
+  const fWo = useSheetFrame('form', { visible: woOpen, animationType: 'slide' });
+  useSheetPrimaryHotkey(editOpen, saveEdit);
+  useSheetPrimaryHotkey(woOpen, handleAddWo);
+
   if (!property) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -249,10 +259,10 @@ export default function ManagedPropertyScreen() {
       </ScrollView>
 
       {/* Edit-property modal */}
-      <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+      <Modal visible={editOpen} transparent animationType={fEdit.animationType} onRequestClose={() => setEditOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalOverlay, fEdit.overlay]}>
+          <View style={[styles.modalSheet, fEdit.card]}>
+            {fEdit.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Edit property</Text>
               <TouchableOpacity onPress={() => setEditOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -284,10 +294,10 @@ export default function ManagedPropertyScreen() {
       </Modal>
 
       {/* Add-work-order modal */}
-      <Modal visible={woOpen} transparent animationType="slide" onRequestClose={() => setWoOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+      <Modal visible={woOpen} transparent animationType={fWo.animationType} onRequestClose={() => setWoOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalOverlay, fWo.overlay]}>
+          <View style={[styles.modalSheet, fWo.card]}>
+            {fWo.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Wrench size={15} color="#FFF" strokeWidth={1.75} /></View>
               <Text style={styles.modalTitle}>New work order</Text>

@@ -78,9 +78,10 @@ export default function EmptyState({
   }, [enter, rise]);
 
   const accentColor = accent ?? colors.accent;
-  // The CTA carries WHITE text, so its fill must clear 4.5:1 for white — the
-  // brand #FF6A1A only reaches 2.87:1. accentFill (#BC440C, white 5.29:1) is
-  // that accessible fill. The halo/icon/step chrome keep accentColor (large
+  // The CTA carries WHITE text, so its fill must clear 4.5:1 for white.
+  // accentFill is that accessible fill: the light brand #2F6B3A already gives
+  // white 6.39:1, but the dark accent #5DB36E gives only 2.58:1, so dark mode
+  // (and any user-picked hue) needs the solved companion. The halo/icon/step chrome keep accentColor (large
   // non-text, 3:1) so the brand hue still reads on the empty state.
   const buttonFill = colors.accentFill;
 

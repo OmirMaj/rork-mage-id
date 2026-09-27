@@ -11,6 +11,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import type { VoiceUpdateFunctions } from '@/utils/voiceCommandExecutor';
 import VoiceCommandModal from './VoiceCommandModal';
+import { Motion } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 
 interface VoiceFieldButtonProps {
   tasks: ScheduleTask[];
@@ -33,9 +35,8 @@ export default function VoiceFieldButton({
   useEffect(() => {
     Animated.spring(scaleAnim, {
       toValue: 1,
-      friction: 6,
-      tension: 80,
-      useNativeDriver: true,
+      ...Motion.spring.rise,
+      useNativeDriver: nativeDriver,
     }).start();
 
     const glow = Animated.loop(

@@ -133,8 +133,16 @@ function calibrationFactFor(
 }
 
 // On-brand cost-distribution bar palette (no purple/pink — matches the
-// redesign's trade-tile colors). Rotated by category index.
-const BREAKDOWN_COLORS = ['#FF6A1A', '#5FBF6B', '#90A4AE', '#4FC3F7', '#FFA726', '#8D6E63', '#EF5350', '#26C6DA'];
+// redesign's trade-tile colors). Rotated by category index. Slot 0 is the
+// brand, resolved at render (Colors.primary follows the theme and a picked
+// hue), so it is a function rather than a frozen array. The old slot-1 green
+// #5FBF6B was dropped in the 2026-09-16 rebrand: it sits ΔE 9 from the dark
+// brand green, so the two largest cost categories would share a colour.
+const BREAKDOWN_TAIL = ['#90A4AE', '#4FC3F7', '#FFA726', '#8D6E63', '#EF5350', '#26C6DA'];
+function breakdownColor(i: number): string {
+  const n = i % (BREAKDOWN_TAIL.length + 1);
+  return n === 0 ? Colors.primary : BREAKDOWN_TAIL[n - 1];
+}
 
 // Single source of truth for the post-wizard paywall destination in onboarding
 // mode — avoids the cast being duplicated at every leave site. Always used as a
@@ -1532,7 +1540,7 @@ function EstimateWizardScreenInner() {
               <Text style={styles.breakdownTitle}>Cost Distribution</Text>
               {sortedCategories.map(({ cat, subtotal }, i) => {
                 const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
-                const barColor = BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length];
+                const barColor = breakdownColor(i);
                 return (
                   <View key={i} style={styles.breakdownRow}>
                     <View style={styles.breakdownHead}>
@@ -2297,15 +2305,19 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: OnInk.eyebrow, marginBottom: 8,
   },
   heroTotal: {
-    fontFamily: 'Fraunces_700Bold', fontSize: 46, color: OnInk.title, letterSpacing: -1,
+    fontFamily: 'Barlow_700Bold', fontSize: 46, color: OnInk.title, letterSpacing: -0.5,
   },
   heroSubtitle: { fontSize: Type.footnote.fontSize, color: OnInk.subtitle, marginTop: 8 },
   heroChip: {
     alignSelf: 'flex-start' as const, marginTop: 12,
-    backgroundColor: 'rgba(255,106,26,0.18)', borderWidth: 1, borderColor: 'rgba(255,106,26,0.4)',
+    // The brand as it reads on DARK (#5DB36E, the OnInk.eyebrow ink) — this chip
+    // sits on the fixed ink hero in both themes, so the light brand (2.8:1 on a
+    // dark field) and the themed accent are both wrong here. rgba spells out
+    // that hex because a token cannot carry an alpha.
+    backgroundColor: 'rgba(93,179,110,0.18)', borderWidth: 1, borderColor: 'rgba(93,179,110,0.4)',
     borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5,
   },
-  heroChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: '#FF8533' },
+  heroChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: OnInk.eyebrow },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 21, marginBottom: 20 },
   // At-a-glance stat tiles below hero
   statGrid: {
@@ -2643,7 +2655,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
-  includedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: '#1B5E20' },
+  includedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.successLabel },
   includedFootnote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 18 },
   // Exclusions card
   excludedCard: {
@@ -2702,7 +2714,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     lineHeight: 20,
   },
   sectionTitle: {
-    fontFamily: 'Fraunces_700Bold', fontSize: Type.serifHeadline.fontSize, color: themeColors.text,
+    fontFamily: 'Barlow_600SemiBold', fontSize: Type.serifHeadline.fontSize, color: themeColors.text,
     letterSpacing: -0.2, marginTop: 18, marginBottom: 10,
   },
   lineItem: {

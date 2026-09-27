@@ -4,7 +4,7 @@
 // back in:
 //   1. Emoji used as icons (we use lucide-react-native throughout).
 //   2. Hardcoded purple/pink/violet hex (theme via constants/colors.ts only).
-//   3. The "Inter" font token (we ship Fraunces / JetBrains Mono / system).
+//   3. The "Inter" font token (we ship the display face (Barlow) / JetBrains Mono / system).
 //
 // Pure node:fs — no bundler, no react-native import (those crash bun).
 // fileURLToPath + join because the repo path contains a space.
@@ -122,6 +122,12 @@ const PURPLE_HEXES = [
   // one — it ships from utils/summaryBriefing.ts and utils/scheduleReportHtml.ts
   // and was never on the list.
   '#7A5AF8',
+  // Added 2026-09-27: the Plum preset (#5E3A6E + its #8A5C9E swatch) that the
+  // green rebrand briefly put in types/index.ts THEME_PRESETS — a directory
+  // this check did not walk. types/ is walked now, and
+  // scripts/validate-contrast.ts check 12d refuses ANY preset in the
+  // purple/pink hue band, which a fixed list like this one cannot.
+  '#5E3A6E', '#8A5C9E',
 ];
 const PURPLE_RE = new RegExp('(' + PURPLE_HEXES.join('|') + ')', 'i');
 // A `//` tail is documentation, not a shipped colour: utils/scheduleEngine.ts:34
@@ -130,8 +136,8 @@ const PURPLE_RE = new RegExp('(' + PURPLE_HEXES.join('|') + ')', 'i');
 // its line intact.)
 const codeOf = (l: string) => l.replace(/(^|[^:])\/\/.*$/, '$1');
 failures += report(
-  'no purple/pink/violet hex (app/ components/ utils/ hooks/ contexts/ lib/)',
-  scan(collectFiles(['app', 'components', 'utils', 'hooks', 'contexts', 'lib']), (l) => PURPLE_RE.test(codeOf(l))),
+  'no purple/pink/violet hex (app/ components/ utils/ hooks/ contexts/ lib/ types/)',
+  scan(collectFiles(['app', 'components', 'utils', 'hooks', 'contexts', 'lib', 'types']), (l) => PURPLE_RE.test(codeOf(l))),
 );
 
 // ── Check 3: no "Inter" font reference ───────────────────────────────────────

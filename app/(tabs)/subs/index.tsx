@@ -59,8 +59,8 @@ function createId(_prefix: string): string {
 }
 
 // Grade band → an AA-safe FOREGROUND token. app/sub-scorecard.tsx paints its
-// grade chip with t.accent / t.accentHot, which are the brand hues: #FF6A1A as
-// text is 2.87:1 and fails AA, so it is not copied here. The *Label* tokens
+// grade chip with t.accent / t.accentHot, which are the brand hues — a grade is
+// not a brand action, and accentHot is not a text ink — so it is not copied here. The *Label* tokens
 // are the ones constants/colors.ts engineers to clear 4.5:1 in both themes.
 // A and B share green, C and D share amber — the LETTER carries the grade, the
 // colour carries the band.
@@ -1157,7 +1157,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '14', borderWidth: 1, borderColor: Colors.primary + '33' },
   inviteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  // accentFill, not Colors.primary, on every solid fill below that carries a
+  // white label or glyph: the dark-theme brand #5DB36E gives white 2.58:1;
+  // accentFill is solved for white in both themes (4.83:1 dark).
+  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   prequalBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 16, marginBottom: 12,
@@ -1191,7 +1194,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: themeColors.textMuted, alignItems: 'center', justifyContent: 'center' },
   filterRow: { paddingHorizontal: 16, gap: 6, marginBottom: 16 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
-  filterChipActive: { backgroundColor: Colors.primary },
+  filterChipActive: { backgroundColor: themeColors.accentFill },
   filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   filterChipTextActive: { color: '#fff' },
   subCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
@@ -1209,7 +1212,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40, gap: 10 },
   emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   emptyDesc: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.card, marginTop: 8 },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: themeColors.accentFill, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.card, marginTop: 8 },
   emptyBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   formCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8, maxHeight: '90%' },
@@ -1219,7 +1222,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   tradeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   tradeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  tradeChipActive: { backgroundColor: Colors.primary },
+  tradeChipActive: { backgroundColor: themeColors.accentFill },
   tradeChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   tradeChipTextActive: { color: '#fff' },
   sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
@@ -1228,7 +1231,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   formActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   detailCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' },
   detailStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Tokens.radius.card, borderLeftWidth: 3, marginBottom: 16 },
@@ -1254,7 +1257,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   bidOutcomeText: { fontSize: 10, fontWeight: '700' as const },
   detailNotes: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
   detailActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center' },
   editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   deleteDetailBtn: { flexDirection: 'row', minHeight: 48, paddingHorizontal: 20, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center', gap: 6 },
   deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.dangerLabel },

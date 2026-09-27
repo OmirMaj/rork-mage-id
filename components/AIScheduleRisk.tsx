@@ -31,7 +31,7 @@ interface Props {
 const SEVERITY_STYLES = {
   high: { bg: Colors.errorLight, border: '#C84038', icon: AlertTriangle, label: 'High risk', textColor: '#D32F2F' },
   medium: { bg: '#FFF8E1', border: Colors.warning, icon: MageAIMark, label: 'Medium risk', textColor: Colors.warningDark },
-  low: { bg: Colors.successLight, border: '#2E7D44', icon: CheckCircle2, label: 'Low risk', textColor: Colors.successDark },
+  low: { bg: Colors.successLight, border: Colors.success, icon: CheckCircle2, label: 'Low risk', textColor: Colors.successDark },
 } as const;
 
 const TWO_HOURS = 2 * 60 * 60 * 1000;

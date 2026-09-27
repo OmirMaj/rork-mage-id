@@ -972,12 +972,12 @@ const code = (p: string) => read(p).split('\n').filter(l => !l.trim().startsWith
     ok(`every public page links the trust pages (${trustStripPages.length} strips)`, missing.length === 0,
       missing.length ? `a buyer checks for reviews in the second tab; staying silent reads as hiding — missing on: ${missing.join(', ')}` : undefined);
 
-    // The strip sits in footers on BOTH grounds — ink on most pages, cream on
+    // The strip sits in footers on BOTH grounds — ink on most pages, concrete on
     // builders/. Its first draft framed the links with a muted <span>, which
-    // inherited each footer's secondary grey and measured 2.80:1 against cream,
-    // under the 4.5:1 AA floor at 12.5px. Putting the words inside the link
-    // makes every glyph take the page's own link colour (measured 16.99:1 on
-    // cream, 6.79:1 amber-on-ink). Two rules keep it that way: no separately
+    // inherited each footer's secondary grey and measured 2.80:1 against the
+    // light ground, under the 4.5:1 AA floor at 12.5px. Putting the words inside the link
+    // makes every glyph take the page's own link colour (16.55:1 ink on concrete,
+    // 7.54:1 #5DB36E brand-on-ink). Two rules keep it that way: no separately
     // coloured element inside the strip, and a border that reads on both.
     // `>= 25` against 28 pages let the strip be deleted from three of them
     // before the count noticed. The set is now derived: every page that has a

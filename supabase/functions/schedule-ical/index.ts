@@ -25,6 +25,7 @@
 // is strictly scoped to schedule tasks for the Scheduler export sheet.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildScheduleIcalEvents, escapeIcs, type IcalSchedule } from './icsEvents.ts';
 
 // No literal fallback (audit OPS-F11 / AUTH-F13): anyone holding the bundle
 // could mint feed tokens from the old constant. Unset → every request 500s
@@ -53,18 +54,6 @@ function constantTimeEq(a: string, b: string): boolean {
   let r = 0;
   for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return r === 0;
-}
-
-function fmtDate(d: Date): string {
-  return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-}
-
-function escapeIcs(s: string): string {
-  return String(s)
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
 }
 
 Deno.serve(async (req) => {
@@ -122,57 +111,11 @@ Deno.serve(async (req) => {
     return new Response('Forbidden', { status: 403 });
   }
 
-  const schedule = project.schedule as {
-    startDate?: string;
-    tasks?: Array<{
-      id: string;
-      title?: string;
-      startDay?: number;
-      durationDays?: number;
-      status?: string;
-      crew?: string;
-      progress?: number;
-      isMilestone?: boolean;
-      isCriticalPath?: boolean;
-      phase?: string;
-    }>;
-  };
-
-  const tasks = schedule?.tasks ?? [];
-  const projectStart = schedule?.startDate
-    ? new Date(schedule.startDate)
-    : new Date();
-
-  const events: string[] = [];
-  for (const t of tasks) {
-    if (!t.title) continue;
-    const start = new Date(projectStart.getTime() + (t.startDay ?? 0) * 86_400_000);
-    const durDays = Math.max(t.isMilestone ? 0 : 1, t.durationDays ?? 1);
-    const end = new Date(start.getTime() + durDays * 86_400_000);
-
-    const descParts = [
-      t.phase ? `Phase: ${t.phase}` : null,
-      t.crew ? `Crew: ${t.crew}` : null,
-      `Progress: ${t.progress ?? 0}%`,
-      t.isCriticalPath ? 'Critical path' : null,
-      'Exported from MAGE ID Pro Scheduler',
-    ].filter(Boolean).join('\\n');
-
-    events.push(
-      [
-        'BEGIN:VEVENT',
-        `UID:${project.id}-${t.id}@mageid.app`,
-        `DTSTAMP:${fmtDate(new Date())}`,
-        `DTSTART:${fmtDate(start)}`,
-        `DTEND:${fmtDate(end)}`,
-        `SUMMARY:${escapeIcs(t.isMilestone ? `★ ${t.title}` : t.title)}`,
-        `DESCRIPTION:${descParts}`,
-        `STATUS:${t.status === 'done' ? 'COMPLETED' : 'CONFIRMED'}`,
-        'TRANSP:TRANSPARENT',
-        'END:VEVENT',
-      ].join('\r\n'),
-    );
-  }
+  // Dates: every task is an all-day event on its WORKING days — see
+  // ./icsEvents.ts for why (startDay is a working ordinal; the old
+  // `projectStart + startDay * 86400000` was a day late, ignored weekends and
+  // emitted the previous evening in US zones). No start date ⇒ no task events.
+  const events = buildScheduleIcalEvents(project.id, project.schedule as IcalSchedule | null, new Date());
 
   const ics = [
     'BEGIN:VCALENDAR',

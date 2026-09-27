@@ -89,8 +89,8 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   saved: { bg: '#E3F2FD', text: '#1565C0' },
   interested: { bg: '#FFF3E0', text: '#E65100' },
   preparing: { bg: '#F3E5F5', text: '#7B1FA2' },
-  submitted: { bg: '#E8F5E9', text: '#2E7D32' },
-  won: { bg: '#E8F5E9', text: '#1B5E20' },
+  submitted: { bg: Colors.successLight, text: Colors.successDark },
+  won: { bg: Colors.successLight, text: Colors.successDark },
   lost: { bg: '#FFEBEE', text: '#C62828' },
 };
 

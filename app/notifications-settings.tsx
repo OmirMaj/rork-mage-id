@@ -91,21 +91,21 @@ const CATEGORIES: CategoryDef[] = [
     key: 'selection_chosen',
     label: 'Selection picked',
     description: 'Your client picks a tile, fixture, or other allowance option.',
-    icon: <ShoppingCart size={18} color={Colors.orange} strokeWidth={1.75} />,
+    icon: <ShoppingCart size={18} color={Colors.primary} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'budget_proposal',
     label: 'Budget proposals',
     description: 'Your client proposes a target budget from the portal.',
-    icon: <HandCoins size={18} color={Colors.orange} strokeWidth={1.75} />,
+    icon: <HandCoins size={18} color={Colors.primary} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'co_approval',
     label: 'CO approvals',
     description: 'Your client approves or declines a change order.',
-    icon: <CheckCircle2 size={18} color={"#2E7D44"} strokeWidth={1.75} />,
+    icon: <CheckCircle2 size={18} color={Colors.success} strokeWidth={1.75} />,
     group: 'client',
   },
   // The wave-3 notify events (wave3NotifyText in supabase/functions/notify)
@@ -884,7 +884,7 @@ export default function NotificationsSettingsScreen() {
             </View>
             <View style={styles.digestCard}>
               <View style={styles.digestHeader}>
-                <View style={[styles.digestIcon, { backgroundColor: themeColors.accent }]}>
+                <View style={[styles.digestIcon, { backgroundColor: themeColors.accentFill }]}>
                   <CalendarCheck size={18} color="#FFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -924,7 +924,7 @@ export default function NotificationsSettingsScreen() {
             {/* Pace pre-apply */}
             <View style={[styles.digestCard, { marginBottom: 12 }]}>
               <View style={styles.digestHeader}>
-                <View style={[styles.digestIcon, { backgroundColor: themeColors.accent }]}>
+                <View style={[styles.digestIcon, { backgroundColor: themeColors.accentFill }]}>
                   <History size={18} color="#FFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -967,7 +967,7 @@ export default function NotificationsSettingsScreen() {
             {/* Leak → draft CO */}
             <View style={styles.digestCard}>
               <View style={styles.digestHeader}>
-                <View style={[styles.digestIcon, { backgroundColor: themeColors.accent }]}>
+                <View style={[styles.digestIcon, { backgroundColor: themeColors.accentFill }]}>
                   <FileWarning size={18} color="#FFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -1184,7 +1184,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   digestIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: '#FF6A1A',
+    // accentFill: a brand tile under a WHITE glyph. In the dark theme the plain
+    // accent is a light green white reads at 2.58:1 on; accentFill carries both.
+    backgroundColor: t.accentFill,
     alignItems: 'center', justifyContent: 'center',
   },
   digestTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },

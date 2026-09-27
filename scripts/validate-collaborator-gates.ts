@@ -166,6 +166,13 @@ const ROLE_USE_EXCEPTIONS: Record<string, string> = {
   // there is no spinner and no false "open"; an invitee's rows read "Managed
   // by the project owner", and RLS returns him nothing either way.
   'app/handover.tsx': 'owner-only row wording: an unresolved role falls back to the project\'s ownerUserId stamp (never a spinner, never a gate)',
+  // Health lane NOTIFYOPS (LS-5): not a gate. projectRecordWriteBlock(role)
+  // turns the create/save control off ONLY for a resolved 'viewer' seat (RLS
+  // refuses his insert). A null role (loading, offline, error, own job) keeps
+  // the control on — the screen's own access gate (useProjectAccess) already
+  // stopped a settled no-access seat, and RLS decides what lands.
+  'app/punch-walk.tsx': 'filing block: projectRecordWriteBlock(null) is null — only a resolved viewer seat is blocked (LS-5); the screen gate is useProjectAccess',
+  'app/ai-punch.tsx': 'filing block: projectRecordWriteBlock(null) is null — only a resolved viewer seat is blocked (LS-5); the screen gate is useProjectAccess',
 };
 /** Role readers whose settled-null handling is a post-chain handoff. */
 const KNOWN_ROLE_GAPS: Record<string, string> = {

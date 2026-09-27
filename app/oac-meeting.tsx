@@ -53,6 +53,7 @@ import {
   actionDueLabel, type OpenOACAction,
 } from '@/utils/oacEngine';
 import DatePickerModal from '@/components/DatePickerModal';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
@@ -752,6 +753,12 @@ function OACMeetingInner() {
     [agendaBuckets],
   );
 
+  // Desktop: Add attendee is a centred form card (d6r X3, batch F); a phone
+  // keeps its bottom sheet (every frame part is null there). Cmd/Ctrl+Enter
+  // (and Cmd+S) run its Add — handleSaveAttendee asks for a name itself.
+  const fAttendee = useSheetFrame('form', { visible: showAddAttendee, animationType: 'slide' });
+  useSheetPrimaryHotkey(showAddAttendee, handleSaveAttendee);
+
   if (!project) {
     return (
       <View style={styles.container}>
@@ -1073,10 +1080,10 @@ function OACMeetingInner() {
 
         {/* Add-attendee modal — cross-platform replacement for Alert.prompt.
             Name required, email optional (needed only for minutes distribution). */}
-        <Modal visible={showAddAttendee} transparent animationType="slide" onRequestClose={() => setShowAddAttendee(false)}>
+        <Modal visible={showAddAttendee} transparent animationType={fAttendee.animationType} onRequestClose={() => setShowAddAttendee(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <Pressable style={styles.attendeeModalOverlay} onPress={() => setShowAddAttendee(false)}>
-              <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }]} onPress={() => undefined}>
+            <Pressable style={[styles.attendeeModalOverlay, fAttendee.overlay]} onPress={() => setShowAddAttendee(false)}>
+              <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }, fAttendee.card]} onPress={() => undefined}>
                 <View style={styles.attendeeModalHeader}>
                   <Text style={styles.attendeeModalTitle}>Add attendee</Text>
                   <TouchableOpacity onPress={() => setShowAddAttendee(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -1244,9 +1251,13 @@ function buildMinutesEmailHtml(opts: {
     .replace(/\n\n/g, '<br/><br/>');
 
   const openActions = actionItems.filter(a => a.status !== 'done');
+  // Email HTML is a string rendered by a mail client, so the brand cannot be a
+  // token. The eyebrow sits on the ink header band, so it is the DARK-ground
+  // brand green #5DB36E (BRAND_ACCENT_ON_DARK, 7.5:1 on #0B0D10; the light brand
+  // #2F6B3A would be ~3:1 there) — the same pair as utils/emailLayout.ts.
   return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f5f7;padding:24px;color:#111">
     <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.06)">
-      <div style="background:#0B0D10;color:#FF6A1A;padding:24px 28px">
+      <div style="background:#0B0D10;color:#5DB36E;padding:24px 28px">
         <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase">OAC Meeting Minutes</div>
         <div style="font-size:20px;font-weight:800;color:#fff;margin-top:4px">${projectName}</div>
         <div style="font-size:13px;color:#a5a5b8;margin-top:6px">Meeting #${meetingNumber} · ${meetingDate}</div>

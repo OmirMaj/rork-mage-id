@@ -353,7 +353,10 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
     backgroundColor: c.surface, borderWidth: 1, borderColor: c.line,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  // accentFill, not Colors.primary, under the white labels here and on runBtn:
+  // the dark-theme brand #5DB36E gives white 2.58:1 (accentFill 4.83:1). The
+  // border is the fill's own edge, so it moves with it.
+  chipActive: { backgroundColor: c.accentFill, borderColor: c.accentFill },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.text, maxWidth: 160 },
   chipTextActive: { color: '#FFF' },
   presetList: { gap: 8, marginTop: 12 },
@@ -364,7 +367,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   presetPillText: { fontSize: Type.footnote.fontSize, color: c.textSecondary },
   runBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.card, paddingVertical: 14, marginTop: 16,
+    backgroundColor: c.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 14, marginTop: 16,
   },
   runBtnDisabled: { opacity: 0.5 },
   runBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },

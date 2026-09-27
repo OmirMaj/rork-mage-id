@@ -31,7 +31,9 @@ export const STATUS_TONES: Record<StatusTone, StatusPillStyle> = {
   neutral: { color: '#6B7177', backgroundColor: 'rgba(107,113,119,0.12)' },
   info:    { color: '#0B6BCB', backgroundColor: 'rgba(11,107,203,0.12)' },
   pending: { color: '#C26A00', backgroundColor: 'rgba(245,166,35,0.16)' },
-  success: { color: '#1E8E4A', backgroundColor: 'rgba(30,142,74,0.12)' },
+  // Success is TEAL (Colors.success light), not green: green is the brand since the
+  // 2026-09-16 rebrand, and a "Paid" pill must not read as a brand accent.
+  success: { color: '#0F7A69', backgroundColor: 'rgba(15,122,105,0.12)' },
   danger:  { color: '#E5484D', backgroundColor: 'rgba(229,72,77,0.12)' },
 };
 

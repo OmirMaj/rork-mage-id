@@ -1609,7 +1609,11 @@ console.log('\nwhat the homeowner is shown (MONEY-PAID-DRAFT-1, MONEY-CONTRACT-1
   ok('…and reads the shared draft-filtered definitions instead of re-summing inline',
     !/invoices\.reduce\(\(s, i\) => s \+ i\.amountPaid, 0\)/.test(portal)
     && !/invoices\.reduce\(\(s, i\) => s \+ i\.totalDue, 0\)/.test(portal)
-    && /getPaidToDate\(invoices\)/.test(portal) && /getInvoicedToDate\(invoices\)/.test(portal),
+    // health 2026-09-26 (MONEY-CLIENTVIEW-DUE-NOW): the card now reads every
+    // figure from utils/clientViewMoney.clientViewMoneyFigures, which is
+    // getPaidToDate + getOutstandingBalance over the portal's own population.
+    && /clientViewMoneyFigures\(\{ invoices, contractValue, changeOrders \}\)/.test(portal)
+    && /getPaidToDate\(all\)/.test(read('utils/clientViewMoney.ts')),
     'the source fix landed in getPaidToDate; this screen kept its own unfiltered reduce two lines below it');
 
   // ── THE SNAPSHOT PATH, which is the mode every real homeowner is in. ────

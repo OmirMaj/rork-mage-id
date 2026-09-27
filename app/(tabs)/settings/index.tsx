@@ -472,7 +472,7 @@ export default function SettingsScreen() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
     const saved = settings.themeColors;
-    // Default to MAGE Orange (brand) instead of the legacy forest green.
+    // Default to the MAGE brand preset (green since the 2026-09-16 rebrand).
     // Users who picked Forest still keep it via the match-by-primary
     // lookup below. Falls back to 'mage' for any unrecognized primary.
     if (!saved) return 'mage';
@@ -1577,15 +1577,15 @@ export default function SettingsScreen() {
         </>)}
         <SettingsSection id="theme">
         <Text style={styles.sectionHeader}>App theme</Text>
-        {/* The last sentence is honest, and temporary: 64 chrome sites across
-            56 files still paint the brand hex directly (header tints, some
+        {/* The last sentence is honest, and temporary: some chrome sites
+            still paint the brand hex (#2F6B3A) directly (header tints, some
             icons and chevrons), so a user who picks Navy WILL still meet
-            orange. Delete it when those literals are on the token
-            (review 2026-09-07). */}
+            the MAGE green there. Delete it when those literals are on the
+            token (review 2026-09-07; reworded for the 2026-09-16 rebrand). */}
         <Text style={styles.sectionSubtext}>
           Sets the accent color for buttons, links, chips and highlights.
           Each swatch shows how that color looks in your current theme.
-          A few screens still show the brand orange.
+          A few screens still show the MAGE brand color.
         </Text>
         <View style={styles.group}>
           <View style={{ padding: 16 }}>
@@ -1595,7 +1595,7 @@ export default function SettingsScreen() {
                 // the user is looking at, not the raw preset hexes: the second
                 // swatch used to be a decorative secondary that painted nothing,
                 // and the selected label used to be `theme.primary`, which for
-                // the brand orange is 2.87:1 — the picker's own label failed AA.
+                // the retired orange was 2.87:1 — the picker's own label failed AA.
                 const preview = deriveAccentPalette(theme.primary, resolvedTheme);
                 return (
                   <TouchableOpacity

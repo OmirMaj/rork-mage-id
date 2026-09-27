@@ -10,6 +10,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { SQUARE_FOOT_MODELS, QUALITY_TIERS, SF_CATEGORIES, type SquareFootModel, type QualityTier } from '@/constants/squareFootCosts';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface SquareFootEstimatorProps {
   visible: boolean;
@@ -35,6 +36,9 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
   // ink at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedModel, setSelectedModel] = useState<SquareFootModel | null>(null);
@@ -236,8 +240,10 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={handleClose}>
-      <View style={s.container}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} transparent={fP.transparent} onRequestClose={handleClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={handleClose} />
+      <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
             <Text style={s.headerTitle}>Quick Estimate</Text>
@@ -250,6 +256,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
           {step === 2 && renderStep2()}
         </View>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 });
@@ -277,7 +284,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
     backgroundColor: t.neutralSoft,
   },
-  catChipActive: { backgroundColor: Colors.primary },
+  catChipActive: { backgroundColor: t.accentFill },
   catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   catChipTextActive: { color: Colors.textOnPrimary },
   modelList: { flex: 1 },

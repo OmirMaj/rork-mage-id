@@ -44,6 +44,11 @@ type TestRendererInstance = { toJSON(): unknown; unmount(): void; root: TestNode
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const TestRenderer: { create(el: React.ReactElement): TestRendererInstance } = require('react-test-renderer');
 
+// The launch overlay (BrandSplash) mounts from app/_layout's FIRST render and
+// the Settings mounts pump only ~1 s, so its still frame 0 would sit in the
+// tree. It is not part of the shell; keep it out (as slick3-front-door does).
+jest.mock('@/components/BrandSplash', () => () => null);
+
 // ── Switchable mocks ───────────────────────────────────────────────────────
 // `mock`-prefixed so jest's hoisted factories may read them. null = the real
 // module, which is what the real-app mounts (Settings) use.

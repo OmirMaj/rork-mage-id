@@ -630,6 +630,10 @@ const L4 = [
   'components/desktop/SidePanel.tsx', 'components/desktop/NoticeStrip.tsx', 'components/desktop/LineItemGrid.tsx',
   'components/desktop/ToolbarActions.tsx', 'components/desktop/FormGrid.tsx',
 ];
+// d6r X2: the one Sheet export an L4 primitive may take is the registry's
+// dialog-scope hook (ToolbarActions' open ⋯ menu) — it registers shortcuts, it
+// draws nothing. Only that exact import line is exempt from the lane rule.
+const DIALOG_SCOPE_IMPORT = /^import \{ useSheetDialogScope \} from '@\/components\/ui\/Sheet';$/m;
 for (const f of L4) {
   const src = strip(read(f));
   ok(`${f}: gated on useResponsiveLayout().isDesktop`, /useResponsiveLayout\(\)/.test(src) && /isDesktop/.test(src));
@@ -638,7 +642,7 @@ for (const f of L4) {
   const keys = [...src.matchAll(/AsyncStorage\.(?:getItem|setItem|removeItem)\(\s*([^,)]+)/g)].map((m) => m[1].trim());
   ok(`${f}: every storage key comes from a mageid_ key helper`,
     keys.every((k) => /^(tablePrefsKey|splitRatioKey|sidePanelWidthKey|noticeDismissKey)\(/.test(k)), keys.join(' | '));
-  ok(`${f}: imports nothing from the other 6b lanes`, !/components\/desktop\/(DesktopPageFrame|ShellDock|RowLink|JobSwitcher)|ActiveProjectContext|components\/ui\/(SegmentedControl|Sheet|ActionBar|TileGrid|ChipRail|desktop)/.test(src));
+  ok(`${f}: imports nothing from the other 6b lanes`, !/components\/desktop\/(DesktopPageFrame|ShellDock|RowLink|JobSwitcher)|ActiveProjectContext|components\/ui\/(SegmentedControl|Sheet|ActionBar|TileGrid|ChipRail|desktop)/.test(src.replace(DIALOG_SCOPE_IMPORT, '')));
 }
 // The phone paths: exactly the screen's own nodes, no wrapper.
 const phoneFragment = (f: string, expr: RegExp) => ok(`${f}: phone renders the screen's own nodes in a bare fragment`, expr.test(strip(read(f))));

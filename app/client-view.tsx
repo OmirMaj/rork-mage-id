@@ -41,7 +41,8 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { portalFinancingBlock, portalFinancingRedirectUrl, portalFinancingPreviewNote } from '@/utils/financingCore';
 import { linkState } from '@/utils/portalLinkExpiry';
-import { resolveContractSum, getPaidToDate, getInvoicedToDate } from '@/utils/projectFinancials';
+import { resolveContractSum } from '@/utils/projectFinancials';
+import { clientViewMoneyFigures } from '@/utils/clientViewMoney';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import {
   buildOwnerDecisions, summarizeOwnerDecisions, buildCOConsentRecord, coCarriesTax, buildCOAuditDetail,
@@ -51,6 +52,7 @@ import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
 import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildPortalProposal, PROPOSAL_ESIGN_VERSION, PROPOSAL_NOT_A_CONTRACT_NOTE, type PortalProposal } from '@/utils/portalSnapshot';
 
@@ -922,23 +924,24 @@ export default function ClientViewScreen() {
   /** True when this render COULD have seen a contract and found none. */
   // isSuccess, not !isPending: a read that FAILED checked nothing (#122).
   const contractWasChecked = !isSnapshotMode && !!localProject?.id && contractQ.isSuccess;
-  // MONEY-PAID-DRAFT-1: through the shared definitions, not re-derived here.
-  // These two reduces used to be inline and unfiltered, so this screen counted
-  // payments logged against DRAFT invoices as money collected while
-  // utils/portalSnapshot.ts (the web portal, same homeowner) did not — two
-  // views of one job disagreeing about "Paid to date".
-  const invoicedTotal = getInvoicedToDate(invoices);
-  const paidTotal = getPaidToDate(invoices);
+  // MONEY-PAID-DRAFT-1 + MONEY-CLIENTVIEW-DUE-NOW (health 2026-09-26): every
+  // figure on this card comes from utils/clientViewMoney.clientViewMoneyFigures,
+  // the same arithmetic on the same population utils/portalSnapshot.ts
+  // publishes to the web portal. "Due now" used to be invoiced − paid — GROSS
+  // of the retention the contract lets the client hold ($1,000 due where the
+  // portal said $0) — and "Remaining" / "Balance Remaining" subtracted
+  // tax-inclusive invoice money from the pre-tax contract, the mix the portal
+  // removed on purpose (PORTAL-01). Paid + Due now + Retention held is what
+  // has been billed; the contract stays in its own rows above.
+  const money = clientViewMoneyFigures({ invoices, contractValue, changeOrders });
+  const invoicedTotal = money.invoicedToDate;
+  const paidTotal = money.paidToDate;
   const approvedCOs = changeOrders.filter(c => c.status === 'approved');
-  const coTotal = approvedCOs.reduce((s, c) => s + c.changeAmount, 0);
-  const revisedContract = contractValue + coTotal;
-  // Financial-truth metrics tied to the estimate spine: what's paid, what's
-  // billed-but-unpaid, what's still to come, and the homeowner's remaining
-  // balance against the projected final (revised contract).
-  const outstanding = Math.max(0, invoicedTotal - paidTotal);
-  const notYetBilled = Math.max(0, revisedContract - invoicedTotal);
-  const balanceRemaining = Math.max(0, revisedContract - paidTotal);
-  const pctOf = (n: number) => (revisedContract > 0 ? Math.round((n / revisedContract) * 100) : 0);
+  const coTotal = money.approvedChanges;
+  const revisedContract = money.revisedContract;
+  const outstanding = money.outstanding;
+  const retentionHeld = money.retentionHeld;
+  const pctOfBilled = (n: number) => (money.barTotal > 0 ? Math.round((n / money.barTotal) * 100) : 0);
 
   // Schedule metrics
   const tasks = project?.schedule?.tasks ?? [];
@@ -948,6 +951,16 @@ export default function ClientViewScreen() {
   // snapshot never carried this field, so defaulting to 0 painted a red
   // "0% Schedule Health" bar on a perfectly healthy job.
   const healthScore = project?.schedule?.healthScore ?? null;
+
+  // Desktop: the change-order approval sheet is a centred form card (d6r X3,
+  // batch F); a phone keeps its bottom sheet (every frame part is null there).
+  // Approve & sign signs — Cmd/Ctrl+Enter only, never Cmd+S — and does nothing
+  // while a submit is in flight, like its disabled button. The photo lightbox
+  // is only a dialog to the shortcut registry (nothing on this public page
+  // depends on the signed-in shell).
+  const fApproval = useSheetFrame('form', { visible: !!approvalCO, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!approvalCO, submittingApproval ? null : submitApproval, { saveKey: false });
+  useSheetDialogScope(lightboxIndex !== null);
 
   if (!project || !portal) {
     // Resolution in flight. NEVER render a failure here: a "not found" that
@@ -1138,7 +1151,7 @@ export default function ClientViewScreen() {
           <Text style={styles.headerLastUpdated} testID="client-last-updated">
             Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
-          <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? '#34C75940' : '#FF950040' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? themeColors.success + '40' : '#FF950040' }]}>
             <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.success : Colors.warning }]}>
               {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
             </Text>
@@ -1440,41 +1453,47 @@ export default function ClientViewScreen() {
                 </View>
                 {outstanding > 0 && (
                   <View style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>Invoiced, awaiting payment</Text>
+                    <Text style={styles.budgetLabel}>Invoiced, due now</Text>
                     <Text style={[styles.budgetValue, { color: themeColors.accent }]}>{formatMoney(outstanding)}</Text>
                   </View>
                 )}
-                <View style={[styles.budgetRow, styles.budgetRowTotal]}>
-                  <Text style={styles.budgetLabelTotal}>Balance Remaining</Text>
-                  <Text style={styles.budgetValueTotal}>{formatMoney(balanceRemaining)}</Text>
-                </View>
+                {retentionHeld > 0 && (
+                  <View style={styles.budgetRow} testID="client-view-retention-held">
+                    <Text style={styles.budgetLabel}>Retention held (due at closeout)</Text>
+                    <Text style={styles.budgetValue}>{formatMoney(retentionHeld)}</Text>
+                  </View>
+                )}
 
-                {/* Where your money stands — paid / due now / remaining, as one bar */}
+                {/* Where the billed money stands — paid / due now / retention
+                    held, as one bar over what has been invoiced (the portal's
+                    BILLED TO DATE bar). The pre-tax contract is not on this axis. */}
                 <View style={styles.moneyBarWrap}>
                   <View style={styles.moneyBar}>
-                    {revisedContract > 0 ? (
+                    {money.barTotal > 0 ? (
                       <>
                         {paidTotal > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.success, flexGrow: paidTotal }]} />}
                         {outstanding > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.accent, flexGrow: outstanding }]} />}
-                        {notYetBilled > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.line, flexGrow: notYetBilled }]} />}
+                        {retentionHeld > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.line, flexGrow: retentionHeld }]} />}
                       </>
                     ) : null}
                   </View>
                   <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: themeColors.success }]} />
-                      <Text style={styles.legendText}>Paid {pctOf(paidTotal)}%</Text>
+                      <Text style={styles.legendText}>Paid {pctOfBilled(paidTotal)}%</Text>
                     </View>
                     {outstanding > 0 && (
                       <View style={styles.legendItem}>
                         <View style={[styles.legendDot, { backgroundColor: themeColors.accent }]} />
-                        <Text style={styles.legendText}>Due now {pctOf(outstanding)}%</Text>
+                        <Text style={styles.legendText}>Due now {pctOfBilled(outstanding)}%</Text>
                       </View>
                     )}
-                    <View style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: themeColors.line }]} />
-                      <Text style={styles.legendText}>Remaining {pctOf(notYetBilled)}%</Text>
-                    </View>
+                    {retentionHeld > 0 && (
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: themeColors.line }]} />
+                        <Text style={styles.legendText}>Retention held {pctOfBilled(retentionHeld)}%</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
 
@@ -1545,7 +1564,7 @@ export default function ClientViewScreen() {
             {expanded.invoices && (
               <View style={styles.sectionBody}>
                 {invoices.map(inv => {
-                  const statusColor = inv.status === 'paid' ? '#34C759' : inv.status === 'overdue' ? themeColors.danger : '#FF9500';
+                  const statusColor = inv.status === 'paid' ? themeColors.successLabel : inv.status === 'overdue' ? themeColors.danger : '#FF9500';
                   return (
                     <View key={inv.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1585,7 +1604,7 @@ export default function ClientViewScreen() {
             {expanded.changeOrders && (
               <View style={styles.sectionBody}>
                 {changeOrders.map(co => {
-                  const statusColor = co.status === 'approved' ? '#34C759' : co.status === 'rejected' ? themeColors.danger : '#FF9500';
+                  const statusColor = co.status === 'approved' ? themeColors.successLabel : co.status === 'rejected' ? themeColors.danger : '#FF9500';
                   // Signing needs a session (see submitApproval). Offering a
                   // "Sign & Approve" button that can't persist an e-signature
                   // would be worse than not offering it at all.
@@ -1719,7 +1738,7 @@ export default function ClientViewScreen() {
             {expanded.punchList && (
               <View style={styles.sectionBody}>
                 {punchItems.map(item => {
-                  const statusColor = item.status === 'closed' ? '#34C759' : item.status === 'in_progress' ? '#007AFF' : '#FF9500';
+                  const statusColor = item.status === 'closed' ? themeColors.successLabel : item.status === 'in_progress' ? '#007AFF' : '#FF9500';
                   return (
                     <View key={item.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1758,7 +1777,7 @@ export default function ClientViewScreen() {
             {expanded.rfis && (
               <View style={styles.sectionBody}>
                 {rfis.map(rfi => {
-                  const statusColor = rfi.status === 'answered' ? '#34C759' : rfi.status === 'closed' ? themeColors.textMuted : '#FF9500';
+                  const statusColor = rfi.status === 'answered' ? themeColors.successLabel : rfi.status === 'closed' ? themeColors.textMuted : '#FF9500';
                   return (
                     <View key={rfi.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1802,7 +1821,7 @@ export default function ClientViewScreen() {
                 ) : (
                   documents.map(doc => {
                     const typeInfo = documentTypeInfo(themeColors)[doc.type] ?? { label: doc.type, color: themeColors.textMuted, bgColor: themeColors.surfaceAlt };
-                    const statusColor = doc.status === 'signed' ? '#34C759' : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
+                    const statusColor = doc.status === 'signed' ? themeColors.successLabel : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
                     const hasFile = !!doc.fileUrl;
                     const rowInner = (
                       <>
@@ -1869,11 +1888,11 @@ export default function ClientViewScreen() {
       <Modal
         visible={!!approvalCO}
         transparent
-        animationType="slide"
+        animationType={fApproval.animationType}
         onRequestClose={closeApprovalFlow}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <View style={[styles.modalOverlay, fApproval.overlay]}>
+          <View style={[styles.modalCard, fApproval.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {approvalMode === 'approve' ? 'Sign & Approve' : 'Reject Change Order'}
@@ -2208,8 +2227,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   coActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
   coSignedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#34C75915', paddingHorizontal: 10, paddingVertical: 8,
-    borderTopWidth: 1, borderTopColor: '#34C75920',
+    backgroundColor: t.success + '15', paddingHorizontal: 10, paddingVertical: 8,
+    borderTopWidth: 1, borderTopColor: t.success + '20',
   },
   coSignedBannerText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.successDark, flex: 1 },
 

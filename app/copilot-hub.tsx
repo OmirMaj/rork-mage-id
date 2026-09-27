@@ -5,8 +5,8 @@
 // don't re-type) — and if you said several things, to each of them. Or pick a
 // capability from the grid. Every registered
 // capability is reachable here — the contractor never has to hunt for the right
-// button. Built on the §3.7 design tokens (ink/cream ground, MAGE-orange accent,
-// amber = the "your data" signal, Fraunces for the ask, JetBrains-Mono labels).
+// button. Built on the §3.7 design tokens (ink/concrete ground, MAGE green accent,
+// amber = the "your data" signal, Barlow for the ask, JetBrains-Mono labels).
 import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';

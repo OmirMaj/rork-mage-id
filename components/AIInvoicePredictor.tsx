@@ -150,7 +150,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
     return (
       <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.header}>
-          <MageAIMark size={12} color={"#FF6A1A"} />
+          <MageAIMark size={12} color={themeColors.accentLabel} />
           <Text style={styles.headerTitle}>Payment prediction</Text>
         </View>
         <Animated.View style={[styles.skeleton, { opacity }]} />
@@ -200,7 +200,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
   return (
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
-        <MageAIMark size={12} color={"#FF6A1A"} />
+        <MageAIMark size={12} color={themeColors.accentLabel} />
         <Text style={styles.headerTitle}>Payment prediction</Text>
         <Text style={styles.aiTag}>AI draft</Text>
       </View>

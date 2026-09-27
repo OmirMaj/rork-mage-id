@@ -20,10 +20,11 @@
 //   • `icon`    — CloudOff for an unreachable backend, the default triangle
 //     for everything else.
 //
-// The primary button carries WHITE text, so its fill is accentFill (#BC440C,
-// 5.29:1) and never the brand accent (#FF6A1A, 2.87:1) — the standing rule in
-// constants/colors.ts, and the reason the prequal original already used
-// t.accentFill.
+// The primary button carries WHITE text, so its fill is accentFill, never the
+// raw accent — the standing rule in constants/colors.ts, and the reason the
+// prequal original already used t.accentFill. In the light theme the green
+// brand is its own fill (white 6.39:1), but the dark theme's accent #5DB36E
+// gives white only 2.58:1, and a user-picked hue can be anything.
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { AlertTriangle } from 'lucide-react-native';

@@ -6,14 +6,15 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { Check } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
 
 interface Props {
   size?: number;            // outer circle diameter (default 96)
-  color?: string;           // success color (default green)
+  color?: string;           // success color (default Colors.success, teal)
   ringColor?: string;       // halo ring color (default = color with low alpha)
 }
 
-export function QboSuccessCheckmark({ size = 96, color = '#16A34A', ringColor }: Props) {
+export function QboSuccessCheckmark({ size = 96, color = Colors.success, ringColor }: Props) {
   // Three orchestrated values: ring expand, badge spring-in, check pop.
   const ringScale = useRef(new Animated.Value(0.2)).current;
   const ringOpacity = useRef(new Animated.Value(0)).current;

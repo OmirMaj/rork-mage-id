@@ -446,15 +446,15 @@ export function buildWipHtml(
     .sub { color: #666; font-size: 12px; margin: 4px 0 18px; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; }
     th, td { border: 1px solid #ddd; padding: 5px 6px; text-align: right; }
-    th { background: #f4f1ea; }
+    th { background: #ECEDE9; }
     td.l, th.l { text-align: left; }
-    tfoot td { font-weight: 700; background: #faf7f0; }
-    tfoot tr.subtotal td { font-weight: 600; background: #fffdf8; color: #555; }
+    tfoot td { font-weight: 700; background: #F6F6F4; }
+    tfoot tr.subtotal td { font-weight: 600; background: #FFFFFF; color: #555; }
     tr.loss td { background: #fdf3f2; }
     .lossTag { font-size: 8px; font-weight: 700; color: #8a2b22; border: 1px solid #d9a49d;
                border-radius: 3px; padding: 1px 3px; white-space: nowrap; }
     .nobasis { margin-top: 10px; font-size: 10px; color: #333; padding: 8px;
-               background: #faf7f0; border: 1px solid #e6ded0; line-height: 1.45; }
+               background: #F6F6F4; border: 1px solid #D7DAD4; line-height: 1.45; }
     .asof { margin: -10px 0 16px; font-size: 10px; color: #8a2b22; padding: 6px 8px;
             background: #fdf3f2; border: 1px solid #e6c8c3; line-height: 1.45; }
     .provision { margin-top: 10px; font-size: 10px; color: #333; padding: 8px;
@@ -468,7 +468,7 @@ export function buildWipHtml(
        because it is an EXPLANATION rather than a provenance label, and a banker
        reading the footnote block should be able to see which is which. */
     .basis { color: #555; }
-    .caveat { margin-top: 10px; padding: 8px; background: #faf7f0; border: 1px solid #e6ded0; line-height: 1.45; }
+    .caveat { margin-top: 10px; padding: 8px; background: #F6F6F4; border: 1px solid #D7DAD4; line-height: 1.45; }
   </style></head><body>
     <h1>${escapeHtml(companyName)} — Work-in-progress schedule</h1>
     <div class="sub">As of ${escapeHtml(period.periodEndDate)}${period.lockedAt ? ' · Locked' : ''}

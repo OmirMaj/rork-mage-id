@@ -3,69 +3,69 @@
 exports[`lane DB — golden (recorded on the untouched base) /copilot?capabilityId=schedule at 390 (CopilotShell, no autoSubmitSeed) 1`] = `
 {
   "lines": 71,
-  "sha256": "274228a865444a1bbdc25bb8a65ce6e2681fc6e17b0926156dc8932ba9d6d97d",
+  "sha256": "d2f469531a7790e9f6ee4aa8151088a321d461948f2516ffb3450e3301a5bb63",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule at 390 with the "Tell me what to change" sheet open (ScheduleEditPanel, modal) 1`] = `
 {
   "lines": 739,
-  "sha256": "d00037f55f02c71f8c16566d987225804ada8c8060fd920480d8a1b2040187c4",
+  "sha256": "9908f8edd45271f741d4e9c181e725681c723c3f3d1c500346d1c7cf6a9fe6ab",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule-pro at native 1000 × 700 (the legacy branch) 1`] = `
 {
   "lines": 400,
-  "sha256": "342f96ca27fa47a83e957f2c70f5bca56b00b4d8e52c45320804c92091b43347",
+  "sha256": "f8ef92f1ea165a5b673259ee429f2959450b5adebd87e59e4aa1a6089a740932",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule-pro?projectId at 390 iOS: the narrow gate 1`] = `
 {
   "lines": 49,
-  "sha256": "21360d2007d92dbd6877d3e3449b8d5a378361d48a80588c065ecd163addd5a6",
+  "sha256": "4af3aa3b57c5f83e560c562a206234f926a6b0df1ea2bc68c232ae94e01556bb",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) EarnedValuePanel card + its sheet 1`] = `
 {
   "lines": 132,
-  "sha256": "1e2e0967e3592b68568f839420965524461ba4fc8effcb306f5eff06fd4463b2",
+  "sha256": "a31420e714bcc28be8bca79d01c51fad5e7f635decd42dc9f350d2c88fd4359c",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) ScheduleShareSheet, open (full and by trade) 1`] = `
 {
   "lines": 53,
-  "sha256": "96784bcd8e6de70cf7a4cca420ca08f7f98ac2af2ebe3263a264699283355cf5",
+  "sha256": "ceafa62848b1f8010ed0ac38193d7686504ac94d2398c5478f0cf507e79373f6",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) ScheduleShareSheet, open (full and by trade) 2`] = `
 {
   "lines": 88,
-  "sha256": "4b41fa7cf94390c5a786e4660a5bbbdf9c8fa967c3df38a83e71d9cc6a64f2b0",
+  "sha256": "cd1ef4ad870a623d69b0c61bf16cbf95d4bec2bbd562466768713bec3afefeb4",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) SubUpdatesPanel card + its sheet 1`] = `
 {
   "lines": 118,
-  "sha256": "6d668553c68b80aeedf9ae22abb0cd8aa214f201786fff4402f4e6b7e353fb21",
+  "sha256": "fc97f7ebdbb08bcd10f3c4e46f1132bc883986dbcd4a8b7eefcc2de0f6afbf59",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) WeatherRescheduleModal, open 1`] = `
 {
   "lines": 88,
-  "sha256": "c22a8847fbab3103834d16d51a9202b0eab2832f55c55c8b5b37cae5e2a4fb30",
+  "sha256": "6a09ffd9673edab6926985322b90b6cd8d8c19c124e02238362325b7b149e5b4",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) WeatherReschedulePrompt banner + its sheet 1`] = `
 {
   "lines": 108,
-  "sha256": "736060e55acdabb6eec5b64948d576725fb19347d587c9e572e42d6b26073aee",
+  "sha256": "96c9623352e03aa84cafaf27176dafb749c95d344b26808ea111f58c9db8e7bf",
 }
 `;

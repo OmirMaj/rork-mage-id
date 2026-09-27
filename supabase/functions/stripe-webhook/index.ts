@@ -80,14 +80,14 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_API_VERSION = "2024-06-20";
 
 const INK = "#0B0D10";
-const AMBER = "#FF6A1A";
-const CREAM = "#F4EFE6";
-const SAND = "#E8DFCD";
+const BRAND = "#2F6B3A";
+const CONCRETE = "#ECEDE9";
+const HAIRLINE = "#D7DAD4";
 const FOG = "#9AA3AD";
 const STONE = "#4A5159";
 const PAPER = "#FFFFFF";
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 function escapeHtml(text: unknown): string {
   if (text == null) return "";

@@ -568,7 +568,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // `t.warningLabel`, NOT the literal #7A4500 the warn banner above uses. That
   // banner paints its own literal cream ground (#FFF4E0), so a fixed dark amber
   // on it is a pinned pair and correct. These two sit on `styles.row`, whose
-  // ground is `t.surface` — #14181D in dark, where #7A4500 measures 2.34:1 and
+  // ground is `t.surface` — #1D211F in dark, where #7A4500 measures 2.08:1 and
   // the figure the GC is being told to go reconcile is the one line on the
   // screen he cannot read. warningLabel is the theme's label ink for exactly
   // this (#B84A00 light / #FF9500 dark) and clears AA on both.

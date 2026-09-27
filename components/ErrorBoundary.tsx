@@ -194,7 +194,7 @@ function ErrorFallback({
           accessibilityLabel="Try again"
           testID="error-boundary-retry"
         >
-          <RefreshCw size={16} color="#8A2E05" strokeWidth={2} />
+          <RefreshCw size={16} color="#1C4023" strokeWidth={2} />
           <Text style={fallbackStyles.retryText}>Try again</Text>
         </TouchableOpacity>
       </View>
@@ -351,17 +351,17 @@ const fallbackStyles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   // MISS-03: the single button was hardcoded #1A6B3C — the RETIRED forest-green
-  // brand, the one place in the app where it still shipped. Primary CTAs are
-  // MAGE orange; #BC440C is the accessible accent fill (white on it = 5.29:1,
-  // the same value constants/colors.ts documents as founder decision #1).
-  // Hardcoded rather than imported because this component must render with the
-  // theme stack dead — see the note above ErrorFallback.
+  // brand, the one place in the app where it still shipped; it then moved to
+  // the orange accent fill #BC440C. Since the 2026-09-16 rebrand primary CTAs
+  // are MAGE green: #2F6B3A is BRAND_ACCENT in constants/colors.ts and carries
+  // white at 6.39:1. Hardcoded rather than imported because this component
+  // must render with the theme stack dead — see the note above ErrorFallback.
   homeButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#BC440C',
+    backgroundColor: '#2F6B3A',
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 32,
@@ -379,7 +379,7 @@ const fallbackStyles = StyleSheet.create({
     gap: 8,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(188,68,12,0.35)',
+    borderColor: 'rgba(47,107,58,0.35)',
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 32,
@@ -389,8 +389,9 @@ const fallbackStyles = StyleSheet.create({
   retryText: {
     fontSize: 16,
     fontWeight: '600',
-    // #8A2E05 on white = 8.49:1; the accent fill itself would be 5.29:1 but
-    // this is the secondary action, so it reads as ink rather than a button.
-    color: '#8A2E05',
+    // #1C4023 (the brand's primaryDark) on white = 11.62:1; the brand fill
+    // itself would be 6.39:1 but this is the secondary action, so it reads as
+    // ink rather than a button. (Was the orange-family #8A2E05.)
+    color: '#1C4023',
   },
 });

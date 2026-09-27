@@ -248,7 +248,7 @@ export const PUNCH_EXPORT_CSS = `
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { overflow-wrap: anywhere; }
 @media print { body { padding: 0 !important; } .screen-only { display: none !important; } }
-.pe-hint { border: 1px solid ${P.bone}; background: ${P.cream2}; color: ${P.text2}; padding: 8px 10px; border-radius: 6px; margin: 0 0 16px; font-size: 11px; }
+.pe-hint { border: 1px solid ${P.hairline}; background: ${P.ground2}; color: ${P.text2}; padding: 8px 10px; border-radius: 6px; margin: 0 0 16px; font-size: 11px; }
 .pe-internal-stamp { border: 1.5px solid ${P.error}; background: ${P.errorTint}; color: ${P.error}; font-weight: 700; padding: 8px 10px; border-radius: 6px; margin: 0 0 16px; }
 .pe-internal { border: 1px solid ${P.error}; background: ${P.errorTint}; color: ${P.error}; padding: 6px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 11px; }
 .pe-sec-label { font-size: 12px; font-weight: 700; color: ${P.text2}; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .6px; }
@@ -256,10 +256,10 @@ body { overflow-wrap: anywhere; }
 .pe-sum-line { font-size: 11px; color: ${P.text2}; margin: -14px 0 14px; }
 .pe-photo-line { font-size: 11px; color: ${P.text2}; margin: 0 0 12px; }
 .pe-crew-break { page-break-before: always; break-before: page; }
-.pe-group { font-size: 13px; font-weight: 700; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1px solid ${P.bone2}; page-break-after: avoid; break-after: avoid; }
+.pe-group { font-size: 13px; font-weight: 700; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1px solid ${P.hairline2}; page-break-after: avoid; break-after: avoid; }
 .pe-group span { font-weight: 600; font-size: 11px; color: ${P.text2}; }
-.pe-card { display: block; page-break-inside: avoid; break-inside: avoid; border: 1px solid ${P.bone}; border-radius: 8px; padding: 10px; margin: 0 0 8px; }
-.pe-card-closed { border-color: ${P.bone2}; }
+.pe-card { display: block; page-break-inside: avoid; break-inside: avoid; border: 1px solid ${P.hairline}; border-radius: 8px; padding: 10px; margin: 0 0 8px; }
+.pe-card-closed { border-color: ${P.hairline2}; }
 .pe-card-closed .pe-desc { color: ${P.text2}; }
 .pe-ct { width: 100%; table-layout: fixed; border-collapse: collapse; }
 .pe-ph-cell { width: 34%; vertical-align: top; padding-right: 12px; }
@@ -280,19 +280,19 @@ body { overflow-wrap: anywhere; }
 .pe-where { font-size: 10px; color: ${P.text}; }
 .pe-meta { font-size: 10px; color: ${P.text2}; margin-top: 3px; }
 .pe-muted { color: ${P.textMuted}; }
-.pe-subnote { border-left: 3px solid ${P.bone}; background: ${P.cream2}; padding: 6px 8px; margin-top: 6px; font-size: 10px; white-space: pre-wrap; }
+.pe-subnote { border-left: 3px solid ${P.hairline}; background: ${P.ground2}; padding: 6px 8px; margin-top: 6px; font-size: 10px; white-space: pre-wrap; }
 .pe-returned { border-left: 3px solid ${P.error}; background: ${P.errorTint}; padding: 6px 8px; margin-top: 6px; font-size: 10px; white-space: pre-wrap; }
-.pe-done { margin-top: 8px; padding-top: 6px; border-top: 1px dashed ${P.bone}; font-size: 10px; line-height: 1.9; color: ${P.text2}; }
+.pe-done { margin-top: 8px; padding-top: 6px; border-top: 1px dashed ${P.hairline}; font-size: 10px; line-height: 1.9; color: ${P.text2}; }
 .pe-box { display: inline-block; width: 10px; height: 10px; border: 1px solid ${P.text2}; vertical-align: -1px; margin-right: 3px; }
 .pe-lbl { margin-left: 10px; }
 .pe-line { display: inline-block; width: 56px; border-bottom: 1px solid ${P.textMuted}; margin: 0 0 0 3px; }
 .pe-stamp { display: inline-block; border: 1.5px solid ${P.success}; color: ${P.success}; font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 4px; letter-spacing: .6px; }
 .pe-tbl { table-layout: fixed; font-size: 10.5px; margin-bottom: 18px; }
-.pe-tbl th { text-align: left; font-size: 9px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: ${P.textMuted}; padding: 8px 6px; border-bottom: 2px solid ${P.bone}; }
-.pe-tbl td { padding: 7px 6px; border-bottom: 1px solid ${P.bone2}; vertical-align: top; }
+.pe-tbl th { text-align: left; font-size: 9px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: ${P.textMuted}; padding: 8px 6px; border-bottom: 2px solid ${P.hairline}; }
+.pe-tbl td { padding: 7px 6px; border-bottom: 1px solid ${P.hairline2}; vertical-align: top; }
 .pe-tbl tr { page-break-inside: avoid; break-inside: avoid; }
 .pe-tbl thead { display: table-header-group; }
-.pe-tbl .pe-grp td { font-weight: 700; font-size: 11px; background: ${P.cream2}; color: ${P.text}; }
+.pe-tbl .pe-grp td { font-weight: 700; font-size: 11px; background: ${P.ground2}; color: ${P.text}; }
 .pe-tdesc { white-space: pre-wrap; }
 .pe-sub { font-size: 9.5px; color: ${P.text2}; margin-top: 2px; }
 .pe-tref { font-family: Menlo, 'Courier New', monospace; font-size: 8.5px; color: ${P.text2}; }
@@ -309,7 +309,7 @@ body { overflow-wrap: anywhere; }
 .pe-plan-rot-spacer { width: 100%; }
 .pe-plan-rot { position: absolute; top: 0; left: 0; transform-origin: 0 0; -webkit-transform-origin: 0 0; transform: rotate(90deg) translateY(-100%); -webkit-transform: rotate(90deg) translateY(-100%); line-height: 0; }
 .pe-plan-rot .pe-plan-obj { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
-.pe-crop { position: relative; width: 100%; padding-top: 100%; overflow: hidden; border-radius: 6px; border: 1px solid ${P.bone}; background: #FFFFFF; margin-top: 6px; }
+.pe-crop { position: relative; width: 100%; padding-top: 100%; overflow: hidden; border-radius: 6px; border: 1px solid ${P.hairline}; background: #FFFFFF; margin-top: 6px; }
 .pe-crop-img { position: absolute; top: 0; line-height: 0; }
 .pe-crop-sp { width: 100%; }
 .pe-crop-obj { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; object-fit: fill; }
@@ -363,10 +363,10 @@ export const PUNCH_EXPORT_PRINT_PLACEHOLDER_HTML = `<!DOCTYPE html>
 // Pieces
 // ───────────────────────────────────────────────────────────────────────────
 
-function statusTone(status: string): 'error' | 'warning' | 'amber' | 'success' | 'muted' {
+function statusTone(status: string): 'error' | 'warning' | 'brand' | 'success' | 'muted' {
   if (status === 'open') return 'error';
   if (status === 'in_progress') return 'warning';
-  if (status === 'ready_for_review') return 'amber';
+  if (status === 'ready_for_review') return 'brand';
   if (status === 'closed') return 'success';
   return 'muted';
 }

@@ -36,7 +36,7 @@ import {
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
 import DatePickerModal from '@/components/DatePickerModal';
@@ -63,10 +63,13 @@ import { isSellBasisBudget, parseBidAmountInput } from '@/utils/bulkSavings';
 import { bidDueLabel, bidDueState, inviteCoverage, type BidInviteRecord } from '@/utils/bidInviteCore';
 import { packageBuyoutSavings } from '@/utils/projectFinancials';
 
+// Getters, not literals: `open` is the brand (Colors.primary follows the theme
+// and a picked hue), `awarded` the success TEAL. The pre-rebrand bright green
+// would now be indistinguishable from the brand-green `open` beside it.
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
-  open: '#FF6A1A',
+  get open() { return Colors.primary; },
   leveling: '#0D6CB1',
-  awarded: '#16A34A',
+  get awarded() { return Colors.successLabel; },
   cancelled: '#9CA3AF',
 };
 
@@ -524,8 +527,8 @@ export default function BuyoutScreen() {
                 </View>
                 <Text style={styles.kpiNum}>{kpi.awarded}<Text style={styles.kpiNumSecondary}> / {kpi.total}</Text></Text>
                 <View style={styles.kpiPaceRow}>
-                  <View style={[styles.pacePill, { backgroundColor: '#FF6A1A22' }]}>
-                    <Text style={[styles.pacePillText, { color: themeColors.accent }]} numberOfLines={1}>{kpi.open} open</Text>
+                  <View style={[styles.pacePill, { backgroundColor: themeColors.accentSoft }]}>
+                    <Text style={[styles.pacePillText, { color: themeColors.accentLabel }]} numberOfLines={1}>{kpi.open} open</Text>
                   </View>
                   <View style={[styles.pacePill, { backgroundColor: '#0D6CB122' }]}>
                     <Text style={[styles.pacePillText, { color: '#0D6CB1' }]} numberOfLines={1}>{kpi.leveling} lvl</Text>

@@ -155,7 +155,7 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showBudgetSummary',
     label: 'Budget summary',
     description: 'Overall spend against contract value',
-    icon: <BarChart3 size={18} color={"#2E7D44"} strokeWidth={1.75} />,
+    icon: <BarChart3 size={18} color={Colors.successDark} strokeWidth={1.75} />,
   },
   {
     key: 'showInvoices',
@@ -185,7 +185,7 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showPunchList',
     label: 'Punch list',
     description: 'Open items and completion status',
-    icon: <CheckCircle2 size={18} color={"#2E7D44"} strokeWidth={1.75} />,
+    icon: <CheckCircle2 size={18} color={Colors.successDark} strokeWidth={1.75} />,
   },
   {
     key: 'showRFIs',
@@ -1382,7 +1382,7 @@ function ClientPortalSetupScreenInner() {
     // deliver it separately (SMS/call) after the invite sends — matching the
     // on-screen "share it separately" guidance.
     const passcodeHint = portal.requirePasscode && portal.passcode
-      ? `<p style="margin:14px 0 0;padding:12px 14px;background:#F4EFE6;border:1px solid #E8DFCD;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;">This portal asks for a passcode. ${escapeHtml(recipientFirstName ?? 'You')} will receive it from your contractor in a separate message.</p>`
+      ? `<p style="margin:14px 0 0;padding:12px 14px;background:#ECEDE9;border:1px solid #D7DAD4;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;">This portal asks for a passcode. ${escapeHtml(recipientFirstName ?? 'You')} will receive it from your contractor in a separate message.</p>`
       : '';
     const welcomeBlock = portal.welcomeMessage
       ? emailQuote(portal.welcomeMessage)
@@ -1883,7 +1883,7 @@ function ClientPortalSetupScreenInner() {
           <View style={[styles.togglesCard, { padding: 0 }]}>
             <View style={[styles.toggleRow, (project?.targetBudget || proposalQ.pending.length > 0) && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <HandCoins size={18} color={Colors.orange} strokeWidth={1.75} />
+                <HandCoins size={18} color={Colors.primary} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Allow client to suggest budget</Text>
                   <Text style={styles.toggleDesc}>Shows a &quot;Set your target budget&quot; card on the portal</Text>
@@ -1966,7 +1966,7 @@ function ClientPortalSetupScreenInner() {
           <View style={[styles.togglesCard, { padding: 0 }]}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
-                <Sunrise size={18} color={Colors.orange} strokeWidth={1.75} />
+                <Sunrise size={18} color={Colors.primary} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Send weekly recap</Text>
                   <Text style={styles.toggleDesc}>Friday afternoons. Goes to every portal invite email.</Text>
@@ -2424,7 +2424,7 @@ function ClientPortalSetupScreenInner() {
                         ? <Eye size={10} color={themeColors.success} strokeWidth={1.75} />
                         : <Clock size={10} color={Colors.warningLabel} strokeWidth={1.75} />
                       }
-                      <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: themeColors.success }]}>
+                      <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: themeColors.successLabel }]}>
                         {invite.status === 'viewed' ? 'Viewed' : 'Pending'}
                       </Text>
                     </View>
@@ -2707,7 +2707,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#FF950020', borderRadius: Tokens.radius.xs, paddingHorizontal: 6, paddingVertical: 3,
   },
-  inviteStatusViewed: { backgroundColor: '#34C75920' },
+  inviteStatusViewed: { backgroundColor: Colors.success + '20' },
   inviteStatusText: { fontSize: 10, fontWeight: '600', color: Colors.warningLabel },
   removeBtn: { padding: 4 },
   emailInviteBtn: { padding: 4 },

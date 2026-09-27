@@ -349,7 +349,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     minHeight: 52,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary,
+    // accentFill, not Colors.primary: white label, and the dark-theme brand
+    // #5DB36E gives white 2.58:1 (accentFill: 4.83:1).
+    backgroundColor: t.accentFill,
     marginTop: 6,
   },
   createBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF' },

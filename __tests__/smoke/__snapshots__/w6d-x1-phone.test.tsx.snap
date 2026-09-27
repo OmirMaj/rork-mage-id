@@ -1,0 +1,297 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) AssemblyEditorModal — dark 1`] = `
+{
+  "lines": 119,
+  "modalCount": 1,
+  "sha256": "c199714c81476494aea6dc82f4c9218118c05694c8f06178e0a00ccd6365bf05",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) AssemblyEditorModal — light 1`] = `
+{
+  "lines": 119,
+  "modalCount": 1,
+  "sha256": "0247dbe09340ff5e1a9f4a8eb4dd25ec43d637eea69cd20876ad15adc6ece8de",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailModal (confirmed elsewhere) — dark 1`] = `
+{
+  "lines": 16,
+  "modalCount": 1,
+  "sha256": "4eb8fddb1c6a74cb7f0d999c8185461a71e3b3bdee02a7bc896f3adcf1be61f1",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailModal (confirmed elsewhere) — light 1`] = `
+{
+  "lines": 16,
+  "modalCount": 1,
+  "sha256": "b8ec9a11be51bf95bf29b591a36cd77f22a1f763a0cdf7d7967107a2101614b6",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailModal — dark 1`] = `
+{
+  "lines": 60,
+  "modalCount": 1,
+  "sha256": "c666c01c34e7ea48193fe6c5ed443e2edff6d8f6122f171b1fcc0b462239476b",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ConfirmEmailModal — light 1`] = `
+{
+  "lines": 60,
+  "modalCount": 1,
+  "sha256": "573cbb1e2dd6f403b45621382768d47601af1f5f35bf948d453c6090f38d0f2e",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadingOverlay — dark 1`] = `
+{
+  "lines": 39,
+  "modalCount": 1,
+  "sha256": "b8ee7a14d5262532fdb6923f47bc3d19c35123334dc7502766a90121f1dc2920",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) EstimateLoadingOverlay — light 1`] = `
+{
+  "lines": 39,
+  "modalCount": 1,
+  "sha256": "6c32a1e3366dbed2b7111cbafcd8e6a9c7b7480553401f5c5be11fbed72e0772",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InfoBubble — dark 1`] = `
+{
+  "lines": 27,
+  "modalCount": 1,
+  "sha256": "8e7bfe8b263a241c8ffdc9a5fddaae38c6df2e82ef5922ff42bc2deeccb78199",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InfoBubble — light 1`] = `
+{
+  "lines": 27,
+  "modalCount": 1,
+  "sha256": "ecb2c1dafd9861810642c05072a74e21eb61552f53d5caec714bf5ea2e890373",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InstantBidProposalModal — dark 1`] = `
+{
+  "lines": 46,
+  "modalCount": 1,
+  "sha256": "b8861fa10d4013f8e4ca6a1c155b17d77ec75e033829a08f4d3f8bc57f37f8c0",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) InstantBidProposalModal — light 1`] = `
+{
+  "lines": 46,
+  "modalCount": 1,
+  "sha256": "b590baab9dcbf56d5fa6d6e339e3545d25483ded9f560be344011c1fd82cfd3c",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) OfflineSyncPill (failed) — dark 1`] = `
+{
+  "lines": 52,
+  "modalCount": 1,
+  "sha256": "6adee350d029dffba465f2f1f7305e4691984e2e78ed2d10469be23c3eab2653",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) OfflineSyncPill (failed) — light 1`] = `
+{
+  "lines": 52,
+  "modalCount": 1,
+  "sha256": "4597be8d31451f777b1a4d301d76d4a86550b19e2a387304003b72f65798f139",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PropertyManagerHome — dark 1`] = `
+{
+  "lines": 106,
+  "modalCount": 1,
+  "sha256": "bd0cf2f8a73252f96dc3021440159bfbd9059bdbca2ed4531156bcdcfb867d5b",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PropertyManagerHome — light 1`] = `
+{
+  "lines": 106,
+  "modalCount": 1,
+  "sha256": "4f32326b1cd069ada829851f6b1a47b9a8ad395a8e64906346ef600baca44a5a",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportSheet — dark 1`] = `
+{
+  "lines": 86,
+  "modalCount": 1,
+  "sha256": "fe590f65dd43c9b89778c4da45e2335153f6c031a9b6f1d2925543a362d6fe77",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) PunchExportSheet — light 1`] = `
+{
+  "lines": 86,
+  "modalCount": 1,
+  "sha256": "c998a730f9bdfc2f51678b7728c7f776d42bd7a5df53ea487f95ab33b4e95ccc",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) QuickFieldUpdate — dark 1`] = `
+{
+  "lines": 180,
+  "modalCount": 2,
+  "sha256": "0a5f80a87fb2115e4b189523f91c64c33dd905943559d7b6fe4034ed1fe392b6",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) QuickFieldUpdate — light 1`] = `
+{
+  "lines": 180,
+  "modalCount": 2,
+  "sha256": "4481d6ede1133e71822f937be92952e7adf38346c834f69d1e58169208aa629c",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) RateOverrideModal — dark 1`] = `
+{
+  "lines": 55,
+  "modalCount": 1,
+  "sha256": "b0d239808f09074894a62e99efc7f0149039b2a2c48808186b87416d170d3030",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) RateOverrideModal — light 1`] = `
+{
+  "lines": 55,
+  "modalCount": 1,
+  "sha256": "c193531ebe5edb1f905ac2c1de81b1709523b7bfd7ed9ab0871540beaecb1556",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ReferralPrompt — dark 1`] = `
+{
+  "lines": 40,
+  "modalCount": 1,
+  "sha256": "0f05827140d90cc63b7398062eec98babc4f7ebf7e8911ef889de579fee6776d",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) ReferralPrompt — light 1`] = `
+{
+  "lines": 40,
+  "modalCount": 1,
+  "sha256": "129fc4fb5649d97d5290f8a9934539e81809973e3445aa8fa368fccf801fd428",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) SubDailyUpdateModal — dark 1`] = `
+{
+  "lines": 117,
+  "modalCount": 1,
+  "sha256": "1d338b5dbc1dd006309b145989aad0911beb875719c610981d07ef11f8df93f1",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) SubDailyUpdateModal — light 1`] = `
+{
+  "lines": 117,
+  "modalCount": 1,
+  "sha256": "7d3a460e3821045ea6d411f926e0baf1f8ceed5b85deef207e7f55eb971c9819",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVerifyButton (existing) — dark 1`] = `
+{
+  "lines": 47,
+  "modalCount": 1,
+  "sha256": "3562a6ee729854f758c71e0b1f03f30fa4d7082e7beb915a615fc0eb54a45d13",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVerifyButton (existing) — light 1`] = `
+{
+  "lines": 47,
+  "modalCount": 1,
+  "sha256": "25ecd76ca7bc6a08583f75221129fbdf385ca3645684af94137b2f6653cf8164",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVerifyButton (new) — dark 1`] = `
+{
+  "lines": 35,
+  "modalCount": 1,
+  "sha256": "409e3c520fcc20f25af3d097b5adb2789175cd4377c6f3e8fb402f82786d43fc",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVerifyButton (new) — light 1`] = `
+{
+  "lines": 35,
+  "modalCount": 1,
+  "sha256": "2dc7b5c6609c3a82fbba121d498695591a4330b1860c9c14879e97dd03170f15",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicButton — dark 1`] = `
+{
+  "lines": 79,
+  "modalCount": 2,
+  "sha256": "7571b26820e3b8c8b80023f1e5516374fee5e07c68f103aab453159cb80438e9",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicButton — light 1`] = `
+{
+  "lines": 79,
+  "modalCount": 2,
+  "sha256": "ca7de58f8f90ba2c0b96b4446e88eb9ee2d84aaf8855a03235cd8d8c5917fc0e",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UpgradeSheet — dark 1`] = `
+{
+  "lines": 42,
+  "modalCount": 1,
+  "sha256": "efbf0fee71272c5630430ae0f3f3d4b9b0c7142556ad8af90c42ea29d196c3c7",
+}
+`;
+
+exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UpgradeSheet — light 1`] = `
+{
+  "lines": 42,
+  "modalCount": 1,
+  "sha256": "8c7cbc3873b8461237ab8b1fed9d7ce37174aa4a510296d5abccd48b2e3c71b6",
+}
+`;
+
+exports[`lane X1 — D: the classic schedule tab (golden, android 800 × 1280) /(tabs)/schedule?projectId — ScheduleScreen's non-desktop branch 1`] = `
+{
+  "lines": 2150,
+  "modalCount": 19,
+  "sha256": "c3703b9f62dacb68cfc18ef523f7c1181d17aa6422db4a3cddc8d7e42ca5008c",
+}
+`;
+
+exports[`lane X1 — PunchExportHeaderButton alone (golden, iOS 390) dark — the phone label stays "Export" 1`] = `
+{
+  "lines": 11,
+  "modalCount": 0,
+  "sha256": "901cbfbb12dae00e8848962dcc37c28d50b92f7a1694c7fed24997964ac59527",
+}
+`;
+
+exports[`lane X1 — PunchExportHeaderButton alone (golden, iOS 390) light — the phone label stays "Export" 1`] = `
+{
+  "lines": 11,
+  "modalCount": 0,
+  "sha256": "2fb6277c455cc9716305579c2cd44194ac87b6949da18e056791bb894bd20543",
+}
+`;

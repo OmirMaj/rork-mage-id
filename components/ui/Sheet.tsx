@@ -54,10 +54,13 @@
 //   sections — and a non-transparent pageSheet Modal becomes `transparent` on
 //   desktop only (f.transparent).
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
   Modal,
+  PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -68,7 +71,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
-import { Radius, Tokens } from '@/constants/designTokens';
+import { Motion, Radius, Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -81,7 +84,15 @@ import {
   useIsDesktopWeb,
   type SheetSize,
 } from './desktop';
-import { registerWithMotion, useReducedMotion, useRiseOnOpen } from './motion';
+import {
+  motionCurve,
+  nativeDriver,
+  reducedMotion,
+  registerWithMotion,
+  riseValueOf,
+  useReducedMotion,
+  useRiseOnOpen,
+} from './motion';
 
 export type { SheetSize, SheetFrameStyles } from './desktop';
 export { desktopSheetFrame } from './desktop';
@@ -115,11 +126,30 @@ export interface SheetFrame {
    *  open after mount), under Reduce Motion, without `rise`, and on desktop
    *  (the desktop card carries its CSS entry in `card` itself). */
   cardMotion: ViewStyle | null;
+  /** The Animated.Value behind cardMotion's translateY (null whenever
+   *  cardMotion is null). Only for a card that composes its own offset with
+   *  the rise — <Sheet>'s drag-to-dismiss. Adopters ignore it. */
+  riseY: Animated.Value | null;
+}
+
+/** How far a phone rise frame travels when the caller does not know its card's
+ *  height: 45 % of the window, capped at 420 pt — a real sheet distance (the
+ *  card comes up from below the screen edge), not the old 28 pt nudge. Read at
+ *  each render, so the open uses the window as it is then. */
+export function defaultRiseDistance(): number {
+  return Math.min(Math.round(0.45 * Dimensions.get('window').height), 420);
 }
 
 export function useSheetFrame(
   size: SheetSize,
-  opts: { visible?: boolean; animationType?: AnimationType; rise?: boolean } = {},
+  opts: {
+    visible?: boolean;
+    animationType?: AnimationType;
+    rise?: boolean;
+    /** Phone rise frames: how far the card travels on open (its measured
+     *  height, when known). Default defaultRiseDistance(). */
+    riseDistance?: number;
+  } = {},
 ): SheetFrame {
   const isDesktop = useIsDesktop();
   const { colors } = useTheme();
@@ -135,7 +165,13 @@ export function useSheetFrame(
   // Every hook runs before the phone return below, so hook order is fixed.
   // Only a phone sheet that opted in drives the spring: the ~100 adopters
   // without `rise` (and every desktop card) never start an animation.
-  const rise = useRiseOnOpen(opts.visible === true && opts.rise === true && !isDesktop);
+  // The card travels a real sheet distance on Motion.spring.sheet (ζ≈1.0, no
+  // overshoot over ~400 pt) while the scrim fades in place.
+  const rise = useRiseOnOpen(
+    opts.visible === true && opts.rise === true && !isDesktop,
+    opts.riseDistance ?? defaultRiseDistance(),
+    Motion.spring.sheet,
+  );
   // Desktop: the card pops in (a 'panel' slides in from the right) through a
   // registered CSS keyframe. RN-web's Modal unmounts on close, so it replays
   // on every open. Memoised: each registration is a new class. Reduce Motion
@@ -147,9 +183,9 @@ export function useSheetFrame(
     return { ...d, card: d.card ? (reduce ? d.card : registerWithMotion(d.card, size === 'panel' ? 'slideInRight' : 'popIn')) : null };
   }, [isDesktop, size, colors.line, inset, reduce]);
   if (!isDesktop || !desktopFrame) {
-    // `rise` opts a phone sheet in: the scrim cross-dissolves ('fade', kept
-    // even under Reduce Motion) while the card rises the last 28 pt on its own
-    // spring. Without it the frame is exactly today's.
+    // `rise` opts a phone sheet in: the scrim cross-dissolves in place ('fade',
+    // kept even under Reduce Motion) while the card rises from below on its
+    // own spring. Without it the frame is exactly today's.
     const rising = opts.rise === true && opts.animationType === 'slide';
     return {
       overlay: null,
@@ -163,6 +199,7 @@ export function useSheetFrame(
       transparent: undefined,
       isDesktop: false,
       cardMotion: rising ? rise : null,
+      riseY: rising ? riseValueOf(rise) : null,
     };
   }
   return {
@@ -172,6 +209,7 @@ export function useSheetFrame(
     transparent: true,
     isDesktop: true,
     cardMotion: null,
+    riseY: null,
   };
 }
 
@@ -294,12 +332,23 @@ export function Sheet({
   children,
   testID,
 }: SheetProps) {
-  const f = useSheetFrame(size, { visible, animationType: 'slide', rise: true });
+  // The card's measured height: the next open travels exactly that far (the
+  // first open, before any layout, uses defaultRiseDistance()).
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
+  const f = useSheetFrame(size, { visible, animationType: 'slide', rise: true, riseDistance: cardHeight ?? undefined });
   const desktopWeb = useIsDesktopWeb();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const cardRef = useRef<View>(null);
+  const drag = useSheetDrag(visible, !f.isDesktop && Platform.OS !== 'web', cardHeight, onClose);
+  // Until the first drag the card carries exactly the frame's cardMotion (so
+  // an untouched sheet — and every golden — is unchanged); from the first grab
+  // on, its translateY is the rise PLUS the drag.
+  const dragMotion = useMemo<ViewStyle | null>(
+    () => (drag.armed ? { transform: [{ translateY: f.riseY ? Animated.add(f.riseY, drag.value) : drag.value }] } : null),
+    [drag.armed, drag.value, f.riseY],
+  );
 
   const primary = primaryAction && !primaryAction.disabled && !primaryAction.loading ? primaryAction.onPress : null;
   useSheetPrimaryHotkey(visible, primary);
@@ -379,16 +428,22 @@ export function Sheet({
         />
         <Animated.View
           ref={cardRef}
+          onLayout={f.isDesktop ? undefined : (e) => {
+            const h = Math.round(e.nativeEvent.layout.height);
+            if (h > 0 && h !== cardHeight) setCardHeight(h);
+          }}
           style={[
             styles.card,
             !f.isDesktop && { paddingBottom: Math.max(insets.bottom, 12) + 8 },
             f.card,
-            f.cardMotion,
+            dragMotion ?? f.cardMotion,
           ]}
         >
-          {f.showHandle ? <View style={styles.handle} /> : null}
+          {/* The handle and the header are the drag zone (never the scrolling
+              body): pull down to dismiss. */}
+          {f.showHandle ? <View style={styles.handle} {...drag.handlers} /> : null}
           {title || subtitle ? (
-            <View style={styles.header}>
+            <View style={styles.header} {...drag.handlers}>
               <View style={styles.headerText}>
                 {title ? <Text style={styles.title} accessibilityRole="header">{title}</Text> : null}
                 {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -420,6 +475,63 @@ export function Sheet({
       </View>
     </Modal>
   );
+}
+
+/**
+ * Drag-to-dismiss for <Sheet>'s handle + header. A vertical pull claims the
+ * gesture (a tap on the header's close button still lands); the drag writes
+ * `value` directly (setValue — the JS thread is idle during a drag); an
+ * upward pull rubber-bands at a third. On release, past 30 % of the card or a
+ * flick (vy > 0.8) slides the card off over 180 ms eased in, then closes;
+ * otherwise it springs home on Motion.spring.sheet. Reduce Motion: the
+ * release closes or snaps back with no animation. `enabled` is false on
+ * desktop and web (no handlers, no transform ever).
+ */
+function useSheetDrag(visible: boolean, enabled: boolean, cardHeight: number | null, onClose: () => void) {
+  const value = useRef(new Animated.Value(0)).current;
+  const [armed, setArmed] = useState(false);
+  const latest = useRef({ cardHeight, onClose });
+  latest.current = { cardHeight, onClose };
+
+  // Every open starts from rest — before paint, so a card dismissed by a drag
+  // never flashes at its old offset.
+  useLayoutEffect(() => {
+    if (visible) value.setValue(0);
+  }, [visible, value]);
+
+  const responder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+    onPanResponderGrant: () => {
+      value.stopAnimation();
+      value.setValue(0);
+      setArmed(true);
+    },
+    onPanResponderMove: (_e, g) => {
+      value.setValue(g.dy >= 0 ? g.dy : g.dy * 0.3);
+    },
+    onPanResponderRelease: (_e, g) => {
+      const h = latest.current.cardHeight ?? defaultRiseDistance();
+      const dismiss = g.dy > 0.3 * h || g.vy > 0.8;
+      if (reducedMotion()) {
+        if (dismiss) latest.current.onClose();
+        else value.setValue(0);
+        return;
+      }
+      if (dismiss) {
+        Animated.timing(value, { toValue: h, duration: 180, easing: motionCurve.in, useNativeDriver: nativeDriver })
+          .start(({ finished }) => { if (finished) latest.current.onClose(); });
+      } else {
+        Animated.spring(value, { toValue: 0, ...Motion.spring.sheet, useNativeDriver: nativeDriver }).start();
+      }
+    },
+    onPanResponderTerminate: () => {
+      if (reducedMotion()) { value.setValue(0); return; }
+      Animated.spring(value, { toValue: 0, ...Motion.spring.sheet, useNativeDriver: nativeDriver }).start();
+    },
+  }), [value]);
+
+  return { value, armed, handlers: enabled ? responder.panHandlers : undefined };
 }
 
 const makeStyles = (t: ThemeColors) =>

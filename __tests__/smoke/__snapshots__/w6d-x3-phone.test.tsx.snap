@@ -1,0 +1,257 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /client-view 1`] = `
+{
+  "lines": 301,
+  "modals": 4,
+  "sha256": "ab2b07b11d0f55ddd8878ce83f6a39f4090b25b719e25ee5d7d2e6461c731ad8",
+}
+`;
+
+exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /client-view?portalId=44444444-4444-4444-8444-444444444444 1`] = `
+{
+  "lines": 583,
+  "modals": 7,
+  "sha256": "cf96a01047aa7076ed8217a0ee08d256029584211ac06b309c1291d653c24e73",
+}
+`;
+
+exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /managed-property 1`] = `
+{
+  "lines": 320,
+  "modals": 4,
+  "sha256": "390c818ac01f90586c5ca358d3a154d70884540f6dde7479d917bd2b27972860",
+}
+`;
+
+exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /oac-meeting 1`] = `
+{
+  "lines": 383,
+  "modals": 5,
+  "sha256": "1e2416139d61e27b3d51e415c213c295eafeaf3f20bfae75758b9f2363360c7c",
+}
+`;
+
+exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /shared-schedule 1`] = `
+{
+  "lines": 303,
+  "modals": 4,
+  "sha256": "9773232fb21af5e0b2f4efb3ab932b294eaf9c71235da89139ffa80f727df421",
+}
+`;
+
+exports[`lane X3 — batch F: the screens are unchanged on the iPhone (golden, iOS 390) /work-order 1`] = `
+{
+  "lines": 320,
+  "modals": 4,
+  "sha256": "04e87489c6ef33a0701253f26005a9e49e4d35c1654ac3f62e9f6152936944df",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-profile-setup — dark 1`] = `
+{
+  "lines": 118,
+  "modals": 1,
+  "sha256": "4d98bbf243c7073501a383abbac3c6663784c2d505d18a93fb7196bb463a7e36",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-profile-setup — light 1`] = `
+{
+  "lines": 118,
+  "modals": 1,
+  "sha256": "2bf126caaf6bdea341e10ba028ee5da2d9070c0b3ae45e61d094edac1e1ce70b",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-project-report — dark 1`] = `
+{
+  "lines": 34,
+  "modals": 1,
+  "sha256": "c006a54b3f997c643dd54db57d78df0ce01e221890686dcfdff044f68230a83d",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-project-report — light 1`] = `
+{
+  "lines": 34,
+  "modals": 1,
+  "sha256": "e838087e56ad9a725c342bf55ebd8e601dc6ad582df060f870e72c616ed08975",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-quick-estimate — dark 1`] = `
+{
+  "lines": 207,
+  "modals": 2,
+  "sha256": "1e71a6d04cc94d4c0234993d9fb248d733b3fa255a892e8152f28d846442c89b",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-quick-estimate — light 1`] = `
+{
+  "lines": 207,
+  "modals": 2,
+  "sha256": "db8338a7f6dc7b64b26a7023400e91e7fef32e9ad8e266a8db9753362a12e794",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-weekly-summary — dark 1`] = `
+{
+  "lines": 34,
+  "modals": 1,
+  "sha256": "960d34bf0c95c39fb31c341595580c273cffa8f36cda9ed9efbffaf3583925a5",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) ai-weekly-summary — light 1`] = `
+{
+  "lines": 34,
+  "modals": 1,
+  "sha256": "acba5a7c905a97d6ca4bdc20ecc423c5fe2533508625b91d6ba63185ded7ea35",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) cash-flow-setup — dark 1`] = `
+{
+  "lines": 41,
+  "modals": 1,
+  "sha256": "212fc007d161aecb0ca29eae10468b7790feef88a1b4efd5db2b0ca9ef192fb2",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) cash-flow-setup — light 1`] = `
+{
+  "lines": 41,
+  "modals": 1,
+  "sha256": "a1846ee14e3db420ef1dae823e5f67162c2aa113dd126a1dd7e0a8e8b06ccc73",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) client-paywall-rfp-post — dark 1`] = `
+{
+  "lines": 173,
+  "modals": 1,
+  "sha256": "dfa4745e9808071756d8509f9c4818971f17452cd32306e558445f31a2e61ab6",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) client-paywall-rfp-post — light 1`] = `
+{
+  "lines": 173,
+  "modals": 1,
+  "sha256": "5c8e8f5c656b56422ea633d92120b74ee55a6be9bfb5b1aa288e05f36855dc46",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) client-paywall-subscription — dark 1`] = `
+{
+  "lines": 173,
+  "modals": 1,
+  "sha256": "79ff5ac981806cf303a93ec14d4ebb73b3d7a80dfc5e5d0e09b273fcb7c7f188",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) client-paywall-subscription — light 1`] = `
+{
+  "lines": 173,
+  "modals": 1,
+  "sha256": "a1c699c668c45c108436f11e56726137ec913f8a03881c1f74eb8a7c0f400a52",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) estimate-comparison — dark 1`] = `
+{
+  "lines": 36,
+  "modals": 1,
+  "sha256": "eace0adb2a582d4282c1bcb734649cea6f9a92e40a537a66a1d3cce1f4786b0c",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) estimate-comparison — light 1`] = `
+{
+  "lines": 36,
+  "modals": 1,
+  "sha256": "1fd0cf7f4b05c3f7e185e205906f6e9107e75ca2a54d8a1c4f00fd9b57b6553a",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) material-ai-estimate — dark 1`] = `
+{
+  "lines": 60,
+  "modals": 1,
+  "sha256": "717b1147354fe3fe5f0aa757a99d3eb2cdce05a2a0fbd55924bc9a5920b2466e",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) material-ai-estimate — light 1`] = `
+{
+  "lines": 60,
+  "modals": 1,
+  "sha256": "8abb809a623b21216e070d28516e82b454f1db7d5a20343da96504c609146bde",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) productivity-calculator — dark 1`] = `
+{
+  "lines": 623,
+  "modals": 1,
+  "sha256": "09effa17ada488320379415837aa77f04f65b2a48efb7501e770e1bb72f10426",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) productivity-calculator — light 1`] = `
+{
+  "lines": 623,
+  "modals": 1,
+  "sha256": "3fec4e7321a658814f77b9780a111c99f479057966af3cd086c7239cd858c3f2",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) rfi-triage — dark 1`] = `
+{
+  "lines": 29,
+  "modals": 1,
+  "sha256": "b45773ad2157c2e6cf36911e93b01bb82f6da42bb2d3b5841769d9beb8bdf78c",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) rfi-triage — light 1`] = `
+{
+  "lines": 29,
+  "modals": 1,
+  "sha256": "345249937f5dad5e7c6f4480f99ff6d3604276de0aa1fc5ab2c9bab0c3000541",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) square-foot-estimator — dark 1`] = `
+{
+  "lines": 494,
+  "modals": 1,
+  "sha256": "8f206231d963d7db9c5192f0fb44842a8d735f4c6d6540481a32c76dd05554f8",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) square-foot-estimator — light 1`] = `
+{
+  "lines": 494,
+  "modals": 1,
+  "sha256": "0ee27f4576b06ab23469fbc3b660b2be00170ef74e84ed2272757f0f620250af",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) takeoff-page-inspector — dark 1`] = `
+{
+  "lines": 120,
+  "modals": 1,
+  "sha256": "8c46e3b81a5d5c1c13f2eed5c7e7d0ffab53d1d43221eaf238c1ed1f07f56d30",
+}
+`;
+
+exports[`lane X3 — batches G + H: each tool alone is unchanged on the iPhone (golden, iOS 390) takeoff-page-inspector — light 1`] = `
+{
+  "lines": 120,
+  "modals": 1,
+  "sha256": "72c42c40f1711bffeefc255c0fce2a7946328087d6611a63dc4065d17fdf02f9",
+}
+`;

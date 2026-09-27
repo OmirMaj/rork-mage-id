@@ -31,7 +31,7 @@ import { useActiveProject } from '@/contexts/ActiveProjectContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useHotkeys, type HotkeyBinding } from '@/hooks/useHotkeys';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -70,9 +70,6 @@ export interface JobSwitcherProps {
   hrefForJob?: (projectId: string) => Href | null;
 }
 
-/** See the dialog-scope note in JobSwitcher. */
-const SWITCHER_DIALOG_BINDINGS: readonly HotkeyBinding[] = [{ combo: 'escape' }];
-
 export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -97,13 +94,15 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
   );
 
   const close = useCallback(() => { setOpen(false); setQuery(''); setHighlight(0); }, []);
-  // The open popover is a DIALOG to the shortcut registry (hooks/useHotkeys).
-  // The registry hears an Esc typed in the search box BEFORE the box's own
-  // onKeyPress (capture phase), so without this a page's Esc — a SplitView
-  // record, a table search — would fire too and the switch would also close
-  // the record behind it. The entry has no handler: the popover's own
-  // onKeyPress / onRequestClose still does the closing, exactly once.
-  useHotkeys(SWITCHER_DIALOG_BINDINGS, { scope: 'dialog', enabled: open });
+  // The open popover is a DIALOG to the shortcut registry (hooks/useHotkeys),
+  // through the shared sheet hook. The registry hears an Esc typed in the
+  // search box BEFORE the box's own onKeyPress (capture phase), so without
+  // this a page's Esc — a SplitView record, a table search — would fire too
+  // and the switch would also close the record behind it. Its Esc entry has no
+  // handler: the popover's own onKeyPress / onRequestClose still does the
+  // closing, exactly once. It also swallows Cmd+S, so the browser's "Save
+  // page as…" never opens over the open switcher.
+  useSheetDialogScope(open);
 
   const openPopover = useCallback(() => {
     const node = anchorRef.current;

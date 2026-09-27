@@ -24,6 +24,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { isValidCron } from '../_shared/cronAuth.ts'
+// SUPA-H1: per-source verdicts. A provider answering 401/403 or pulling zero
+// rows with its key present FAILS the run (502, no heartbeat) instead of the
+// old 200 {success:true} that hid a dead SAM.gov key for months.
+import { sourceVerdict, cycleOutcome, type SourceResult } from './sourceStatus.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -131,20 +135,22 @@ interface SamOpp {
   officeAddress?: { city?: string; state?: string }
 }
 
-async function fetchSamPage(apiKey: string, postedFrom: string, postedTo: string, offset: number, limit: number): Promise<SamOpp[]> {
+// The page AND how it went: a 401 is no longer indistinguishable from "no
+// opportunities this page" (SUPA-H1). status 0 = the body did not parse.
+async function fetchSamPage(apiKey: string, postedFrom: string, postedTo: string, offset: number, limit: number): Promise<{ opps: SamOpp[]; failedStatus: number | null }> {
   const url = `https://api.sam.gov/prod/opportunities/v2/search?api_key=${apiKey}&postedFrom=${postedFrom}&postedTo=${postedTo}&limit=${limit}&offset=${offset}&ptype=o&naics=23`
   const r = await fetch(url)
   const text = await r.text()
   if (!r.ok) {
     console.error('[sam] page failed', r.status, text.slice(0, 300))
-    return []
+    return { opps: [], failedStatus: r.status }
   }
   try {
     const data = JSON.parse(text)
-    return (data.opportunitiesData ?? []) as SamOpp[]
+    return { opps: (data.opportunitiesData ?? []) as SamOpp[], failedStatus: null }
   } catch {
     console.error('[sam] page parse failed')
-    return []
+    return { opps: [], failedStatus: 0 }
   }
 }
 
@@ -169,12 +175,21 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+    // One verdict per provider (sourceStatus.ts). SAM.gov is the ONLY writer
+    // of cached_bids in this repo: its rows carry source_name NULL (the 119
+    // null-source rows in prod). The 40 'SAM.gov via GovCon API' rows were
+    // written by a writer that is no longer in the repo and are never
+    // refreshed; the null-deadline cleanup below retires them.
+    const sources: SourceResult[] = []
+
     // ──────────────────────────────────────────────────────────────────
     // STEP 1: SAM.gov — paginated construction opportunities
     // ──────────────────────────────────────────────────────────────────
     console.log('--- Fetching bids from SAM.gov ---')
 
+    const sam = { failedStatuses: [] as number[], rows: 0, error: null as string | null, writeError: null as string | null }
     if (SAM_GOV_API_KEY) {
+     try {
       const today = new Date()
       const ninetyDaysAgo = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000)
       const fmtDate = (d: Date) =>
@@ -192,7 +207,8 @@ Deno.serve(async (req) => {
 
       for (let page = 0; page < MAX_PAGES; page++) {
         const offset = page * PAGE_SIZE
-        const pageResults = await fetchSamPage(SAM_GOV_API_KEY, postedFrom, postedTo, offset, PAGE_SIZE)
+        const { opps: pageResults, failedStatus } = await fetchSamPage(SAM_GOV_API_KEY, postedFrom, postedTo, offset, PAGE_SIZE)
+        if (failedStatus !== null) sam.failedStatuses.push(failedStatus)
         console.log(`[sam] page ${page} (offset ${offset}) → ${pageResults.length}`)
         opportunities.push(...pageResults)
         if (pageResults.length < PAGE_SIZE) break  // no more pages
@@ -201,6 +217,7 @@ Deno.serve(async (req) => {
       }
 
       console.log(`[sam] total opportunities pulled: ${opportunities.length}`)
+      sam.rows = opportunities.length
 
       // Pre-load the city_coords cache so we hydrate lat/long during
       // upsert without an extra geocoding round-trip per row.
@@ -263,7 +280,10 @@ Deno.serve(async (req) => {
         for (let i = 0; i < bidsToInsert.length; i += 100) {
           const slice = bidsToInsert.slice(i, i + 100)
           const r = await supabase.from('cached_bids').upsert(slice, { onConflict: 'notice_id' })
-          if (r.error) console.error('[sam] upsert chunk error:', r.error.message)
+          if (r.error) {
+            console.error('[sam] upsert chunk error:', r.error.message)
+            sam.writeError = r.error.message
+          }
         }
         console.log(`[sam] upserted ${bidsToInsert.length} bids (${missingPairs.size} cities pending geocode)`)
       }
@@ -272,15 +292,21 @@ Deno.serve(async (req) => {
       // its own cron. Doing it inline blew past the WORKER_RESOURCE_LIMIT
       // when paired with SAM.gov + Adzuna + Places work in one run.
       console.log(`[sam] ${missingPairs.size} cities pending geocode (handled by geocode-bids)`)
+     } catch (samErr) {
+      console.error('[sam] fetch error:', String(samErr))
+      sam.error = String(samErr).slice(0, 300)
+     }
     } else {
       console.log('Skipping SAM.gov - no API key')
     }
+    sources.push(sourceVerdict({ name: 'sam', keyPresent: !!SAM_GOV_API_KEY, ...sam }))
 
     // ──────────────────────────────────────────────────────────────────
     // STEP 2: Adzuna — construction-trade jobs
     // ──────────────────────────────────────────────────────────────────
     console.log('--- Fetching jobs from Adzuna ---')
 
+    const adzuna = { failedStatuses: [] as number[], rows: 0, error: null as string | null, writeError: null as string | null }
     if (ADZUNA_APP_ID && ADZUNA_APP_KEY) {
       try {
         const searchTerms = [
@@ -293,7 +319,10 @@ Deno.serve(async (req) => {
           try {
             const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${ADZUNA_APP_ID}&app_key=${ADZUNA_APP_KEY}&results_per_page=10&what=${encodeURIComponent(term)}&content-type=application/json`
             const adzResponse = await fetch(adzunaUrl)
-            if (!adzResponse.ok) continue
+            if (!adzResponse.ok) {
+              adzuna.failedStatuses.push(adzResponse.status)
+              continue
+            }
             const adzData = await adzResponse.json()
             const results = adzData.results || []
             for (const job of results) {
@@ -334,24 +363,30 @@ Deno.serve(async (req) => {
 
         if (allJobs.length > 0) {
           const uniqueJobs = Array.from(new Map(allJobs.map((j) => [j.external_id, j])).values())
+          adzuna.rows = uniqueJobs.length
           const result = await supabase
             .from('cached_jobs')
             .upsert(uniqueJobs, { onConflict: 'external_id' })
-          if (result.error) console.error('Error inserting jobs:', result.error.message)
-          else console.log('Successfully upserted', uniqueJobs.length, 'jobs')
+          if (result.error) {
+            console.error('Error inserting jobs:', result.error.message)
+            adzuna.writeError = result.error.message
+          } else console.log('Successfully upserted', uniqueJobs.length, 'jobs')
         }
       } catch (err) {
         console.error('Adzuna fetch error:', String(err))
+        adzuna.error = String(err).slice(0, 300)
       }
     } else {
       console.log('Skipping Adzuna - no API keys')
     }
+    sources.push(sourceVerdict({ name: 'adzuna', keyPresent: !!(ADZUNA_APP_ID && ADZUNA_APP_KEY), ...adzuna }))
 
     // ──────────────────────────────────────────────────────────────────
     // STEP 3: Google Places — contractor / supplier listings (weekly)
     // ──────────────────────────────────────────────────────────────────
     console.log('--- Fetching companies from Google Places ---')
 
+    const places = { notDue: false, failedStatuses: [] as number[], rows: 0, error: null as string | null, writeError: null as string | null }
     if (GOOGLE_PLACES_API_KEY) {
       try {
         // Places data is stable — refresh at most once per week. Single
@@ -369,6 +404,7 @@ Deno.serve(async (req) => {
         const shouldFetchPlaces = ageMs > SEVEN_DAYS_MS
 
         if (!shouldFetchPlaces) {
+          places.notDue = true
           const ageDays = Math.round(ageMs / (24 * 60 * 60 * 1000))
           console.log(`Skipping Google Places — last run ${ageDays}d ago, next refresh in ${Math.max(0, 7 - ageDays)}d`)
         } else {
@@ -394,9 +430,17 @@ Deno.serve(async (req) => {
               try {
                 const placesUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchType)}&location=${metro.lat},${metro.lng}&radius=40000&key=${GOOGLE_PLACES_API_KEY}`
                 const placesResponse = await fetch(placesUrl)
-                if (!placesResponse.ok) continue
+                if (!placesResponse.ok) {
+                  places.failedStatuses.push(placesResponse.status)
+                  continue
+                }
                 const placesData = await placesResponse.json()
-                if (placesData.status !== 'OK' && placesData.status !== 'ZERO_RESULTS') continue
+                if (placesData.status !== 'OK' && placesData.status !== 'ZERO_RESULTS') {
+                  // Places answers a bad/disabled key with HTTP 200 and
+                  // status REQUEST_DENIED — that is a refused key.
+                  if (placesData.status === 'REQUEST_DENIED') places.failedStatuses.push(403)
+                  continue
+                }
                 const results = placesData.results || []
                 for (const place of results) {
                   let tradeSpecialty = searchType.replace(' contractor', '').replace(' store', ' Supply')
@@ -433,20 +477,26 @@ Deno.serve(async (req) => {
 
           if (allCompanies.length > 0) {
             const uniqueCompanies = Array.from(new Map(allCompanies.map((c) => [c.place_id, c])).values())
+            places.rows = uniqueCompanies.length
             for (let i = 0; i < uniqueCompanies.length; i += 50) {
               const batch = uniqueCompanies.slice(i, i + 50)
               const result = await supabase.from('cached_companies').upsert(batch, { onConflict: 'place_id' })
-              if (result.error) console.error('Error inserting companies batch:', result.error.message)
+              if (result.error) {
+                console.error('Error inserting companies batch:', result.error.message)
+                places.writeError = result.error.message
+              }
             }
             console.log('Successfully processed', uniqueCompanies.length, 'total companies')
           }
         }
       } catch (err) {
         console.error('Google Places fetch error:', String(err))
+        places.error = String(err).slice(0, 300)
       }
     } else {
       console.log('Skipping Google Places - no API key')
     }
+    sources.push(sourceVerdict({ name: 'google_places', keyPresent: !!GOOGLE_PLACES_API_KEY, ...places }))
 
     // ──────────────────────────────────────────────────────────────────
     // STEP 4: Cleanup — drop expired bids, stale jobs/companies
@@ -456,8 +506,14 @@ Deno.serve(async (req) => {
       const now = new Date().toISOString()
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
       const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
       await supabase.from('cached_bids').delete().lt('response_deadline', now).not('response_deadline', 'is', null)
+      // SUPA-H1: a bid with NO deadline was never deleted, so it sat in
+      // Discover as "open" forever (39 of the 40 GovCon rows, last fetched
+      // 2026-04-11). cached_bids is a re-fetchable cache: a no-deadline row
+      // posted more than 60 days ago goes; SAM re-supplies it if still live.
+      await supabase.from('cached_bids').delete().is('response_deadline', null).lt('posted_date', sixtyDaysAgo)
       await supabase.from('cached_jobs').delete().lt('fetched_at', thirtyDaysAgo)
       await supabase.from('cached_companies').delete().lt('fetched_at', ninetyDaysAgo)
       console.log('Cleanup complete')
@@ -465,18 +521,24 @@ Deno.serve(async (req) => {
       console.error('Cleanup error:', String(cleanErr))
     }
 
-    console.log('=== Data fetch cycle complete ===')
+    const outcome = cycleOutcome(sources, new Date().toISOString())
+    console.log('=== Data fetch cycle complete ===', JSON.stringify(sources))
 
-    // Heartbeat: tell BetterStack this cron ran successfully. Alerts
-    // fire if the ping doesn't arrive within 6h + 30min grace.
-    const heartbeatUrl = Deno.env.get('BETTERSTACK_HEARTBEAT_FETCH_EXTERNAL')
-    if (heartbeatUrl) {
-      await fetch(heartbeatUrl).catch(() => {})
+    if (outcome.allOk) {
+      // Heartbeat: tell BetterStack this cron ran successfully. Alerts
+      // fire if the ping doesn't arrive within 6h + 30min grace. ONLY when
+      // every provider is ok or skipped — a dead key must page someone.
+      const heartbeatUrl = Deno.env.get('BETTERSTACK_HEARTBEAT_FETCH_EXTERNAL')
+      if (heartbeatUrl) {
+        await fetch(heartbeatUrl).catch(() => {})
+      }
+    } else {
+      console.error('[fetch-external-data] failed sources:', outcome.failedSources.join(', '), '— heartbeat skipped')
     }
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Data fetch cycle complete', timestamp: new Date().toISOString() }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      JSON.stringify(outcome.body),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: outcome.status },
     )
   } catch (error) {
     console.error('Fatal error:', String(error))

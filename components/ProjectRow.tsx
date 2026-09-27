@@ -5,7 +5,7 @@
 // mobile card wastes vertical real estate. Renders one horizontal row per
 // project with table-style columns.
 //
-// Phase 1.5: migrated to themed styles + Fraunces name + mono status badge.
+// Phase 1.5: migrated to themed styles + display-face name + mono status badge.
 // ============================================================================
 
 import React, { useMemo } from 'react';

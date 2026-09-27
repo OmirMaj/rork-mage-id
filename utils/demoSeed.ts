@@ -21,6 +21,7 @@ import type {
   ChangeOrder, RFI,
 } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { roundCents } from '@/utils/invoiceBilling';
 // The small sample's 8 estimate lines live with the tutorial fixtures, which
 // pin them to DEMO_FLAVORS.small.total (scripts/validate-tutorial-defs.ts).
 import { sampleLinkedEstimate, SAMPLE_RETAINAGE } from '@/utils/tutorial/fixtures';
@@ -619,13 +620,41 @@ interface InvoiceSpec {
   label: string;
 }
 
+/** The sample's stated rate — applied to the subtotal, not approximated. */
+const SAMPLE_TAX_RATE = 8.875;
+
+/**
+ * THE SEEDED FIGURES FOOT THE WAY THE EDITOR COMPUTES THEM (health
+ * MONEY-SAMPLE-SEED-PROGRESS, 2026-09-26).
+ *
+ * These used to be one FULL-value line on a progress invoice (no billedPercent)
+ * with subtotal = that full value, tax = amount × 0.08 against a stated 8.875%.
+ * The editor recomputes subtotal = progressSubtotal(lines, progress, pct), which
+ * scales a full-value line by the progress % — so Henderson #3 (45%) read about
+ * $34.6k on screen while the list showed the stored $76,780.
+ *
+ * Now each invoice carries one PRE-SCALED line — `total` is what this period
+ * bills, `billedPercent` is the share of the job it bills (this period's step
+ * in completion, which is how aiaBilling grosses a pre-scaled line back up to
+ * its schedule value) — so progressSubtotal returns the stored subtotal as is.
+ * `amount` stays the period's gross, as before: the subtotal is backed out of
+ * it at the stated rate, tax = roundCents(subtotal × rate), total = subtotal +
+ * tax (within a cent of `amount`). A 'paid' invoice is paid to that total.
+ */
 function invoiceTemplate(ctx: SeedCtx, projectId: string, specs: InvoiceSpec[]) {
   const now = new Date();
   const isoNow = now.toISOString();
   const dayMs = 24 * 60 * 60 * 1000;
   const isoDaysAgo = (n: number) => new Date(now.getTime() - n * dayMs).toISOString();
 
+  let priorPct = 0;
   for (const inv of specs) {
+    const subtotal = roundCents(inv.amount / (1 + SAMPLE_TAX_RATE / 100));
+    const taxAmount = roundCents(subtotal * SAMPLE_TAX_RATE / 100);
+    const totalDue = roundCents(subtotal + taxAmount);
+    const amountPaid = inv.status === 'paid' ? totalDue : roundCents(Math.min(inv.paid, totalDue));
+    const billedPercent = Math.max(0, inv.pct - priorPct) || inv.pct;
+    priorPct = inv.pct;
     ctx.addInvoice({
       id: generateUUID(),
       projectId,
@@ -637,16 +666,16 @@ function invoiceTemplate(ctx: SeedCtx, projectId: string, specs: InvoiceSpec[]) 
       paymentTerms: 'net_30',
       notes: '',
       lineItems: [
-        { id: generateUUID(), description: `${inv.label} — ${inv.pct}% completion`, quantity: 1, unit: 'lump', unitPrice: inv.amount * 0.92, total: inv.amount * 0.92 },
+        { id: generateUUID(), description: `${inv.label} — ${inv.pct}% completion`, quantity: 1, unit: 'lump', unitPrice: subtotal, total: subtotal, billedPercent },
       ],
-      subtotal: inv.amount * 0.92,
-      taxRate: 8.875,
-      taxAmount: inv.amount * 0.08,
-      totalDue: inv.amount,
-      amountPaid: inv.paid,
+      subtotal,
+      taxRate: SAMPLE_TAX_RATE,
+      taxAmount,
+      totalDue,
+      amountPaid,
       status: inv.status,
-      payments: inv.paid > 0
-        ? [{ id: generateUUID(), amount: inv.paid, method: 'check', receivedAt: isoDaysAgo(inv.daysAgoDue), reference: `Check #1${inv.number}042` }]
+      payments: amountPaid > 0
+        ? [{ id: generateUUID(), amount: amountPaid, method: 'check', receivedAt: isoDaysAgo(inv.daysAgoDue), reference: `Check #1${inv.number}042` }]
         : [],
       createdAt: isoDaysAgo(inv.daysAgoIssue),
       updatedAt: isoNow,

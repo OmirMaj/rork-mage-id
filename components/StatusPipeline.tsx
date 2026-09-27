@@ -351,9 +351,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   advanceBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    // Orange TEXT at caption size on the soft accent+'14' tint: brand accent
-    // #FF6A1A is only 2.87:1 on white. accentLabel (#B23E08 light / #FF6A1A
-    // dark) clears 4.5:1 here — 5.38 on surface, 5.10 on bg, 4.76 on surfaceAlt.
+    // Brand TEXT at caption size on the soft accent+'14' tint. The raw accent
+    // is legible bare, but a brand wash under brand text is where it drops
+    // below 4.5:1 (4.25:1 over surfaceAlt, measured in constants/colors.ts
+    // BRAND_ACCENT_FAMILY). accentLabel (#2C6436 light / #69B979 dark) is the
+    // one-step companion that clears AA on every ground and wash.
     color: t.accentLabel,
     letterSpacing: 0.1,
   },

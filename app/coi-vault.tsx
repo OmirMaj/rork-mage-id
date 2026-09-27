@@ -911,7 +911,9 @@ function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none', t: ThemeColors): 
   label: string;
 } {
   switch (s) {
-    case 'pass': return { Icon: ShieldCheck, color: "#2E7D44",        label: 'Valid' };
+    // Success TEAL (successLabel is its AA text ink), never the brand green —
+    // the old #2E7D44 was indistinguishable from a brand-green action.
+    case 'pass': return { Icon: ShieldCheck, color: t.successLabel,     label: 'Valid' };
     case 'warn': return { Icon: ShieldAlert, color: Colors.warningLabel,        label: 'Review needed' };
     case 'fail': return { Icon: ShieldX,     color: "#C84038",          label: 'Action required' };
     case 'none':

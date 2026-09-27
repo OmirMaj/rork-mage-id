@@ -11,6 +11,7 @@ import { effectiveRetentionHeld, roundCents } from '@/utils/invoiceBilling';
 import { formatMoney as formatMoneyDecimals } from '@/utils/formatters';
 import { calendarDayOf, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 import { openPrintWindowOrThrow } from '@/utils/platformFile';
+import { PDF_PALETTE as P, PDF_FONT_DISPLAY } from '@/utils/pdfDesign';
 
 // Labels printed on the packet come from maps, never from the raw enum.
 const PROJECT_STATUS_LABEL: Record<string, string> = {
@@ -372,57 +373,67 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
     </section>
   `;
 
+  // Colours come from utils/pdfDesign's PDF_PALETTE (a client-facing document:
+  // pinned brand values, no theme) instead of the hexes this sheet used to
+  // repeat — which is how it stayed orange-on-cream with a serif cover while
+  // the shared PDF system moved. Rebrand 2026-09-16: green brand, concrete
+  // hairlines, Barlow display, and SUCCESS IS TEAL (green is the brand now) —
+  // a paid pill and the "all verified closed" note also carry a check glyph so
+  // the state is not told by hue alone. Invoice "sent" is still awaiting
+  // payment, so it wears the warning family, not the brand.
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>Closeout packet · ${escapeHtml(project.name)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     @page { size: letter; margin: 0.75in; }
     body { font-family: -apple-system, 'SF Pro Text', Arial, sans-serif; color: #0B0D10; font-size: 12px; line-height: 1.55; background: #FFFFFF; }
-    .cover { text-align: center; padding: 56px 0 40px 0; border-bottom: 1px solid #E8DFCD; margin-bottom: 32px; }
-    .cover h1 { font-family: 'Fraunces', Georgia, serif; font-size: 14px; letter-spacing: 1.6px; margin: 0 0 12px 0; color: #FF6A1A; font-weight: 700; text-transform: uppercase; }
-    .cover h1::before { content: ''; display: inline-block; width: 28px; height: 2px; background: #FF6A1A; vertical-align: middle; margin-right: 10px; }
-    .cover h2 { font-family: 'Fraunces', Georgia, serif; font-size: 38px; margin: 0 0 8px 0; letter-spacing: -0.022em; line-height: 1.1; color: #0B0D10; font-weight: 700; }
+    .cover { text-align: center; padding: 56px 0 40px 0; border-bottom: 1px solid ${P.hairline}; margin-bottom: 32px; }
+    .cover h1 { font-family: ${PDF_FONT_DISPLAY}; font-size: 14px; letter-spacing: 1.6px; margin: 0 0 12px 0; color: ${P.brand}; font-weight: 700; text-transform: uppercase; }
+    .cover h1::before { content: ''; display: inline-block; width: 28px; height: 2px; background: ${P.brand}; vertical-align: middle; margin-right: 10px; }
+    .cover h2 { font-family: ${PDF_FONT_DISPLAY}; font-size: 38px; margin: 0 0 8px 0; letter-spacing: -0.022em; line-height: 1.1; color: #0B0D10; font-weight: 700; }
     .cover .sub { color: #4A5159; margin: 0 0 28px 0; font-size: 14px; }
     .cover-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 22px 32px; }
     .cover-meta > div { text-align: left; min-width: 140px; }
     .cover-meta .label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #8B9099; font-weight: 700; }
     .cover-meta .value { font-size: 13px; font-weight: 700; color: #0B0D10; margin-top: 2px; }
     section { margin-bottom: 28px; page-break-inside: avoid; }
-    section h3 { font-family: 'Fraunces', Georgia, serif; font-size: 18px; margin: 0 0 12px 0; color: #0B0D10; border-bottom: 1px solid #F1EAD9; padding-bottom: 8px; font-weight: 700; letter-spacing: -0.01em; }
+    section h3 { font-family: ${PDF_FONT_DISPLAY}; font-size: 18px; margin: 0 0 12px 0; color: #0B0D10; border-bottom: 1px solid ${P.hairline2}; padding-bottom: 8px; font-weight: 700; letter-spacing: -0.01em; }
     section h4 { font-size: 13px; margin: 14px 0 8px 0; color: #4A5159; font-weight: 700; }
     .note { color: #8B9099; font-size: 11px; margin: 4px 0 10px 0; }
-    .ok-note { color: #1E8E4A; font-size: 13px; font-weight: 600; }
+    .ok-note { color: ${P.success}; font-size: 13px; font-weight: 600; }
+    .ok-note::before { content: '\\2713\\00a0'; }
     table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    table th, table td { padding: 9px 10px; text-align: left; font-size: 11.5px; border-bottom: 1px solid #F1EAD9; }
-    table th { background: #FAF7F0; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #8B9099; border-bottom: 2px solid #E8DFCD; }
+    table th, table td { padding: 9px 10px; text-align: left; font-size: 11.5px; border-bottom: 1px solid ${P.hairline2}; }
+    table th { background: ${P.ground2}; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #8B9099; border-bottom: 2px solid ${P.hairline}; }
     table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
-    table.summary tr.total td { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: 16px; border-top: 1.5px solid #0B0D10; padding-top: 14px; color: #FF6A1A; letter-spacing: -0.012em; }
+    table.summary tr.total td { font-family: ${PDF_FONT_DISPLAY}; font-weight: 700; font-size: 16px; border-top: 1.5px solid #0B0D10; padding-top: 14px; color: ${P.brand}; letter-spacing: -0.012em; }
     table.info td:first-child { width: 40%; color: #4A5159; font-weight: 500; }
-    .num.warn { color: #C26A00; }
-    .num.ok { color: #1E8E4A; }
-    .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; background: #F1EAD9; color: #4A5159; }
-    .pill-paid { background: #E8F5ED; color: #1E8E4A; }
-    .pill-sent { background: #FFF1E6; color: #E5570F; }
+    .num.warn { color: ${P.warningInk}; }
+    .num.ok { color: ${P.success}; }
+    .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; background: ${P.hairline2}; color: #4A5159; }
+    .pill-paid { background: ${P.successTint}; color: ${P.success}; }
+    .pill-paid::before { content: '\\2713\\00a0'; }
+    .pill-sent { background: ${P.warningTint}; color: ${P.warningInk}; }
     .pill-overdue { background: #FBEAE7; color: #C0392B; }
     .signoff { margin-top: 36px; border-top: 1.5px solid #0B0D10; padding-top: 24px; }
     .sign-grid { display: flex; gap: 32px; margin: 28px 0 12px 0; }
     .sign-box { flex: 1; }
     .sign-line { border-bottom: 1px solid #0B0D10; height: 44px; margin-bottom: 6px; }
     .sign-label { font-size: 10px; color: #8B9099; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
-    .disclaimer { margin-top: 24px; padding: 14px 16px; border-radius: 12px; border: 1px solid #F1EAD9; background: #FAF7F0; font-size: 9.5px; color: #4A5159; line-height: 1.55; font-style: italic; }
+    .disclaimer { margin-top: 24px; padding: 14px 16px; border-radius: 12px; border: 1px solid ${P.hairline2}; background: ${P.ground2}; font-size: 9.5px; color: #4A5159; line-height: 1.55; font-style: italic; }
     .disclaimer-title { font-style: normal; font-weight: 700; color: #0B0D10; margin-bottom: 4px; font-size: 9.5px; letter-spacing: 0.4px; text-transform: uppercase; }
-    .footer { text-align: center; color: #8B9099; font-size: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #E8DFCD; }
+    .footer { text-align: center; color: #8B9099; font-size: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid ${P.hairline}; }
     .photos-section { page-break-before: auto; }
     .photo-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
     .photo-cell { flex: 1 1 0; min-width: 30%; max-width: 33%; }
-    .photo-frame { position: relative; width: 100%; padding-top: 75%; background: #FAF7F0; border-radius: 8px; overflow: hidden; border: 1px solid #E8DFCD; }
+    .photo-frame { position: relative; width: 100%; padding-top: 75%; background: ${P.ground2}; border-radius: 8px; overflow: hidden; border: 1px solid ${P.hairline}; }
     .photo-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .photo-tag { position: absolute; top: 6px; left: 6px; padding: 3px 8px; border-radius: 999px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #fff; }
     .photo-tag-before { background: #C26A00; }
-    .photo-tag-after { background: #1E8E4A; }
+    .photo-tag-after { background: ${P.success}; }
     .photo-caption { font-size: 10px; color: #8B9099; margin-top: 6px; line-height: 1.4; }
   </style>
 </head>

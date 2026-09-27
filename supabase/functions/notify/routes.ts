@@ -156,6 +156,12 @@ export function notificationRoute(event: string, data: Record<string, unknown> |
       const packetId = pick(d, 'packet_id', 'packetId');
       return { pathname: '/prequal-manager', params: packetId ? { packetId } : {} };
     }
+    case 'shift_alert':
+      // LS-7: the local "reached 8h, clock X out" reminder (hooks/useTimeEntries
+      // SHIFT_ALERT_KIND, data { kind, entryId }). Time Tracking is where he
+      // clocks the worker out. The screen reads projectId (not entryId), so
+      // only a project rides along — the entry is on the open list there.
+      return { pathname: '/time-tracking', params: projectId ? { projectId } : {} };
     default:
       return null;
   }

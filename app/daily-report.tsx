@@ -6138,7 +6138,7 @@ const makeVoiceStyles = (themeColors: ThemeColors) => StyleSheet.create({
 const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({
   helperText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full, marginLeft: 'auto' },
-  badgeClean: { backgroundColor: 'rgba(30,142,74,0.12)' },
+  badgeClean: { backgroundColor: 'rgba(18,128,110,0.12)' },
   badgeFlags: { backgroundColor: 'rgba(233,168,38,0.16)' },
   badgeText: { fontSize: 9, fontWeight: '800' as const, letterSpacing: 0.6 },
   badgeTextClean: { color: themeColors.success },
@@ -6174,7 +6174,7 @@ const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
 const makeDcStyles = (themeColors: ThemeColors) => StyleSheet.create({
   helperText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
-  appliedPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full, marginLeft: 'auto' as const, backgroundColor: 'rgba(30,142,74,0.12)' },
+  appliedPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full, marginLeft: 'auto' as const, backgroundColor: 'rgba(18,128,110,0.12)' },
   appliedPillText: { fontSize: 9, fontWeight: '800' as const, color: themeColors.success, letterSpacing: 0.6 },
   aiBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
@@ -6233,7 +6233,7 @@ const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
   staleNote: { fontSize: Type.caption1.fontSize, color: themeColors.warningLabel, marginTop: 8, lineHeight: 17 },
   helperText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
   publishedPill: {
-    backgroundColor: 'rgba(30,142,74,0.12)', paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: 'rgba(18,128,110,0.12)', paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: Tokens.radius.full, marginLeft: 'auto',
   },
   publishedPillText: { fontSize: 9, fontWeight: '800', color: themeColors.success, letterSpacing: 0.6 },
@@ -6255,7 +6255,7 @@ const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
     alignItems: 'center',
   },
-  publishBtnPublished: { backgroundColor: 'rgba(30,142,74,0.10)', borderColor: '#1E8E4A' },
+  publishBtnPublished: { backgroundColor: 'rgba(18,128,110,0.10)', borderColor: '#12806E' },
   publishBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
   publishBtnTextPublished: { color: themeColors.success },
 });

@@ -436,5 +436,5 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderRadius: 8,
     backgroundColor: Colors.tradeColors.general,
   },
-  submitText: { color: '#0B0D10', fontWeight: '700', fontSize: 13 },
+  submitText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: 13 },
 });

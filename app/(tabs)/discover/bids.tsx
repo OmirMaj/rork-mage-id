@@ -49,6 +49,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { LandingSlot, useLanding } from '@/components/animations/Landing';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { supabase } from '@/lib/supabase';
 import {
   useUserLocation,
@@ -62,6 +63,8 @@ import {
 import { US_STATES } from '@/constants/states';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+// SUPA-H1: how old the feed is, said on screen ('Not checked' when unknown).
+import { bidsFeedFreshness } from '@/utils/bidsFreshness';
 
 interface CachedBid {
   id: string;
@@ -290,6 +293,10 @@ export default function CachedBidsScreen() {
   const [showStateList, setShowStateList] = useState(false);
   const [showSetAsideDropdown, setShowSetAsideDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  // Desktop web: each dropdown is a centred dialog in the content column, the
+  // scrim over the sidebar. Phone: every part is null — today's dropdowns.
+  const fSort = useSheetFrame('dialog', { visible: showSortDropdown, animationType: 'fade' });
+  const fAside = useSheetFrame('dialog', { visible: showSetAsideDropdown, animationType: 'fade' });
 
   // Hydrate persisted filter state on mount. Don't block the first
   // render — defaults keep the screen usable while AsyncStorage warms.
@@ -327,22 +334,20 @@ export default function CachedBidsScreen() {
 
   const { data: bids, isLoading, refetch, isRefetching, error: bidsQueryError } = useQuery({
     queryKey: ['cached_bids'],
+    // SUPA-H1: a failed read THROWS, so the "Couldn't load bids" branch
+    // below renders. It used to return [], which showed a failed read as
+    // "no bids" and made that branch unreachable.
     queryFn: async (): Promise<CachedBid[]> => {
-      try {
-        const { data, error } = await supabase
-          .from('cached_bids')
-          .select('id,title,department,response_deadline,posted_date,estimated_value,city,state,latitude,longitude,source_url,set_aside,naics_code,solicitation_number,fetched_at')
-          .order('response_deadline', { ascending: true, nullsFirst: false })
-          .limit(2000);
-        if (error) {
-          console.log('[CachedBids] supabase error:', error.message);
-          return [];
-        }
-        return (data ?? []) as CachedBid[];
-      } catch (err) {
-        console.log('[CachedBids] network/fetch error:', String(err));
-        return [];
+      const { data, error } = await supabase
+        .from('cached_bids')
+        .select('id,title,department,response_deadline,posted_date,estimated_value,city,state,latitude,longitude,source_url,set_aside,naics_code,solicitation_number,fetched_at')
+        .order('response_deadline', { ascending: true, nullsFirst: false })
+        .limit(2000);
+      if (error) {
+        console.log('[CachedBids] supabase error:', error.message);
+        throw new Error(`The bids feed couldn't be read: ${error.message}`);
       }
+      return (data ?? []) as CachedBid[];
     },
     retry: 1,
   });
@@ -508,6 +513,8 @@ export default function CachedBidsScreen() {
   ), [handleBidPress, landingRow]);
 
   const totalCount = bidsWithMeta.length;
+  // Newest fetched_at on screen: 'Updated 3 days ago', or 'Not checked'.
+  const freshness = useMemo(() => bidsFeedFreshness(bids ?? []), [bids]);
   const filteredCount = filteredBids.length;
   const sortLabel = SORT_OPTIONS.find((s) => s.key === sortBy)?.label ?? 'Sort';
 
@@ -524,7 +531,7 @@ export default function CachedBidsScreen() {
               {filteredCount === totalCount
                 ? `${totalCount.toLocaleString()} active`
                 : `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()}`}
-              {' · SAM.gov'}
+              {' · SAM.gov · '}{freshness.label}
             </Text>
           </View>
           <TouchableOpacity
@@ -536,6 +543,16 @@ export default function CachedBidsScreen() {
             <Text style={styles.sortBtnText}>{sortLabel}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* SUPA-H1: a feed the sync stopped refreshing says so, instead of
+            showing months-old bids as open. */}
+        {freshness.stale && (
+          <View style={styles.locNotice} testID="bids-stale-notice">
+            <Text style={styles.locNoticeText}>
+              {`This feed was last refreshed ${freshness.label.replace('Updated ', '')}. Deadlines and open status may be out of date — check SAM.gov before you bid.`}
+            </Text>
+          </View>
+        )}
 
         {/* Search box */}
         <View style={styles.searchWrap}>
@@ -703,11 +720,11 @@ export default function CachedBidsScreen() {
       <Modal
         visible={showSortDropdown}
         transparent
-        animationType="fade"
+        animationType={fSort.animationType}
         onRequestClose={() => setShowSortDropdown(false)}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
-          <View style={styles.dropdownModal}>
+        <TouchableOpacity style={[styles.modalOverlay, fSort.overlay]} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
+          <View style={[styles.dropdownModal, fSort.card]}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Sort by</Text>
               <TouchableOpacity onPress={() => setShowSortDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -732,11 +749,11 @@ export default function CachedBidsScreen() {
       <Modal
         visible={showSetAsideDropdown}
         transparent
-        animationType="fade"
+        animationType={fAside.animationType}
         onRequestClose={() => setShowSetAsideDropdown(false)}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
-          <View style={styles.dropdownModal}>
+        <TouchableOpacity style={[styles.modalOverlay, fAside.overlay]} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
+          <View style={[styles.dropdownModal, fAside.card]}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Set-aside type</Text>
               <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">

@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
+import { Spinner } from '@/components/ui/Spinner';
 import * as Haptics from 'expo-haptics';
 import { AlertTriangle, CheckCircle2, XCircle, Search } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -34,7 +35,7 @@ const ISSUE_ICONS = {
   warning: { Icon: AlertTriangle, color: Colors.warningLabel, bg: Colors.warningLight },
   error: { Icon: XCircle, color: "#C84038", bg: Colors.errorLight },
   suggestion: { Icon: MageAIMark, color: "#1565C0", bg: Colors.infoLight },
-  ok: { Icon: CheckCircle2, color: "#2E7D44", bg: Colors.successLight },
+  ok: { Icon: CheckCircle2, color: Colors.successDark, bg: Colors.successLight },
 } as const;
 
 export default React.memo(function AIEstimateValidator(props: Props) {
@@ -102,14 +103,14 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       <View>
         <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
           {isLoading ? (
-            <ActivityIndicator size="small" color={"#FF6A1A"} />
+            <Spinner tone="accent" />
           ) : (
-            <Search size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+            <Search size={16} color={themeColors.accent} strokeWidth={1.75} />
           )}
           <Text style={styles.triggerText}>
             {isLoading ? 'Validating...' : error ? 'Retry AI Validate Estimate' : 'AI Validate Estimate'}
           </Text>
-          <MageAIMark size={14} color={"#FF6A1A"} />
+          <MageAIMark size={14} color={themeColors.accent} />
         </TouchableOpacity>
         {error ? (
           <View style={styles.errorRow}>
@@ -126,14 +127,14 @@ export default React.memo(function AIEstimateValidator(props: Props) {
   // the real output and stands on its own.
   const score = result.overallScore;
   const scoreColor = score === undefined ? themeColors.textMuted
-    : score >= 7 ? "#2E7D44"
+    : score >= 7 ? themeColors.successLabel
     : score >= 5 ? Colors.warningLabel : "#C84038";
 
   return (
     <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
-          <MageAIMark size={16} color={"#FF6A1A"} />
+          <MageAIMark size={16} color={themeColors.accent} />
           <Text style={styles.headerTitle}>AI Estimate Review</Text>
         </View>
         {score !== undefined ? (
@@ -191,7 +192,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
           ) : null}
 
           <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator size="small" color={"#FF6A1A"} /> : null}
+            {isLoading ? <Spinner tone="accent" /> : null}
             <Text style={styles.revalidateText}>{isLoading ? 'Re-validating...' : 'Re-validate'}</Text>
           </TouchableOpacity>
         </>

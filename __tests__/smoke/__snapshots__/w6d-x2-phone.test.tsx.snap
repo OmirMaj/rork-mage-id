@@ -1,0 +1,367 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open CSIDivisionPicker, dark 1`] = `
+{
+  "lines": 289,
+  "modalCount": 1,
+  "sha256": "ec36fc4732b15281d425ef1a4f60c45f86b7e8530678d9cfe6240d9d5dd91fd4",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open CSIDivisionPicker, light 1`] = `
+{
+  "lines": 289,
+  "modalCount": 1,
+  "sha256": "27b1f149041c0947fb180b62f103191834511a072c4b32a204a2b86b66109aaf",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open DemoSeedPickerModal, dark 1`] = `
+{
+  "lines": 210,
+  "modalCount": 1,
+  "sha256": "75790ab6b696f6f31680071ff9275991bc83553aab1274d7f543d97d4c9199ca",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open DemoSeedPickerModal, light 1`] = `
+{
+  "lines": 210,
+  "modalCount": 1,
+  "sha256": "75e448535d64d9bad2c16b9c95311b57f14be585b2efe63f7bc54a73ceb676cb",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open FeatureExplainerSheet, dark 1`] = `
+{
+  "lines": 49,
+  "modalCount": 1,
+  "sha256": "0c628a792fc00664596fed36a25dbd3deca0127eab2f5ea2aca98b3593d7686f",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open FeatureExplainerSheet, light 1`] = `
+{
+  "lines": 49,
+  "modalCount": 1,
+  "sha256": "904aee88310cd6f68a5fcf32f19776bf0b126b79455d8bd681cb820814095db3",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open HelpFab, dark 1`] = `
+{
+  "lines": 64,
+  "modalCount": 1,
+  "sha256": "a54adc84b09997e8d28437896210f8681161244840a91b8cabcb82af8d1a383d",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open HelpFab, light 1`] = `
+{
+  "lines": 64,
+  "modalCount": 1,
+  "sha256": "43e781b37c3e7c3a84d4b2fd429046050215af000d56f8a9d455bf0cb2379bbc",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open JobSwitcher, dark 1`] = `
+{
+  "lines": 27,
+  "modalCount": 1,
+  "sha256": "7813502db61af917479bfa64e994a86e49f3dd3677a76707471f8474c08cd8b0",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open JobSwitcher, light 1`] = `
+{
+  "lines": 27,
+  "modalCount": 1,
+  "sha256": "b9ae988dbf40ada48471708e6f3661d30d3e30c53ccdd6fd35c8ba218fd351e3",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open PunchPhotoViewer, dark 1`] = `
+{
+  "lines": 14,
+  "modalCount": 1,
+  "sha256": "50a9987cff5b952aab65677fe9c880b2148f436641963aeab7f5ff679ed51643",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open PunchPhotoViewer, light 1`] = `
+{
+  "lines": 14,
+  "modalCount": 1,
+  "sha256": "50a9987cff5b952aab65677fe9c880b2148f436641963aeab7f5ff679ed51643",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open QuickUpdateClarifier, dark 1`] = `
+{
+  "lines": 99,
+  "modalCount": 1,
+  "sha256": "f0c78ba69443013cbe2c4f68229142f933548dc859274bf113b6ca36b02b3b12",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open QuickUpdateClarifier, light 1`] = `
+{
+  "lines": 99,
+  "modalCount": 1,
+  "sha256": "cb9131e7e0deac54f207c3c10096cc677c511035f1e1f222a7107431dfc3b635",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open RateProvenanceChip, dark 1`] = `
+{
+  "lines": 61,
+  "modalCount": 1,
+  "sha256": "207a0550db195bb46fe1c49896d7dabe6e07ddb7623b7152b3739806e7d48e50",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open RateProvenanceChip, light 1`] = `
+{
+  "lines": 61,
+  "modalCount": 1,
+  "sha256": "11c2802912e6306cb344c7f2ea6fb32085ac629b34486fce1d9e6e49afbdaac1",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open ToolbarActions, dark 1`] = `
+{
+  "lines": 20,
+  "modalCount": 1,
+  "sha256": "8d3e33a23c87a8ee7acb2efc556cda54bc5e055eab313656fb25eb63adbde972",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open ToolbarActions, light 1`] = `
+{
+  "lines": 20,
+  "modalCount": 1,
+  "sha256": "d610727a8840f6441e334b4e01413dbaabdd2687b6281f928aebe3ba931cb50e",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open ToolsSheet, dark 1`] = `
+{
+  "lines": 191,
+  "modalCount": 1,
+  "sha256": "c4b0ec6f5a23c9d3f2b97fe95025c6b0640d36bd1d446c37128ee6876e9bb67f",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open ToolsSheet, light 1`] = `
+{
+  "lines": 191,
+  "modalCount": 1,
+  "sha256": "ef1d610bb59b1f2b55d44220be4f95f50fc0bf2b226867cb68afbdbfb5d0908a",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open VoiceCommandModal, dark 1`] = `
+{
+  "lines": 89,
+  "modalCount": 1,
+  "sha256": "44ea1c8110ea05946d8c0658134adac2435c904f2cccdd83861cfb6f39beb636",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch B — each sheet alone, iOS 390, open VoiceCommandModal, light 1`] = `
+{
+  "lines": 89,
+  "modalCount": 1,
+  "sha256": "528670c6ec05195057acfbedc985c894086c215623261b8712f5c3e0ee8ad607",
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag building-access 1`] = `
+{
+  "modalCount": 5,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 45,
+      "sha256": "9b4ef9defddcead173c05b0b7f4ba62f4bf0b265d97b9f4624c05c823349ada5",
+      "title": "Book a slot",
+    },
+  ],
+  "whole": {
+    "lines": 427,
+    "sha256": "53eb375b0ca5b0c981e70ea07414daa47d6c36eaf2bf534d8cdf90dddfedae7e",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag company-profile 1`] = `
+{
+  "modalCount": 7,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 180,
+      "sha256": "6829a454c98fc278ec25ee433edf87a6376c5a3097777668a009ff7aff331edc",
+      "title": "Which state licenses you?",
+    },
+    {
+      "found": true,
+      "lines": 38,
+      "sha256": "738fbaa3431fc24e4f344bcee9a35b7938d28fd054bfe90a1ab57114a6a386ae",
+      "title": "Draw Your Signature",
+    },
+  ],
+  "whole": {
+    "lines": 711,
+    "sha256": "7109daedd43ccbadd8c6531b40bcf276727d3ee8df27a32597257d0521dbe996",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag discover/bids 1`] = `
+{
+  "modalCount": 6,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 24,
+      "sha256": "da4db05af4e59a3640783e617211258786c8488998e6e0c6b9d161b4882f1316",
+      "title": "Sort by",
+    },
+    {
+      "found": true,
+      "lines": 39,
+      "sha256": "19b4c622bae0a870d0a77a95925d5e5c9077dfa8b4dd1f25690120ebe310204a",
+      "title": "Set-aside type",
+    },
+  ],
+  "whole": {
+    "lines": 596,
+    "sha256": "e852c624a2706745f5e8ce103c51355d87929c6721bac9d9d8af21468cd485a7",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag equipment-detail (seeded machine) 1`] = `
+{
+  "modalCount": 5,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 22,
+      "sha256": "832e9f3f97fe8f4ff98c491e86e5b4729a1e8853a9d02d43ccc384e31f5a83f4",
+      "title": "Log Usage",
+    },
+  ],
+  "whole": {
+    "lines": 428,
+    "sha256": "4b07f9d5290a5c10633a34cfeb2d957177fbf080d927c13e0732f61ea8ea789d",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag equipment-detail 1`] = `
+{
+  "modalCount": 4,
+  "sheets": [
+    {
+      "found": false,
+      "title": "Log Usage",
+    },
+  ],
+  "whole": {
+    "lines": 307,
+    "sha256": "fb499680e576508dfd9fe9d6eedcaf8e575f51503e56a3ac199cdeba0828dd15",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag get-verified 1`] = `
+{
+  "modalCount": 5,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 169,
+      "sha256": "51e6a8fa734fe0ea975472576ae69fbc85b7ef856ccc9cf4dc415e46268973ec",
+      "title": "Issuing state",
+    },
+  ],
+  "whole": {
+    "lines": 535,
+    "sha256": "a0184f5560d75a40494ffc79ef077599c48c1925eca3591eed9946fdf7ddab6a",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag lead-detail 1`] = `
+{
+  "modalCount": 8,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 36,
+      "sha256": "dd8437f7a5a221876858820f3880652b4909f5a864a887e97a61de977b46d02a",
+      "title": "Why did this one go cold?",
+    },
+  ],
+  "whole": {
+    "lines": 598,
+    "sha256": "9a002fbfc18f51a4bf8059ea4b1cf5f50419866dc119091dc18797821cf550f9",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag materials/lumber 1`] = `
+{
+  "modalCount": 5,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 11,
+      "sha256": "714fab972bc7f43d2325e34d2081a32f0b275c456eca9add163564f1dd27b6cb",
+      "title": "Set Price Alert",
+    },
+  ],
+  "whole": {
+    "lines": 1645,
+    "sha256": "942636d19c87fee8fa955f0f36c1e09ff4495412613d15d5facba23f338ad58d",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag plan-intelligence 1`] = `
+{
+  "modalCount": 5,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 36,
+      "sha256": "ed29045bb85e4ba52b1b36e351a7022965ab90aecd8cfb5175e24cb8375d4e3d",
+      "title": "Save room",
+    },
+  ],
+  "whole": {
+    "lines": 375,
+    "sha256": "c26b492e2be8060b6fb053ba5e9736296647dafdbaa728065341ff67734a2f9a",
+  },
+}
+`;
+
+exports[`lane X2 — the phone is unchanged (golden) batch E — each route, iOS 390, populated bag qbo-review 1`] = `
+{
+  "modalCount": 5,
+  "sheets": [
+    {
+      "found": true,
+      "lines": 21,
+      "sha256": "8e25f6487d91cb37ed0be2bb03aae3d4a511fb2152a89d6641a053a32e56d3b6",
+      "title": "File this cost to…",
+    },
+  ],
+  "whole": {
+    "lines": 348,
+    "sha256": "ed3f9f587463d0bf0812e08944b3d970c460640ae4cd59cbbb1a4049bf74b348",
+  },
+}
+`;
