@@ -2792,7 +2792,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     };
     const gate = new Function(
       `var SETTLED_INVOICE_IDS={};
-       ${lift('noteSettledInvoices')}${lift('aiaIsPaid')}${lift('aiaCanPay')}
+       ${lift('noteSettledInvoices')}${lift('aiaIsPaid')}${lift('aiaPayable')}${lift('aiaCanPay')}
        return { noteSettledInvoices, aiaIsPaid, aiaCanPay };`,
     )() as {
       noteSettledInvoices: (i: unknown[]) => void;
@@ -3683,6 +3683,27 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     eq('Plan Intelligence confirms the SELL figure too',
       [planSays.includes('«47200»'), planSays.includes('«40000»')], [true, false]);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Health MONEYPAY (MONEY-AIA-L7): G702 line 7 is CUMULATIVE. Three certified
+// periods in a row — $100k contract, 25% a month, 10% retainage, each
+// certified as applied — must each ask for $22,500. The seed used to carry
+// only the LAST period's certificate into line 7, so app #3 asked for $45,000.
+// (scripts/validate-health-moneypay.ts runs the screen's own expression too.)
+{
+  const { seedLessPreviousCertificates: seedLine7 } = await import('../utils/aiaBilling');
+  const period = (fromPrev: number, lessPrev: number) => computeAIATotals({
+    contractSumToDate: 100_000, originalContractSum: 100_000, retainagePercent: 10, lessPreviousCertificates: lessPrev,
+    lines: [{ id: 'l1', scheduledValue: 100_000, fromPreviousApp: fromPrev, thisPeriod: 25_000, materialsPresentlyStored: 0, retainagePercent: 10 }],
+  } as unknown as AIAPayApplication);
+  const t1 = period(0, 0);
+  const l7b = seedLine7({ amountCertified: t1.currentPaymentDue, lessPreviousCertificates: 0, totals: t1 });
+  const t2 = period(25_000, l7b);
+  const l7c = seedLine7({ amountCertified: t2.currentPaymentDue, lessPreviousCertificates: l7b, totals: t2 });
+  const t3 = period(50_000, l7c);
+  eq('three certified periods: line 8 is $22,500 each time', [t1.currentPaymentDue, t2.currentPaymentDue, t3.currentPaymentDue], [22_500, 22_500, 22_500]);
+  eq('…and app #3 line 7 is everything certified before it ($45,000)', l7c, 45_000);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

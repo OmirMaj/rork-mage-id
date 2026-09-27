@@ -101,6 +101,8 @@ const EVENTS = [
   'safety_incident_filed',
   // Wave 5 (CONTRACT 8)
   'bid_invite_received', 'lien_waiver_signed', 'prequal_submitted',
+  // Health lane NOTIFYOPS (LS-7): the local 8-hour shift reminder.
+  'shift_alert',
 ];
 
 async function main() {
@@ -158,18 +160,31 @@ async function main() {
   ok('a submitted prequal packet opens THAT packet in the prequal manager', at('prequal_submitted') === '/prequal-manager?packetId=pq-1', String(at('prequal_submitted')));
   ok('a prequal push (camelCase packetId) opens the same packet', at('prequal_submitted', { packetId: 'pq-1', kind: 'prequal_submitted' }) === '/prequal-manager?packetId=pq-1');
   ok('a prequal event with no packet id still opens the manager', at('prequal_submitted', {}) === '/prequal-manager');
+  // LS-7 (health lane NOTIFYOPS): the "reached 8h, clock X out" local reminder
+  // (hooks/useTimeEntries data { kind: 'shift_alert', entryId }) opens Time
+  // Tracking, where he clocks the worker out. It used to open nothing.
+  ok('a shift alert (kind + entryId only) opens Time Tracking', at('shift_alert', { kind: 'shift_alert', entryId: 'te-1' }) === '/time-tracking', String(at('shift_alert', { kind: 'shift_alert', entryId: 'te-1' })));
+  ok('a shift alert that names a job opens Time Tracking on it', at('shift_alert', { projectId: P, entryId: 'te-1' }) === `/time-tracking?projectId=${P}`);
+  ok('useTimeEntries still schedules the shift alert as kind shift_alert', /SHIFT_ALERT_KIND = 'shift_alert'/.test(read('hooks/useTimeEntries.ts')) && /data: \{ kind: SHIFT_ALERT_KIND/.test(read('hooks/useTimeEntries.ts')));
   ok('param values are URI-encoded', routes.routeHref({ pathname: '/x', params: { a: 'b&c=d' } }) === '/x?a=b%26c%3Dd');
 
   console.log('\n#12 no surface keeps its own table');
   const NOTIFY = read('supabase/functions/notify/index.ts');
   const CTX = read('contexts/NotificationContext.tsx');
   const INBOX = read('app/notifications-inbox.tsx');
+  // LS-4 (health lane NOTIFYOPS): the push-tap routing moved out of the
+  // context into utils/notificationTap.ts, the ONE handler the live listener
+  // and the cold-start read share. The table pin follows it there, and the
+  // context must route through that handler rather than keep a copy.
+  const TAP = read('utils/notificationTap.ts');
+  ok('NotificationContext routes taps through utils/notificationTap', /from '@\/utils\/notificationTap'/.test(CTX) && /handleNotificationResponse\(/.test(CTX));
+  ok('NotificationContext keeps no route table of its own', !/notificationRoute\(/.test(CTX.replace(/\/\/.*$/gm, '')));
   ok('notify imports the shared table', /from "\.\/routes\.ts"/.test(NOTIFY));
   ok('notify builds no in-app link by hand (`${APP_BASE}/…`)', !/\$\{APP_BASE\}\//.test(NOTIFY), (NOTIFY.match(/.*\$\{APP_BASE\}\/.*/g) ?? []).join(' | '));
   ok('the old projectDeepLink helper is gone', !/projectDeepLink/.test(NOTIFY));
   ok('"View change order" passes the CO id', /appLink\('co_approval', \{ project_id: projectId, change_order_id: coId \}\)/.test(NOTIFY));
   ok('"You won the bid" goes through the table', /appLink\('rfp_awarded'/.test(caseBody(NOTIFY, 'rfp_awarded')));
-  for (const [name, src] of [['NotificationContext', CTX], ['notifications-inbox', INBOX]] as const) {
+  for (const [name, src] of [['notificationTap (the push-tap handler)', TAP], ['notifications-inbox', INBOX]] as const) {
     ok(`${name} imports notificationRoute`, /import \{ notificationRoute, routeHref \} from '@\/supabase\/functions\/notify\/routes'/.test(src));
     ok(`${name} hard-codes no notification screen`, !/['`]\/(client-portal-setup|client-messages|contract|selections|closeout-binder|rfp-detail|project-detail|sub-portal-setup|brief|week-close|margin-risk|margin-alerts)\?/.test(src.replace(/\/\/.*$/gm, '')));
   }

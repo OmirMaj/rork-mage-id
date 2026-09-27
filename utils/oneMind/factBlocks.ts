@@ -757,12 +757,21 @@ export async function assembleFactBlocks(
       // (buildForecastInputs): signed subcontracts and POs included, so the AI
       // is not reading a forecast whose outflow is only what the GC typed in
       // (audit do-next #12b).
+      // Approved-but-unpaid sub bills (MONEY-CASH-SUB-APPROVED): the same
+      // company-wide read as the tile and /cash-flow. A failed read passes
+      // undefined — flagged not-checked by the engine, never "none".
+      let subInvoices: Awaited<ReturnType<typeof import('@/hooks/useSubSubmittedInvoices').fetchCompanySubInvoices>> | undefined;
+      try {
+        const { fetchCompanySubInvoices } = await import('@/hooks/useSubSubmittedInvoices');
+        subInvoices = (await fetchCompanySubInvoices()) ?? undefined;
+      } catch { subInvoices = undefined; }
       const inputs = engine.buildForecastInputs({
         cashData: settings.data,
         invoices: bundle.invoices,
         commitments: bundle.commitments,
         projects: bundle.projects,
         changeOrders: bundle.changeOrders,
+        subInvoices,
       });
       return buildCashBlock(
         engine.calculateSummary(engine.forecastFromInputs(inputs, 12)), true, 12,

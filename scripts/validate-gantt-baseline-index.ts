@@ -127,7 +127,10 @@ ok('the row renderer reads the index, not the array',
   + 'baseline off or absent means no lookup at all.');
 
 ok('the row callback no longer closes over the whole schedule',
-  /\}, \[totalDays, baselineById, onTaskPress, forecast, projectStartDate\]\);/.test(gantt),
+  /\}, \[totalDays, baselineById, onTaskPress, forecast, projectStartDate(?:, weatherCalendar)?\]\);/.test(gantt)
+    // weatherCalendar (SCHEDDAYS LS-1) may ride in the deps only while it is
+    // keyed on the calendar fields, never on the whole schedule object.
+    && !/const weatherCalendar = useMemo\([^;]*\[schedule\]/.test(gantt),
   'renderGanttRow used to list `schedule` and `showBaseline` in its deps, so it got a new '
   + 'identity on every unrelated schedule mutation.');
 

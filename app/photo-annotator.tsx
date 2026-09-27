@@ -27,6 +27,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+// LS-5: a viewer seat sees the photo but cannot save markup (RLS needs 'field').
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import Paywall from '@/components/Paywall';
 import type { PhotoMarkup, ProjectPhoto } from '@/types';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -210,6 +212,11 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
   const router = useRouter();
   const goBack = useSafeBack();
   const { updateProjectPhoto } = useProjects();
+  // LS-5: photos_collab_update needs a field/editor/owner seat. A viewer's
+  // markup would save optimistically and then be refused, so Save is off for
+  // him and says why. Shares the role query cache with the gate above.
+  const writeSeat = useProjectRoleState(photo.projectId);
+  const writeBlock = projectRecordWriteBlock(writeSeat.role);
 
   const [tool, setTool] = useState<Tool>('arrow');
   const [color, setColor] = useState<AnnotationColor>('red');
@@ -325,6 +332,11 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
   }, []);
 
   const handleSave = useCallback(() => {
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     updateProjectPhoto(photo.id, { markup: markups });
     if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     // After save, offer to attach this annotated photo to a new RFI
@@ -356,7 +368,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
         },
       ],
     );
-  }, [photo, markups, updateProjectPhoto, router, goBack]);
+  }, [photo, markups, updateProjectPhoto, router, goBack, writeBlock]);
 
   // Render a single markup as SVG primitives.
   const renderMarkup = (m: PhotoMarkup, key: string) => {
@@ -434,13 +446,15 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.title}>Markup</Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
+        <TouchableOpacity onPress={handleSave} style={[styles.saveBtn, writeBlock ? styles.actionDisabled : null]} disabled={writeBlock ? true : undefined} accessibilityState={writeBlock ? { disabled: true } : undefined}>
           <Check size={16} color={themeColors.surface} strokeWidth={1.75} />
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
+        {/* LS-5: a viewer seat cannot save markup — the control says why. */}
+        {writeBlock ? <Text style={styles.helper} testID="photo-markup-viewer-block">{writeBlock}</Text> : null}
         {/* Canvas */}
         <View
           ref={canvasRef}

@@ -87,7 +87,7 @@ import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
 import { CriticalPathPanel } from '@/components/schedule/CriticalPathPanel';
 import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
 import { buildCriticalPathExplanation } from '@/utils/floatExplain';
-import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
+import { WeatherReschedulePrompt, type WeatherReschedulePromptProps } from '@/components/schedule/WeatherReschedulePrompt';
 import { getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
 import { computeWeatherReschedule, buildWeatherDelayLog, type WeatherRescheduleResult } from '@/utils/weatherReschedule';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
@@ -157,8 +157,10 @@ import {
   tryEncodeShareToken,
   UNDATED_SCHEDULE_BODY,
   UNDATED_SCHEDULE_TITLE,
+  startDayNumberFor,
   type NamedBaseline,
 } from '@/utils/scheduleOps';
+import { scheduleCalendarOf } from '@/utils/scheduleCalendarDate';
 import { buildShareUrl, buildSnapshotShareUrl } from '@/utils/webAppOrigin';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import { supabase } from '@/lib/supabase';
@@ -1669,15 +1671,30 @@ function ScheduleProScreenInner() {
     return () => { cancelled = true; };
   }, [projectStartDate, project?.location, project?.locationLatitude, project?.locationLongitude]);
 
+  // The schedule's calendar for every weather reader on this screen. startDay
+  // is a WORKING ordinal on it (utils/cpm.ts "THE TWO DAY-NUMBER SCALES"); with
+  // no start date the readers fall back to raw calendar offsets from
+  // projectStartDate, which is how the engine reads an undated schedule too.
+  const weatherCalendar = useMemo(
+    () => scheduleCalendarOf(project?.schedule),
+    [project?.schedule],
+  );
+
   // Weather reschedule — compute the forecast's impact on weather-sensitive
-  // tasks (and the cascade) and open the preview. todayDay pins work already
-  // underway so we only reschedule the future.
+  // tasks (and the cascade) and open the preview. `now` pins work already
+  // underway so we only reschedule the future; computeWeatherReschedule puts it
+  // on the startDay scale itself. It used to arrive here as a CALENDAR day
+  // count compared against WORKING ordinals, which froze future tasks (Mon Mar
+  // 23 is calendar day 22 but working day 16 on a Mon-Fri job from Mar 2, so a
+  // roof task on working day 18 read as already started).
   const openWeatherReschedule = useCallback(() => {
-    const todayDay = Math.max(1, Math.floor((Date.now() - projectStartDate.getTime()) / 86400000) + 1);
-    const result = computeWeatherReschedule(workingTasks, projectStartDate, forecast, { todayDay });
+    const result = computeWeatherReschedule(workingTasks, projectStartDate, forecast, {
+      now: new Date(),
+      calendar: weatherCalendar,
+    });
     setWeatherResult(result);
     setShowWeather(true);
-  }, [workingTasks, projectStartDate, forecast]);
+  }, [workingTasks, projectStartDate, forecast, weatherCalendar]);
 
   // Apply the proposed reschedule: commit the cascaded startDays AND append a
   // delay-day log entry, in ONE write (mirrors the unmount-flush) so the
@@ -1769,14 +1786,30 @@ function ScheduleProScreenInner() {
 
   // Bulk push handler — moves multiple tasks in a single commit. Each
   // task's startDay shifts by deltaDays; CPM cascades successors via the
-  // existing recompute on rolledTasks.
+  // existing recompute on rolledTasks. deltaDays is on the startDay scale
+  // (WORKING days on a dated schedule) because both banners below are handed
+  // `weatherCalendar` — findWeatherPushConflicts computes the push in that
+  // unit. Rounded so a malformed patch can never write a fractional ordinal.
   const handleWeatherPush = useCallback((patches: { taskId: string; deltaDays: number }[]) => {
     commit(prev => prev.map(t => {
       const p = patches.find(x => x.taskId === t.id);
       if (!p) return t;
-      return { ...t, startDay: Math.max(1, t.startDay + p.deltaDays) };
+      return { ...t, startDay: Math.max(1, Math.round(t.startDay + p.deltaDays)) };
     }));
   }, [commit]);
+
+  // The desktop signals chip's weather props. Typed as the FULL prompt prop
+  // set (calendar included) and handed to ScheduleSignals, which spreads it
+  // onto the same WeatherReschedulePrompt the phone banner renders — so the
+  // chip reads startDay on the working scale too.
+  const desktopWeatherSignal: Pick<WeatherReschedulePromptProps,
+    'forecasts' | 'projectStartDate' | 'onPushTasks' | 'dailyReports' | 'scheduleCalendar'> = {
+    forecasts: forecast,
+    projectStartDate,
+    onPushTasks: handleWeatherPush,
+    dailyReports: projectId ? getDailyReportsForProject(projectId) : undefined,
+    scheduleCalendar: weatherCalendar,
+  };
 
   // Opens the Add Task modal. The actual commit happens in
   // handleCommitAddTask once the user submits the form.
@@ -1790,28 +1823,17 @@ function ScheduleProScreenInner() {
   // form to depend on the new task. Closes the modal on success.
   const handleCommitAddTask = useCallback((values: NewTaskValues) => {
     commit(prev => {
-      // Convert optional ISO start date → day number on the project
-      // calendar. Mirrors GridPane.dateToDayNumber so add-task and inline
-      // edit both round-trip to the same day.
+      // Convert optional ISO start date → WORKING ordinal on the project
+      // calendar with the shared converter every other startDay writer uses
+      // (scheduleOps.startDayNumberFor): it honours site closures and 6-day
+      // weeks, and a weekend pick rolls FORWARD to the next working day. The
+      // inline Mon-Fri loop that was here ignored closures and Saturdays and
+      // snapped a weekend pick back to Friday (validate-cpm §26).
       let startDay: number;
       if (values.startIso) {
         const [y, m, d] = values.startIso.split('-').map(n => parseInt(n, 10));
         const target = new Date(y, m - 1, d);
-        const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
-        if (target <= base) {
-          startDay = 1;
-        } else if (workingDaysPerWeek >= 7) {
-          startDay = Math.floor((target.getTime() - base.getTime()) / 86400000) + 1;
-        } else {
-          let count = 1;
-          const cur = new Date(base);
-          while (cur < target) {
-            cur.setDate(cur.getDate() + 1);
-            const dow = cur.getDay();
-            if (dow !== 0 && dow !== 6) count++;
-          }
-          startDay = count;
-        }
+        startDay = startDayNumberFor(projectStartDate, target, workingDaysPerWeek, project?.schedule?.nonWorkingDates);
       } else {
         startDay = prev.length === 0
           ? 1
@@ -1851,7 +1873,7 @@ function ScheduleProScreenInner() {
       return generateWbsCodes([...patched, newTask]);
     });
     setShowAddTask(false);
-  }, [commit, projectStartDate, workingDaysPerWeek]);
+  }, [commit, projectStartDate, workingDaysPerWeek, project?.schedule?.nonWorkingDates]);
 
   // Bulk-create tasks in ONE undo step. Used by the grid's ghost row, paste,
   // and insert-anywhere. atIndex undefined → append; atIndex given → splice at
@@ -3277,12 +3299,7 @@ function ScheduleProScreenInner() {
           onCleanupStaleRefs={handleCleanupStaleRefs}
           conflicts={cpm.conflicts}
           onFocusTask={focusFromSignal}
-          weather={{
-            forecasts: forecast,
-            projectStartDate,
-            onPushTasks: handleWeatherPush,
-            dailyReports: projectId ? getDailyReportsForProject(projectId) : undefined,
-          }}
+          weather={desktopWeatherSignal}
           subPresent={subPresent}
           weatherPresent={weatherPresent}
           onSubPresence={setSubPresent}
@@ -3421,6 +3438,7 @@ function ScheduleProScreenInner() {
         projectStartDate={projectStartDate}
         onPushTasks={handleWeatherPush}
         dailyReports={projectId ? getDailyReportsForProject(projectId) : undefined}
+        scheduleCalendar={weatherCalendar}
       />
 
       {/* Copilot edit bar — desktop parity with the mobile "Tell me what to
