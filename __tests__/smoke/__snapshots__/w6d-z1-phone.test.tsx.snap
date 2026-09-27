@@ -1,0 +1,50 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) Android 1000 x 700 (native tablet) renders exactly as before 1`] = `
+{
+  "lines": 710,
+  "sha256": "2cbbb3609a879195356a0cfd8d90a4076459bd1cdd0993eaa785108bc4afed86",
+}
+`;
+
+exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) iOS 390 (phone branch) renders exactly as before 1`] = `
+{
+  "lines": 349,
+  "sha256": "6f4716e2dc2e0e7a973859707805ab22709764bf00e003a5a37e86510eb07867",
+}
+`;
+
+exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) native 1512 (the Pro canvas on a device that is not a browser) renders exactly as before 1`] = `
+{
+  "lines": 792,
+  "sha256": "0e2bd3a035a4608f066c645538e59ddd8bc96396b11f7f54848f861aa628027b",
+}
+`;
+
+exports[`lane Z1 — golden: the Schedule Pro Gantt tab (GanttTab) web 820 (tablet split, local layout bar) renders exactly as before 1`] = `
+{
+  "lines": 705,
+  "sha256": "1ffa3ced6db2c55fc2eecf743836b4f821954f2e85f7eee8c0c3be897457d72d",
+}
+`;
+
+exports[`lane Z1 — golden: the classic GanttChart Android 820 renders exactly as before 1`] = `
+{
+  "lines": 123,
+  "sha256": "a4eeefc8616566f474a176dfa75c3bd924542c0bb60c1a614d15c7431a5500a5",
+}
+`;
+
+exports[`lane Z1 — golden: the classic GanttChart iOS 390 renders exactly as before 1`] = `
+{
+  "lines": 123,
+  "sha256": "b5ba04f15ba65874ec4bdd9e32af745fb053416bd0897d395fb7ee4e9e2b7703",
+}
+`;
+
+exports[`lane Z1 — golden: the classic GanttChart native 1512 (viewportWidth 1200) renders exactly as before 1`] = `
+{
+  "lines": 123,
+  "sha256": "13d5389f4d4ece3666dc69ce9d99d0595148520af7fb8e9b069ead577680fe0b",
+}
+`;

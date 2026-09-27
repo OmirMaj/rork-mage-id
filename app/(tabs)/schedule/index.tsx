@@ -2407,6 +2407,16 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
   const fEdit = useSheetFrame('form', { visible: isEditModalOpen, animationType: 'slide' });
   useSheetPrimaryHotkey(isQuickAddOpen, handleQuickAdd);
   useSheetPrimaryHotkey(isEditModalOpen, handleEditSave);
+  // Wave 6d (d6r X1): the shared sheets every branch renders (the ripple
+  // confirm, the dependency picker, the templates sheet) and the start-date
+  // dialog become centred desktop cards too — the founder's "boxes so
+  // stretched" were these full-width bottom sheets. All-null on a phone.
+  const fRipple = useSheetFrame('dialog', { visible: !!rippleConfirm, animationType: 'fade' });
+  const fDep = useSheetFrame('form', { visible: showDepPicker, animationType: 'fade' });
+  const fTpl = useSheetFrame('form', { visible: isTemplatePickerOpen, animationType: 'slide' });
+  const fStart = useSheetFrame('dialog', { visible: isProjectStartDatePickerOpen, animationType: 'fade' });
+  useSheetPrimaryHotkey(!!rippleConfirm, rippleConfirm ? () => { rippleConfirm.onConfirm(); setRippleConfirm(null); } : null);
+  useSheetPrimaryHotkey(isProjectStartDatePickerOpen, () => setProjectStartDate(projectStartDateInput));
 
   // Summary's task tap on desktop (wave 6c): ?taskId opens THAT task's detail
   // sheet, once per arrival (projectId:focus:taskId), after the routed job is
@@ -2794,20 +2804,20 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       </Modal>
 
       {/* Ripple Confirm — shown when an edit cascades to multiple tasks or shifts the finish */}
-      <Modal visible={!!rippleConfirm} transparent animationType="fade" onRequestClose={() => setRippleConfirm(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setRippleConfirm(null)}>
-          <Pressable style={styles.modalCard} onPress={() => undefined}>
+      <Modal visible={!!rippleConfirm} transparent animationType={fRipple.animationType} onRequestClose={() => setRippleConfirm(null)}>
+        <Pressable style={[styles.modalOverlay, fRipple.overlay]} onPress={() => setRippleConfirm(null)}>
+          <Pressable style={[styles.modalCard, fRipple.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Schedule will shift</Text>
               <TouchableOpacity onPress={() => setRippleConfirm(null)} accessibilityRole="button" accessibilityLabel="Dismiss"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <Text style={styles.rippleSummary}>{rippleConfirm?.summary}</Text>
-            <View style={styles.editActionRow}>
-              <TouchableOpacity style={styles.editCancelBtn} onPress={() => setRippleConfirm(null)}>
+            <View style={[styles.editActionRow, fRipple.footer]}>
+              <TouchableOpacity style={[styles.editCancelBtn, fRipple.footerButton]} onPress={() => setRippleConfirm(null)}>
                 <Text style={styles.editCancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.editSaveBtn}
+                style={[styles.editSaveBtn, fRipple.footerButton]}
                 onPress={() => { rippleConfirm?.onConfirm(); setRippleConfirm(null); }}
               >
                 <Text style={styles.editSaveBtnText}>Apply</Text>
@@ -2818,9 +2828,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       </Modal>
 
       {/* Dependency Picker */}
-      <Modal visible={showDepPicker} transparent animationType="fade" onRequestClose={() => setShowDepPicker(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowDepPicker(false)}>
-          <Pressable style={[styles.modalCard, { maxHeight: '80%' }]} onPress={() => undefined}>
+      <Modal visible={showDepPicker} transparent animationType={fDep.animationType} onRequestClose={() => setShowDepPicker(false)}>
+        <Pressable style={[styles.modalOverlay, fDep.overlay]} onPress={() => setShowDepPicker(false)}>
+          <Pressable style={[styles.modalCard, { maxHeight: '80%' }, fDep.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Link Predecessors</Text>
               <TouchableOpacity onPress={() => setShowDepPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
@@ -2859,11 +2869,11 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       )}
 
       {/* Template Picker */}
-      <Modal visible={isTemplatePickerOpen} transparent animationType="slide" onRequestClose={() => setIsTemplatePickerOpen(false)}>
-        <View style={styles.bottomSheetOverlay}>
-          <Pressable style={{ flex: 1 }} onPress={() => setIsTemplatePickerOpen(false)} />
-          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16, maxHeight: '75%' }]}>
-            <View style={styles.bottomSheetHandle} />
+      <Modal visible={isTemplatePickerOpen} transparent animationType={fTpl.animationType} onRequestClose={() => setIsTemplatePickerOpen(false)}>
+        <View style={[styles.bottomSheetOverlay, fTpl.overlay]}>
+          <Pressable style={[{ flex: 1 }, fTpl.backdrop]} onPress={() => setIsTemplatePickerOpen(false)} />
+          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16, maxHeight: '75%' }, fTpl.card]}>
+            {fTpl.showHandle && <View style={styles.bottomSheetHandle} />}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Schedule Templates</Text>
               <TouchableOpacity onPress={() => setIsTemplatePickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3181,9 +3191,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
             </Pressable>
           </Pressable>
         </Modal>
-        <Modal visible={isProjectStartDatePickerOpen} transparent animationType="fade" onRequestClose={() => setIsProjectStartDatePickerOpen(false)}>
-          <Pressable style={styles.modalOverlay} onPress={() => setIsProjectStartDatePickerOpen(false)}>
-            <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }]} onPress={() => undefined}>
+        <Modal visible={isProjectStartDatePickerOpen} transparent animationType={fStart.animationType} onRequestClose={() => setIsProjectStartDatePickerOpen(false)}>
+          <Pressable style={[styles.modalOverlay, fStart.overlay]} onPress={() => setIsProjectStartDatePickerOpen(false)}>
+            <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }, fStart.card]} onPress={() => undefined}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Project Start Date</Text>
               </View>
@@ -3866,9 +3876,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       )}
 
       {/* Project Picker */}
-      <Modal visible={isProjectPickerOpen} transparent animationType="fade" onRequestClose={() => setIsProjectPickerOpen(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setIsProjectPickerOpen(false)}>
-          <Pressable style={styles.modalCard} onPress={() => undefined}>
+      <Modal visible={isProjectPickerOpen} transparent animationType={fPicker.animationType} onRequestClose={() => setIsProjectPickerOpen(false)}>
+        <Pressable style={[styles.modalOverlay, fPicker.overlay]} onPress={() => setIsProjectPickerOpen(false)}>
+          <Pressable style={[styles.modalCard, fPicker.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Project</Text>
               <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -3895,9 +3905,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       </Modal>
 
       {/* Project Start Date Picker (mobile) */}
-      <Modal visible={isProjectStartDatePickerOpen} transparent animationType="fade" onRequestClose={() => setIsProjectStartDatePickerOpen(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setIsProjectStartDatePickerOpen(false)}>
-          <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }]} onPress={() => undefined}>
+      <Modal visible={isProjectStartDatePickerOpen} transparent animationType={fStart.animationType} onRequestClose={() => setIsProjectStartDatePickerOpen(false)}>
+        <Pressable style={[styles.modalOverlay, fStart.overlay]} onPress={() => setIsProjectStartDatePickerOpen(false)}>
+          <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }, fStart.card]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Project Start Date</Text>
             </View>
@@ -3938,12 +3948,12 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       </Modal>
 
       {/* Quick Add Bottom Sheet */}
-      <Modal visible={isQuickAddOpen} transparent animationType="slide" onRequestClose={() => setIsQuickAddOpen(false)}>
+      <Modal visible={isQuickAddOpen} transparent animationType={fQuickAdd.animationType} onRequestClose={() => setIsQuickAddOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.bottomSheetOverlay}>
-            <Pressable style={{ flex: 1 }} onPress={() => setIsQuickAddOpen(false)} />
-            <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-              <View style={styles.bottomSheetHandle} />
+          <View style={[styles.bottomSheetOverlay, fQuickAdd.overlay]}>
+            <Pressable style={[{ flex: 1 }, fQuickAdd.backdrop]} onPress={() => setIsQuickAddOpen(false)} />
+            <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }, fQuickAdd.card]}>
+              {fQuickAdd.showHandle && <View style={styles.bottomSheetHandle} />}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Quick Add Task</Text>
                 {quickAddCount >= 3 && (
@@ -4135,9 +4145,9 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
       </Modal>
 
       {/* Task Detail */}
-      <Modal visible={taskDetailModal !== null} transparent animationType="fade" onRequestClose={() => setTaskDetailModal(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setTaskDetailModal(null)}>
-          <Pressable style={[styles.modalCard, { maxHeight: '85%' }]} onPress={() => undefined}>
+      <Modal visible={taskDetailModal !== null} transparent animationType={fDetail.animationType} onRequestClose={() => setTaskDetailModal(null)}>
+        <Pressable style={[styles.modalOverlay, fDetail.overlay]} onPress={() => setTaskDetailModal(null)}>
+          <Pressable style={[styles.modalCard, { maxHeight: '85%' }, fDetail.card]} onPress={() => undefined}>
             {taskDetailModal && (() => {
               const task = taskDetailModal;
               // statusInk, not getStatusColor — see renderTaskCard.

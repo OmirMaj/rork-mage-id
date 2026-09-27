@@ -12,6 +12,7 @@ import { X } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { ContainedPhotoMarkupOverlay } from '@/components/PhotoMarkupOverlay';
 import type { PhotoMarkup } from '@/types';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 
 // A photo reads best on near-black whatever the theme; the ink on it is white.
 const BACKDROP = 'rgba(0,0,0,0.95)';
@@ -25,6 +26,9 @@ export default function PunchPhotoViewer({ visible, uri, markup, caption, onClos
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  // Desktop web: the open viewer is a DIALOG to the shortcut registry, so its
+  // Esc closes the photo and nothing behind it.
+  useSheetDialogScope(visible && !!uri);
   return (
     <Modal visible={visible && !!uri} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>

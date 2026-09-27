@@ -18,6 +18,7 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import {
   parseVoiceCommand,
   parseBatchVoiceCommand,
@@ -116,6 +117,10 @@ export default function VoiceCommandModal({
   const inputRef = useRef<TextInput>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const autoDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Desktop web: a centred card in the content column (the whole-window
+  // Pressable stays the scrim, over the sidebar too). Phone: every part is
+  // null — today's sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   useEffect(() => {
     if (visible) {
@@ -471,7 +476,7 @@ export default function VoiceCommandModal({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={fX.animationType}
       onRequestClose={onClose}
     >
       {/* The scrim colour is read INLINE, not from the sheet: ThemeColors has
@@ -480,13 +485,13 @@ export default function VoiceCommandModal({
       <Pressable style={[s.overlay, { backgroundColor: Colors.overlay }]} onPress={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={s.keyboardView}
+          style={[s.keyboardView, fX.overlay, fX.isDesktop && s.keyboardViewDesktop]}
         >
           <Pressable
-            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }, fX.card]}
             onPress={() => undefined}
           >
-            <View style={s.handle} />
+            {fX.showHandle && <View style={s.handle} />}
             <View style={s.header}>
               <View style={s.headerLeft}>
                 <Mic size={18} color={Colors.primary} strokeWidth={1.75} />
@@ -540,6 +545,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   keyboardView: {
     justifyContent: 'flex-end',
   },
+  // Desktop: the KAV fills the scrim so the frame's overlay centres the card
+  // vertically too (on a phone the KAV hugs the sheet at the bottom).
+  keyboardViewDesktop: { flex: 1 },
   sheet: {
     backgroundColor: t.surface,
     borderTopLeftRadius: 24,

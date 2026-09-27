@@ -13,6 +13,7 @@ import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useProjectCapGate } from '@/hooks/useProjectCapGate';
@@ -81,6 +82,9 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
   const insets = useSafeAreaInsets();
 
   const [open, setOpen] = useState(false);
+  // Desktop web: the voice sheet is a centred card beside the sidebar;
+  // all-null on a phone.
+  const fMic = useSheetFrame('form', { visible: open, animationType: 'slide' });
   const [step, setStep] = useState<Step>('idle');
   const [parsed, setParsed] = useState<VoiceActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -669,9 +673,9 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         </TouchableOpacity>
       )}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+      <Modal visible={open} transparent animationType={fMic.animationType} onRequestClose={handleClose}>
+        <View style={[styles.modalBackdrop, fMic.overlay]}>
+          <View style={[styles.modalCard, fMic.card]}>
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalEyebrow}>Speak it, we&apos;ll draft it</Text>

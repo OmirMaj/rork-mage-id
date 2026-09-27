@@ -20,6 +20,8 @@ import {
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
@@ -50,6 +52,10 @@ const QUICK_PROMPTS = [
 
 export default React.memo(function MaterialAIEstimateModal({ visible, onClose }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const { cart, updateQuantity, updateMarkup } = useMaterialCart();
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -146,11 +152,14 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType={fP.animationType}
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+      transparent={fP.transparent}
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={handleClose} />
+      <KeyboardAvoidingView style={[{ flex: 1 }, fP.card, fP.isDesktop && { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.container}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -392,6 +401,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+      </SheetOverlay>
     </Modal>
   );
 });

@@ -24,6 +24,7 @@ import { showAlert } from '@/utils/alert';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import type { RFIBallInCourt, RFIPriority } from '@/types';
 
 const BALL: RFIBallInCourt[] = ['architect', 'engineer', 'owner', 'sub', 'gc'];
@@ -38,6 +39,9 @@ export default function RFITriageModal({ visible, onClose }: Props) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { projects, addRFI } = useProjects();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
 
   const [step, setStep] = useState<'paste' | 'confirm'>('paste');
   const [busy, setBusy] = useState(false);
@@ -101,8 +105,10 @@ export default function RFITriageModal({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
-      <View style={[styles.container, { paddingTop: insets.top + 6 }]}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle="pageSheet" transparent={fP.transparent} onRequestClose={close}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={close} />
+      <View style={[styles.container, { paddingTop: insets.top + 6 }, fP.card]}>
         <View style={styles.header}>
           <Text style={styles.title}>{step === 'paste' ? 'Email → RFI' : 'Review RFI'}</Text>
           <TouchableOpacity onPress={close} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
@@ -184,6 +190,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
           )}
         </View>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

@@ -23,6 +23,7 @@ import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
@@ -132,6 +133,9 @@ export default function QuickFieldUpdate() {
     | null
   >(null);
   const [showPicker, setShowPicker] = useState(false);
+  // Desktop web: the Target Project picker is a centred card beside the
+  // sidebar; all-null on a phone.
+  const fPick = useSheetFrame('dialog', { visible: showPicker, animationType: 'fade' });
   const [manualProjectId, setManualProjectId] = useState<string | null>(null);
 
   // Clarifier state — populated right before we open it.
@@ -623,11 +627,11 @@ export default function QuickFieldUpdate() {
       <Modal
         visible={showPicker}
         transparent
-        animationType="fade"
+        animationType={fPick.animationType}
         onRequestClose={() => setShowPicker(false)}
       >
-        <Pressable style={styles.pickerOverlay} onPress={() => setShowPicker(false)}>
-          <Pressable style={styles.pickerCard} onPress={() => undefined}>
+        <Pressable style={[styles.pickerOverlay, fPick.overlay]} onPress={() => setShowPicker(false)}>
+          <Pressable style={[styles.pickerCard, fPick.card]} onPress={() => undefined}>
             <Text style={styles.pickerTitle}>Target Project</Text>
             {projectsWithSchedule.map((p) => {
               const isSelected = p.id === (selectedProject?.id ?? '');

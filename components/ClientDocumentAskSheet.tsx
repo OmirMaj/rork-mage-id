@@ -38,6 +38,7 @@ import {
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Button, Card } from '@/components/ui';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ThemeColors } from '@/constants/colors';
@@ -71,6 +72,9 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
   const onPrimary = live ? props.onPrimary : noop;
   const onSecondary = live ? props.onSecondary : (shown?.onSecondary ? noop : null);
   const onClose = live ? props.onClose : noop;
+  // Desktop web: the open ask is a DIALOG to the shortcut registry — the page
+  // behind it hears no keys, and Cmd+S never opens "Save page as…" over it.
+  useSheetDialogScope(live);
 
   return (
     <Modal visible={live} transparent animationType="slide" onRequestClose={onClose} onDismiss={props.onDismiss}>

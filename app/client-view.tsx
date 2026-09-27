@@ -51,6 +51,7 @@ import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
 import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildPortalProposal, PROPOSAL_ESIGN_VERSION, PROPOSAL_NOT_A_CONTRACT_NOTE, type PortalProposal } from '@/utils/portalSnapshot';
 
@@ -948,6 +949,16 @@ export default function ClientViewScreen() {
   // snapshot never carried this field, so defaulting to 0 painted a red
   // "0% Schedule Health" bar on a perfectly healthy job.
   const healthScore = project?.schedule?.healthScore ?? null;
+
+  // Desktop: the change-order approval sheet is a centred form card (d6r X3,
+  // batch F); a phone keeps its bottom sheet (every frame part is null there).
+  // Approve & sign signs — Cmd/Ctrl+Enter only, never Cmd+S — and does nothing
+  // while a submit is in flight, like its disabled button. The photo lightbox
+  // is only a dialog to the shortcut registry (nothing on this public page
+  // depends on the signed-in shell).
+  const fApproval = useSheetFrame('form', { visible: !!approvalCO, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!approvalCO, submittingApproval ? null : submitApproval, { saveKey: false });
+  useSheetDialogScope(lightboxIndex !== null);
 
   if (!project || !portal) {
     // Resolution in flight. NEVER render a failure here: a "not found" that
@@ -1869,11 +1880,11 @@ export default function ClientViewScreen() {
       <Modal
         visible={!!approvalCO}
         transparent
-        animationType="slide"
+        animationType={fApproval.animationType}
         onRequestClose={closeApprovalFlow}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <View style={[styles.modalOverlay, fApproval.overlay]}>
+          <View style={[styles.modalCard, fApproval.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {approvalMode === 'approve' ? 'Sign & Approve' : 'Reject Change Order'}

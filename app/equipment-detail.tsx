@@ -24,6 +24,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { EQUIPMENT_HOURS_PER_DAY } from '@/utils/jobCostEngine';
 import { cardSurface, labelOn, neutralInk } from '@/components/ui';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // A factory, not a frozen object. `retired` was the DARK theme's textSecondary
@@ -194,6 +195,13 @@ export default function EquipmentDetailScreen() {
     setLogOperator('');
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [equip, logHours, logOperator, logProject, logUtilization]);
+  // Above the not-found return (hook order). Desktop web: the Log Usage dialog
+  // is a centred card in the content column, the scrim over the sidebar.
+  // Logging charges the hours to a job (a money write), so the primary takes
+  // Cmd/Ctrl+Enter only — a habitual Cmd+S never books hours. Phone: every
+  // part is null — today's dialog, byte for byte.
+  const fLog = useSheetFrame('dialog', { visible: showLogModal, animationType: 'fade' });
+  useSheetPrimaryHotkey(showLogModal, handleLogUse, { saveKey: false });
 
   if (!equip) {
     return (
@@ -383,9 +391,9 @@ export default function EquipmentDetailScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={showLogModal} transparent animationType="fade" onRequestClose={() => setShowLogModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+      <Modal visible={showLogModal} transparent animationType={fLog.animationType} onRequestClose={() => setShowLogModal(false)}>
+        <View style={[styles.modalOverlay, fLog.overlay]}>
+          <View style={[styles.modalCard, fLog.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Log Usage</Text>
               <TouchableOpacity onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">

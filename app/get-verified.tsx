@@ -46,6 +46,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import ProfileLoadNotice from '@/components/ProfileLoadNotice';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { US_STATES } from '@/constants/regions';
 import { normalizeState, splitLocationText } from '@/utils/codeJurisdiction';
 import {
@@ -110,6 +111,9 @@ function GetVerifiedForm() {
   // A two-letter USPS code, never free text — see the header.
   const [jurisdiction, setJurisdiction]   = useState(() => bidStateFromBranding(settings?.branding, settings?.location));
   const [showStatePicker, setShowStatePicker] = useState(false);
+  // Desktop web: the state picker is a centred dialog in the content column,
+  // the scrim over the sidebar. Phone: every part is null — today's sheet.
+  const fState = useSheetFrame('dialog', { visible: showStatePicker, animationType: 'slide' });
   const [profileNote, setProfileNote]     = useState<string | null>(null);
   const [expires, setExpires]             = useState(settings?.branding?.licenseExpiry ?? '');
   const [docUri, setDocUri]               = useState<string | null>(null);
@@ -379,9 +383,9 @@ function GetVerifiedForm() {
         </Text>
       </ScrollView>
 
-      <Modal visible={showStatePicker} transparent animationType="slide" onRequestClose={() => setShowStatePicker(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+      <Modal visible={showStatePicker} transparent animationType={fState.animationType} onRequestClose={() => setShowStatePicker(false)}>
+        <View style={[styles.modalOverlay, fState.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fState.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Issuing state</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)} accessibilityRole="button" accessibilityLabel="Close">

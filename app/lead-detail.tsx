@@ -82,6 +82,7 @@ import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame } from '@/components/ui/Sheet';
 
 // >>> lead-contact-log (pure; scripts/validate-lead-contact-log.ts evaluates this block)
 type ContactKind = 'call' | 'text' | 'email';
@@ -313,6 +314,10 @@ function LeadDetailEditor() {
   const [lostReason, setLostReason] = useState<string>(existing?.lostReason ?? '');
   const [showLostReasonModal, setShowLostReasonModal] = useState(false);
   const [pendingLostStage, setPendingLostStage] = useState(false);
+  // Desktop web: the lost-reason dialog is a centred card in the content
+  // column, the scrim over the sidebar, its two buttons right-aligned.
+  // Phone: every part is null — today's dialog, byte for byte.
+  const fLost = useSheetFrame('dialog', { visible: showLostReasonModal, animationType: 'fade' });
   // Referral prompt at the won-job moment (the emotional peak). Only fires
   // on the transition INTO won, and only once per lead.
   const [showReferralPrompt, setShowReferralPrompt] = useState(false);
@@ -798,11 +803,11 @@ function LeadDetailEditor() {
         <Modal
           visible={showLostReasonModal}
           transparent
-          animationType="fade"
+          animationType={fLost.animationType}
           onRequestClose={() => { setShowLostReasonModal(false); setPendingLostStage(false); }}
         >
-          <View style={styles.lostModalBackdrop}>
-            <View style={styles.lostModalCard}>
+          <View style={[styles.lostModalBackdrop, fLost.overlay]}>
+            <View style={[styles.lostModalCard, fLost.card]}>
               <Text style={styles.lostModalTitle}>Why did this one go cold?</Text>
               <Text style={styles.lostModalSubtitle}>
                 One tap. We'll roll it into "why are we losing deals" reports later — won't ask you again.
@@ -821,9 +826,9 @@ function LeadDetailEditor() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <View style={styles.lostModalActions}>
+              <View style={[styles.lostModalActions, fLost.footer]}>
                 <TouchableOpacity
-                  style={styles.lostModalSkipBtn}
+                  style={[styles.lostModalSkipBtn, fLost.footerButton]}
                   onPress={() => {
                     if (pendingLostStage) setStage('lost');
                     setShowLostReasonModal(false);
@@ -833,7 +838,7 @@ function LeadDetailEditor() {
                   <Text style={styles.lostModalSkipText}>Skip</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.lostModalSaveBtn, !lostReason && { opacity: 0.5 }]}
+                  style={[styles.lostModalSaveBtn, !lostReason && { opacity: 0.5 }, fLost.footerButton]}
                   disabled={!lostReason}
                   onPress={() => {
                     if (pendingLostStage) setStage('lost');
