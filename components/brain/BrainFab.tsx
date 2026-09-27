@@ -17,6 +17,14 @@
 // Button physics, a spring on hide/show, and a glide (not a one-frame jump)
 // when a screen's sticky footer lifts it. All on the native driver
 // (transform/opacity), no new dependency.
+//
+// Desktop web (wave 6d restore, d6r lane K1): the tap opens Ask in the shell's
+// right DOCK beside the page (hooks/useAskDock) instead of a full-window page,
+// and the FAB steps aside while that dock is on screen — it would otherwise
+// float over the conversation it opened. Where the dock cannot show (a
+// shell-exempt route) the FAB stays, and its tap reaches Ask through
+// useAskDock's page fallback. Cmd+P leaves it off the paper (data-print).
+// The phone path — the router.push below — is unchanged.
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, Platform, Animated } from 'react-native';
@@ -31,6 +39,9 @@ import { MageAIMark } from '@/components/icons';
 import { useBrainFabPresentation, resetBrainFabScroll } from '@/components/brain/brainFabState';
 import { useTutorialCoachVisible } from '@/utils/tutorial/store';
 import { anchorProjectIdFor } from '@/utils/resolveStarters';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useShellDock } from '@/components/desktop/ShellDock';
+import { useAskDock } from '@/hooks/useAskDock';
 
 // Routes where the Brain must NOT appear: tokenized public viewers handed to
 // clients/subs (they have no account and must see only what's shared), the
@@ -54,6 +65,10 @@ export function BrainFab() {
   // Scroll-away + per-screen suppression / lift. See brainFabState for why the
   // FAB owns this rather than every screen padding around it (audit defect #5).
   const { hidden: fabStateHidden, lift } = useBrainFabPresentation();
+  // Desktop web: the FAB opens the Ask dock and hides while a dock is showing.
+  const isDesktopWeb = useIsDesktopWeb();
+  const dock = useShellDock();
+  const { openAsk } = useAskDock();
   // A tutorial coach (spotlight, card, stamp or finale) is on screen: hide.
   // In card mode there are no dims over the FAB, and a tap on it opened /ask
   // mid-step, pausing the run (spec §16).
@@ -123,15 +138,20 @@ export function BrainFab() {
     // instead of the whole business (audit #36). anchorProjectIdFor forwards
     // only from the job screens — a bare `id` elsewhere is some other record.
     const projectId = anchorProjectIdFor(screen, globalParams);
+    if (isDesktopWeb) { openAsk({ screen, projectId: projectId ?? undefined }); return; }
     router.push(
       screen
         ? { pathname: '/ask', params: projectId ? { screen, projectId } : { screen } }
         : '/ask',
     );
-  }, [router, segments, globalParams]);
+  }, [router, segments, globalParams, isDesktopWeb, openAsk]);
 
   // Hide on public/tokenized viewers and the pre-auth flow.
   if (HIDDEN_ROOTS.has((segments[0] as string) ?? '')) return null;
+  // A docked panel (Ask, the attention list) is on screen at the bottom-right
+  // where the FAB floats. `showing`, not "something is docked": on a
+  // shell-exempt route the dock is not drawn and the FAB is the way back.
+  if (isDesktopWeb && dock.showing) return null;
 
   return (
     <Animated.View
@@ -140,6 +160,10 @@ export function BrainFab() {
       pointerEvents={hidden ? 'none' : 'auto'}
       accessibilityElementsHidden={hidden}
       importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      // Cmd+P: chrome, not the page. Desktop web only — below 900 px the
+      // print CSS's [data-testid='brain-fab'] rule already keeps it off paper,
+      // and the phone tree stays exactly as it was.
+      {...(isDesktopWeb ? ({ dataSet: { print: 'hide' } } as object) : null)}
       style={[
         styles.fabWrap,
         {

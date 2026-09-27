@@ -67,7 +67,8 @@ import {
 } from '@react-navigation/native';
 import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';
 import { renderDesktopPageFrame } from '@/components/desktop/DesktopPageFrame';
-import { ShellDockProvider, ShellDockHost } from '@/components/desktop/ShellDock';
+import { ShellDockProvider, ShellDockHost, ASK_DOCK_ID } from '@/components/desktop/ShellDock';
+import { ShellHotkeys } from '@/components/desktop/ShellHotkeys';
 import { useReducedMotion, webMotion } from '@/components/ui/motion';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
@@ -1599,8 +1600,10 @@ function RootLayoutNav() {
       </View>
       </NavThemeProvider>
       {/* Right-hand dock slot: 0 px unless something is docked, desktop
-          shell only. Nothing opens it yet (wave 6c moves Ask into it). */}
-      {shellEligible && <ShellDockHost visible={showDesktopShell} />}
+          shell only (Ask MAGE, the Action Required list). On the /ask page
+          the Ask dock is suppressed — hidden but kept mounted — so the page
+          and the dock never show the same conversation twice. */}
+      {shellEligible && <ShellDockHost visible={showDesktopShell} suppressId={topSegment === 'ask' ? ASK_DOCK_ID : null} />}
       {/* Blocks input while the boot reads run, exactly as the full-screen
           loader did, without unmounting what is underneath; shows only if the
           reload is slow, and fades out (components/launch/ReloadVeil). */}
@@ -1637,7 +1640,9 @@ function SearchHotkeyListener() {
     // @ts-ignore
     return () => window.removeEventListener('keydown', handler);
   }, [toggleSearch]);
-  return null;
+  // The desktop keyboard shell ('?' sheet, g-chords, Cmd+J → Ask). Null — and
+  // no hooks — off desktop web, so a phone still renders nothing here.
+  return <ShellHotkeys />;
 }
 
 function ThemeLoader({ children }: { children: React.ReactNode }) {

@@ -94,7 +94,10 @@ export interface PortfolioTableProps {
   /** The stage SegmentedControl, drawn in the table's toolbar. */
   stageChips?: React.ReactNode;
   /** The ⋯ button: Home's EntityActionSheet (Duplicate). */
-  onOpenActions: (project: Project) => void;
+  /** The ⋯ press passes its window point so the desktop action menu opens as
+   *  a popover there (EntityActionSheet's `anchor`); a long press passes none
+   *  and gets the centred sheet. */
+  onOpenActions: (project: Project, anchor?: { x: number; y: number }) => void;
   /** The phone card's tap (never used on desktop — the row is a link). */
   onOpenProject: (project: Project) => void;
   /** The just-created job, highlighted. */
@@ -261,7 +264,7 @@ export function PortfolioTable({
               const ev = e as unknown as { preventDefault?: () => void; stopPropagation?: () => void };
               ev.preventDefault?.();
               ev.stopPropagation?.();
-              if (p) onOpenActions(p);
+              if (p) onOpenActions(p, { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
             }}
             style={(state) => [styles.moreBtn, (state as { hovered?: boolean }).hovered && { backgroundColor: t.surfaceAlt }]}
             accessibilityRole="button"

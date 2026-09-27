@@ -31,6 +31,8 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated, Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform,
+  useWindowDimensions,
+  type NativeSyntheticEvent, type TextInputKeyPressEventData,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -54,10 +56,13 @@ import { REQUIRED_TIER } from '@/utils/featureTiers';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Layout, Shadow } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useIsDesktopWeb, useDesktopShellInset } from '@/components/ui/desktop';
 import { useRiseOnOpen, useSwapFade, webMotion } from '@/components/ui';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
+import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { movePaletteSelection } from '@/utils/paletteRows';
 
 interface CreateOption {
   /** Human label (plain English). */
@@ -151,6 +156,11 @@ const OPTIONS: CreateOption[] = [
   { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: MageAIMark, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
 ];
 
+/** Every creatable thing, in display order — the desktop Cmd+K palette's
+ *  Actions lane reads the same rows (components/search/CommandPalette). */
+export type { CreateOption };
+export const CREATE_OPTIONS: readonly CreateOption[] = OPTIONS;
+
 const CATEGORY_LABELS: Record<CreateOption['category'], string> = {
   project: 'Start',
   money: 'Money',
@@ -177,6 +187,43 @@ function routePath(href: string): string {
   return q === -1 ? href : href.slice(0, q);
 }
 
+/** Where a row goes. Registry route wins so a stale literal cannot misroute
+ *  anyone in the window before ship-check next runs. */
+function createHref(opt: CreateOption): string {
+  return opt.feature ? featureFor(opt.feature).route : opt.href;
+}
+
+/** Push a job-scoped create destination for `projectId` — the one push both
+ *  this menu (inside go(), below) and the desktop Cmd+K palette use.
+ *  Desktop web only (wave 6c): the five project logs open LIST-first there
+ *  (lanes G/H), so "New RFI" must say so — `new=1` opens the create form over
+ *  the log. A phone keeps today's params exactly. */
+export function pushCreateOption(
+  router: Pick<ReturnType<typeof useRouter>, 'push'>,
+  opt: CreateOption,
+  projectId: string,
+  desktopWeb: boolean,
+): void {
+  const opensCreate = desktopWeb && LIST_FIRST_HREFS.has(opt.href);
+  router.push({
+    pathname: createHref(opt) as never,
+    // Most screens read `projectId`; a few read `id`. Passing the
+    // wrong name re-creates the exact dead-end the picker fixes.
+    params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}), ...(opensCreate ? { new: '1' } : {}) },
+  } as never);
+}
+
+/** Push a create destination that needs no job (Lead, Quick Quote, Sub COI,
+ *  the home create modal …) — this menu's unscoped rows and the palette's. */
+export function pushUnscopedCreateOption(router: Pick<ReturnType<typeof useRouter>, 'push'>, opt: CreateOption): void {
+  router.push(createHref(opt) as never);
+}
+
+/** Keep `v` within [lo, hi] (lo wins when the window is too small for both). */
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(v, hi));
+}
+
 export interface CreateMenuProps {
   visible: boolean;
   onClose: () => void;
@@ -184,9 +231,16 @@ export interface CreateMenuProps {
    *  of routing. Lets the host (typically the home tab) open its
    *  create-project modal in place. */
   onCreateProject?: () => void;
+  /** Desktop web only: the popover's top-left corner in window px (the
+   *  sidebar's '+' passes its right edge + Layout.menu.offset). Omitted or
+   *  null: the popover is centred in the content column, 12% down. */
+  anchor?: { x: number; y: number } | null;
+  /** Desktop web only: create for the active job without the project picker
+   *  (default true). The header's 'Change' falls back to the picker. */
+  activeJob?: boolean;
 }
 
-function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) {
+function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, activeJob = true }: CreateMenuProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -208,15 +262,15 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
 
   /** Where a row goes. Registry route wins so a stale literal cannot misroute
    *  anyone in the window before ship-check next runs. */
-  const hrefFor = useCallback(
-    (opt: CreateOption) => (opt.feature ? featureFor(opt.feature).route : opt.href),
-    [],
-  );
+  const hrefFor = useCallback((opt: CreateOption) => createHref(opt), []);
   const [query, setQuery] = useState('');
   // When set, the sheet swaps from the create list to an in-sheet project
   // picker for this scoped option. Swapping content (vs. opening a nested
   // Modal) sidesteps the iOS "can't present two modals back-to-back" bug.
   const [pickFor, setPickFor] = useState<CreateOption | null>(null);
+  // Desktop web: 'Change' in the header — pick the job per row again instead
+  // of creating for the active job.
+  const [pickJob, setPickJob] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -244,6 +298,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
   const handleClose = useCallback(() => {
     setQuery('');
     setPickFor(null);
+    setPickJob(false);
     onClose();
   }, [onClose]);
 
@@ -275,18 +330,22 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
   // (lanes G/H), so "New RFI" must say so — `new=1` opens the create form
   // over the log. A phone keeps today's params exactly.
   const desktopWeb = useIsDesktopWeb();
+  const isDesktopWeb = desktopWeb;
   const routeScoped = useCallback((opt: CreateOption, projectId: string) => {
-    const opensCreate = desktopWeb && LIST_FIRST_HREFS.has(opt.href);
-    const href = hrefFor(opt);
-    go(MODAL_ROUTES.has(routePath(href)), () => {
-      router.push({
-        pathname: href as never,
-        // Most screens read `projectId`; a few read `id`. Passing the
-        // wrong name re-creates the exact dead-end the picker fixes.
-        params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}), ...(opensCreate ? { new: '1' } : {}) },
-      } as never);
+    go(MODAL_ROUTES.has(routePath(hrefFor(opt))), () => {
+      pushCreateOption(router, opt, projectId, desktopWeb);
     });
   }, [go, router, hrefFor, desktopWeb]);
+
+  // The open menu is a dialog to the shortcut registry (hooks/useHotkeys): a
+  // page-scope Esc behind it (a SplitView record) stays put, and the Modal's
+  // own onRequestClose closes the menu once. A no-op off desktop web.
+  useSheetDialogScope(visible);
+
+  // Desktop web: the job the GC is in. A job-scoped row creates for it at
+  // once (no picker), until he presses 'Change'.
+  const { activeProject } = useActiveProject();
+  const jobShortcut = isDesktopWeb && activeJob && !pickJob ? activeProject : null;
 
   const handleSelect = useCallback((opt: CreateOption) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -295,6 +354,10 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
     // project" empty state (the audit's #1 discovery failure). Interpose
     // a picker — but skip it when the choice is trivial/forced.
     if (opt.scoped) {
+      if (jobShortcut) {
+        routeScoped(opt, jobShortcut.id);
+        return;
+      }
       if (projects.length === 0) {
         handleClose();
         setTimeout(() => {
@@ -334,10 +397,44 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
       if (opt.label === 'Project' && onCreateProject) {
         onCreateProject();
       } else {
-        router.push(href as never);
+        pushUnscopedCreateOption(router, opt);
       }
     });
-  }, [handleClose, go, router, onCreateProject, projects, routeScoped, hrefFor]);
+  }, [handleClose, go, router, onCreateProject, projects, routeScoped, hrefFor, jobShortcut]);
+
+  // Desktop web: arrow keys move a highlight over the rows in display order
+  // and Enter creates the highlighted one (the JobSwitcher pattern). The
+  // highlight belongs to the query it was set under, so typing resets it.
+  const flatRows = useMemo(() => grouped.flatMap(g => g.items), [grouped]);
+  const [hl, setHl] = useState<{ q: string; i: number }>({ q: '', i: 0 });
+  const highlight = hl.q === query ? Math.min(hl.i, Math.max(flatRows.length - 1, 0)) : 0;
+  const onKeyNav = useCallback((e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    const key = e.nativeEvent.key;
+    if (key !== 'ArrowDown' && key !== 'ArrowUp') return;
+    e.preventDefault?.();
+    setHl({ q: query, i: movePaletteSelection(highlight, key === 'ArrowDown' ? 1 : -1, flatRows.length) });
+  }, [query, highlight, flatRows.length]);
+  const runHighlighted = useCallback(() => {
+    const opt = flatRows[highlight];
+    if (opt) handleSelect(opt);
+  }, [flatRows, highlight, handleSelect]);
+
+  // Desktop web: a popover (Layout.sheet.form wide) at the caller's anchor,
+  // clamped into the window, or centred in the content column 12% down.
+  const { width: winW, height: winH } = useWindowDimensions();
+  const shellInset = useDesktopShellInset(visible);
+  const popoverMaxH = Math.round(winH * 0.7);
+  const popoverPos = anchor
+    ? {
+        left: clamp(anchor.x, Layout.gutter, winW - Layout.sheet.form - Layout.gutter),
+        top: clamp(anchor.y, Layout.gutter, winH - popoverMaxH - Layout.gutter),
+      }
+    : {
+        left: Math.max(Layout.gutter, Math.round(shellInset + (winW - shellInset - Layout.sheet.form) / 2)),
+        top: Math.round(winH * 0.12),
+      };
+  // The list scrolls inside the popover: its cap less the header + search.
+  const listDesktop = { maxHeight: Math.max(popoverMaxH - 116, Layout.control.row * 3) };
 
   // The scrim fades (never slides up with the card); the card rises the last
   // few points into place on a phone and pops in on desktop web, and the
@@ -356,9 +453,9 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
       onDismiss={runPending}
       statusBarTranslucent
     >
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
-      <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, desktopWeb ? webMotion('popIn') : rise, swap]}>
-        <View style={styles.handle} />
+      <TouchableOpacity style={[styles.backdrop, isDesktopWeb && styles.backdropDesktop]} activeOpacity={1} onPress={handleClose} />
+      <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, isDesktopWeb && styles.sheetDesktop, isDesktopWeb && popoverPos, desktopWeb ? webMotion('popIn') : rise, swap]}>
+        {isDesktopWeb ? null : <View style={styles.handle} />}
 
         {pickFor ? (
           <>
@@ -374,16 +471,16 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: '70%' as any }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={[{ maxHeight: '70%' as any }, isDesktopWeb && listDesktop]} showsVerticalScrollIndicator={false}>
               {projects.map(p => (
                 <TouchableOpacity
                   key={p.id}
-                  style={styles.row}
+                  style={[styles.row, isDesktopWeb && styles.rowDesktop]}
                   onPress={() => { if (pickFor) routeScoped(pickFor, p.id); }}
                   activeOpacity={0.55}
                   testID={`createmenu-pick-project-${p.id}`}
                 >
-                  <View style={styles.iconSquare}>
+                  <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
                     <FolderPlus size={18} color={themeColors.textSecondary} strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
@@ -406,6 +503,23 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
               <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
+            {isDesktopWeb && activeJob && activeProject ? (
+              <View style={styles.jobBar} testID="createmenu-job-bar">
+                <Text style={[Type.footnote, styles.jobBarText]} numberOfLines={1}>
+                  {pickJob ? 'Pick the job for each item' : `For ${activeProject.name}`}
+                </Text>
+                <Text style={[Type.footnote, styles.jobBarText]}>·</Text>
+                <TouchableOpacity
+                  onPress={() => setPickJob(p => !p)}
+                  accessibilityRole="button"
+                  accessibilityLabel={pickJob ? `Create for ${activeProject.name}` : 'Change the job'}
+                  testID="createmenu-change-job"
+                >
+                  <Text style={[Type.footnote, styles.jobBarAction]}>{pickJob ? `Use ${activeProject.name}` : 'Change'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             <View style={styles.searchRow}>
               <Search size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
@@ -415,6 +529,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                 value={query}
                 onChangeText={setQuery}
                 autoFocus={false}
+                {...(isDesktopWeb ? { autoFocus: true, onKeyPress: onKeyNav, onSubmitEditing: runHighlighted } : null)}
                 returnKeyType="search"
               />
               {!!query && (
@@ -424,7 +539,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
               )}
             </View>
 
-            <ScrollView style={{ maxHeight: '70%' as any }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={[{ maxHeight: '70%' as any }, isDesktopWeb && listDesktop]} showsVerticalScrollIndicator={false}>
               {grouped.length === 0 && (
                 <View style={styles.emptyResult}>
                   <Text style={[Type.subhead, { color: themeColors.textSecondary, textAlign: 'center' }]}>
@@ -440,12 +555,12 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                   {g.items.map(opt => (
                     <TouchableOpacity
                       key={opt.label}
-                      style={styles.row}
+                      style={[styles.row, isDesktopWeb && styles.rowDesktop, isDesktopWeb && flatRows[highlight] === opt && styles.rowHighlightDesktop]}
                       onPress={() => handleSelect(opt)}
                       activeOpacity={0.55}
                       testID={`create-${opt.label.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <View style={styles.iconSquare}>
+                      <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
                         <opt.Icon size={18} color={themeColors.textSecondary} strokeWidth={2} />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
@@ -465,6 +580,9 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                           </View>
                         ) : null;
                       })()}
+                      {jobShortcut && opt.scoped ? (
+                        <Text style={[Type.footnote, styles.rowJob]} numberOfLines={1}>{jobShortcut.name}</Text>
+                      ) : null}
                       <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
@@ -559,4 +677,38 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     letterSpacing: 0.3,
   },
+
+  // ── Desktop web: the popover (every entry gated `isDesktopWeb &&`) ──
+  // A popover beside the sidebar, not a sheet across the page: a clear
+  // backdrop (click-outside still closes), all four corners rounded, a heavy
+  // float shadow, form width, at most 70% of the window tall.
+  backdropDesktop: { backgroundColor: 'transparent' },
+  sheetDesktop: {
+    bottom: 'auto',
+    right: 'auto',
+    width: Layout.sheet.form,
+    maxWidth: Layout.sheet.form,
+    maxHeight: '70%',
+    borderRadius: Tokens.radius.xl,
+    borderTopLeftRadius: Tokens.radius.xl,
+    borderTopRightRadius: Tokens.radius.xl,
+    paddingTop: Layout.rowGap + 4,
+    paddingBottom: Layout.rowGap,
+    overflow: 'hidden',
+    ...Shadow.heavy,
+  },
+  rowDesktop: { paddingVertical: 0, minHeight: Layout.control.row },
+  rowHighlightDesktop: { backgroundColor: t.surfaceAlt },
+  iconSquareDesktop: { width: 28, height: 28 },
+  rowJob: { color: t.textMuted, maxWidth: Layout.menu.minWidth / 2 },
+  jobBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    marginTop: -4,
+    marginBottom: 8,
+  },
+  jobBarText: { color: t.textSecondary, flexShrink: 1 },
+  jobBarAction: { color: t.accent, fontWeight: '600' as const },
 });

@@ -72,7 +72,7 @@ import { useSavedAiTakeoff } from '@/hooks/useSavedAiTakeoff';
 import TakeoffCanvas, { type CanvasShape, type TakeoffTool } from './TakeoffCanvas';
 import ConditionsPanel, {
   TAKEOFF_FILTER_DOM_ID, visibleRows,
-  type MeasurementSubRow, type PanelFilter, type StarterChip, type TakeoffConflict,
+  type MeasurementSubRow, type PanelFilter, type StarterChip,
 } from './ConditionsPanel';
 import ConditionEditor from './ConditionEditor';
 import TakeoffFirstRun from './TakeoffFirstRun';
@@ -170,11 +170,7 @@ export default function TakeoffWorkspace() {
   // ── the doc ────────────────────────────────────────────────────────────
   const tk = useTakeoffConditions(projectId);
   const drop = useTakeoffPdfDrop(projectId);
-  const { doc, loaded, update, record, undo, redo } = tk;
-  // Lane SYNC adds saveLine + conflict (account-sync wording). Until it lands these are undefined.
-  const sync = tk as typeof tk & { saveLine?: string; conflict?: { notice: string; hasBackup: boolean; restore: () => void; dismiss: () => void } | null };
-  const saveLine = sync.saveLine ?? 'Saved on this browser';
-  const conflict: TakeoffConflict | null = sync.conflict ?? null;
+  const { doc, loaded, update, record, undo, redo, saveLine, conflict } = tk;
   const calFor = useCallback((sheetId: string): SheetCal | null => {
     const u = usableCalibration(getCalibrationForPlan(sheetId));
     return u ? { p1: u.p1, p2: u.p2, realDistanceFt: u.realDistanceFt } : null;

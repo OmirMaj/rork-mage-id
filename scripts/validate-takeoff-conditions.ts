@@ -451,8 +451,7 @@ ok('TakeoffWorkspace carries {/* seam:rail */}', wsSrc.includes('{/* seam:rail *
 ok('TakeoffWorkspace carries {/* seam:first-run */}', wsSrc.includes('{/* seam:first-run */}'));
 ok('ConditionsPanel carries {/* seam:ai-section */} right after the New condition row',
   /New condition \(N\)<\/Text>\s*<\/TouchableOpacity>\s*\{\/\* seam:ai-section \*\/\}/.test(panelSrc));
-ok('the workspace reads lane SYNC\'s saveLine / conflict through the typed widening',
-  /const tk = useTakeoffConditions\(projectId\);/.test(wsSrc) && /sync\.saveLine \?\? 'Saved on this browser'/.test(wsSrc) && /sync\.conflict \?\? null/.test(wsSrc));
+ok('the workspace reads saveLine / conflict straight from the hook (no widening cast)', /const tk = useTakeoffConditions\(projectId\);/.test(wsSrc) && /const \{ doc, loaded, update, record, undo, redo, saveLine, conflict \} = tk;/.test(wsSrc) && !/as typeof tk &/.test(wsSrc) && !/sync\.(saveLine|conflict)/.test(wsSrc));
 
 // ── 7. list-3 lane TK-b: AI read ──────────────────────────────────────────────────
 console.log('\nAI read (lane TK-b — an accepted AI suggestion):');

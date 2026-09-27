@@ -39,8 +39,11 @@ import type { LayoutPageType } from '@/constants/designTokens';
 //     own close affordance. Wave 6b gave four of them the sidebar back
 //     (cost-xray, scan, judges, quick-quote): they are tools a GC opens from
 //     the sidebar and then wants to leave through it, and the page frame now
-//     keeps their column readable. Ask and Copilot stay exempt until the
-//     ShellDock hosts them (wave 6c).
+//     keeps their column readable. Wave 6d restore (d6r K1) gave Ask the
+//     sidebar too: the Ask conversation now also lives in the shell's right
+//     dock (hooks/useAskDock), so a direct /ask link opens the page framed in
+//     its 760 'form' column inside the shell, with the Ask dock suppressed
+//     there (ShellDockHost suppressId). Copilot stays exempt.
 //  4. (Empty since wave 6c.) Full-takeover editors that sized off
 //     useWindowDimensions breakpoints tuned for a full-bleed viewport. The one
 //     member was schedule-pro (GRID_BREAKPOINT=900 / SPLIT_BREAKPOINT=1600
@@ -57,7 +60,7 @@ export const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   'client-view', 'prequal-form', 'claim-crew', 'shared-schedule', 'shared-photos', 'shared-estimate',
   'shared-plan',
   // 3 — presentation:'modal' full-page takeovers
-  'ask', 'schedule-wizard', 'schedule-builder', 'copilot', 'copilot-hub',
+  'schedule-wizard', 'schedule-builder', 'copilot', 'copilot-hub',
   'schedule-import', 'paywall', 'import-pipeline',
   'post-rfp', 'submit-bid-response', 'photo-annotator', 'estimate-wizard',
   'brief',

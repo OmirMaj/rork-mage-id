@@ -619,7 +619,7 @@ console.log('\nlast planner loader on the real query cache (overlapping readers,
   const hook = read('hooks', 'useLastPlanner.ts');
   const screen = read('app', 'last-planner.tsx');
   const weekClose = read('hooks', 'useWeekClose.ts');
-  const ask = read('app', 'ask.tsx');
+  const ask = read('components', 'brain', 'AskConversation.tsx');
   // #24: two people committing the same task/week must never share a row —
   //      the owner-only UPDATE policy refused the second one, every load.
   const perUser = read('supabase', 'migrations', '20260918160000_last_planner_rows_per_user.sql');
@@ -645,7 +645,7 @@ console.log('\nlast planner loader on the real query cache (overlapping readers,
     /writeStoreToCache\(queryClient,\s*key,\s*next\)/.test(hook) && !/setQueryData/.test(hook));
   check('the hydrate reads the offline queue with readFailed, not the lossy variant',
     /readQueue:\s*getOwnOfflineQueueDetailed/.test(hook));
-  for (const [name, src] of [['app/last-planner.tsx', screen], ['hooks/useWeekClose.ts', weekClose], ['app/ask.tsx', ask]] as const) {
+  for (const [name, src] of [['app/last-planner.tsx', screen], ['hooks/useWeekClose.ts', weekClose], ['components/brain/AskConversation.tsx', ask]] as const) {
     check(`${name} does not read the raw store key`, !/mageid_last_planner/.test(src) && !/\['last-planner'\]/.test(src));
     check(`${name} does not run its own cloud read of the planner tables`, !/last_planner_|LAST_PLANNER_TABLES\./.test(src));
   }

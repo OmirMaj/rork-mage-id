@@ -13,7 +13,7 @@
 //      every entry (and every DESKTOP_SHELL_EXEMPT / SELF_CAPPED name) is a
 //      real route file;
 //   B. the seeds the two audits decided (form / table / reading / bleed, the
-//      four un-exempted tools, Ask + Copilot still exempt) hold;
+//      four un-exempted tools, Ask with the sidebar, Copilot still exempt) hold;
 //   C. the pure lookups behave (fallbacks, pass-through, the tab map);
 //   D. the wiring: the root Stack frames through screenLayout, _layout.tsx no
 //      longer keeps its own exempt list, (tabs) has no literal width, and
@@ -180,12 +180,25 @@ ok("the Subs tab is a table (a register)", pageTypeForTab('subs') === 'table');
 expectKind('table', ['deliveries', 'documents']);
 const unexempted = ['cost-xray', 'scan', 'judges', 'quick-quote'].filter(r => DESKTOP_SHELL_EXEMPT.has(r));
 ok('cost-xray, scan, judges and quick-quote have the sidebar back (not shell-exempt)', unexempted.length === 0, unexempted.join(', '));
-ok('Ask and Copilot stay shell-exempt until the dock hosts them',
-  DESKTOP_SHELL_EXEMPT.has('ask') && DESKTOP_SHELL_EXEMPT.has('copilot') && DESKTOP_SHELL_EXEMPT.has('copilot-hub'));
+ok('Ask has the sidebar (the dock ships); Copilot stays exempt', !DESKTOP_SHELL_EXEMPT.has('ask') &&
+  DESKTOP_SHELL_EXEMPT.has('copilot') && DESKTOP_SHELL_EXEMPT.has('copilot-hub'));
 // Wave 6c: Pro sizes itself from its container (lane DB) and the sidebar
 // collapses to the 64 px rail there — it has the sidebar back and stays bleed.
-ok('schedule-pro has the sidebar (not shell-exempt) and stays bleed; ask is still exempt',
-  !DESKTOP_SHELL_EXEMPT.has('schedule-pro') && ROUTE_PAGE_TYPE['schedule-pro'] === 'bleed' && DESKTOP_SHELL_EXEMPT.has('ask'));
+ok('schedule-pro has the sidebar (not shell-exempt) and stays bleed',
+  !DESKTOP_SHELL_EXEMPT.has('schedule-pro') && ROUTE_PAGE_TYPE['schedule-pro'] === 'bleed');
+// d6r K1: the root layout wires the keyboard shell and the Ask dock's
+// suppression on the /ask page (handoff K1-layout.patch).
+{
+  const rootLayout = read('app/_layout.tsx');
+  const listener = /function SearchHotkeyListener\(\) \{[\s\S]*?\n\}/.exec(rootLayout)?.[0] ?? '';
+  ok('SearchHotkeyListener returns <ShellHotkeys /> with its raw Cmd+K effect intact',
+    /if \(Platform\.OS !== 'web'\) return;/.test(listener)
+    && /const isK = e\.key === 'k' \|\| e\.key === 'K';\s*if \(isK && \(e\.metaKey \|\| e\.ctrlKey\)\) \{\s*e\.preventDefault\(\);\s*toggleSearch\(\);/.test(listener)
+    && /window\.addEventListener\('keydown', handler\);/.test(listener)
+    && /\n  return <ShellHotkeys \/>;\n\}$/.test(listener) && !/return null;/.test(listener));
+  ok("ShellDockHost suppresses the Ask dock on the /ask page (suppressId={topSegment === 'ask' ? ASK_DOCK_ID : null})",
+    /<ShellDockHost visible=\{showDesktopShell\} suppressId=\{topSegment === 'ask' \? ASK_DOCK_ID : null\} \/>/.test(rootLayout));
+}
 // Every canvas route (the sidebar defaults to the 64 px rail there) is a real
 // route file that shows the sidebar — a rail on a page with no sidebar, or on
 // a typo, is a rule that never runs.

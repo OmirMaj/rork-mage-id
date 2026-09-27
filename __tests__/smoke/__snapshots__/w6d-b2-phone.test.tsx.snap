@@ -1,0 +1,50 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports (default tab) 1`] = `
+{
+  "lines": 479,
+  "sha256": "6ab9094e0466e7f779596f6d037fbbfa244b67925ccb1ff7d9a7887e3b86ee79",
+}
+`;
+
+exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging 1`] = `
+{
+  "lines": 390,
+  "sha256": "796187d0d8d1cd5709d7b79347c2719e37e424dd0ace76384ef25f4c6a4f46d0",
+}
+`;
+
+exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports ?tab=aging with three issued invoices (the aging rows drawn) 1`] = `
+{
+  "lines": 545,
+  "sha256": "83dc0a5e368f126c0ded62eda97c40096b545793d5b36cd68355cfc2c0935e35",
+}
+`;
+
+exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports default tab with three issued invoices (billed figures on the WIP rows) 1`] = `
+{
+  "lines": 479,
+  "sha256": "2900a7ea71f6a725b74e7b5da8ebc7e71452a5b966a7e9a49f9f1c56ef4d0332",
+}
+`;
+
+exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) reports: Profit pressed 1`] = `
+{
+  "lines": 423,
+  "sha256": "37b23df7b9cf88a3c110f73b4e7c005d2aefbe1b1c760dc2d78ff24cfe0d2e5d",
+}
+`;
+
+exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report (drill sheet + period picker mounted) 1`] = `
+{
+  "lines": 692,
+  "sha256": "109e4bcb6379ca6df89883373b81430d323d26b2e6d296ed0bb53ed863cffc02",
+}
+`;
+
+exports[`lane B2 — the phone is unchanged (golden, 390 × 844 iOS) wip-report: the first project row pressed (the drill sheet drawn) 1`] = `
+{
+  "lines": 779,
+  "sha256": "b83a04d4831d123a4120bf829e1d97fc0b08f72aa1ee2e6c374e13758b050bd0",
+}
+`;
