@@ -38,6 +38,7 @@ import type { SubSubmittedInvoice } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 /**
  * The per-row notes, minus the two sentences the screen now renders as their
@@ -233,7 +234,7 @@ export default function Tax1099ExportScreen() {
   // Export needs a successful portal read: without it the file under-reports
   // every sub who invoiced through the portal. A blocked control says why.
   const exportBlockedReason = loadError
-    ? 'Export needs the sub-portal payments. Reconnect and tap Retry — without them the file would under-report.'
+    ? 'Export needs the sub-portal payments. Reconnect and tap Try again. Without them the file would under-report.'
     : subInvoices === null
       ? 'Loading sub-portal payments…'
       : rows.length === 0 ? 'Add a sub to your Subs list to build the export.' : null;
@@ -258,12 +259,14 @@ export default function Tax1099ExportScreen() {
         const uri = `${dir}mage-id-1099-export-${year}.csv`;
         await FileSystem.writeAsStringAsync(uri, csv, { encoding: 'utf8' });
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: `1099-NEC Export ${year}` });
+          await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: `1099-NEC export ${year}` });
         }
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      showAlert('Export failed', (err as Error).message ?? 'Could not generate CSV.');
+      console.warn('[1099] export failed:', rawErrorMessage(err));
+      const copy = describeError(err, { action: 'build the 1099 CSV' });
+      showAlert(copy.title, copy.body);
     } finally {
       setGenerating(false);
     }
@@ -273,7 +276,7 @@ export default function Tax1099ExportScreen() {
     <>
       <Stack.Screen
         options={{
-          title: '1099-NEC Export',
+          title: '1099-NEC export',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -288,7 +291,7 @@ export default function Tax1099ExportScreen() {
           </View>
           <Text style={styles.heroTitle}>Year-end 1099-NEC export</Text>
           <Text style={styles.heroBody}>
-            Sub-payments rolled up for the year — net of retention you still hold — flagged for who needs a 1099 (paid &ge; {thresholdLabel} for {year}), with TIN / W-9 / address gaps surfaced. Hand the CSV to your CPA — they map it into their template.
+            Sub payments for the year, net of retainage you still hold, with each sub who needs a 1099 flagged (paid &ge; {thresholdLabel} for {year}) and TIN, W-9 and address gaps shown. Hand the CSV to your CPA, who maps it into their template.
           </Text>
           {thresholdInfo.provisional && (
             <Text style={styles.heroCaveat} testID="threshold-provisional-note">
@@ -332,11 +335,11 @@ export default function Tax1099ExportScreen() {
                     onPress={() => { void loadSubInvoices(); }}
                     style={styles.retryBtn}
                     accessibilityRole="button"
-                    accessibilityLabel="Retry loading sub-portal payments"
+                    accessibilityLabel="Load sub-portal payments again"
                     testID="tax-1099-retry"
                   >
                     <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.retryText}>Retry</Text>
+                    <Text style={styles.retryText}>Try again</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -379,7 +382,7 @@ export default function Tax1099ExportScreen() {
                     {totals.missingTin > 0 && `${totals.missingTin} sub${totals.missingTin === 1 ? '' : 's'} missing TIN. `}
                     {totals.missingW9 > 0 && `${totals.missingW9} missing W-9. `}
                     {totals.missingAddress > 0 && `${totals.missingAddress} missing address. `}
-                    Open the sub in Subs → tap "Edit" to fill in.
+                    Open the sub in Subs and tap Edit to fill it in.
                   </Text>
                 </View>
               </View>
@@ -473,7 +476,7 @@ export default function Tax1099ExportScreen() {
             ) : null}
 
             <Text style={styles.disclaimerText}>
-              MAGE ID isn&apos;t a tax-prep tool. We don&apos;t file 1099s for you, don&apos;t verify TIN matches, and don&apos;t compute backup withholding. Hand this CSV to your CPA — they map the columns into the IRS form (paper) or e-file via their service.
+              MAGE ID isn&apos;t a tax-prep tool. It doesn&apos;t file 1099s, verify TIN matches or compute backup withholding. Hand this CSV to your CPA, who maps the columns into the IRS form or e-files it.
             </Text>
           </>
         )}
@@ -565,7 +568,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // `t.warningLabel`, NOT the literal #7A4500 the warn banner above uses. That
   // banner paints its own literal cream ground (#FFF4E0), so a fixed dark amber
   // on it is a pinned pair and correct. These two sit on `styles.row`, whose
-  // ground is `t.surface` — #14181D in dark, where #7A4500 measures 2.34:1 and
+  // ground is `t.surface` — #1D211F in dark, where #7A4500 measures 2.08:1 and
   // the figure the GC is being told to go reconcile is the one line on the
   // screen he cannot read. warningLabel is the theme's label ink for exactly
   // this (#B84A00 light / #FF9500 dark) and clears AA on both.

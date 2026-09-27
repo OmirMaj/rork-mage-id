@@ -85,8 +85,8 @@ export default function EstimateReviewScreen() {
   // shared-proposal token) was correctly gated. The markup is therefore resolved
   // HERE, from `mode`, and never inlined into the hero JSX again.
   const heroEyebrow = mode === 'contractor'
-    ? `ESTIMATE · ${globalMarkup}% MARKUP`
-    : 'ESTIMATE';
+    ? `Estimate · ${globalMarkup}% markup`
+    : 'Estimate';
 
   // The totals bar is pinned to the bottom, which is exactly where the global
   // Brain FAB rests — the iOS visual audit (2026-08-16, defect #5) caught the
@@ -294,7 +294,7 @@ export default function EstimateReviewScreen() {
   const copyProposalLink = useCallback((split: PaymentSplit) => {
     const gcName = settings?.branding?.companyName || undefined;
     const payload = buildClientEstimateSharePayload(clientView, {
-      projectName: gcName ? `${gcName} — Estimate` : 'Project Estimate',
+      projectName: gcName ? `${gcName} · Estimate` : 'Project estimate',
       gcName,
       paymentSchedule: proposalPaymentLines(clientView.projectTotal, split),
       validThrough: toCalendarDayString(addCalendarDays(new Date(), 30)),
@@ -330,7 +330,7 @@ export default function EstimateReviewScreen() {
             showAlert(
               ok ? 'Proposal link copied' : 'Proposal link',
               ok
-                ? 'Client-safe link copied to your clipboard. Paste it into a text or email — no login needed, and it shows no costs, markups or margin.'
+                ? 'A client-safe link is on your clipboard. Paste it into a text or email. It needs no login and shows no costs, markups or margin.'
                 : s.url,
             );
           });
@@ -346,7 +346,7 @@ export default function EstimateReviewScreen() {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: 'Estimate Review' }} />
+      <Stack.Screen options={{ title: 'Estimate review' }} />
       <View style={[styles.hero, { paddingTop: insets.top + 18 }]}>
         <BrandBackdrop />
         <Text style={styles.heroEyebrow} testID="review-hero-eyebrow">{heroEyebrow}</Text>
@@ -366,7 +366,7 @@ export default function EstimateReviewScreen() {
           <View style={styles.empty}>
             <PackageOpen size={40} color={colors.textMuted} strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>No line items yet</Text>
-            <Text style={styles.emptyDesc}>Add materials in the Full Estimator and they roll up here with metrics, markup and scope.</Text>
+            <Text style={styles.emptyDesc}>Add materials in the full estimator and they roll up here with metrics, markup and scope.</Text>
           </View>
         ) : (
           <>
@@ -461,7 +461,7 @@ export default function EstimateReviewScreen() {
                     </Text>
                     {savedTerms.status === 'failed' ? (
                       <Button
-                        label="Retry"
+                        label="Try again"
                         variant="secondary"
                         size="sm"
                         onPress={savedTerms.retry}
@@ -524,10 +524,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Type.eyebrow is the house uppercase micro-label (11 / 700 / 1.4 tracking).
   // Hand-rolled weight '800' is off the four-weight ladder in typography.ts.
   // The three hero foregrounds are `OnInk`, not ThemeColors, because `hero`
-  // renders <BrandBackdrop /> — an OPAQUE ink field (#0B0D10 → #14181D) that is
+  // renders <BrandBackdrop /> — an OPAQUE ink field (#151816 → #1D211F) that is
   // identical in light and dark mode. See components/BrandBackdrop.tsx.
   heroEyebrow: { ...Type.eyebrow, color: OnInk.eyebrow, marginBottom: 4 },
-  // Fraunces display face — same hero band as the estimate hub + wizard.
+  // Barlow display face — same hero band as the estimate hub + wizard.
   heroTitle: { ...Type.serifTitle, color: OnInk.title },
   heroSub: { ...Type.subhead, color: OnInk.subtitle, marginTop: 4 },
   atCostBand: {

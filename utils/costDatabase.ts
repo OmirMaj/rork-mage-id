@@ -750,10 +750,10 @@ export function missingContractSumNotice(rows: CommitmentMissingContractSum[]): 
   const n = rows.length;
   const subject = n === 1 ? 'One commitment' : `${n} commitments`;
   const verb = n === 1 ? 'has' : 'have';
-  return `${subject} on a finished job ${verb} money paid against `
-    + `${n === 1 ? 'it' : 'them'} and no contract amount. A payment with no contract sum behind it `
-    + 'cannot say what the scope cost, so it teaches your prices nothing — fill in the amount and '
-    + `${n === 1 ? 'that job' : 'those jobs'} will start correcting your rates.`;
+  return `${subject} on a finished project ${verb} money paid against `
+    + `${n === 1 ? 'it' : 'them'} and no contract amount, so MAGE can’t tell what the scope cost. `
+    + 'Fill in the amount and '
+    + `${n === 1 ? 'that project' : 'those projects'} will start correcting your rates.`;
 }
 
 /**

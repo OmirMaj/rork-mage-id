@@ -52,7 +52,7 @@ function timeAgo(iso: string): string {
   const ts = new Date(iso).getTime();
   if (!Number.isFinite(ts)) return '—';
   const seconds = Math.floor((Date.now() - ts) / 1000);
-  if (seconds < 60) return 'just now';
+  if (seconds < 60) return 'Just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   if (seconds < 86400 * 7) return `${Math.floor(seconds / 86400)}d ago`;
@@ -145,7 +145,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, varia
             {fSub.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Sub Schedule Collab</Text>
+                <Text style={styles.modalTitle}>Sub updates</Text>
                 <Text style={styles.modalSub}>
                   Daily updates posted by subs from the shared schedule link.
                 </Text>

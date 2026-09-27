@@ -76,7 +76,7 @@ export function checkClaimInvite(row: ClaimRow | null, email: string, requestTok
   if (!saved || saved !== email) {
     return {
       ok: false, status: 409, code: 'email_mismatch',
-      error: "That email isn't saved on this crew member yet. Save his details, wait a moment, and send the invite again.",
+      error: "That email isn't saved on this crew member yet. Save their details, wait a moment, and send the invite again.",
     };
   }
   if (row.claim_token && isValidClaimTokenFormat(row.claim_token)) return { ok: true, token: row.claim_token, mint: false };
@@ -117,7 +117,7 @@ export interface EmailCopy {
 export function signInEmailCopy(email: string): EmailCopy {
   return {
     subject: 'Your MAGE ID sign-in link',
-    preheader: 'Your one-tap sign-in link for MAGE ID — expires in 60 minutes.',
+    preheader: 'Your one-tap sign-in link for MAGE ID. It expires in 60 minutes.',
     eyebrow: 'One-tap sign-in',
     title: 'Your MAGE ID sign-in link',
     subtitle: `Tap the button below to continue as ${email}. The link is good for one tap and expires in 60 minutes.`,

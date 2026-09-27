@@ -54,6 +54,7 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import {
   composeDispatchMessage, buildDispatchSmsUrl, buildDispatchMailtoUrl,
   postForBidsGate, dispatchSenderName, workOrderStatusTone,
@@ -201,7 +202,7 @@ export default function WorkOrderScreen() {
           `MAGE can't see your ${channel === 'sms' ? 'messages' : 'email'}. Mark the job assigned only once the ${channel === 'sms' ? 'text' : 'email'} has actually gone to ${c.firstName?.trim() || 'the contractor'}.`,
           [
             { text: 'Not sent', style: 'cancel' },
-            { text: 'Sent — mark assigned', onPress: () => markAssigned(c) },
+            { text: 'Mark assigned', onPress: () => markAssigned(c) },
           ],
         );
         return;
@@ -231,7 +232,7 @@ export default function WorkOrderScreen() {
         // own follow-up alert instead of a fourth button here.
         ...(hasPhone && hasEmail
           ? [{
-              text: 'Send it…',
+              text: 'Text or email',
               onPress: () => showAlert(`Send to ${name}`, 'Pick how. Your app opens with the job filled in; you press Send.', [
                 { text: `Text ${c.phone}`, onPress: () => { void sendVia(c, 'sms'); } },
                 { text: `Email ${c.email}`, onPress: () => { void sendVia(c, 'email'); } },
@@ -283,6 +284,14 @@ export default function WorkOrderScreen() {
     ]);
   }, [wo, deleteWorkOrder, router]);
 
+  // Desktop: the dispatch picker is a centred form card (d6r X3, batch F); a
+  // phone keeps its bottom sheet (every frame part is null there). The only
+  // footer primary is Save contractor, in the add-contractor step; the picker
+  // itself dispatches, so Cmd+S never fires anything here (saveKey: false) and
+  // Cmd/Ctrl+Enter runs the save only (it guards its own blocked state).
+  const fDispatch = useSheetFrame('form', { visible: dispatchOpen, animationType: 'slide' });
+  useSheetPrimaryHotkey(dispatchOpen, addingContractor ? saveNewContractor : null, { saveKey: false });
+
   if (!wo) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -293,7 +302,7 @@ export default function WorkOrderScreen() {
         </View>
         <View style={styles.missingWrap}>
           <AlertTriangle size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={styles.missingText}>This work order could not be found.</Text>
+          <Text style={styles.missingText}>Couldn't find this work order. It may have been deleted.</Text>
         </View>
       </View>
     );
@@ -444,13 +453,13 @@ export default function WorkOrderScreen() {
       </ScrollView>
 
       {/* Dispatch picker */}
-      <Modal visible={dispatchOpen} transparent animationType="slide" onRequestClose={closeDispatch}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+      <Modal visible={dispatchOpen} transparent animationType={fDispatch.animationType} onRequestClose={closeDispatch}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalOverlay, fDispatch.overlay]}>
+          <View style={[styles.modalSheet, fDispatch.card]}>
+            {fDispatch.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Users size={15} color={Colors.textOnAccent} strokeWidth={1.75} /></View>
-              <Text style={styles.modalTitle}>{addingContractor ? 'Add a contractor' : 'Send to…'}</Text>
+              <Text style={styles.modalTitle}>{addingContractor ? 'Add a contractor' : 'Send to a contractor'}</Text>
               <TouchableOpacity onPress={closeDispatch} hitSlop={8} accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             {addingContractor ? (

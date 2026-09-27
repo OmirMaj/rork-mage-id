@@ -153,7 +153,7 @@ function SafetyFormsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: 'Forms Library' }} />
+      <Stack.Screen options={{ title: 'Forms library' }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {templates.map((tpl) => (
           <TouchableOpacity key={tpl.id} style={styles.card} onPress={() => openEdit(tpl)} activeOpacity={0.85}>
@@ -174,7 +174,7 @@ function SafetyFormsInner() {
             <EmptyState
               icon={<ClipboardList size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title="No forms yet"
-              message="Build reusable checklists and forms — JHAs, inspection checklists, or custom sign-off sheets. Add labeled fields once and reuse them across projects."
+              message="Build reusable checklists and forms, such as JHAs, inspection checklists or sign-off sheets. Add the fields once and reuse them on every project."
               actionLabel="Create first form"
               onAction={openNew}
             />
@@ -183,7 +183,7 @@ function SafetyFormsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-form">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Add Form</Text>
+          <Text style={styles.addItemBtnText}>Add form</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -193,7 +193,7 @@ function SafetyFormsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editing ? 'Edit Form' : 'New Form'}</Text>
+                  <Text style={styles.formTitle}>{editing ? 'Edit form' : 'New form'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -221,7 +221,7 @@ function SafetyFormsInner() {
 
                   <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Fields</Text>
                   {fields.length === 0 ? (
-                    <Text style={styles.hintText}>No fields yet — add at least one below.</Text>
+                    <Text style={styles.hintText}>No fields yet. Add at least one below.</Text>
                   ) : null}
                   {fields.map((f, index) => (
                     <View key={f.id} style={styles.fieldRow}>

@@ -104,7 +104,7 @@ const BUSINESS_BENEFITS: string[] = [
 
 const ENTERPRISE_BENEFITS: string[] = [
   'Everything in Business, plus:',
-  'Highest AI usage caps in the app',
+  'Highest AI usage limits',
   '100 drawing analyses / month',
   '200 photo analyses / month',
   '4,500 text-AI calls / month',
@@ -139,80 +139,80 @@ const FEATURE_PITCH: Record<string, string> = {
   // awarded jobs are free (productDecision #127). Say what the app enforces,
   // not what reads better.
   'Unlimited Projects':
-    'Free covers one project of your own, and a job you have already finished still counts against it (jobs other contractors share with you don’t). Pro takes the cap off, so every job you win gets its own estimate, schedule, invoices and photos.',
+    'Free covers one project of your own, and a project you have already finished still counts against it (projects other contractors share with you don’t). Pro takes the cap off, so every project you win gets its own estimate, schedule, invoices and photos.',
   // Scoped to what utils/brief/composeBrief actually aggregates (schedule,
   // invoices, permits/inspections, deliveries, site access, closeout, expiring
   // certs). It is handed no margin verdict and — unless the caller passes them —
   // no RFIs, so "what's at risk" and "who owes you an answer" would be selling
   // the two categories the brief cannot see.
   'Morning Brief':
-    "Reads every job before you're on site and hands you today's short list — the task that slipped, the invoice aging past due, the inspection this week, the certification about to lapse.",
+    "Reads every project before you're on site and gives you today's short list: the task that slipped, the invoice aging past due, the inspection this week, the certification about to lapse.",
   'Cost X-Ray':
-    "Photograph the panel, the supply lines, the waste stack — MAGE flags the costly hidden conditions and prices each one as a contingency on your own learned costs, before you commit a number.",
+    "Photograph the panel, the supply lines and the waste stack. MAGE flags costly hidden conditions and prices each one as a contingency from your cost history, before you commit a number.",
   'Scan Anything':
-    'Snap any document — a sub invoice, a COI, a business card, a permit — and it is read, checked with you, and filed to the right job.',
+    'Snap any document, like a sub invoice, a COI, a business card or a permit. It is read, checked with you and filed to the right project.',
   'Plan Intelligence':
     'Reads a floor plan room by room into a priced estimate, and learns your prices from the corrections you make.',
   'AI Punch from Photos':
-    'Walk the site with the camera. MAGE drafts the punch list from the photos and you review it before anything is saved.',
+    'Walk the jobsite with the camera. MAGE drafts the punch list from the photos, and you review it before anything is saved.',
   'AI Drawing Analyzer':
-    'Reads a drawing set and pulls out the scope, quantities and the questions worth asking before you bid it.',
+    'Reads a plan set and pulls out the scope, quantities and the questions worth asking before you bid it.',
   'AI Priced Estimate from Takeoff':
-    'Turns takeoff quantities into a priced, line-item estimate using your cost book rather than a generic catalog.',
+    'Turns takeoff quantities into a priced, line-item estimate from your cost history rather than a generic catalog.',
   'Visual Takeoff':
-    'Measure areas and lengths on a plan on screen — no wheel, no scale ruler, no re-keying into a spreadsheet.',
+    'Measure areas and lengths on a plan on screen. No wheel, no scale ruler, no re-keying into a spreadsheet.',
   'AI Bid Leveling':
     'Lines up sub bids side by side on the same scope so the cheap number that excluded half the work stops looking cheap.',
   'Bid Advisor':
-    'Take, hold or walk — a scored read on a bid from your own win/loss and margin history, with the price it would take to win it profitably.',
+    'Take, hold or walk: a scored read on a bid from your own win/loss and margin history, with the price it would take to win it profitably.',
   'Win Optimizer':
-    'The bid price that both wins and profits, learned from the jobs you actually won and lost.',
+    'The bid price that both wins and profits, learned from the projects you won and lost.',
   'Smart Proposal':
-    'Good / better / best options, priced from your costs, in a proposal you can send and track.',
+    'Good, better and best options, priced from your costs, in a proposal you can send and track.',
   'MAGE bids for you':
-    'Bids MAGE has already priced from your cost book, waiting for you to review and send.',
+    'Bids MAGE has already priced from your cost history, waiting for you to review and send.',
   'Job Costing':
-    'Committed, actual and remaining cost per job, so you see the overrun while there is still time to act on it.',
+    'Committed, actual and remaining cost per project, so you see the overrun while there is still time to act on it.',
   'Cash Flow Forecaster':
-    "A week-by-week forecast of money in and money out across every job — the screen that tells you whether next month's payroll is covered.",
+    "A week-by-week forecast of money in and money out across every project. It tells you whether next month's payroll is covered.",
   'WIP Reporting':
-    'Over- and under-billings and earned revenue across the portfolio — the schedule your bank and your surety ask for.',
+    'Over- and under-billings and earned revenue across the portfolio: the schedule your bank and your surety ask for.',
   'Full Budget Dashboard (EVM)':
-    'Earned-value tracking (CPI/SPI) on a job: how much of the budget is spent versus how much of the work is actually done.',
+    'Earned-value tracking (CPI/SPI) on a project: how much of the budget is spent against how much of the work is done.',
   'Invoicing':
     'Progress and final invoices off the estimate, with what is billed, unbilled and overdue in one place.',
   'Change Orders':
-    'Price extra work, send it for approval, and keep the signed trail — so the change that gets argued about later is in writing.',
+    'Price extra work, send it for approval and keep the signed trail, so the change that gets argued about later is in writing.',
   'AIA G702/G703 Pay Applications':
-    'G702/G703 pay applications populated from your invoices and schedule of values instead of retyped into a spreadsheet.',
+    'G702/G703 pay apps filled from your invoices and schedule of values instead of retyped into a spreadsheet.',
   'Lien Waiver Manager':
     'Conditional and unconditional waivers generated and tracked per payment, so a missing waiver never holds a draw.',
   'Contracts':
-    'Build the contract off the estimate and keep the signed version with the job.',
+    'Build the contract from the estimate and keep the signed version with the project.',
   'Client Portal':
-    'A branded page your customer can open for progress, photos, approvals and payment — instead of texting you for an update.',
+    'A branded page your client can open for progress, photos, approvals and payment, instead of texting you for an update.',
   'Subcontractor Portals':
-    'Give each sub their own scope, drawings and requests so you stop forwarding the same email set five times.',
+    'Give each sub their own scope, plans and requests so you stop forwarding the same email five times.',
   'Prequal + COI Tracking':
     'Prequal packets and insurance certificates per sub, with expiry dates that surface before the sub is on site uninsured.',
   // ('COI Vault & Insurance Validator' left in wave 5: no screen passes it any
   // more — the vault uses 'Prequal + COI Tracking' — and "checked for the
   // limits you require" promised a check an unconfirmed AI read doesn't make.)
   'Sub Scorecard':
-    'Which subs are actually good — graded from your real job costs, schedule hits and change orders.',
+    'Which subs perform, graded from your job costs, schedule hits and change orders.',
   'Crew Time Tracking':
-    'Crew hours by job and cost code, so labor lands in job costing instead of on a paper timesheet.',
+    'Crew hours by project and cost code, so labor lands in job costing instead of on a paper timesheet.',
   'Crew Management':
-    'Worker profiles, ID verification and who is assigned to which job.',
+    'Crew member profiles, ID verification and who is assigned to which project.',
   'Equipment Tracking':
-    'What you own or rent, where it is, and what it is costing the job it sits on.',
+    'What you own or rent, where it is, and what it costs the project it sits on.',
   // No expiry claim: app/permits.tsx never reads a permit's expires date — the
   // only 'expir' in the file is the status list — so promising expiry tracking
   // here would be sold on this screen and missing on the next one.
   'Permits & Inspections':
-    'Every permit and every inspection logged against the job it belongs to, so the filing is in one place instead of in the truck.',
+    'Every permit and inspection logged against its project, so the filing is in one place instead of in the truck.',
   'Safety Management':
-    'JHAs, toolbox talks, incidents, the hazard log, inspections and the OSHA log — the paperwork an inspector asks for, per job.',
+    'JHAs, toolbox talks, incidents, the hazard log, inspections and the OSHA log: the paperwork an inspector asks for, per project.',
   'Punch List & Closeout':
     'Walkthrough items with photos and owners, tracked to signed-off closeout.',
   'RFIs & Submittals':
@@ -222,45 +222,45 @@ const FEATURE_PITCH: Record<string, string> = {
   'Last Planner':
     'A three-week lookahead with weekly commitments and the PPC score of whether the crew hit them.',
   'Schedule Pro (Gantt + CPM)':
-    'A real critical-path schedule: dependencies, float, levelling, and a Gantt you can print for the trailer wall.',
+    'A critical-path schedule with dependencies, float and leveling, and a Gantt you can print for the trailer wall.',
   'Schedule Pro (Gantt + PDF Export)':
-    'A real critical-path schedule: dependencies, float, levelling, and a Gantt you can print for the trailer wall.',
+    'A critical-path schedule with dependencies, float and leveling, and a Gantt you can print for the trailer wall.',
   'Plan Viewer':
-    'Open the sheet set on site, zoom the detail, and pin photos and punch items to the spot on the drawing.',
+    'Open the sheet set on site, zoom the detail, and pin photos and punch items to the spot on the sheet.',
   'Photo Markup':
     'Draw on a jobsite photo and send it, so the instruction is on the picture instead of in a paragraph.',
   'Photo Triage':
-    'Bulk-sort the day’s photos to the right job and record, instead of leaving 300 shots in the camera roll.',
+    'Bulk-sort the day’s photos to the right project and record, instead of leaving 300 shots in the camera roll.',
   'T&M Field Tickets':
     'Capture extra work and get it signed on site, before anyone forgets it happened.',
   'Material Receipt Capture':
-    'Photograph a material receipt and it is coded to the job, so actual cost is not a shoebox at year end.',
+    'Photograph a material receipt and it is coded to the project, so actual cost is not a shoebox at year end.',
   'Project Memory':
-    "Ask this job's own records a question and get the answer with the report or RFI it came from.",
+    "Ask this project's own records a question and get the answer with the report or RFI it came from.",
   'Cost Database':
-    'Your own unit costs, learned from the jobs you close — the book every estimate here prices from.',
+    'Your own unit costs, learned from the projects you close. Every estimate here prices from them.',
   'Seed Your Rates':
     'Type or paste the rates you already charge so your first estimates price from your numbers, not market averages.',
   'Living Estimate':
-    'The estimate keeps updating as real cost posts, so you always know where the job stands against the number you sold.',
+    'The estimate updates as cost posts, so you always know where the project stands against the number you sold.',
   'Estimate Confidence':
     'How much of this estimate rests on your own measured costs versus a catalog allowance, line by line.',
   'Estimate Accuracy':
-    'Bid versus actual on your closed jobs — the measured accuracy of your own estimating.',
+    'Bid against actual on your closed projects: the measured accuracy of your own estimating.',
   'Estimate Scorecard':
-    'Bid versus actual by category on closed jobs, so you can see where the money went.',
+    'Bid against actual by category on closed projects, so you can see where the money went.',
   'Estimate Calibration':
     'Where your bids run high or low by trade, and what to adjust.',
   'Track Record':
-    'What MAGE predicted versus what happened, kept honest over time.',
+    'What MAGE predicted against what each project cost.',
   'Margin Alerts':
-    'A warning when a job is trending toward losing money, while you can still do something about it.',
+    'A warning when a project is trending toward losing money, while you can still act on it.',
   'Margin Risk Score':
-    'A scored read on which jobs are most likely to lose margin, and why.',
+    'A scored read on which projects are most likely to lose margin, and why.',
   'Portfolio Margin Board':
-    'Margin across every job on one board, so the one bleeding is obvious.',
+    'Margin across every project on one board, so the one losing money is obvious.',
   'Profit Leak History':
-    'The recurring leaks — the same missed allowance, the same unbilled extra — found across your closed jobs.',
+    'The recurring leaks found across your closed projects: the same missed allowance, the same unbilled extra.',
   'Payment Predictions':
     'When each invoice is actually likely to be paid, based on how that client has paid before.',
   'Friday Close':
@@ -268,17 +268,17 @@ const FEATURE_PITCH: Record<string, string> = {
   'Buyout Scope-Gap Audit':
     'Compares the sub scopes you bought against the estimate you sold, and names the work nobody has been hired to do.',
   'Construction AI':
-    'Describe the job and get the likely codes, permits, inspections and common violations to avoid.',
+    'Describe the project and get the likely codes, permits, inspections and common violations to avoid.',
   'Construction Answers':
-    'Ask a construction question and get an answer with its sources, not a guess.',
+    'Ask a construction question. Answers cite their sources.',
   'Generative Project Setup':
-    'Describe the job once and MAGE drafts the project, scope and starting schedule for you to edit.',
+    'Describe the project once and MAGE drafts it, with scope and a starting schedule for you to edit.',
   'QuickBooks Sync':
-    'Push invoices and costs to QuickBooks so your books and your jobs agree.',
+    'Push invoices and costs to QuickBooks so your books and your projects agree.',
   'QuickBooks Cost Review':
-    'Review what QuickBooks has coded to each job before it lands in your job costs.',
+    'Review what QuickBooks has coded to each project before it lands in your job costs.',
   'Your Business':
-    'The whole-company view: pipeline, margin, cash and what needs you, across every job.',
+    'The whole-company view: pipeline, margin, cash and what needs you, across every project.',
   // Keyed on the raw FeatureKey because that is what the caller passes — see
   // FEATURE_TITLE below.
   schedule_scenarios:
@@ -297,7 +297,72 @@ const FEATURE_PITCH: Record<string, string> = {
  * happens to contain an underscore.
  */
 const FEATURE_TITLE: Record<string, string> = {
-  schedule_scenarios: 'Saved Schedule Plans',
+  schedule_scenarios: 'Saved schedule plans',
+  // Callers pass Title Case feature strings (they double as FEATURE_PITCH keys
+  // and analytics props, so they stay as they are at the call site). The
+  // heading prints the sentence-case name from this map; an unmapped string
+  // still prints as passed.
+  'Unlimited Projects': 'Unlimited projects',
+  'Photo Code Look': 'Photo code look',
+  'Inspection Ready commonly-checked list': 'Inspection checklist',
+  'Morning Brief': 'Morning brief',
+  'Scan Anything': 'Scan anything',
+  'Plan Intelligence': 'Plan intelligence',
+  'AI Punch from Photos': 'AI punch items from photos',
+  'AI Drawing Analyzer': 'AI plan analysis',
+  'AI Priced Estimate from Takeoff': 'Priced estimate from takeoff',
+  'Visual Takeoff': 'Visual takeoff',
+  'AI Bid Leveling': 'Bid leveling',
+  'Bid Advisor': 'Bid advisor',
+  'Win Optimizer': 'Win optimizer',
+  'Smart Proposal': 'Smart proposal',
+  'Job Costing': 'Job costing',
+  'Cash Flow Forecaster': 'Cash-flow forecast',
+  'WIP Reporting': 'WIP reporting',
+  'Full Budget Dashboard (EVM)': 'Full budget dashboard (EVM)',
+  'Change Orders': 'Change orders',
+  'AIA G702/G703 Pay Applications': 'AIA G702/G703 pay apps',
+  'Lien Waiver Manager': 'Lien waivers',
+  'Client Portal': 'Client portal',
+  'Subcontractor Portals': 'Sub portals',
+  'Prequal + COI Tracking': 'Prequal and COI tracking',
+  'Sub Scorecard': 'Sub scorecard',
+  'Crew Time Tracking': 'Crew time tracking',
+  'Crew Management': 'Crew management',
+  'Equipment Tracking': 'Equipment tracking',
+  'Permits & Inspections': 'Permits and inspections',
+  'Safety Management': 'Safety management',
+  'Punch List & Closeout': 'Punch list and closeout',
+  'RFIs & Submittals': 'RFIs and submittals',
+  'OAC Meetings': 'OAC meetings',
+  'Schedule Pro (Gantt + CPM)': 'Schedule Pro (Gantt and CPM)',
+  'Schedule Pro (Gantt + PDF Export)': 'Schedule Pro (Gantt and PDF export)',
+  'Plan Viewer': 'Plan viewer',
+  'Photo Markup': 'Photo markup',
+  'Photo Triage': 'Photo triage',
+  'T&M Field Tickets': 'T&M tickets',
+  'Material Receipt Capture': 'Material receipt capture',
+  'Project Memory': 'Project memory',
+  'Cost Database': 'Cost history',
+  'Seed Your Rates': 'Add your rates',
+  'Living Estimate': 'Living estimate',
+  'Estimate Confidence': 'Estimate confidence',
+  'Estimate Accuracy': 'Estimate accuracy',
+  'Estimate Scorecard': 'Estimate scorecard',
+  'Estimate Calibration': 'Estimate calibration',
+  'Track Record': 'Track record',
+  'Margin Alerts': 'Margin alerts',
+  'Margin Risk Score': 'Margin risk score',
+  'Portfolio Margin Board': 'Portfolio margin board',
+  'Profit Leak History': 'Profit leak history',
+  'Payment Predictions': 'Payment predictions',
+  'Friday Close': 'Friday close',
+  'Buyout Scope-Gap Audit': 'Buyout scope-gap audit',
+  'Construction Answers': 'Construction answers',
+  'Generative Project Setup': 'Project setup from a description',
+  'QuickBooks Sync': 'QuickBooks sync',
+  'QuickBooks Cost Review': 'QuickBooks cost review',
+  'Your Business': 'Your business',
 };
 
 export default function Paywall({ visible, onClose, feature, requiredTier, practiceTutorialId, source }: PaywallProps) {
@@ -486,7 +551,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
         await purchasePro(period);
       }
       track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: requiredTier, period });
-      showAlert(`Welcome to ${tierLabel}!`, 'Your subscription is now active.');
+      showAlert(`You're on ${tierLabel}`, `Every ${tierLabel} feature is on for your account.`);
       onClose();
     } catch (err: unknown) {
       const isCancelled =
@@ -511,10 +576,10 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
       if (isUnavailable) {
         showAlert(
           `${tierLabel} isn’t available yet`,
-          `The ${tierLabel} plan isn’t purchasable on your device right now. This usually means the plan is still being set up in the App Store. Try a lower tier, or email support@mageid.app and we’ll sort it out.`,
+          `The ${tierLabel} plan can’t be bought on this device yet. It is usually still being set up in the App Store. Choose another plan, or email support@mageid.app and we’ll set it up.`,
         );
       } else {
-        showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+        showAlert("Couldn't complete purchase", "The purchase didn't go through. Try again.");
       }
     }
   }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, feature, onClose, tierPackageAvailable]);
@@ -542,7 +607,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
         <View style={[styles.container, { paddingBottom: insets.bottom }, pw.card, pw.isDesktop && styles.webCardDesktop]}>
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
-            <Text style={styles.headerTitle}>Continue on Mobile</Text>
+            <Text style={styles.headerTitle}>Continue on mobile</Text>
             <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
@@ -554,13 +619,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
             <Text style={styles.featureName}>{featureTitle}</Text>
             {pitch ? <Text style={styles.featurePitch}>{pitch}</Text> : null}
             <Text style={styles.requiresLine}>
-              Requires <Text style={[styles.requiresTierEm, { color: tierColor }]}>{tierLabel}</Text>
+              On the <Text style={[styles.requiresTierEm, { color: tierColor }]}>{tierLabel}</Text> plan
             </Text>
 
             <Text style={styles.webExplain}>
               Subscriptions are managed in the MAGE ID mobile app. Once you upgrade
-              there, your account will unlock {tierLabel} features everywhere —
-              including back here on the web.
+              there, {tierLabel} features are on everywhere, including here on the web.
             </Text>
 
             <View style={styles.benefitsBox}>
@@ -622,7 +686,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
       <View style={[styles.container, { paddingBottom: insets.bottom }]}>
         <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8 }]}>
           <View style={{ width: 36 }} />
-          <Text style={styles.headerTitle}>Upgrade Required</Text>
+          <Text style={styles.headerTitle}>Plans</Text>
           <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
@@ -634,7 +698,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier, pract
           <Text style={styles.featureName}>{featureTitle}</Text>
           {pitch ? <Text style={styles.featurePitch}>{pitch}</Text> : null}
           <Text style={styles.requiresLine}>
-            Requires <Text style={[styles.requiresTierEm, { color: tierColor }]}>{tierLabel}</Text>
+            On the <Text style={[styles.requiresTierEm, { color: tierColor }]}>{tierLabel}</Text> plan
           </Text>
 
           <View style={styles.benefitsBox}>

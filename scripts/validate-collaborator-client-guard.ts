@@ -117,8 +117,8 @@ expect('a job with no client recorded refuses nobody', clientEmailSource('dana.h
 console.log('\nthe refusal is 200 + is_client, in plain words:');
 const r = clientRefusal('dana.home@example.com', 'primary_contact');
 expect('success:false, code is_client', { s: r.success, c: r.code }, { s: false, c: 'is_client' });
-ok('it names the address and why', r.error.startsWith('dana.home@example.com is the client contact on this job'));
-ok('it says what a collaborator sees', /costs, margins and labour/.test(r.error));
+ok('it names the address and why', r.error.startsWith('dana.home@example.com is the client contact on this project'));
+ok('it says what a team member sees', /costs, margins and labor/.test(r.error));
 ok('it points to the client portal', /Share the client portal/.test(r.error));
 ok('each source has its own line', new Set((['primary_contact', 'portal_invite', 'bill_to'] as const)
   .map((s) => clientRefusal('a@b.co', s).error)).size === 3);
@@ -145,7 +145,7 @@ ok('…before the already-member return, the seat check, the upsert and the emai
   refuseAt !== -1 && refuseAt < memberAt && refuseAt < seatAt && refuseAt < upsertAt && refuseAt < mailAt,
   `refuse ${refuseAt} member ${memberAt} seat ${seatAt} upsert ${upsertAt} mail ${mailAt}`);
 ok('a failed lookup refuses (fail closed), it does not fall through',
-  /if \(!ctx\.ok\) return json\(\{ error: `Could not check who the client on this job is/.test(inv.slice(ctxAt, matchAt)));
+  /if \(!ctx\.ok\) return json\(\{ error: `Couldn't check who the client on this project is/.test(inv.slice(ctxAt, matchAt)));
 // EVERY role is refused: nothing between the ownership refusal and the client
 // refusal may branch on anything but the lookup result and the match. A gate
 // written as `if (isBillableRole(role)) {`, `if (flag) {`, or a ternary on the
@@ -261,9 +261,9 @@ ok('editing the address clears a stale server refusal (it was about the address 
   /onChangeText=\{onEmailChange\}/.test(ui)
   && /const onEmailChange = useCallback\(\(next: string\) => \{\s*if \(invite\.isError\) invite\.reset\(\);\s*setEmail\(next\);/.test(ui));
 ok('the device copy matches the server copy for every source',
-  /is the client contact on this job/.test(ui) && /is invited to this job's client portal/.test(ui)
-  && /is the address this job's invoices are billed to/.test(ui)
-  && ui.includes("Collaborators can see the job's costs, margins and labour, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on."));
+  /is the client contact on this project/.test(ui) && /is invited to this project's client portal/.test(ui)
+  && /is the address this project's invoices are billed to/.test(ui)
+  && ui.includes("Team members can see the project's costs, margins and labor, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on."));
 
 // ── 6. a seat taken before the address became the client ─────────────────────
 // The server guard runs at invite, accept and promotion only. Invite the

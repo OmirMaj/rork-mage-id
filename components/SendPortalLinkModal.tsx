@@ -31,6 +31,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { copyToClipboard } from '@/utils/clipboard';
 import { sendEmail } from '@/utils/emailService';
+import { describeError } from '@/utils/errorCopy';
 import { segmentedDesktop, useIsDesktop, useSheetDialogScope } from '@/components/ui';
 
 export interface SendPortalLinkModalProps {
@@ -92,7 +93,7 @@ export function SendPortalLinkModal({
     setError(null);
     setSuccess(null);
     if (recipients.length === 0) {
-      setError(mode === 'email' ? 'Add at least one email address' : 'Add at least one phone number');
+      setError(mode === 'email' ? 'Add at least one email address.' : 'Add at least one phone number.');
       return;
     }
     const bad = recipients.find(r => !validateRecipient(r));
@@ -110,7 +111,7 @@ export function SendPortalLinkModal({
           if (!result.success) failed++;
         }
         if (failed > 0) {
-          setError(`${failed} of ${recipients.length} email${recipients.length === 1 ? '' : 's'} failed to send`);
+          setError(`${failed} of ${recipients.length} ${recipients.length === 1 ? 'email' : 'emails'} didn't send. Check the addresses and try again.`);
         } else {
           setSuccess(`Sent to ${recipients.length} ${recipients.length === 1 ? 'recipient' : 'recipients'}`);
           setTimeout(onClose, 1200);
@@ -126,8 +127,8 @@ export function SendPortalLinkModal({
           const text = `${message}\n\nSend to: ${recipients.join(', ')}`;
           const ok = await copyToClipboard(text);
           setSuccess(ok
-            ? 'Copied message + recipients to clipboard — paste into your messaging app.'
-            : 'Couldn’t access clipboard. Long-press the message above to copy manually.');
+            ? 'Message and recipients copied. Paste them into your messaging app.'
+            : 'Couldn’t copy. Long-press the message above to copy it.');
           setTimeout(onClose, 2000);
         } else {
           const phones = recipients.join(Platform.OS === 'ios' ? ',' : ';');
@@ -137,13 +138,13 @@ export function SendPortalLinkModal({
             setError('Couldn’t open the SMS composer on this device.');
           } else {
             await Linking.openURL(url);
-            setSuccess('SMS composer opened.');
+            setSuccess('Messages opened');
             setTimeout(onClose, 800);
           }
         }
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Send failed');
+      setError(describeError(e, { action: 'send the portal link' }).body);
     } finally {
       setBusy(false);
     }
@@ -180,14 +181,14 @@ export function SendPortalLinkModal({
                   onPress={() => { setMode('email'); setError(null); }}
                   style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'email' && styles.modeBtnActive]}
                 >
-                  <Mail size={14} color={mode === 'email' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
+                  <Mail size={14} color={mode === 'email' ? Colors.textOnAccent : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'email' && styles.modeBtnTextActive]}>Email</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => { setMode('text'); setError(null); }}
                   style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'text' && styles.modeBtnActive]}
                 >
-                  <MessageSquare size={14} color={mode === 'text' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
+                  <MessageSquare size={14} color={mode === 'text' ? Colors.textOnAccent : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'text' && styles.modeBtnTextActive]}>Text</Text>
                 </Pressable>
               </View>
@@ -226,7 +227,7 @@ export function SendPortalLinkModal({
                 </Pressable>
                 <Pressable onPress={submit} style={styles.sendBtn} disabled={busy}>
                   {busy
-                    ? <ActivityIndicator size="small" color="#0B0D10" />
+                    ? <ActivityIndicator size="small" color={Colors.textOnAccent} />
                     : <Text style={styles.sendText}>
                         Send{recipients.length > 0 ? ` (${recipients.length})` : ''}
                       </Text>}
@@ -243,6 +244,13 @@ export function SendPortalLinkModal({
 // Minimal HTML wrapper for the plain-text body. The portal-invite email
 // template (see contexts/AuthContext.tsx welcome flow) uses richer markup,
 // but the Share modal supports arbitrary callers so we keep this generic.
+//
+// The button colour is a LITERAL, not a theme token: this string is an email
+// body rendered by the recipient's mail client, which has no access to the
+// app's theme (or its dark mode). #2F6B3A is BRAND_ACCENT, pinned rather than
+// the user's picked hue so a client email always carries MAGE's brand. The
+// label is WHITE — the retired orange took near-black ink, but on the green
+// #0B0D10 is 3.04:1 and white is 6.39:1.
 function wrapPlainAsHtml(message: string, link: string): string {
   const safeMessage = message
     .replace(/&/g, '&amp;')
@@ -252,7 +260,7 @@ function wrapPlainAsHtml(message: string, link: string): string {
 <html><body style="font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;line-height:1.5;color:#0B0D10;max-width:560px;margin:0 auto;padding:24px;">
   <pre style="white-space:pre-wrap;font-family:inherit;font-size:15px;margin:0 0 20px;">${safeMessage}</pre>
   <p style="margin:24px 0;">
-    <a href="${link}" style="display:inline-block;background:#FF6A1A;color:#0B0D10;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;">Open the portal</a>
+    <a href="${link}" style="display:inline-block;background:#2F6B3A;color:#FFFFFF;font-weight:700;padding:12px 20px;border-radius:8px;text-decoration:none;">Open the portal</a>
   </p>
   <p style="font-size:12px;color:#6b6b6b;margin-top:32px;">
     Sent via MAGE ID
@@ -312,7 +320,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   modeBtnActive: { backgroundColor: Colors.tradeColors.general, borderColor: Colors.tradeColors.general },
   modeBtnText: { fontSize: 13, fontWeight: '600', color: themeColors.text },
-  modeBtnTextActive: { color: '#0B0D10' },
+  modeBtnTextActive: { color: Colors.textOnAccent },
   label: {
     fontSize: 11,
     fontWeight: '600',
@@ -368,5 +376,5 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     minWidth: 110,
     alignItems: 'center',
   },
-  sendText: { color: '#0B0D10', fontWeight: '700', fontSize: 13 },
+  sendText: { color: Colors.textOnAccent, fontWeight: '700', fontSize: 13 },
 });

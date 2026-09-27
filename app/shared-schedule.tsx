@@ -48,6 +48,8 @@ import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 export default function SharedScheduleScreen() {
   const { colors: themeColors } = useTheme();
@@ -75,8 +77,12 @@ export default function SharedScheduleScreen() {
         snapshot_id: String(s),
       });
       if (cancelled) return;
-      if (error) { setSnapshotError(error.message); return; }
-      if (!data) { setSnapshotError('Snapshot expired or not found'); return; }
+      if (error) {
+        console.warn('[shared-schedule] snapshot fetch failed:', error);
+        setSnapshotError(describeError(error, { action: 'open this schedule' }).body);
+        return;
+      }
+      if (!data) { setSnapshotError('This link has expired or no longer exists. Ask the sender for a new link.'); return; }
       setSnapshotPayload(data as SharedSchedulePayload);
     })();
     return () => { cancelled = true; };
@@ -202,8 +208,8 @@ export default function SharedScheduleScreen() {
         // Composer not available — show the body the user can paste.
         const { subject, body } = composeSubReply(args);
         showAlert(
-          'Couldn\'t open mail / SMS',
-          `Copy this text into your messaging app:\n\nTo: ${payload.gc?.email ?? payload.gc?.phone ?? '(GC contact)'}\n\nSubject: ${subject}\n\n${body}`,
+          'Couldn\'t open mail or messages',
+          `Copy this text into your messaging app:\n\nTo: ${payload.gc?.email ?? payload.gc?.phone ?? '(your contractor)'}\n\nSubject: ${subject}\n\n${body}`,
         );
       }
     } catch {
@@ -233,6 +239,13 @@ export default function SharedScheduleScreen() {
     setSubUpdates(next);
   }, [payload?.projectId]);
 
+  // Desktop: the reschedule-reason sheet is a centred form card (d6r X3,
+  // batch F); a phone keeps its bottom sheet (every frame part is null there).
+  // Its primary opens the sub's email / message to the GC — a send — so it
+  // takes Cmd/Ctrl+Enter only, never Cmd+S.
+  const fReschedule = useSheetFrame('form', { visible: !!rescheduleTask, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!rescheduleTask, submitReschedule, { saveKey: false });
+
   if (!payload) {
     // v2.4 (audit Item 6) — Distinguish "snapshot still loading" from
     // "snapshot failed / expired" so the user gets useful feedback.
@@ -242,12 +255,12 @@ export default function SharedScheduleScreen() {
         <Stack.Screen options={{ title: 'Schedule' }} />
         <Lock size={28} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.title}>
-          {stillLoading ? 'Loading schedule…' : 'Invalid or expired link'}
+          {stillLoading ? 'Loading schedule…' : 'Couldn\'t open this schedule'}
         </Text>
         <Text style={styles.body}>
           {stillLoading
-            ? 'Fetching the schedule snapshot from the server.'
-            : (snapshotError ?? 'This schedule link could not be opened. Ask the sender for a fresh link.')}
+            ? 'Loading the schedule your contractor shared.'
+            : (snapshotError ?? 'This link is invalid or has expired. Ask the sender for a new link.')}
         </Text>
         <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace('/' as never)} activeOpacity={0.85}>
           <Text style={styles.primaryBtnText}>Home</Text>
@@ -271,7 +284,7 @@ export default function SharedScheduleScreen() {
           <Text style={styles.sub}>
             {isSubMode
               ? `${subTasks.length} task${subTasks.length === 1 ? '' : 's'} for you`
-              : `Read-only · ${tasks.length} tasks · finishes ${formatShortDate(calendarDayToDate(projectStartDate, cpm.projectFinish))}`}
+              : `Read-only · ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} · finishes ${formatShortDate(calendarDayToDate(projectStartDate, cpm.projectFinish))}`}
           </Text>
         </View>
         <View style={styles.lockBadge}>
@@ -302,7 +315,7 @@ export default function SharedScheduleScreen() {
             <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.title}>No tasks assigned to {subName}</Text>
             <Text style={styles.body}>
-              The schedule was shared with you but no tasks are tagged for {subName}. Reach out to the GC if you think this is wrong.
+              The schedule was shared with you but no tasks are tagged for {subName}. Ask {payload.gc?.name || 'your contractor'} if you think this is wrong.
             </Text>
           </View>
         ) : (
@@ -329,7 +342,7 @@ export default function SharedScheduleScreen() {
                     {confirmed ? (
                       <View style={[styles.subBtn, styles.subBtnDone]}>
                         <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
-                        <Text style={[styles.subBtnText, { color: themeColors.success }]}>Confirmation sent</Text>
+                        <Text style={[styles.subBtnText, { color: themeColors.success }]}>Confirmation drafted</Text>
                       </View>
                     ) : (
                       <TouchableOpacity
@@ -388,7 +401,7 @@ export default function SharedScheduleScreen() {
 
             <View style={styles.subFooter}>
               <Text style={styles.subFooterText}>
-                Replies open in your default {payload.gc?.email ? 'mail' : 'messaging'} app, pre-filled to {payload.gc?.email ?? payload.gc?.phone ?? 'the GC'}. Edit before sending.
+                Replies open in your default {payload.gc?.email ? 'mail' : 'messaging'} app, pre-filled to {payload.gc?.email ?? payload.gc?.phone ?? 'your contractor'}. Edit before sending.
               </Text>
             </View>
           </ScrollView>
@@ -447,11 +460,11 @@ export default function SharedScheduleScreen() {
       <Modal
         visible={!!rescheduleTask}
         transparent
-        animationType="slide"
+        animationType={fReschedule.animationType}
         onRequestClose={() => setRescheduleTask(null)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.modalBackdrop, fReschedule.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fReschedule.card]}>
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>Why do you need to reschedule?</Text>
@@ -466,21 +479,21 @@ export default function SharedScheduleScreen() {
             <TextInput
               value={rescheduleReason}
               onChangeText={setRescheduleReason}
-              placeholder="Optional — material delay, crew conflict, weather…"
+              placeholder="Optional: material delay, crew conflict, weather"
               placeholderTextColor={themeColors.textMuted}
               style={styles.modalInput}
               multiline
               autoFocus
             />
-            <View style={styles.modalActions}>
+            <View style={[styles.modalActions, fReschedule.footer]}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnSecondary]}
+                style={[styles.modalBtn, styles.modalBtnSecondary, fReschedule.footerButton]}
                 onPress={() => setRescheduleTask(null)}
               >
                 <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
+                style={[styles.modalBtn, styles.modalBtnPrimary, fReschedule.footerButton]}
                 onPress={submitReschedule}
                 activeOpacity={0.85}
               >

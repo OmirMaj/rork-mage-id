@@ -238,7 +238,7 @@ console.log('app/job-costing.tsx — the desktop tables read the helpers:');
     const at = (t: string) => WIP.indexOf(t);
     const order = [
       "' · entered by you, synced'", "' · entered here, not synced yet'",
-      "' · every cost recorded on this job", "' · subs paid + material receipts only",
+      "' · every cost recorded on this project", "' · subs paid + material receipts only",
       '— nothing paid out yet, though', "' — nothing recorded yet.",
     ].map(at);
     ok('the phone row still prints the six-branch cost sentence the tag abbreviates, in the same order',

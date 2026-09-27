@@ -129,7 +129,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
         </View>
         <Text style={styles.heroTitle}>Ask</Text>
         <Text style={styles.heroSubtitle}>
-          Deep answers on codes, spans and permits — researched against the actual code and your job, with every source cited.
+          Answers on codes, spans and permits, researched against the code and your project, with every source cited.
         </Text>
         <View style={styles.tierChip}><Text style={styles.tierChipText}>Business</Text></View>
       </View>
@@ -168,7 +168,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
       <TextInput
         value={question}
         onChangeText={setQuestion}
-        placeholder="Ask about codes, spans, permits, or your plans…"
+        placeholder="Ask about codes, spans, permits or your plans"
         placeholderTextColor={Colors.textMuted}
         style={styles.textArea}
         multiline
@@ -201,7 +201,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
           testID="construction-ask-run"
         >
           {loading ? <ActivityIndicator color="#FFF" /> : <MageAIMark size={18} color="#FFF" />}
-          <Text style={styles.runBtnText}>{loading ? 'Researching your codes + job…' : 'Get answer'}</Text>
+          <Text style={styles.runBtnText}>{loading ? 'Researching the code for your project…' : 'Get answer'}</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -211,7 +211,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
           testID="construction-ask-upgrade"
         >
           <MageAIMark size={18} color="#FFF" />
-          <Text style={styles.runBtnText}>Upgrade to Business to ask</Text>
+          <Text style={styles.runBtnText}>See Business plan</Text>
         </TouchableOpacity>
       )}
 
@@ -220,13 +220,13 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
         <View style={styles.noticeCard} testID="construction-ask-error">
           {errCode === 'needs_business' ? (
             <TouchableOpacity onPress={() => setShowPaywall(true)} activeOpacity={0.8}>
-              <Text style={styles.noticeText}>Construction Answers is on the Business plan. Tap to upgrade.</Text>
+              <Text style={styles.noticeText}>Construction answers are on the Business plan. Tap to see plans.</Text>
             </TouchableOpacity>
           ) : errCode === 'limit_reached' ? (
             <Text style={styles.noticeText}>{errMsg || "You've hit this month's Construction Answers limit."}</Text>
           ) : errCode === 'unauthenticated' ? (
             <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8}>
-              <Text style={styles.noticeText}>Please sign in to use Construction Answers. Tap to sign in.</Text>
+              <Text style={styles.noticeText}>Sign in to ask construction questions.</Text>
             </TouchableOpacity>
           ) : (
             // offline / timeout / server_error / not_configured — each says
@@ -353,7 +353,10 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
     backgroundColor: c.surface, borderWidth: 1, borderColor: c.line,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  // accentFill, not Colors.primary, under the white labels here and on runBtn:
+  // the dark-theme brand #5DB36E gives white 2.58:1 (accentFill 4.83:1). The
+  // border is the fill's own edge, so it moves with it.
+  chipActive: { backgroundColor: c.accentFill, borderColor: c.accentFill },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.text, maxWidth: 160 },
   chipTextActive: { color: '#FFF' },
   presetList: { gap: 8, marginTop: 12 },
@@ -364,7 +367,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   presetPillText: { fontSize: Type.footnote.fontSize, color: c.textSecondary },
   runBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.card, paddingVertical: 14, marginTop: 16,
+    backgroundColor: c.accentFill, borderRadius: Tokens.radius.card, paddingVertical: 14, marginTop: 16,
   },
   runBtnDisabled: { opacity: 0.5 },
   runBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },

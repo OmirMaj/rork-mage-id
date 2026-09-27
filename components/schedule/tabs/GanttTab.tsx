@@ -50,6 +50,7 @@ import { Tokens } from '@/constants/designTokens';
 import { useResponsive } from '@/utils/useResponsive';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { usePrintFit } from '@/hooks/usePrintFit';
 import {
   DENSITY, GRID_WIDTH_STORAGE_KEY, committedGridWidth, dragGridWidth, parseStoredGrid, proPanes, type Density,
 } from '@/utils/scheduleProLayout';
@@ -64,7 +65,7 @@ const LAYOUT_LABEL: Record<GanttPaneMode, string> = {
   split: 'Split',
   gantt: 'Gantt',
   lanes: 'Lanes',
-  living: 'Living Plan',
+  living: 'Living plan',
 };
 
 /** What the Pro toolbar can ask of the Timeline tab (lane DB's toolbar). */
@@ -181,6 +182,9 @@ export const GanttTab = forwardRef<GanttTabHandle, GanttTabProps>(function Gantt
 
   // ---- Desktop split geometry (wave 6c) ----
   const { isDesktop } = useResponsiveLayout();
+  // Cmd+P on desktop web zooms the split to fit the sheet (lane Z1; `{}` and
+  // no listener anywhere else).
+  const printFit = usePrintFit(isDesktop);
   const { width: rowWidth, onLayout: onRowLayout } = useContainerWidth();
   const [storedGrid, setStoredGrid] = useState<number | null>(null);
   const [dragGrid, setDragGrid] = useState<number | null>(null);
@@ -440,9 +444,11 @@ export const GanttTab = forwardRef<GanttTabHandle, GanttTabProps>(function Gantt
 
   return (
     <View
+      ref={printFit.ref}
       style={styles.nonPhoneRoot}
       onLayout={isDesktop ? onRowLayout : undefined}
       testID={isDesktop ? 'gantt-tab-root' : undefined}
+      {...printFit.printProps}
     >
       {proCanvas ? null : (
       <View style={styles.layoutBar}>
@@ -491,8 +497,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
   },
   layoutBtnTextActive: {
-    // accentLabel, not accent: this is a caption-size LABEL on t.surface, where
-    // the brand #FF6A1A measures 2.87:1.
+    // accentLabel, not accent: this is a caption-size LABEL on t.surface. The
+    // retired orange brand measured 2.87:1 there; the green clears AA, but a
+    // user-picked hue may not, and accentLabel is solved to AA for any hue.
     color: t.accentLabel,
   },
   row: { flex: 1, flexDirection: 'row' },
@@ -539,6 +546,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: 26,
     lineHeight: 28,
     fontWeight: '300',
-    color: '#0B0D10',
+    // White, not ink: #0B0D10 on the tradeColors.general green (#357A42) is
+    // 3.72:1 and fails AA; textOnAccent is 5.23:1 (validate-brand-color pin).
+    color: Colors.textOnAccent,
   },
 });

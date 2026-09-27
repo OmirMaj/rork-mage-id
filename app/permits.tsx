@@ -514,12 +514,12 @@ function PermitsAccessNote({ gate, onRetry, onClose }: {
       {gate === 'loading' ? <ActivityIndicator color={themeColors.accent} /> : null}
       <Text style={{ fontSize: Type.callout.fontSize, color: themeColors.text, lineHeight: 22 }}>
         {gate === 'loading'
-          ? 'Checking your access to this job…'
+          ? 'Checking your access to this project…'
           : gate === 'error'
-            ? "Couldn't check your access to this job. Check your connection and try again."
+            ? "Couldn't check your access to this project. Check your connection and try again."
             : gate === 'no_access'
-              ? "You don't have access to this job. Ask the project owner to invite you."
-              : 'Permits are managed by the project owner. Ask them for a permit’s status or an inspection date — permits are kept with the job’s costs, on the owner’s account.'}
+              ? "You don't have access to this project. Ask the project owner to invite you."
+              : 'Permits are managed by the project owner. Ask them for a permit’s status or an inspection date, since permits are kept on their account.'}
       </Text>
       {gate === 'error' ? <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="permits-gate-retry" /> : null}
       {gate === 'owner_only' || gate === 'no_access' ? <Button label="Back" variant="secondary" size="sm" onPress={onClose} testID="permits-gate-back" /> : null}
@@ -692,7 +692,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     if (r.kind === 'unavailable') {
       showAlert(
         'Permit scan',
-        "Couldn't open the saved scan. Check your connection and try again — it is stored with the job, so any signed-in device can open it once it has signal.",
+        "Couldn't open the saved scan. Check your connection and try again. It's stored with the project, so any signed-in device can open it once it has signal.",
       );
       return;
     }
@@ -823,7 +823,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     // The scan is filed under the job's folder in the bucket, so the job has
     // to be known first — without it the scan could only stay on this phone.
     if (!form.projectId) {
-      showAlert('Pick a project first', 'The permit scan is stored with its job — pick which project this permit belongs to, then attach it.');
+      showAlert('Pick a project first', 'The permit scan is stored with its project. Pick which project this permit belongs to, then attach it.');
       return;
     }
     const picked = source === 'library'
@@ -1011,8 +1011,8 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
     showAlert(
       'Remove this inspection?',
       row
-        ? `"${row.name}" on ${formatCalendarDay(row.scheduledFor, { month: 'short', day: 'numeric' })} — ${INSPECTION_RESULT_LABELS[row.result].toLowerCase()}${row.notes ? ' — and its notes' : ''}. This is the record of what the inspector said; it cannot be undone.`
-        : 'This cannot be undone.',
+        ? `${row.name} · ${formatCalendarDay(row.scheduledFor, { month: 'short', day: 'numeric' })} · ${INSPECTION_RESULT_LABELS[row.result]}${row.notes ? '. Its notes are deleted too' : ''}. This is the record of what the inspector said, and removing it can't be undone.`
+        : 'This can\'t be undone.',
       [
         { text: 'Keep it', style: 'cancel' },
         { text: 'Remove', style: 'destructive', onPress: () => setInspections(prev => prev.filter(i => i.id !== id)) },
@@ -1075,16 +1075,16 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
         {scopedProjectId ? (
           <View style={styles.scopeRow} testID="permits-scope">
             <Text style={styles.scopeText} numberOfLines={1}>
-              {scopedProject ? `Showing ${scopedProject.name} only` : 'Showing one job only'}
+              {scopedProject ? `Showing ${scopedProject.name} only` : 'Showing one project only'}
             </Text>
             <TouchableOpacity
               onPress={() => router.setParams({ projectId: undefined })}
               style={styles.scopeBtn}
               accessibilityRole="button"
-              accessibilityLabel="Show permits for all jobs"
+              accessibilityLabel="Show permits for all projects"
               testID="permits-scope-all"
             >
-              <Text style={styles.scopeBtnText}>All jobs</Text>
+              <Text style={styles.scopeBtnText}>All projects</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1183,7 +1183,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
         </View>
 
         <View style={styles.feeCard}>
-          <Text style={styles.feeLabel}>Total Permit Fees</Text>
+          <Text style={styles.feeLabel}>Total permit fees</Text>
           <Text style={styles.feeValue}>{formatMoney(stats.totalFees)}</Text>
         </View>
 
@@ -1235,7 +1235,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
               <Text style={styles.emptySub}>Tap + above to log your first permit. We&apos;ll track inspections and renewal dates from there.</Text>
               <TouchableOpacity style={styles.emptyCta} onPress={openNewForm}>
                 <Plus size={16} color="#fff" strokeWidth={1.75} />
-                <Text style={styles.emptyCtaText}>New Permit</Text>
+                <Text style={styles.emptyCtaText}>New permit</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -1268,7 +1268,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   body, so tall permits pushed this header off the top of the
                   screen. */}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingPermit ? 'Edit Permit' : 'New Permit'}</Text>
+                <Text style={styles.modalTitle}>{editingPermit ? 'Edit permit' : 'New permit'}</Text>
                 <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
 
@@ -1457,7 +1457,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   </PickerOptions>
                 )}
 
-                <Text style={styles.formLabel}>Permit Number</Text>
+                <Text style={styles.formLabel}>Permit number</Text>
                 <TextInput
                   style={styles.formInput}
                   value={form.permitNumber}
@@ -1530,7 +1530,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 />
                 <DepartmentCard project={formProject} testID="permit-form-department" />
 
-                <Text style={styles.formLabel}>Phase Tag</Text>
+                <Text style={styles.formLabel}>Phase tag</Text>
                 <TextInput
                   style={styles.formInput}
                   value={form.phase}
@@ -1541,7 +1541,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
 
                 <View style={styles.formRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>Applied Date</Text>
+                    <Text style={styles.formLabel}>Applied date</Text>
                     <TouchableOpacity
                       style={styles.formPicker}
                       onPress={() => { setPickerOpen(null); setDateField('appliedDate'); }}
@@ -1554,7 +1554,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                     </TouchableOpacity>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>Inspection Date</Text>
+                    <Text style={styles.formLabel}>Inspection date</Text>
                     <TouchableOpacity
                       style={styles.formPicker}
                       onPress={() => { setPickerOpen(null); setDateField('inspectionDate'); }}
@@ -1571,7 +1571,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 {/* #138: Brain Watch, the Smart Inbox and Documents all alert on
                     a permit's expiry — and no form could enter one. Optional;
                     a bare calendar day. */}
-                <Text style={styles.formLabel}>Permit Expires</Text>
+                <Text style={styles.formLabel}>Expires</Text>
                 <View style={styles.formRow}>
                   <TouchableOpacity
                     style={[styles.formPicker, { flex: 1 }]}
@@ -1624,7 +1624,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   placeholderTextColor={themeColors.textMuted}
                 />
 
-                <Text style={styles.formLabel}>Inspection Notes</Text>
+                <Text style={styles.formLabel}>Inspection notes</Text>
                 <TextInput
                   style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
                   value={form.inspectionNotes}
@@ -1743,7 +1743,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   </View>
                 ) : null}
 
-                <Text style={styles.formLabel}>General Notes</Text>
+                <Text style={styles.formLabel}>General notes</Text>
                 <TextInput
                   style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
                   value={form.notes}
@@ -1753,7 +1753,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                   multiline
                 />
 
-                <Text style={styles.formLabel}>Permit Document</Text>
+                <Text style={styles.formLabel}>Permit document</Text>
                 <View style={styles.attachRowBtns}>
                   <TouchableOpacity style={styles.attachBtn} onPress={() => { void handleAttach('camera'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Photograph the permit" testID="permit-attach-camera">
                     <Camera size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
@@ -1816,7 +1816,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
                 )}
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="permit-save-btn">
                   <Save size={16} color="#fff" strokeWidth={1.75} />
-                  <Text style={styles.saveBtnText}>{editingPermit ? 'Update' : 'Create Permit'}</Text>
+                  <Text style={styles.saveBtnText}>{editingPermit ? 'Update' : 'Create permit'}</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>
@@ -1921,7 +1921,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
  * Fill + foreground for an inspection-result chip.
  *
  * Soft fill with the SATURATED-label foreground in every case, never white on
- * the brand orange (#FF6A1A behind white is 2.87:1 and fails AA). `dangerLabel`
+ * a saturated fill (the retired brand orange gave white 2.87:1). `dangerLabel`
  * / `accentLabel` are the tokens that exist precisely so coloured text on a
  * light wash clears the ratio.
  */
@@ -2322,8 +2322,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   historyResultBtnOn: { backgroundColor: t.accentSoft, borderColor: t.accentLabel },
   historyResultText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   historyResultTextOn: { color: t.accentLabel, fontWeight: '700' as const },
-  // accentFill (#BC440C at 5.29:1) is the ONE accent tone white text may sit
-  // on. t.accent behind #fff is 2.87:1.
+  // accentFill (#2F6B3A light, white 6.39:1) is the ONE accent tone white text
+  // may sit on. t.accent in dark (#5DB36E) behind #fff is 2.58:1.
   historySaveBtn: {
     minHeight: 44, alignItems: 'center' as const, justifyContent: 'center' as const,
     borderRadius: Tokens.radius.md, backgroundColor: t.accentFill,

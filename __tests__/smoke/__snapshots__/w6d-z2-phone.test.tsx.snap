@@ -3,62 +3,62 @@
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (a) contract with a draft (the Save draft / Sign & send row) 1`] = `
 {
   "lines": 972,
-  "sha256": "9a6459a0d66b4fbe03e468a4481ca91294161c19c99bbf70d01a3bf8cba6fe71",
+  "sha256": "291cb1d121565c2b89177ebb9460d5e51674244fc9a88a6e2ae8574f39c67c4c",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b1) daily-report, new report, jobsite 124 Park Slope (wttr answers) 1`] = `
 {
   "lines": 1134,
-  "sha256": "603e45c1f2d8a6957c3d2acddfc0bf9e7d0fcf2ed788faa3ecfc574ac4cddf12",
+  "sha256": "f4f41da6625c637ea74b432b2a417296a362fe79ec272c665f55e1a3bd70ea64",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b2) daily-report, new report, location 'United States' 1`] = `
 {
   "lines": 1132,
-  "sha256": "cca07fdf28f6f34817c4c575571bad7a3b176ecacb5debc2944551580e6b0d48",
+  "sha256": "791b0b73658587559c8c79bc509bfc4c3d3d6e36c207845b5270d4af188cbcc9",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c1) construction-ai, tier enterprise (Code Check) 1`] = `
 {
-  "lines": 748,
-  "sha256": "f8d4885aad48f8404a7c78a495c0fdbf3b3d74a72a551ae8f855ec6d8b743f42",
+  "lines": 764,
+  "sha256": "2ff390438172808b13f6812dc824593f4e7f0e6c515a8635ea97b2079f0102a1",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c2) construction-ai, tier enterprise (Project Roadmap) 1`] = `
 {
-  "lines": 724,
-  "sha256": "e9802a9aa040ee01cb73109b2d366f5b23acfcf458b73e87834343b092a45ea3",
+  "lines": 740,
+  "sha256": "74cecf616b3dec7382ef3e6e6e9a340a81ddca9ee5b86d150c0a8277378d0f62",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c3) construction-ai, tier pro (Code Check) 1`] = `
 {
-  "lines": 751,
-  "sha256": "711f70ce09cd85897834bc0f5f0055f6843e0c6a25b0b0e72679bc1803b6ad16",
+  "lines": 767,
+  "sha256": "d7a7187af8d0dd9c010cd829be77cfc9328549d0faafb86df14a8e1da9c16a07",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-paywall 1`] = `
 {
   "lines": 466,
-  "sha256": "294c8166274a8a39e6baa76e3dedd9781002447090afc2cc3c267b7bbd104a1b",
+  "sha256": "ece824e536158d266cce1e6f2930ba2e6f05321a87b9e9d95ab6ccfa6bef93ba",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
-  "lines": 1907,
-  "sha256": "63d765bcc210a49a33cd79e70413cdab83f24d125a76dbca6e1a26cb271a0db6",
+  "lines": 1908,
+  "sha256": "df4b3c8621f489393d168a2b2298b86c222279ab97adfa7a516d26b3437f5d8c",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (f) WeatherRescheduleModal, fully simulated, mounted alone 1`] = `
 {
   "lines": 80,
-  "sha256": "be1e207a83a896da567adf6d4eb619d7ce4c8146b3e9ca08c6ed629b5d8eff0a",
+  "sha256": "0d8b5fcb91d798f8f6c43a635a88a3794e2b6220609159c87be4dde02e9768ae",
 }
 `;

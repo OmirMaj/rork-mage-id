@@ -28,6 +28,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 // utils/collaboratorAccess.
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+// LS-5: a viewer seat reads the punch list but cannot file to it (RLS: 'field').
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import { seatReadStatus } from '@/utils/syncSeat';
 import {
   punchStatusPatch, punchRejectionBox, punchLocationText, invitedPunchProjects, latestRejectedAt,
@@ -891,6 +893,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const pickableProjects = useMemo(() => (ownTier ? projects : invitedPunchProjects(projects)), [ownTier, projects]);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  // LS-5: every punch_items insert AND update needs a field/editor/owner seat
+  // (punch_items_collab_insert/_update). A viewer's add, template, walk or
+  // status change would land optimistically and then be refused by RLS, so
+  // those controls are off for him and say why. Shares the role query cache.
+  const recordWriteSeat = useProjectRoleState(projectId || undefined);
+  const recordWriteBlock = projectRecordWriteBlock(recordWriteSeat.role);
   // The sub chips (edit sheet, bulk assign). On his own job: his directory. On
   // someone else's: the OWNER's subs on this job — never his own directory,
   // whose ids no GC portal will ever match (#110).
@@ -1022,12 +1030,17 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   }, []);
   // UX wave B2: "+ > Punch item" (new=1) opens the Add form, once, as soon as
   // the job is known (the list itself stays underneath for Back).
+  // LS-5: a viewer seat is told why instead of getting a form it cannot save.
   const openedNewRef = useRef(false);
   useEffect(() => {
     if (!openNew || openedNewRef.current || !project || prefillPhotoUri || prefillPhotoId) return;
     openedNewRef.current = true;
+    if (recordWriteBlock) {
+      showAlert("Can't add items", recordWriteBlock);
+      return;
+    }
     setShowForm(true);
-  }, [openNew, project, prefillPhotoUri, prefillPhotoId]);
+  }, [openNew, project, prefillPhotoUri, prefillPhotoId, recordWriteBlock]);
 
   // The photo row the prefill points at. `prefillPhotoId` used to be a truthy
   // check and nothing else, so everything the photo already knew was thrown
@@ -1070,6 +1083,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
   const handleApplyTemplate = useCallback((template: PunchTemplate) => {
     if (!projectId) return;
+    if (recordWriteBlock) {
+      showAlert("Can't add items", recordWriteBlock);
+      return;
+    }
     let added = 0;
     const now = new Date().toISOString();
     for (const item of template.items) {
@@ -1100,7 +1117,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       'Template applied',
       `Added ${added} item${added === 1 ? '' : 's'} from "${template.label}" to the ${activeList === 'punch' ? 'punch list' : 'crew list'}. Edit or remove any that don't apply to this project.`,
     );
-  }, [projectId, addPunchItem, activeList, user?.id]);
+  }, [projectId, addPunchItem, activeList, user?.id, recordWriteBlock]);
   const [rejectionNote, setRejectionNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<PunchItemStatus | 'all'>('all');
@@ -1632,6 +1649,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   }, []);
 
   const handleSave = useCallback(() => {
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (recordWriteBlock) {
+      showAlert("Can't save", recordWriteBlock);
+      return;
+    }
     const desc = description.trim();
     if (!desc) {
       showAlert('Missing Description', 'Please describe the punch item.');
@@ -1727,7 +1749,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       return;
     }
     commit();
-  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin, user?.id, photoEdit]);
+  }, [description, location, assignedSub, formSubId, dueDate, priority, formListType, activeList, clientSeesPunch, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri, attachedSourcePhotoId, formPin, user?.id, recordWriteBlock, photoEdit]);
 
   // ── Photo walk ───────────────────────────────────────────────────────────
 
@@ -1793,6 +1815,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   // this batch (the photo walk never pins; this is the step after it).
   const fileWalkShots = useCallback((opts?: { thenPin?: boolean }) => {
     if (describedWalkShots.length === 0) return;
+    if (recordWriteBlock) {
+      showAlert("Can't add items", recordWriteBlock);
+      return;
+    }
     if (filingWalkRef.current) return;
     filingWalkRef.current = true;
     const nowMs = Date.now();
@@ -1845,7 +1871,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       // iOS: let the walk sheet finish sliding away before the push.
       setTimeout(() => router.push({ pathname: '/punch-pin' as never, params: { projectId: projectId ?? '', list: activeList, batch } as never }), Platform.OS === 'ios' ? 400 : 0);
     }
-  }, [describedWalkShots, walkShots, addPunchItems, projectId, activeList, router, user?.id]);
+  }, [describedWalkShots, walkShots, addPunchItems, projectId, activeList, router, user?.id, recordWriteBlock]);
 
   // Released only once the filed shots have actually LEFT `walkShots`. Clearing
   // it at the end of fileWalkShots would make the latch useless — the second
@@ -1854,6 +1880,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   useEffect(() => { filingWalkRef.current = false; }, [walkShots]);
 
   const handleStatusChange = useCallback((item: PunchItem, newStatus: PunchItemStatus) => {
+    if (recordWriteBlock) {
+      showAlert("Can't change status", recordWriteBlock);
+      return;
+    }
     // punchStatusPatch: the status named explicitly, closedAt on a close, and
     // rejectedAt + the note on any move back out of Review (CONTRACT 12 — the
     // server neutralises an un-review that carries no later rejected_at).
@@ -1894,7 +1924,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         }, 250);
       }
     }
-  }, [updatePunchItem, projectId, project, allItems, updateProject]);
+  }, [updatePunchItem, projectId, project, allItems, updateProject, recordWriteBlock]);
 
   // Tap-the-badge quick toggle: advance to the next stage in the linear flow.
   // open → in_progress → ready_for_review → closed. Closed is terminal.
@@ -1911,6 +1941,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   }, [handleStatusChange]);
 
   const handleReject = useCallback((itemId: string) => {
+    // LS-5: a reject is a punch_items UPDATE, which RLS refuses a viewer.
+    if (recordWriteBlock) {
+      showAlert("Can't change status", recordWriteBlock);
+      setShowRejectModal(null);
+      return;
+    }
     // A real reject (CONTRACT 12): rejectedAt is stamped now, so the server
     // tells this send-back from a stale queued write even when the note text
     // is the same as last round's — which the old note-only write could not.
@@ -1920,7 +1956,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     setShowRejectModal(null);
     setRejectionNote('');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [rejectionNote, updatePunchItem, allItems]);
+  }, [rejectionNote, updatePunchItem, allItems, recordWriteBlock]);
 
   const handleCloseProject = useCallback(() => {
     if (!allClosed) {
@@ -1959,10 +1995,15 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   }, [clearSelection]);
 
   const runBulkUpdate = useCallback((ids: string[], updates: Partial<PunchItem>, label: string) => {
+    // LS-5: bulk assign / move land here; each is an UPDATE a viewer can't make.
+    if (recordWriteBlock) {
+      showAlert("Can't change these items", recordWriteBlock);
+      return;
+    }
     if (ids.length === 0) return;
     updatePunchItems(ids, updates);
     finishBulk(ids.length, label);
-  }, [updatePunchItems, finishBulk]);
+  }, [updatePunchItems, finishBulk, recordWriteBlock]);
 
   const [showBulkSubPicker, setShowBulkSubPicker] = useState(false);
   const [showBulkStatusPicker, setShowBulkStatusPicker] = useState(false);
@@ -1981,6 +2022,11 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   }, [selectedIdList, runBulkUpdate]);
 
   const bulkSetStatus = useCallback((next: PunchItemStatus) => {
+    if (recordWriteBlock) {
+      setShowBulkStatusPicker(false);
+      showAlert("Can't change status", recordWriteBlock);
+      return;
+    }
     if (selectedIdList.length === 0) return;
     setShowBulkStatusPicker(false);
     const cfg = getStatusConfig(themeColors, next);
@@ -2012,7 +2058,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         { text: 'Send back', style: 'destructive', onPress: run },
       ],
     );
-  }, [selectedIdList, selectedItems, themeColors, updatePunchItems, finishBulk]);
+  }, [selectedIdList, selectedItems, themeColors, updatePunchItems, finishBulk, recordWriteBlock]);
 
   /** Move every selected item to the OTHER list in one batch write, like every
    *  other bulk verb — never a loop of updatePunchItem. Confirmed first, with
@@ -2040,6 +2086,10 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
   /** Single-item move from the row rail. Same confirmation as the bulk verb. */
   const moveItem = useCallback((item: PunchItem) => {
+    if (recordWriteBlock) {
+      showAlert("Can't move", recordWriteBlock);
+      return;
+    }
     const target = otherList(punchListTypeOf(item));
     const copy = moveConfirmCopy(target, 1, clientSeesPunch);
     showAlert(copy.title, copy.message, [
@@ -2055,7 +2105,7 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         },
       },
     ]);
-  }, [clientSeesPunch, updatePunchItem]);
+  }, [clientSeesPunch, updatePunchItem, recordWriteBlock]);
 
   const bulkDelete = useCallback(() => {
     if (selectedIdList.length === 0) return;
@@ -2144,12 +2194,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const latestActions = useRef({
     openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
     setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
-    setShowRejectModal, setRejectionNote, router, moveItem,
+    setShowRejectModal, setRejectionNote, router, moveItem, recordWriteBlock,
   });
   latestActions.current = {
     openEditForm, advanceStatus, handleStatusChange, deletePunchItem,
     setViewerItem, markPhotoFailed, toggleSelect, startSelecting,
-    setShowRejectModal, setRejectionNote, router, moveItem,
+    setShowRejectModal, setRejectionNote, router, moveItem, recordWriteBlock,
   };
 
   const rowActions = useMemo<PunchRowActions>(() => ({
@@ -2157,6 +2207,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     onAdvance: item => latestActions.current.advanceStatus(item),
     onStatus: (item, next) => latestActions.current.handleStatusChange(item, next),
     onReject: item => {
+      const block = latestActions.current.recordWriteBlock;
+      if (block) { showAlert("Can't change status", block); return; }
       latestActions.current.setShowRejectModal(item.id);
       latestActions.current.setRejectionNote('');
     },
@@ -2831,11 +2883,15 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const listFooter = (
     <View>
       {/* UX wave B2: "+ Add" moved to the sticky bar at the bottom of the
-          screen — with 40 items he no longer scrolls to the end to add one. */}
+          screen — with 40 items he no longer scrolls to the end to add one.
+          LS-5: a viewer seat cannot file — the controls say why. */}
+      {recordWriteBlock ? <Text style={styles.planCardNote} testID="punch-viewer-block">{recordWriteBlock}</Text> : null}
 
       <TouchableOpacity
-        style={styles.addItemBtn}
+        style={[styles.addItemBtn, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]}
         onPress={() => setShowTemplates(true)}
+        disabled={recordWriteBlock ? true : undefined}
+        accessibilityState={recordWriteBlock ? { disabled: true } : undefined}
         activeOpacity={0.7}
         testID="apply-punch-template"
         accessibilityRole="button"
@@ -2951,6 +3007,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
             startedAt={editingItem.createdAt}
             dueAt={editingItem.dueDate || undefined}
             onAdvance={(next) => {
+              // LS-5: advancing is a punch_items UPDATE, which RLS refuses a
+              // viewer — the tap says why instead of writing.
+              if (recordWriteBlock) {
+                showAlert("Can't change status", recordWriteBlock);
+                return;
+              }
               const nowIso = new Date().toISOString();
               // Stamp closedAt exactly as handleStatusChange does. This
               // path used to close an item with no close date, so the
@@ -3305,10 +3367,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
           <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-punch-item">
+        <TouchableOpacity style={[styles.saveBtn, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]} onPress={handleSave} disabled={recordWriteBlock ? true : undefined} accessibilityState={recordWriteBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="save-punch-item">
           <Text style={styles.saveBtnText}>{editingItem ? 'Update' : 'Add Item'}</Text>
         </TouchableOpacity>
       </View>
+      {/* LS-5: says why Add / Update is off for a viewer seat. */}
+      {recordWriteBlock ? <Text style={styles.formListNote} testID="punch-form-viewer-block">{recordWriteBlock}</Text> : null}
     </>
   );
 
@@ -3351,32 +3415,40 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
           while selecting. */}
       {!selectMode ? (
         <View
-          style={[styles.bulkBar, styles.addBar, { paddingBottom: insets.bottom + 12 }]}
+          style={[styles.bulkBar, { paddingBottom: insets.bottom + 12 }]}
           onLayout={e => setAddBarHeight(e.nativeEvent.layout.height)}
           testID="punch-add-bar"
         >
-          <TouchableOpacity
-            style={styles.addBarPrimary}
-            onPress={() => { resetForm(); setShowForm(true); }}
-            activeOpacity={0.85}
-            testID="add-punch-item"
-            accessibilityRole="button"
-            accessibilityLabel={activeList === 'punch' ? 'Add punch item' : 'Add crew list item'}
-          >
-            <Plus size={18} color={Colors.textOnAccent} strokeWidth={2} />
-            <Text style={styles.addBarPrimaryText}>Add</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.addBarSecondary}
-            onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList } as never })}
-            activeOpacity={0.85}
-            testID="punch-add-bar-walk"
-            accessibilityRole="button"
-            accessibilityLabel="Walk mode: photo, pin, describe"
-          >
-            <Camera size={18} color={themeColors.accentLabel} strokeWidth={1.75} />
-            <Text style={styles.addBarSecondaryText}>Walk</Text>
-          </TouchableOpacity>
+          {/* LS-5: a viewer seat cannot file — both doors are off and say why. */}
+          {recordWriteBlock ? <Text style={styles.bulkBarHint} testID="punch-add-bar-viewer-block">{recordWriteBlock}</Text> : null}
+          <View style={styles.addBar}>
+            <TouchableOpacity
+              style={[styles.addBarPrimary, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]}
+              onPress={() => { resetForm(); setShowForm(true); }}
+              disabled={recordWriteBlock ? true : undefined}
+              accessibilityState={recordWriteBlock ? { disabled: true } : undefined}
+              activeOpacity={0.85}
+              testID="add-punch-item"
+              accessibilityRole="button"
+              accessibilityLabel={activeList === 'punch' ? 'Add punch item' : 'Add crew list item'}
+            >
+              <Plus size={18} color={Colors.textOnAccent} strokeWidth={2} />
+              <Text style={styles.addBarPrimaryText}>Add</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.addBarSecondary, recordWriteBlock ? styles.punchDeleteBtnBlocked : null]}
+              onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList } as never })}
+              disabled={recordWriteBlock ? true : undefined}
+              accessibilityState={recordWriteBlock ? { disabled: true } : undefined}
+              activeOpacity={0.85}
+              testID="punch-add-bar-walk"
+              accessibilityRole="button"
+              accessibilityLabel="Walk mode: photo, pin, describe"
+            >
+              <Camera size={18} color={themeColors.accentLabel} strokeWidth={1.75} />
+              <Text style={styles.addBarSecondaryText}>Walk</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : null}
 
@@ -3567,12 +3639,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               {/* A blocked control says WHY. With nothing described the button
                   names the one thing standing between the walk and the list. */}
               <TouchableOpacity
-                style={[styles.walkFileBtn, describedWalkShots.length === 0 ? styles.walkFileBtnOff : null]}
+                style={[styles.walkFileBtn, describedWalkShots.length === 0 || !!recordWriteBlock ? styles.walkFileBtnOff : null]}
                 onPress={() => fileWalkShots()}
-                disabled={describedWalkShots.length === 0}
+                disabled={describedWalkShots.length === 0 || !!recordWriteBlock}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: describedWalkShots.length === 0 }}
+                accessibilityState={{ disabled: describedWalkShots.length === 0 || !!recordWriteBlock }}
                 accessibilityLabel={describedWalkShots.length === 0
                   ? 'Add a line to a photo before it can be filed'
                   : `Add ${describedWalkShots.length} punch items`}
@@ -3586,7 +3658,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
               </TouchableOpacity>
               {/* The photo walk never pins. This files the batch and goes
                   straight to Pin items on exactly these items. */}
-              {describedWalkShots.length > 0 && !pinBlocked ? (
+              {recordWriteBlock && describedWalkShots.length > 0 ? <Text style={styles.walkPending}>{recordWriteBlock}</Text> : null}
+              {describedWalkShots.length > 0 && !pinBlocked && !recordWriteBlock ? (
                 <Button
                   label={`Add ${describedWalkShots.length} and pin them on the plan`}
                   variant="secondary"
@@ -4543,8 +4616,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     minHeight: 46, marginTop: 8, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentSoft,
   },
   walkShootBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
-  // accentFill (#BC440C, 5.29:1) is the accent tone white text may sit on;
-  // themeColors.accent behind #fff is 2.87:1 and fails AA.
+  // accentFill (#2F6B3A light, white 6.39:1) is the accent tone white text may
+  // sit on; themeColors.accent in dark (#5DB36E) behind #fff is 2.58:1 and fails AA.
   walkFileBtn: {
     minHeight: 48, marginTop: 8, borderRadius: Tokens.radius.lg,
     backgroundColor: themeColors.accentFill, alignItems: 'center' as const, justifyContent: 'center' as const,

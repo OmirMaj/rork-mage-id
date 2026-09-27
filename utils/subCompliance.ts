@@ -99,7 +99,7 @@ export function getComplianceStatus(sub: Subcontractor, nowMs: number = Date.now
  */
 export function complianceLabel(status: ComplianceState, sub?: Subcontractor): string {
   if (status === 'compliant') return 'Compliant';
-  if (status === 'expiring_soon') return 'Expiring Soon';
+  if (status === 'expiring_soon') return 'Expiring soon';
   if (status === 'unknown') {
     if (!sub) return 'No docs';
     const missing = missingComplianceDocs(sub);
@@ -203,22 +203,22 @@ export function reviewAwardCompliance(
     ? [`from ${certs === 1 ? 'the certificate' : `${certs} certificates`} in your COI vault`, verifiedAgo(sub.coiVerifiedAt, nowMs)]
         .filter(Boolean).join(', ')
     : certs > 0
-      ? 'typed on his record — the certificates in your vault carry no readable expiry'
-      : 'typed on his record, not checked against a certificate';
+      ? 'typed on the sub’s record — the certificates in your vault carry no readable expiry'
+      : 'typed on the sub’s record, not checked against a certificate';
 
   let coi: AwardCoiState;
   if (coiMs === null) {
     coi = 'none';
     blockers.push(certs > 0
-      ? `${who} has ${certs === 1 ? 'a certificate' : `${certs} certificates`} in the COI vault but none with a readable expiry date, so the app cannot tell you his insurance is in force. Open the COI vault, tap his certificate and type the expiry under Coverages — or enter his COI Expiry on his record in the Subs tab.`
-      : `No COI on file for ${who} — nothing in the COI vault and no expiry on his record, so the app cannot tell you he is insured.`);
+      ? `${who} has ${certs === 1 ? 'a certificate' : `${certs} certificates`} in the COI vault but none with a readable expiry date, so MAGE can’t confirm their insurance is in force. Open the COI vault and type the expiry under Coverages on their certificate, or enter the COI expiry on their record in the Subs tab.`
+      : `No COI on file for ${who} — nothing in the COI vault and no expiry on their record, so MAGE can’t confirm they are insured.`);
   } else if (coiMs < nowMs) {
     coi = 'expired';
     blockers.push(`${who}'s COI expired ${formatExpiryDay(coiRaw)} (${evidence}).`);
   } else if (coiMs - nowMs < warnWindow) {
     coi = 'expiring_soon';
     const days = Math.ceil((coiMs - nowMs) / DAY_MS);
-    notes.push(`${who}'s COI is current but expires ${formatExpiryDay(coiRaw)}, in ${days} day${days === 1 ? '' : 's'} (${evidence}). Ask for the renewal before he starts.`);
+    notes.push(`${who}'s COI is current but expires ${formatExpiryDay(coiRaw)}, in ${days} day${days === 1 ? '' : 's'} (${evidence}). Ask for the renewal before they start.`);
   } else {
     coi = 'current';
     notes.push(`COI current through ${formatExpiryDay(coiRaw)} (${evidence}).`);
@@ -227,11 +227,11 @@ export function reviewAwardCompliance(
   // ── Licence leg — named, never blocking ──
   const licMs = parseExpiry(sub.licenseExpiry);
   if (licMs === null) {
-    notes.push(`No licence expiry on file for ${who}${sub.licenseNumber?.trim() ? ` (licence #${sub.licenseNumber.trim()})` : ''} — check the state board if this trade needs one.`);
+    notes.push(`No license expiry on file for ${who}${sub.licenseNumber?.trim() ? ` (license #${sub.licenseNumber.trim()})` : ''} — check the state board if this trade needs one.`);
   } else if (licMs < nowMs) {
-    notes.push(`${who}'s licence expiry on file is ${formatExpiryDay(sub.licenseExpiry)}, which has passed. Check the state board before he starts.`);
+    notes.push(`${who}'s license expiry on file is ${formatExpiryDay(sub.licenseExpiry)}, which has passed. Check the state board before they start.`);
   } else if (licMs - nowMs < warnWindow) {
-    notes.push(`${who}'s licence expires ${formatExpiryDay(sub.licenseExpiry)}.`);
+    notes.push(`${who}'s license expires ${formatExpiryDay(sub.licenseExpiry)}.`);
   }
 
   return { coi, coiExpiryMs: coiMs, blockers, notes };
@@ -302,12 +302,12 @@ export function vaultCoiStatus(e: VaultCoiExpiry, now: Date = new Date()): Vault
   if (!e.day) {
     return {
       key: 'unknown',
-      label: e.recordUnreadable ? 'COI expiry not a date — no reminders' : 'No expiry on file',
+      label: e.recordUnreadable ? 'COI expiry not a date · no reminders' : 'No expiry on file',
       tone: 'neutral',
     };
   }
   const days = daysUntilCalendarDay(e.day, now);
-  const suffix = e.source === 'record' ? ' (typed on his record)' : '';
+  const suffix = e.source === 'record' ? ' (typed on the sub’s record)' : '';
   if (days === null) return { key: 'unknown', label: 'No expiry on file', tone: 'neutral' };
   if (days < 0) return { key: 'expired', label: `Expired${suffix}`, tone: 'bad' };
   if (days <= COMPLIANCE_WARN_DAYS) {

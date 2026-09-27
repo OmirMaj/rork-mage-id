@@ -554,7 +554,7 @@ expect('billed: both empty → 0', suggestBilledToDate([], []), 0);
   const wide = deriveOriginalContractWithSource(proj, [], [pa(1, 700_000)]);
   expect('a contract above the estimate still wins', wide.value, 700_000);
   expect('…and the disagreement is disclosed in words',
-    /150,000 ABOVE/.test(contractVsEstimateNote(wide, 550_000)), true);
+    /150,000 above/.test(contractVsEstimateNote(wide, 550_000)), true);
   expect('…a contract in line with the estimate says nothing',
     contractVsEstimateNote({ value: 552_000, source: 'pay_app_contract_sum' }, 550_000), '');
   expect('…and a contract that did NOT come off a pay app says nothing either',
@@ -893,7 +893,7 @@ console.log('\nthe exports print the cost the row was struck against:');
   expect('…including in the provenance footnote, which read the input',
     /Total estimated cost \$800,000/.test(etcHtml), true);
   expect('…and the footnote names whose forecast it is',
-    /cost to complete YOU entered/.test(etcHtml), true);
+    /cost to complete you entered/.test(etcHtml), true);
 
   // ── THE LIVE EXPORT DISCLOSES ITS OWN BACKDATING ──────────────────────────
   // `defaultPeriodEnd` returns the PRIOR month end on days 1-14 and
@@ -904,7 +904,7 @@ console.log('\nthe exports print the cost the row was struck against:');
   expect('a live period dated before today discloses it',
     /as they stand on 2026-09-11/.test(wipLiveAsOfNote(live, '2026-09-11')), true);
   expect('…and says it is not restated',
-    /NOT restated/.test(wipLiveAsOfNote(live, '2026-09-11')), true);
+    /not restated/.test(wipLiveAsOfNote(live, '2026-09-11')), true);
   expect('a live period dated TODAY says nothing', wipLiveAsOfNote({ ...live, periodEndDate: '2026-09-11' }, '2026-09-11'), '');
   expect('a SAVED period says nothing either — its rows really were frozen then',
     wipLiveAsOfNote(etcPeriod, '2026-09-11'), '');
@@ -978,12 +978,12 @@ console.log('\nthe exports print the cost the row was struck against:');
       !== num(bareTotalCells[bareHeader.indexOf('Est Gross Profit')]),
     true);
   expect('…and the PDF carries the same reconciling line',
-    /MEASURABLE SUBTOTAL \(1 of 2 jobs\)/.test(bareHtml), true);
+    /Measurable subtotal \(1 of 2 projects\)/.test(bareHtml), true);
   // A fully measurable book already foots, so no second line is printed.
   expect('a fully measurable book prints no subtotal line',
     wipPeriodToCSV(etcPeriod).split('\n').some((l) => l.startsWith('MEASURABLE SUBTOTAL')), false);
   expect('…and neither does its PDF',
-    /MEASURABLE SUBTOTAL/.test(buildWipHtml(etcPeriod, 'X')), false);
+    /Measurable subtotal/.test(buildWipHtml(etcPeriod, 'X')), false);
 
   // ── THE PDF's ASC 605-35 DISCLOSURE IS PINNED, NOT JUST THE CSV's
   // (adversarial review 2026-09-11 — a green-but-broken guard). The CSV
@@ -1115,9 +1115,9 @@ console.log('\nthe CSV export hands over a file before it falls back to the clip
     true);
   // The fallback must NOT claim the file worked, and must not stay silent.
   expect('the clipboard fallback says it IS a fallback',
-    /could not hand over a file/.test(body), true);
+    /couldn't hand over a file/.test(body), true);
   expect('…and a write that threw does not report a successful copy without saying so',
-    /catch \{/.test(body) && /Could not save or copy the CSV\./.test(body), true);
+    /catch \{/.test(body) && /Couldn't save or copy the CSV\./.test(body), true);
 }
 
 // ── F18, THE OTHER HALF: /reports SHIPS THE SAME SCHEDULE AS A FILE ────────
@@ -1193,9 +1193,9 @@ console.log('\nthe /reports CSV hands over a file too, not only a clipboard past
     expect('the WIP CSV lands as a .csv named for the schedule and its as-of DAY',
       wipDoc.fileName, 'wip-schedule-2026-08-31.csv');
     expect('…and the share sheet gets the readable title, not the file name',
-      wipDoc.dialogTitle, 'WIP Schedule 2026-08-31');
+      wipDoc.dialogTitle, 'WIP schedule 2026-08-31');
     expect('the aging CSV lands as its own .csv', agingDoc.fileName, 'ar-aging-2026-08-31.csv');
-    expect('…with its own readable title', agingDoc.dialogTitle, 'A/R Aging 2026-08-31');
+    expect('…with its own readable title', agingDoc.dialogTitle, 'A/R aging 2026-08-31');
     expect('…and neither title is ever what the file is called',
       wipDoc.dialogTitle !== wipDoc.fileName && agingDoc.dialogTitle !== agingDoc.fileName, true);
     expect('…and no title carries an extension a bookkeeper would see',
@@ -1211,9 +1211,9 @@ console.log('\nthe /reports CSV hands over a file too, not only a clipboard past
   // The fallback must NOT claim the file worked, and a throw must not become a
   // silent successful copy.
   expect('the clipboard fallback says it IS a fallback',
-    /could not hand over a file/.test(body), true);
+    /couldn't hand over a file/.test(body), true);
   expect('…and a write that threw says so rather than reporting a copy',
-    /catch \{/.test(body) && /Could not save or copy the CSV\./.test(body), true);
+    /catch \{/.test(body) && /Couldn't save or copy the CSV\./.test(body), true);
   // The BUTTON has to stop calling itself a copy, or the screen advertises the
   // fallback as the behaviour.
   expect('…and the button no longer calls the action a copy',

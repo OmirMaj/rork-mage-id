@@ -54,6 +54,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { toCalendarDayString, addCalendarDays, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { projectTypeLabel } from '@/utils/projectTypes';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 interface PickedPhoto { uri: string; id: string; fromProject?: boolean }
 
@@ -372,7 +373,7 @@ function PhotoTriageInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        showAlert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
+        showAlert('12 photos at most', 'Pick the most useful shots. One batch reads up to 12 photos.');
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
@@ -386,7 +387,7 @@ function PhotoTriageInner() {
       return;
     }
     const remaining = 12 - pickedPhotos.length;
-    if (remaining <= 0) { showAlert('Max 12 photos'); return; }
+    if (remaining <= 0) { showAlert('12 photos at most'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
@@ -404,7 +405,7 @@ function PhotoTriageInner() {
   const handleTakePhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) { showAlert('Camera access needed'); return; }
-    if (pickedPhotos.length >= 12) { showAlert('Max 12 photos'); return; }
+    if (pickedPhotos.length >= 12) { showAlert('12 photos at most'); return; }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
     setPickedPhotos(prev => [...prev, { id: `cam-${generateUUID()}`, uri: result.assets[0].uri }]);
@@ -443,7 +444,7 @@ function PhotoTriageInner() {
         };
       });
       if (reviewable.length === 0) {
-        setError("AI couldn't classify those photos. Try shots closer to the work or with better lighting.");
+        setError("Couldn't sort those photos. Try shots closer to the work or with better lighting.");
       }
       setReviewEntries(reviewable);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -453,7 +454,8 @@ function PhotoTriageInner() {
       // failed: Edge Function returned a non-2xx status code", and never an
       // invitation to run the same batch again.
       const refusal = showAiRefusal(err, router);
-      setError(refusal ?? `Analysis failed: ${(err as Error).message}`);
+      if (!refusal) console.warn('[photo-triage] analysis failed', rawErrorMessage(err));
+      setError(refusal ?? describeError(err, { action: 'sort those photos', keptLocally: true }).body);
     } finally {
       setBusy(false);
     }
@@ -575,7 +577,9 @@ function PhotoTriageInner() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (err) {
-      showAlert('Apply failed', (err as Error).message ?? 'Could not save records.');
+      console.warn('[photo-triage] apply failed', rawErrorMessage(err));
+      const copy = describeError(err, { action: 'create those records', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       setApplying(false);
     }
@@ -592,7 +596,7 @@ function PhotoTriageInner() {
     if (cls === 'punch' && !canPunch) {
       showAlert(
         'Punch list is on Business',
-        'Your plan includes Photo Triage but not the Punch List. Findings left in Punch are filed as observations in today\'s daily report. Move one to RFI or Daily report, or discard it.',
+        'Your plan includes photo triage but not the punch list. Findings left in Punch are filed as observations in today\'s daily report. Move one to RFI or Daily report, or discard it.',
         [
           { text: 'OK', style: 'cancel' },
           { text: 'See plans', onPress: () => router.push('/paywall' as never) },
@@ -611,17 +615,17 @@ function PhotoTriageInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'Photo Triage' }} />
+        <Stack.Screen options={{ title: 'Photo triage' }} />
         <EmptyState
           icon={<Camera size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No project to triage yet"
-          message="Photo Triage uploads field photos to a project so AI can flag punch items, RFIs, or progress shots. To run a batch:"
+          message="Photo triage sorts field photos on a project into punch items, RFIs and progress shots. To run a batch:"
           steps={[
             'Open or create a project from the Projects tab.',
-            'Tap Photo Triage inside the project tile grid.',
-            'Pick photos or take new ones — AI will sort them into actionable buckets.',
+            'Tap Photo triage inside the project tile grid.',
+            'Pick or take photos. MAGE sorts them into punch items, RFIs and daily report notes.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -635,7 +639,7 @@ function PhotoTriageInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'AI Photo Triage',
+          title: 'Photo triage',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -652,7 +656,7 @@ function PhotoTriageInner() {
               </View>
               <Text style={styles.heroTitle}>One walk, every record</Text>
               <Text style={styles.heroBody}>
-                Snap photos as you walk the site. AI sorts them across punch list, RFI, daily report, progress shots, and noise — you review and approve. Up to 12 photos per batch.
+                Take photos as you walk the jobsite. MAGE sorts them into punch list, RFI, daily report and progress shots, and you approve each one. Up to 12 photos per batch.
               </Text>
             </View>
 
@@ -734,7 +738,7 @@ function PhotoTriageInner() {
                 : (
                   <>
                     <MageAIMark size={16} color="#FFF" />
-                    <Text style={styles.analyzeText}>Run AI triage</Text>
+                    <Text style={styles.analyzeText}>Sort photos</Text>
                   </>
                 )}
             </TouchableOpacity>
@@ -753,7 +757,7 @@ function PhotoTriageInner() {
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>{totalKept} photo{totalKept === 1 ? '' : 's'} ready to apply</Text>
               <Text style={styles.heroBody}>
-                Tap a chip to override the AI's call. Trash icon discards. When you're ready, hit Apply and we'll create the records.
+                Tap a chip to change the suggested category, or the trash icon to discard. Tap Apply to create the records.
               </Text>
             </View>
 

@@ -83,7 +83,7 @@ function collectText(node: unknown, out: string[] = []): string[] {
 
 /** Rendered by components/CashFlowChart's legend — present only when the real
  *  chart is drawn, never by the placeholder that replaces it. */
-const CHART_MARKER = 'Running Balance';
+const CHART_MARKER = 'Running balance';
 
 /**
  * Put a cash-flow setup on the device before the screen mounts.
@@ -162,7 +162,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     expect(text).not.toContain('Healthy');
     expect(text).toContain('No forecast yet');
     expect(text).toContain('has no dates on it');
-    expect(text).toContain('put a schedule on those jobs');
+    expect(text).toContain('put a schedule on those projects');
   });
 
   it('does not let a zero-amount expense row buy a verdict', async () => {
@@ -260,8 +260,8 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     await seedSetup({ startingBalance: 48_250 });
     const tree = await mountRouteChecked('/cash-flow');
     // The "Add Expense" entry point lives inside the collapsed section.
-    await act(async () => { fireEvent.press(tree.getByText('Monthly Expenses')); });
-    await act(async () => { fireEvent.press(tree.getByText('Add Expense')); });
+    await act(async () => { fireEvent.press(tree.getByText('Monthly expenses')); });
+    await act(async () => { fireEvent.press(tree.getByText('Add expense')); });
 
     // Name typed, amount box left empty: the save is blocked and says why.
     await act(async () => {
@@ -283,7 +283,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
       fireEvent.changeText(tree.getAllByPlaceholderText('0')[0], '3200,50');
     });
     expect(tree.getByTestId('add-expense-btn').props.accessibilityState?.disabled).toBe(true);
-    expect(collectText(tree.toJSON()).join(' | ')).toContain('is not a number this can read');
+    expect(collectText(tree.toJSON()).join(' | ')).toContain('isn’t a number MAGE can read');
 
     await act(async () => {
       fireEvent.changeText(tree.getAllByPlaceholderText('0')[0], '3200');
@@ -298,8 +298,8 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     await primeWorld('empty');
     await seedSetup({ startingBalance: 48_250 });
     const tree = await mountRouteChecked('/cash-flow');
-    await act(async () => { fireEvent.press(tree.getByText('Expected Income')); });
-    await act(async () => { fireEvent.press(tree.getByText('Add Expected Payment')); });
+    await act(async () => { fireEvent.press(tree.getByText('Expected income')); });
+    await act(async () => { fireEvent.press(tree.getByText('Add expected payment')); });
     await act(async () => {
       fireEvent.changeText(tree.getByPlaceholderText('e.g. Deposit from River Oak'), 'Harlow draw 2');
     });
@@ -326,7 +326,7 @@ describe('cash flow — the verdict is gated on signal, not on forecast rows', (
     expect(tree.getByTestId('update-balance-btn').props.accessibilityState?.disabled).toBe(false);
     await act(async () => { fireEvent.changeText(tree.getByTestId('edit-balance-input'), ''); });
     expect(tree.getByTestId('update-balance-btn').props.accessibilityState?.disabled).toBe(true);
-    expect(collectText(tree.toJSON()).join(' | ')).toContain('An empty box used to save as $0');
+    expect(collectText(tree.toJSON()).join(' | ')).toContain('A blank balance would read as a real $0');
 
     // A typed zero is a real answer and is still accepted.
     await act(async () => { fireEvent.changeText(tree.getByTestId('edit-balance-input'), '0'); });

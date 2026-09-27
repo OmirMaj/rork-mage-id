@@ -43,7 +43,7 @@ import {
   stampCriticalPath, detectDanglingLinks,
 } from '../utils/cpm';
 import {
-  scheduleDayNumberFor, captureBaseline, diffAgainstBaseline, reflowFromActuals,
+  scheduleDayNumberFor, startDayNumberFor, captureBaseline, diffAgainstBaseline, reflowFromActuals,
   buildSharePayload, tryEncodeShareToken, decodeShareToken,
   cpmOptionsFromSharePayload, tasksFromSharePayload,
 } from '../utils/scheduleOps';
@@ -338,7 +338,7 @@ console.log('\n6. an unsatisfiable hard pin is reported');
   ok('must-start-on inside a predecessor emits an anchor_violation', anchorConflicts.length === 1,
     r.conflicts.map(c => c.message));
   ok('  …and the message names the gap in working days',
-    /\d+ working day\(s\)/.test(anchorConflicts[0]?.message ?? ''), anchorConflicts[0]?.message);
+    /\d+ working days?\b/.test(anchorConflicts[0]?.message ?? ''), anchorConflicts[0]?.message);
 
   // must-finish-on on a Saturday: reachable, and it must NOT blame dependencies
   // that do not exist.
@@ -364,7 +364,7 @@ console.log('\n6. an unsatisfiable hard pin is reported');
   const mfoMsg = mfo.conflicts.find(c => c.kind === 'anchor_violation')?.message ?? '';
   ok('an unsatisfiable must-finish-on emits an anchor_violation', mfoMsg.length > 0, mfo.conflicts);
   ok('  …and the message names the gap in working days',
-    /\d+ working day\(s\)/.test(mfoMsg), mfoMsg);
+    /\d+ working days?\b/.test(mfoMsg), mfoMsg);
   ok('  …and the fixture really is one where the pin wins and the row looks fine',
     mfo.perTask.get('S')!.ef === 5 && mfo.perTask.get('S')!.es < mfo.perTask.get('P')!.ef,
     { S: mfo.perTask.get('S'), P: mfo.perTask.get('P') });
@@ -1691,6 +1691,54 @@ console.log('\n27. dangling dependency links');
     predDeleted.projectFinish < withPred, { withPred, predDeleted: predDeleted.projectFinish });
   eq('  …and THAT is the run that now carries the warning',
     predDeleted.conflicts.filter(c => c.kind === 'dangling_link').length, 1);
+}
+
+// ── 28. Schedule Pro's "Add task" writes a WORKING ORDINAL on the real calendar ─
+// handleCommitAddTask had its own inline date→startDay loop
+// (`if (dow !== 0 && dow !== 6) count++`): Mon-Fri only, no closures, and a
+// weekend pick rolled BACK to Friday. Measured from Mon Mar 2 2026: Fri Mar 13
+// with a Mon Mar 9 closure stored 10 (renders Mon Mar 16); Sat Mar 14 on a
+// Mon-Sat week stored 10 (renders Thu Mar 12); Sat Mar 7 on Mon-Fri stored 5
+// (Fri Mar 6). It now calls scheduleOps.startDayNumberFor like every writer.
+// Env SCHEDDAYS_SCHEDULE_PRO overrides the screen path (fail-before proof
+// against the 2859f55b copy).
+console.log('\n28. Schedule Pro add-task date → startDay');
+{
+  const proPath = process.env.SCHEDDAYS_SCHEDULE_PRO;
+  const pro = proPath ? readFileSync(proPath, 'utf8') : src('app/schedule-pro.tsx');
+  const at = pro.indexOf('const handleCommitAddTask = useCallback(');
+  const end = at >= 0 ? pro.indexOf('}, [commit,', at) : -1;
+  const body = at >= 0 && end > at ? pro.slice(at, end) : '';
+  ok('handleCommitAddTask is found', body.length > 0);
+  ok('  …it converts the picked date with startDayNumberFor', /startDayNumberFor\(\s*projectStartDate,\s*target,\s*workingDaysPerWeek,\s*project\?\.schedule\?\.nonWorkingDates\s*\)/.test(body));
+  ok('  …and the inline Mon-Fri loop is gone', !/dow !== 0 && dow !== 6/.test(body) && !/cur\.getDay\(\)/.test(body));
+
+  // The inline loop, verbatim, so the behavioural assertions below have teeth.
+  const inlineAddTask = (target: Date, wd: number): number => {
+    const base = new Date(START.getFullYear(), START.getMonth(), START.getDate());
+    if (target <= base) return 1;
+    if (wd >= 7) return Math.floor((target.getTime() - base.getTime()) / 86400000) + 1;
+    let count = 1; const cur = new Date(base);
+    while (cur < target) { cur.setDate(cur.getDate() + 1); const dow = cur.getDay(); if (dow !== 0 && dow !== 6) count++; }
+    return count;
+  };
+  const cases: { label: string; picked: Date; wd: number; closures: string[]; want: Date; oldStored: number }[] = [
+    { label: 'Fri Mar 13 with a Mon Mar 9 closure', picked: new Date(2026, 2, 13), wd: 5, closures: ['2026-03-09'], want: new Date(2026, 2, 13), oldStored: 10 },
+    { label: 'Sat Mar 14 on a Mon-Sat week', picked: new Date(2026, 2, 14), wd: 6, closures: [], want: new Date(2026, 2, 14), oldStored: 10 },
+    { label: 'Sat Mar 7 on a Mon-Fri week (rolls FORWARD)', picked: new Date(2026, 2, 7), wd: 5, closures: [], want: new Date(2026, 2, 9), oldStored: 5 },
+  ];
+  for (const c of cases) {
+    const opts = { scheduleStartDate: ISO, workingDaysPerWeek: c.wd, nonWorkingDates: c.closures };
+    const stored = startDayNumberFor(START, c.picked, c.wd, c.closures);
+    const es = runCpm([T('N', 2, [], { startDay: stored })], opts).perTask.get('N')!.es;
+    eq(`${c.label}: the engine plans the new task on ${c.want.toDateString()}`, calendarDayToDate(START, es).toDateString(), c.want.toDateString());
+    eq(`  …and the grid renders the same date`, addWorkingDays(START, stored - 1, c.wd, c.closures).toDateString(), c.want.toDateString());
+    const old = inlineAddTask(c.picked, c.wd);
+    const oldEs = runCpm([T('N', 2, [], { startDay: old })], opts).perTask.get('N')!.es;
+    ok(`  …while the old inline loop stored ${c.oldStored} and planned it elsewhere`,
+      old === c.oldStored && calendarDayToDate(START, oldEs).toDateString() !== c.want.toDateString(),
+      { old, planned: calendarDayToDate(START, oldEs).toDateString() });
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

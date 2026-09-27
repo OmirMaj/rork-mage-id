@@ -488,8 +488,6 @@ const ALLOWED: Allowed[] = [
   { file: 'components/schedule/LookaheadView.tsx', line: 'new Date(date)', added: '2026-09-04', reason: 'getMonday(date: Date) clone' },
   { file: 'components/schedule/VerticalGantt.tsx', line: 'new Date(projectStartDate)', added: '2026-09-04', reason: 'projectStartDate is a Date prop; clone before setDate()' },
   { file: 'components/schedule/mobile/WeekStrip.tsx', line: 'new Date(selectedDate)', added: '2026-09-04', reason: 'selectedDate is a Date; clone before shifting a week' },
-  { file: 'components/schedule/WeatherReschedulePrompt.tsx', line: 'new Date(startDate)', added: '2026-09-04', reason: 'clone of the local `startDate` Date inside the push loop (:57)' },
-  { file: 'components/schedule/WeatherReschedulePrompt.tsx', line: 'new Date(projectStartDate)', added: '2026-09-04', reason: 'projectStartDate is a Date prop; clone before setDate() (:95)' },
 ];
 
 /**
@@ -515,8 +513,12 @@ const UNRESOLVED: Unresolved[] = [
     reason: 'same bare deadline as mage-id-bids; B4 owned copy only' },
   { file: 'components/schedule/SchedulerHeader.tsx', line: 'new Date(t.deadline)', status: 'defect', added: '2026-09-04',
     reason: 'overdue count parses the bare deadline as UTC midnight — overdue from ~6 pm the evening before (UX-F9 class); file not in the B4 set' },
-  { file: 'components/schedule/WeatherReschedulePrompt.tsx', line: 'new Date(startISO)', status: 'defect', added: '2026-09-04',
-    reason: 'startISO is toISOString().split(\'T\')[0] of a local date (the UTC day) re-parsed as UTC; forecast-day matching drifts at negative offsets. validate-schedule-date-basis.ts calls this a clone — it is not' },
+  // components/schedule/WeatherReschedulePrompt.tsx 'new Date(startISO)' —
+  // FIXED and removed 2026-09-27 (health lane SCHEDDAYS). The push walk moved
+  // to utils/weatherReschedule.ts findWeatherPushConflicts; a dated schedule
+  // walks WORKING days through utils/scheduleCalendarDate, and the raw-day
+  // walk is keyed exactly like findWeatherRisk's raw path with no UTC
+  // re-parse. The component no longer does date arithmetic at all.
   { file: 'app/equipment-detail.tsx', line: 'new Date(u.date)', status: 'unverified', added: '2026-09-04',
     reason: 'EquipmentUtilizationEntry.date — logUtilization callers were not traced to a format' },
   { file: 'app/equipment-detail.tsx', line: 'new Date(a.date)', status: 'unverified', added: '2026-09-04', reason: 'same field, sort key' },

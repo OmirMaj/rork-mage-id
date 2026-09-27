@@ -22,6 +22,8 @@ import {
 import { HardHat } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import * as Haptics from 'expo-haptics';
+import { Motion } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 
 interface HardHatTapProps extends Omit<PressableProps, 'style' | 'onPressIn' | 'onPressOut'> {
   children: ReactNode;
@@ -65,7 +67,7 @@ export default function HardHatTap({
 
   const handlePressIn = () => {
     Animated.parallel([
-      Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, friction: 6 }),
+      Animated.spring(scale, { toValue: 0.96, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
       Animated.sequence([
         Animated.parallel([
           Animated.timing(hatOpacity, { toValue: 1, duration: 120, useNativeDriver: true }),
@@ -79,7 +81,7 @@ export default function HardHatTap({
 
   const handlePressOut = () => {
     Animated.parallel([
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 6 }),
+      Animated.spring(scale, { toValue: 1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
       Animated.timing(hatTranslateY, { toValue: 0, duration: 200, useNativeDriver: true }),
       Animated.timing(hatRotate, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start();

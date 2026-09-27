@@ -36,7 +36,7 @@ import {
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
 import DatePickerModal from '@/components/DatePickerModal';
@@ -63,10 +63,13 @@ import { isSellBasisBudget, parseBidAmountInput } from '@/utils/bulkSavings';
 import { bidDueLabel, bidDueState, inviteCoverage, type BidInviteRecord } from '@/utils/bidInviteCore';
 import { packageBuyoutSavings } from '@/utils/projectFinancials';
 
+// Getters, not literals: `open` is the brand (Colors.primary follows the theme
+// and a picked hue), `awarded` the success TEAL. The pre-rebrand bright green
+// would now be indistinguishable from the brand-green `open` beside it.
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
-  open: '#FF6A1A',
+  get open() { return Colors.primary; },
   leveling: '#0D6CB1',
-  awarded: '#16A34A',
+  get awarded() { return Colors.successLabel; },
   cancelled: '#9CA3AF',
 };
 
@@ -267,7 +270,7 @@ export default function BuyoutScreen() {
       return;
     }
     if (!newPkgName.trim()) {
-      showAlert('Name required', 'Give the package a name like "Plumbing rough-in".');
+      showAlert('Add a package name', 'Enter a name like "Plumbing rough-in".');
       return;
     }
     // "12,000" used to read as NaN → 0. US grouping accepted, to the cent. An
@@ -277,7 +280,7 @@ export default function BuyoutScreen() {
     const budgetText = newPkgBudget.trim();
     const parsedBudget = budgetText ? parseBidAmountInput(newPkgBudget) : 0;
     if (parsedBudget == null) {
-      showAlert('Check the budget', `Couldn't read "${budgetText}" as a dollar amount. Type it like 12000 or 12,000.50 — or leave it blank.`);
+      showAlert('Check the budget', `Couldn't read "${budgetText}" as a dollar amount. Type it like 12000 or 12,000.50, or leave it blank.`);
       return;
     }
     const budget = parsedBudget;
@@ -364,7 +367,7 @@ export default function BuyoutScreen() {
           <View style={styles.tablePkgCell}>
             <View style={[styles.statusDot, styles.tableStatusDot, { backgroundColor: STATUS_COLORS[pkg.status] }]} />
             <Text style={[styles.tableCell, styles.tableCellStrong]} numberOfLines={1}>{pkg.name}</Text>
-            {v.overdue ? <Text style={styles.tableOverdue}>OVERDUE</Text> : null}
+            {v.overdue ? <Text style={styles.tableOverdue}>Overdue</Text> : null}
           </View>
         );
       },
@@ -440,9 +443,9 @@ export default function BuyoutScreen() {
           and producing a tall blank gap above the project chip row. */}
       <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: 8 }]}>
         <FeatureHeader
-          eyebrow="Subcontractor Awards"
+          eyebrow="Sub awards"
           title="Get your subs to bid"
-          subtitle="Take your estimate, send it for bids, lock in the lowest. We track every dollar saved between estimate and what you actually pay."
+          subtitle="Send your estimate out for bids and award the best one. Every dollar between your estimate and what you pay is tracked here."
           explainer={{
             term: 'Buyout',
             definition: 'In construction, "buyout" is the process of taking the bids you got from subcontractors and converting the lowest acceptable one into a signed contract. The difference between what your estimate says that work costs you — before your markup — and the awarded price is your "buyout savings": money you keep on top of the margin you already priced in.',
@@ -472,7 +475,7 @@ export default function BuyoutScreen() {
             );
           })}
           {projects.length === 0 && (
-            <Text style={styles.emptyChipText}>No projects yet — create one from the Home tab.</Text>
+            <Text style={styles.emptyChipText}>No projects yet. Create one from the Home tab.</Text>
           )}
         </ChipRail>
 
@@ -524,8 +527,8 @@ export default function BuyoutScreen() {
                 </View>
                 <Text style={styles.kpiNum}>{kpi.awarded}<Text style={styles.kpiNumSecondary}> / {kpi.total}</Text></Text>
                 <View style={styles.kpiPaceRow}>
-                  <View style={[styles.pacePill, { backgroundColor: '#FF6A1A22' }]}>
-                    <Text style={[styles.pacePillText, { color: themeColors.accent }]} numberOfLines={1}>{kpi.open} open</Text>
+                  <View style={[styles.pacePill, { backgroundColor: themeColors.accentSoft }]}>
+                    <Text style={[styles.pacePillText, { color: themeColors.accentLabel }]} numberOfLines={1}>{kpi.open} open</Text>
                   </View>
                   <View style={[styles.pacePill, { backgroundColor: '#0D6CB122' }]}>
                     <Text style={[styles.pacePillText, { color: '#0D6CB1' }]} numberOfLines={1}>{kpi.leveling} lvl</Text>
@@ -552,7 +555,7 @@ export default function BuyoutScreen() {
                 <View style={styles.emptyPackages}>
                   <Package size={32} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.emptyPackagesText}>
-                    Create a scope package — Plumbing rough-in, Drywall, MEP, etc. Send it out for bid, log the responses, and let MAGE ID level them.
+                    Create a scope package, like plumbing rough-in, drywall or MEP. Send it out for bid, log the responses, and MAGE levels them.
                   </Text>
                 </View>
               ) : isDesktopWeb ? (
@@ -589,7 +592,7 @@ export default function BuyoutScreen() {
                             {overdue && (
                               <>
                                 <Text style={styles.pkgMeta}>·</Text>
-                                <Text style={[styles.pkgMeta, { color: themeColors.danger, fontWeight: '700' }]}>OVERDUE</Text>
+                                <Text style={[styles.pkgMeta, { color: themeColors.danger, fontWeight: '700' }]}>Overdue</Text>
                               </>
                             )}
                           </View>
@@ -695,7 +698,7 @@ export default function BuyoutScreen() {
               <Text style={styles.fieldLabel}>Phase</Text>
               <TextInput style={styles.input} value={newPkgPhase} onChangeText={setNewPkgPhase} placeholder='e.g. "Rough-in", "Finishes"' placeholderTextColor={themeColors.textMuted} />
 
-              <Text style={styles.fieldLabel}>CSI Division</Text>
+              <Text style={styles.fieldLabel}>CSI division</Text>
               {/* All fifty divisions, searchable, with a suggestion derived
                   from what he has already typed — the package name is usually
                   the trade, so the right division is normally one tap. */}
@@ -736,7 +739,7 @@ export default function BuyoutScreen() {
                               <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
                               {item.isAllowance && (
                                 <View style={styles.allowanceBadge}>
-                                  <Text style={styles.allowanceBadgeText}>ALLOWANCE</Text>
+                                  <Text style={styles.allowanceBadgeText}>Allowance</Text>
                                 </View>
                               )}
                             </View>
@@ -765,7 +768,7 @@ export default function BuyoutScreen() {
               )}
 
               <Text style={styles.fieldLabel}>Budget at cost</Text>
-              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Auto-fills from selected items, or type manually' placeholderTextColor={themeColors.textMuted} keyboardType="decimal-pad" testID="buyout-budget-at-cost" />
+              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Fills from selected items, or type an amount' placeholderTextColor={themeColors.textMuted} keyboardType="decimal-pad" testID="buyout-budget-at-cost" />
               <Text style={styles.fieldHint}>
                 {newPkgPickedItemIds.length > 0
                   ? `What this work costs you — your sell subtotal for it is ${formatMoney(pickedSellSubtotal)}. Buyout savings are measured against cost, so your markup never counts as money saved.`
@@ -827,7 +830,7 @@ export default function BuyoutScreen() {
               </View>
               <Text style={styles.fieldHint}>
                 {newPkgDueDate
-                  ? 'This is the date this screen chases from — packages past it show OVERDUE, and the package screen can re-send to whoever has not answered.'
+                  ? 'This screen chases from this date. Packages past it show Overdue, and the package screen can resend to whoever has not answered.'
                   : 'Optional, but without it nothing can tell you a package is late: the invite only says the link expires in 30 days, which is not a deadline.'}
               </Text>
 

@@ -16,6 +16,8 @@ import { addWorkingDays } from '@/utils/scheduleEngine';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { computeProjectProgress } from '@/utils/projectProgress';
 import { toCalendarDate } from '@/utils/portalOwnerCore';
+import { getInvoicedToDate, getPaidToDate } from '@/utils/projectFinancials';
+import { sharedWithClient } from '@/utils/clientViewMoney';
 
 export type ConfidenceStatus = 'on_track' | 'minor_delays' | 'behind' | 'not_started' | 'complete';
 
@@ -239,8 +241,17 @@ export function buildOwnerConfidence(opts: {
     .filter((co) => co.status === 'approved')
     .reduce((s, co) => s + (co.changeAmount ?? 0), 0);
   const revisedContract = contract + approvedChanges;
-  const billed = invoices.reduce((s, inv) => s + (inv.totalDue ?? 0), 0);
-  const paid = invoices.reduce((s, inv) => s + (inv.amountPaid ?? 0), 0);
+  // MONEY-DRAFTS-COUNTED (health 2026-09-26): through the shared definitions.
+  // Summing every invoice counted a DRAFT — a document issued to nobody — as
+  // "Invoiced to date", and a payment logged against one as "Paid", while the
+  // Budget card on the same client-view screen (getInvoicedToDate) excluded
+  // it: two "invoiced" figures on one screen the moment a draft existed.
+  // Invoiced is also limited to what the client can SEE (a recalled invoice is
+  // off their page), the population the portal and
+  // utils/clientViewMoney.clientViewMoneyFigures bill on; paid stays every
+  // non-draft payment, as the portal's does — cash sent is cash sent.
+  const billed = getInvoicedToDate(invoices.filter(sharedWithClient));
+  const paid = getPaidToDate(invoices);
   const balance = Math.max(0, revisedContract - paid);
 
   // ── Next milestones — upcoming, not-yet-done, mapped to dates, top 3.

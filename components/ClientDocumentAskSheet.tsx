@@ -38,6 +38,7 @@ import {
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Button, Card } from '@/components/ui';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ThemeColors } from '@/constants/colors';
@@ -71,6 +72,9 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
   const onPrimary = live ? props.onPrimary : noop;
   const onSecondary = live ? props.onSecondary : (shown?.onSecondary ? noop : null);
   const onClose = live ? props.onClose : noop;
+  // Desktop web: the open ask is a DIALOG to the shortcut registry — the page
+  // behind it hears no keys, and Cmd+S never opens "Save page as…" over it.
+  useSheetDialogScope(live);
 
   return (
     <Modal visible={live} transparent animationType="slide" onRequestClose={onClose} onDismiss={props.onDismiss}>
@@ -94,7 +98,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                     hitSlop={10}
                     style={styles.closeBtn}
                     accessibilityRole="button"
-                    accessibilityLabel="Close — nothing is sent"
+                    accessibilityLabel="Close without sending"
                     testID="ask-close"
                   >
                     <X size={18} color={colors.textMuted} strokeWidth={1.9} />
@@ -110,7 +114,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                       style={styles.input}
                       value={draft.companyName}
                       onChangeText={(v) => onChangeDraft({ companyName: v })}
-                      placeholder="Your company, as the homeowner should see it"
+                      placeholder="Your company, as your client should see it"
                       placeholderTextColor={colors.textMuted}
                       autoCapitalize="words"
                       testID="ask-identity-company"
@@ -119,18 +123,18 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                     {identityGap?.rule ? (
                       <>
                         <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
-                          {identityGap.rule.authority} licence number
+                          {identityGap.rule.authority} license number
                         </Text>
                         <TextInput
                           style={styles.input}
                           value={draft.licenseNumber}
                           onChangeText={(v) => onChangeDraft({ licenseNumber: v })}
-                          placeholder="Licence number"
+                          placeholder="License number"
                           placeholderTextColor={colors.textMuted}
                           autoCapitalize="characters"
                           autoCorrect={false}
                           testID="ask-identity-licence"
-                          accessibilityLabel={`${identityGap.rule.authority} licence number`}
+                          accessibilityLabel={`${identityGap.rule.authority} license number`}
                         />
                         <Text style={styles.citation}>{identityGap.rule.citation}</Text>
                       </>

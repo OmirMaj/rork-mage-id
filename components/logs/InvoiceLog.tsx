@@ -8,7 +8,7 @@
 // job, behind a confirm, one invoice at a time through updateInvoice (the
 // offline queue) with the exact patch the invoice screen's "Mark sent" writes
 // (markSentPatch). It emails nobody. Until invoicesLoaded the empty table says
-// "Loading invoices…", never "No invoices on this job yet".
+// "Loading invoices…", never "No invoices on this project yet".
 // The balance, status and aging are the app's own rules (netBalanceDue,
 // getEffectiveInvoiceStatus, getDaysPastDue) — see utils/logs/invoiceLogRows.
 
@@ -209,12 +209,12 @@ export function InvoiceLog({ projectId, openId, detail }: InvoiceLogProps) {
             <EmptyState
               icon={<Receipt size={28} color={t.accent} />}
               title="Loading invoices…"
-              message="This job's invoices appear here once they load."
+              message="This project's invoices appear here once they load."
             />
           ) : (
             <EmptyState
               icon={<Receipt size={28} color={t.accent} />}
-              title={all.length === 0 ? 'No invoices on this job yet' : 'Nothing under this filter'}
+              title={all.length === 0 ? 'No invoices on this project yet' : 'Nothing under this filter'}
               message={all.length === 0 ? 'Bill a progress draw or the full amount.' : 'Pick another chip, or All.'}
               actionLabel="New invoice"
               onAction={newInvoice}

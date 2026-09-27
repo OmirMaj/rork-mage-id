@@ -31,6 +31,7 @@
 // └───────────────────────────────────────────────────────────────────────┘
 
 import type { ForecastSource } from '@/utils/weatherProvenance';
+import type { ScheduleCalendar } from '@/utils/scheduleCalendarDate';
 
 export interface DayForecast {
   date: string;
@@ -187,8 +188,34 @@ export function findWeatherRisk(
   startDay: number,
   durationDays: number,
   forecasts: DayForecast[],
+  /**
+   * The schedule's calendar (`scheduleCalendarOf(project.schedule)`). With a
+   * start date on it, `startDay` is read as the WORKING ordinal it is (utils/
+   * cpm.ts "THE TWO DAY-NUMBER SCALES") and only the task's working days are
+   * checked — rain on a Saturday of a Mon-Fri job is not a risk to it.
+   * OMITTED ⇒ the raw calendar-offset reading below, byte-for-byte what every
+   * caller got before this parameter existed (the Gantt's two calls keep it
+   * until they pass a calendar), and also how the engine reads an UNDATED
+   * schedule.
+   */
+  calendar?: ScheduleCalendar,
 ): DayForecast | null {
   if (forecasts.length === 0) return null;
+  if (calendar?.startDate) {
+    // Lazy, like the relay and the geocoder below: this module keeps ZERO
+    // static runtime imports (validate-weather-icons §0,
+    // validate-weather-location) because validate-weather-provenance imports it
+    // under bun.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { taskCalendarDay } = require('./scheduleCalendarDate') as typeof import('./scheduleCalendarDate');
+    for (let offset = 0; offset < Math.max(1, durationDays); offset++) {
+      const iso = taskCalendarDay(calendar, startDay, offset);
+      if (!iso) return null;
+      const day = forecasts.find((f) => f.date === iso);
+      if (day && !day.isWorkable) return day;
+    }
+    return null;
+  }
   for (let offset = 0; offset < Math.max(1, durationDays); offset++) {
     const taskDate = new Date(projectStartDate);
     taskDate.setDate(taskDate.getDate() + (startDay - 1) + offset);

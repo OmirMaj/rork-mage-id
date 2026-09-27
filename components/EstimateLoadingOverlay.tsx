@@ -19,6 +19,7 @@ import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -44,6 +45,8 @@ const FUN_FACTS: readonly string[] = CONSTRUCTION_FACTS;
 
 export default function EstimateLoadingOverlay({ visible, title, subtitle, thinkingSteps, onCancel }: Props) {
   const styles = useThemedStyles(makeStyles);
+  // Desktop web: a centred card beside the sidebar; all-null on a phone.
+  const fLoad = useSheetFrame('dialog', { visible, animationType: 'fade' });
   const [factIdx, setFactIdx] = useState(0);
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
@@ -83,13 +86,13 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
   return (
     <Modal
       visible={visible}
-      animationType="fade"
+      animationType={fLoad.animationType}
       transparent
       statusBarTranslucent
       onRequestClose={() => { /* not dismissable while generating */ }}
     >
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+      <View style={[styles.overlay, fLoad.overlay]}>
+        <View style={[styles.card, fLoad.card]}>
           <View style={styles.scene}>
             <CraneSvg size={288} animate={visible} />
           </View>
@@ -99,7 +102,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
             <ThinkingStates steps={thinkingSteps} active={visible} />
           ) : (
             <Text style={styles.subtitle}>
-              {subtitle ?? 'The model is estimating from your scope plus the rates listed above — nothing is pulled from a price list. Usually 8 to 30 seconds.'}
+              {subtitle ?? 'Estimating from your scope and the rates listed above. This takes 8 to 30 seconds.'}
             </Text>
           )}
 
@@ -110,7 +113,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
           </View>
 
           <View style={styles.factCard}>
-            <Text style={styles.factLabel}>WHILE YOU WAIT</Text>
+            <Text style={styles.factLabel}>While you wait</Text>
             <Animated.Text style={[styles.factText, { opacity: factOpacity }]}>
               {FUN_FACTS[factIdx]}
             </Animated.Text>
@@ -199,6 +202,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   factLabel: {
     fontSize: 10, fontWeight: '800',
     color: t.accent, letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   factText: {
     fontSize: Type.footnote.fontSize, color: t.text,

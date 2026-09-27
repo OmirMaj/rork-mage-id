@@ -172,7 +172,7 @@ describe('lane B1 — money dashboards on desktop web (1512 × 945)', () => {
     await desk(`/cash-flow?${P}`);
     expect(screen.getByTestId('dashboard-columns-row')).toBeTruthy();
     const rail = screen.getByTestId('dashboard-columns-rail');
-    expect(texts(rail.children as unknown).join(' ')).toMatch(/Monthly Expenses/);
+    expect(texts(rail.children as unknown).join(' ')).toMatch(/Monthly expenses/);
   });
 
   it('job-costing: KPI strip, main | rail, and the two tables', async () => {
@@ -201,7 +201,7 @@ describe('lane B1 — money dashboards on desktop web (1512 × 945)', () => {
     // The totals row: 'Job total' then Budget, Committed, Actual, EAC,
     // Variance, % spent — the SAME figures the KPI strip prints.
     const table = texts(screen.getByTestId('jobcost-phases').children as unknown);
-    const at = table.indexOf('Job total');
+    const at = table.indexOf('Project total');
     expect(at).toBeGreaterThan(-1);
     const [fBudget, fCommitted, fActual, fEac] = table.slice(at + 1, at + 5);
     expect(textOf('jobcost-kpis-budget')).toContain(fBudget);

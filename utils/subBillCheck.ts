@@ -156,11 +156,11 @@ export function subBillCheck(input: SubBillCheckInput): SubBillCheck {
   const evidence: string[] = tasks.map(t => `${t.title}: ${Math.round(progressOf(t))}% (${durationOf(t)} d)`);
   if (presence && presence.reportedDaysPresent > 0 && presence.lastSeen) {
     const last = formatCalendarDay(presence.lastSeen, { month: 'short', day: 'numeric' });
-    evidence.push(`${sub} is on your daily reports (by company name) on ${presence.reportedDaysPresent} day(s), last ${last}`);
+    evidence.push(`${sub} is on your daily reports (by company name) on ${presence.reportedDaysPresent} ${presence.reportedDaysPresent === 1 ? 'day' : 'days'}, last ${last}`);
   } else if (presence) {
     evidence.push(`${sub} isn’t on your daily reports under that company name`);
   }
-  if (input.openPunchCount > 0) evidence.push(`${input.openPunchCount} open punch item(s) on this sub`);
+  if (input.openPunchCount > 0) evidence.push(`${input.openPunchCount} open punch ${input.openPunchCount === 1 ? 'item' : 'items'} on this sub`);
 
   const retainage = (Number(input.invoice.retentionAmount) || 0) > 0;
   const withRetainage = (s: string) => (retainage ? `${s} ${RETAINAGE_NOTE}` : s);
@@ -220,7 +220,7 @@ export function subBillCheck(input: SubBillCheckInput): SubBillCheck {
       billedPct,
       workInPlacePct: wip,
       earnedCents: null,
-      headline: `Every task assigned to ${sub} still reads 0%, but your daily reports list them on site on ${presence!.reportedDaysPresent} day(s). Update task progress before holding any money.`,
+      headline: `Every task assigned to ${sub} still reads 0%, but your daily reports list them on site on ${presence!.reportedDaysPresent} ${presence!.reportedDaysPresent === 1 ? 'day' : 'days'}. Update task progress before holding any money.`,
     };
   }
 
@@ -232,7 +232,7 @@ export function subBillCheck(input: SubBillCheckInput): SubBillCheck {
 
   if (aheadPts >= AHEAD_THRESHOLD_PTS && hold >= MIN_HOLD_CENTS) {
     const presenceClause = presence && presence.reportedDaysPresent > 0
-      ? `, and your daily reports list them on site on ${presence.reportedDaysPresent} day(s)`
+      ? `, and your daily reports list them on site on ${presence.reportedDaysPresent} ${presence.reportedDaysPresent === 1 ? 'day' : 'days'}`
       : '';
     const num = String(input.invoice.invoiceNumber ?? '').trim() || input.invoice.id;
     return {

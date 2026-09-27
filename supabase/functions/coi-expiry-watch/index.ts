@@ -65,14 +65,14 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const INK = '#0B0D10';
-const AMBER = '#FF6A1A';
-const CREAM = '#F4EFE6';
-const SAND = '#E8DFCD';
+const BRAND = '#2F6B3A';
+const CONCRETE = '#ECEDE9';
+const HAIRLINE = '#D7DAD4';
 const FOG = '#9AA3AD';
 const STONE = '#4A5159';
 const PAPER = '#FFFFFF';
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 function escapeHtml(text: unknown): string {
   if (text == null) return '';
@@ -191,35 +191,35 @@ function buildEmailHtml(opts: {
     : opts.expiryIso;
   const headline =
     opts.threshold === 0
-      ? `${opts.subCompanyName}'s COI expired ${Math.abs(opts.daysUntilExpiry)} day${Math.abs(opts.daysUntilExpiry) === 1 ? '' : 's'} ago`
-      : `${opts.subCompanyName}'s COI expires in ${opts.daysUntilExpiry} day${opts.daysUntilExpiry === 1 ? '' : 's'}`;
+      ? `${opts.subCompanyName}'s COI expired ${Math.abs(opts.daysUntilExpiry)} ${Math.abs(opts.daysUntilExpiry) === 1 ? 'day' : 'days'} ago`
+      : `${opts.subCompanyName}'s COI expires in ${opts.daysUntilExpiry} ${opts.daysUntilExpiry === 1 ? 'day' : 'days'}`;
   const eyebrow =
     opts.threshold === 0 ? 'COI expired' :
-    opts.threshold === 7 ? 'COI — 7-day warning' :
-    opts.threshold === 14 ? 'COI — 14-day warning' :
-    'COI — 30-day reminder';
+    opts.threshold === 7 ? 'COI · 7-day warning' :
+    opts.threshold === 14 ? 'COI · 14-day warning' :
+    'COI · 30-day reminder';
 
   const contactLines: string[] = [];
   if (opts.subContactName) contactLines.push(`<strong style="color:#0B0D10;">Contact:</strong> ${escapeHtml(opts.subContactName)}`);
-  if (opts.subEmail) contactLines.push(`<strong style="color:#0B0D10;">Email:</strong> <a href="mailto:${escapeHtml(opts.subEmail)}" style="color:#FF6A1A;text-decoration:none;">${escapeHtml(opts.subEmail)}</a>`);
+  if (opts.subEmail) contactLines.push(`<strong style="color:#0B0D10;">Email:</strong> <a href="mailto:${escapeHtml(opts.subEmail)}" style="color:#2F6B3A;text-decoration:none;">${escapeHtml(opts.subEmail)}</a>`);
   if (opts.subPhone) contactLines.push(`<strong style="color:#0B0D10;">Phone:</strong> ${escapeHtml(opts.subPhone)}`);
 
   const bodyHtml = `
     <p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:22px;color:#4A5159;">
       The certificate of insurance you have on file for <strong>${escapeHtml(opts.subCompanyName)}</strong> expires <strong>${escapeHtml(expiryLabel)}</strong>.
-      Without a current COI you carry the OSHA controlling-employer risk for any work they do on your jobs.
+      Without a current COI you carry the OSHA controlling-employer risk for any work they do on your projects.
       Reach out and ask them to send a renewed COI naming you as additional insured.
     </p>
     ${contactLines.length > 0 ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#4A5159;">
       ${contactLines.map(l => `<tr><td style="padding:4px 0;">${l}</td></tr>`).join('')}
     </table>` : ''}
     <p style="margin:16px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#9AA3AD;line-height:19px;">
-      Once the renewed COI is in hand, enter its expiry in MAGE ID — the COI vault (tap the certificate, Coverages) or Subs → ${escapeHtml(opts.subCompanyName)} → Edit — and reminders start over for the new date.
+      Once you have the renewed COI, enter its expiry in MAGE ID (the COI vault: tap the certificate, then Coverages; or Subs → ${escapeHtml(opts.subCompanyName)} → Edit). Reminders start over for the new date.
     </p>
   `;
 
   return wrapEmailHtml({
-    preheader: `${opts.subCompanyName} COI ${opts.threshold === 0 ? 'expired' : `in ${opts.daysUntilExpiry}d`} — chase a renewal.`,
+    preheader: `${opts.subCompanyName} COI ${opts.threshold === 0 ? 'expired' : `expires in ${opts.daysUntilExpiry} ${opts.daysUntilExpiry === 1 ? 'day' : 'days'}`}. Ask for a renewal.`,
     eyebrow,
     title: headline,
     bodyHtml,
@@ -293,8 +293,8 @@ async function processForUser(client: SupabaseClient, userId: string, profile: P
       threshold,
     });
     const subject = threshold === 0
-      ? `COI expired — ${sub.company_name}`
-      : `COI expiring in ${daysUntil} day${daysUntil === 1 ? '' : 's'} — ${sub.company_name}`;
+      ? `COI expired · ${sub.company_name}`
+      : `COI expires in ${daysUntil} ${daysUntil === 1 ? 'day' : 'days'} · ${sub.company_name}`;
     const result = await sendEmail({
       to: gcEmail,
       subject,

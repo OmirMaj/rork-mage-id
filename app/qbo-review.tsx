@@ -44,6 +44,7 @@ import {
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { formatMoney } from '@/utils/formatters';
+import { useSheetFrame } from '@/components/ui/Sheet';
 
 // ─── Business gate ────────────────────────────────────────────────────────────
 
@@ -95,6 +96,9 @@ function QboReviewInner() {
   // Confirm-time project assignments for unmapped lines (line id → project id).
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [pickerFor, setPickerFor] = useState<QboCostLineRow | null>(null);
+  // Desktop web: the project picker is a centred dialog in the content
+  // column, the scrim over the sidebar. Phone: every part is null.
+  const fPick = useSheetFrame('dialog', { visible: pickerFor != null, animationType: 'fade' });
 
   const projectName = useCallback(
     (id: string | null | undefined) => projects.find(p => p.id === id)?.name ?? null,
@@ -208,10 +212,10 @@ function QboReviewInner() {
     if (toAdd.length > 0) {
       const onlyId = projectIds.size === 1 ? [...projectIds][0] : undefined;
       const where = onlyId
-        ? ` to ${projectName(onlyId) ?? 'your job'}`
-        : ` across ${projectIds.size} jobs`;
+        ? ` to ${projectName(onlyId) ?? 'your project'}`
+        : ` across ${projectIds.size} projects`;
       recordDidForYou(
-        `Filed ${toAdd.length} QBO cost${toAdd.length === 1 ? '' : 's'}${where} — ${formatMoney(total)}`,
+        `Filed ${toAdd.length} QBO cost${toAdd.length === 1 ? '' : 's'}${where} · ${formatMoney(total)}`,
         onlyId,
       );
     }
@@ -268,13 +272,13 @@ function QboReviewInner() {
               {isLoading ? 'Checking QuickBooks…' : 'No QBO costs waiting'}
             </Text>
             <Text style={styles.emptyBody}>
-              Purchases and bills you enter in QuickBooks land here about every 30 minutes. Confirm each one to file it into job costs and your price book — nothing is filed without you.
+              Purchases and bills you enter in QuickBooks land here about every 30 minutes. Confirm each one to file it into job costs and your cost history. Nothing is filed without you.
             </Text>
           </View>
         ) : (
           <>
             <Text style={styles.introNote}>
-              Pulled from QuickBooks. Confirm to file into job costs and your cost book; reject anything that isn&apos;t a job cost. Rejected lines never come back.
+              Confirm to file into job costs and your cost history. Reject anything that isn&apos;t a job cost; rejected lines don&apos;t come back.
             </Text>
 
             {groups.map(group => (
@@ -337,7 +341,7 @@ function QboReviewInner() {
                           onPress={() => onReject(row)}
                           activeOpacity={0.8}
                           accessibilityRole="button"
-                          accessibilityLabel="Reject — not a job cost"
+                          accessibilityLabel="Reject, not a job cost"
                           testID={`qbo-reject-${row.id}`}
                         >
                           <X size={14} color={t.textSecondary} strokeWidth={2} />
@@ -378,7 +382,7 @@ function QboReviewInner() {
           >
             <CheckCircle2 size={16} color="#FFFFFF" strokeWidth={2} />
             <Text style={styles.bulkBtnText}>
-              Confirm {bulkEligible.length} mapped — {formatMoney(bulkEligible.reduce((a, r) => a + r.amount, 0))}
+              Confirm {bulkEligible.length} mapped · {formatMoney(bulkEligible.reduce((a, r) => a + r.amount, 0))}
             </Text>
           </TouchableOpacity>
           <Text style={styles.bulkNote}>
@@ -388,18 +392,18 @@ function QboReviewInner() {
       )}
 
       {/* Project picker */}
-      <Modal visible={pickerFor != null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
-        <View style={styles.pickerBackdrop}>
-          <View style={styles.pickerSheet}>
+      <Modal visible={pickerFor != null} transparent animationType={fPick.animationType} onRequestClose={() => setPickerFor(null)}>
+        <View style={[styles.pickerBackdrop, fPick.overlay]}>
+          <View style={[styles.pickerSheet, fPick.card]}>
             <View style={styles.pickerHead}>
-              <Text style={styles.pickerTitle}>File this cost to…</Text>
+              <Text style={styles.pickerTitle}>Which project is this cost for?</Text>
               <TouchableOpacity onPress={() => setPickerFor(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close picker">
                 <X size={18} color={t.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 380 }}>
               {pickerProjects.length === 0 ? (
-                <Text style={styles.pickerEmpty}>No projects yet — create one first.</Text>
+                <Text style={styles.pickerEmpty}>No projects yet. Create one first.</Text>
               ) : (
                 pickerProjects.map(p => (
                   <TouchableOpacity
@@ -411,7 +415,7 @@ function QboReviewInner() {
                   >
                     <FolderOpen size={15} color={t.accent} strokeWidth={1.75} />
                     <Text style={styles.pickerRowText} numberOfLines={1}>{p.name}</Text>
-                    {p.status === 'in_progress' && <Text style={styles.pickerRowBadge}>active</Text>}
+                    {p.status === 'in_progress' && <Text style={styles.pickerRowBadge}>Active</Text>}
                   </TouchableOpacity>
                 ))
               )}

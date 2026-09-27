@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
+import { Spinner } from '@/components/ui/Spinner';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target, XCircle, BookOpen,
@@ -26,6 +27,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 
 interface BidScoringInput {
   id: string;
@@ -43,18 +45,22 @@ interface AIBidScorecardProps {
   testID?: string;
 }
 
-function scoreColor(score: number): string {
-  if (score >= 80) return "#2E7D44";
-  if (score >= 60) return "#FF6A1A";
+// Themed, so the ladder reads in dark mode too. Strong fit is the SUCCESS teal
+// and good fit the brand green: after the 2026-09-16 rebrand the old success
+// green sat DeltaE 9.2 from the brand, so the two top rungs would have read as
+// one colour. Teal vs brand is DeltaE 21.6; the label text carries it as well.
+function scoreColor(score: number, t: ThemeColors): string {
+  if (score >= 80) return t.successLabel;
+  if (score >= 60) return t.accentLabel;
   if (score >= 40) return Colors.warningLabel;
   return "#C84038";
 }
 
 function scoreLabel(score: number): string {
-  if (score >= 85) return 'Strong Fit — Go';
-  if (score >= 65) return 'Good Fit — Likely Go';
-  if (score >= 45) return 'Partial Fit — Review';
-  return 'Weak Fit — No-Go';
+  if (score >= 85) return 'Strong fit · Go';
+  if (score >= 65) return 'Good fit · Likely go';
+  if (score >= 45) return 'Partial fit · Review';
+  return 'Weak fit · No-go';
 }
 
 function goNoGo(score: number): 'go' | 'review' | 'no_go' {
@@ -178,7 +184,8 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       } catch { /* G4 */ }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
-      setError(err?.message || 'Failed to score bid');
+      console.warn('[AI Bid] scoring failed:', err);
+      setError(ownSentence(err) ?? describeError(err, { action: 'score this bid' }).body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -198,14 +205,14 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       <View style={styles.container} testID={testID}>
         <View style={styles.heroRow}>
           <View style={styles.iconWrap}>
-            <MageAIMark size={18} color={"#FF6A1A"} />
+            <MageAIMark size={18} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>AI Go/No-Go Analysis</Text>
+            <Text style={styles.title}>Go/no-go analysis</Text>
             <Text style={styles.subtitle}>
               {profileReady
-                ? 'Score this bid against your company profile in seconds.'
-                : 'Set up a quick company profile and get personalized bid scoring.'}
+                ? 'Score this bid against your company profile.'
+                : 'Set up a short company profile to score bids against it.'}
             </Text>
           </View>
         </View>
@@ -222,7 +229,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <>
               <MageAIMark size={15} color="#FFF" />
               <Text style={styles.runBtnText}>
-                {profileReady ? 'Run Go/No-Go Score' : 'Set Up & Score'}
+                {profileReady ? 'Score this bid' : 'Set up and score'}
               </Text>
             </>
           )}
@@ -240,7 +247,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]} testID={testID}>
-        <ActivityIndicator size="small" color={"#FF6A1A"} />
+        <Spinner tone="accent" />
         <Text style={styles.loadingText}>Scoring bid against your profile…</Text>
       </View>
     );
@@ -251,12 +258,12 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       <View style={[styles.container, { borderColor: "#C84038" + '40' }]} testID={testID}>
         <View style={styles.heroRow}>
           <AlertTriangle size={18} color={"#C84038"} strokeWidth={1.75} />
-          <Text style={[styles.title, { color: "#C84038" }]}>Scoring Failed</Text>
+          <Text style={[styles.title, { color: "#C84038" }]}>Couldn&apos;t score this bid</Text>
         </View>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.runBtn} onPress={() => void runScore(true)} activeOpacity={0.85}>
           <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
-          <Text style={styles.runBtnText}>Retry</Text>
+          <Text style={styles.runBtnText}>Try again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -264,7 +271,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
   if (!score) return null;
 
-  const color = scoreColor(score.matchScore);
+  const color = scoreColor(score.matchScore, themeColors);
   const decision = goNoGo(score.matchScore);
   const winProb = score.estimatedWinProbability;
   const winPct = winProb !== null && winProb !== undefined ? Math.round(winProb * 100) : null;
@@ -273,16 +280,16 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
     <View style={styles.container} testID={testID}>
       <View style={styles.heroRow}>
         <View style={styles.iconWrap}>
-          <MageAIMark size={18} color={"#FF6A1A"} />
+          <MageAIMark size={18} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>AI Go/No-Go Analysis</Text>
+          <Text style={styles.title}>Go/no-go analysis</Text>
           <Text style={styles.subtitle}>Cached · tap refresh to re-score</Text>
         </View>
-        <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Refresh">
+        <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Score again">
           <RefreshCw size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Settings">
+        <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Edit company profile">
           <Settings size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
@@ -322,15 +329,15 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       {/* Recommendation pill */}
       <View style={[styles.decisionPill, {
         flexDirection: 'row', alignItems: 'center', gap: 6,
-        backgroundColor: decision === 'go' ? "#2E7D44" + '18' : decision === 'review' ? Colors.warning + '18' : "#C84038" + '18',
+        backgroundColor: decision === 'go' ? themeColors.successSoft : decision === 'review' ? Colors.warning + '18' : "#C84038" + '18',
       }]}>
         {(() => {
-          const dc = decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warningLabel : "#C84038";
+          const dc = decision === 'go' ? themeColors.successLabel : decision === 'review' ? Colors.warningLabel : "#C84038";
           const DIcon = decision === 'go' ? CheckCircle2 : decision === 'review' ? AlertTriangle : XCircle;
           return <DIcon size={14} color={dc} strokeWidth={2} />;
         })()}
         <Text style={[styles.decisionPillText, {
-          color: decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warningLabel : "#C84038",
+          color: decision === 'go' ? themeColors.successLabel : decision === 'review' ? Colors.warningLabel : "#C84038",
         }]}>
           {decision === 'go' ? 'Recommend pursuing' : decision === 'review' ? 'Worth reviewing' : 'Recommend passing'}
         </Text>
@@ -340,12 +347,12 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       {score.matchReasons && score.matchReasons.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <CheckCircle2 size={14} color={"#2E7D44"} strokeWidth={1.75} />
+            <CheckCircle2 size={14} color={themeColors.successLabel} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Why it fits</Text>
           </View>
           {score.matchReasons.map((reason, i) => (
             <View key={`reason-${i}`} style={styles.bulletRow}>
-              <View style={[styles.bulletDot, { backgroundColor: "#2E7D44" }]} />
+              <View style={[styles.bulletDot, { backgroundColor: themeColors.success }]} />
               <Text style={styles.bulletText}>{reason}</Text>
             </View>
           ))}
@@ -370,10 +377,10 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
       {/* Strategy */}
       {score.bidStrategy ? (
-        <View style={[styles.section, { backgroundColor: "#FF6A1A" + '0C', borderRadius: Tokens.radius.card, padding: 12 }]}>
+        <View style={[styles.section, { backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.card, padding: 12 }]}>
           <View style={styles.sectionHeader}>
-            <TrendingUp size={14} color={"#FF6A1A"} strokeWidth={1.75} />
-            <Text style={[styles.sectionTitle, { color: "#FF6A1A" }]}>Bid Strategy</Text>
+            <TrendingUp size={14} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={[styles.sectionTitle, { color: themeColors.accentLabel }]}>Bid strategy</Text>
           </View>
           <Text style={styles.strategyText}>{score.bidStrategy}</Text>
         </View>

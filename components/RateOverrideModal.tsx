@@ -7,6 +7,7 @@ import { X, Plus, ChevronLeft, CheckCircle2, Trash2 } from 'lucide-react-native'
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -143,8 +144,8 @@ function RateOverrideModalImpl({
   // ── Delete with confirm ───────────────────────────────────────────────────
   const handleDelete = useCallback((id: string, displayLabel: string) => {
     showAlert(
-      'Delete Override',
-      `Remove the override for "${displayLabel}"?`,
+      'Delete this override?',
+      `"${displayLabel}" goes back to the default.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -154,6 +155,11 @@ function RateOverrideModalImpl({
       ],
     );
   }, [onDelete]);
+
+  // Desktop web: a centred card beside the sidebar (all-null on a phone);
+  // Cmd/Ctrl+Enter or Cmd/Ctrl+S saves the override being edited.
+  const fRate = useSheetFrame('form', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, subForm ? handleSubFormSave : null);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const laborOverrides = overrides.filter(o => o.kind === 'labor');
@@ -227,14 +233,14 @@ function RateOverrideModalImpl({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={fRate.animationType} onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}
+        style={[styles.backdrop, fRate.overlay]}
       >
-        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }, fRate.card]}>
           {/* Drag handle */}
-          <View style={styles.handle} />
+          {fRate.showHandle && <View style={styles.handle} />}
 
           {/* Header */}
           <View style={styles.head}>
@@ -250,9 +256,9 @@ function RateOverrideModalImpl({
             <Text style={styles.title}>
               {subForm
                 ? subForm.editingId
-                  ? `Edit ${subForm.kind === 'labor' ? 'Labor' : 'Material'} Rate`
-                  : `Add ${subForm.kind === 'labor' ? 'Labor' : 'Material'} Rate`
-                : 'Cost-Book Overrides'}
+                  ? `Edit ${subForm.kind === 'labor' ? 'labor' : 'material'} rate`
+                  : `Add ${subForm.kind === 'labor' ? 'labor' : 'material'} rate`
+                : 'Rate overrides'}
             </Text>
             <TouchableOpacity
               onPress={onClose}
@@ -304,12 +310,12 @@ function RateOverrideModalImpl({
               </ScrollView>
 
               {/* Sub-form footer */}
-              <View style={styles.footer}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={cancelSubForm}>
+              <View style={[styles.footer, fRate.footer]}>
+                <TouchableOpacity style={[styles.secondaryBtn, fRate.footerButton]} onPress={cancelSubForm}>
                   <Text style={styles.secondaryBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.primaryBtn}
+                  style={[styles.primaryBtn, fRate.footerButton]}
                   onPress={handleSubFormSave}
                   activeOpacity={0.85}
                 >
@@ -370,7 +376,7 @@ function RateOverrideModalImpl({
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddLabor} activeOpacity={0.8}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>＋ Labor rate</Text>
+                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add labor rate</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -416,7 +422,7 @@ function RateOverrideModalImpl({
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddMaterial} activeOpacity={0.8}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>＋ Material price</Text>
+                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add material price</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -429,12 +435,12 @@ function RateOverrideModalImpl({
               </ScrollView>
 
               {/* List-view footer */}
-              <View style={styles.footer}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}>
+              <View style={[styles.footer, fRate.footer]}>
+                <TouchableOpacity style={[styles.secondaryBtn, fRate.footerButton]} onPress={onClose}>
                   <Text style={styles.secondaryBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.primaryBtn}
+                  style={[styles.primaryBtn, fRate.footerButton]}
                   onPress={onClose}
                   activeOpacity={0.85}
                 >

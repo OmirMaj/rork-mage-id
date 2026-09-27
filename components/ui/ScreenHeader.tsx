@@ -6,8 +6,8 @@
 // screens between them, and they had drifted on every axis that makes a header
 // feel like the same product twice:
 //
-//   components/PageHeader.tsx        Fraunces 28, h1, search field, status pill
-//   components/FeatureHeader.tsx     Fraunces 22, h1, eyebrow, (?) chip, subtitle
+//   components/PageHeader.tsx        display 28, h1, search field, status pill
+//   components/FeatureHeader.tsx     display 22, h1, eyebrow, (?) chip, subtitle
 //   components/ToolScreenChrome.tsx  system sans 17/700, NO h1, back chevron,
 //                                    its own eyebrow metrics, a bottom rule
 //
@@ -138,8 +138,8 @@ export function ScreenHeader({
               bookmarks and SEO. Native ignores both. It used to be on two of
               the three headers; here every screen inherits it.
 
-              Fraunces, never fontWeight: constants/typography.ts's rule is that
-              a SCREEN TITLE is the serif, and Fraunces_700Bold already carries
+              Barlow, never fontWeight: constants/typography.ts's rule is that
+              a SCREEN TITLE is the display face, and Barlow_600SemiBold already carries
               its weight — an override makes the platform synthesise a fake bold
               on top of a real one. */}
           <Text

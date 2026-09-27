@@ -232,9 +232,9 @@ ok('#136 Outstanding / Balance / Invoiced / Paid tiles to the cent, count-up inc
   && /label: 'Balance', value: fmtMoney\(bal, \{dec:2\}\)[^\n]*cents: true/.test(html)
   && /if \(fmt === 'money2'\) return fmtMoney\(v, \{dec:2\}\);/.test(html)
   && /s\.cents \? 'money2' : 'money'/.test(html));
-ok('#136 the spend bar (headline, Paid, Due now, Retention held) to the cent',
+ok('#136 the spend bar (headline, Paid, Due now, Retainage held) to the cent',
   /Due now <strong>' \+ fmtMoney\(outstanding, \{dec:2\}\)/.test(html)
-  && /Retention held <strong>' \+ fmtMoney\(retHeld, \{dec:2\}\)/.test(html)
+  && /Retainage held <strong>' \+ fmtMoney\(retHeld, \{dec:2\}\)/.test(html)
   && /fmtMoney\(paid, \{dec:2\}\) \+ ' <span class="spend-of">of<\/span> ' \+ fmtMoney\(billed, \{dec:2\}\)/.test(html));
 ok('#136 the decision row to the cent, a credit CO signed',
   /\? \(d\.amount > 0 \? '\+' : ''\) \+ fmtSigned\(d\.amount\)\s*: fmtMoney\(d\.amount, \{dec:2\}\)/.test(html));

@@ -5,10 +5,11 @@ const AS_W = 1290;
 const AS_H = 2796;
 
 // --- MAGE ID brand tokens ---
-const AMBER = "#FF6A1A";      // single accent — no green, no purple, no gold
+const BRAND = "#2F6B3A";      // single accent, on light grounds (6.39:1 white-on)
+const BRAND_ON_DARK = "#5DB36E"; // the same accent on ink (the deep green is 3:1 there)
 const INK = "#0B0D10";        // dark surface / body text
-const CREAM = "#F4EFE6";      // light surface
-const DISPLAY = '"Fraunces", Georgia, "Times New Roman", serif';        // display headings
+const CONCRETE = "#ECEDE9";   // light surface
+const DISPLAY = '"Barlow", "Helvetica Neue", Arial, sans-serif';        // display headings
 const BODY = '"Space Grotesk", -apple-system, system-ui, sans-serif';   // body / UI
 const MONO = '"JetBrains Mono", ui-monospace, SFMono-Regular, monospace'; // labels / numbers
 
@@ -25,17 +26,17 @@ const AppStoreHeroA = ({ src, eyebrow, title, accent }) => (
     overflow: "hidden",
     position: "relative",
   }}>
-    <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: "0.3em", color: AMBER, textTransform: "uppercase", marginBottom: 36, position: "relative", fontFamily: MONO }}>
+    <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: "0.3em", color: BRAND_ON_DARK, textTransform: "uppercase", marginBottom: 36, position: "relative", fontFamily: MONO }}>
       {eyebrow}
     </div>
     <div style={{
       fontSize: 130, fontWeight: 700, lineHeight: 0.95,
-      textAlign: "center", letterSpacing: "-0.04em",
+      textAlign: "center", letterSpacing: "-0.012em",
       maxWidth: 1100, marginBottom: 80, position: "relative",
       textWrap: "balance", fontFamily: DISPLAY,
     }}>
       {title}
-      {accent && <span style={{ color: AMBER }}>{accent}</span>}
+      {accent && <span style={{ color: BRAND_ON_DARK }}>{accent}</span>}
     </div>
     <div style={{ position: "relative", filter: "drop-shadow(0 60px 120px rgba(0,0,0,0.5))" }}>
       <PhoneFrame src={src} width={900} shadow={false} />
@@ -47,7 +48,7 @@ const AppStoreHeroA = ({ src, eyebrow, title, accent }) => (
 const AppStoreHeroB = ({ src, title, accent, subtitle }) => (
   <div style={{
     width: AS_W, height: AS_H,
-    background: CREAM,
+    background: CONCRETE,
     color: INK,
     padding: "100px 80px 140px",
     boxSizing: "border-box",
@@ -61,13 +62,13 @@ const AppStoreHeroB = ({ src, title, accent, subtitle }) => (
     <div style={{ textAlign: "center", maxWidth: 1100 }}>
       <div style={{
         fontSize: 120, fontWeight: 700, lineHeight: 0.96,
-        letterSpacing: "-0.04em",
+        letterSpacing: "-0.012em",
         textWrap: "balance", fontFamily: DISPLAY,
       }}>
         {title}
-        {accent && <span style={{ color: AMBER }}> {accent}</span>}
+        {accent && <span style={{ color: BRAND }}> {accent}</span>}
       </div>
-      {subtitle && <div style={{ fontSize: 38, marginTop: 32, color: "#6f6a60", fontWeight: 500 }}>{subtitle}</div>}
+      {subtitle && <div style={{ fontSize: 38, marginTop: 32, color: "#5F655F", fontWeight: 500 }}>{subtitle}</div>}
     </div>
   </div>
 );
@@ -76,7 +77,7 @@ const AppStoreHeroB = ({ src, title, accent, subtitle }) => (
 const AppStoreHeroC = ({ src, title, callouts = [] }) => (
   <div style={{
     width: AS_W, height: AS_H,
-    background: CREAM,
+    background: CONCRETE,
     color: INK,
     padding: "100px 60px",
     boxSizing: "border-box",
@@ -87,7 +88,7 @@ const AppStoreHeroC = ({ src, title, callouts = [] }) => (
   }}>
     <div style={{
       fontSize: 110, fontWeight: 700, lineHeight: 0.96,
-      letterSpacing: "-0.04em", textAlign: "center", maxWidth: 1100,
+      letterSpacing: "-0.012em", textAlign: "center", maxWidth: 1100,
       marginBottom: 60, textWrap: "balance", fontFamily: DISPLAY,
     }}>
       {title}
@@ -98,7 +99,7 @@ const AppStoreHeroC = ({ src, title, callouts = [] }) => (
         <div key={i} style={{
           position: "absolute",
           ...c.position,
-          background: AMBER,
+          background: BRAND,
           color: "#fff",
           padding: "20px 28px",
           borderRadius: 18,
@@ -114,7 +115,7 @@ const AppStoreHeroC = ({ src, title, callouts = [] }) => (
             position: "absolute",
             ...c.tail,
             width: 24, height: 24,
-            background: AMBER,
+            background: BRAND,
             transform: "rotate(45deg)",
           }} />
         </div>
@@ -136,16 +137,16 @@ const AppStoreHeroD = ({ src, eyebrow, italicTitle, restTitle, subtitle }) => (
     overflow: "hidden",
     position: "relative",
   }}>
-    <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "0.4em", color: AMBER, textTransform: "uppercase", marginBottom: 40, position: "relative", fontFamily: MONO }}>
+    <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "0.4em", color: BRAND_ON_DARK, textTransform: "uppercase", marginBottom: 40, position: "relative", fontFamily: MONO }}>
       {eyebrow}
     </div>
     <div style={{
       fontSize: 130, fontWeight: 600, lineHeight: 0.96,
-      textAlign: "center", letterSpacing: "-0.03em",
+      textAlign: "center", letterSpacing: "-0.012em",
       maxWidth: 1100, marginBottom: 70, position: "relative",
       fontFamily: DISPLAY,
     }}>
-      <em style={{ color: AMBER, fontStyle: "italic" }}>{italicTitle}</em><br />
+      <em style={{ color: BRAND_ON_DARK, fontStyle: "italic" }}>{italicTitle}</em><br />
       {restTitle}
     </div>
     {subtitle && (
@@ -174,7 +175,7 @@ const AppStoreHeroE = ({ src, stat, statLabel, headline, sub }) => (
     <div style={{ textAlign: "center" }}>
       <div style={{
         fontSize: 280, fontWeight: 700, lineHeight: 0.9,
-        letterSpacing: "-0.06em", color: AMBER, fontFamily: MONO,
+        letterSpacing: "-0.06em", color: BRAND_ON_DARK, fontFamily: MONO,
       }}>
         {stat}
       </div>

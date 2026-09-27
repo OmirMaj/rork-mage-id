@@ -46,6 +46,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import VoiceCaptureModal from './VoiceCaptureModal';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -132,8 +133,8 @@ export default function InlineVoiceFill({
       // Auto-clear the success line after 4s.
       setTimeout(() => setFilledMsg(prev => prev), 0); // no-op to avoid lint
     } catch (e) {
-      const msg = (e as Error)?.message || String(e);
-      setErrorMsg(`Couldn't parse the recording. ${msg}`);
+      console.warn('[InlineVoiceFill] fill failed', rawErrorMessage(e));
+      setErrorMsg(describeError(e, { action: 'fill the fields from that recording' }).body);
     } finally {
       setBusy(false);
     }

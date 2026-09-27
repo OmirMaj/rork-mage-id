@@ -117,7 +117,7 @@ export default function MarginAlertManager() {
         const askData = (a: (typeof fresh)[number]): Record<string, unknown> => ({
           kind: 'ask_seed',
           screen: 'margin',
-          seed: `Why is ${names[a.projectId ?? ''] ?? 'this job'}'s margin slipping, and what should I do about it?`,
+          seed: `Why is ${names[a.projectId ?? ''] ?? 'this project'}'s margin slipping, and what should I do about it?`,
           ...(a.projectId ? { projectId: a.projectId } : {}),
         });
 
@@ -130,9 +130,9 @@ export default function MarginAlertManager() {
           }
         } else if (fresh.length > 3) {
           await sendLocalNotification(
-            `${fresh.length} jobs need margin attention`,
-            'Margin risk stepped up on several active jobs — ask MAGE what to do first.',
-            { kind: 'ask_seed', screen: 'margin', seed: 'Which jobs are losing margin right now, and what should I do about it?' },
+            `${fresh.length} projects need margin attention`,
+            'Margin risk went up on several active projects. Ask MAGE what to do first.',
+            { kind: 'ask_seed', screen: 'margin', seed: 'Which projects are losing margin right now, and what should I do about it?' },
           );
         }
 
@@ -142,7 +142,7 @@ export default function MarginAlertManager() {
           recordDidForYou(
             fresh.length === 1
               ? `Flagged rising margin risk: ${fresh[0].title}`
-              : `Flagged rising margin risk on ${fresh.length} jobs`,
+              : `Flagged rising margin risk on ${fresh.length} projects`,
             fresh.length === 1 ? fresh[0].projectId : undefined,
           );
         }

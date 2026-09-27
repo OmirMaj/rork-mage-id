@@ -32,7 +32,7 @@ export type TakeoffSyncVerdict = 'ok' | 'local' | 'seat' | 'seat_unknown';
  */
 export const TAKEOFF_SAVE_LINES: Record<TakeoffSaveState, string> = {
   local: 'Saved on this browser',
-  seat: 'Saved on this browser — your seat on this job can’t save takeoffs to the account',
+  seat: 'Saved on this browser. Your role on this project can’t save takeoffs to the account.',
   syncing: 'Saved on this browser — syncing to your account',
   synced: 'Saved to your account — open it on any computer',
   offline: 'Saved on this browser — it syncs to your account when you’re back online',

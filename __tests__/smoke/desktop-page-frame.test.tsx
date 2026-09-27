@@ -39,6 +39,12 @@ import { __resetSidebarRailForTests } from '@/utils/sidebarRailStore';
 import { SIDEBAR_RAIL_KEY } from '@/utils/sidebarRail';
 import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
 
+// The launch overlay (BrandSplash) mounts from app/_layout's FIRST render and
+// these tests pump only ~1 s, so its still frame 0 would sit in every tree.
+// It is theme-free and outside the page frame; keep it out (as
+// slick3-front-door does).
+jest.mock('@/components/BrandSplash', () => () => null);
+
 // ── Forcing the responsive hook and the platform ──────────────────────────
 // `mock`-prefixed so jest's hoisted factory may read it. null = the real hook.
 let mockForcedLayout: null | 'phone' | 'desktop' | 'laptop1366' = null;

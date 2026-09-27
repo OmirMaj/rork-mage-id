@@ -20,6 +20,8 @@ import {
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
@@ -41,15 +43,19 @@ type AppliedField = 'qty' | 'markup';
 type AppliedMap = Record<string, Set<AppliedField>>;
 
 const QUICK_PROMPTS = [
-  'Kitchen remodel, 200sf, mid-grade finishes',
-  'Bathroom remodel, 60sf, premium tile',
-  'Deck build, 300sf composite, with railing',
-  '2-car garage addition, 600sf',
-  'Roof replacement, 2200sf, architectural shingles',
+  'Kitchen remodel, 200 sq ft, mid-grade finishes',
+  'Bathroom remodel, 60 sq ft, premium tile',
+  'Deck build, 300 sq ft composite, with railing',
+  '2-car garage addition, 600 sq ft',
+  'Roof replacement, 2,200 sq ft, architectural shingles',
 ];
 
 export default React.memo(function MaterialAIEstimateModal({ visible, onClose }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const { cart, updateQuantity, updateMarkup } = useMaterialCart();
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -87,9 +93,9 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
       console.error('[MaterialAIEstimateModal] generate failed:', err);
       setResult({
         perItem: [],
-        laborEstimateRange: { low: 0, high: 0, rationale: 'AI request failed.' },
+        laborEstimateRange: { low: 0, high: 0, rationale: 'No labor range returned.' },
         overallRecommendations: [],
-        summary: 'AI request failed. Try again in a moment.',
+        summary: 'Couldn\'t get suggestions. Try again in a moment.',
       });
     } finally {
       setIsLoading(false);
@@ -135,22 +141,25 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
   );
 
   const headerSubtitle = useMemo(() => {
-    if (isLoading) return 'Tuning cart for your project…';
+    if (isLoading) return 'Reviewing your cart…';
     if (result) {
       if (result.errorKind) return result.summary;
       return `${result.perItem.length} suggestion${result.perItem.length === 1 ? '' : 's'} · ${cart.length} cart item${cart.length === 1 ? '' : 's'}`;
     }
-    return `${cart.length} cart item${cart.length === 1 ? '' : 's'} ready for AI review`;
+    return `${cart.length} cart item${cart.length === 1 ? '' : 's'} ready for review`;
   }, [isLoading, result, cart.length]);
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType={fP.animationType}
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+      transparent={fP.transparent}
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={handleClose} />
+      <KeyboardAvoidingView style={[{ flex: 1 }, fP.card, fP.isDesktop && { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.container}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -158,7 +167,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                 <MageAIMark size={18} color={Colors.surface} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle}>Ask AI</Text>
+                <Text style={styles.headerTitle}>Review your cart</Text>
                 <Text style={styles.headerSub}>{headerSubtitle}</Text>
               </View>
             </View>
@@ -184,7 +193,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
               style={styles.textArea}
               value={description}
               onChangeText={setDescription}
-              placeholder="Kitchen remodel, 200sf, mid-grade finishes…"
+              placeholder="Kitchen remodel, 200 sq ft, mid-grade finishes"
               placeholderTextColor={Colors.textMuted}
               multiline
               numberOfLines={3}
@@ -215,7 +224,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
               {isLoading ? (
                 <>
                   <ActivityIndicator size="small" color={Colors.surface} />
-                  <Text style={styles.generateBtnText}>Generating… (20–40s)</Text>
+                  <Text style={styles.generateBtnText}>Generating suggestions…</Text>
                 </>
               ) : (
                 <>
@@ -237,7 +246,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                   if (Platform.OS !== 'web') void Haptics.selectionAsync();
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel AI generation"
+                accessibilityLabel="Cancel suggestions"
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
@@ -246,7 +255,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             {cart.length === 0 && (
               <View style={styles.notice}>
                 <Text style={styles.noticeText}>
-                  Add materials to your cart first — the AI tunes existing items, it doesn't pick new ones.
+                  Add materials to your cart first. MAGE adjusts the items already in it and doesn't add new ones.
                 </Text>
               </View>
             )}
@@ -254,7 +263,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             {result && result.errorKind && (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorBannerText}>
-                  {result.errorDetail || result.summary || 'AI returned an error.'}
+                  {result.errorDetail || result.summary || 'Couldn\'t get suggestions. Try again in a moment.'}
                 </Text>
               </View>
             )}
@@ -383,7 +392,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             {result && result.perItem.length === 0 && !result.errorKind && (
               <View style={styles.notice}>
                 <Text style={styles.noticeText}>
-                  AI didn&apos;t return per-item suggestions. Try a more specific description (size, finishes, scope).
+                  No per-item suggestions came back. Try a more specific description (size, finishes, scope).
                 </Text>
               </View>
             )}
@@ -392,6 +401,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+      </SheetOverlay>
     </Modal>
   );
 });
@@ -598,7 +608,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   applyBtnApplied: { backgroundColor: Colors.successLight },
   applyBtnText: {

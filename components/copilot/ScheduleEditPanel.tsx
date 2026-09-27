@@ -10,6 +10,7 @@ import type { ScheduleTask } from '@/types';
 import type { RunCpmOptions } from '@/utils/cpm';
 import { commitRefused, type CommitOutcome, type CopilotContext } from '@/utils/copilot/types';
 import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 
 /** What a structural undo compares: the shape of the plan, not the start days
  *  a host reflows after the commit (the classic tab writes CPM starts back),
@@ -94,7 +95,7 @@ export default function ScheduleEditPanel({
     }
     beforeRef.current = null;
     afterRef.current = null;
-    return { ok: true, message: 'Undone — the schedule is back to how it was.' };
+    return { ok: true, message: 'Undone. The schedule is back to how it was.' };
   }, [commit, hasToolbarUndo]);
 
   // Memoized: the shell's preview re-interprets the ops whenever ctx changes
@@ -104,6 +105,11 @@ export default function ScheduleEditPanel({
     project, projectId, ctx: projectsCtx, tier, commitTasks: commitWithSnapshot, currentTasks: tasks, cpmOptions,
     ...(onPreview ? { onPreview } : {}),
   }), [project, projectId, projectsCtx, tier, commitWithSnapshot, tasks, cpmOptions, onPreview]);
+
+  // The modal sheet is a DIALOG to the shortcut registry (desktop web only):
+  // an Esc closes it and nothing behind it. The docked pane is not a dialog —
+  // the Gantt beside it keeps its keys.
+  useSheetDialogScope(visible && presentation !== 'docked');
 
   if (!visible) return null;
   if (presentation === 'docked') {

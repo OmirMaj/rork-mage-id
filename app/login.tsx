@@ -8,7 +8,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome, CheckCircle2 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
+import { Colors, BRAND_ACCENT_ON_DARK } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -18,6 +18,7 @@ import { Type } from '@/constants/typography';
 import { neutralInk, cardSurface } from '@/components/ui';
 import { Motion, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { classifyError, describeError, rawErrorMessage, readerSentence } from '@/utils/errorCopy';
 import {
   AuthSubmitButton, FieldRing, Slot, useLaunchEntrance, useLaunchTarget, usePressSpring,
 } from '@/components/auth/authMotion';
@@ -33,6 +34,21 @@ let _LocalAuthentication: typeof import('expo-local-authentication') | null = nu
 // server-side regex in AuthContext.sendMagicLink; the backend remains the
 // authoritative validator.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** The sign-in failure as a sentence. The two answers a person can act on
+ *  (wrong password, unconfirmed email) are named; everything else goes
+ *  through describeError so no raw auth text reaches the screen. */
+function signInErrorText(err: unknown): string {
+  const raw = rawErrorMessage(err);
+  if (/invalid login credentials/i.test(raw)) {
+    return "That email and password don't match. Check them, or email yourself a sign-in link.";
+  }
+  if (/email not confirmed/i.test(raw)) {
+    return 'Confirm your email first. Open the link we sent to your inbox.';
+  }
+  return describeError(err, { action: 'sign you in' }).body;
+}
+
 
 // The wordmark while the splash's own "MAGE ID" is still flying onto it.
 const HIDDEN = { opacity: 0 } as const;
@@ -241,8 +257,8 @@ export default function LoginScreen() {
   const handleBiometricLogin = useCallback(async () => {
     if (!hasStoredCredentials) {
       showAlert(
-        'No Stored Credentials',
-        'Please log in with your email and password first. After a successful login with "Remember me" enabled, you can use biometrics next time.'
+        'Sign in with your password first',
+        'Sign in with your email and password with "Remember me" on. After that, you can use Face ID or Touch ID.'
       );
       return;
     }
@@ -258,8 +274,8 @@ export default function LoginScreen() {
       goAfterSignIn();
     } catch (err) {
       console.log('[Login] Biometric auth failed:', err);
-      const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
-      showAlert('Authentication Failed', msg);
+      console.warn('[Login] biometric sign-in failed:', rawErrorMessage(err));
+      showAlert("Couldn't sign in", 'Face ID or Touch ID did not confirm. Sign in with your password instead.');
     } finally {
       localSignInRef.current = false;
       setIsBiometricLoading(false);
@@ -274,7 +290,7 @@ export default function LoginScreen() {
     if (emailEmpty || passwordEmpty) {
       setEmailDanger(emailEmpty);
       setPasswordDanger(passwordEmpty);
-      setError('Please fill in all fields');
+      setError('Fill in every field.');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -296,8 +312,8 @@ export default function LoginScreen() {
       setSignedIn(true);
       goAfterSignIn();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
-      setError(message);
+      console.warn('[Login] sign-in failed:', rawErrorMessage(err));
+      setError(signInErrorText(err));
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -344,7 +360,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Google login failed:', err);
       if (isUserCancel(err)) return;
-      setError("Couldn't sign in with Google. Please try again.");
+      setError("Couldn't sign in with Google. Try again.");
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -372,7 +388,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Apple login failed:', err);
       if (isUserCancel(err)) return;
-      setError("Couldn't sign in with Apple. Please try again.");
+      setError("Couldn't sign in with Apple. Try again.");
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -395,7 +411,7 @@ export default function LoginScreen() {
     }
     if (!EMAIL_REGEX.test(email.trim())) {
       setEmailDanger(true);
-      setError('That email address looks off — please double-check it.');
+      setError('That email address looks off. Check it and try again.');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -407,8 +423,13 @@ export default function LoginScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'magic_link_requested' });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not send link. Try again.';
-      setError(msg);
+      // The auth-magic-link function answers in sentences written for the
+      // reader (rate limit, bad address; AuthContext passes them through).
+      // Only text that reads as such a sentence is shown (readerSentence);
+      // a transport failure or a terse server note gets describeError copy.
+      console.warn('[Login] sign-in link failed:', rawErrorMessage(err));
+      setError((classifyError(err) === 'unknown' ? readerSentence(rawErrorMessage(err)) : null)
+        ?? describeError(err, { action: 'send the sign-in link' }).body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsMagicLinkLoading(false);
@@ -428,7 +449,7 @@ export default function LoginScreen() {
         <View style={styles.brandRow}>
           <Slot style={entrance.slot(0)}>
             <View style={styles.logoChip}>
-              <HardHat size={16} color={Colors.orange} strokeWidth={2} />
+              <HardHat size={16} color={BRAND_ACCENT_ON_DARK} strokeWidth={2} />
             </View>
           </Slot>
           <Text
@@ -439,7 +460,7 @@ export default function LoginScreen() {
         </View>
 
         <Slot style={entrance.slot(1)}>
-          <Text style={styles.heroEyebrow}>WELCOME BACK</Text>
+          <Text style={styles.heroEyebrow}>Welcome back</Text>
         </Slot>
         <Slot style={entrance.slot(2)}>
           <Text style={styles.heroLine}>
@@ -676,7 +697,7 @@ export default function LoginScreen() {
               <Animated.View style={press.style}>
                 <AuthSubmitButton
                   phase={submitPhase}
-                  label="Sign In"
+                  label="Sign in"
                   trailing={<ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />}
                   style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
                   textStyle={styles.loginButtonText}
@@ -704,25 +725,26 @@ export default function LoginScreen() {
             style={styles.forgotButton}
             onPress={async () => {
               if (!email.trim()) {
-                showAlert('Enter Email', 'Please enter your email address first, then tap Forgot Password.');
+                showAlert('Add your email', 'Enter your email address, then tap Forgot password.');
                 return;
               }
               if (!EMAIL_REGEX.test(email.trim())) {
-                showAlert('Check Your Email', 'That email address looks off — please double-check it.');
+                showAlert('Check your email address', 'That email address looks off. Check it and try again.');
                 return;
               }
               try {
                 await resetPassword(email.trim());
-                showAlert('Check Your Email', 'A password reset link has been sent to ' + email.trim());
+                showAlert('Check your email', 'A password reset link was sent to ' + email.trim() + '.');
               } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : 'Failed to send reset email';
-                showAlert('Error', msg);
+                console.warn('[Login] reset email failed:', rawErrorMessage(err));
+                const copy = describeError(err, { action: 'send the password reset email' });
+                showAlert(copy.title, copy.body);
               }
             }}
             testID="login-forgot"
           >
             <KeyRound size={14} color={themeColors.accent} strokeWidth={1.8} />
-            <Text style={styles.forgotText}>Forgot Password?</Text>
+            <Text style={styles.forgotText}>Forgot password?</Text>
           </TouchableOpacity>
 
           <View style={styles.signupRow}>
@@ -731,7 +753,7 @@ export default function LoginScreen() {
               onPress={() => router.push(signupHrefForInvite(inviteToken) as never)}
               testID="login-go-signup"
             >
-              <Text style={styles.signupLink}>Create Account</Text>
+              <Text style={styles.signupLink}>Create account</Text>
             </TouchableOpacity>
           </View>
           </Slot>
@@ -747,11 +769,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg,
   },
   // Premium dark hero — matches the marketing site at https://mageid.app
-  // Palette: --ink #0B0D10 + --amber #FF6A1A + --cream #F4EFE6.
-  // A single soft amber glow gives the "industrial concrete × tech" feel
+  // Palette (rebrand 2026-09-16): the dark ground #151816 + equipment green on
+  // dark (BRAND_ACCENT_ON_DARK #5DB36E) + cream type. The hero is dark in BOTH
+  // themes, so its green is the dark-UI brand — #2F6B3A would be 2.80:1 here —
+  // and never the themed accent, which is the light brand in light mode.
+  // A single soft green glow gives the "industrial concrete × tech" feel
   // without an image asset — and without ruled lines behind the copy.
   topSection: {
-    backgroundColor: '#0B0D10',
+    backgroundColor: '#151816',
     paddingHorizontal: 28,
     paddingBottom: 40,
     alignItems: 'flex-start' as const,
@@ -764,7 +789,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: 'rgba(255,106,26,0.18)',
+    backgroundColor: 'rgba(93,179,110,0.18)', // BRAND_ACCENT_ON_DARK at 18%
   },
   brandRow: {
     flexDirection: 'row' as const,
@@ -777,11 +802,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: 'rgba(255,106,26,0.12)',
+    backgroundColor: 'rgba(93,179,110,0.12)',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     borderWidth: 1,
-    borderColor: 'rgba(255,106,26,0.24)',
+    borderColor: 'rgba(93,179,110,0.24)',
   },
   brandWordmark: {
     fontSize: Type.footnote.fontSize,
@@ -792,10 +817,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroEyebrow: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.orange,
+    color: BRAND_ACCENT_ON_DARK,
     letterSpacing: 2.5,
     marginBottom: 12,
     zIndex: 1,
+    textTransform: 'uppercase' as const,
   },
   heroLine: {
     fontSize: 36,
@@ -807,7 +833,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     zIndex: 1,
   },
   heroLineAccent: {
-    color: Colors.orange,
+    color: BRAND_ACCENT_ON_DARK,
     fontStyle: 'italic' as const,
     fontWeight: '700' as const,
   },
@@ -903,7 +929,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0B0D10',
+    // #151816, the dark ground since the 2026-09-16 rebrand (was #0B0D10). It
+    // also has to MATCH Theme.dark.bg: scripts/validate-contrast.ts check 13
+    // recognises this file as painting a real ink field by comparing against
+    // that token, and prints its exemption on that basis.
+    backgroundColor: '#151816',
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,
@@ -917,10 +947,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loginButtonDisabled: {
     opacity: 0.7,
   },
-  // Colors.textOnAccent, NOT t.surface. This sits on a FIXED fill (ink #0B0D10 /
+  // Colors.textOnAccent, NOT t.surface. This sits on a FIXED fill (ink #151816 /
   // Apple black / t.accentFill) that does not change with the theme, so the
-  // foreground must not either. In dark mode t.surface is #14181D: the Sign In
-  // label was 1.09:1 on its own button, and the page behind it is #0B0D10 too,
+  // foreground must not either. In dark mode t.surface is the dark surface: the
+  // Sign In label was 1.09:1 on its own button, and the page behind it is ink too,
   // so the button had no edge and the label no contrast. validate-contrast.ts
   // passes on this file — it prints an explicit allowance for it.
   loginButtonText: {
@@ -1022,9 +1052,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: '#1E8E4A' + '12',
+    backgroundColor: '#12806E' + '12',
     borderWidth: 1,
-    borderColor: '#1E8E4A' + '40',
+    borderColor: '#12806E' + '40',
   },
   magicLinkSuccessText: {
     fontSize: Type.footnote.fontSize,
@@ -1084,7 +1114,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   signupLink: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: '#0B0D10',
+    // t.accentLabel, not ink. The literal '#0B0D10' was ink TEXT on t.bg — fine
+    // on the light ground and roughly 1.1:1 on the dark one, so "Sign up" simply
+    // vanished in dark mode. The theme-aware brand label clears AA in both, and
+    // a link reads as a link in the brand colour.
+    color: t.accentLabel,
   },
   forgotButton: {
     flexDirection: 'row' as const,
@@ -1097,6 +1131,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   forgotText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.orange,
+    // A brand text link on the themed page: accentLabel is the AA ink in both
+    // themes. (This was Colors.orange — the system WARNING orange, not brand.)
+    color: t.accentLabel,
   },
 });

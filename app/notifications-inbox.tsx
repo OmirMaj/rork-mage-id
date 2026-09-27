@@ -13,7 +13,7 @@ import {
 } from 'lucide-react-native';
 import { WAIVER_LABELS } from '@/utils/lienWaiverEngine';
 import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
-import { Colors } from '@/constants/colors';
+import { Colors, BRAND_ACCENT } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -38,10 +38,10 @@ import { notificationRoute, routeHref } from '@/supabase/functions/notify/routes
 const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: string }> = {
   // Client → GC
   portal_message:        { icon: <MessageSquare size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Client message' },
-  budget_proposal:       { icon: <HandCoins   size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Budget proposal' },
+  budget_proposal:       { icon: <HandCoins   size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Budget proposal' },
   co_approval:           { icon: <CheckCircle2 size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Change order' },
   contract_signed:       { icon: <PenTool     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Contract signed' },
-  selection_chosen:      { icon: <ShoppingCart size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Selection picked' },
+  selection_chosen:      { icon: <ShoppingCart size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Selection picked' },
   closeout_binder_sent:  { icon: <Package     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Closeout delivered' },
 
   // Sub → GC
@@ -55,13 +55,13 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
 
   // Money in (#48) — a client paying through Stripe, or a bank payment bouncing.
   client_invoice_paid:   { icon: <Banknote    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Client paid' },
-  client_payment_failed: { icon: <AlertTriangle size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Payment failed' },
+  client_payment_failed: { icon: <AlertTriangle size={16} color="#B84A00" strokeWidth={1.75} />, tint: Colors.warningLight, label: 'Payment failed' },
 
   // Field / design team → GC
   field_report_filed:    { icon: <FileText    size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Daily report' },
   pro_response_received: { icon: <HelpCircle  size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Design response' },
   punch_marked_ready:    { icon: <ListChecks  size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Punch ready' },
-  safety_incident_filed: { icon: <ShieldAlert size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Incident report' },
+  safety_incident_filed: { icon: <ShieldAlert size={16} color="#B84A00" strokeWidth={1.75} />, tint: Colors.warningLight, label: 'Incident report' },
 
   // Website → GC
   lead_received:         { icon: <UserPlus    size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Website lead' },
@@ -73,8 +73,8 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
   bid_question_answered: { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Bid Q&A' },
 
   // Brain
-  morning_brief:         { icon: <Sunrise       size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Morning Brief' },
-  week_close:            { icon: <CalendarCheck size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Friday Close' },
+  morning_brief:         { icon: <Sunrise       size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Morning brief' },
+  week_close:            { icon: <CalendarCheck size={16} color={BRAND_ACCENT} strokeWidth={1.75} />, tint: '#E9F1EA', label: 'Friday close' },
 };
 
 function fmtAgo(iso: string): string {
@@ -181,7 +181,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const homeowner = (p.homeowner_name as string) || 'your client';
       return {
         title: `Closeout binder delivered`,
-        body: `${homeowner === 'there' ? 'The homeowner' : homeowner} now has the full closeout for ${projectName}.`,
+        body: `${homeowner === 'there' ? 'The client' : homeowner} now has the full closeout for ${projectName}.`,
       };
     }
     case 'sub_invoice_submitted': {
@@ -192,7 +192,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         title: num
           ? `${submitter} submitted invoice #${num}`
           : `${submitter} submitted an invoice`,
-        body: amount ? `${amount} — pending your review` : 'Pending your review.',
+        body: amount ? `${amount} · waiting on your review` : 'Waiting on your review.',
       };
     }
     // Wave 5 (CONTRACT 8). notify stores the facts it re-read from the source
@@ -235,7 +235,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         title: num
           ? `Invoice #${num} ${status}`
           : `Invoice ${status}`,
-        body: 'Sub has been notified by email.',
+        body: 'The sub was notified by email.',
       };
     }
     case 'nearby_rfp_posted': {
@@ -256,7 +256,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const value = fmtMoney(p.contract_value);
       return {
         title: `You won the bid for ${winnerProject}`,
-        body: value ? `${value} contract value` : `Open the project to see drawings and start the kickoff.`,
+        body: value ? `${value} contract value` : `Open the project to see the plans and start the kickoff.`,
       };
     }
     case 'bid_question_asked': {
@@ -264,7 +264,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const q = String(p.question || '').slice(0, 140);
       return {
         title: `${asker} asked a question on your RFP`,
-        body: q ? `"${q}"` : 'Tap to answer — every bidder will see it.',
+        body: q ? `"${q}"` : 'Tap to answer. Every bidder sees it.',
       };
     }
     case 'bid_question_answered': {
@@ -275,7 +275,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       };
     }
     case 'lead_received': {
-      const who = (p.name as string) || 'A homeowner';
+      const who = (p.name as string) || 'Someone';
       const kind = (p.project_type as string) || 'a project';
       const phone = (p.phone as string) || '';
       return {
@@ -298,7 +298,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const amt = fmtMoneyExact(p.amount);
       return {
         title: `${amt ? `A ${amt} payment` : 'A payment'} failed${num ? ` on Invoice ${num}` : ''}`,
-        body: `Nothing was credited — the invoice is still open. ${projectName}`,
+        body: `Nothing was credited. The invoice is still open. ${projectName}`,
       };
     }
     case 'field_report_filed': {
@@ -343,12 +343,11 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         body: typeof p.body === 'string' ? p.body.slice(0, 160) : '',
       };
     default:
-      // Unknown / new event type — fall back to a humanized version of
-      // the event_type so the user never sees "selection_chosen" raw.
+      // Unknown / new event type: the label map's entry when there is one,
+      // otherwise a plain title. Never the raw or machine-humanized
+      // event_type ("selection_chosen" / "Selection chosen").
       return {
-        title: item.eventType
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (c) => c.toUpperCase()),
+        title: EVENT_META[item.eventType]?.label ?? 'New notification',
         body: '',
       };
   }
@@ -442,7 +441,7 @@ export default function NotificationsInboxScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={"#FF6A1A"} strokeWidth={1.75} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Notifications</Text>
@@ -516,7 +515,7 @@ export default function NotificationsInboxScreen() {
           ) : null
         }
         renderItem={({ item }) => {
-          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={themeColors.text} strokeWidth={1.75} />, tint: themeColors.bg, label: item.eventType };
+          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={themeColors.text} strokeWidth={1.75} />, tint: themeColors.bg, label: 'Notification' };
           const summary = summarize(item);
           const isUnread = !item.readAt;
           return (
@@ -618,7 +617,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, marginTop: 4 },
   emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
   emptyAction: { marginTop: 6, paddingVertical: 8, paddingHorizontal: 16 },
-  // accentLabel, not accent: this is text, and #FF6A1A is 2.87:1.
+  // accentLabel, not accent: this is text, and accentLabel is the ink solved
+  // to clear AA on every ground and on the accentSoft wash.
   emptyActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accentLabel },
 
   clearAll: {

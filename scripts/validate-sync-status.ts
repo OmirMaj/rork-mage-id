@@ -338,7 +338,7 @@ console.log('\n── 9. source pins (no injection seam exists for these) ──
       && (pill.match(/label="Retry"/g) ?? []).length === 1,
     'Retry must be gated on canRetry (isRetryableFailure), never offered for work that is gone');
   ok('…and says a dismiss does not recover the data',
-    /does NOT recover/.test(pill));
+    /doesn[’']t recover the data/.test(pill));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

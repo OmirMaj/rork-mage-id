@@ -41,7 +41,7 @@ import { isWorkingDayOfWeek } from '@/utils/cpm';
 import { decodePermitInspectionNotes } from '@/utils/permitInspectionHistory';
 
 export const TIME_NOT_SET = 'time not set';
-export const NO_SCHEDULE_NOTE = 'No schedule on this job — the lineup reads tasks from the schedule.';
+export const NO_SCHEDULE_NOTE = 'No schedule on this project. The lineup reads tasks from the schedule.';
 export const MESSAGE_SOFT_LIMIT = 600;
 /** After this local hour the lineup is what he sends; before it, a preview. */
 export const READY_HOUR = 15;
@@ -345,7 +345,7 @@ export function buildLineup(input: LineupInput): Lineup {
   const nothing = perSub.length === 0 && siteDeliveries.length === 0 && siteAccess.length === 0 && inspections.length === 0;
   let emptyNote: string | null = null;
   if (noSchedule && nothing) emptyNote = NO_SCHEDULE_NOTE;
-  else if (nothing) emptyNote = `Nothing scheduled for ${shortDay(date)} on this job`;
+  else if (nothing) emptyNote = `Nothing scheduled for ${shortDay(date)} on this project`;
   else if (noSchedule) gaps.push(NO_SCHEDULE_NOTE);
 
   const bits: string[] = [];

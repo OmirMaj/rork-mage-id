@@ -136,7 +136,7 @@ export default function NearbyRfpsScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Homeowner RFPs</Text>
+          <Text style={styles.eyebrow}>Client RFPs</Text>
           <Text style={styles.title}>Projects near you</Text>
         </View>
       </View>
@@ -210,21 +210,21 @@ export default function NearbyRfpsScreen() {
                 fetched, so "no projects within N miles yet" was a permanent lie. */}
             <Text style={styles.emptyTitle}>
               {!RFP_BROWSE_ENABLED
-                ? 'Browsing nearby projects is coming soon'
+                ? 'Browsing nearby projects isn’t open yet'
                 /* Without a location the radius is not applied, so naming it would
                    describe a filter that never ran. */
                 : location ? `No projects within ${radius} miles yet` : 'No projects posted yet'}
             </Text>
             <Text style={styles.emptyBody}>
               {!RFP_BROWSE_ENABLED
-                ? 'Homeowner projects near you will show up here once browsing opens. Until then, post your own project from MAGE ID Bids.'
+                ? 'Client projects near you show up here once browsing opens. Until then, post your own project from MAGE ID Bids.'
                 : !location
                   /* Name the control by whatever it currently reads — after a
                      denial it says "Location off — open Settings", so quoting
                      "Use my location" here would point at a button that is not
                      there. */
                   ? `Tap ${locationControlLabel(locStatus, false, LOCATION_PLATFORM)} above to see projects near you, or expand your radius.`
-                  : 'Try expanding the radius — new projects show up here as homeowners post them.'}
+                  : 'Try a wider radius. New projects show up here as clients post them.'}
             </Text>
           </View>
         )}

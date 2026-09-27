@@ -39,6 +39,9 @@ export type SeatRole = 'owner' | 'editor' | 'viewer' | 'field';
 export type SeatStatusKind = 'pending' | 'accepted' | 'revoked';
 export type SeatTier = 'free' | 'pro' | 'business' | 'enterprise';
 
+/** Plan names as a person reads them (the tier keys stay lower case). */
+const PLAN_NAME: Record<SeatTier, string> = { free: 'Free', pro: 'Pro', business: 'Business', enterprise: 'Enterprise' };
+
 /** Monthly price of one admin seat beyond the tier's included allowance. */
 export const SEAT_PRICE_USD = 15;
 
@@ -183,7 +186,7 @@ export function previewSeat(
       allowed: true,
       bills: false,
       addedMonthlyUsd: 0,
-      message: 'Field access is free and unlimited — crew never count toward seats.',
+      message: 'Field access is free for any number of crew members. They never count toward your team.',
     };
   }
 
@@ -194,7 +197,7 @@ export function previewSeat(
       allowed: false,
       bills: false,
       addedMonthlyUsd: 0,
-      message: 'Inviting teammates needs a Pro plan or higher.',
+      message: 'Editor and Viewer access is on the Pro plan.',
     };
   }
 
@@ -203,7 +206,7 @@ export function previewSeat(
       allowed: true,
       bills: false,
       addedMonthlyUsd: 0,
-      message: 'They already hold a seat on your account — no extra charge.',
+      message: "They're already on your team. No extra charge.",
     };
   }
 
@@ -213,7 +216,7 @@ export function previewSeat(
       allowed: true,
       bills: false,
       addedMonthlyUsd: 0,
-      message: `${left} of ${status.included} included seat${status.included === 1 ? '' : 's'} left on ${status.tier}.`,
+      message: `${left} of ${status.included} included team ${status.included === 1 ? 'member' : 'members'} left on ${PLAN_NAME[status.tier]}.`,
     };
   }
 
@@ -225,7 +228,7 @@ export function previewSeat(
       allowed: false,
       bills: false,
       addedMonthlyUsd: 0,
-      message: `All ${status.included} team seats on your ${status.tier} plan are in use. Upgrade for more — or invite them as Field, which is always free.`,
+      message: `All ${status.included} team members on your ${PLAN_NAME[status.tier]} plan are in use. See plans for more, or invite them as Field, which is always free.`,
     };
   }
 
@@ -233,6 +236,6 @@ export function previewSeat(
     allowed: true,
     bills: true,
     addedMonthlyUsd: SEAT_PRICE_USD,
-    message: `This is seat ${status.used + 1}. Your ${status.tier} plan includes ${status.included}, so this adds $${SEAT_PRICE_USD}/mo.`,
+    message: `This is team member ${status.used + 1}. Your ${PLAN_NAME[status.tier]} plan includes ${status.included}, so this adds $${SEAT_PRICE_USD}/mo.`,
   };
 }

@@ -49,9 +49,9 @@ describe('cross-project double-booking on /last-planner', () => {
       mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall', title: 'Patch' })]),
     ]);
     await mountRouteChecked('/last-planner?projectId=p1');
-    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
+    await act(async () => { fireEvent.press(screen.getByText('This week')); });
 
-    expect(screen.getByText(/A crew is booked on two jobs this week/)).toBeTruthy();
+    expect(screen.getByText(/A crew is booked on two projects this week/)).toBeTruthy();
     const box = screen.getAllByRole('checkbox')[0];
     expect(box.props.accessibilityState.checked).toBe(false);
     await act(async () => { fireEvent.press(box); });
@@ -71,7 +71,7 @@ describe('cross-project double-booking on /last-planner', () => {
       mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall', title: 'Patch' })]),
     ]);
     await mountRouteChecked('/last-planner?projectId=p1');
-    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
+    await act(async () => { fireEvent.press(screen.getByText('This week')); });
     const boxes = screen.getAllByRole('checkbox');
     expect(boxes.length).toBe(2);
     for (const b of boxes) {
@@ -87,8 +87,8 @@ describe('cross-project double-booking on /last-planner', () => {
   it('negative control: one project commits normally', async () => {
     await seed([mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })])]);
     await mountRouteChecked('/last-planner?projectId=p1');
-    await act(async () => { fireEvent.press(screen.getByText('This Week')); });
-    expect(screen.queryByText(/A crew is booked on two jobs this week/)).toBeNull();
+    await act(async () => { fireEvent.press(screen.getByText('This week')); });
+    expect(screen.queryByText(/A crew is booked on two projects this week/)).toBeNull();
     const box = screen.getAllByRole('checkbox')[0];
     await act(async () => { fireEvent.press(box); });
     await waitFor(() => expect(screen.getAllByRole('checkbox')[0].props.accessibilityState.checked).toBe(true));
@@ -105,13 +105,13 @@ describe('cross-project double-booking on /summary', () => {
       mk('p2', 'Ridgeline Job', [task({ id: 't2', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })]),
     ]);
     await mountRouteChecked('/summary');
-    expect(screen.getByText('DOUBLE-BOOKED')).toBeTruthy();
+    expect(screen.getByText('Double-booked')).toBeTruthy();
     expect(screen.getByText(/Henderson \+ Ridgeline Job/)).toBeTruthy();
   });
 
-  it('negative control: one project shows no DOUBLE-BOOKED block', async () => {
+  it('negative control: one project shows no Double-booked block', async () => {
     await seed([mk('p1', 'Henderson', [task({ id: 't1', startDay: 1, durationDays: 3, assignedSubId: 's-dry', assignedSubName: 'Ace Drywall' })])]);
     await mountRouteChecked('/summary');
-    expect(screen.queryByText('DOUBLE-BOOKED')).toBeNull();
+    expect(screen.queryByText('Double-booked')).toBeNull();
   });
 });

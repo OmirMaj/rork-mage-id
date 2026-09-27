@@ -41,7 +41,7 @@ import { dirname, join, relative } from 'node:path';
 // Check 12 measures the REAL derived palette, not a regex of it. Both modules
 // are import-free leaves (no react-native, no bundler), so bun loads them the
 // same way scripts/validate-schedule-colors.ts already loads constants/colors.
-import { Colors, Theme, deriveAccentPalette, BRAND_ACCENT } from '../constants/colors';
+import { Colors, Theme, deriveAccentPalette, BRAND_ACCENT, setColorTheme, getColorTheme, setCustomPrimary } from '../constants/colors';
 import { THEME_PRESETS } from '../types';
 // Check 15b RUNS the two label pickers instead of reading their source. Both
 // are leaves for bun's purposes — utils/scheduleColors pulls only
@@ -1388,13 +1388,13 @@ for (const file of collectFiles(['app'])) {
     if (/fontFamily/.test(val)) continue;
     headerFailures.push(
       `${rel}:${src.slice(0, m.index!).split('\n').length}  headerTitleStyle without a fontFamily — ` +
-      `this screen's title drops out of Fraunces: ${val.slice(0, 70)}`,
+      `this screen's title drops out of the display face (Barlow): ${val.slice(0, 70)}`,
     );
   }
 }
 
 ok(
-  'every native header title style carries the app typeface (Fraunces)',
+  'every native header title style carries the app typeface (Barlow)',
   headerFailures.length === 0,
   headerFailures.join('\n        '),
 );
@@ -1619,8 +1619,11 @@ if (!loaderCall) {
 // point the app calls (lowercase included: a `theme_colors` row could carry
 // either spelling).
 const BRAND_EXPECTED: Record<'light' | 'dark', Record<string, string>> = {
-  light: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.12)', accentLabel: '#B23E08', accentFill: '#BC440C' },
-  dark: { accent: '#FF6A1A', accentHot: '#FF8533', accentSoft: 'rgba(255,106,26,0.16)', accentLabel: '#FF6A1A', accentFill: '#BC440C' },
+  // The green family since the 2026-09-16 rebrand. Read back from
+  // deriveAccentPalette(BRAND_ACCENT, theme) itself, not transcribed from a
+  // report — these are what the function returns.
+  light: { accent: '#2F6B3A', accentHot: '#3D9A4E', accentSoft: 'rgba(47,107,58,0.12)', accentLabel: '#2C6436', accentFill: '#2F6B3A' },
+  dark: { accent: '#5DB36E', accentHot: '#83CA91', accentSoft: 'rgba(93,179,110,0.16)', accentLabel: '#69B979', accentFill: '#388046' },
 };
 for (const theme of ['light', 'dark'] as const) {
   for (const seed of [BRAND_ACCENT, BRAND_ACCENT.toLowerCase()]) {
@@ -1648,6 +1651,142 @@ ok(
   'the accent family stays derived per hue and the picker still reaches it',
   derivationFailures.length === 0,
   derivationFailures.join('\n        '),
+);
+
+// ── Check 12c: white on the STATIC Colors.accentFill, in BOTH themes ────────
+//
+// Check 12 measures deriveAccentPalette. This one measures the getter screens
+// actually read. The 2026-09-16 rebrand made `Colors.primary` theme-aware
+// (#5DB36E on the dark page, where the light brand is 2.80:1), and that turned
+// every solid `backgroundColor: Colors.primary` under a white label into a
+// 2.58:1 button in dark mode (rebrand critic, 2026-09-27). Those fills moved to
+// `Colors.accentFill` / `t.accentFill`, so this is the number the fix rests
+// on: white on the getter, for the default brand and for every preset, under
+// both themes, through the same setColorTheme / setCustomPrimary the app calls.
+// validate-brand-color section 4b is the other half — it fails any new solid
+// Colors.primary fill that carries white text.
+const staticFillFailures: string[] = [];
+const staticFillSeen: Record<'light' | 'dark', number> = { light: 0, dark: 0 };
+let darkPrimaryWhite = 0;
+const priorTheme = getColorTheme();
+try {
+  for (const preset of [{ id: '(default brand)', primary: null as string | null }, ...THEME_PRESETS]) {
+    setCustomPrimary(preset.primary);
+    for (const theme of ['light', 'dark'] as const) {
+      setColorTheme(theme);
+      const fill = parseColor(Colors.accentFill);
+      if (!fill) { staticFillFailures.push(`${preset.id}/${theme}: Colors.accentFill ${Colors.accentFill} is unparseable`); continue; }
+      const white = contrast(fill.rgb, WHITE);
+      if (preset.primary === null) staticFillSeen[theme] = white;
+      if (white < PRESET_AA) {
+        staticFillFailures.push(`${preset.id}/${theme}: white on Colors.accentFill ${Colors.accentFill} = ${round2(white)}:1 — needs ${PRESET_AA}:1`);
+      }
+      if (preset.primary === null && theme === 'dark') {
+        const p = parseColor(Colors.primary);
+        if (p) darkPrimaryWhite = contrast(p.rgb, WHITE);
+      }
+    }
+  }
+} finally {
+  // Every later check reads the module in its default state.
+  setCustomPrimary(null);
+  setColorTheme(priorTheme);
+}
+ok(
+  `white on Colors.accentFill >= ${PRESET_AA}:1 in light AND dark, default + every preset ` +
+    `(default: light ${round2(staticFillSeen.light)}, dark ${round2(staticFillSeen.dark)}; ` +
+    `white on dark Colors.primary is ${round2(darkPrimaryWhite)} — why solid fills use accentFill)`,
+  staticFillFailures.length === 0,
+  staticFillFailures.join('\n        '),
+);
+
+// ── Check 12d: every preset reads as its OWN colour ─────────────────────────
+//
+// A preset is a promise that the app will look different. Three ways it can
+// quietly stop being one, all measured as CIE76 ΔE on the SOLVED family
+// (accent + accentFill) in each theme — the dark theme matters as much as the
+// light one, because the solver lifts every hue toward the same pale band and
+// two distinct dark presets can converge there:
+//   a. vs the BRAND family (accent / accentFill / accentLabel): the rebrand
+//      dropped Forest Green because it sat ΔE 4.9 from the new brand — a
+//      second copy of the default, not a choice.
+//   b. vs SUCCESS (Theme success / successLabel, and the static Colors.success
+//      fill): Teal sat ΔE 4.4 from the success teal, so every primary button
+//      and every "done" badge converged for a user who picked it.
+//   c. vs every OTHER preset.
+// Floor: ΔE 18, the same number validate-brand-color holds brand-vs-success
+// to. Plus one rule that is not a distance: no preset in the purple/pink hue
+// band. The anti-slop rule is standing ("no purple/pink"), validate-app-slop
+// only knows a fixed hex list, and a Plum preset got as far as a critic.
+//
+// LEGACY_PRESET_PAIRS: three pairs of presets that shipped before the rebrand
+// and already sit under the floor. Measured, pinned, and only allowed to
+// disappear: an entry that clears 18 fails as stale. Never add a pair to get
+// green — pick a hue that clears it (the rebrand's own presets all do).
+const PRESET_MIN_DELTA_E = 18;
+const LEGACY_PRESET_PAIRS = new Set(['light|navy|slate', 'dark|charcoal|slate', 'dark|navy|ocean']);
+const presetDeFailures: string[] = [];
+const legacySeen = new Set<string>();
+const presetMinRows: string[] = [];
+function hueSat(hex: string): { h: number; s: number } {
+  const c = parseColor(hex);
+  if (!c) return { h: 0, s: 0 };
+  const [r, g, b] = c.rgb.map((v) => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
+  if (d === 0) return { h: 0, s: 0 };
+  const sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h *= 60;
+  if (h < 0) h += 360;
+  return { h, s: sat };
+}
+for (const p of THEME_PRESETS) {
+  const { h, s } = hueSat(p.primary);
+  if (s >= 0.15 && h >= 255 && h <= 345) {
+    presetDeFailures.push(`${p.id} ${p.primary}: hue ${Math.round(h)}° is in the purple/pink band (255-345°) — the standing anti-slop rule`);
+  }
+}
+const dE = (a: string, b: string) => deltaE(a, b) ?? 0;
+for (const theme of ['light', 'dark'] as const) {
+  const base = Theme[theme] as unknown as Record<string, string>;
+  const brand = deriveAccentPalette(BRAND_ACCENT, theme);
+  const brandToks: [string, string][] = [['brand.accent', brand.accent], ['brand.accentFill', brand.accentFill], ['brand.accentLabel', brand.accentLabel]];
+  const successToks: [string, string][] = [[`Theme.${theme}.success`, base.success], [`Theme.${theme}.successLabel`, base.successLabel]];
+  if (theme === 'light') successToks.push(['Colors.success', Colors.success]);
+  const fams = THEME_PRESETS.map((p) => ({ id: p.id, fam: deriveAccentPalette(p.primary, theme) }));
+  for (const { id, fam } of fams) {
+    const mine: [string, string][] = [['accent', fam.accent], ['accentFill', fam.accentFill]];
+    let worst = Infinity, worstWho = '';
+    const vs = (others: [string, string][], what: string) => {
+      for (const [mn, mh] of mine) for (const [on, oh] of others) {
+        const d = dE(mh, oh);
+        if (d < worst) { worst = d; worstWho = on; }
+        if (d < PRESET_MIN_DELTA_E) presetDeFailures.push(`${id}/${theme}: ${mn} ${mh} vs ${on} ${oh} = ΔE ${round2(d)} — needs ${PRESET_MIN_DELTA_E} (${what})`);
+      }
+    };
+    if (id !== 'mage') { vs(brandToks, 'reads as the brand'); vs(successToks, 'reads as a success state'); }
+    for (const other of fams) {
+      if (other.id === id) continue;
+      const key = `${theme}|${[id, other.id].sort().join('|')}`;
+      let pairMin = Infinity;
+      for (const [, mh] of mine) for (const oh of [other.fam.accent, other.fam.accentFill]) pairMin = Math.min(pairMin, dE(mh, oh));
+      if (pairMin < worst) { worst = pairMin; worstWho = other.id; }
+      if (pairMin >= PRESET_MIN_DELTA_E) continue;
+      if (LEGACY_PRESET_PAIRS.has(key)) { legacySeen.add(key); continue; }
+      if (id < other.id) presetDeFailures.push(`${id}/${theme} vs preset ${other.id}: ΔE ${round2(pairMin)} — needs ${PRESET_MIN_DELTA_E}; two presets paint one app`);
+    }
+    presetMinRows.push(`${id}/${theme} ${round2(worst)} (${worstWho})`);
+  }
+}
+for (const key of LEGACY_PRESET_PAIRS) {
+  if (!legacySeen.has(key)) presetDeFailures.push(`LEGACY_PRESET_PAIRS '${key}' now clears ΔE ${PRESET_MIN_DELTA_E} (or names a preset that is gone) — delete the entry`);
+}
+ok(
+  `every preset clears ΔE ${PRESET_MIN_DELTA_E} vs the brand, success and the other presets, in both themes, and none is purple/pink ` +
+    `(${LEGACY_PRESET_PAIRS.size} pre-rebrand pairs pinned; nearest per preset: ${presetMinRows.filter((r) => /^(walnut|ochre)\//.test(r)).join(', ')})`,
+  presetDeFailures.length === 0,
+  presetDeFailures.join('\n        '),
 );
 
 // ── Check 13: a DARK-theme ink literal, hardcoded onto whatever theme runs ──

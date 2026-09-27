@@ -159,8 +159,8 @@ console.log('\nhomeowner-weekly-digest/index.ts is wired to the rules:');
   // The GC's "Send preview" button must say why nothing went out, not always
   // "No invites yet", now that the function skips closed jobs / ended links.
   const setup = strip(read('app/client-portal-setup.tsx'));
-  ok('Send preview names a closed job', /errs\.includes\('project_closed'\)[\s\S]{0,400}showAlert\('Job is closed'/.test(setup));
-  ok('…and promises the closing email only when the weekly recap is on', /showAlert\('Job is closed', portal\.weeklyDigest\?\.enabled\s*\?[^:]*one last email[\s\S]{0,120}:\s*'[^']*recap is off[^']*no closing email/.test(setup));
+  ok('Send preview names a closed project', /errs\.includes\('project_closed'\)[\s\S]{0,400}showAlert\('Project is closed'/.test(setup));
+  ok('…and promises the closing email only when the weekly recap is on', /showAlert\('Project is closed', portal\.weeklyDigest\?\.enabled\s*\?[^:]*one last email[\s\S]{0,120}:\s*'[^']*recap is off[^']*no closing email/.test(setup));
   ok('Send preview names an ended portal link', /errs\.includes\('portal_link_ended'\)[\s\S]{0,40}showAlert\('Portal link has ended'/.test(setup));
 }
 

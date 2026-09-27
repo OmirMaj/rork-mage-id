@@ -5,8 +5,8 @@
 // don't re-type) — and if you said several things, to each of them. Or pick a
 // capability from the grid. Every registered
 // capability is reachable here — the contractor never has to hunt for the right
-// button. Built on the §3.7 design tokens (ink/cream ground, MAGE-orange accent,
-// amber = the "your data" signal, Fraunces for the ask, JetBrains-Mono labels).
+// button. Built on the §3.7 design tokens (ink/concrete ground, MAGE green accent,
+// amber = the "your data" signal, Barlow for the ask, JetBrains-Mono labels).
 import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -173,16 +173,16 @@ export default function CopilotHubScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.topbar}>
-        <Text style={styles.brand}>MAGE&nbsp;COPILOT</Text>
+        <Text style={styles.brand}>MAGE&nbsp;Copilot</Text>
         <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Close" hitSlop={10} testID="copilot-hub-close">
           <X size={20} color={colors.textMuted} strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Text style={styles.eyebrow}>JUST TELL ME WHAT YOU NEED</Text>
-        <Text style={styles.question}>What are we doing?</Text>
-        <Text style={styles.hint}>“LOG TODAY’S REPORT”  ·  “OWNER WANTS A HEAT PUMP”  ·  “RFI ON THE BEAM SIZE”</Text>
+        <Text style={styles.eyebrow}>Say what you need</Text>
+        <Text style={styles.question}>What do you need done?</Text>
+        <Text style={styles.hint}>“Log today’s report”  ·  “Client wants a heat pump”  ·  “RFI on the beam size”</Text>
         {!!forJob && <Text style={styles.forJob} numberOfLines={1} testID="copilot-hub-job">For {forJob}</Text>}
 
         {/* An inbound email is the single biggest source of unlogged work for a
@@ -206,7 +206,7 @@ export default function CopilotHubScreen() {
           style={styles.input}
           value={text}
           onChangeText={(t) => { setText(t); setOutcome(null); setSchedulePick(null); }}
-          placeholder="Say it in your own words…"
+          placeholder="Say it in your own words"
           placeholderTextColor={colors.textMuted}
           multiline
           testID="copilot-hub-input"
@@ -252,7 +252,7 @@ export default function CopilotHubScreen() {
           // change is for ONE of them — ask, rather than guess a job and
           // preview edits against the wrong plan.
           <View style={styles.queueWrap} testID="copilot-hub-schedule-pick">
-            <Text style={styles.queueLabel}>WHICH JOB’S SCHEDULE?</Text>
+            <Text style={styles.queueLabel}>Which project’s schedule?</Text>
             {schedulePick.candidates.map((c) => (
               <TouchableOpacity
                 key={c.id}
@@ -264,7 +264,7 @@ export default function CopilotHubScreen() {
                 <View style={styles.cardIcon}><CalendarClock size={18} color={colors.accent} strokeWidth={2} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardLabel} numberOfLines={1}>{c.name}</Text>
-                  <Text style={styles.queueSub} numberOfLines={1}>{schedulePick.then === 'view' ? 'Open this schedule' : `${SCHEDULE_EDIT_INTENT.label} — you review the change before it sticks`}</Text>
+                  <Text style={styles.queueSub} numberOfLines={1}>{schedulePick.then === 'view' ? 'Open this schedule' : `${SCHEDULE_EDIT_INTENT.label} · you review the change before it saves`}</Text>
                 </View>
                 <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
               </TouchableOpacity>
@@ -274,7 +274,7 @@ export default function CopilotHubScreen() {
 
         {queue.length > 1 && (
           <View style={styles.queueWrap}>
-            <Text style={styles.queueLabel}>I HEARD {queue.length} THINGS — TAP TO HANDLE EACH</Text>
+            <Text style={styles.queueLabel}>{queue.length} requests · tap each to handle it</Text>
             {queue.map((a, i) => {
               const Icon = ICONS[a.capabilityId] ?? ClipboardList;
               // hubOutcome lists schedule cards last; one that opens the
@@ -301,7 +301,7 @@ export default function CopilotHubScreen() {
           </View>
         )}
 
-        <Text style={styles.orLabel}>OR PICK ONE</Text>
+        <Text style={styles.orLabel}>Or pick one</Text>
         <View style={styles.grid}>
           {INTENTS.map((i) => {
             const Icon = ICONS[i.id] ?? ClipboardList;

@@ -95,7 +95,7 @@ ok('no copy line spans two tiers (the "AI Photo Triage / Punch" shape)', mixed.l
 const freeLines = PLAN_FEATURE_LINES.filter(l => lineTier(l) === 'free');
 ok('no copy line sells a Free feature as a paid one', freeLines.length === 0, freeLines.map(l => l.label).join(' | '));
 const pro = planFeatureLines('pro'), biz = planFeatureLines('business');
-ok('Pro lists the Plan Viewer (plan_markup is Pro)', pro.some(l => /Plan Viewer/.test(l)) && REQUIRED_TIER.plan_markup === 'pro');
+ok('Pro lists the Plan Viewer (plan_markup is Pro)', pro.some(l => /Plan viewer/i.test(l)) && REQUIRED_TIER.plan_markup === 'pro');
 ok('Pro lists RFIs & Submittals (rfis_submittals is Pro)', pro.some(l => /RFIs/.test(l)));
 ok('Business names neither', !biz.some(l => /Plan Viewer|RFIs|Submittals/i.test(l)));
 ok('Business lists Ask Your Plans', biz.some(l => /Ask Your Plans/.test(l)));
@@ -109,13 +109,13 @@ ok('Business web blurb names no Pro feature', !/RFI|submittal|plan viewer|(?<!Yo
   ok("web plan tiles' blurbs come from planFeatureBlurb", /planFeatureBlurb\('pro'\)/.test(screen) && /planFeatureBlurb\('business'\)/.test(screen));
   ok('the old Business blurb is gone', !/subs, RFIs, submittals, punch \+ closeout, plans/.test(screen));
   // carries: #41 split row, #39 label, #175 freeNote
-  ok('#41: AI Photo Triage derives from photo_documentation', /\{ label: 'AI Photo Triage', key: 'photo_documentation' \}/.test(screen));
-  ok('#41: AI Punch from Photos derives from punch_list_closeout', /\{ label: 'AI Punch from Photos', key: 'punch_list_closeout' \}/.test(screen));
+  ok('#41: AI Photo Triage derives from photo_documentation', /\{ label: 'AI photo triage', key: 'photo_documentation' \}/.test(screen));
+  ok('#41: AI Punch from Photos derives from punch_list_closeout', /\{ label: 'AI punch items from photos', key: 'punch_list_closeout' \}/.test(screen));
   ok('#41: the mixed row is gone', !/'AI Photo Triage \/ Punch'/.test(screen));
-  ok('#39: the drawing-analyses row says what shares it', /'Drawing analyses \/mo \(takeoff runs, spec books, Compare Drawings\)'/.test(screen));
-  ok('#175: Voice-to-Report shows its 3 free tries', /label: 'Voice-to-Report \(Android: beta\)', free: false, pro: true, business: true, freeNote: '3 tries'/.test(screen));
+  ok('#39: the drawing-analyses row says what shares it', /'Drawing analyses \/mo \(takeoff runs, spec books, compare drawings\)'/.test(screen));
+  ok('#175: Voice-to-Report shows its 3 free tries', /label: 'Voice-to-report \(Android: beta\)', free: false, pro: true, business: true, freeNote: '3 tries'/.test(screen));
   const onb = code(read('app/onboarding-paywall.tsx'));
-  ok('#41: onboarding does not promise punch items on Pro', !/punch/i.test(/title: 'AI Photo Triage',\s*description: '([^']*)'/.exec(onb)?.[1] ?? 'punch'));
+  ok('#41: onboarding does not promise punch items on Pro', !/punch/i.test(/title: 'AI photo triage',\s*description: '([^']*)'/.exec(onb)?.[1] ?? 'punch'));
 }
 
 // pricing.html tier cards
@@ -162,7 +162,7 @@ ok('demo.html FAQ: one project of your own, finished jobs still count — no "on
 console.log('\n#176 — cancelling names both routes:');
 const support = html('marketing/support.html');
 const cancel = /How do I cancel my subscription\?<\/strong>\s*<p>([\s\S]*?)<\/p>/.exec(support)?.[1] ?? '';
-ok('support: store subscribers → Settings → Manage Subscription', /Manage Subscription/.test(cancel));
+ok('support: store subscribers → Settings → Manage subscription', /Manage subscription/.test(cancel));
 ok('support: plans MAGE ID turned on → email help@mageid.app', /help@mageid\.app/.test(cancel) && /turned your plan on/.test(cancel));
 ok('support: the one-route promise is gone', !/From Settings → Subscription, you can cancel or change plans anytime/.test(support));
 

@@ -49,6 +49,10 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
+// LS-5: a viewer seat cannot file punch items (RLS needs 'field').
+import { useProjectRoleState } from '@/hooks/useProjectRole';
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import { projectTypeLabel } from '@/utils/projectTypes';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
@@ -188,6 +192,11 @@ function AiPunchScreenInner() {
   // 'pro' is the floor at which photoAnalysis is allowed at all and is the
   // conservative stand-in until the owner's real tier is resolvable here.
   const meteringTier = collaboratorGranted && subscriptionTier === 'free' ? 'pro' : subscriptionTier;
+  // LS-5: punch_items_collab_insert needs a field/editor/owner seat. A viewer
+  // would spend a vision call and then have every item refused by RLS, so Run
+  // AI and Save are off for him and say why. Shares the role query cache.
+  const writeSeat = useProjectRoleState(projectId ?? undefined);
+  const writeBlock = projectRecordWriteBlock(writeSeat.role);
 
   // Sort newest-first so the "Show recent" toggle label actually
   // matches what the gallery surfaces (round-2 #5). Bad/invalid
@@ -219,7 +228,7 @@ function AiPunchScreenInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        showAlert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
+        showAlert('Max 12 photos', 'Pick the clearest shots. Each run reads up to 12 photos.');
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
@@ -268,6 +277,10 @@ function AiPunchScreenInner() {
 
   // ── Step 2: analyze ──────────────────────────────────────────
   const handleAnalyze = useCallback(async () => {
+    if (writeBlock) {
+      showAlert("Can't add items", writeBlock);
+      return;
+    }
     if (pickedPhotos.length === 0) {
       showAlert('Pick at least one photo first');
       return;
@@ -303,8 +316,8 @@ function AiPunchScreenInner() {
     // whole fix and this early return becomes the bug.
     if (collaboratorGranted && !tierMeetsRequirement(subscriptionTier, 'pro')) {
       showAlert(
-        'Photo AI runs on the owner’s account',
-        'You were invited to this project, so the punch list is yours to work — but AI photo analysis is still billed to whoever runs it, and your own plan is Free. Ask the project owner to run this analysis, or upgrade your own account.',
+        'Punch from photos is on the Pro plan',
+        'You were invited to this project, so you can work its punch list. Reading photos runs on your own plan, which is Free. Ask the project owner to run it, or see plans.',
         // Keep the upgrade path one tap away: the old (wrong) "buy Pro" prompt
         // at least deep-linked here, and losing that would trade one dead end
         // for another.
@@ -343,7 +356,7 @@ function AiPunchScreenInner() {
         };
       });
       if (reviewable.length === 0) {
-        setError('AI didn’t find any punch items in those photos. Try shots closer to the work, or with better lighting.');
+        setError('No punch items found in those photos. Try shots closer to the work, or with better lighting.');
       } else if (meta.skippedIndexes.length > 0) {
         // Partial success — some photos couldn't be read but the AI
         // analyzed the rest. Surface as a warning, not an error
@@ -361,11 +374,11 @@ function AiPunchScreenInner() {
       // "Photo analyzer call failed: Edge Function returned a non-2xx status
       // code", and no suggestion that the same batch will pass on a retry.
       const refusal = showAiRefusal(err, router);
-      setError(refusal ?? ((err as Error)?.message || String(err)));
+      setError(refusal ?? ownSentence(err) ?? describeError(err, { action: 'read these photos' }).body);
     } finally {
       setBusy(false);
     }
-  }, [pickedPhotos, project, subscriptionTier, meteringTier, collaboratorGranted, router]);
+  }, [pickedPhotos, project, subscriptionTier, meteringTier, collaboratorGranted, router, writeBlock]);
 
   // ── Step 3: review + save ────────────────────────────────────
   const updateReviewItem = useCallback((id: string, updates: Partial<ReviewableItem>) => {
@@ -426,8 +439,12 @@ function AiPunchScreenInner() {
    */
   const handleSaveOne = useCallback(async (item: ReviewableItem, presetStamp?: PhotoGeoStamp | null) => {
     if (!project || item.saved) return;
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (!item.editedDescription.trim()) {
-      showAlert('Description required');
+      showAlert('Add a description');
       return;
     }
     let stamp: PhotoGeoStamp | null = null;
@@ -437,11 +454,16 @@ function AiPunchScreenInner() {
     addPunchItem(buildPunchItem(item, stamp));
     updateReviewItem(item.id, { saved: true });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, addPunchItem, updateReviewItem, shouldStampItem, buildPunchItem]);
+  }, [project, addPunchItem, updateReviewItem, shouldStampItem, buildPunchItem, writeBlock]);
 
   const [saving, setSaving] = useState(false);
   const handleSaveAll = useCallback(async () => {
     if (!project) return;
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     const pending = reviewItems.filter(r => !r.saved && !r.discarded);
     if (pending.length === 0) return;
     setSaving(true);
@@ -479,7 +501,7 @@ function AiPunchScreenInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, reviewItems, shouldStampItem, buildPunchItem, addPunchItems, router]);
+  }, [project, reviewItems, shouldStampItem, buildPunchItem, addPunchItems, router, writeBlock]);
 
   const reviewMode = reviewItems.length > 0 || error !== null;
   const savedCount = reviewItems.filter(r => r.saved).length;
@@ -489,10 +511,10 @@ function AiPunchScreenInner() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="AI PUNCH · MAGE ID" title="AI Punch from Photos" />
+        <ToolHeader eyebrow="Punch from photos · MAGE ID" title="Punch from photos" />
         <ToolProjectPicker
-          toolName="AI Punch"
-          message="AI Punch turns walkthrough photos into a punch list — pick photos, AI drafts the items, you review and save them into the project."
+          toolName="Punch from photos"
+          message="Turn walkthrough photos into punch items. MAGE drafts them, and you review and save them to the project."
           projects={projects}
           onPick={setPickedProjectId}
         />
@@ -504,7 +526,7 @@ function AiPunchScreenInner() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ToolHeader eyebrow="AI PUNCH · MAGE ID" title={project.name} />
+        <ToolHeader eyebrow="Punch from photos · MAGE ID" title={project.name} />
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
@@ -512,15 +534,15 @@ function AiPunchScreenInner() {
               feels the same surface across the app. */}
           <View style={styles.hero}>
             <View style={styles.heroIconWrap}>
-              <MageAIMark size={28} color={"#FF6A1A"} />
+              <MageAIMark size={28} color={themeColors.accent} />
             </View>
-            <Text style={styles.heroTitle}>AI Punch from Photos</Text>
+            <Text style={styles.heroTitle}>Punch from photos</Text>
             <Text style={styles.heroSub}>
               {reviewItems.length > 0
-                ? `Review what AI found. Edit, save, or discard each item.`
+                ? `Review what MAGE found. Edit, save or discard each item.`
                 : error
-                ? `That didn't work — those photos couldn't be read. Pick a different set and try again.`
-                : `Pick up to 12 photos from this project. AI will turn them into a punch list — review, edit, save.`}
+                ? `Those photos couldn't be read. Pick a different set and try again.`
+                : `Pick up to 12 photos from this project. MAGE drafts punch items from them. Review before saving.`}
             </Text>
           </View>
 
@@ -530,11 +552,11 @@ function AiPunchScreenInner() {
               <View style={styles.section}>
                 <View style={styles.sourceRow}>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handleTakePhoto} activeOpacity={0.85}>
-                    <Camera size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                    <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.sourceBtnText}>Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handlePickFromCameraRoll} activeOpacity={0.85}>
-                    <ImagePlus size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                    <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.sourceBtnText}>Photo library</Text>
                   </TouchableOpacity>
                 </View>
@@ -618,7 +640,7 @@ function AiPunchScreenInner() {
                   accessibilityRole="button"
                   accessibilityLabel="Pick photos again"
                 >
-                  <ImagePlus size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                  <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.retryBtnText}>Pick photos again</Text>
                 </TouchableOpacity>
               )}
@@ -629,6 +651,15 @@ function AiPunchScreenInner() {
               success states like "skipped 2 photos but found 5 items
               from the rest." Different visual channel than error so
               the user understands the AI still produced a result. */}
+          {/* LS-5: a viewer seat cannot file — the controls say why. */}
+          {writeBlock ? (
+            <View style={styles.section} testID="ai-punch-viewer-block">
+              <View style={styles.noticeBanner}>
+                <AlertCircle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+                <Text style={styles.noticeText}>{writeBlock}</Text>
+              </View>
+            </View>
+          ) : null}
           {!!notice && (
             <View style={styles.section}>
               <View style={styles.noticeBanner}>
@@ -713,29 +744,29 @@ function AiPunchScreenInner() {
         <View style={[styles.fab, { bottom: insets.bottom + 18 }]} onLayout={onCtaLayout}>
           {!reviewMode ? (
             <TouchableOpacity
-              style={[styles.fabPrimary, (busy || pickedPhotos.length === 0) && styles.fabPrimaryDisabled]}
+              style={[styles.fabPrimary, (busy || pickedPhotos.length === 0 || !!writeBlock) && styles.fabPrimaryDisabled]}
               onPress={handleAnalyze}
-              disabled={busy || pickedPhotos.length === 0}
+              disabled={busy || pickedPhotos.length === 0 || !!writeBlock}
               activeOpacity={0.85}
             >
               {busy ? (
                 <>
                   <ActivityIndicator size="small" color="#FFF" />
-                  <Text style={styles.fabPrimaryText}>AI is reading the photos…</Text>
+                  <Text style={styles.fabPrimaryText}>Reading photos…</Text>
                 </>
               ) : (
                 <>
                   <MageAIMark size={16} color="#FFF" />
-                  <Text style={styles.fabPrimaryText}>Run AI · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
+                  <Text style={styles.fabPrimaryText}>Find punch items · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
                   <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
                 </>
               )}
             </TouchableOpacity>
           ) : pendingCount > 0 ? (
             <TouchableOpacity
-              style={[styles.fabPrimary, saving && styles.fabPrimaryDisabled]}
+              style={[styles.fabPrimary, (saving || !!writeBlock) && styles.fabPrimaryDisabled]}
               onPress={handleSaveAll}
-              disabled={saving}
+              disabled={saving || !!writeBlock}
               activeOpacity={0.85}
             >
               {saving ? (

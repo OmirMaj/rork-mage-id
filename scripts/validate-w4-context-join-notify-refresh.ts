@@ -130,21 +130,21 @@ async function main() {
   }
 
   console.log('\n#133 — field report body branches on portal_status');
-  ok("'sent' says it is already on the homeowner's portal",
-    fieldReportNoticeBody({ portal_status: 'sent' }) === "It's already on the homeowner's portal and will be in Friday's update. Hide it if it shouldn't be.");
+  ok("'sent' says it is already on your client's portal",
+    fieldReportNoticeBody({ portal_status: 'sent' }) === "It's already on your client's portal and will be in Friday's update. Hide it if it shouldn't be.");
   ok('a draft says to review it first',
-    fieldReportNoticeBody({ portal_status: 'draft' }) === 'Review it before anything goes to the homeowner.');
+    fieldReportNoticeBody({ portal_status: 'draft' }) === 'Review it before anything goes to your client.');
   // Integration round 1: parity with notify's three branches.
   ok("'sent' but NOT in the weekly digest never promises Friday's update",
-    fieldReportNoticeBody({ portal_status: 'sent', in_weekly_digest: false }) === "It's already on the homeowner's portal. Hide it if it shouldn't be.");
+    fieldReportNoticeBody({ portal_status: 'sent', in_weekly_digest: false }) === "It's already on your client's portal. Hide it if it shouldn't be.");
   ok('no portal_status (older trigger) makes neither promise',
-    fieldReportNoticeBody({}) === 'Open it to check what the homeowner can see.'
-    && fieldReportNoticeBody(undefined) === 'Open it to check what the homeowner can see.');
+    fieldReportNoticeBody({}) === 'Open it to check what your client can see.'
+    && fieldReportNoticeBody(undefined) === 'Open it to check what your client can see.');
   ok("the report's own day leads, in notify's format",
-    fieldReportNoticeBody({ portal_status: 'draft', report_date: '2026-09-14' }) === 'Report for Mon, Sep 14. Review it before anything goes to the homeowner.');
+    fieldReportNoticeBody({ portal_status: 'draft', report_date: '2026-09-14' }) === 'Report for Mon, Sep 14. Review it before anything goes to your client.');
   ok('a garbled day is dropped, never echoed',
-    fieldReportNoticeBody({ portal_status: 'draft', report_date: '2026-02-31' }) === 'Review it before anything goes to the homeowner.'
-    && fieldReportNoticeBody({ portal_status: 'draft', report_date: 'Monday' }) === 'Review it before anything goes to the homeowner.');
+    fieldReportNoticeBody({ portal_status: 'draft', report_date: '2026-02-31' }) === 'Review it before anything goes to your client.'
+    && fieldReportNoticeBody({ portal_status: 'draft', report_date: 'Monday' }) === 'Review it before anything goes to your client.');
   {
     // Parity: every tail the inbox can print is one notify prints.
     const NOTIFY = read('supabase/functions/notify/index.ts');

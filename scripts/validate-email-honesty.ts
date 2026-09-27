@@ -245,8 +245,8 @@ ok('estimate: the body is told whether a PDF is attached',
 ok('estimate: a dropped attachment changes the success copy',
   /const pdfMissing = !pdfUri \|\| \(result\.attachmentsDropped \?\? 0\) > 0/.test(estSend));
 ok('estimate: the flat "Email Sent" toast is conditional on the PDF',
-  /pdfMissing \? '[^']*without the PDF' : 'Email Sent'/.test(estSend)
-  && !/showAlert\('Email Sent'/.test(estSend));
+  /pdfMissing \? '[^']*without the PDF' : 'Email sent'/.test(estSend)
+  && !/showAlert\('Email sent'/i.test(estSend));
 ok('estimate: composer_opened says the draft is not sent',
   /result\.outcome === 'composer_opened'[\s\S]{0,400}?Draft opened — not sent yet/.test(estSend));
 ok('estimate: Share PDF is only offered when there is a PDF to share',

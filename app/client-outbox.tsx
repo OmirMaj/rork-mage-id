@@ -17,6 +17,7 @@ import { Type } from '@/constants/typography';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PortalState, SendableItemKind } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getOfflineQueue, onQueueChanged, onQueueFlushed } from '@/utils/offlineQueue';
@@ -197,7 +198,7 @@ export default function ClientOutboxScreen() {
       changeOrders,
       'change_order',
       co => ({
-        title: `Change Order #${co.number ?? '—'}`,
+        title: `Change order #${co.number ?? '—'}`,
         subtitle: co.description || (typeof co.changeAmount === 'number' ? `${co.changeAmount >= 0 ? '+' : ''}$${co.changeAmount}` : ''),
       }),
       co => (co as { updatedAt?: string }).updatedAt,
@@ -218,7 +219,7 @@ export default function ClientOutboxScreen() {
     addItems(
       aiaPayApps,
       'aia_pay_app',
-      ap => ({ title: `AIA Pay App #${ap.applicationNumber ?? '—'}`, subtitle: '' }),
+      ap => ({ title: `Pay app #${ap.applicationNumber ?? '—'}`, subtitle: '' }),
       ap => ap.savedAt,
     );
 
@@ -247,7 +248,7 @@ export default function ClientOutboxScreen() {
       dailyReports,
       'daily_report',
       d => ({
-        title: `Daily Report${d.date ? ' · ' + d.date : ''}`,
+        title: `Daily report${d.date ? ' · ' + d.date : ''}`,
         subtitle: '',
       }),
       d => d.updatedAt,
@@ -298,9 +299,10 @@ export default function ClientOutboxScreen() {
         items: sendable.map(d => ({ kind: d.kind, itemId: d.itemId })),
         projectId,
       });
-      showAlert('Sent', `${sent} item${sent === 1 ? '' : 's'} sent to your client.${heldLine ? ` ${heldLine}` : ''}`);
+      showAlert('Sent to your client', `${sent} ${sent === 1 ? 'item' : 'items'} sent.${heldLine ? ` ${heldLine}` : ''}`);
     } catch (e) {
-      showAlert('Send failed', e instanceof Error ? e.message : 'Try again.');
+      console.warn('[ClientOutbox] send failed:', rawErrorMessage(e));
+      showAlert("Couldn't send to your client", describeError(e, { action: 'send these drafts', keptLocally: true }).body);
     } finally {
       setBusy(false);
     }
@@ -371,19 +373,19 @@ export default function ClientOutboxScreen() {
           <ChevronLeft size={22} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.title} numberOfLines={1}>Client Outbox</Text>
+          <Text style={styles.title} numberOfLines={1}>Client outbox</Text>
           {projectName ? <Text style={styles.projectName} numberOfLines={1}>{projectName}</Text> : null}
         </View>
         <View style={{ width: 34 }} />
       </View>
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
-        <Text style={styles.sectionLabel}>{`DRAFTS · ${drafts.length}`}</Text>
+        <Text style={styles.sectionLabel}>{`Drafts · ${drafts.length}`}</Text>
         {drafts.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Nothing in your Outbox</Text>
+            <Text style={styles.emptyTitle}>Nothing in your outbox</Text>
             <Text style={styles.emptySub}>
-              {"New Change Orders, Invoices, RFIs, and Submittals start as Drafts. Drafts you haven't sent appear here."}
+              {"New change orders, invoices, RFIs and submittals start as drafts. Drafts you haven't sent appear here."}
             </Text>
           </View>
         ) : (
@@ -433,7 +435,7 @@ export default function ClientOutboxScreen() {
         {unsent.length > 0 ? (
           <>
             <Text style={[styles.sectionLabel, { marginTop: 24 }]}>
-              {`UNSENT EDITS · ${unsent.length}`}
+              {`Unsent edits · ${unsent.length}`}
             </Text>
             {unsent.map(d => {
               const Icon = iconForKind(d.kind);

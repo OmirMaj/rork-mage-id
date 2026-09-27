@@ -58,7 +58,7 @@ export default function QboCallbackScreen() {
     const state = typeof params.state === "string" ? params.state : null;
     if (!code || !realmId || !state) {
       setStatus("error");
-      setError("Missing code, realmId, or state in the callback URL.");
+      setError("QuickBooks sent back an incomplete link. Start the connection again.");
       return;
     }
     let cancelled = false;
@@ -69,7 +69,8 @@ export default function QboCallbackScreen() {
         setCompanyName(r.companyName ?? null);
       } else {
         setStatus("error");
-        setError(r.error ?? "Token exchange failed.");
+        console.warn('[qbo-callback] exchange failed:', r.error);
+        setError("QuickBooks didn’t finish the sign-in. Try connecting again.");
       }
     });
     return () => { cancelled = true; };
@@ -133,13 +134,13 @@ export default function QboCallbackScreen() {
           <>
             <ActivityIndicator color={colors.accent} size="large" />
             <Text style={styles.title}>Connecting QuickBooks…</Text>
-            <Text style={styles.subtitle}>One moment while we finalize your connection.</Text>
+            <Text style={styles.subtitle}>Finishing your connection.</Text>
           </>
         )}
         {status === "success" && (
           <>
             <QboSuccessCheckmark size={96} color={colors.success} />
-            <Text style={styles.title}>Connected!</Text>
+            <Text style={styles.title}>Connected</Text>
             <Text style={styles.subtitle}>
               {companyName ? `MAGE is now linked to ${companyName}.` : "MAGE is now linked to your QuickBooks Online account."}
             </Text>
@@ -154,7 +155,7 @@ export default function QboCallbackScreen() {
           <>
             <AlertTriangle size={64} color={colors.danger} strokeWidth={1.75} />
             <Text style={styles.title}>Connection failed</Text>
-            <Text style={styles.subtitle}>{error ?? "Unknown error."}</Text>
+            <Text style={styles.subtitle}>{error ?? "QuickBooks didn’t finish the connection."}</Text>
             <Text style={styles.hint}>{Platform.OS === "web" ? "Go back and try connecting again." : "Return to the MAGE app and try connecting again."}</Text>
             <TouchableOpacity style={styles.primary} onPress={openMage} testID="qbo-callback-return-err">
               <Text style={styles.primaryText}>{Platform.OS === "web" ? "Back to QuickBooks setup" : "Return to MAGE"}</Text>

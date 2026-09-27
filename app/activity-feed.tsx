@@ -104,7 +104,7 @@ export default function ActivityFeedScreen() {
         <EmptyState
           icon={<Activity size={32} color={themeColors.accent} strokeWidth={1.75} />}
           title="No activity yet"
-          message="Every change order, RFI, daily report, invoice, and photo lands here the moment it's created — your project's heartbeat in one timeline."
+          message="Every change order, RFI, daily report, invoice and photo shows up here when it's created."
           actionLabel="Back to projects"
           onAction={() => router.replace('/(tabs)/(home)' as never)}
         />
@@ -185,17 +185,20 @@ function ActivityRow({ item, onPress, onLongPress }: RowProps) {
 function iconAndColor(action: ActivityAction, t: ThemeColors) {
   switch (action) {
     case 'created':
-      return { icon: Plus, color: "#FF6A1A", verb: 'Created' };
+      // `color` is also the verb TEXT, so the label inks, not the fills.
+      return { icon: Plus, color: t.accentLabel, verb: 'Created' };
     case 'updated':
       return { icon: RefreshCcw, color: "#1565C0", verb: 'Updated' };
     case 'completed':
-      return { icon: CheckCircle2, color: "#2E7D44", verb: 'Completed' };
+      // Success is TEAL (successLabel), not the old #2E7D44 green: that sat
+      // ΔE 9.2 from the brand, so "Completed" and "Created" would share a hue.
+      return { icon: CheckCircle2, color: t.successLabel, verb: 'Completed' };
     case 'closed':
       return { icon: XCircle, color: neutralInk(t), verb: 'Closed' };
     case 'paid':
-      return { icon: DollarSign, color: "#2E7D44", verb: 'Paid' };
+      return { icon: DollarSign, color: t.successLabel, verb: 'Paid' };
     case 'uploaded':
-      return { icon: Upload, color: "#FF6A1A", verb: 'Uploaded' };
+      return { icon: Upload, color: t.accentLabel, verb: 'Uploaded' };
     default: {
       const _exhaustive: never = action;
       void _exhaustive;

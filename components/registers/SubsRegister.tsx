@@ -150,7 +150,7 @@ export function SubsRegister({
       onNew={onNew}
       restoreHeaderOnExit={false}
       actions={[
-        { key: 'new', label: 'Add subcontractor', primary: true, icon: Plus, onPress: onNew, testID: 'subs-register-new' },
+        { key: 'new', label: 'Add sub', primary: true, icon: Plus, onPress: onNew, testID: 'subs-register-new' },
         { key: 'invite', label: 'Invite subs', icon: UserPlus, onPress: onInvite, testID: 'subs-register-invite' },
         {
           key: 'prequal', label: `Prequal (${prequal.approved} approved · ${prequal.pending} pending)`, icon: ShieldCheck,
@@ -191,9 +191,9 @@ export function SubsRegister({
           emptyState={(
             <EmptyState
               icon={<Users size={28} color={t.accent} strokeWidth={1.75} />}
-              title={filtered ? 'No Results' : 'No Subcontractors'}
-              message={filtered ? 'Pick another chip, or All.' : 'Add your first subcontractor to start tracking compliance.'}
-              actionLabel={filtered ? undefined : 'Add Subcontractor'}
+              title={filtered ? 'No results' : 'No subs yet'}
+              message={filtered ? 'Pick another chip, or All.' : 'Add your first sub to start tracking compliance.'}
+              actionLabel={filtered ? undefined : 'Add sub'}
               onAction={filtered ? undefined : onNew}
             />
           )}

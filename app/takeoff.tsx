@@ -79,6 +79,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { projectTypeLabel } from '@/utils/projectTypes';
+import { describeError } from '@/utils/errorCopy';
 import type {
   TakeoffResult, TakeoffConfidence, TakeoffWall, TakeoffFloorArea,
   TakeoffDoor, TakeoffWindow, TakeoffFinish, TakeoffFixture, TakeoffBulkMaterial,
@@ -102,14 +103,14 @@ const MODEL_DISPLAY: Record<TakeoffModel, { label: string; tagline: string }> = 
     tagline: 'Fast counts on clean drawings. Good for most residential sets.',
   },
   'gemini-2.5-pro': {
-    label: 'Pro Takeoff',
-    tagline: 'Slower + more careful. Reads schedules + ambiguous areas more reliably.',
+    label: 'Pro takeoff',
+    tagline: 'Slower and more careful. Reads schedules and unclear areas more reliably.',
   },
   'claude-sonnet-4-5': {
     // Capability-tier name, NOT the vendor model name — user-facing copy
     // never name-drops the underlying provider (sim-audit #10).
-    label: 'Max Takeoff',
-    tagline: 'Highest accuracy on stamped or marked-up scans. Enterprise tier.',
+    label: 'Max takeoff',
+    tagline: 'Highest accuracy on stamped or marked-up scans. Enterprise plan.',
   },
 };
 
@@ -710,12 +711,13 @@ function TakeoffInner() {
         `${created} buyout package${created === 1 ? '' : 's'} drafted. Open Buyout to add bidders + send out for sub bids.`,
         [
           { text: 'Stay here', style: 'cancel' },
-          { text: 'Open Buyout', onPress: () => router.push({ pathname: '/buyout' as never, params: { projectId: pickedProjectId } as never }) },
+          { text: 'Open buyout', onPress: () => router.push({ pathname: '/buyout' as never, params: { projectId: pickedProjectId } as never }) },
         ],
       );
     } catch (e) {
       console.warn('[Takeoff] buyout create failed', e);
-      showAlert('Could not create packages', String((e as Error).message ?? e));
+      const copy = describeError(e, { action: 'create the buyout packages' });
+      showAlert(copy.title, copy.body);
     } finally {
       setBuyoutBusy(false);
     }
@@ -780,7 +782,7 @@ function TakeoffInner() {
                 <View style={styles.upsell}>
                   <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
-                    Pro Takeoff is included with Business. Max Takeoff (highest accuracy on stamped scans) is included with Enterprise.
+                    Pro takeoff is on the Business plan. Max takeoff (highest accuracy on stamped scans) is on the Enterprise plan.
                   </Text>
                 </View>
               )}
@@ -788,7 +790,7 @@ function TakeoffInner() {
                 <View style={styles.upsell}>
                   <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
-                    Max Takeoff (highest accuracy on stamped + marked-up scans) is included with Enterprise.
+                    Max takeoff (highest accuracy on stamped and marked-up scans) is on the Enterprise plan.
                   </Text>
                 </View>
               )}
@@ -1327,16 +1329,16 @@ function ResultView({
               <Crown size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.teaserEyebrow}>Business tier · Pro Takeoff</Text>
+              <Text style={styles.teaserEyebrow}>Business plan · Pro takeoff</Text>
               <Text style={styles.teaserTitle}>Want sharper counts on this set?</Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </View>
           <Text style={styles.teaserBody}>
-            Pro Takeoff reads schedules more reliably, escalates ambiguous wall heights to concerns, and won&apos;t guess at unlabeled areas — better numbers when drawings are incomplete.
+            Pro takeoff reads schedules more reliably, flags unclear wall heights as concerns, and leaves unlabeled areas out, so counts hold up when plans are incomplete.
           </Text>
           <View style={styles.teaserCta}>
-            <Text style={styles.teaserCtaText}>Upgrade to Business</Text>
+            <Text style={styles.teaserCtaText}>See Business plan</Text>
             <ChevronRight size={14} color={Colors.textOnAccent} strokeWidth={1.75} />
           </View>
         </TouchableOpacity>
@@ -1656,7 +1658,7 @@ function ResultView({
           ) : (
             <>
               <Crown size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-              <Text style={styles.ctaPrimaryText}>See these priced — upgrade to Pro</Text>
+              <Text style={styles.ctaPrimaryText}>See these priced on Pro</Text>
             </>
           )}
         </TouchableOpacity>
@@ -2171,7 +2173,7 @@ function SpecMatchCard({
           <Text style={styles.specCardTitle}>Match callouts to the spec book</Text>
           <Text style={styles.specCardSub}>
             {targetCodesCount > 0
-              ? `${targetCodesCount} callout code${targetCodesCount === 1 ? '' : 's'} on these plans (PT-1, T-2, etc.). Upload the architect's spec PDF and the AI will pair each code with its actual product + finish.`
+              ? `${targetCodesCount} callout code${targetCodesCount === 1 ? '' : 's'} on these plans (PT-1, T-2, etc.). Upload the architect's spec PDF and MAGE pairs each code with its product and finish.`
               : 'Upload the architect\'s spec PDF — the AI extracts manufacturer, product, finish, and SKU per code.'}
           </Text>
         </View>

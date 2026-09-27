@@ -637,7 +637,7 @@ export default function ScheduleWizardScreen() {
         <TouchableOpacity onPress={handleBack} style={styles.topBarBackBtn} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle}>{documentMode ? 'New schedule' : 'Create Schedule'}</Text>
+        <Text style={styles.topBarTitle}>{documentMode ? 'New schedule' : 'Create schedule'}</Text>
         {step === 3 || (isDesktop && step === 1) ? (
           <TouchableOpacity onPress={onSavePressed} style={styles.topBarSaveBtn} accessibilityRole="button" accessibilityLabel="Save schedule">
             <Text style={styles.topBarSaveText}>Save</Text>
@@ -981,9 +981,9 @@ function ProjectStep(props: {
   if (documentMode) {
     return (
       <View style={styles.stepContent}>
-        <Text style={styles.askTitle}>Which job is this for?</Text>
+        <Text style={styles.askTitle}>Which project is this for?</Text>
         <Text style={styles.helper}>
-          A schedule lives on a project. Pick one and start adding tasks — you
+          A schedule lives on a project. Pick one and start adding tasks. You
           can change the start date from the task list.
         </Text>
         <View style={{ gap: 8, marginTop: 4 }}>
@@ -1012,8 +1012,8 @@ function ProjectStep(props: {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>No projects yet</Text>
               <Text style={styles.helper}>
-                A schedule belongs to a job. Create the project first — this
-                builder will be waiting under Schedule.
+                A schedule belongs to a project. Create the project first, then
+                open Schedule to build it.
               </Text>
               <TouchableOpacity
                 style={styles.emptyBtn}
@@ -1092,8 +1092,8 @@ function ProjectStep(props: {
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No projects yet</Text>
             <Text style={styles.helper}>
-              A schedule belongs to a job. Create the project first — this
-              wizard will be waiting under Schedule.
+              A schedule belongs to a project. Create the project first, then
+              open Schedule to build it.
             </Text>
             <TouchableOpacity
               style={styles.emptyBtn}
@@ -1456,10 +1456,9 @@ function TasksStep(props: {
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>This schedule is empty</Text>
           <Text style={styles.helper}>
-            List the work in the order it happens — Demo, then Rough Plumbing,
-            then Drywall. Each task chains onto the one above it, and you can
-            change that on any row. Press return after typing a name to keep
-            going.
+            List the work in the order it happens: demo, then rough plumbing,
+            then drywall. Each task chains onto the one above it, and you can
+            change that on any row.
           </Text>
           <TouchableOpacity
             style={styles.emptyBtn}
@@ -1474,8 +1473,9 @@ function TasksStep(props: {
         </View>
       ) : (
         <Text style={styles.helper}>
-          Name + duration is enough · tap Refine ▾ to set phase or sequence ·
-          drag the handle or use arrows to reorder · 0 days = milestone
+          Name and duration are enough · Tap Refine ▾ to set phase or sequence ·
+          Drag the handle or use the arrows to reorder · 0 days is a milestone ·
+          Press return for the next task
         </Text>
       )}
 
@@ -1540,7 +1540,7 @@ function TasksStep(props: {
           <LayoutTemplate size={14} color={themeColors.textMuted} strokeWidth={1.9} />
           <Text style={styles.templateLinkText}>
             {scratchActive
-              ? 'or start from a template'
+              ? 'Or start from a template'
               : `Started from ${activeTemplate?.name ?? 'a template'} — change`}
           </Text>
         </TouchableOpacity>
@@ -2068,8 +2068,8 @@ function ScheduleStep(props: {
       </View>
 
       <Text style={[styles.helper, { marginTop: 16 }]}>
-        Weekends are skipped — durations are working days on a 5-day week, so a
-        10-day task spans two calendar weeks. Diamonds are milestones.
+        Durations are working days on a 5-day week, so a 10-day task spans two
+        calendar weeks. Diamonds are milestones.
       </Text>
       <Text style={styles.helper}>
         {wideEnoughForPro
@@ -2140,7 +2140,7 @@ function ReviewStep(props: {
           : 'Saving creates the schedule and opens your schedule, where you can fine-tune dependencies, dates, and crew assignments.'}
       </Text>
       <Text style={styles.helper}>
-        {`Nothing has been written to ${project.name} yet — Save is what commits it.`}
+        {`Nothing is saved to ${project.name} until you tap Save.`}
       </Text>
     </View>
   );

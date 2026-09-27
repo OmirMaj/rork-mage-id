@@ -1086,9 +1086,9 @@ ok('the fixture has a real markup (cost !== sell)', COST !== SELL,
   expect('…and the vendor he paid it to', flagged[0].vendorName, 'Apex Roofing');
   expect('the notice names the fix, not just the fault',
     missingContractSumNotice(flagged),
-    'One commitment on a finished job has money paid against it and no contract amount. '
-    + 'A payment with no contract sum behind it cannot say what the scope cost, so it teaches '
-    + 'your prices nothing — fill in the amount and that job will start correcting your rates.');
+    'One commitment on a finished project has money paid against it and no contract amount, '
+    + 'so MAGE can’t tell what the scope cost. '
+    + 'Fill in the amount and that project will start correcting your rates.');
 
   // A DEDUCTIVE CHANGE ORDER IS THE SAME HOLE. `(amount + changeAmount) <= 0`
   // is what estimateActuals allocates, so a $10,000 sub with a −$10,000 CO

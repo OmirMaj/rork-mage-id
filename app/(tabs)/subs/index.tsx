@@ -49,14 +49,18 @@ import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useSplitRecord } from '@/components/desktop/SplitView';
 import EmptyState from '@/components/EmptyState';
 import { SubsRegister } from '@/components/registers/SubsRegister';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+
+// Bid outcomes are stored lowercase; the chip reads a label, not the raw value.
+const BID_OUTCOME_LABEL: Record<string, string> = { won: 'Won', lost: 'Lost', pending: 'Pending' };
 
 function createId(_prefix: string): string {
   return generateUUID();
 }
 
 // Grade band → an AA-safe FOREGROUND token. app/sub-scorecard.tsx paints its
-// grade chip with t.accent / t.accentHot, which are the brand hues: #FF6A1A as
-// text is 2.87:1 and fails AA, so it is not copied here. The *Label* tokens
+// grade chip with t.accent / t.accentHot, which are the brand hues — a grade is
+// not a brand action, and accentHot is not a text ink — so it is not copied here. The *Label* tokens
 // are the ones constants/colors.ts engineers to clear 4.5:1 in both themes.
 // A and B share green, C and D share amber — the LETTER carries the grade, the
 // colour carries the band.
@@ -134,7 +138,7 @@ function LicenseVerificationCard({
   const openLookup = async () => {
     if (!target) {
       showAlert(
-        'Need license # + state',
+        'Add the license number and state',
         'Add the license number and the state it was issued in to verify against the official board.',
       );
       return;
@@ -144,7 +148,7 @@ function LicenseVerificationCard({
     try {
       await Linking.openURL(url);
     } catch {
-      showAlert('Could not open', 'Try copying the URL manually.');
+      showAlert('Couldn’t open the board', 'Copy the link and open it in your browser.');
     }
   };
 
@@ -323,8 +327,8 @@ export default function SubsScreen() {
   const handleInviteSubs = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     const message =
-      "Join my team on MAGE ID — it's free for subs. You'll get job invites, " +
-      'can post daily updates from the field, and keep your license & COI on file. ' +
+      "Join my team on MAGE ID. It's free for subs: you get project invites, " +
+      'post daily updates from the field, and keep your license and COI on file. ' +
       'Download: https://mageid.app';
     try {
       await shareText({ message, url: 'https://mageid.app' });
@@ -358,7 +362,7 @@ export default function SubsScreen() {
   const handleSave = useCallback(() => {
     const name = companyName.trim();
     if (!name) {
-      showAlert('Missing Name', 'Please enter the company name.');
+      showAlert('Add a company name', 'Enter the company name.');
       return;
     }
     // Exactly four digits or nothing (audit #27). subcontractors.tax_id_last4
@@ -378,7 +382,7 @@ export default function SubsScreen() {
         taxIdLast4: taxIdLast4.trim() || undefined,
         legalName: legalName.trim() || undefined,
       });
-      showAlert('Updated', `${name} has been updated.`);
+      showAlert('Sub updated', `${name} is saved.`);
     } else {
       const sub: Subcontractor = {
         id: createId('sub'), companyName: name, contactName: contactName.trim(),
@@ -390,7 +394,7 @@ export default function SubsScreen() {
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       addSubcontractor(sub);
-      showAlert('Added', `${name} has been added.`);
+      showAlert('Sub added', `${name} is on your subs list.`);
     }
 
     setShowForm(false);
@@ -461,10 +465,10 @@ export default function SubsScreen() {
       return;
     }
     showAlert(
-      'Delete Subcontractor',
+      'Delete this sub?',
       invoiceCheckFailed
-        ? `Delete ${sub.companyName}? This cannot be undone. We couldn't check his portal invoices just now — if you've paid him this year, keep him so the 1099 export keeps his TIN and address.`
-        : `Delete ${sub.companyName}? This cannot be undone.`,
+        ? `Couldn’t check this sub’s portal invoices. If you paid them this year, keep them so the 1099 export has their TIN and address. Deleting ${sub.companyName} can’t be undone.`
+        : `${sub.companyName} is removed from your subs list. This can’t be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: doDelete },
@@ -548,7 +552,7 @@ export default function SubsScreen() {
         </View>
 
         <View style={styles.detailSection}>
-          <Text style={styles.detailSectionTitle}>CONTACT</Text>
+          <Text style={styles.detailSectionTitle}>Contact</Text>
           {sub.contactName ? <View style={styles.detailRow}><Users size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.contactName}</Text></View> : null}
           {sub.phone ? <View style={styles.detailRow}><Phone size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.phone}</Text></View> : null}
           {sub.email ? <View style={styles.detailRow}><Mail size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.email}</Text></View> : null}
@@ -556,11 +560,11 @@ export default function SubsScreen() {
         </View>
 
         <View style={styles.detailSection}>
-          <Text style={styles.detailSectionTitle}>COMPLIANCE</Text>
+          <Text style={styles.detailSectionTitle}>Compliance</Text>
           <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not set'}</Text></View>
-          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License Expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
-          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI Expiry: {sub.coiExpiry || 'Not set'}</Text></View>
-          <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.successLabel : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
+          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
+          <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI expiry: {sub.coiExpiry || 'Not set'}</Text></View>
+          <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.successLabel : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On file' : 'Missing'}</Text></View>
 
           {/* Verification badges + deep-link to state board.
               Two paths:
@@ -586,7 +590,7 @@ export default function SubsScreen() {
 
         {sub.bidHistory.length > 0 && (
           <View style={styles.detailSection}>
-            <Text style={styles.detailSectionTitle}>BID HISTORY</Text>
+            <Text style={styles.detailSectionTitle}>Bid history</Text>
             {sub.bidHistory.map(bid => (
               <View key={bid.id} style={styles.bidRow}>
                 <View style={{ flex: 1 }}>
@@ -596,7 +600,7 @@ export default function SubsScreen() {
                 <Text style={styles.bidAmount}>${bid.bidAmount.toLocaleString()}</Text>
                 <View style={[styles.bidOutcome, { backgroundColor: bid.outcome === 'won' ? Colors.successLight : bid.outcome === 'lost' ? Colors.errorLight : Colors.warningLight }]}>
                   <Text style={[styles.bidOutcomeText, { color: bid.outcome === 'won' ? Colors.successLabel : bid.outcome === 'lost' ? Colors.dangerLabel : Colors.warningLabel }]}>
-                    {bid.outcome.charAt(0).toUpperCase() + bid.outcome.slice(1)}
+                    {BID_OUTCOME_LABEL[bid.outcome] ?? 'Pending'}
                   </Text>
                 </View>
               </View>
@@ -606,7 +610,7 @@ export default function SubsScreen() {
 
         {sub.notes ? (
           <View style={styles.detailSection}>
-            <Text style={styles.detailSectionTitle}>NOTES</Text>
+            <Text style={styles.detailSectionTitle}>Notes</Text>
             <Text style={styles.detailNotes}>{sub.notes}</Text>
           </View>
         ) : null}
@@ -620,7 +624,7 @@ export default function SubsScreen() {
           const gradeColor = gradeLabelColor(card.grade);
           return (
             <View style={styles.detailSection}>
-              <Text style={styles.detailSectionTitle}>SCORECARD</Text>
+              <Text style={styles.detailSectionTitle}>Scorecard</Text>
               <TouchableOpacity
                 style={styles.scorecardRow}
                 onPress={() => {
@@ -656,7 +660,7 @@ export default function SubsScreen() {
                       mislead a GC into treating it as a verdict. */}
                   <Text style={styles.scorecardDriver} numberOfLines={3}>
                     {card.noHistory
-                      ? 'No signed commitments yet — this grades compliance paperwork only. Award work through Buyout and the score gets real.'
+                      ? 'No signed commitments yet, so this grades compliance paperwork only. Award work through buyout to add a track record.'
                       : card.topDriver}
                   </Text>
                 </View>
@@ -755,7 +759,7 @@ export default function SubsScreen() {
             <EmptyState
               icon={<Users size={28} color={Colors.primary} strokeWidth={1.75} />}
               title="This sub isn't on your list any more"
-              message="He may have been deleted. Pick another sub from the list."
+              message="It may have been deleted. Pick another sub from the list."
               actionLabel="Close"
               onAction={split.close}
             />
@@ -793,7 +797,7 @@ export default function SubsScreen() {
                   <UserPlus size={15} color={Colors.primary} strokeWidth={1.75} />
                   <Text style={styles.inviteBtnText}>Invite</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add sub"><Plus size={20} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
               </View>
             </View>
 
@@ -810,7 +814,7 @@ export default function SubsScreen() {
                 <Text style={styles.prequalTitle}>Prequal + COI tracking</Text>
                 <Text style={styles.prequalSub}>
                   {prequalSummary.total === 0
-                    ? 'Invite subs to complete prequalification via magic link'
+                    ? 'Send subs a prequalification link'
                     : `${prequalSummary.approved} approved · ${prequalSummary.pending} pending${prequalSummary.issues > 0 ? ` · ${prequalSummary.issues} issue${prequalSummary.issues === 1 ? '' : 's'}` : ''}`}
                 </Text>
               </View>
@@ -893,7 +897,7 @@ export default function SubsScreen() {
                   style={styles.searchInput}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  placeholder="Search subcontractors..."
+                  placeholder="Search subs"
                   placeholderTextColor={Colors.textMuted}
                   testID="subs-search"
                 />
@@ -931,14 +935,14 @@ export default function SubsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Users size={48} color={Colors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>{searchQuery ? 'No Results' : 'No Subcontractors'}</Text>
+            <Text style={styles.emptyTitle}>{searchQuery ? 'No subs match this search' : 'No subs yet'}</Text>
             <Text style={styles.emptyDesc}>
-              {searchQuery ? 'Try a different search.' : 'Add your first subcontractor to start tracking compliance.'}
+              {searchQuery ? 'Try a different search.' : 'Add a sub to track their COI, license and W-9.'}
             </Text>
             {!searchQuery && (
               <TouchableOpacity style={styles.emptyBtn} onPress={openCreate} activeOpacity={0.7}>
                 <Plus size={16} color="#fff" strokeWidth={1.75} />
-                <Text style={styles.emptyBtnText}>Add Subcontractor</Text>
+                <Text style={styles.emptyBtnText}>Add sub</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -952,16 +956,16 @@ export default function SubsScreen() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editingSub ? 'Edit Subcontractor' : 'Add Subcontractor'}</Text>
+                  <Text style={styles.formTitle}>{editingSub ? 'Edit sub' : 'Add sub'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>Company Name *</Text>
+                <Text style={styles.fieldLabel}>Company name *</Text>
                 <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="Company name" placeholderTextColor={Colors.textMuted} testID="sub-company-input" />
 
-                <Text style={styles.fieldLabel}>Contact Name</Text>
+                <Text style={styles.fieldLabel}>Contact name</Text>
                 <TextInput style={styles.input} value={contactName} onChangeText={setContactName} placeholder="Primary contact" placeholderTextColor={Colors.textMuted} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -976,9 +980,9 @@ export default function SubsScreen() {
                 </View>
 
                 <Text style={styles.fieldLabel}>Address</Text>
-                <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Street, City, State" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Street, city, state" placeholderTextColor={Colors.textMuted} />
 
-                <Text style={styles.fieldLabel}>Trade Specialty</Text>
+                <Text style={styles.fieldLabel}>Trade</Text>
                 <View style={styles.tradeGrid}>
                   {SUB_TRADES.map(t => (
                     <TouchableOpacity key={t} style={[styles.tradeChip, trade === t && styles.tradeChipActive]} onPress={() => setTrade(t)}>
@@ -987,7 +991,7 @@ export default function SubsScreen() {
                   ))}
                 </View>
 
-                <Text style={styles.sectionDivider}>COMPLIANCE</Text>
+                <Text style={styles.sectionDivider}>Compliance</Text>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -995,18 +999,18 @@ export default function SubsScreen() {
                     <TextInput style={styles.input} value={licenseNumber} onChangeText={setLicenseNumber} placeholder="GC-12345" placeholderTextColor={Colors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>License Expiry</Text>
+                    <Text style={styles.fieldLabel}>License expiry</Text>
                     <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={licenseExpiry} onChangeText={setLicenseExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
                   </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>COI Expiry</Text>
+                    <Text style={styles.fieldLabel}>COI expiry</Text>
                     <TextInput style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]} value={coiExpiry} onChangeText={setCoiExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
                   </View>
                   <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-                    <Text style={styles.fieldLabel}>W-9 On File</Text>
+                    <Text style={styles.fieldLabel}>W-9 on file</Text>
                     <View style={styles.switchRow}>
                       <Text style={styles.switchLabel}>{w9OnFile ? 'Yes' : 'No'}</Text>
                       <Switch value={w9OnFile} onValueChange={setW9OnFile} trackColor={{ false: Colors.border, true: Colors.primary }} thumbColor={Colors.surface} />
@@ -1020,7 +1024,7 @@ export default function SubsScreen() {
                     differ from companyName (DBA vs. LLC). */}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Legal Name (1099)</Text>
+                    <Text style={styles.fieldLabel}>Legal name (1099)</Text>
                     <TextInput
                       style={styles.input}
                       value={legalName}
@@ -1047,11 +1051,11 @@ export default function SubsScreen() {
                     sub-documents/<subId>/w9.pdf. Picker only accepts PDF
                     + images so the GC doesn't accidentally upload a
                     Word doc. Auto-flips w9OnFile to true on success. */}
-                <Text style={styles.fieldLabel}>W-9 Document</Text>
+                <Text style={styles.fieldLabel}>W-9 document</Text>
                 <TouchableOpacity
                   onPress={async () => {
                     if (!editingSub) {
-                      showAlert('Save first', 'Save the sub before uploading their W-9, so we can attach the file to their record.');
+                      showAlert('Save the sub first', 'Save the sub before you upload their W-9, so the file attaches to their record.');
                       return;
                     }
                     setUploadingW9(true);
@@ -1081,9 +1085,11 @@ export default function SubsScreen() {
                       // (20260923150000 + ProjectContext's mapper, CONTRACT 17).
                       updateSubcontractor(editingSub.id, { w9OnFile: true, w9DocPath: path });
                       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      showAlert('W-9 uploaded', 'Stored in your private sub-documents bucket. Visible only to your account.');
+                      showAlert('W-9 uploaded', 'Stored privately. Only your account can see it.');
                     } catch (err) {
-                      showAlert('Upload failed', (err as Error).message ?? 'Try again.');
+                      console.warn('[subs] W-9 upload failed:', rawErrorMessage(err));
+                      const copy = describeError(err, { action: 'upload the W-9' });
+                      showAlert(copy.title, copy.body);
                     } finally {
                       setUploadingW9(false);
                     }
@@ -1094,7 +1100,7 @@ export default function SubsScreen() {
                 >
                   <Upload size={14} color={Colors.primary} strokeWidth={1.75} />
                   <Text style={{ color: Colors.primary, fontWeight: '700' as const, fontSize: Type.footnote.fontSize, flex: 1 }}>
-                    {uploadingW9 ? 'Uploading…' : (w9DocPath ? 'Replace W-9 (current on file)' : 'Pick W-9 PDF')}
+                    {uploadingW9 ? 'Uploading W-9…' : (w9DocPath ? 'Replace W-9' : 'Upload W-9 PDF')}
                   </Text>
                 </TouchableOpacity>
                 {/* The stored W-9 could be uploaded but never opened (audit
@@ -1115,14 +1121,14 @@ export default function SubsScreen() {
                 ) : null}
 
                 <Text style={styles.fieldLabel}>Notes</Text>
-                <TextInput style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={Colors.textMuted} multiline />
+                <TextInput style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]} value={notes} onChangeText={setNotes} placeholder="Add notes" placeholderTextColor={Colors.textMuted} multiline />
 
                 <View style={[styles.formActions, fForm.footer]}>
                   <TouchableOpacity style={[styles.cancelBtn, fForm.footerButton]} onPress={() => { setShowForm(false); resetForm(); }}>
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.saveBtn, fForm.footerButton]} onPress={handleSave} activeOpacity={0.85} testID="save-sub">
-                    <Text style={styles.saveBtnText}>{editingSub ? 'Update' : 'Add Subcontractor'}</Text>
+                    <Text style={styles.saveBtnText}>{editingSub ? 'Save sub' : 'Add sub'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1151,7 +1157,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '14', borderWidth: 1, borderColor: Colors.primary + '33' },
   inviteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  // accentFill, not Colors.primary, on every solid fill below that carries a
+  // white label or glyph: the dark-theme brand #5DB36E gives white 2.58:1;
+  // accentFill is solved for white in both themes (4.83:1 dark).
+  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   prequalBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 16, marginBottom: 12,
@@ -1185,7 +1194,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: themeColors.textMuted, alignItems: 'center', justifyContent: 'center' },
   filterRow: { paddingHorizontal: 16, gap: 6, marginBottom: 16 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
-  filterChipActive: { backgroundColor: Colors.primary },
+  filterChipActive: { backgroundColor: themeColors.accentFill },
   filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   filterChipTextActive: { color: '#fff' },
   subCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
@@ -1203,7 +1212,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40, gap: 10 },
   emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
   emptyDesc: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.card, marginTop: 8 },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: themeColors.accentFill, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.card, marginTop: 8 },
   emptyBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   formCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8, maxHeight: '90%' },
@@ -1213,22 +1222,22 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   tradeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   tradeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  tradeChipActive: { backgroundColor: Colors.primary },
+  tradeChipActive: { backgroundColor: themeColors.accentFill },
   tradeChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   tradeChipTextActive: { color: '#fff' },
-  sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
+  sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 14, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card },
   switchLabel: { fontSize: Type.subhead.fontSize, color: themeColors.text },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   detailCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' },
   detailStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Tokens.radius.card, borderLeftWidth: 3, marginBottom: 16 },
   detailStatusText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   detailSection: { marginBottom: 20, gap: 8 },
-  detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, letterSpacing: 0.5 },
+  detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   detailRowText: { fontSize: Type.subhead.fontSize, color: themeColors.text },
   scorecardRow: {
@@ -1248,7 +1257,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   bidOutcomeText: { fontSize: 10, fontWeight: '700' as const },
   detailNotes: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
   detailActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill, alignItems: 'center', justifyContent: 'center' },
   editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   deleteDetailBtn: { flexDirection: 'row', minHeight: 48, paddingHorizontal: 20, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center', gap: 6 },
   deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.dangerLabel },

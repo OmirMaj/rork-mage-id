@@ -178,7 +178,7 @@ export function COScheduleReflowPreviewModal(props: {
                 for a rule-picked anchor the user disagrees with. */}
             {(showPicker || plan.status === 'no_anchor') && plan.candidates.length > 0 && (
               <View style={styles.pickerBlock}>
-                <Text style={styles.pickerLabel}>Which activity absorbs the added days?</Text>
+                <Text style={styles.pickerLabel}>Which task absorbs the added days?</Text>
                 {plan.candidates.map(c => {
                   const selected = c.id === (pickedAnchorId ?? plan.anchorTaskId);
                   return (

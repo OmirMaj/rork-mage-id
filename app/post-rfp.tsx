@@ -51,6 +51,7 @@ import { useClientPaywall } from '@/hooks/useClientPaywall';
 import { showAlert } from '@/utils/alert';
 import { postedAlertBody, prePostReachNotice } from '@/supabase/functions/notify-nearby-contractors/reach';
 import { RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED } from '@/constants/featureFlags';
+import { describeError } from '@/utils/errorCopy';
 
 // Audit wave 5, #96: while no contractor can set a service area, no post can
 // reach anyone. The homeowner reads that BEFORE she posts (hero + review step),
@@ -70,14 +71,14 @@ type WorkType   = 'renovation' | 'addition' | 'new_build' | 'other';
 const STEPS: { id: WizardStep; label: string; icon: React.ComponentType<any> }[] = [
   { id: 'details', label: 'Project details', icon: MapPin },
   { id: 'scope',   label: 'Scope',           icon: ClipboardCheck },
-  { id: 'budget',  label: 'Budget & timing', icon: Clock },
-  { id: 'review',  label: 'Review & post',   icon: Check },
+  { id: 'budget',  label: 'Budget and timing', icon: Clock },
+  { id: 'review',  label: 'Review and post',   icon: Check },
 ];
 
 const WORK_TYPES: { id: WorkType; label: string; icon: React.ComponentType<any> }[] = [
   { id: 'renovation', label: 'Renovation', icon: Home },
   { id: 'addition',   label: 'Addition',   icon: LayoutGrid },
-  { id: 'new_build',  label: 'New Build',  icon: Building2 },
+  { id: 'new_build',  label: 'New build',  icon: Building2 },
   { id: 'other',      label: 'Other',      icon: MoreHorizontal },
 ];
 
@@ -240,7 +241,7 @@ export default function PostRfpScreen() {
   const verifyAddress = useCallback(async () => {
     setError(null);
     if (!address.trim()) {
-      showAlert('Address Required', 'Enter the property address before looking it up on the map.');
+      showAlert('Add the address', 'Enter the property address before looking it up on the map.');
       return;
     }
     if (Platform.OS === 'web') {
@@ -267,7 +268,7 @@ export default function PostRfpScreen() {
       } else {
         setAddressVerified(false);
         setLatLng(null);
-        showAlert('Address not found', 'We couldn\'t locate that address. Double-check it — contractors won\'t see your post in nearby-RFP feeds without coordinates.');
+        showAlert('Address not found', 'That address wasn\'t found on the map. Check it. Contractors won\'t see your post nearby without a map location.');
       }
     } catch (e) {
       console.warn('[post-rfp] geocode failed', e);
@@ -382,7 +383,7 @@ export default function PostRfpScreen() {
       for (const a of attachments) {
         const url = await uploadRfpAttachment(user.id, rfpId, a.uri, a.name, a.contentType);
         if (!url) {
-          throw new Error(`Could not upload ${a.name}. Check your connection and try again.`);
+          throw new Error(`Couldn’t upload ${a.name}. Check your connection and try again.`);
         }
         if (a.kind === 'photo') photoUrls.push(url);
         else drawingUrls.push(url);
@@ -445,13 +446,15 @@ export default function PostRfpScreen() {
       // My RFPs shows it; this sentence comes from the same module the fan-out
       // matches with (audit round 2, #8).
       showAlert(
-        'Posted!',
+        'Project posted',
         postedAlertBody(cityState.city, verifiedOnly, RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED),
         [{ text: 'See my RFPs', onPress: () => router.replace('/my-rfps' as never) }],
       );
     } catch (e) {
       console.warn('[post-rfp] submit failed', e);
-      setError(String((e as Error).message ?? e));
+      // Our own upload sentence is shown as written; anything else is described.
+      const authored = e instanceof Error && e.message.startsWith('Couldn’t upload ') ? e.message : null;
+      setError(authored ?? describeError(e, { action: 'post the project', keptLocally: true }).body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSubmitting(false);
@@ -684,7 +687,7 @@ function DetailsStep({
   return (
     <>
       <FadeRise delay={0}>
-        <Text style={styles.stepHeading}>Let&apos;s start with the basics</Text>
+        <Text style={styles.stepHeading}>Start with the basics</Text>
       </FadeRise>
 
       {/* Address */}
@@ -770,7 +773,7 @@ function DetailsStep({
             style={[styles.input, styles.inputMultiline]}
             value={description}
             onChangeText={setDescription}
-            placeholder="e.g. Kitchen remodel, 2 bathrooms, open layout…"
+            placeholder="e.g. Kitchen remodel, 2 bathrooms, open layout"
             placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={5}
@@ -840,7 +843,7 @@ function ScopeStep({
             style={[styles.input, styles.inputMultiline]}
             value={extraScope}
             onChangeText={setExtraScope}
-            placeholder="e.g. Quartz counters, hardwood refinish, weekend work OK…"
+            placeholder="e.g. Quartz counters, hardwood refinish, weekend work OK"
             placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={4}

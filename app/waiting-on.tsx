@@ -78,6 +78,7 @@ import {
   sendNudge as sendChaseNudge, type SendNudgeInput,
 } from '@/utils/chaseNudge';
 import { loadSelectionsChecked } from '@/utils/selectionsEngine';
+import { scheduleCalendarOf } from '@/utils/scheduleCalendarDate';
 
 /** Selections are read for at most this many in-progress jobs. */
 const SELECTION_JOB_LIMIT = 10;
@@ -401,6 +402,9 @@ export default function WaitingOnScreen() {
         // every task on two real schedules forward a day, every day. The
         // refusal is rendered; it is not swallowed.
         scheduleStartDate: p.schedule?.startDate,
+        // startDay is a WORKING ordinal: the rule needs the week and closures
+        // to put a sub's first day on the right date (the Gantt's walk).
+        scheduleCalendar: scheduleCalendarOf(p.schedule),
         commitments: dataLoaded ? (commitments ?? []).filter(c => c.projectId === p.id) : undefined,
       };
     });

@@ -187,7 +187,7 @@ console.log('\n#52 — replacing a running schedule:');
 console.log('\n#53 — Saved plans are sold as what they do:');
 {
   ok('the paywall no longer sells "try the what-if"', !/what-if/i.test(slice(code(PAYWALL), 'schedule_scenarios:', '};')));
-  ok('...and names the feature for what it is', /schedule_scenarios: 'Saved Schedule Plans'/.test(PAYWALL));
+  ok('...and names the feature for what it is', /schedule_scenarios: 'Saved schedule plans'/.test(PAYWALL));
   ok('the create card no longer promises edits "only affect that scenario"', !/only affect that\s+scenario/.test(code(SCEN)));
   ok('the help no longer offers "Overtime push" / "Rain delay" alternates', !/Overtime push|Rain delay/.test(code(SCEN)));
   ok('the empty state no longer says "start branching"', !/start branching/.test(code(SCEN)));

@@ -49,7 +49,7 @@ export function WeekAheadStrip({ week, onPress, style }: WeekAheadStripProps) {
         <View style={[styles.iconSq, { backgroundColor: colors.info + '1A' }]}>
           <BarChart3 size={15} color={colors.info} strokeWidth={2.2} />
         </View>
-        <Text style={styles.headerLabel}>THIS WEEK</Text>
+        <Text style={styles.headerLabel}>This week</Text>
         <Text style={styles.headerMeta}>
           {week.totalTasks} task{week.totalTasks === 1 ? '' : 's'} · {week.milestoneCount} milestone{week.milestoneCount === 1 ? '' : 's'}
         </Text>
@@ -90,7 +90,7 @@ export function WeekAheadStrip({ week, onPress, style }: WeekAheadStripProps) {
           <View style={styles.clashHead}>
             <AlertTriangle size={13} color={colors.dangerLabel} strokeWidth={2.2} />
             <Text style={styles.clashHeadText}>
-              {clashes.length === 1 ? 'DOUBLE-BOOKED' : `${clashes.length} DOUBLE-BOOKED`}
+              {clashes.length === 1 ? 'Double-booked' : `${clashes.length} double-booked`}
             </Text>
           </View>
           {clashes.map((c) => (
@@ -99,7 +99,7 @@ export function WeekAheadStrip({ week, onPress, style }: WeekAheadStripProps) {
               {` — ${c.jobNames.join(' + ')} · ${summarizeClashDays(c.dateISOs)}`}
             </Text>
           ))}
-          <Text style={styles.clashHint}>Same crew, two jobs, one day. One of them is going to be short.</Text>
+          <Text style={styles.clashHint}>Same crew, two projects, one day. One of them will be short.</Text>
         </View>
       )}
     </>
@@ -123,7 +123,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { ...cardSurface(t, { radius: 'xl', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, marginBottom: 6 },
   iconSq: { width: 26, height: 26, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2 },
+  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2, textTransform: 'uppercase' as const },
   headerMeta: { marginLeft: 'auto' as const, fontSize: 11, fontWeight: '700' as const, color: t.textMuted },
   empty: { fontSize: 13, color: t.textMuted, fontWeight: '500' as const, paddingVertical: 10, textAlign: 'center' as const },
   chartRow: { flexDirection: 'row' as const, gap: 7, alignItems: 'flex-end' as const, marginTop: 8 },
@@ -138,7 +138,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // and dangerLabel is the contrast-checked text colour over it.
   clashBlock: { marginTop: 12, backgroundColor: t.dangerSoft, borderRadius: Tokens.radius.card, padding: 10, gap: 4 },
   clashHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
-  clashHeadText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: t.dangerLabel, letterSpacing: 0.4 },
+  clashHeadText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: t.dangerLabel, letterSpacing: 0.4, textTransform: 'uppercase' as const },
   clashLine: { fontSize: Type.caption1.fontSize, color: t.dangerLabel, lineHeight: Type.caption1.lineHeight },
   clashName: { fontWeight: '800' as const },
   clashHint: { fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: Type.caption2.lineHeight, marginTop: 2 },

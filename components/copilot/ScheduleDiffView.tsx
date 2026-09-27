@@ -92,7 +92,7 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
   const dd = (n: number) => (n > 0 ? `+${n}d` : `${n}d`);
   return (
     <View style={styles.wrap}>
-      <Text style={styles.eyebrow}>HERE’S THE RIPPLE</Text>
+      <Text style={styles.eyebrow}>The ripple</Text>
       {total > 0 && (
         <Text style={styles.count} testID="schedule-edit-understood">
           {okCount === total ? `Understood ${plural(total, 'change')}` : `Understood ${okCount} of ${plural(total, 'change')}`}
@@ -117,10 +117,10 @@ export default function ScheduleDiffView({ ops, dropped = [], ctx, onApply, onDi
         {diff.criticalEntered.length > 0 && (
           <View style={styles.critRow}>
             <TriangleAlert size={14} color={colors.accent} strokeWidth={2} />
-            <Text style={styles.warn}>now critical: {diff.criticalEntered.join(', ')}</Text>
+            <Text style={styles.warn}>Now critical: {diff.criticalEntered.join(', ')}</Text>
           </View>
         )}
-        {diff.criticalLeft.length > 0 && <Text style={styles.line}>off critical: {diff.criticalLeft.join(', ')}</Text>}
+        {diff.criticalLeft.length > 0 && <Text style={styles.line}>Off critical: {diff.criticalLeft.join(', ')}</Text>}
         {dropped.map((d, i) => <Text key={`u${i}`} style={styles.reject} testID="schedule-edit-unread">Couldn’t read: {describeDropped(d, ctx.currentTasks ?? [])}</Text>)}
         {diff.rejected.map((r, i) => <Text key={`x${i}`} style={styles.reject}>Couldn’t apply: {r.summary}</Text>)}
         {!valid && <Text style={styles.reject}>Nothing to change yet — say it another way below.</Text>}

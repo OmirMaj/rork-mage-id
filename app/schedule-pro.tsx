@@ -87,7 +87,7 @@ import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
 import { CriticalPathPanel } from '@/components/schedule/CriticalPathPanel';
 import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
 import { buildCriticalPathExplanation } from '@/utils/floatExplain';
-import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
+import { WeatherReschedulePrompt, type WeatherReschedulePromptProps } from '@/components/schedule/WeatherReschedulePrompt';
 import { getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
 import { computeWeatherReschedule, buildWeatherDelayLog, type WeatherRescheduleResult } from '@/utils/weatherReschedule';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
@@ -157,8 +157,10 @@ import {
   tryEncodeShareToken,
   UNDATED_SCHEDULE_BODY,
   UNDATED_SCHEDULE_TITLE,
+  startDayNumberFor,
   type NamedBaseline,
 } from '@/utils/scheduleOps';
+import { scheduleCalendarOf } from '@/utils/scheduleCalendarDate';
 import { buildShareUrl, buildSnapshotShareUrl } from '@/utils/webAppOrigin';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import { supabase } from '@/lib/supabase';
@@ -166,6 +168,7 @@ import type { Project, ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 import { copyToClipboard } from '@/utils/clipboard';
 /** A server copy as Schedule Pro adopts it: ScheduleCopy plus the active
  *  baseline when the copy says (#86 — undefined = does not say, null = cleared). */
@@ -207,7 +210,7 @@ function scheduleProPresenceName(...candidates: unknown[]): string {
     const t = typeof c === 'string' ? c.trim() : '';
     if (t && !t.includes('@')) return t;
   }
-  return 'Collaborator';
+  return 'Team member';
 }
 
 export default function ScheduleProScreen() {
@@ -241,7 +244,7 @@ export default function ScheduleProScreen() {
         <Text style={styles.gateTitle}>{gate === 'error' ? 'Couldn’t check your access' : 'You don’t have access to this schedule'}</Text>
         <Text style={styles.gateBody}>
           {gate === 'error'
-            ? 'Your access to this project could not be read, so Schedule Pro stays closed rather than guessing. Check your connection and try again.'
+            ? 'Your access to this project couldn’t be read, so Schedule Pro stays closed. Check your connection and try again.'
             : 'You are not on this project’s team, so its schedule does not open for you. Ask the project owner to invite you.'}
         </Text>
         <View style={styles.gateActions}>
@@ -614,7 +617,7 @@ function ScheduleProScreenInner() {
       // someone else's — the foreman's RPC, but equally the GC's own phone or
       // a PM on editor access. Naming the field would be a guess shown as fact.
       const more = reported.length > 1 ? ` ${reported.length - 1} other change${reported.length > 2 ? 's were' : ' was'} kept the same way.` : '';
-      setFieldConflictNotice(`${title}'s ${what} was updated elsewhere — in the field or on another device — at ${when}, after this screen loaded, so your change was not saved. It now shows that value — change it again if yours is right.${more}`);
+      setFieldConflictNotice(`${title}'s ${what} was changed on another device at ${when}, so your change wasn't saved. It now shows the newer value. Change it again if yours is right.${more}`);
     };
   }, []);
 
@@ -1072,7 +1075,7 @@ function ScheduleProScreenInner() {
     if (!project?.linkedEstimate || staleEstimateRefCount === 0) return;
     showAlert(
       'Clean up stale estimate references?',
-      `${staleEstimateRefCount} reference${staleEstimateRefCount === 1 ? '' : 's'} on schedule tasks point to estimate items that no longer exist. Cleaning up will remove the dead IDs from each task's linkedEstimateItems. The tasks themselves keep working — they just won't carry budget from those missing items.`,
+      `${staleEstimateRefCount} reference${staleEstimateRefCount === 1 ? '' : 's'} on schedule tasks point to estimate items that no longer exist. Cleaning up will remove links to deleted estimate items from each task. The tasks keep working, but they won't carry budget from those missing items.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1636,8 +1639,8 @@ function ScheduleProScreenInner() {
       user: user?.email ?? user?.name ?? 'anonymous',
       kind: 'reflow',
       summary: patch.tasks
-        ? `Re-anchored ${startDayBasisPreview.report.wouldRemapTaskCount} task(s) off the legacy calendar-index scale — finish ${startDayBasisPreview.storedFinishDay} → ${startDayBasisPreview.remappedFinishDay}`
-        : 'Kept the stored start days as authored (legacy day-scale notice declined)',
+        ? `Moved ${startDayBasisPreview.report.wouldRemapTaskCount} ${startDayBasisPreview.report.wouldRemapTaskCount === 1 ? 'task' : 'tasks'} onto the calendar · finish ${startDayBasisPreview.storedFinishDay} → ${startDayBasisPreview.remappedFinishDay}`
+        : 'Kept the start days as entered',
     });
   }, [project, updateProject, startDayBasisPreview, writeAudit, user?.email, user?.name]);
 
@@ -1669,15 +1672,30 @@ function ScheduleProScreenInner() {
     return () => { cancelled = true; };
   }, [projectStartDate, project?.location, project?.locationLatitude, project?.locationLongitude]);
 
+  // The schedule's calendar for every weather reader on this screen. startDay
+  // is a WORKING ordinal on it (utils/cpm.ts "THE TWO DAY-NUMBER SCALES"); with
+  // no start date the readers fall back to raw calendar offsets from
+  // projectStartDate, which is how the engine reads an undated schedule too.
+  const weatherCalendar = useMemo(
+    () => scheduleCalendarOf(project?.schedule),
+    [project?.schedule],
+  );
+
   // Weather reschedule — compute the forecast's impact on weather-sensitive
-  // tasks (and the cascade) and open the preview. todayDay pins work already
-  // underway so we only reschedule the future.
+  // tasks (and the cascade) and open the preview. `now` pins work already
+  // underway so we only reschedule the future; computeWeatherReschedule puts it
+  // on the startDay scale itself. It used to arrive here as a CALENDAR day
+  // count compared against WORKING ordinals, which froze future tasks (Mon Mar
+  // 23 is calendar day 22 but working day 16 on a Mon-Fri job from Mar 2, so a
+  // roof task on working day 18 read as already started).
   const openWeatherReschedule = useCallback(() => {
-    const todayDay = Math.max(1, Math.floor((Date.now() - projectStartDate.getTime()) / 86400000) + 1);
-    const result = computeWeatherReschedule(workingTasks, projectStartDate, forecast, { todayDay });
+    const result = computeWeatherReschedule(workingTasks, projectStartDate, forecast, {
+      now: new Date(),
+      calendar: weatherCalendar,
+    });
     setWeatherResult(result);
     setShowWeather(true);
-  }, [workingTasks, projectStartDate, forecast]);
+  }, [workingTasks, projectStartDate, forecast, weatherCalendar]);
 
   // Apply the proposed reschedule: commit the cascaded startDays AND append a
   // delay-day log entry, in ONE write (mirrors the unmount-flush) so the
@@ -1769,14 +1787,30 @@ function ScheduleProScreenInner() {
 
   // Bulk push handler — moves multiple tasks in a single commit. Each
   // task's startDay shifts by deltaDays; CPM cascades successors via the
-  // existing recompute on rolledTasks.
+  // existing recompute on rolledTasks. deltaDays is on the startDay scale
+  // (WORKING days on a dated schedule) because both banners below are handed
+  // `weatherCalendar` — findWeatherPushConflicts computes the push in that
+  // unit. Rounded so a malformed patch can never write a fractional ordinal.
   const handleWeatherPush = useCallback((patches: { taskId: string; deltaDays: number }[]) => {
     commit(prev => prev.map(t => {
       const p = patches.find(x => x.taskId === t.id);
       if (!p) return t;
-      return { ...t, startDay: Math.max(1, t.startDay + p.deltaDays) };
+      return { ...t, startDay: Math.max(1, Math.round(t.startDay + p.deltaDays)) };
     }));
   }, [commit]);
+
+  // The desktop signals chip's weather props. Typed as the FULL prompt prop
+  // set (calendar included) and handed to ScheduleSignals, which spreads it
+  // onto the same WeatherReschedulePrompt the phone banner renders — so the
+  // chip reads startDay on the working scale too.
+  const desktopWeatherSignal: Pick<WeatherReschedulePromptProps,
+    'forecasts' | 'projectStartDate' | 'onPushTasks' | 'dailyReports' | 'scheduleCalendar'> = {
+    forecasts: forecast,
+    projectStartDate,
+    onPushTasks: handleWeatherPush,
+    dailyReports: projectId ? getDailyReportsForProject(projectId) : undefined,
+    scheduleCalendar: weatherCalendar,
+  };
 
   // Opens the Add Task modal. The actual commit happens in
   // handleCommitAddTask once the user submits the form.
@@ -1790,28 +1824,17 @@ function ScheduleProScreenInner() {
   // form to depend on the new task. Closes the modal on success.
   const handleCommitAddTask = useCallback((values: NewTaskValues) => {
     commit(prev => {
-      // Convert optional ISO start date → day number on the project
-      // calendar. Mirrors GridPane.dateToDayNumber so add-task and inline
-      // edit both round-trip to the same day.
+      // Convert optional ISO start date → WORKING ordinal on the project
+      // calendar with the shared converter every other startDay writer uses
+      // (scheduleOps.startDayNumberFor): it honours site closures and 6-day
+      // weeks, and a weekend pick rolls FORWARD to the next working day. The
+      // inline Mon-Fri loop that was here ignored closures and Saturdays and
+      // snapped a weekend pick back to Friday (validate-cpm §26).
       let startDay: number;
       if (values.startIso) {
         const [y, m, d] = values.startIso.split('-').map(n => parseInt(n, 10));
         const target = new Date(y, m - 1, d);
-        const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
-        if (target <= base) {
-          startDay = 1;
-        } else if (workingDaysPerWeek >= 7) {
-          startDay = Math.floor((target.getTime() - base.getTime()) / 86400000) + 1;
-        } else {
-          let count = 1;
-          const cur = new Date(base);
-          while (cur < target) {
-            cur.setDate(cur.getDate() + 1);
-            const dow = cur.getDay();
-            if (dow !== 0 && dow !== 6) count++;
-          }
-          startDay = count;
-        }
+        startDay = startDayNumberFor(projectStartDate, target, workingDaysPerWeek, project?.schedule?.nonWorkingDates);
       } else {
         startDay = prev.length === 0
           ? 1
@@ -1851,7 +1874,7 @@ function ScheduleProScreenInner() {
       return generateWbsCodes([...patched, newTask]);
     });
     setShowAddTask(false);
-  }, [commit, projectStartDate, workingDaysPerWeek]);
+  }, [commit, projectStartDate, workingDaysPerWeek, project?.schedule?.nonWorkingDates]);
 
   // Bulk-create tasks in ONE undo step. Used by the grid's ghost row, paste,
   // and insert-anywhere. atIndex undefined → append; atIndex given → splice at
@@ -2160,7 +2183,7 @@ function ScheduleProScreenInner() {
       // honest instead of claiming "every crew is within capacity" — a Workload
       // heatmap can still show resource-capacity overloads the leveler doesn't
       // act on (those are resolved by reassigning or rescheduling manually).
-      const msg = 'Nothing to auto-level — leveling shifts overlapping crew and subcontractor work, and none was found to move.';
+      const msg = 'Nothing to level. Leveling shifts overlapping crew and sub work, and none was found to move.';
       if (Platform.OS === 'web') window.alert?.(msg); else showAlert('Fix overloads', msg);
       return;
     }
@@ -2186,7 +2209,7 @@ function ScheduleProScreenInner() {
       void appendAuditToAsyncStorage(project.id, buildAuditEntry({
         user: user?.email ?? user?.name ?? 'anonymous',
         kind: 'reflow',
-        summary: `Resource leveling: ${p.summary.shiftedCount} task(s) shifted`,
+        summary: `Leveling moved ${p.summary.shiftedCount} ${p.summary.shiftedCount === 1 ? 'task' : 'tasks'}`,
       }));
     }
     setLevelingPreview(null);
@@ -2218,7 +2241,7 @@ function ScheduleProScreenInner() {
     const filename = `${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
     if (Platform.OS === 'web') {
       const ok = downloadCsvInBrowser(csv, filename);
-      if (!ok) window.alert?.('Could not trigger download. Try a different browser.');
+      if (!ok) window.alert?.('Couldn’t start the download. Try a different browser.');
     } else {
       // Native: pop the CSV into an alert so the user can at least grab it
       // via long-press. A real share-sheet flow comes later.
@@ -2267,11 +2290,12 @@ function ScheduleProScreenInner() {
         return;
       }
       if (Platform.OS === 'web') {
-        showAlert('Calendar ready', `Downloaded a .ics file with ${result.eventCount} event(s). Open it to import into Apple/Google/Outlook Calendar.`);
+        showAlert('Calendar ready', `${result.eventCount} ${result.eventCount === 1 ? 'event' : 'events'} downloaded. Open the file to add them to your calendar.`);
       }
       // Native already opens the share sheet from inside exportProjectIcs.
     } catch (err) {
-      showAlert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      const copy = describeError(err, { action: 'export the schedule' });
+      showAlert(copy.title, copy.body);
     }
   }, [project, workingTasks]);
 
@@ -2302,9 +2326,9 @@ function ScheduleProScreenInner() {
         nonWorkingDates: project?.schedule?.nonWorkingDates,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (Platform.OS === 'web') window.alert?.(`PDF export failed: ${msg}`);
-      else showAlert('PDF export failed', msg);
+      const copy = describeError(err, { action: 'export the schedule PDF' });
+      if (Platform.OS === 'web') window.alert?.(`${copy.title}. ${copy.body}`);
+      else showAlert(copy.title, copy.body);
     }
   }, [project?.name, project?.schedule?.startDate, project?.schedule?.workingDaysPerWeek,
       project?.schedule?.nonWorkingDates, rolledTasks, cpm]);
@@ -2325,8 +2349,8 @@ function ScheduleProScreenInner() {
       [
         { text: 'A3 (default)', onPress: () => { void then('a3'); } },
         { text: 'Letter', onPress: () => { void then('letter'); } },
-        { text: 'Arch D — 24×36', onPress: () => { void then('arch_d'); } },
-        { text: 'Arch E — 36×48', onPress: () => { void then('arch_e'); } },
+        { text: 'Arch D (24×36)', onPress: () => { void then('arch_d'); } },
+        { text: 'Arch E (36×48)', onPress: () => { void then('arch_e'); } },
         { text: 'Cancel', style: 'cancel' as const },
       ],
       { cancelable: true },
@@ -2335,7 +2359,7 @@ function ScheduleProScreenInner() {
 
   const handleExportPdf = useCallback(async () => {
     if (!canAccess('schedule_gantt_pdf')) {
-      showAlert('Pro feature', 'PDF export is available on the Pro plan. Upgrade to unlock it.');
+      showAlert('PDF export is on the Pro plan', 'See plans to add it.');
       return;
     }
     if (namedBaselines.length === 0) {
@@ -2419,10 +2443,8 @@ function ScheduleProScreenInner() {
         .select('id')
         .single();
       if (error || !data) {
-        showAlert(
-          'Could not save snapshot',
-          `Schedule has ${workingTasks.length} tasks (URL fallback). ${error?.message ?? 'Network error — try again in a moment.'}`,
-        );
+        const copy = describeError(error, { action: 'create the share link' });
+        showAlert(copy.title, copy.body);
         return;
       }
       // The snapshot variant keys on `?s=<row id>` rather than `?t=<token>`.
@@ -2727,8 +2749,8 @@ function ScheduleProScreenInner() {
           app.mageid.app.
         </Text>
         <Text style={styles.emptyBody}>
-          On this phone the classic schedule runs the same project — tasks,
-          dates, drag to reschedule, weather days — in a layout built for it.
+          On this phone, the classic schedule runs the same project in a layout
+          built for it: tasks, dates, drag to reschedule and weather days.
         </Text>
         <TouchableOpacity
           style={styles.primaryBtn}
@@ -2762,7 +2784,7 @@ function ScheduleProScreenInner() {
         <Stack.Screen options={{ headerShown: false }} />
         {/* Desktop: the picker sits in the form column, not across 1448 px. */}
         <DesktopFormColumn isDesktop={isDesktop}>
-        <ToolHeader eyebrow="SCHEDULE PRO · MAGE ID" title="Schedule Pro" />
+        <ToolHeader eyebrow="Schedule Pro · MAGE ID" title="Schedule Pro" />
         <ToolProjectPicker
           toolName="Schedule Pro"
           message="Schedule Pro drives the CPM grid, float and baselines for one project at a time."
@@ -3277,12 +3299,7 @@ function ScheduleProScreenInner() {
           onCleanupStaleRefs={handleCleanupStaleRefs}
           conflicts={cpm.conflicts}
           onFocusTask={focusFromSignal}
-          weather={{
-            forecasts: forecast,
-            projectStartDate,
-            onPushTasks: handleWeatherPush,
-            dailyReports: projectId ? getDailyReportsForProject(projectId) : undefined,
-          }}
+          weather={desktopWeatherSignal}
           subPresent={subPresent}
           weatherPresent={weatherPresent}
           onSubPresence={setSubPresent}
@@ -3395,7 +3412,7 @@ function ScheduleProScreenInner() {
             testID="cleanup-stale-estimate-refs"
           >
             <Text style={styles.cleanupBannerText}>
-              {staleEstimateRefCount} stale estimate reference{staleEstimateRefCount === 1 ? '' : 's'} found · tap to clean up
+              {staleEstimateRefCount} stale estimate reference{staleEstimateRefCount === 1 ? '' : 's'} found · Tap to clean up
             </Text>
           </TouchableOpacity>
         </View>
@@ -3421,6 +3438,7 @@ function ScheduleProScreenInner() {
         projectStartDate={projectStartDate}
         onPushTasks={handleWeatherPush}
         dailyReports={projectId ? getDailyReportsForProject(projectId) : undefined}
+        scheduleCalendar={weatherCalendar}
       />
 
       {/* Copilot edit bar — desktop parity with the mobile "Tell me what to

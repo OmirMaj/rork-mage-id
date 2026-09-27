@@ -308,7 +308,7 @@
   }
 
   // =========================================================
-  // Hero spotlight follows the cursor (interactive amber glow)
+  // Hero spotlight follows the cursor (interactive brand-green glow)
   // =========================================================
   let hero = document.querySelector('.hero');
   let spot = document.querySelector('.hero-spotlight');
@@ -332,7 +332,8 @@
       let ov = document.createElement('div');
       ov.className = 'intro';
       ov.setAttribute('aria-hidden', 'true');
-      ov.innerHTML = '<div class="intro-inner"><svg class="intro-spark" width="46" height="46" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 L13.4 9 L21 12 L13.4 15 L12 23 L10.6 15 L3 12 L10.6 9 Z" fill="#FF6A1A"/></svg><span class="intro-word">MAGE&nbsp;ID</span></div>';
+      // Spark is the dark-ground brand green: the curtain is ink (--ink).
+      ov.innerHTML = '<div class="intro-inner"><svg class="intro-spark" width="46" height="46" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 L13.4 9 L21 12 L13.4 15 L12 23 L10.6 15 L3 12 L10.6 9 Z" fill="#5DB36E"/></svg><span class="intro-word">MAGE&nbsp;ID</span></div>';
       document.body.appendChild(ov);
       setTimeout(function () { ov.classList.add('intro-out'); document.documentElement.classList.remove('intro-on'); }, 1250);
       setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 2200);

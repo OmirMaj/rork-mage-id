@@ -31,6 +31,7 @@ import { useProperties } from '@/contexts/PropertyContext';
 import { resolvePhotoUrls } from '@/utils/storage';
 import { getOwnPhotoUploadQueue } from '@/utils/photoUploadQueue';
 import { segmentedDesktop, useIsDesktop } from '@/components/ui';
+import { describeError } from '@/utils/errorCopy';
 
 type Scope = 'all' | 'project';
 
@@ -198,7 +199,7 @@ export default function DataExportScreen() {
         // below to tap. Say what happened, in his number.
         showAlert(
           'Export downloaded',
-          `Downloaded ${result.deliveredFileCount} file${result.deliveredFileCount === 1 ? '' : 's'} to your browser\u2019s Downloads. If the browser asked to allow multiple downloads, allow it — or choose JSON for a single file.${photoNote}`,
+          `Downloaded ${result.deliveredFileCount} file${result.deliveredFileCount === 1 ? '' : 's'} to your browser\u2019s Downloads. If the browser asks to allow multiple downloads, allow it, or choose JSON for a single file.${photoNote}`,
         );
       } else if (result.fileUris.length === 1) {
         await shareExportedFile(result.fileUris[0], 'MAGE ID Data Export');
@@ -210,7 +211,8 @@ export default function DataExportScreen() {
       }
     } catch (err) {
       console.error('[DataExport] failed', err);
-      showAlert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      const copy = describeError(err, { action: 'build the export' });
+      showAlert(copy.title, copy.body);
     } finally {
       setGenerating(false);
     }
@@ -238,13 +240,12 @@ export default function DataExportScreen() {
           <Text style={styles.heroTitle}>Export my data</Text>
           <Text style={styles.heroSub}>
             Bundle your projects, invoices, change orders, pay apps, RFIs, daily reports, time and safety records
-            into a portable file you own. Photos go as photo records with temporary links (24 h) — the photo files
-            are not included. Hand it to your accountant, your lawyer, or a competing tool — no lock-in.
+            into a portable file you own. Photos go as records with temporary links (24 h), not the photo files.
           </Text>
           <Text style={styles.heroSub}>Not included yet: {NOT_EXPORTED.join(', ')}.</Text>
         </View>
 
-        <Text style={styles.sectionLabel}>SCOPE</Text>
+        <Text style={styles.sectionLabel}>Scope</Text>
         <View style={[styles.segment, isDesktop && segmentedDesktop.container]}>
           <TouchableOpacity
             style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, scope === 'all' && styles.segmentBtnActive]}
@@ -267,7 +268,7 @@ export default function DataExportScreen() {
         {scope === 'project' && (
           <View style={styles.projectList}>
             {projects.length === 0 ? (
-              <Text style={styles.emptyTxt}>No projects yet — switch to &quot;All projects&quot; to export reference data only.</Text>
+              <Text style={styles.emptyTxt}>No projects yet. Switch to &quot;All projects&quot; to export reference data only.</Text>
             ) : (
               projects.map(p => {
                 const active = p.id === projectId;
@@ -290,7 +291,7 @@ export default function DataExportScreen() {
           </View>
         )}
 
-        <Text style={styles.sectionLabel}>FORMAT</Text>
+        <Text style={styles.sectionLabel}>Format</Text>
         <View style={[styles.segment, isDesktop && segmentedDesktop.container]}>
           <TouchableOpacity
             style={[styles.segmentBtn, isDesktop && segmentedDesktop.segment, format === 'json' && styles.segmentBtnActive]}
@@ -321,16 +322,16 @@ export default function DataExportScreen() {
         <View style={styles.hintCard}>
           <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.hintTxt}>
-            JSON is a single complete bundle (lossless). CSV is one file per entity, great for Excel and Google Sheets.
+            JSON is a single complete bundle (lossless). CSV is one file per record type, for Excel and Google Sheets.
           </Text>
         </View>
 
-        <Text style={styles.sectionLabel}>OPTIONS</Text>
+        <Text style={styles.sectionLabel}>Options</Text>
         <View style={styles.row}>
           <View style={styles.rowIcon}><ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>Include photo links</Text>
-            <Text style={styles.rowSub}>Photo records with temporary links (24 h) — the photo files are not included. Off leaves the link column blank.</Text>
+            <Text style={styles.rowSub}>Photo records with temporary links (24 h), not the photo files. Off leaves the link column blank.</Text>
           </View>
           <Switch
             value={includePhotoUrls}
@@ -349,7 +350,7 @@ export default function DataExportScreen() {
             <Text style={styles.rowLabel}>Closeout PDF (handoff packet)</Text>
             <Text style={styles.rowSub}>
               {scope === 'project'
-                ? 'Includes contract, COs, payments, warranties, finishes, punch list. ~5s to render.'
+                ? 'Includes contract, COs, payments, warranties, finishes and punch list. Takes about 5 seconds.'
                 : 'Pick a single project above to enable this option.'}
             </Text>
           </View>
@@ -366,7 +367,7 @@ export default function DataExportScreen() {
           <View style={styles.rowIcon}><Info size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>README.txt orientation file</Text>
-            <Text style={styles.rowSub}>Plain-text file describing what each export piece is — useful for non-technical recipients.</Text>
+            <Text style={styles.rowSub}>A plain-text file that explains each part of the export.</Text>
           </View>
           <Switch
             value={includeReadme}
@@ -387,20 +388,20 @@ export default function DataExportScreen() {
           <Text style={styles.presetText}>Use &quot;Full project archive&quot; preset</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionLabel}>WHAT'S INCLUDED</Text>
+        <Text style={styles.sectionLabel}>What&apos;s included</Text>
         <View style={styles.summaryCard}>
           <SummaryLine label="Projects" value={totals.projects} />
           <SummaryLine label="Invoices" value={totals.invoices} />
-          <SummaryLine label="Change Orders" value={totals.changeOrders} />
-          <SummaryLine label="Daily Reports" value={totals.dailyReports} />
-          <SummaryLine label="Punch Items" value={totals.punchItems} />
+          <SummaryLine label="Change orders" value={totals.changeOrders} />
+          <SummaryLine label="Daily reports" value={totals.dailyReports} />
+          <SummaryLine label="Punch items" value={totals.punchItems} />
           <SummaryLine label="RFIs" value={totals.rfis} />
           <SummaryLine label="Submittals" value={totals.submittals} />
-          <SummaryLine label="AIA Pay Apps" value={totals.aiaPayApps} />
+          <SummaryLine label="AIA pay apps" value={totals.aiaPayApps} />
           <SummaryLine label="Commitments / POs" value={totals.commitments} />
-          <SummaryLine label="T&M Tickets" value={totals.fieldTickets} />
-          <SummaryLine label="Time Entries" value={totals.timeEntries} />
-          <SummaryLine label="Safety Incidents" value={totals.safetyIncidents} />
+          <SummaryLine label="T&M tickets" value={totals.fieldTickets} />
+          <SummaryLine label="Time entries" value={totals.timeEntries} />
+          <SummaryLine label="Safety incidents" value={totals.safetyIncidents} />
           {(totals.managedProperties > 0 || totals.workOrders > 0) && (
             <>
               <SummaryLine label="Managed properties" value={totals.managedProperties} />
@@ -413,7 +414,7 @@ export default function DataExportScreen() {
 
         {lastResult && (
           <>
-            <Text style={styles.sectionLabel}>LAST EXPORT</Text>
+            <Text style={styles.sectionLabel}>Last export</Text>
             <View style={styles.resultCard}>
               <Text style={styles.resultHeader}>{summarizeExport(lastResult)}</Text>
               {Platform.OS === 'web' ? (
@@ -456,7 +457,7 @@ export default function DataExportScreen() {
           ) : (
             <>
               <Download size={18} color={'#FFFFFF'} strokeWidth={1.75} />
-              <Text style={styles.primaryBtnTxt}>Generate & share</Text>
+              <Text style={styles.primaryBtnTxt}>Export and share</Text>
             </>
           )}
         </TouchableOpacity>
@@ -498,7 +499,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   sectionLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
-    letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
+    letterSpacing: 0.8, marginBottom: 8, marginTop: 20, textTransform: 'uppercase',
   },
 
   segment: {

@@ -209,7 +209,7 @@ function ProfitLeakHistoryInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Profit Leak History',
+          title: 'Profit leak history',
           headerShown: true,
           headerStyle: { backgroundColor: t.bg },
           headerTintColor: t.accent,
@@ -303,11 +303,11 @@ function ProfitLeakHistoryInner() {
                 onPress={() => { void reload(); }}
                 disabled={refreshing}
                 accessibilityRole="button"
-                accessibilityLabel="Retry loading profit leak scans"
+                accessibilityLabel="Load profit leak scans again"
                 testID="leak-history-retry"
               >
                 <RotateCw size={14} color={t.accent} strokeWidth={2} />
-                <Text style={styles.retryText}>{refreshing ? 'Retrying…' : 'Retry'}</Text>
+                <Text style={styles.retryText}>{refreshing ? 'Loading scans…' : 'Try again'}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -364,7 +364,7 @@ function ProfitLeakHistoryInner() {
           {eatenRows.length > 0 && (
             <BucketSection
               label="Eaten"
-              subtitle="No matching approved change order found within 60 days of the scan (or before the job closed)"
+              subtitle="No matching approved change order within 60 days of the scan, or before the project closed"
               icon={<XCircle size={15} color={t.danger} strokeWidth={1.75} />}
               tint={t.danger}
               rows={eatenRows}

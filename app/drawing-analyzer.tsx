@@ -129,7 +129,7 @@ function DrawingAnalyzerInner() {
     const requestTier: 'fast' | 'smart' = pickedModel === 'gemini-2.5-pro' ? 'smart' : 'fast';
     const limit = await checkAILimit(tier, requestTier, 'drawingAnalysis');
     if (!limit.allowed) {
-      setError(limit.message ?? 'Daily AI limit reached.');
+      setError(limit.message ?? 'Daily limit reached. Try again tomorrow.');
       return;
     }
 
@@ -450,7 +450,7 @@ function DrawingAnalyzerInner() {
             <View style={{ flex: 1 }}>
               <Text style={styles.sisterToolTitle}>Need raw quantities instead?</Text>
               <Text style={styles.sisterToolBody}>
-                Open the Quantity Takeoff tool — same PDF in, but you get LF / SF / EA counts you can edit before sending out for sub bids.
+                Open quantity takeoff instead. The same PDF gives you LF / SF / EA counts to edit before sending out for sub bids.
               </Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -662,7 +662,7 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
               <Crown size={16} color={Colors.warningLabel} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.teaserEyebrow}>Business tier · Pro Estimator</Text>
+              <Text style={styles.teaserEyebrow}>Business plan · Pro estimator</Text>
               <Text style={styles.teaserTitle}>Want sharper numbers on this set?</Text>
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -678,21 +678,21 @@ function ResultView({ result, pages, modelUsed, contingencyRateUsed, onReset, on
               Pro-vs-Standard output on real sets, so this card now describes
               what you get, not what it will find. */}
           <Text style={styles.teaserBody}>
-            Pro Estimator runs the same read on a bigger model with twice the room to write. On dense or incomplete sets that is where the difference shows — it has the headroom to itemise instead of truncating. What it actually finds on your set is yours to judge.
+            The Pro estimator runs the same read on a larger model with twice the room to write, so dense or incomplete sets get itemized instead of cut short. What it finds on your set is yours to judge.
           </Text>
           <View style={styles.teaserStatRow}>
             <View style={styles.teaserStat}>
-              <Text style={styles.teaserStatValue}>2.5 Pro</Text>
-              <Text style={styles.teaserStatLabel}>reads the set — Standard runs 2.5 Flash</Text>
+              <Text style={styles.teaserStatValue}>Full set</Text>
+              <Text style={styles.teaserStatLabel}>Reads the full set at higher detail</Text>
             </View>
             <View style={styles.teaserStatDivider} />
             <View style={styles.teaserStat}>
               <Text style={styles.teaserStatValue}>2x</Text>
-              <Text style={styles.teaserStatLabel}>output budget — no truncation on dense sets</Text>
+              <Text style={styles.teaserStatLabel}>Room to itemize dense sets</Text>
             </View>
           </View>
           <View style={styles.teaserCta}>
-            <Text style={styles.teaserCtaText}>Upgrade to Business</Text>
+            <Text style={styles.teaserCtaText}>See Business plan</Text>
             <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
           </View>
         </TouchableOpacity>

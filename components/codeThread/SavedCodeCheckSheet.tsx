@@ -126,7 +126,7 @@ export function SavedCodeCheckSheet({ record: recordProp, project, visible, onCl
               </View>
             ) : null}
             <Text style={styles.body}>
-              {`Sent from this job: ${sent.length > 0 ? sent.join(', ') : 'nothing from the job'}`}
+              {`Sent from this project: ${sent.length > 0 ? sent.join(', ') : 'nothing from the project'}`}
             </Text>
             {recordLine ? <Text style={styles.body}>{recordLine}</Text> : null}
 

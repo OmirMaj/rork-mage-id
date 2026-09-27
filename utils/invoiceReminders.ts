@@ -59,7 +59,7 @@ export async function sendInvoiceReminderNow(invoiceId: string): Promise<SendRem
   if (!isSupabaseConfigured) {
     return { success: false, error: 'Not connected. Reminders need an internet connection.' };
   }
-  if (!invoiceId) return { success: false, error: 'Missing invoice.' };
+  if (!invoiceId) return { success: false, error: 'Save the invoice before you send a reminder.' };
   try {
     const { data, error } = await supabase.functions.invoke<SendReminderResult>('invoice-dunning', {
       body: { invoiceId, manual: true },
@@ -76,12 +76,12 @@ export async function sendInvoiceReminderNow(invoiceId: string): Promise<SendRem
       if (serverMsg === 'forbidden' || serverMsg === 'unauthorized') {
         return { success: false, error: 'You’re not signed in to the account that owns this invoice.' };
       }
-      return { success: false, error: serverMsg ?? error.message ?? 'Could not send the reminder.' };
+      return { success: false, error: 'Couldn’t send the reminder. Check your connection and try again.' };
     }
-    if (!data) return { success: false, error: 'No response from the reminder service.' };
+    if (!data) return { success: false, error: 'Couldn’t send the reminder. Check your connection and try again.' };
     return data;
   } catch (err) {
     console.warn('[invoiceReminders] invoke threw:', err);
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return { success: false, error: 'Couldn’t send the reminder. Check your connection and try again.' };
   }
 }

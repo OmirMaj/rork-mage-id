@@ -111,7 +111,7 @@ describe('schedule editor — what landed, and Undo, on every host', () => {
     expect(r.getByText('Added Drywall tape (3d) after Drywall hang')).toBeTruthy();
     fireEvent.press(r.getByTestId('copilot-undo'));
     expect(hostTasks).toHaveLength(TASKS.length);
-    expect(r.getByText(/Undone — the schedule is back/)).toBeTruthy();
+    expect(r.getByText(/Undone\. The schedule is back/)).toBeTruthy();
   });
 
   it('classic Schedule tab: Undo works although the rows were re-sorted by start day', async () => {
@@ -120,7 +120,7 @@ describe('schedule editor — what landed, and Undo, on every host', () => {
     fireEvent.press(r.getByTestId('copilot-undo'));
     expect(r.queryByText(/The schedule changed since/)).toBeNull();
     expect(hostTasks).toHaveLength(TASKS.length);
-    expect(r.getByText(/Undone — the schedule is back/)).toBeTruthy();
+    expect(r.getByText(/Undone\. The schedule is back/)).toBeTruthy();
   });
 
   it('a refused write says nothing was saved — no ticked "Added" lines, no Undo', async () => {
@@ -138,7 +138,7 @@ describe('schedule editor — what landed, and Undo, on every host', () => {
     expect(hostTasks).toHaveLength(TASKS.length + 3);
     fireEvent.press(r.getByTestId('copilot-undo'));
     expect(hostTasks).toHaveLength(TASKS.length + 3);
-    expect(r.queryByText(/Undone — the schedule is back/)).toBeNull();
+    expect(r.queryByText(/Undone\. The schedule is back/)).toBeNull();
     expect(r.getByText(REFUSAL)).toBeTruthy();
   });
 

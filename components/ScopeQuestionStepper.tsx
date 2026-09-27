@@ -192,12 +192,12 @@ export function ScopeQuestionStepper({
                         // typed — even a word that happens to equal a chip.
                         value={otherPicked || !isScopeTypeChip(typed) ? typed : ''}
                         onChangeText={(v) => onChange('projectType', v)}
-                        placeholder="Describe the job, e.g. Whole-house repipe"
+                        placeholder="Describe the project, e.g. Whole-house repipe"
                         placeholderTextColor={themeColors.textMuted}
                         maxLength={SCOPE_TYPE_OTHER_MAX}
                         autoFocus={otherPicked && !typed}
                         style={styles.input}
-                        accessibilityLabel="Describe the job"
+                        accessibilityLabel="Describe the project"
                         testID={`${testIDPrefix}-type-other-input`}
                       />
                       <Text style={styles.hint}>Your words are sent to the AI as the project type.</Text>
@@ -323,7 +323,7 @@ const makeStyles = (themeColors: ThemeColors) =>
       marginBottom: 12,
     },
     stepTitle: {
-      // App display font (Fraunces) so the wizard matches the rest of the app
+      // App display font (Barlow) so the wizard matches the rest of the app
       // instead of falling back to the system/Times default.
       ...Type.serifHeadline,
       color: themeColors.text,

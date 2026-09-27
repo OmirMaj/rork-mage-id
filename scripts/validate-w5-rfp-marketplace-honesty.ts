@@ -158,7 +158,7 @@ ok('"Priced in your numbers" only when some row used his history',
   && /\{anyHistory \? 'Priced in your numbers' : 'Priced off posted budgets'\}/.test(screen)
   && (screen.match(/Priced in your numbers/g) ?? []).length === 1);
 ok('the footnote and InfoBubble say budget-based pricing when there is no history, naming the markup',
-  /Priced off each owner's posted budget at \$\{markupPhrase\} — close jobs to teach MAGE your costs\./.test(screen)
+  /Priced off each client's posted budget at \$\{markupPhrase\}\. Close projects to teach MAGE your costs\./.test(screen)
   && /an assumed \$\{pct\(typicalMarkup\)\} markup/.test(screen)
   && !/Prices come from your own cost history and win record — not a generic catalog\./.test(screen));
 ok('each card names the markup (assumed or his)', /b\.markupAssumed \? `assumed \$\{pct\(b\.markup\)\} markup` : `your \$\{pct\(b\.markup\)\} markup`/.test(screen));

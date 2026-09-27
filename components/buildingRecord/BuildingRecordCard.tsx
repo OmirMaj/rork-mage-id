@@ -67,7 +67,7 @@ export function BuildingRecordCard({
   switch (br.phase) {
     case 'no_address':
       body = (
-        <Text style={styles.muted}>{"Add the job's street address to look up its DOB record."}</Text>
+        <Text style={styles.muted}>{"Add the project's street address to look up its DOB record."}</Text>
       );
       break;
     case 'idle':

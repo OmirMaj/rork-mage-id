@@ -8,23 +8,31 @@
 <title>Sub Portal — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
+  /* Equipment green on concrete (2026-09 rebrand). The old ink / orange / cream
+     trio with a serif display face read as a generated template, so the ground
+     and the display face changed along with the hue.
+     --brand #2F6B3A: 5.44:1 on --concrete, 6.39:1 under white button text.
+     --brand-on-dark #5DB36E: the brand on --ink, where #2F6B3A only makes 3.0:1.
+     --success is TEAL on purpose: the old success green sat too close to the
+     new brand for a "Paid" pill to read differently from a primary button.
+     --text-muted darkened to clear 4.5:1 on the concrete ground. */
   :root {
-    --ink: #0B0D10; --ink-2: #1A1D22; --amber: #FF6A1A; --amber-dark: #E5570F;
-    --amber-tint: #FFF1E6; --cream: #F4EFE6; --cream-2: #FAF7F0;
-    --surface: #FFFFFF; --bone: #E8DFCD; --bone-2: #F1EAD9;
-    --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
-    --success: #1E8E4A; --success-tint: #E8F5ED;
+    --ink: #0B0D10; --ink-2: #1A1D22; --brand: #2F6B3A; --brand-dark: #24552D;
+    --brand-on-dark: #5DB36E; --brand-tint: #E3EEE5; --concrete: #ECEDE9;
+    --surface: #FFFFFF; --hairline: #D7DAD4; --surface-alt: #E2E4DF;
+    --text: #0B0D10; --text-2: #4A5159; --text-muted: #5F666E;
+    --success: #12806E; --success-tint: #F2F9F7;
     --warning: #C26A00; --warning-tint: #FFF4E0;
     --error: #C0392B; --error-tint: #FBEAE7;
     --shadow-sm: 0 1px 2px rgba(11,13,16,0.04), 0 1px 3px rgba(11,13,16,0.06);
     --shadow-md: 0 4px 12px rgba(11,13,16,0.06), 0 2px 4px rgba(11,13,16,0.04);
     --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
-    --shadow-amber: 0 8px 24px -6px rgba(255,106,26,0.4);
+    --shadow-brand: 0 8px 24px -6px rgba(47,107,58,0.35);
     --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
-    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-display: "Barlow", "Helvetica Neue", Arial, system-ui, sans-serif;
     --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
     --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   }
@@ -32,7 +40,7 @@
   html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
   body {
     font-family: var(--ff-sans);
-    background: var(--cream); color: var(--text);
+    background: var(--concrete); color: var(--text);
     line-height: 1.55; font-size: 15px; min-height: 100vh;
   }
   .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
@@ -45,26 +53,26 @@
     background: var(--surface); max-width: 420px; width: 100%;
     border-radius: var(--radius-xl); padding: 40px 32px;
     box-shadow: var(--shadow-lg); text-align: center;
-    border: 1px solid var(--bone-2);
+    border: 1px solid var(--surface-alt);
   }
   .gate-logo {
     width: 60px; height: 60px; border-radius: 16px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     display: inline-flex; align-items: center; justify-content: center;
     font-size: 28px; font-weight: 900; margin-bottom: 22px;
   }
   .gate h1 {
-    font-family: var(--ff-serif); font-size: 26px; font-weight: 700;
+    font-family: var(--ff-display); font-size: 26px; font-weight: 700;
     margin-bottom: 10px; letter-spacing: -0.02em;
   }
   .gate p { color: var(--text-2); font-size: 14px; margin-bottom: 26px; }
   .gate input {
     width: 100%; padding: 16px; font-size: 24px; text-align: center;
     letter-spacing: 10px; font-weight: 700;
-    border: 2px solid var(--bone); border-radius: var(--radius-md);
-    background: var(--cream-2); outline: none;
+    border: 2px solid var(--hairline); border-radius: var(--radius-md);
+    background: var(--concrete); outline: none;
   }
-  .gate input:focus { border-color: var(--amber); background: #fff; }
+  .gate input:focus { border-color: var(--brand); background: #fff; }
   .gate button {
     width: 100%; margin-top: 14px; padding: 15px;
     background: var(--ink); color: #fff; border: none;
@@ -81,8 +89,8 @@
   .hero::before {
     content: ''; position: absolute; inset: 0;
     background:
-      radial-gradient(900px 500px at 92% -10%, rgba(255,106,26,0.20), transparent 60%),
-      radial-gradient(600px 400px at -5% 110%, rgba(255,106,26,0.10), transparent 60%);
+      radial-gradient(900px 500px at 92% -10%, rgba(93,179,110,0.20), transparent 60%),
+      radial-gradient(600px 400px at -5% 110%, rgba(93,179,110,0.10), transparent 60%);
     pointer-events: none;
   }
   .hero-inner {
@@ -98,28 +106,28 @@
     background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.12);
     display: inline-flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 16px; color: var(--amber);
+    font-weight: 800; font-size: 16px; color: var(--brand-on-dark);
   }
   .brand-name { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.85); }
   .hero-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 11px; font-weight: 700; letter-spacing: 1.6px;
-    color: var(--amber); text-transform: uppercase;
+    color: var(--brand-on-dark); text-transform: uppercase;
     margin-bottom: 14px;
   }
   .hero-eyebrow::before {
     content: ''; width: 28px; height: 2px;
-    background: var(--amber); border-radius: 1px;
+    background: var(--brand-on-dark); border-radius: 1px;
   }
   .hero h1 {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-weight: 700; line-height: 1.06;
     letter-spacing: -0.025em;
     font-size: clamp(28px, 4.6vw, 44px);
     margin-bottom: 12px;
     max-width: 16ch;
   }
-  .hero h1 em { font-style: normal; color: var(--amber); }
+  .hero h1 em { font-style: normal; color: var(--brand-on-dark); }
   .hero-meta {
     color: rgba(255,255,255,0.78); font-size: 14px;
     font-weight: 500;
@@ -136,7 +144,7 @@
     border-radius: var(--radius-xl);
     padding: 6px;
     box-shadow: var(--shadow-lg);
-    border: 1px solid var(--bone-2);
+    border: 1px solid var(--surface-alt);
   }
   .stat-card {
     padding: 16px 14px;
@@ -145,7 +153,7 @@
   }
   .stat-card:not(:last-child)::after {
     content: ''; position: absolute; right: 0; top: 18%; bottom: 18%;
-    width: 1px; background: var(--bone);
+    width: 1px; background: var(--hairline);
   }
   .stat-label {
     font-size: 10px; color: var(--text-muted); font-weight: 700;
@@ -159,13 +167,15 @@
     line-height: 1.1; color: var(--text);
     font-variant-numeric: tabular-nums;
   }
-  .stat-value.amber { color: var(--amber); }
+  /* The .amber class name is kept: the render code below writes it into the
+     markup, and this pass changes colour, not the page's JS. It is the brand. */
+  .stat-value.amber { color: var(--brand); }
   @media (max-width: 540px) {
     .stats-grid { grid-template-columns: 1fr 1fr; }
     .stat-card:nth-child(2)::after { display: none; }
     .stat-card:nth-child(3) {
       grid-column: 1 / -1;
-      border-top: 1px solid var(--bone);
+      border-top: 1px solid var(--hairline);
     }
   }
 
@@ -174,26 +184,26 @@
   .section {
     background: var(--surface); border-radius: var(--radius-xl);
     padding: 26px; box-shadow: var(--shadow-md);
-    border: 1px solid var(--bone-2); margin-bottom: 18px;
+    border: 1px solid var(--surface-alt); margin-bottom: 18px;
   }
   .section-head {
     display: flex; align-items: center; gap: 14px;
     margin-bottom: 20px; padding-bottom: 16px;
-    border-bottom: 1px solid var(--bone-2);
+    border-bottom: 1px solid var(--surface-alt);
   }
   .section-icon {
     width: 42px; height: 42px; border-radius: 12px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     display: flex; align-items: center; justify-content: center;
   }
   .section-title-block { flex: 1; }
   .section-title {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 22px; font-weight: 700; letter-spacing: -0.018em;
   }
   .section-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
   .section-count {
-    background: var(--bone-2); color: var(--text-2);
+    background: var(--surface-alt); color: var(--text-2);
     font-size: 12px; font-weight: 700;
     padding: 4px 12px; border-radius: 999px;
     font-variant-numeric: tabular-nums;
@@ -201,8 +211,8 @@
 
   /* Welcome block */
   .welcome {
-    background: var(--cream-2);
-    border: 1px solid var(--bone-2);
+    background: var(--concrete);
+    border: 1px solid var(--surface-alt);
     border-radius: var(--radius-md);
     padding: 14px 16px;
     margin-bottom: 18px;
@@ -210,13 +220,13 @@
     font-size: 14px;
     color: var(--text-2);
   }
-  .welcome strong { color: var(--amber-dark); }
+  .welcome strong { color: var(--brand-dark); }
 
   /* Commitment cards */
   .commit-card {
     padding: 18px;
-    background: var(--cream-2);
-    border: 1px solid var(--bone-2);
+    background: var(--concrete);
+    border: 1px solid var(--surface-alt);
     border-radius: var(--radius-lg);
     margin-bottom: 12px;
   }
@@ -225,9 +235,9 @@
   }
   .commit-num-pill {
     flex-shrink: 0;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     padding: 8px 12px; border-radius: 10px;
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 14px; font-weight: 800;
     line-height: 1;
   }
@@ -235,7 +245,7 @@
   .commit-foot {
     display: flex; align-items: center; justify-content: space-between;
     padding-top: 14px; margin-top: 14px;
-    border-top: 1px solid var(--bone-2);
+    border-top: 1px solid var(--surface-alt);
     gap: 10px; flex-wrap: wrap;
   }
   .commit-numbers {
@@ -252,7 +262,7 @@
     font-size: 17px; font-weight: 700; letter-spacing: -0.012em;
     color: var(--text); font-variant-numeric: tabular-nums;
   }
-  .commit-num-value.amber { color: var(--amber); }
+  .commit-num-value.amber { color: var(--brand); }
 
   /* Pills */
   .pill {
@@ -262,10 +272,17 @@
     text-transform: uppercase; letter-spacing: 0.6px;
   }
   .pill-success { background: var(--success-tint); color: var(--success); }
+  /* Success is never carried by the teal alone — the check says it too.
+     A mask of the lucide check, so the glyph takes the pill's own colour. */
+  .pill-success::before {
+    content: ''; display: inline-block; width: 10px; height: 10px;
+    margin-right: 4px; vertical-align: -1px; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center / contain; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center / contain;
+  }
   .pill-warning { background: var(--warning-tint); color: var(--warning); }
   .pill-error   { background: var(--error-tint);   color: var(--error); }
-  .pill-amber   { background: var(--amber-tint);   color: var(--amber-dark); }
-  .pill-muted   { background: var(--bone-2);       color: var(--text-2); }
+  .pill-brand   { background: var(--brand-tint);   color: var(--brand-dark); }
+  .pill-muted   { background: var(--surface-alt);       color: var(--text-2); }
 
   /* Submit invoice CTA */
   .submit-bar {
@@ -280,28 +297,28 @@
   }
   .submit-bar::before {
     content: ''; position: absolute; inset: 0;
-    background: radial-gradient(600px 320px at 95% -20%, rgba(255,106,26,0.30), transparent 60%);
+    background: radial-gradient(600px 320px at 95% -20%, rgba(93,179,110,0.30), transparent 60%);
     pointer-events: none;
   }
   .submit-bar-text { position: relative; z-index: 1; }
   .submit-bar h3 {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 22px; font-weight: 700;
     letter-spacing: -0.018em; margin-bottom: 4px;
   }
   .submit-bar p { font-size: 14px; color: rgba(255,255,255,0.72); }
   .submit-bar-btn {
     position: relative; z-index: 1;
-    background: var(--amber); color: #fff;
+    background: var(--brand); color: #fff;
     border: none; padding: 14px 22px;
     border-radius: var(--radius-md);
     font-family: inherit; font-weight: 700; font-size: 14px;
-    cursor: pointer; box-shadow: var(--shadow-amber);
+    cursor: pointer; box-shadow: var(--shadow-brand);
     display: inline-flex; align-items: center; gap: 8px;
     white-space: nowrap;
     transition: background 0.15s, transform 0.1s;
   }
-  .submit-bar-btn:hover { background: var(--amber-dark); }
+  .submit-bar-btn:hover { background: var(--brand-dark); }
   .submit-bar-btn:active { transform: translateY(1px); }
   @media (max-width: 540px) {
     .submit-bar { grid-template-columns: 1fr; }
@@ -311,8 +328,8 @@
   /* Submitted invoices list */
   .inv-card {
     padding: 16px 18px;
-    background: var(--cream-2);
-    border: 1px solid var(--bone-2);
+    background: var(--concrete);
+    border: 1px solid var(--surface-alt);
     border-radius: var(--radius-lg);
     margin-bottom: 10px;
     position: relative;
@@ -322,7 +339,7 @@
     width: 4px; border-radius: 0 4px 4px 0;
     background: var(--warning);
   }
-  .inv-card.approved::before { background: var(--amber); }
+  .inv-card.approved::before { background: var(--brand); }
   .inv-card.paid::before { background: var(--success); }
   .inv-card.rejected::before { background: var(--error); }
   .inv-card::before { content: ''; position: absolute; left: -1px; top: 14%; bottom: 14%; width: 4px; border-radius: 0 4px 4px 0; }
@@ -352,7 +369,7 @@
   .drawer {
     position: fixed; top: 0; right: 0; bottom: 0;
     width: 100%; max-width: 560px;
-    background: var(--cream); z-index: 120;
+    background: var(--concrete); z-index: 120;
     transform: translateX(105%);
     transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
     display: flex; flex-direction: column;
@@ -367,11 +384,11 @@
   .drawer-header-titles { flex: 1; min-width: 0; }
   .drawer-header-eyebrow {
     font-size: 10px; font-weight: 700; letter-spacing: 1.6px;
-    color: var(--amber); text-transform: uppercase;
+    color: var(--brand-on-dark); text-transform: uppercase;
     margin-bottom: 4px;
   }
   .drawer-header h2 {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 22px; font-weight: 700;
     letter-spacing: -0.018em; line-height: 1.15;
   }
@@ -386,8 +403,8 @@
   .drawer-body { flex: 1; overflow-y: auto; padding: 24px 28px; }
   .drawer-footer {
     padding: 16px 28px 24px;
-    border-top: 1px solid var(--bone);
-    background: var(--cream-2);
+    border-top: 1px solid var(--hairline);
+    background: var(--concrete);
     display: flex; gap: 10px; flex-shrink: 0;
   }
   .drawer-btn {
@@ -398,12 +415,12 @@
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     transition: background 0.15s, transform 0.1s;
   }
-  .drawer-btn-primary { background: var(--amber); color: #fff; box-shadow: var(--shadow-amber); }
-  .drawer-btn-primary:hover { background: var(--amber-dark); }
+  .drawer-btn-primary { background: var(--brand); color: #fff; box-shadow: var(--shadow-brand); }
+  .drawer-btn-primary:hover { background: var(--brand-dark); }
   .drawer-btn-primary:disabled { opacity: 0.6; cursor: wait; }
   .drawer-btn-ghost {
     background: var(--surface); color: var(--text);
-    border: 1px solid var(--bone);
+    border: 1px solid var(--hairline);
   }
 
   .form-field { margin-bottom: 14px; }
@@ -415,7 +432,7 @@
   .form-input, .form-textarea, .form-select {
     width: 100%;
     background: var(--surface);
-    border: 1px solid var(--bone);
+    border: 1px solid var(--hairline);
     border-radius: var(--radius-md);
     padding: 12px 14px;
     font-family: inherit; font-size: 15px;
@@ -423,7 +440,7 @@
     transition: border-color 0.15s, background 0.15s;
   }
   .form-input:focus, .form-textarea:focus, .form-select:focus {
-    border-color: var(--amber);
+    border-color: var(--brand);
   }
   .form-input.amount {
     font-family: var(--ff-mono);
@@ -438,7 +455,7 @@
   .amount-prefix::before {
     content: '$'; position: absolute;
     left: 14px; top: 50%; transform: translateY(-50%);
-    color: var(--amber); font-family: var(--ff-mono);
+    color: var(--brand); font-family: var(--ff-mono);
     font-size: 22px; font-weight: 700;
     z-index: 1;
   }
@@ -453,7 +470,7 @@
   .line-row-amount { font-weight: 700; font-variant-numeric: tabular-nums; }
   .line-remove {
     width: 36px; height: 36px;
-    background: var(--surface); border: 1px solid var(--bone);
+    background: var(--surface); border: 1px solid var(--hairline);
     border-radius: 8px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     color: var(--text-muted);
@@ -461,7 +478,7 @@
   .line-remove:hover { color: var(--error); border-color: var(--error); }
   .line-add {
     background: var(--surface);
-    border: 1px dashed var(--bone);
+    border: 1px dashed var(--hairline);
     border-radius: var(--radius-md);
     padding: 10px;
     text-align: center; cursor: pointer;
@@ -469,7 +486,7 @@
     margin-top: 4px; width: 100%;
     font-family: inherit;
   }
-  .line-add:hover { border-color: var(--amber); color: var(--amber-dark); }
+  .line-add:hover { border-color: var(--brand); color: var(--brand-dark); }
 
   .form-status {
     margin-top: 14px;
@@ -480,15 +497,15 @@
   }
   .form-status.show { display: block; }
   .form-status.error { background: var(--error-tint); color: var(--error); border: 1px solid #f5c8bf; }
-  .form-status.ok { background: var(--success-tint); color: var(--success); border: 1px solid #c1e2c8; }
+  .form-status.ok { background: var(--success-tint); color: var(--success); border: 1px solid #B3DCD4; }
 
   .empty-section {
     text-align: center; padding: 36px 16px;
     color: var(--text-muted); font-size: 14px;
-    background: var(--cream-2); border-radius: var(--radius-md);
-    border: 1px dashed var(--bone);
+    background: var(--concrete); border-radius: var(--radius-md);
+    border: 1px dashed var(--hairline);
   }
-  .empty-section svg { width: 32px; height: 32px; color: var(--bone); margin-bottom: 8px; }
+  .empty-section svg { width: 32px; height: 32px; color: var(--hairline); margin-bottom: 8px; }
 
   .fallback {
     min-height: 100vh; display: flex;
@@ -499,10 +516,10 @@
     background: var(--surface); max-width: 460px;
     padding: 44px 32px; border-radius: var(--radius-xl);
     text-align: center; box-shadow: var(--shadow-lg);
-    border: 1px solid var(--bone-2);
+    border: 1px solid var(--surface-alt);
   }
   .fallback-card h1 {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 26px; font-weight: 700; margin-bottom: 12px;
   }
   .fallback-card p { color: var(--text-2); font-size: 14.5px; margin-bottom: 24px; line-height: 1.55; }
@@ -516,11 +533,11 @@
   .portal-footer {
     text-align: center; padding: 32px 16px 28px;
     color: var(--text-muted); font-size: 13px;
-    border-top: 1px solid var(--bone); margin-top: 12px;
+    border-top: 1px solid var(--hairline); margin-top: 12px;
   }
   .portal-footer .footer-mark {
     width: 22px; height: 22px; border-radius: 6px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     display: inline-flex; align-items: center; justify-content: center;
     font-weight: 800; font-size: 11px; margin-right: 6px;
     vertical-align: middle;
@@ -539,7 +556,7 @@
   .punch-row {
     display: flex; align-items: flex-start; gap: 12px;
     padding: 12px 14px;
-    background: var(--bone-2);
+    background: var(--surface-alt);
     border-radius: 12px;
   }
   .punch-dot {
@@ -554,20 +571,20 @@
   .punch-meta {
     display: flex; flex-wrap: wrap; gap: 10px;
     margin-top: 6px;
-    font-size: 11px; color: #6B7177;
+    font-size: 11px; color: var(--text-muted);
   }
   .punch-status {
     text-transform: uppercase; letter-spacing: 0.6px;
-    font-weight: 700; color: #6B7177;
+    font-weight: 700; color: var(--text-muted);
   }
-  .punch-loc, .punch-due { color: #6B7177; }
+  .punch-loc, .punch-due { color: var(--text-muted); }
   .punch-group-title {
     font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--text-2); margin: 18px 0 8px;
   }
   .punch-group-title:first-child { margin-top: 0; }
   .punch-sheet { color: var(--ink); font-weight: 600; }
-  .punch-nopin, .punch-photo-note { color: #6B7177; }
+  .punch-nopin, .punch-photo-note { color: var(--text-muted); }
   .punch-bad-due { color: var(--warning); font-weight: 600; }
   .punch-note {
     margin-top: 8px; font-size: 12px; color: var(--text-2);
@@ -581,10 +598,10 @@
   }
   .punch-fix-btn, .punch-send-btn { background: var(--ink); color: #fff; border: none; }
   .punch-fix-btn:disabled, .punch-send-btn:disabled { opacity: 0.55; cursor: default; }
-  .punch-cancel-btn { background: transparent; color: var(--text-2); border: 1px solid var(--bone); }
+  .punch-cancel-btn { background: transparent; color: var(--text-2); border: 1px solid var(--hairline); }
   .punch-note-input {
     width: 100%; font-family: inherit; font-size: 14px; padding: 8px 10px;
-    border: 1px solid var(--bone); border-radius: 10px; background: var(--surface); min-height: 60px;
+    border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface); min-height: 60px;
   }
   .punch-sent { font-size: 12px; font-weight: 600; color: var(--success); }
   .punch-err { font-size: 12px; font-weight: 600; color: var(--error); }
@@ -597,7 +614,7 @@
   .punch-retry-btn {
     font-family: inherit; font-weight: 700; font-size: 12px; margin-left: 6px;
     border-radius: 8px; padding: 4px 10px; cursor: pointer;
-    background: transparent; color: var(--ink); border: 1px solid var(--bone);
+    background: transparent; color: var(--ink); border: 1px solid var(--hairline);
   }
   .fallback-retry {
     display: block; width: 100%; background: var(--ink); color: #fff; border: none;
@@ -612,7 +629,7 @@
     display: flex; align-items: flex-start; gap: 12px;
     padding: 12px 14px;
     background: #FFFFFF;
-    border: 1px solid var(--bone-2);
+    border: 1px solid var(--surface-alt);
     border-radius: 12px;
   }
   .sched-bullet {
@@ -630,17 +647,17 @@
   .sched-meta {
     display: flex; flex-wrap: wrap; gap: 10px;
     margin: 4px 0 8px;
-    font-size: 11px; color: #6B7177;
+    font-size: 11px; color: var(--text-muted);
   }
   .sched-phase {
-    background: var(--bone-2);
+    background: var(--surface-alt);
     padding: 2px 8px; border-radius: 999px;
     font-weight: 700; letter-spacing: 0.4px;
     text-transform: uppercase;
   }
   .sched-dates { font-weight: 600; }
   .sched-progress-track {
-    height: 4px; background: var(--bone-2);
+    height: 4px; background: var(--surface-alt);
     border-radius: 2px; overflow: hidden;
   }
   .sched-progress-fill {
@@ -1093,7 +1110,7 @@
   function punchIsOnSub(p) { var s = p.status || 'open'; return s === 'open' || s === 'in_progress'; }
 
   function renderPunchRow(p) {
-    var priorityColor = p.priority === 'high' ? '#E5484D' : p.priority === 'medium' ? '#FF6A1A' : '#6B7177';
+    var priorityColor = p.priority === 'high' ? '#E5484D' : p.priority === 'medium' ? '#C26A00' : '#6B7177';
     var statusText = (p.status || 'open').replace(/_/g, ' ');
     var dueLine = '';
     if (p.dueDate && /^\d{4}-\d{2}-\d{2}/.test(String(p.dueDate))) {
@@ -1324,7 +1341,7 @@
       } else {
         dateRange = (t.durationDays || 1) + ' day' + (t.durationDays === 1 ? '' : 's');
       }
-      var statusColor = t.status === 'done' ? '#1E8E4A' : t.status === 'in_progress' ? '#FF6A1A' : '#6B7177';
+      var statusColor = t.status === 'done' ? '#12806E' : t.status === 'in_progress' ? '#2F6B3A' : '#6B7177';
       var prog = Math.max(0, Math.min(100, Math.round(t.progress || 0)));
       return '' +
         '<div class="sched-row">' +
@@ -1482,7 +1499,7 @@
 
       if (!invoiceNumber) { statusEl.textContent = 'Add an invoice number.'; statusEl.classList.add('show', 'error'); return; }
       if (!amount || amount <= 0) { statusEl.textContent = 'Enter an amount greater than zero.'; statusEl.classList.add('show', 'error'); return; }
-      if (amount >= 1e9) { statusEl.textContent = 'Please enter a realistic amount.'; statusEl.classList.add('show', 'error'); return; }
+      if (amount >= 1e9) { statusEl.textContent = 'Enter a realistic amount.'; statusEl.classList.add('show', 'error'); return; }
 
       var lineItems = Array.from(linesContainer.querySelectorAll('.line-row')).map(function (row) {
         return {
@@ -1516,9 +1533,9 @@
       }
 
       if (ok) {
-        statusEl.textContent = 'Sent — your contractor has been notified. Refresh to see this in your invoice list.';
+        statusEl.textContent = 'Sent. Your contractor has been notified. Refresh to see this in your invoice list.';
         statusEl.classList.add('show', 'ok');
-        btn.innerHTML = 'Sent ✓';
+        btn.innerHTML = 'Sent <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M20 6 9 17l-5-5"/></svg>';
         setTimeout(function () {
           closeDrawer();
           // Clear the form for next submission
@@ -1728,6 +1745,6 @@
   }
 })();
 </script>
-  <script src="/motion.js" defer></script>
+  <script src="/motion.js?v=2026-09-16-green" defer></script>
 </body>
 </html>

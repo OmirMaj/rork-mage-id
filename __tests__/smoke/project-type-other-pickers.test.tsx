@@ -57,14 +57,14 @@ describe('Q6 — AI Quick Estimate: Other needs words, and the AI gets them', ()
   it('any other type: no box, no reason, the button is live (unchanged)', async () => {
     await mount();
     expect(screen.queryByTestId('ai-type-other')).toBeNull();
-    fireEvent.changeText(screen.getByPlaceholderText(/2,500 sqft kitchen remodel/), 'Repipe the whole house in PEX');
+    fireEvent.changeText(screen.getByPlaceholderText(/2,500 sq ft kitchen remodel/), 'Repipe the whole house in PEX');
     expect(screen.getByTestId('ai-generate-btn').props.accessibilityState?.disabled ?? false).toBe(false);
     expect(screen.queryByText(/You picked Other/)).toBeNull();
   });
 
   it('Other: box + blocked button with the reason, then his words reach the AI and the grounding', async () => {
     await mount();
-    fireEvent.changeText(screen.getByPlaceholderText(/2,500 sqft kitchen remodel/), 'Swap the 3-ton condenser and air handler');
+    fireEvent.changeText(screen.getByPlaceholderText(/2,500 sq ft kitchen remodel/), 'Swap the 3-ton condenser and air handler');
     fireEvent.press(screen.getByText('Other (describe it)'));
     expect(screen.getByTestId('ai-type-other')).toBeTruthy();
     expect(screen.getByTestId('ai-generate-btn').props.accessibilityState?.disabled).toBe(true);

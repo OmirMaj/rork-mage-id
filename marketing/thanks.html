@@ -9,16 +9,16 @@
   <meta name="theme-color" content="#0B0D10" />
   <meta name="robots" content="noindex" />
 
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png?v=2026-09-16-green" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png?v=2026-09-16-green" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png?v=2026-09-16-green" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png?v=2026-09-16-green" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/styles.css?v=2026-07-14" />
+  <link rel="stylesheet" href="/styles.css?v=2026-09-16-green" />
 
   <style>
     .ty-shell {
@@ -42,18 +42,18 @@
       width: 72px; height: 72px;
       border-radius: 50%;
       align-items: center; justify-content: center;
-      background: rgba(255, 106, 26, 0.15);
+      background: rgba(93, 179, 110, 0.15);
       margin-bottom: 24px;
     }
-    .ty-icon svg { width: 32px; height: 32px; color: #FF6A1A; }
+    .ty-icon svg { width: 32px; height: 32px; color: var(--brand); }
     .ty-card h1 {
-      font-family: var(--ff-serif);
+      font-family: var(--ff-display);
       font-size: clamp(36px, 6vw, 56px);
       letter-spacing: -1px;
       line-height: 1;
       margin: 0 0 20px;
     }
-    .ty-card h1 em { color: var(--amber); font-style: normal; }
+    .ty-card h1 em { color: var(--brand); font-style: normal; }
     .ty-card p {
       font-size: 17px;
       color: var(--text-muted);
@@ -78,7 +78,7 @@
     }
     .ty-list li::before {
       content: '→';
-      color: var(--amber);
+      color: var(--brand);
       font-weight: 800;
       flex-shrink: 0;
     }
@@ -91,7 +91,7 @@
 <body>
   <header class="nav">
     <div class="nav-inner">
-      <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" /><span>MAGE&nbsp;ID</span></a>
+      <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png?v=2026-09-16-green" alt="" width="32" height="32" /><span>MAGE&nbsp;ID</span></a>
       <nav class="links">
         <a href="/playbook.html">How it works</a>
         <a href="/features/">Features</a>
@@ -155,10 +155,10 @@
         <!-- The framing text is inside the link on purpose. As a separate
              muted <span> it inherited each footer's secondary grey, which on
              the light-ground pages (builders/) measured 2.80:1 against the
-             cream background — under the 4.5:1 AA floor at this size. Every
+             light ground — under the 4.5:1 AA floor at this size. Every
              glyph now takes the page's own link colour, which each footer has
-             already tuned to be legible on its own ground (16.99:1 on cream,
-             6.79:1 amber-on-ink), so the strip cannot be the one unreadable
+             already tuned to be legible on its own ground (16.55:1 ink on concrete,
+             7.54:1 #5DB36E brand-on-ink), so the strip cannot be the one unreadable
              thing in the footer. -->
         <a href="/proof.html" style="font-weight:600">New product, no reviews yet &mdash; and we say so</a>
         <a href="/who-built-this.html" style="font-weight:600">Who built this</a>
@@ -169,6 +169,6 @@
 
   <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
   <script src="/nav-mobile.js" defer></script>
-  <script src="/motion.js" defer></script>
+  <script src="/motion.js?v=2026-09-16-green" defer></script>
 </body>
 </html>

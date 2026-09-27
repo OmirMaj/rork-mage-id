@@ -85,7 +85,15 @@ const GROSS_PATTERNS: { name: string; re: RegExp }[] = [
   // The gross withholding read straight off the row — `inv.retentionAmount ?? 0`
   // as a dollar figure — without going through the helper.
   { name: 'stored retentionAmount as the withholding', re: /\.retentionAmount\s*\?\?\s*0\b/ },
+  // health 2026-09-26 (MONEY-CLIENTVIEW-DUE-NOW) — the same gross outstanding,
+  // written over the aggregates instead of one invoice: `invoicedTotal -
+  // paidTotal`, `totalInvoiced - totalPaid`. Every rule above keys on the
+  // `totalDue` / `amountPaid` field names, so app/client-view.tsx's "Due now"
+  // (gross of held retention — $1,000 where the portal said $0) slipped past.
+  // Any `<…invoiced…> - <…paid…>` is the gross form: use getOutstandingBalance.
+  { name: 'invoiced total - paid total', re: /\b\w*[iI]nvoiced\w*\s*(?:\|\|\s*0\s*\)|\?\?\s*0\s*\))?\s*-(?![-=>])\s*\(?\s*(?:[\w$]+\.)?\w*[pP]aid\w*\b/ },
 ];
+export const INVOICED_MINUS_PAID_RE = GROSS_PATTERNS[GROSS_PATTERNS.length - 1]!.re;
 
 // Sites READ and judged correct. Every entry needs a date, the exact code, and
 // a reason a reviewer can check in under a minute. The entry below is the NET
@@ -141,6 +149,11 @@ console.log('\nmoney outstanding — one definition (MONEY-F5):');
 
 const files: string[] = [];
 for (const d of SCAN_DIRS) walk(join(ROOT, d), files);
+// Negative-control hook (health 2026-09-26): scripts/validate-health-moneyreport.ts
+// points this at a temp dir holding a synthetic offending line and asserts the
+// scan FAILS on it — proof the rule fires on a real file, not just a regex test.
+const EXTRA_SCAN_DIR = process.env.MONEY_OUTSTANDING_EXTRA_SCAN_DIR;
+if (EXTRA_SCAN_DIR) walk(EXTRA_SCAN_DIR, files);
 
 const hits: string[] = [];
 for (const abs of files) {
@@ -332,6 +345,45 @@ ok('a stored sent that is settled net of retention reads paid',
   getEffectiveInvoiceStatus(invoiceRow({ status: 'sent', totalDue: 100_000, retentionAmount: 10_000, amountPaid: 90_000 })) === 'paid');
 ok('…and paying the released retention settles it again',
   getEffectiveInvoiceStatus(invoiceRow({ status: 'partially_paid', totalDue: 100_000, retentionAmount: 10_000, retentionReleased: 10_000, amountPaid: 100_000 })) === 'paid');
+
+// ── health 2026-09-26 · MONEY-CLIENTVIEW-DUE-NOW ────────────────────────────
+// The aggregate form of the gross outstanding. Negative controls first: the
+// new rule must fire on the exact client-view line and its siblings, and must
+// not fire on the net helper or on unrelated arithmetic.
+{
+  const re = INVOICED_MINUS_PAID_RE;
+  const mustHit = [
+    'const outstanding = Math.max(0, invoicedTotal - paidTotal);',
+    'return { totalInvoiced, totalPaid, outstanding: totalInvoiced - totalPaid };',
+    'const due = invoiced - paid;',
+    'const x = (invoicedToDate ?? 0) - b.paidToDate;',
+  ];
+  const mustMiss = [
+    'const outstanding = roundCents(getOutstandingBalance(billedInvoices));',
+    'const balance = Math.max(0, revisedContract - paid);',
+    'const notYetBilled = Math.max(0, revisedContract - invoicedTotal);',
+    'const unpaidCount = invoicedCount + paidCount;',
+  ];
+  for (const line of mustHit) ok(`invoiced-minus-paid rule catches: ${line}`, re.test(stripComments(line)));
+  for (const line of mustMiss) ok(`invoiced-minus-paid rule leaves alone: ${line}`, !re.test(stripComments(line)));
+  ok('…and ignores the same text inside a comment',
+    !re.test(stripComments('// the old `invoicedTotal - paidTotal` was gross of retention')));
+}
+{
+  // The repro job: $10,000 invoice, 10% retention held, $9,000 paid. The
+  // client-view helper must say what the portal says: $0 due now.
+  const { clientViewMoneyFigures } = await import('../utils/clientViewMoney');
+  const repro = {
+    id: 'i1', projectId: 'p', number: 1, status: 'partially_paid', subtotal: 10_000, taxAmount: 0, totalDue: 10_000,
+    retentionPercent: 10, retentionAmount: 1_000, retentionReleased: 0, amountPaid: 9_000, lineItems: [], payments: [],
+  } as unknown as Invoice;
+  const f = clientViewMoneyFigures({ invoices: [repro], contractValue: 25_000, changeOrders: [] });
+  ok('client view: repro job owes $0 now (net of held retention), like the portal', f.outstanding === 0, `got ${f.outstanding}`);
+  ok('client view: repro job holds $1,000 retention', f.retentionHeld === 1_000, `got ${f.retentionHeld}`);
+  ok('client view: repro job paid $9,000', f.paidToDate === 9_000, `got ${f.paidToDate}`);
+  ok('client view: helper outstanding === getOutstandingBalance (the one definition)',
+    f.outstanding === getOutstandingBalance([repro]));
+}
 
 console.log(`\nvalidate-money-outstanding: ${pass} passed, ${fail} failed\n`);
 if (fail > 0) process.exit(1);

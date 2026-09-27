@@ -13,6 +13,7 @@ import type { Contact, ContactRole } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useSheetFrame } from '@/components/ui';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 interface ContactPickerModalProps {
   visible: boolean;
@@ -26,12 +27,19 @@ interface ContactPickerModalProps {
 // Role accent tints for contact avatars/badges. The role NAME is always shown
 // as a text label beside the color, so these are decorative accents, not the
 // sole identifier — which lets us stay in MAGE's warm-editorial palette instead
-// of a saturated rainbow. Brand amber anchors the client-side roles; the rest
+// of a saturated rainbow. The brand anchors the client-side role; the rest
 // use muted, warm-leaning earth tones. No purple / pink / saturated Material
 // blue (all AI-default "rainbow status" tells).
-function getRoleColor(role: ContactRole): string {
+//
+// Client reads the THEMED accentLabel rather than a brand literal: the colour
+// is drawn as TEXT on its own 15% wash, and the brand green needs its label
+// companion to hold AA there in both themes (and follows a user-picked hue).
+// Sub's olive #5A7D3C is the nearest neighbour to the green brand (CIE76
+// ΔE 14.2, clear of the ~10 at which two swatches read as one), and the role
+// name is always printed beside it.
+function getRoleColor(role: ContactRole, t: ThemeColors): string {
   switch (role) {
-    case 'Client': return '#FF6A1A';      // brand amber — primary stakeholder
+    case 'Client': return t.accentLabel;  // brand — primary stakeholder
     case "Owner's Rep": return '#B45309';  // burnt amber — your side, distinct from client
     case 'Architect': return '#3F6B7D';    // muted slate-blue — design
     case 'Engineer': return '#5B6470';     // slate gray — technical
@@ -54,7 +62,7 @@ export default function ContactPickerModal({
   onClose,
   onSelect,
   contacts,
-  title = 'Select Recipient',
+  title = 'Select recipient',
   filterRoles,
 }: ContactPickerModalProps) {
   const { colors: themeColors } = useTheme();
@@ -92,7 +100,7 @@ export default function ContactPickerModal({
   }, [onClose]);
 
   const renderItem = useCallback(({ item }: { item: Contact }) => {
-    const roleColor = getRoleColor(item.role);
+    const roleColor = getRoleColor(item.role, themeColors);
     const displayName = `${item.firstName} ${item.lastName}`.trim() || item.companyName;
     return (
       <TouchableOpacity
@@ -113,7 +121,7 @@ export default function ContactPickerModal({
           ) : null}
           <View style={styles.contactMeta}>
             <View style={[styles.roleBadge, { backgroundColor: roleColor + '15' }]}>
-              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{item.role}</Text>
+              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{humanizeEnum(item.role)}</Text>
             </View>
             {item.email ? (
               <View style={styles.emailRow}>
@@ -125,7 +133,7 @@ export default function ContactPickerModal({
         </View>
       </TouchableOpacity>
     );
-  }, [handleSelect]);
+  }, [handleSelect, themeColors]);
 
   return (
     <Modal visible={visible} transparent animationType={fSheet.animationType} onRequestClose={handleClose}>
@@ -145,7 +153,7 @@ export default function ContactPickerModal({
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search contacts..."
+              placeholder="Search contacts"
               placeholderTextColor={themeColors.textMuted}
               autoFocus={false}
               testID="contact-picker-search"
@@ -172,7 +180,7 @@ export default function ContactPickerModal({
                   {query ? 'No contacts found' : 'No contacts yet'}
                 </Text>
                 <Text style={styles.emptyDesc}>
-                  {query ? 'Try a different search term' : 'Add contacts from the Contacts screen'}
+                  {query ? 'Try a different search term.' : 'Add contacts from the Contacts screen.'}
                 </Text>
               </View>
             }

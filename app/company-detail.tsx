@@ -95,12 +95,12 @@ export default function CompanyDetailScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Shield size={20} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.statLabel}>Bond Capacity</Text>
+            <Text style={styles.statLabel}>Bond capacity</Text>
             <Text style={styles.statValue}>{formatCurrency(company.bondCapacity)}</Text>
           </View>
           <View style={styles.statCard}>
             <Building2 size={20} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.statLabel}>Projects Done</Text>
+            <Text style={styles.statLabel}>Projects done</Text>
             <Text style={styles.statValue}>{company.completedProjects}</Text>
           </View>
           {company.yearEstablished && (
@@ -126,7 +126,7 @@ export default function CompanyDetailScreen() {
 
         {company.certifications.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Certifications & Designations</Text>
+            <Text style={styles.sectionTitle}>Certifications and designations</Text>
             <View style={styles.certGrid}>
               {company.certifications.map(certId => {
                 const info = CERTIFICATIONS.find(c => c.id === certId);
@@ -145,14 +145,14 @@ export default function CompanyDetailScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Eligible Bids</Text>
+            <Text style={styles.sectionTitle}>Eligible bids</Text>
             <View style={styles.countBadge}>
               <Text style={styles.countText}>{eligibleBids.length}</Text>
             </View>
           </View>
           <Text style={styles.sectionSubtitle}>Open bids within bond capacity and matching certifications</Text>
           {eligibleBids.length === 0 ? (
-            <Text style={styles.noResults}>No matching open bids at this time</Text>
+            <Text style={styles.noResults}>No matching open bids right now</Text>
           ) : (
             eligibleBids.slice(0, 5).map(bid => (
               <TouchableOpacity
@@ -184,7 +184,7 @@ export default function CompanyDetailScreen() {
               <Mail size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.contactBtnText}>Email</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#2E7D32' }]} onPress={() => void Linking.openURL(`tel:${company.phone}`)}>
+            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`tel:${company.phone}`)}>
               <Phone size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.contactBtnText}>Call</Text>
             </TouchableOpacity>

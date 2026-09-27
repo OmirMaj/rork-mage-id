@@ -20,6 +20,7 @@ import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { getContractValue } from '@/utils/projectFinancials';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { fourWeekCashPosition } from '@/utils/cashFlowEngine';
+import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { loadCashFlowSettings, type CashFlowSettings } from '@/utils/cashFlowStorage';
 import {
   computeTodayTasks, computeWeekLoad,
@@ -162,18 +163,26 @@ export default function SummaryScreen() {
   // Re-read on focus: the balance and the bill list are edited on /cash-flow,
   // and this tab stays mounted underneath it.
   useFocusEffect(loadCash);
+  // Approved-but-unpaid sub bills (health 2026-09-26, MONEY-CASH-SUB-APPROVED)
+  // — the same company-wide read /cash-flow makes, so the tile and the screen
+  // it opens still agree. Until that read has answered the tile shows "—": a
+  // four-week figure that has not checked the checks owed to subs is not shown
+  // as if it had.
+  const subBillRead = useSubSubmittedInvoices({ companyWide: true });
+  const subInvoices = subBillRead.subBillsChecked ? subBillRead.invoices : undefined;
   const cash4wk = useMemo(() => {
+    if (!subInvoices) return null;
     try {
       return fourWeekCashPosition({
         cashData: cashSettings?.data ?? null,
         setupComplete: cashSettings?.setupComplete ?? false,
-        invoices, commitments, projects, changeOrders,
+        invoices, commitments, projects, changeOrders, subInvoices,
       });
     } catch (err) {
       console.log('[Summary] cash forecast failed:', err);
       return null;
     }
-  }, [cashSettings, invoices, commitments, projects, changeOrders]);
+  }, [cashSettings, invoices, commitments, projects, changeOrders, subInvoices]);
   // How stale the starting balance is — the whole forecast hangs off it.
   const cashAsOf = cash4wk === null ? null : cashSettings?.data.balanceAsOf ?? null;
 
@@ -294,10 +303,10 @@ export default function SummaryScreen() {
           message="Your daily briefing rolls up today's schedule, this week, money, and what needs you — across every project. To populate it:"
           steps={[
             'Open the Projects tab from the sidebar.',
-            'Tap + New Project (or Try a sample project) to spin one up.',
+            'Tap New project, or Try a sample project.',
             'Come back here once you have estimates, invoices, or a schedule flowing.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -365,8 +374,8 @@ export default function SummaryScreen() {
       activeOpacity={0.75}
     >
       <Briefcase size={16} color={themeColors.accent} />
-      <Text style={styles.businessStripText}>Your Business</Text>
-      <Text style={styles.businessStripSub}>margins · pipeline · clients · weather</Text>
+      <Text style={styles.businessStripText}>Your business</Text>
+      <Text style={styles.businessStripSub}>Margins · pipeline · clients · weather</Text>
       <ChevronRight size={14} color={themeColors.textSecondary} />
     </TouchableOpacity>
   );

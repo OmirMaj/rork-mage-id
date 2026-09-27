@@ -47,12 +47,15 @@ import { Tokens } from '@/constants/designTokens';
 import { neutralInk } from '@/components/ui/ink';
 import { cardSurface } from '@/components/ui';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
+import { humanizeEnum } from '@/utils/statusLabels';
 import {
   buildAgendaFromProjectState, mergeAgenda, generateMinutesFromTranscript,
   collectOpenOACActions, cycleOACActionStatus, makeManualOACActionItem,
   actionDueLabel, type OpenOACAction,
 } from '@/utils/oacEngine';
 import DatePickerModal from '@/components/DatePickerModal';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
@@ -65,12 +68,12 @@ const SECTION_LABELS: Record<OACAgendaSection, string> = {
   schedule:        'Schedule',
   rfis:            'RFIs',
   submittals:      'Submittals',
-  change_orders:   'Change Orders',
+  change_orders:   'Change orders',
   budget:          'Budget',
-  decisions:       'Decisions Needed',
-  action_items:    'Action Items',
-  open_discussion: 'Open Discussion',
-  next_meeting:    'Next Meeting',
+  decisions:       'Decisions needed',
+  action_items:    'Action items',
+  open_discussion: 'Open discussion',
+  next_meeting:    'Next meeting',
 };
 
 // Render order for the agenda. Pulled out of the render so the order is a
@@ -84,12 +87,16 @@ const SECTION_ORDER = Object.keys(SECTION_LABELS) as OACAgendaSection[];
 // and would report this one as an unswept storage key.)
 const OTHER_SECTION_BUCKET = '__other__';
 
+/** The one failure sentence this screen throws itself (an upload that came
+ *  back with no words). It is shown as written; anything else is described. */
+const EMPTY_TRANSCRIPT_MESSAGE = 'The recording came back with no words. Try a clearer recording.';
+
 /** Status words as the pill prints them — the underscore form is a storage
  *  detail, not something to show a PM mid-meeting. */
 const STATUS_WORD: Record<OACActionItem['status'], string> = {
-  open: 'open',
-  in_progress: 'in progress',
-  done: 'done',
+  open: 'Open',
+  in_progress: 'In progress',
+  done: 'Done',
 };
 
 function isKnownSection(section: string): section is OACAgendaSection {
@@ -268,7 +275,8 @@ function OACMeetingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] New meeting failed:', err);
-      showAlert('Could not create meeting', err instanceof Error ? err.message : 'Try again.');
+      const copy = describeError(err, { action: 'create the meeting' });
+      showAlert(copy.title, copy.body);
     } finally {
       setGeneratingAgenda(false);
     }
@@ -340,7 +348,7 @@ function OACMeetingInner() {
   const handleUploadAudio = useCallback(async () => {
     if (!active) return;
     if (Platform.OS === 'web') {
-      showAlert('Mobile only', 'Audio file upload is only supported on the iOS / Android app.');
+      showAlert('Mobile only', 'Upload a recording from the MAGE ID app on iPhone or Android.');
       return;
     }
     try {
@@ -362,7 +370,7 @@ function OACMeetingInner() {
         const mb = (asset.size / 1024 / 1024).toFixed(1);
         showAlert(
           'File too large',
-          `That file is ${mb} MB. The transcriber tops out around 40 MB. Split a long meeting into chunks (e.g. by hour) and upload them one at a time — the transcripts get appended.`,
+          `That file is ${mb} MB. Files over 40 MB can't be transcribed. Split the recording and upload each part.`,
         );
         return;
       }
@@ -385,7 +393,7 @@ function OACMeetingInner() {
       // any future inline-base64 path.
       void base64;
       if (!transcribed) {
-        throw new Error('STT returned an empty transcript. Try a clearer recording.');
+        throw new Error(EMPTY_TRANSCRIPT_MESSAGE);
       }
       handleTranscript(transcribed);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -395,10 +403,11 @@ function OACMeetingInner() {
       );
     } catch (err) {
       console.error('[OAC] upload-audio failed', err);
-      showAlert(
-        'Could not transcribe',
-        err instanceof Error ? err.message : 'Check the file and try again.',
-      );
+      // Our own empty-recording sentence passes through; anything raw reads as
+      // describeError, never the exception text.
+      const own = err instanceof Error && err.message === EMPTY_TRANSCRIPT_MESSAGE;
+      const copy = describeError(err, { action: 'transcribe the recording' });
+      showAlert(own ? 'Couldn\'t transcribe' : copy.title, own ? EMPTY_TRANSCRIPT_MESSAGE : copy.body);
     } finally {
       setUploadingAudio(false);
     }
@@ -449,7 +458,8 @@ function OACMeetingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] Generate minutes failed:', err);
-      showAlert('Could not generate minutes', err instanceof Error ? err.message : 'Try again.');
+      const copy = describeError(err, { action: 'generate the minutes', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       setGeneratingMinutes(false);
     }
@@ -463,12 +473,12 @@ function OACMeetingInner() {
     }
     const recipients = active.attendees.filter(a => a.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email));
     if (recipients.length === 0) {
-      showAlert('No emails', 'Add email addresses to the attendees so they receive the minutes.');
+      showAlert('No attendee emails', 'Add email addresses to the attendees so they receive the minutes.');
       return;
     }
     setDistributing(true);
     try {
-      const subject = `OAC Meeting #${active.number} Minutes — ${project.name}`;
+      const subject = `OAC meeting #${active.number} minutes · ${project.name}`;
       const html = buildMinutesEmailHtml({
         projectName: project.name,
         meetingNumber: active.number,
@@ -493,7 +503,8 @@ function OACMeetingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[OAC] Distribute failed:', err);
-      showAlert('Distribution failed', err instanceof Error ? err.message : 'Try again.');
+      const copy = describeError(err, { action: 'send the minutes' });
+      showAlert(copy.title, copy.body);
     } finally {
       setDistributing(false);
     }
@@ -557,8 +568,8 @@ function OACMeetingInner() {
     const ballInCourt = actionDraftOwner.trim();
     if (!description || !ballInCourt) {
       showAlert(
-        'Needs both halves',
-        'An action item is what is owed AND who owes it. Next week\'s meeting checks both, so neither can be blank.',
+        'Both fields needed',
+        'An action item needs what is owed and who owes it. Next week\'s meeting checks both.',
       );
       return;
     }
@@ -710,7 +721,7 @@ function OACMeetingInner() {
         ) : null}
       </TouchableOpacity>
       <Text style={styles.actionDueHint}>
-        Leave it blank if the room never agreed one — MAGE chases an undated item once it has sat a full week rather than inventing a deadline nobody gave.
+        Leave it blank if no date was agreed. MAGE flags an undated item after it sits a full week.
       </Text>
       <View style={styles.actionEditorBtns}>
         <TouchableOpacity
@@ -752,12 +763,18 @@ function OACMeetingInner() {
     [agendaBuckets],
   );
 
+  // Desktop: Add attendee is a centred form card (d6r X3, batch F); a phone
+  // keeps its bottom sheet (every frame part is null there). Cmd/Ctrl+Enter
+  // (and Cmd+S) run its Add — handleSaveAttendee asks for a name itself.
+  const fAttendee = useSheetFrame('form', { visible: showAddAttendee, animationType: 'slide' });
+  useSheetPrimaryHotkey(showAddAttendee, handleSaveAttendee);
+
   if (!project) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'OAC Meetings' }} />
+        <Stack.Screen options={{ title: 'OAC meetings' }} />
         <ToolProjectPicker
-          toolName="OAC Meetings"
+          toolName="OAC meetings"
           message="An Owner-Architect-Contractor meeting keeps attendees, agenda and minutes tied to one project."
           projects={ctx.projects ?? []}
           onPick={setPickedProjectId}
@@ -765,7 +782,7 @@ function OACMeetingInner() {
           icon={<Users size={36} color={themeColors.accent} strokeWidth={1.6} />}
           steps={[
             'Open or create a project from the Projects tab.',
-            'Tap OAC Meetings inside the project tile grid.',
+            'Tap OAC meetings inside the project tile grid.',
             'Add attendees, paste or dictate the agenda, then capture minutes mid-meeting.',
           ]}
         />
@@ -797,7 +814,7 @@ function OACMeetingInner() {
             <View style={styles.oacHeroIcon}>
               <Users size={26} color={themeColors.accent} strokeWidth={1.75} />
             </View>
-            <Text style={styles.eyebrow}>OAC Meeting #{active.number}</Text>
+            <Text style={styles.eyebrow}>OAC meeting #{active.number}</Text>
             <Text style={styles.oacHeroTitle}>{project.name}</Text>
             <Text style={styles.oacHeroSub}>
               {new Date(active.scheduledAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
@@ -832,13 +849,13 @@ function OACMeetingInner() {
               <Text style={styles.cardLabel}>Attendees ({active.attendees.length})</Text>
             </View>
             {active.attendees.length === 0 ? (
-              <Text style={styles.emptyHint}>No attendees yet. Add the owner, architect, engineer, etc.</Text>
+              <Text style={styles.emptyHint}>No attendees yet. Add the owner, architect and engineer.</Text>
             ) : (
               active.attendees.map(a => (
                 <View key={a.id} style={styles.attendeeRow}>
                   <Text style={styles.attendeeName}>{a.name}</Text>
                   <Text style={styles.attendeeMeta}>
-                    {(a.role ?? 'other').replace('_', ' ')}{a.email ? ` · ${a.email}` : ''}
+                    {humanizeEnum(a.role ?? 'other')}{a.email ? ` · ${a.email}` : ''}
                   </Text>
                 </View>
               ))
@@ -857,14 +874,14 @@ function OACMeetingInner() {
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <MageAIMark size={16} color={themeColors.accent} />
-              <Text style={styles.cardLabel}>Agenda · auto-built from project state</Text>
+              <Text style={styles.cardLabel}>Agenda · built from open project items</Text>
               <TouchableOpacity onPress={handleRefreshAgenda} disabled={generatingAgenda} hitSlop={10}>
                 {generatingAgenda
                   ? <ActivityIndicator size="small" color={themeColors.accent} />
                   : <RefreshCw size={15} color={themeColors.accent} strokeWidth={1.75} />}
               </TouchableOpacity>
             </View>
-            <Text style={styles.cardHelper}>Tap each item to mark covered. Add a manual note below any item.</Text>
+            <Text style={styles.cardHelper}>Tap an item to mark it covered. Add a note under any item.</Text>
             {agendaBuckets.map(bucket => {
               const sectionItems = bucket.items;
               return (
@@ -888,7 +905,7 @@ function OACMeetingInner() {
                           style={styles.agendaNote}
                           value={item.manualNote ?? ''}
                           onChangeText={t => handleNoteChange(item.id, t)}
-                          placeholder="Add a note..."
+                          placeholder="Add a note"
                           placeholderTextColor={themeColors.textMuted}
                           multiline
                         />
@@ -921,12 +938,12 @@ function OACMeetingInner() {
               <Text style={styles.cardLabel}>Voice capture</Text>
             </View>
             <Text style={styles.cardHelper}>
-              Record the meeting (or just the wrap-up summary). The AI uses the transcript to draft minutes.
+              Record the meeting, or just the wrap-up. MAGE drafts the minutes from the transcript.
             </Text>
             <VoiceRecorder
               onTranscriptReady={handleTranscript}
               title="Capture meeting discussion"
-              contextLine={`OAC #${active.number} — ${project.name}`}
+              contextLine={`OAC #${active.number} · ${project.name}`}
               suggestions={[
                 "Architect, what's the response on RFI 14",
                 "Owner approved CO 4 for the kitchen pendant rerun, $3,200",
@@ -950,14 +967,14 @@ function OACMeetingInner() {
                 </Text>
                 <Text style={styles.uploadAudioSub}>
                   {uploadingAudio
-                    ? 'This may take 30-60 seconds depending on length.'
-                    : 'Voice Memos / Otter / Zoom export — m4a, mp3, wav up to 40 MB.'}
+                    ? 'This takes 30 to 60 seconds, depending on length.'
+                    : 'Voice Memos, Otter or Zoom export · m4a, mp3 or wav, up to 40 MB'}
                 </Text>
               </View>
             </TouchableOpacity>
             {active.transcript ? (
               <View style={styles.transcriptCard}>
-                <Text style={styles.transcriptLabel}>Captured ({active.transcript.length} char{active.transcript.length === 1 ? '' : 's'})</Text>
+                <Text style={styles.transcriptLabel}>Captured ({active.transcript.length.toLocaleString()} {active.transcript.length === 1 ? 'character' : 'characters'})</Text>
                 <Text style={styles.transcriptText} numberOfLines={6}>{active.transcript}</Text>
               </View>
             ) : null}
@@ -987,7 +1004,7 @@ function OACMeetingInner() {
                 >
                   {distributing
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Send size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>Distribute to attendees</Text></>}
+                    : <><Send size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>Send minutes to attendees</Text></>}
                 </TouchableOpacity>
               </>
             ) : (
@@ -1073,10 +1090,10 @@ function OACMeetingInner() {
 
         {/* Add-attendee modal — cross-platform replacement for Alert.prompt.
             Name required, email optional (needed only for minutes distribution). */}
-        <Modal visible={showAddAttendee} transparent animationType="slide" onRequestClose={() => setShowAddAttendee(false)}>
+        <Modal visible={showAddAttendee} transparent animationType={fAttendee.animationType} onRequestClose={() => setShowAddAttendee(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <Pressable style={styles.attendeeModalOverlay} onPress={() => setShowAddAttendee(false)}>
-              <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }]} onPress={() => undefined}>
+            <Pressable style={[styles.attendeeModalOverlay, fAttendee.overlay]} onPress={() => setShowAddAttendee(false)}>
+              <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }, fAttendee.card]} onPress={() => undefined}>
                 <View style={styles.attendeeModalHeader}>
                   <Text style={styles.attendeeModalTitle}>Add attendee</Text>
                   <TouchableOpacity onPress={() => setShowAddAttendee(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -1120,14 +1137,14 @@ function OACMeetingInner() {
   // List mode
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'Project Meetings' }} />
+      <Stack.Screen options={{ title: 'OAC meetings' }} />
       <FeatureHeader
-        eyebrow="OAC Weekly"
+        eyebrow="OAC weekly"
         title="Weekly project meeting"
-        subtitle="The standing call with the owner, architect, and you. We auto-build the agenda from open RFIs, change orders, and schedule slips — and record + transcribe the meeting."
+        subtitle="The standing call with the owner, the architect and you. MAGE builds the agenda from open RFIs, change orders and schedule slips, and records and transcribes the meeting."
         explainer={{
-          term: 'OAC Meeting',
-          definition: '"OAC" stands for Owner / Architect / Contractor — the three parties who meet weekly (or biweekly) on most jobs to align on progress, decisions, and changes. This is the meeting where blocking RFIs get resolved, change orders get approved, and the schedule gets re-baselined.',
+          term: 'OAC meeting',
+          definition: '"OAC" stands for Owner / Architect / Contractor, the three parties who meet weekly (or every two weeks) on most projects to align on progress, decisions and changes. This is the meeting where blocking RFIs get resolved, change orders get approved and the schedule gets re-baselined.',
           whenToUse: [
             'You\'re running a project with regular owner/architect involvement',
             'You want one place to track decisions across weeks',
@@ -1157,7 +1174,7 @@ function OACMeetingInner() {
             <Calendar size={36} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No OAC meetings yet</Text>
             <Text style={styles.emptyBody}>
-              The OAC weekly is the central meeting where owner, architect, and contractor sync. Tap "New meeting" — MAGE ID auto-builds the agenda from open RFIs, submittals, change orders, and schedule slips.
+              Tap New meeting. MAGE builds the agenda from open RFIs, submittals, change orders and schedule slips.
             </Text>
           </View>
         ) : (
@@ -1205,7 +1222,7 @@ function labelForStatus(s: OACMeeting['status']): string {
     case 'draft':        return 'Draft';
     case 'scheduled':    return 'Scheduled';
     case 'in_progress':  return 'In progress';
-    case 'concluded':    return 'Concluded — ready to distribute';
+    case 'concluded':    return 'Concluded, ready to send';
     case 'distributed':  return 'Distributed';
   }
 }
@@ -1244,10 +1261,14 @@ function buildMinutesEmailHtml(opts: {
     .replace(/\n\n/g, '<br/><br/>');
 
   const openActions = actionItems.filter(a => a.status !== 'done');
+  // Email HTML is a string rendered by a mail client, so the brand cannot be a
+  // token. The eyebrow sits on the ink header band, so it is the DARK-ground
+  // brand green #5DB36E (BRAND_ACCENT_ON_DARK, 7.5:1 on #0B0D10; the light brand
+  // #2F6B3A would be ~3:1 there) — the same pair as utils/emailLayout.ts.
   return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f5f7;padding:24px;color:#111">
     <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.06)">
-      <div style="background:#0B0D10;color:#FF6A1A;padding:24px 28px">
-        <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase">OAC Meeting Minutes</div>
+      <div style="background:#0B0D10;color:#5DB36E;padding:24px 28px">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase">OAC meeting minutes</div>
         <div style="font-size:20px;font-weight:800;color:#fff;margin-top:4px">${projectName}</div>
         <div style="font-size:13px;color:#a5a5b8;margin-top:6px">Meeting #${meetingNumber} · ${meetingDate}</div>
       </div>
@@ -1258,7 +1279,7 @@ function buildMinutesEmailHtml(opts: {
           <table style="width:100%;border-collapse:collapse;font-size:13px">
             <tr style="background:#f9f9f9">
               <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #ddd">Action</th>
-              <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #ddd">Owner</th>
+              <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #ddd">Owed by</th>
               <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #ddd">Due</th>
             </tr>
             ${openActions.map(a => `<tr>
@@ -1269,7 +1290,7 @@ function buildMinutesEmailHtml(opts: {
           </table>
         ` : ''}
         <p style="margin-top:24px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px">
-          Distributed via MAGE ID. Reply to this email with corrections — they go to the GC.
+          Sent with MAGE ID. Reply to this email with corrections; replies go to the contractor.
         </p>
       </div>
     </div>

@@ -263,7 +263,7 @@ export default function DocumentsScreen() {
         projectId: p.projectId,
         projectName: projectById.get(p.projectId) ?? p.projectName ?? 'Project',
         type: 'permit',
-        title: `Permit · ${p.type ?? p.permitNumber ?? 'Building Permit'}`,
+        title: `Permit · ${p.type ?? p.permitNumber ?? 'Building permit'}`,
         status,
         createdAt: appliedAt && Number.isFinite(appliedAt.getTime()) ? appliedAt.toISOString() : new Date().toISOString(),
         expiresAt: expiresAt && Number.isFinite(expiresAt.getTime()) ? expiresAt.toISOString() : undefined,
@@ -446,7 +446,7 @@ export default function DocumentsScreen() {
                 <View style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}>
                   <AlertCircle size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>{stats.expiringSoon} Expiring Soon</Text>
+                    <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>{stats.expiringSoon} expiring soon</Text>
                     <Text style={styles.alertDesc}>COIs and permits expiring within 30 days</Text>
                   </View>
                 </View>
@@ -483,7 +483,7 @@ export default function DocumentsScreen() {
                   <Text style={styles.filesTitle}>Uploaded files and scans</Text>
                 </View>
                 <Text style={styles.filesBody}>
-                  Files you upload and documents Scan Anything files are kept in each project&apos;s Files, not in this feed.
+                  Files you upload and documents filed by Scan anything are kept in each project&apos;s Files, not in this feed.
                 </Text>
                 <View style={styles.filesList}>
                   {fileProjects.map(p => (

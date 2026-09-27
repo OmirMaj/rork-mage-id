@@ -40,6 +40,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isPortalOwner } from '@/utils/portalLiteSync';
 import { Button, useCommitFeedback } from '@/components/ui/Button';
 import { useSwapFade } from '@/components/ui/motion';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 /** What an editor (not the owner) is told after a send — exported so the
  *  validator pins the words. #17 (wave 4): the owner's app now republishes
@@ -107,7 +108,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
       });
       if (!isOwner) showAlert('Sent to the client portal', EDITOR_SEND_NOTE);
     }
-    catch (e) { showAlert('Send failed', e instanceof Error ? e.message : 'Try again.'); }
+    catch (e) { console.warn('[portal send] failed:', rawErrorMessage(e)); const copy = describeError(e, { action: 'send this to the client portal' }); showAlert(copy.title, copy.body); }
   }, [busy, computed, status, runCommit, kind, itemId, projectId, sendToClientPortal, isOwner]);
 
   const doRecall = useCallback(() => {
@@ -116,14 +117,14 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
       // Only the owner's recall posts the "removed" notice (RLS admits no one
       // else to portal_messages) — an editor is not promised one.
       isOwner
-        ? 'The client will see a message saying this item was removed. You can re-send later.'
-        : 'It comes off the client\u2019s portal right away. Only your GC can post a note to the client about it. You can re-send later.',
+        ? 'The client will see a message saying this item was removed. You can resend it later.'
+        : 'It comes off the client\u2019s portal right away. Only your GC can post a note to the client about it. You can resend it later.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Recall', style: 'destructive', onPress: async () => {
           setRecallBusy(true);
           try { await recallFromClientPortal({ kind, itemId, projectId }); }
-          catch (e) { showAlert('Recall failed', e instanceof Error ? e.message : 'Try again.'); }
+          catch (e) { console.warn('[portal recall] failed:', rawErrorMessage(e)); const copy = describeError(e, { action: 'recall this from the client portal' }); showAlert(copy.title, copy.body); }
           finally { setRecallBusy(false); }
         }},
       ],
@@ -136,7 +137,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
     return (
       <Bar style={barStyle}>
         <Button
-          label={(commit.busy ? heldRecalled : status === 'recalled') ? 'Re-send to client portal' : 'Send to client portal'}
+          label={(commit.busy ? heldRecalled : status === 'recalled') ? 'Resend to client portal' : 'Send to client portal'}
           onPress={doSend}
           disabled={busy || !canSend}
           loading={commit.loading}
@@ -156,7 +157,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
     return (
       <Bar style={barStyle}>
         <Button
-          label="Re-send to client portal"
+          label="Resend to client portal"
           onPress={doSend}
           disabled={busy || !canSend}
           loading={commit.loading}

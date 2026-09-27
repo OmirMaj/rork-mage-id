@@ -36,6 +36,7 @@ import {
 } from '@/utils/buildingAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 /** Today as YYYY-MM-DD in LOCAL time — toISOString() rolls the date over in the
  *  evening for anyone west of UTC, which would book the wrong morning. */
@@ -127,7 +128,7 @@ export default function BuildingAccessScreen() {
       `${KIND_LABEL[r.kind]} on ${r.date}. The delivery it covers will be flagged as blocked.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Refused', style: 'destructive', onPress: () => updateReservation(r.id, { status: 'denied' }) },
+        { text: 'Mark refused', style: 'destructive', onPress: () => updateReservation(r.id, { status: 'denied' }) },
       ],
     );
   }, [updateReservation]);
@@ -135,7 +136,7 @@ export default function BuildingAccessScreen() {
   const removeSlot = useCallback((r: AccessReservation) => {
     showAlert(
       'Delete this booking?',
-      `${KIND_LABEL[r.kind]} on ${r.date}. This does not cancel it with the building.`,
+      `${KIND_LABEL[r.kind]} on ${r.date}. This doesn't cancel it with the building.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => deleteReservation(r.id) },
@@ -150,7 +151,7 @@ export default function BuildingAccessScreen() {
         <Header onBack={goBack} title="Building access" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
           toolName="Building access"
-          message="Building rules are per project — pick the job whose building you're working in."
+          message="Building rules are per project. Pick the project whose building you're working in."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={!project && paramProjectId ? paramProjectId : undefined}
@@ -208,13 +209,13 @@ export default function BuildingAccessScreen() {
             <Field
               label="Sent to the building on"
               value={rules?.coiOnFileAt ?? ''}
-              placeholder="YYYY-MM-DD — leave blank until it is"
+              placeholder="YYYY-MM-DD (blank until sent)"
               onChange={(v) => patch({ coiOnFileAt: v.trim() || undefined })}
               styles={styles} t={t} testID="coi-date"
             />
           ) : null}
           <Toggle
-            label="Workers must be badged"
+            label="Crew and subs must be badged"
             hint="Nobody gets past the lobby without one."
             value={rules?.requiresBadging ?? false}
             onChange={(v) => patch({ requiresBadging: v })}
@@ -414,7 +415,7 @@ function SlotRow({
     r.status === 'cancelled' ? t.textMuted :
     t.accentLabel;
   const statusLabel =
-    r.status === 'requested' ? 'Requested — not booked' :
+    r.status === 'requested' ? 'Requested, not booked' :
     r.status === 'confirmed' ? 'Confirmed' :
     r.status === 'denied' ? 'Refused' : 'Cancelled';
 
@@ -435,11 +436,11 @@ function SlotRow({
           <>
             <TouchableOpacity onPress={() => onConfirm(r)} style={[styles.slotBtn, styles.slotBtnPrimary]} accessibilityRole="button" testID={`confirm-slot-${r.id}`}>
               <Check size={13} color={t.accentLabel} strokeWidth={2} />
-              <Text style={[styles.slotBtnText, { color: t.accentLabel }]}>Confirmed</Text>
+              <Text style={[styles.slotBtnText, { color: t.accentLabel }]}>Mark confirmed</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onDeny(r)} style={styles.slotBtn} accessibilityRole="button" testID={`deny-slot-${r.id}`}>
               <X size={13} color={t.textSecondary} strokeWidth={2} />
-              <Text style={styles.slotBtnText}>Refused</Text>
+              <Text style={styles.slotBtnText}>Mark refused</Text>
             </TouchableOpacity>
           </>
         )}
@@ -461,13 +462,23 @@ function AddSlotSheet({
 }) {
   const [draft, setDraft] = useState<Draft>({ kind: 'freight_elevator', date: todayLocal(), window: '' });
   const valid = draft.date.trim().length >= 8;
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar; Cmd/Ctrl+Enter (and Cmd+S) books the slot while the date is
+  // valid. Phone: every part is null — today's sheet, byte for byte.
+  const fAdd = useSheetFrame('form', { visible, animationType: 'slide' });
+  const book = () => {
+    if (!valid) return;
+    onSave(draft);
+    setDraft({ kind: 'freight_elevator', date: todayLocal(), window: '' });
+  };
+  useSheetPrimaryHotkey(visible, valid ? book : null);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType={fAdd.animationType} transparent onRequestClose={onClose}>
       {/* UX-F15: same keyboard fix as app/deliveries.tsx — the Date / Window
           inputs and the Save button sat under the keyboard. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
-        <View style={styles.sheet}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.overlay, fAdd.overlay]}>
+        <View style={[styles.sheet, fAdd.card]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Book a slot</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -516,11 +527,7 @@ function AddSlotSheet({
           <TouchableOpacity
             style={[styles.saveBtn, !valid && styles.saveBtnOff]}
             disabled={!valid}
-            onPress={() => {
-              if (!valid) return;
-              onSave(draft);
-              setDraft({ kind: 'freight_elevator', date: todayLocal(), window: '' });
-            }}
+            onPress={book}
             accessibilityRole="button"
             testID="slot-save"
           >

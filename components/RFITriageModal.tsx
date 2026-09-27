@@ -21,9 +21,11 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { parseRFIFromTranscript } from '@/utils/voiceFormParsers';
 import { nailIt } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
+import { humanizeEnum } from '@/utils/statusLabels';
 import { localDateISO } from '@/utils/brief/composeBrief';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import type { RFIBallInCourt, RFIPriority } from '@/types';
 
 const BALL: RFIBallInCourt[] = ['architect', 'engineer', 'owner', 'sub', 'gc'];
@@ -38,6 +40,9 @@ export default function RFITriageModal({ visible, onClose }: Props) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { projects, addRFI } = useProjects();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
 
   const [step, setStep] = useState<'paste' | 'confirm'>('paste');
   const [busy, setBusy] = useState(false);
@@ -96,15 +101,17 @@ export default function RFITriageModal({ visible, onClose }: Props) {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // #28: no number here — addRFI's is the device's guess; the server assigns
     // the real one on insert, and the RFI screen prints it once read back.
-    nailIt('RFI filed — its number is assigned when it syncs');
+    nailIt('RFI filed. It gets its number once it reaches the server.');
     close();
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
-      <View style={[styles.container, { paddingTop: insets.top + 6 }]}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle="pageSheet" transparent={fP.transparent} onRequestClose={close}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={close} />
+      <View style={[styles.container, { paddingTop: insets.top + 6 }, fP.card]}>
         <View style={styles.header}>
-          <Text style={styles.title}>{step === 'paste' ? 'Email → RFI' : 'Review RFI'}</Text>
+          <Text style={styles.title}>{step === 'paste' ? 'Email to RFI' : 'Review RFI'}</Text>
           <TouchableOpacity onPress={close} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
             <X size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -118,7 +125,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
               </Text>
               {projects.length > 1 && (
                 <>
-                  <Text style={styles.label}>PROJECT</Text>
+                  <Text style={styles.label}>Project</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                     {projects.map(p => (
                       <TouchableOpacity
@@ -133,12 +140,12 @@ export default function RFITriageModal({ visible, onClose }: Props) {
                   </ScrollView>
                 </>
               )}
-              <Text style={styles.label}>EMAIL TEXT</Text>
+              <Text style={styles.label}>Email text</Text>
               <TextInput
                 style={styles.textArea}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Paste the email here…"
+                placeholder="Paste the email here"
                 placeholderTextColor={t.textMuted}
                 multiline
                 textAlignVertical="top"
@@ -147,19 +154,19 @@ export default function RFITriageModal({ visible, onClose }: Props) {
             </>
           ) : (
             <>
-              <Text style={styles.label}>SUBJECT</Text>
+              <Text style={styles.label}>Subject</Text>
               <TextInput style={styles.input} value={subject} onChangeText={setSubject} placeholder="What's it about?" placeholderTextColor={t.textMuted} />
-              <Text style={styles.label}>QUESTION</Text>
+              <Text style={styles.label}>Question</Text>
               <TextInput style={styles.textArea} value={question} onChangeText={setQuestion} placeholder="The question to answer" placeholderTextColor={t.textMuted} multiline textAlignVertical="top" />
-              <Text style={styles.label}>BALL IN COURT</Text>
+              <Text style={styles.label}>Ball in court</Text>
               <View style={styles.chipRow}>
                 {BALL.map(b => (
                   <TouchableOpacity key={b} style={[styles.ballChip, b === ball && styles.chipOn]} onPress={() => setBall(b)} activeOpacity={0.85}>
-                    <Text style={[styles.chipText, b === ball && styles.chipTextOn]}>{b}</Text>
+                    <Text style={[styles.chipText, b === ball && styles.chipTextOn]}>{humanizeEnum(b)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.label}>NEEDED BY — optional</Text>
+              <Text style={styles.label}>Needed by (optional)</Text>
               <TextInput style={styles.input} value={dateRequired} onChangeText={setDateRequired} placeholder="2026-09-15" placeholderTextColor={t.textMuted} autoCapitalize="none" />
             </>
           )}
@@ -174,7 +181,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
               testID="rfi-extract"
             >
               {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <Sparkles size={18} color={Colors.textOnAccent} strokeWidth={2} />}
-              <Text style={styles.ctaText}>{busy ? 'Reading…' : 'Extract RFI'}</Text>
+              <Text style={styles.ctaText}>{busy ? 'Reading the email…' : 'Extract RFI'}</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.cta} onPress={create} testID="rfi-create">
@@ -184,6 +191,7 @@ export default function RFITriageModal({ visible, onClose }: Props) {
           )}
         </View>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }
@@ -200,7 +208,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   help: { ...Type.footnote, color: t.textSecondary, lineHeight: 19, marginBottom: 8 },
   label: {
     fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted,
-    letterSpacing: 1, marginTop: 14, marginBottom: 8,
+    letterSpacing: 1, marginTop: 14, marginBottom: 8, textTransform: 'uppercase',
   },
   input: {
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.lg,

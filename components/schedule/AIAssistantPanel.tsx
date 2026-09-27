@@ -45,6 +45,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { isAddTaskRequest, editorSeedFor } from '@/utils/copilot/scheduleEdit/addIntent';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { humanizeEnum } from '@/utils/statusLabels';
 import {
   aiDetectRisks,
   aiOptimizeSchedule,
@@ -111,6 +113,10 @@ export interface AIAssistantPanelProps {
 // ---------------------------------------------------------------------------
 
 type Mode = 'home' | 'risks' | 'optimize' | 'explain' | 'ask' | 'asbuilt' | 'generate' | 'bulk';
+const MODE_LABEL: Record<Mode, string> = {
+  home: 'Home', risks: 'Risks', optimize: 'Optimize', explain: 'Critical path', ask: 'Ask',
+  asbuilt: 'As-built', generate: 'Draft a schedule', bulk: 'Bulk edit',
+};
 
 export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const { colors: themeColors } = useTheme();
@@ -283,7 +289,8 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     setError(null);
     try { await fn(); }
     catch (e: any) {
-      setError(e?.message ?? 'Something went wrong.');
+      console.warn('[AIAssistantPanel] request failed', rawErrorMessage(e));
+      setError(describeError(e, { action: 'finish that request' }).body);
     } finally { setBusy(false); }
   }, []);
 
@@ -449,11 +456,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               <MageAIMark size={16} color={themeColors.accent} />
             </View>
             <View>
-              <Text style={styles.headerTitle}>AI Schedule Assistant</Text>
+              <Text style={styles.headerTitle}>Schedule assistant</Text>
               <Text style={styles.headerSub}>
                 {callStats.total > 0
                   ? `${callStats.total} call${callStats.total === 1 ? '' : 's'} · ${callStats.cached} cached`
-                  : mode === 'home' ? 'Pick an action below' : `Mode: ${mode}`}
+                  : mode === 'home' ? 'Pick an action below' : MODE_LABEL[mode]}
               </Text>
             </View>
           </View>
@@ -474,7 +481,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           )}
           <ModeChip icon={ShieldAlert} label="Risks"      active={mode === 'risks'}    onPress={handleDetectRisks} />
           <ModeChip icon={MageAIMark}   label="Optimize"   active={mode === 'optimize'} onPress={handleOptimize} />
-          <ModeChip icon={Target}       label="Explain CP" active={mode === 'explain'}  onPress={handleExplain} />
+          <ModeChip icon={Target}       label="Critical path" active={mode === 'explain'}  onPress={handleExplain} />
           <ModeChip icon={MessageSquare} label="Ask"       active={mode === 'ask'}      onPress={() => setMode('ask')} />
           <ModeChip icon={Mic}          label="As-built"  active={mode === 'asbuilt'}  onPress={() => setMode('asbuilt')} />
           <ModeChip icon={MageAIMark}   label="Generate"   active={mode === 'generate'} onPress={() => setMode('generate')} />
@@ -499,7 +506,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           {busy && (
             <View style={styles.busyRow}>
               <ActivityIndicator size="small" color={themeColors.accent} />
-              <Text style={styles.busyText}>Thinking…</Text>
+              <Text style={styles.busyText}>Reading the schedule…</Text>
             </View>
           )}
           {error && (
@@ -585,7 +592,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                 <Text style={styles.emptyHintText}>
                   Talk like you would to a site foreman. Try: {'\n'}
                   "We finished the foundation and started framing today." {'\n'}
-                  AI will propose the matching task updates — you approve each.
+                  MAGE suggests task updates. You approve each one.
                 </Text>
               </View>
               {asBuiltPatches.length > 0 && (
@@ -619,18 +626,18 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               {selectedCount === 0 ? (
                 <View style={styles.emptyHint}>
                   <Text style={styles.emptyHintText}>
-                    No tasks are selected. Click a row's number in the grid to
-                    select it, then come back here to edit in bulk with AI.
+                    No tasks are selected. Click a row&apos;s number in the grid to
+                    select it, then come back here to edit them together.
                   </Text>
                 </View>
               ) : (
                 <View style={styles.emptyHint}>
                   <Text style={styles.emptyHintText}>
-                    Tell AI what to do with the {selectedCount} selected task{selectedCount === 1 ? '' : 's'}. Try:{'\n'}
+                    Say what to do with the {selectedCount} selected task{selectedCount === 1 ? '' : 's'}. Try:{'\n'}
                     "Compress each of these by 20%"{'\n'}
                     "Move them all out by one week"{'\n'}
                     "Reassign to the Finish Carp crew"
-                    {onHandOffToEditor ? '\n\nTo add new tasks, just say so ("Add a drywall inspection after these") and the schedule editor opens with it.' : ''}
+                    {onHandOffToEditor ? '\n\nTo add new tasks, say so ("Add a drywall inspection after these") and the schedule editor opens with it.' : ''}
                   </Text>
                 </View>
               )}
@@ -642,7 +649,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     </Text>
                     {bulkResult.fromCache && (
                       <View style={styles.cachedPill}>
-                        <Text style={styles.cachedPillText}>cached</Text>
+                        <Text style={styles.cachedPillText}>Cached</Text>
                       </View>
                     )}
                     {bulkResult.patches.length > 0 && (
@@ -656,7 +663,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     <View style={styles.partialBanner}>
                       <AlertTriangle size={12} color={Colors.warningLabel} strokeWidth={1.75} />
                       <Text style={styles.partialBannerText}>
-                        Partial result — AI response didn't fully match the expected shape. Review carefully before applying.
+                        Partial result. Some of the suggested changes couldn&apos;t be read, so review each one before applying.
                       </Text>
                     </View>
                   )}
@@ -688,7 +695,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               {linkedEstimate && linkedEstimate.items.length > 0 && !genPreview && (
                 <QuickBtn
                   icon={MageAIMark}
-                  title="Generate from my estimate"
+                  title="Draft from my estimate"
                   sub={`${linkedEstimate.items.length} item${linkedEstimate.items.length === 1 ? '' : 's'} · $${Math.round(linkedEstimate.grandTotal).toLocaleString()} → cost-loaded plan`}
                   onPress={handleGenerateFromEstimate}
                   featured
@@ -697,8 +704,8 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               <View style={styles.emptyHint}>
                 <Text style={styles.emptyHintText}>
                   {linkedEstimate && linkedEstimate.items.length > 0
-                    ? 'Generate from your estimate above for a plan that’s already wired to cost — or describe the project in your own words below.'
-                    : 'Describe your project and AI will draft the full schedule. Try: '}
+                    ? 'Draft from your estimate above for a plan that’s already tied to cost, or describe the project in your own words below.'
+                    : 'Describe the project to draft a schedule. Try: '}
                   {!(linkedEstimate && linkedEstimate.items.length > 0) && (
                     <>
                       {'\n'}"2500sqft two-story residential build, Dallas, break ground May 1, 4-month deadline"{'\n'}
@@ -724,14 +731,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     </View>
                   ) : (
                     <Text style={styles.paceColdStart}>
-                      Durations are AI estimates — MAGE learns your real pace as you finish tasks.
+                      Durations are an AI draft. MAGE learns your pace as you finish tasks.
                     </Text>
                   )}
                   {genPreview.some(t => (t.linkedEstimateItems?.length ?? 0) > 0) && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
                       <Check size={12} color={themeColors.accent} strokeWidth={2.5} />
                       <Text style={[styles.cardSuggestion, { marginTop: 0, flex: 1 }]}>
-                        {genPreview.filter(t => (t.linkedEstimateItems?.length ?? 0) > 0).length} tasks cost-loaded — earned value & cash flow will populate on apply.
+                        {genPreview.filter(t => (t.linkedEstimateItems?.length ?? 0) > 0).length} tasks cost-loaded. Earned value and cash flow fill in when you apply.
                       </Text>
                     </View>
                   )}
@@ -768,7 +775,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
             value={chatDraft}
             onChangeText={setChatDraft}
             onSubmit={handleAsk}
-            placeholder="Ask anything about the schedule…"
+            placeholder="Ask anything about the schedule"
             busy={busy}
           />
         )}
@@ -777,7 +784,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
             value={asBuiltDraft}
             onChangeText={setAsBuiltDraft}
             onSubmit={handleAsBuiltParse}
-            placeholder="'We poured the slab and started framing today…'"
+            placeholder="We poured the slab and started framing today"
             busy={busy}
           />
         )}
@@ -786,7 +793,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
             value={genDraft}
             onChangeText={setGenDraft}
             onSubmit={handleGenerate}
-            placeholder="Describe your project in 1-2 sentences…"
+            placeholder="Describe the project in 1 or 2 sentences"
             busy={busy}
           />
         )}
@@ -795,7 +802,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
             value={bulkDraft}
             onChangeText={setBulkDraft}
             onSubmit={handleBulkEdit}
-            placeholder="What should I do with the selected tasks?"
+            placeholder="What should change on the selected tasks?"
             busy={busy}
           />
         )}
@@ -859,11 +866,11 @@ function HomeCard({
       <Text style={styles.sectionLabel}>Quick actions</Text>
       <View style={styles.quickGrid}>
         {empty ? (
-          <QuickBtn icon={MageAIMark} title="Generate schedule" sub="Describe project → full plan" onPress={onGenerate} featured />
+          <QuickBtn icon={MageAIMark} title="Draft a schedule" sub="Describe the project, get a full plan" onPress={onGenerate} featured />
         ) : (
           <>
-            <QuickBtn icon={ShieldAlert} title="Detect risks" sub="Scan for logic issues" onPress={onRisks} featured />
-            <QuickBtn icon={Mic} title="Log progress" sub="Voice-to-actuals" onPress={onAsBuilt} />
+            <QuickBtn icon={ShieldAlert} title="Find risks" sub="Check the logic for problems" onPress={onRisks} featured />
+            <QuickBtn icon={Mic} title="Log progress" sub="Say what got done" onPress={onAsBuilt} />
           </>
         )}
       </View>
@@ -906,14 +913,14 @@ function RisksView({
         <Text style={styles.cardBody}>{result.summary}</Text>
       </View>
       {result.findings.length === 0 && (
-        <View style={styles.emptyHint}><Text style={styles.emptyHintText}>No issues found — the plan looks solid.</Text></View>
+        <View style={styles.emptyHint}><Text style={styles.emptyHintText}>No issues found in the plan&apos;s logic.</Text></View>
       )}
       {result.findings.map(f => (
         <View key={f.id} style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={[styles.severityDot, { backgroundColor: color(f.severity) }]} />
             <Text style={[styles.cardTitle, { flex: 1 }]}>{f.title}</Text>
-            <Text style={[styles.severityLabel, { color: color(f.severity) }]}>{f.severity.toUpperCase()}</Text>
+            <Text style={[styles.severityLabel, { color: color(f.severity) }]}>{humanizeEnum(f.severity)}</Text>
           </View>
           <Text style={styles.cardBody}>{f.detail}</Text>
           {f.suggestion && <Text style={styles.cardSuggestion}>→ {f.suggestion}</Text>}
@@ -1149,7 +1156,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cardActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
 
   severityDot: { width: 8, height: 8, borderRadius: 4 },
-  severityLabel: { fontSize: 9, fontWeight: '800' },
+  severityLabel: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase' as const },
 
   saveBadge: {
     fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.success,

@@ -184,7 +184,7 @@ console.log('\nD. Leave names what a sync cannot send:');
     mixed.offerSyncFirst && mixed.offerOpenNotSaved && /1 of them is under Not saved/.test(mixed.message), mixed.message);
   const queuedOnly = leaveDialogCopy('Henderson', 3);
   ok('queued only: the round-2 dialog, no Not-saved button', queuedOnly.offerSyncFirst && !queuedOnly.offerOpenNotSaved
-    && queuedOnly.message.startsWith("3 changes on this job haven't reached the cloud yet. Leaving now discards them."));
+    && queuedOnly.message.startsWith("3 changes on this project haven't reached the cloud yet. Leaving now discards them."));
   const leave = slice(PD, 'const handleLeave = useCallback(() => {', 'const handleLeaveRef = useRef(handleLeave);');
   ok('the screen counts the Not-saved part and builds the dialog from both',
     /const unsaved = pending > 0 \? await countUnsavedForProject\(id\)\.catch\(\(\) => 0\) : 0;/.test(leave)

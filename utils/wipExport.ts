@@ -92,7 +92,7 @@ export function wipLiveAsOfNote(
 ): string {
   if (period.id !== 'live') return '';
   if (!liveAsOf || liveAsOf === period.periodEndDate) return '';
-  return `Figures are as they stand on ${liveAsOf} and are NOT restated to the `
+  return `Figures are as they stand on ${liveAsOf} and are not restated to the `
     + `${period.periodEndDate} period end — MAGE does not keep an as-of ledger.`;
 }
 
@@ -279,7 +279,7 @@ function htmlRow(r: WipSnapshotRowWithSources): string {
   // eleven other numbers and nothing calling it what it is.
   const loss = r.output.anticipatedLoss;
   return `<tr${loss ? ' class="loss"' : ''}>
-    <td class="l">${escapeHtml(r.projectName)}${loss ? ' <span class="lossTag">LOSS JOB</span>' : ''}</td>
+    <td class="l">${escapeHtml(r.projectName)}${loss ? ' <span class="lossTag">Projected loss</span>' : ''}</td>
     <td>${money(r.input.originalContract)}</td>
     <td>${money(r.input.approvedChangeOrders)}</td>
     <td>${money(r.output.revisedContract)}</td>
@@ -422,7 +422,7 @@ function measurableFootHtml(period: WipPeriodWithSources): string {
   const contract = measurable.reduce((sum, r) => sum + r.output.revisedContract, 0);
   const cost = measurable.reduce((sum, r) => sum + wipRowCostAtCompletion(r), 0);
   return `<tr class="subtotal">
-    <td class="l">MEASURABLE SUBTOTAL (${measurable.length} of ${period.rows.length} jobs)</td>
+    <td class="l">Measurable subtotal (${measurable.length} of ${period.rows.length} projects)</td>
     <td></td><td></td><td>${money(contract)}</td>
     <td></td><td>${money(cost)}</td>
     <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
@@ -446,15 +446,15 @@ export function buildWipHtml(
     .sub { color: #666; font-size: 12px; margin: 4px 0 18px; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; }
     th, td { border: 1px solid #ddd; padding: 5px 6px; text-align: right; }
-    th { background: #f4f1ea; }
+    th { background: #ECEDE9; }
     td.l, th.l { text-align: left; }
-    tfoot td { font-weight: 700; background: #faf7f0; }
-    tfoot tr.subtotal td { font-weight: 600; background: #fffdf8; color: #555; }
+    tfoot td { font-weight: 700; background: #F6F6F4; }
+    tfoot tr.subtotal td { font-weight: 600; background: #FFFFFF; color: #555; }
     tr.loss td { background: #fdf3f2; }
     .lossTag { font-size: 8px; font-weight: 700; color: #8a2b22; border: 1px solid #d9a49d;
                border-radius: 3px; padding: 1px 3px; white-space: nowrap; }
     .nobasis { margin-top: 10px; font-size: 10px; color: #333; padding: 8px;
-               background: #faf7f0; border: 1px solid #e6ded0; line-height: 1.45; }
+               background: #F6F6F4; border: 1px solid #D7DAD4; line-height: 1.45; }
     .asof { margin: -10px 0 16px; font-size: 10px; color: #8a2b22; padding: 6px 8px;
             background: #fdf3f2; border: 1px solid #e6c8c3; line-height: 1.45; }
     .provision { margin-top: 10px; font-size: 10px; color: #333; padding: 8px;
@@ -468,22 +468,22 @@ export function buildWipHtml(
        because it is an EXPLANATION rather than a provenance label, and a banker
        reading the footnote block should be able to see which is which. */
     .basis { color: #555; }
-    .caveat { margin-top: 10px; padding: 8px; background: #faf7f0; border: 1px solid #e6ded0; line-height: 1.45; }
+    .caveat { margin-top: 10px; padding: 8px; background: #F6F6F4; border: 1px solid #D7DAD4; line-height: 1.45; }
   </style></head><body>
-    <h1>${escapeHtml(companyName)} — Work-In-Progress Schedule</h1>
-    <div class="sub">As of ${escapeHtml(period.periodEndDate)}${period.lockedAt ? ' · LOCKED' : ''}
+    <h1>${escapeHtml(companyName)} — Work-in-progress schedule</h1>
+    <div class="sub">As of ${escapeHtml(period.periodEndDate)}${period.lockedAt ? ' · Locked' : ''}
       · Prepared by management on the percentage-of-completion (cost-to-cost) basis</div>
     ${asOfNote ? `<div class="asof">${escapeHtml(asOfNote)}</div>` : ''}
     <table>
       <thead><tr>
-        <th class="l">Project</th><th>Original Contract</th><th>Approved COs</th><th>Revised Contract</th>
-        <th>Cost to Date</th><th>Est Cost at Completion</th><th>Cost to Complete</th>
-        <th>% Comp</th><th>Earned Rev</th><th>Billed</th><th>Overbill</th><th>Underbill</th>
-        <th>Retainage Held</th><th>GP to Date</th><th>Est GP</th><th>Backlog</th>
+        <th class="l">Project</th><th>Original contract</th><th>Approved COs</th><th>Revised contract</th>
+        <th>Cost to date</th><th>Est. cost at completion</th><th>Cost to complete</th>
+        <th>% complete</th><th>Earned rev.</th><th>Billed</th><th>Overbilled</th><th>Underbilled</th>
+        <th>Retainage held</th><th>GP to date</th><th>Est. GP</th><th>Backlog</th>
       </tr></thead>
       <tbody>${period.rows.map(htmlRow).join('')}</tbody>
       <tfoot><tr>
-        <td class="l">TOTAL</td>
+        <td class="l">Total</td>
         <td>${money(period.rows.reduce((sum, r) => sum + r.input.originalContract, 0))}</td>
         <td>${money(period.rows.reduce((sum, r) => sum + r.input.approvedChangeOrders, 0))}</td>
         <td>${money(t.revisedContract)}</td>
@@ -536,7 +536,7 @@ export async function shareWipPeriodPdf(
   const { uri } = await Print.printToFileAsync({ html, base64: false });
   const canShare = await Sharing.isAvailableAsync();
   if (canShare) {
-    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `WIP Report ${period.periodEndDate}`, UTI: 'com.adobe.pdf' });
+    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `WIP report ${period.periodEndDate}`, UTI: 'com.adobe.pdf' });
   } else {
     await Print.printAsync({ uri });
   }
@@ -619,7 +619,7 @@ export async function shareWipPeriodCsv(
   if (outcome !== 'shared' || !uri) return outcome;
   await Sharing.shareAsync(uri, {
     mimeType: 'text/csv',
-    dialogTitle: `WIP Schedule ${period.periodEndDate}`,
+    dialogTitle: `WIP schedule ${period.periodEndDate}`,
     UTI: 'public.comma-separated-values-text',
   });
   return outcome;

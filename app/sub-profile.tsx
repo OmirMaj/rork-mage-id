@@ -75,7 +75,7 @@ export default function SubProfileScreen() {
     try {
       await shareText({ message: text });
     } catch {
-      showAlert('Could not share', 'Please try again.');
+      showAlert('Couldn’t share your profile', 'Try again.');
     }
   };
 
@@ -110,8 +110,7 @@ export default function SubProfileScreen() {
             <Text style={styles.emptyTitle}>No work history in this workspace yet</Text>
             <Text style={styles.emptyBody}>
               This page reads only this MAGE ID workspace. A contractor{"\u2019"}s records about your work
-              live in their own account, so jobs you did for other contractors do not show up here — MAGE
-              ID cannot read across contractors{"\u2019"} accounts yet.
+              live in their own account, so work you did for other contractors doesn{"\u2019"}t show up here.
             </Text>
           </View>
         ) : (
@@ -119,7 +118,7 @@ export default function SubProfileScreen() {
             <View style={styles.scopeNote} testID="sub-profile-scope">
               <Info size={14} color={t.textMuted} strokeWidth={1.75} />
               <Text style={styles.scopeNoteText}>
-                Built from this workspace only. Jobs you did for contractors in their own MAGE ID accounts are not included.
+                Built from this workspace only. Work you did for contractors in their own MAGE ID accounts is not included.
               </Text>
             </View>
             <SubNetworkProfileView

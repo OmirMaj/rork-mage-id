@@ -213,7 +213,7 @@ ok('construction-ai: the plan-review quota line has no Infinity branch (every ti
 const onboardingPaywall = code(read('app/onboarding-paywall.tsx'));
 ok('onboarding-paywall: no "Teams & unlimited"', !onboardingPaywall.includes('Teams & unlimited'));
 ok('onboarding-paywall: the Business tagline counts its seats from INCLUDED_ADMIN_SEATS.business',
-  onboardingPaywall.includes('tagline={`Teams · ${INCLUDED_ADMIN_SEATS.business} office seats`}'));
+  onboardingPaywall.includes('tagline={`Teams · ${INCLUDED_ADMIN_SEATS.business} office team members`}'));
 const marketingHome = code(read('marketing/index.html'));
 const unlimitedEstimating = marketingHome.split('\n').filter(l => /Unlimited estimating/i.test(l));
 ok('marketing/index.html: no line pairs "Unlimited estimating"', unlimitedEstimating.length === 0, unlimitedEstimating.join(' | '));

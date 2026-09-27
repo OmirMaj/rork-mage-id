@@ -10,6 +10,7 @@ import { getLanguageMeta } from '@/utils/portalLanguages';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { getInvoicedToDate, getPaidToDate } from '@/utils/projectFinancials';
 import { CONTRACTED_NOTE } from '@/utils/groundingChip';
 import { resolveScheduleAnchor, scheduleDayNumberFor } from '@/utils/scheduleOps';
 import { calendarDayOf, dayOrInstantDate, formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
@@ -617,7 +618,7 @@ Be specific with task names. Include inspections and mobilization/demobilization
       try {
         parsed = JSON.parse(cleaned.trim());
       } catch {
-        throw new Error('Could not parse AI schedule response. Please try again.');
+        throw new Error('Couldn’t read the generated schedule. Try again.');
       }
     }
   }
@@ -1342,8 +1343,8 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
     // estimated, so there is nothing to be 30% confident about. The warning
     // below is the honest signal; a confidence meter on a stub is fabricated
     // precision about a fabricated estimate.
-    warnings: ['AI estimate unavailable — this is a placeholder. Please edit with actual quantities and pricing.'],
-    savingsTips: ['Get at least 3 contractor bids', 'Buy materials in bulk where possible'],
+    warnings: ['Couldn’t generate the estimate. These are placeholder rows. Edit them with your real quantities and pricing.'],
+    savingsTips: ['Get at least 3 sub bids', 'Buy materials in bulk where possible'],
   };
 
   // Build a more informative warning when we fall back to the stub. Pre-fix
@@ -1351,17 +1352,17 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
   // a token cutoff, a safety block, a network issue, or just a flaky model
   // moment. Now we tell them what happened + suggest a fix.
   const stubWithReason = (reasonCode: string | undefined, errMsg: string | undefined): AIQuickEstimateResult => {
-    let why = 'AI is having a moment — this is a placeholder.';
+    let why = 'Couldn’t generate the estimate. These are placeholder rows.';
     if (reasonCode === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg ?? '')) {
-      why = 'AI ran out of room before finishing — try a shorter scope description, or fewer line items.';
+      why = 'The estimate stopped before it finished. Try a shorter scope description or fewer line items.';
     } else if (reasonCode === 'SAFETY') {
-      why = 'AI refused this request (safety filter). Try rephrasing the description.';
+      why = 'A safety filter blocked this description. Try rephrasing it.';
     } else if (reasonCode === 'RECITATION') {
-      why = 'AI refused this request (looked too close to its training data). Try paraphrasing.';
+      why = 'This description couldn’t be processed. Try rewording it.';
     } else if (errMsg?.includes('timed out')) {
-      why = 'AI took too long to respond. Tap Generate again — it usually works on the second try.';
+      why = 'The estimate took too long. Tap Generate again.';
     } else if (errMsg?.includes('reach AI')) {
-      why = 'Could not reach the AI server. Check your connection and retry.';
+      why = 'Couldn’t reach MAGE. Check your connection and try again.';
     }
     return {
       ...stub,
@@ -1395,6 +1396,31 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
   return result;
 }
 
+/**
+ * The money a stakeholder report is grounded on (MONEY-DRAFTS-COUNTED, health
+ * 2026-09-26). The prompt used to sum EVERY invoice — drafts included, and a
+ * payment logged on a draft as paid — and EVERY change order, so a rejected or
+ * voided CO was told to the model as "Change orders: 1 totaling 3,000" and
+ * came back in a report the GC shares with his client. Through the shared
+ * definitions now: drafts are not invoiced (getInvoicedToDate / getPaidToDate,
+ * the same figures client-view and the portal show), and only APPROVED change
+ * orders count toward the contract.
+ */
+export function projectReportMoneyFigures(
+  project: Pick<Project, 'id'>,
+  invoices: readonly Invoice[],
+  changeOrders: readonly ChangeOrder[],
+): { totalInvoiced: number; totalPaid: number; approvedCoCount: number; approvedCoTotal: number } {
+  const projInvoices = invoices.filter(i => i.projectId === project.id);
+  const approvedCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
+  return {
+    totalInvoiced: getInvoicedToDate(projInvoices),
+    totalPaid: getPaidToDate(projInvoices),
+    approvedCoCount: approvedCOs.length,
+    approvedCoTotal: approvedCOs.reduce((s, co) => s + (co.changeAmount ?? 0), 0),
+  };
+}
+
 export async function generateProjectReport(
   project: Project,
   invoices: Invoice[],
@@ -1404,11 +1430,8 @@ export async function generateProjectReport(
   const schedule = project.schedule;
   const tasks = schedule?.tasks ?? [];
   const est = project.linkedEstimate ?? project.estimate;
-  const projInvoices = invoices.filter(i => i.projectId === project.id);
-  const projCOs = changeOrders.filter(co => co.projectId === project.id);
-  const totalInvoiced = projInvoices.reduce((s, i) => s + i.totalDue, 0);
-  const totalPaid = projInvoices.reduce((s, i) => s + i.amountPaid, 0);
-  const coTotal = projCOs.reduce((s, co) => s + co.changeAmount, 0);
+  const { totalInvoiced, totalPaid, approvedCoCount, approvedCoTotal } =
+    projectReportMoneyFigures(project, invoices, changeOrders);
 
   const aiResult = await mageAI({
     prompt: `You are a senior construction project manager writing a professional project status report for stakeholders.
@@ -1427,9 +1450,9 @@ Duration: ${schedule?.totalDurationDays ?? 0} days
 
 BUDGET:
 Estimate: ${est && 'grandTotal' in est ? est.grandTotal.toLocaleString() : '0'}
-Total invoiced: ${totalInvoiced.toLocaleString()}
+Total invoiced (issued invoices, drafts excluded): ${totalInvoiced.toLocaleString()}
 Total paid: ${totalPaid.toLocaleString()}
-Change orders: ${projCOs.length} totaling ${coTotal.toLocaleString()}
+Approved change orders: ${approvedCoCount} totaling ${approvedCoTotal.toLocaleString()}
 
 TASKS (active):
 ${tasks.filter(t => t.status === 'in_progress').slice(0, 15).map(t => `- ${t.title}: ${t.progress}%`).join('\n') || 'None'}

@@ -48,6 +48,7 @@ import { recordCodeThreadAction } from '@/utils/codeThread/store';
 import { showAlert } from '@/utils/alert';
 import { generateUUID } from '@/utils/generateId';
 import { todayCalendarDay } from '@/utils/calendarDate';
+import { describeError } from '@/utils/errorCopy';
 
 export interface CodeThreadActionsProps {
   record: CodeCheckRecord;
@@ -154,7 +155,9 @@ export function CodeThreadActions({
         }
         return action;
       } catch (e) {
-        showAlert("Couldn't add it", e instanceof Error ? e.message : String(e));
+        console.warn('[code-thread] action failed:', e instanceof Error ? e.message : e);
+        const copy = describeError(e, { action: 'add this to the project' });
+        showAlert(copy.title, copy.body);
         return null;
       } finally {
         busyRef.current = false;
@@ -170,7 +173,7 @@ export function CodeThreadActions({
     'Project Team';
 
   const onAddPermit = () => {
-    showAlert('Add to Permits', PERMIT_CONFIRM_TEXT, [
+    showAlert('Add to permits', PERMIT_CONFIRM_TEXT, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Add',
@@ -261,7 +264,7 @@ export function CodeThreadActions({
           <>
             <View style={styles.row}>
               <Button
-                label={busy === 'permit' ? 'Adding…' : 'Add to Permits'}
+                label={busy === 'permit' ? 'Adding…' : 'Add to permits'}
                 size="sm"
                 variant="secondary"
                 disabled={blocked || busy !== null}

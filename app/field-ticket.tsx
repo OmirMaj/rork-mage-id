@@ -64,6 +64,8 @@ import {
 import { useLaborRates } from '@/hooks/useLaborRates';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+// LS-5: a viewer seat reads tickets but cannot file one (RLS needs 'field').
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import { canViewFinancials } from '@/utils/roleBlinding';
 import { todayCalendarDay } from '@/utils/calendarDate';
 import { pdfFailureMessage } from '@/utils/platformFile';
@@ -128,15 +130,15 @@ function FieldTicketAccessView({ gate, projectName, requiredTier, onRetry, onClo
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]} testID={`field-ticket-gate-${gate}`}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="T&M TICKET · MAGE ID" title={projectName} />
+      <ToolHeader eyebrow="T&M ticket · MAGE ID" title={projectName} />
       <View style={{ padding: 24, gap: 14, alignItems: 'center' }}>
         {gate === 'loading' ? <ActivityIndicator color={t.accent} /> : null}
         <Text style={styles.ticketMeta}>
           {gate === 'loading'
-            ? 'Checking your access to this job…'
+            ? 'Checking your access to this project…'
             : gate === 'error'
-              ? "Couldn't check your access to this job. Check your connection and try again."
-              : "You don't have access to this job's T&M tickets. Ask the project owner to invite you."}
+              ? "Couldn't check your access to this project. Check your connection and try again."
+              : "You don't have access to this project's T&M tickets. Ask the project owner to invite you."}
         </Text>
         {gate === 'error' ? (
           <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="field-ticket-gate-retry" />
@@ -172,7 +174,7 @@ const ROLE_CHIPS: { key: FieldTicketAuthorizerRole; label: string }[] = [
 
 const STATUS_LABEL: Record<FieldTicketStatus, string> = {
   draft: 'Unsigned',
-  signed: 'Signed — not billed',
+  signed: 'Signed, not billed',
   converted: 'Billed',
   void: 'Void',
 };
@@ -379,6 +381,10 @@ export default function FieldTicketScreen() {
   const {
     role: projectRole, isError: projectRoleError, isLoading: projectRoleLoading, refetch: refetchProjectRole,
   } = useProjectRoleState(activeProjectId || undefined);
+  // LS-5: field_tickets insert AND update need a field/editor/owner seat. A
+  // viewer's new ticket, signature or void would land optimistically and be
+  // refused by RLS, so those controls are off for him and say why.
+  const writeBlock = projectRecordWriteBlock(projectRole);
   // #91: the screen gate, on the RESOLVED project (see the Gate header). The
   // tier LABEL still comes from featureTiers via useTierAccess.
   const { canAccess, canAccessOwnTier } = useProjectAccess(activeProjectId || undefined);
@@ -418,6 +424,10 @@ export default function FieldTicketScreen() {
     name: string, title: string, role: FieldTicketAuthorizerRole, paths: string[],
   ) => {
     if (!activeProjectId) return;
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     setBusy(true);
     try {
       // Best-effort GPS on the signature itself — proves it was signed on site
@@ -488,11 +498,16 @@ export default function FieldTicketScreen() {
     }
   }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
       reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer,
-      signTargetId, fieldTickets, updateFieldTicket, amountSuffix]);
+      signTargetId, fieldTickets, updateFieldTicket, amountSuffix, writeBlock]);
 
   /** Save without a signature. Honest about what it is: a reminder, not evidence. */
   const handleSaveUnsigned = useCallback(() => {
     if (!activeProjectId) return;
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     const now = new Date().toISOString();
     const ticket: FieldTicket = {
       ...emptyFieldTicket({
@@ -512,7 +527,7 @@ export default function FieldTicketScreen() {
       'This ticket is a note, not evidence. Get the signature before the crew leaves — an unsigned ticket cannot become a change order.',
     );
   }, [activeProjectId, tickets, sourceDailyReportId, markup, workDate, workDescription,
-      reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer]);
+      reasonExtra, labor, materials, equipment, photos, addFieldTicket, resetComposer, writeBlock]);
 
   // ── Convert to change order ───────────────────────────────────────────────
 
@@ -564,7 +579,7 @@ export default function FieldTicketScreen() {
             // No number in the toast: it is provisional until the server has
             // it (#77/#141) — the change-order screen opens next and shows the
             // confirmed number, or "(pending #)".
-            nailIt(`Change order drafted — ${money(co.changeAmount)}`);
+            nailIt(`Change order drafted · ${money(co.changeAmount)}`);
             router.push({
               pathname: '/change-order',
               params: { projectId: ticket.projectId, coId: co.id },
@@ -631,13 +646,13 @@ export default function FieldTicketScreen() {
       // the rule is rather than leaving a silently-unsaved sheet behind.
       showAlert(
         'Not saved',
-        'Only the rates can change after a signature. The hours, quantities and descriptions are what the owner’s rep put their name on.',
+        'Only the rates can change after a signature. The hours, quantities and descriptions are what the signer put their name on.',
       );
       return;
     }
     setPricingOpen(false);
     const priced = computeFieldTicketTotals({ ...ticket, ...next });
-    nailIt(`${fieldTicketLabel(ticket.number)} priced — ${money(priced.billableTotal)}`);
+    nailIt(`${fieldTicketLabel(ticket.number)} priced · ${money(priced.billableTotal)}`);
   }, [updateFieldTicket, officeActor, pricingBlockReason]);
 
   const handleShare = useCallback(async (ticket: FieldTicket) => {
@@ -650,13 +665,17 @@ export default function FieldTicketScreen() {
       });
     } catch (err) {
       console.warn('[FieldTicket] pdf error:', err);
-      showAlert('Could not build the PDF', pdfFailureMessage(err, 'Try again in a moment.'));
+      showAlert('Couldn’t build the PDF', pdfFailureMessage(err, 'Try again in a moment.'));
     } finally {
       setBusy(false);
     }
   }, [project, settings.branding]);
 
   const handleVoid = useCallback((ticket: FieldTicket) => {
+    if (writeBlock) {
+      showAlert("Can't void", writeBlock);
+      return;
+    }
     showAlert(
       `Void ${fieldTicketLabel(ticket.number)}?`,
       'The ticket stays on the record but can never be billed.',
@@ -672,7 +691,7 @@ export default function FieldTicketScreen() {
         },
       ],
     );
-  }, [updateFieldTicket]);
+  }, [updateFieldTicket, writeBlock]);
 
   // ── No project selected ───────────────────────────────────────────────────
 
@@ -680,9 +699,9 @@ export default function FieldTicketScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="T&M TICKET · MAGE ID" title="Field Ticket" />
+        <ToolHeader eyebrow="T&M ticket · MAGE ID" title="T&M ticket" />
         <ToolProjectPicker
-          toolName="T&M Field Ticket"
+          toolName="T&M tickets"
           message="Capture extra work and get it signed on site, before anyone forgets it happened."
           projects={projects}
           onPick={setPickedProjectId}
@@ -728,7 +747,7 @@ export default function FieldTicketScreen() {
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader
-          eyebrow={`${fieldTicketLabel(openTicket.number)} · ${STATUS_LABEL[openTicket.status].toUpperCase()}`}
+          eyebrow={`${fieldTicketLabel(openTicket.number)} · ${STATUS_LABEL[openTicket.status]}`}
           title={project.name}
           right={
             <TouchableOpacity onPress={() => setOpenTicketId(null)} hitSlop={12} style={styles.headerAction}>
@@ -878,12 +897,14 @@ export default function FieldTicketScreen() {
             <Button
               label="Get signature now"
               onPress={() => { setSignTargetId(openTicket.id); setSignOpen(true); }}
+              disabled={!!writeBlock}
               fullWidth
               size="lg"
               iconLeft={<FileSignature size={16} color="#FFF" strokeWidth={2} />}
               testID="ticket-sign-existing"
             />
           )}
+          {openTicket.status === 'draft' && writeBlock ? <Text style={styles.ticketMeta} testID="ticket-detail-viewer-block">{writeBlock}</Text> : null}
 
           {billedCO && (
             <TouchableOpacity
@@ -895,7 +916,7 @@ export default function FieldTicketScreen() {
               testID="ticket-open-co"
             >
               <Check size={16} color={t.success} strokeWidth={2} />
-              <Text style={styles.billedText}>Billed on Change Order #{billedCO.number}</Text>
+              <Text style={styles.billedText}>Billed on change order #{billedCO.number}</Text>
               <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
@@ -943,7 +964,7 @@ export default function FieldTicketScreen() {
             )}
             {!billedCO && openTicket.status !== 'void' && (
               <Button
-                label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? "Your GC bills this ticket" : convertBlockReason ? "Can't bill yet" : gate.canConvert ? `Bill it — create change order` : "Can't bill yet"}
+                label={convertBlockReason === FIELD_TICKET_GC_CREATES_COS ? "Your GC bills this ticket" : convertBlockReason ? "Can't bill yet" : gate.canConvert ? 'Bill it as a change order' : "Can't bill yet"}
                 onPress={() => handleConvert(openTicket)}
                 disabled={!gate.canConvert || !!convertBlockReason}
                 fullWidth
@@ -1014,7 +1035,7 @@ export default function FieldTicketScreen() {
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader
-          eyebrow={`${fieldTicketLabel(nextFieldTicketNumber(tickets))} · NEW`}
+          eyebrow={`${fieldTicketLabel(nextFieldTicketNumber(tickets))} · New`}
           title={project.name}
           right={
             <TouchableOpacity
@@ -1302,28 +1323,30 @@ export default function FieldTicketScreen() {
             <View style={styles.stickyTotals}>
               <Text style={styles.stickyTotalValue}>{money(draftTotals.billableTotal)}</Text>
               <Text style={styles.stickyTotalLabel} numberOfLines={1}>
-                {readiness.ready
-                  ? 'Ready for signature'
-                  : `Still need: ${readiness.missing[0]}`}
+                {writeBlock
+                  ? writeBlock
+                  : readiness.ready
+                    ? 'Ready for signature'
+                    : `Still need: ${readiness.missing[0]}`}
               </Text>
             </View>
             <View style={styles.stickyActions}>
               <TouchableOpacity
                 style={styles.saveLater}
                 onPress={handleSaveUnsigned}
-                disabled={!readiness.ready}
+                disabled={!readiness.ready || !!writeBlock}
                 testID="ticket-save-unsigned"
               >
-                <Text style={[styles.saveLaterText, !readiness.ready && styles.disabledText]}>Save</Text>
+                <Text style={[styles.saveLaterText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>Save</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.signBtn, !readiness.ready && styles.signBtnDisabled]}
+                style={[styles.signBtn, (!readiness.ready || !!writeBlock) && styles.signBtnDisabled]}
                 onPress={() => { tap(); setSignTargetId(null); setSignOpen(true); }}
-                disabled={!readiness.ready}
+                disabled={!readiness.ready || !!writeBlock}
                 testID="ticket-get-signature"
               >
                 <FileSignature size={16} color={readiness.ready ? '#FFF' : t.textMuted} strokeWidth={2} />
-                <Text style={[styles.signBtnText, !readiness.ready && styles.disabledText]}>
+                <Text style={[styles.signBtnText, (!readiness.ready || !!writeBlock) && styles.disabledText]}>
                   Get signature
                 </Text>
               </TouchableOpacity>
@@ -1355,7 +1378,7 @@ export default function FieldTicketScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="T&M TICKET · MAGE ID" title={project.name} />
+      <ToolHeader eyebrow="T&M ticket · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}>
         {unbilled.length > 0 && (
           <View style={styles.unbilledCard}>
@@ -1365,8 +1388,8 @@ export default function FieldTicketScreen() {
               <Text style={styles.unbilledSub} testID="ticket-money-hidden-reason">{moneyHiddenReason}</Text>
             ) : null}
             <Text style={styles.unbilledSub}>
-              {unbilled.length} ticket{unbilled.length === 1 ? '' : 's'} the owner has already
-              authorized. Convert them before closeout.
+              {unbilled.length} ticket{unbilled.length === 1 ? '' : 's'} already signed on site.
+              Convert them before closeout.
             </Text>
           </View>
         )}
@@ -1380,10 +1403,10 @@ export default function FieldTicketScreen() {
         {tickets.length === 0 ? (
           <EmptyState
             icon={<FileSignature size={36} color={t.accent} strokeWidth={1.6} />}
-            title="No field tickets yet"
-            message="Extra work you never got signed for is the money you lose at closeout. Write the ticket while the work is still visible and get the owner's rep to sign it on the spot."
-            actionLabel="New T&M ticket"
-            onAction={() => setView('compose')}
+            title="No T&M tickets yet"
+            message={writeBlock ?? "Extra work you never got signed for is the money you lose at closeout. Write the ticket while the work is still visible and get the owner's rep to sign it on the spot."}
+            actionLabel={writeBlock ? undefined : 'New T&M ticket'}
+            onAction={writeBlock ? undefined : () => setView('compose')}
           />
         ) : (
           tickets.map(x => {
@@ -1428,9 +1451,12 @@ export default function FieldTicketScreen() {
 
       {tickets.length > 0 && (
         <View style={[styles.fabBar, { paddingBottom: insets.bottom + 10 }]}>
+          {/* LS-5: a viewer seat cannot file — the control says why. */}
+          {writeBlock ? <Text style={styles.ticketMeta} testID="ticket-viewer-block">{writeBlock}</Text> : null}
           <Button
             label="New T&M ticket"
             onPress={() => setView('compose')}
+            disabled={!!writeBlock}
             fullWidth
             size="lg"
             iconLeft={<Plus size={18} color="#FFF" strokeWidth={2.25} />}
@@ -1629,7 +1655,7 @@ function PricingModal({ visible, ticket, laborRates, equipment, onClose, onApply
           <Text style={preview.markupPercent > 0 ? styles.modalAttest : styles.priceWarn}>
             {preview.markupPercent > 0
               ? `This ticket adds ${preview.markupPercent}% O&P on top of the rates you enter.`
-              : 'This ticket carries no O&P markup — whatever you enter here is exactly what the owner is billed.'}
+              : 'This ticket carries no O&P markup — whatever you enter here is exactly what the client is billed.'}
           </Text>
 
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
@@ -1866,7 +1892,7 @@ function SignatureModal({ visible, busy, amount, summary, onClose, onSign }: {
                 <>
                   <Check size={16} color={ready ? '#FFF' : t.textMuted} strokeWidth={2.5} />
                   <Text style={[styles.modalConfirmText, !ready && styles.disabledText]}>
-                    Sign &amp; seal{amount == null ? '' : ` · ${money(amount)}`}
+                    Sign and seal{amount == null ? '' : ` · ${money(amount)}`}
                   </Text>
                 </>
               )}

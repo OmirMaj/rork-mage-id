@@ -251,7 +251,7 @@ describe('lane R2 — Subs register, desktop web 1512', () => {
     const marks: string[] = [];
     walk(tree.toJSON(), (j) => {
       if (j.props?.testID === 'sub-detail-scorecard') marks.push('scorecard');
-      if (j.type === 'Text' && textOf(j) === 'AI Evaluate Sub') marks.push('ai');
+      if (j.type === 'Text' && textOf(j) === 'Evaluate this sub') marks.push('ai');
     });
     expect(marks).toEqual(['scorecard', 'ai']);
   });

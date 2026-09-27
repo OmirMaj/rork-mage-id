@@ -96,7 +96,7 @@ function EstimateAccuracyInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate Accuracy · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Estimate accuracy · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Bid vs actual'}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -108,7 +108,7 @@ function EstimateAccuracyInner() {
         <EmptyState
           icon={<Scale size={36} color={t.accent} strokeWidth={1.6} />}
           title="No estimate yet"
-          message="Bid vs Actual compares each line of a job's estimate to what you signed and paid. None of your projects has an estimate with lines yet — build one, then come back."
+          message="Bid vs. actual compares each line of a project's estimate to what you signed and paid. None of your projects has an estimate with lines yet. Build one, then come back."
           actionLabel="Build an estimate"
           onAction={() => router.push('/estimate-wizard' as never)}
         />
@@ -117,7 +117,7 @@ function EstimateAccuracyInner() {
           {candidates.length > 0 && (
             <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
               <EstimateJobPicker
-                label="Measure another job"
+                label="Measure another project"
                 jobs={candidates}
                 selectedId={projectId}
                 onPick={(id) => router.setParams({ projectId: id })}
@@ -130,8 +130,8 @@ function EstimateAccuracyInner() {
             title={!project ? 'Project not found' : 'No estimate to measure'}
             message={
               !project
-                ? 'This link points to a project that isn\u2019t on this device any more. Pick a job above, or go back.'
-                : 'Estimate Accuracy compares each estimate line to what you signed and paid. To use it:'
+                ? 'This link points to a project that isn\u2019t on this device any more. Pick a project above, or go back.'
+                : 'Estimate accuracy compares each estimate line to what you signed and paid. To use it:'
             }
             steps={
               !project
@@ -139,7 +139,7 @@ function EstimateAccuracyInner() {
                 : [
                     'Build an estimate with cost and markup.',
                     'Award buyout so commitments link back to estimate lines.',
-                    'Record sub payments — actuals flow onto each line automatically.',
+                    'Record sub payments. Actuals flow onto each line automatically.',
                   ]
             }
             actionLabel={!project ? 'Back' : 'Open buyout'}
@@ -228,7 +228,7 @@ function EstimateAccuracyInner() {
                     <Text style={[styles.varText, { color: overallVarColor(ref - tr.bid) }]}>{pctStr(vp)}</Text>
                   </View>
                 ) : (
-                  <Text style={styles.tradePending}>not signed</Text>
+                  <Text style={styles.tradePending}>Not signed</Text>
                 )}
               </View>
             );
@@ -247,7 +247,7 @@ function EstimateAccuracyInner() {
             testID="estimate-accuracy-cost-db-link"
           >
             <Library size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.crossLinkText}>See your cost database — rates learned from every closed job</Text>
+            <Text style={styles.crossLinkText}>See your cost history from every closed project</Text>
             <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
@@ -285,7 +285,7 @@ function LineCard({
             <Text style={[styles.varText, { color: varColor }]}>{pctStr(vp)}</Text>
           </View>
         ) : (
-          <Text style={styles.linePending}>not signed</Text>
+          <Text style={styles.linePending}>Not signed</Text>
         )}
       </View>
       <View style={styles.lineNums}>

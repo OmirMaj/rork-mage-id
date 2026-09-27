@@ -80,14 +80,14 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_API_VERSION = "2024-06-20";
 
 const INK = "#0B0D10";
-const AMBER = "#FF6A1A";
-const CREAM = "#F4EFE6";
-const SAND = "#E8DFCD";
+const BRAND = "#2F6B3A";
+const CONCRETE = "#ECEDE9";
+const HAIRLINE = "#D7DAD4";
 const FOG = "#9AA3AD";
 const STONE = "#4A5159";
 const PAPER = "#FFFFFF";
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 function escapeHtml(text: unknown): string {
   if (text == null) return "";
@@ -1350,7 +1350,7 @@ async function sendReceiptEmail(
       ? ` ${escapeHtml(formatMoney(retentionHeld))} of retention is held until closeout and is not included above.`
       : "";
     const balanceLine = opts.newStatus === "paid"
-      ? `Paid in full — nothing further is due today.${retentionNote}`
+      ? `Paid in full. Nothing further is due today.${retentionNote}`
       : `Balance remaining: <strong>${escapeHtml(formatMoney(remaining))}</strong>${retentionNote}`;
 
     const bodyHtml = `
@@ -1369,8 +1369,8 @@ async function sendReceiptEmail(
 
     const html = wrapEmailHtml({
       preheader: opts.newStatus === "paid"
-        ? `Paid in full — ${projectName}`
-        : `Payment received — ${projectName}`,
+        ? `Paid in full · ${projectName}`
+        : `Payment received · ${projectName}`,
       eyebrow: "Payment received",
       title: formatMoney(opts.amountReceived),
       bodyHtml,
@@ -1382,8 +1382,8 @@ async function sendReceiptEmail(
     });
 
     const subject = opts.newStatus === "paid"
-      ? `Payment received — ${projectName} paid in full`
-      : `Payment received — ${projectName}`;
+      ? `Paid in full · ${projectName}`
+      : `Payment received · ${projectName}`;
 
     const result = await resendSend(RESEND_API_KEY, {
       to: opts.customerEmail,

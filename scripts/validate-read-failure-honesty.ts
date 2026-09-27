@@ -121,7 +121,7 @@ console.log('\nread-failure honesty');
 
   for (const [rel, label, empty] of [
     ['app/(tabs)/discover/companies.tsx', 'companies', 'No companies match yet'],
-    ['app/(tabs)/discover/hire.tsx', 'hire', 'No jobs posted yet'],
+    ['app/(tabs)/discover/hire.tsx', 'hire', 'No job posts to show'],
   ] as const) {
     const file = src(rel);
     ok(`discover/${label}: the query error is kept, not underscore-prefixed away`,

@@ -10,6 +10,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { SQUARE_FOOT_MODELS, QUALITY_TIERS, SF_CATEGORIES, type SquareFootModel, type QualityTier } from '@/constants/squareFootCosts';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface SquareFootEstimatorProps {
   visible: boolean;
@@ -35,6 +36,9 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
   // ink at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedModel, setSelectedModel] = useState<SquareFootModel | null>(null);
@@ -88,7 +92,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
 
   const renderStep1 = () => (
     <>
-      <Text style={s.stepTitle}>Select Building Type</Text>
+      <Text style={s.stepTitle}>Choose a building type</Text>
       <View style={s.categoryRow}>
         {SF_CATEGORIES.map(cat => {
           const isActive = selectedCategory === cat.id;
@@ -145,7 +149,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
           <Text style={s.backBtnText}>← Change type</Text>
         </TouchableOpacity>
         <Text style={s.stepTitle}>{selectedModel.buildingType}</Text>
-        <Text style={s.stepSubtitle}>Select quality level & enter size</Text>
+        <Text style={s.stepSubtitle}>Choose a finish level and enter the size</Text>
 
         <View style={s.qualityGrid}>
           {QUALITY_TIERS.map(tier => {
@@ -168,7 +172,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
           })}
         </View>
 
-        <Text style={s.fieldLabel}>Square Footage</Text>
+        <Text style={s.fieldLabel}>Square footage</Text>
         <View style={s.sqftRow}>
           <TouchableOpacity style={s.sqftBtn} onPress={() => setSqftInput(String(Math.max(0, sqft - 100)))}>
             <MinusIcon size={18} color={Colors.primary} strokeWidth={1.75} />
@@ -199,7 +203,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
           <View style={s.resultCard}>
             <View style={s.resultHeader}>
               <Calculator size={16} color={Colors.primary} strokeWidth={1.75} />
-              <Text style={s.resultTitle}>Estimated Cost Range</Text>
+              <Text style={s.resultTitle}>Estimated cost range</Text>
             </View>
             {locationFactor !== 1 && (
               <View style={s.locationBadge}>
@@ -236,12 +240,14 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={handleClose}>
-      <View style={s.container}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} transparent={fP.transparent} onRequestClose={handleClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={handleClose} />
+      <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
-            <Text style={s.headerTitle}>Quick Estimate</Text>
-            <Text style={s.headerSub}>Square foot cost calculator</Text>
+            <Text style={s.headerTitle}>Square-foot estimator</Text>
+            <Text style={s.headerSub}>Cost range by building type and size</Text>
           </View>
           <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
@@ -250,6 +256,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
           {step === 2 && renderStep2()}
         </View>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 });
@@ -277,7 +284,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
     backgroundColor: t.neutralSoft,
   },
-  catChipActive: { backgroundColor: Colors.primary },
+  catChipActive: { backgroundColor: t.accentFill },
   catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   catChipTextActive: { color: Colors.textOnPrimary },
   modelList: { flex: 1 },

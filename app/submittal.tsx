@@ -22,6 +22,8 @@ import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+// LS-5: a viewer seat reads submittals but cannot file one (RLS needs 'field').
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import {
   useCollectionSettled, useRefetchCollectionOnOpen, useServerRecordNumber,
   recordGate, changedFields, manualCycleProblem, recordNumberLabel, numberHoldReason, sendBlockReason,
@@ -52,6 +54,7 @@ import { logRouteMode } from '@/utils/logs/logRoutes';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 import { supabase } from '@/lib/supabase';
 import { readFileBytes } from '@/utils/fileBytes';
 import { generateUUID } from '@/utils/generateId';
@@ -189,10 +192,10 @@ function getStatusColor(t: ThemeColors, status: SubmittalStatus): string {
 
 const STATUS_LABELS: Record<SubmittalStatus, string> = {
   pending: 'Pending',
-  in_review: 'In Review',
+  in_review: 'In review',
   approved: 'Approved',
-  approved_as_noted: 'Approved as Noted',
-  revise_resubmit: 'Revise & Resubmit',
+  approved_as_noted: 'Approved as noted',
+  revise_resubmit: 'Revise and resubmit',
   rejected: 'Rejected',
 };
 
@@ -204,7 +207,7 @@ const STATUS_LABELS: Record<SubmittalStatus, string> = {
 // the visual since the project moves forward either way.
 const SUBMITTAL_PIPELINE_STAGES: PipelineStage<SubmittalStatus>[] = [
   { key: 'pending', label: 'Pending' },
-  { key: 'in_review', label: 'In Review' },
+  { key: 'in_review', label: 'In review' },
   { key: 'approved', label: 'Approved', terminal: true },
 ];
 
@@ -234,7 +237,7 @@ export default function SubmittalScreen() {
         ? (
           <SubmittalGateView
             state="error"
-            message="Couldn't check your access to this job. Check your connection and try again."
+            message="Couldn't check your access to this project. Check your connection and try again."
             onRetry={() => { void roleState.refetch(); }}
           />
         )
@@ -374,6 +377,11 @@ function SubmittalForm() {
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingSubmittals = useMemo(() => getSubmittalsForProject(projectId ?? ''), [projectId, getSubmittalsForProject]);
   const existingSubmittal = useMemo(() => submittalId ? existingSubmittals.find(s => s.id === submittalId) : null, [submittalId, existingSubmittals]);
+  // LS-5: the seat on the job this form writes to. A viewer's create / update
+  // / review cycle would be refused by RLS after landing optimistically, so
+  // those controls are off for him and say why. Shares the role query cache.
+  const writeSeat = useProjectRoleState(existingSubmittal?.projectId ?? (projectId || undefined));
+  const writeBlock = projectRecordWriteBlock(writeSeat.role);
 
   const [title, setTitle] = useState(existingSubmittal?.title ?? prefillTitle ?? '');
   const [specSection, setSpecSection] = useState(existingSubmittal?.specSection ?? prefillSpecSection ?? '');
@@ -417,11 +425,12 @@ function SubmittalForm() {
   const numberInfo = useServerRecordNumber('submittals', existingSubmittal?.id, existingSubmittal?.number);
   const numberLabel = existingSubmittal
     ? recordNumberLabel('Submittal', numberInfo.state, numberInfo.number, existingSubmittal.number)
-    : 'Approval Before Order';
+    : 'Approval before order';
   const numberHold = existingSubmittal ? numberHoldReason('submittal', numberInfo.state) : null;
   // #58: every send (reviewer email, client portal) is off while there are
   // unsaved edits — Send never saves; see sendBlockReason.
-  const sendBlock = existingSubmittal ? sendBlockReason({ isDirty, numberHold }) : null;
+  // LS-5: a send logs a review cycle on the row, which RLS refuses a viewer.
+  const sendBlock = existingSubmittal ? (writeBlock ?? sendBlockReason({ isDirty, numberHold })) : null;
   // #147 / #55: while a cycle is still out for review, the manual form CLOSES
   // that cycle in place (submittal_append_review_cycle closesOpenCycle) —
   // logging a second cycle would count the same round twice. Its number,
@@ -451,8 +460,14 @@ function SubmittalForm() {
    *  a send is built from what is saved, and the reply page reads the row. */
   const persistForm = useCallback((): Submittal | null => {
     if (!existingSubmittal) return null;
+    // LS-5: every update path (Save changes, Cmd+S, Update) comes through
+    // here; a viewer seat's update would be refused by RLS.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return null;
+    }
     if (!title.trim()) {
-      showAlert('Missing Title', 'Please enter a title.');
+      showAlert('Add a title', 'Enter a title.');
       return null;
     }
     const base = opened ?? existingSubmittal;
@@ -478,7 +493,7 @@ function SubmittalForm() {
     applyFormValues(submittalFormValuesOf(saved));
     setOpened(saved);
     return saved;
-  }, [existingSubmittal, opened, title, specSection, submittedBy, requiredDate, linkedTaskId, formValues, updateSubmittal, applyFormValues]);
+  }, [existingSubmittal, opened, title, specSection, submittedBy, requiredDate, linkedTaskId, formValues, updateSubmittal, applyFormValues, writeBlock]);
 
   // Unsaved edits ask before leaving.
   const navigation = useNavigation();
@@ -543,10 +558,8 @@ function SubmittalForm() {
         return;
       }
       console.warn('[Submittal] attach failed', err);
-      showAlert(
-        'Not attached',
-        `${file.name} couldn't be uploaded (${err instanceof Error ? err.message : String(err)}). Check your connection and try again — nothing was attached.`,
-      );
+      const copy = describeError(err, { action: `attach ${file.name}` });
+      showAlert(copy.title, `${copy.body} Nothing was attached.`);
     } finally {
       setUploading(false);
     }
@@ -595,7 +608,7 @@ function SubmittalForm() {
 
   const handleSharePDF = useCallback(async () => {
     if (!project || !existingSubmittal) {
-      showAlert('Save First', 'Please save the submittal before exporting.');
+      showAlert('Save the submittal first', 'Save it, then export.');
       return;
     }
     // #148: the transmittal prints the number — the server's, or it waits.
@@ -613,14 +626,14 @@ function SubmittalForm() {
       nailIt(`Submittal #${doc.number} shared`);
     } catch (err) {
       console.error('[Submittal] Share PDF failed:', err);
-      showAlert('Error', pdfFailureMessage(err, 'Could not generate the submittal PDF.'));
+      showAlert('Couldn’t share the PDF', pdfFailureMessage(err, 'The submittal PDF couldn’t be generated. Try again.'));
     }
   }, [project, existingSubmittal, settings, numberInfo.state, numberInfo.number, numberHold, persistForm]);
 
   const handleSendEmail = useCallback(async () => {
     if (!project || !existingSubmittal) return;
     if (!emailRecipient.trim()) {
-      showAlert('Email Required', 'Please enter the reviewer email.');
+      showAlert('Add the reviewer’s email', 'Enter the reviewer email.');
       return;
     }
     // #148: the email prints the number, so it waits for the server's.
@@ -717,7 +730,13 @@ function SubmittalForm() {
       if (!result.success) {
         if (result.error === 'cancelled') return;
         const tooLarge = attachmentsTooLargeMessage(result.error);
-        showAlert(tooLarge ? 'Too large to email' : 'Could Not Send', tooLarge ?? (result.error || 'Email failed.'));
+        if (tooLarge) {
+          showAlert('Too large to email', tooLarge);
+        } else {
+          const own = ownSentence(result.error);
+          const copy = describeError(result.error, { action: 'send the submittal' });
+          showAlert(own ? 'Couldn’t send' : copy.title, own ?? copy.body);
+        }
         return;
       }
       // #57: an email that lost part of its package is not a clean round of
@@ -750,7 +769,8 @@ function SubmittalForm() {
       else showAlert('Re-sent', `Sent to ${emailRecipientName.trim() || emailRecipient.trim()}. Cycle ${cycle.cycleNumber} is still out for review, so no new cycle was added — the reviewer's answer through the reply link closes it.`);
     } catch (err) {
       console.error('[Submittal] Email send failed:', err);
-      showAlert('Error', 'Failed to send email.');
+      const copy = describeError(err, { action: 'send the submittal' });
+      showAlert(copy.title, copy.body);
     } finally {
       setSending(false);
     }
@@ -775,14 +795,24 @@ function SubmittalForm() {
   // offline queue); the stored date never moves behind his back — the chase
   // list reads it.
   const takeScheduleDate = useCallback(() => {
+    // LS-5: taking the date is a submittals UPDATE, which RLS refuses a viewer.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (!existingSubmittal || !scheduleSource?.live.requiredDate) return;
     updateSubmittal(existingSubmittal.id, { requiredDate: scheduleSource.live.requiredDate, requiredDateSource: 'schedule' });
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [existingSubmittal, scheduleSource, updateSubmittal]);
+  }, [existingSubmittal, scheduleSource, updateSubmittal, writeBlock]);
 
   const handleSave = useCallback(() => {
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (!title.trim()) {
-      showAlert('Missing Title', 'Please enter a title.');
+      showAlert('Add a title', 'Enter a title.');
       return;
     }
 
@@ -817,7 +847,7 @@ function SubmittalForm() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     allowLeave.current = true;
     router.back();
-  }, [title, specSection, submittedBy, requiredDate, linkedTaskId, existingSubmittal, projectId, addSubmittal, router, persistForm]);
+  }, [title, specSection, submittedBy, requiredDate, linkedTaskId, existingSubmittal, projectId, addSubmittal, router, persistForm, writeBlock]);
 
   // #58: save and stay, so the sends can go in a later render.
   const handleSaveInPlace = useCallback(() => {
@@ -827,6 +857,10 @@ function SubmittalForm() {
 
   const handleAddCycle = useCallback(() => {
     if (!existingSubmittal) return;
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (openCycle) {
       if (newCycleStatus === 'in_review') {
         showAlert('Pick the stamp', `Cycle ${openCycleNo} is still in review. Pick the stamp the reviewer returned it with.`);
@@ -882,7 +916,7 @@ function SubmittalForm() {
     setNewCycleStatus('in_review');
     setShowAddCycle(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [existingSubmittal, openCycle, openCycleNo, newReviewer, newCycleStatus, newCycleComments, newCycleSent, newCycleReturned, addReviewCycle]);
+  }, [existingSubmittal, openCycle, openCycleNo, newReviewer, newCycleStatus, newCycleComments, newCycleSent, newCycleReturned, addReviewCycle, writeBlock]);
 
   // Desktop: the sheets centre in the content column; Cmd+Enter sends (never
   // Cmd+S — a send leaves the app); Cmd+S / Cmd+Enter on the form saves.
@@ -906,7 +940,7 @@ function SubmittalForm() {
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Submittals inside the project tile grid.',
-            'Hit Approval Before Order and create it, then attach the cut sheet and send for review.',
+            'Create the submittal, then attach the cut sheet and send it for review.',
           ]}
         />
       </View>
@@ -926,10 +960,10 @@ function SubmittalForm() {
           <FeatureHeader
             eyebrow="Submittal"
             title="Get a stamp before you order"
-            subtitle="Send the architect a product spec for review. They mark it Approved / Approved-as-Noted / Rejected — you keep the stamp on file before you cut a PO."
+            subtitle="Send the architect a product spec for review. They stamp it approved, approved as noted or rejected, and you keep the stamp on file before you cut a PO."
             explainer={{
               term: 'Submittal',
-              definition: 'A submittal is a document (cut sheet, shop drawing, color sample, MSDS, mockup) you send to the architect for sign-off BEFORE you order or fabricate. The architect stamps it Approved, Approved-as-Noted, or Rejected. Skipping submittals is how you end up installing the wrong fixture and eating the cost.',
+              definition: 'Product data the architect approves before you order or build.',
               whenToUse: [
                 'Before ordering anything spec\'d in the contract documents',
                 'When you want to substitute one product for another',
@@ -986,7 +1020,7 @@ function SubmittalForm() {
           testID="submittal-title"
         />
 
-        <Text style={styles.fieldLabel}>Spec Section</Text>
+        <Text style={styles.fieldLabel}>Spec section</Text>
         <TextInput
           style={[styles.input, isDesktop && styles.inputSmDesktop]}
           value={specSection}
@@ -995,16 +1029,16 @@ function SubmittalForm() {
           placeholderTextColor={themeColors.textMuted}
         />
 
-        <Text style={styles.fieldLabel}>Submitted By</Text>
+        <Text style={styles.fieldLabel}>Submitted by</Text>
         <TextInput
           style={[styles.input, isDesktop && styles.inputMdDesktop]}
           value={submittedBy}
           onChangeText={setSubmittedBy}
-          placeholder="Subcontractor name"
+          placeholder="Sub name"
           placeholderTextColor={themeColors.textMuted}
         />
 
-        <Text style={styles.fieldLabel}>Required Date</Text>
+        <Text style={styles.fieldLabel}>Required date</Text>
         <TouchableOpacity
           style={[styles.pickerBtn, isDesktop && desktopField('sm')]}
           onPress={() => setShowDatePicker(true)}
@@ -1047,9 +1081,10 @@ function SubmittalForm() {
                   </Text>
                   <Button
                     label={`Update to ${formatCalendarDay(scheduleSource.live.requiredDate)}`}
-                    variant="secondary" size="sm" onPress={takeScheduleDate}
+                    variant="secondary" size="sm" onPress={takeScheduleDate} disabled={writeBlock ? true : undefined}
                     testID="submittal-required-take-schedule"
                   />
+                  {writeBlock ? <Text style={styles.cycleHint} testID="submittal-take-schedule-viewer">{writeBlock}</Text> : null}
                 </View>
               )
             ) : <View style={{ flex: 1 }} />}
@@ -1118,7 +1153,7 @@ function SubmittalForm() {
 
         {existingSubmittal && existingSubmittal.reviewCycles.length > 0 && (
           <View style={styles.timelineSection}>
-            <Text style={styles.sectionTitle}>Review Cycles</Text>
+            <Text style={styles.sectionTitle}>Review cycles</Text>
             {existingSubmittal.reviewCycles.map((cycle, idx) => (
               <View key={idx} style={styles.timelineItem}>
                 <View style={styles.timelineLine}>
@@ -1137,7 +1172,7 @@ function SubmittalForm() {
                   <Text style={styles.cycleDetail}>Reviewer: {cycle.reviewer}</Text>
                   {/* #147: a portal answer with no send on file has no Sent day —
                       say so rather than print a made-up one. */}
-                  <Text style={styles.cycleDetail}>Sent: {cycleDayLabel(cycle.sentDate) ?? 'not recorded'}</Text>
+                  <Text style={styles.cycleDetail}>Sent: {cycleDayLabel(cycle.sentDate) ?? 'Not recorded'}</Text>
                   {!!cycle.returnDate && <Text style={styles.cycleDetail}>Returned: {cycleDayLabel(cycle.returnDate) ?? cycle.returnDate}</Text>}
                   {cycle.comments && <Text style={styles.cycleComments}>{cycle.comments}</Text>}
                 </View>
@@ -1158,7 +1193,7 @@ function SubmittalForm() {
               ) : (
               <TouchableOpacity style={styles.addCycleBtn} onPress={() => setShowAddCycle(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.addCycleBtnText}>Add Review Cycle</Text>
+                <Text style={styles.addCycleBtnText}>Add review cycle</Text>
               </TouchableOpacity>
               )
             ) : (
@@ -1167,7 +1202,7 @@ function SubmittalForm() {
                   <>
                     <Text style={styles.sectionTitle}>Cycle {openCycleNo} · {openCycle.reviewer || 'Reviewer'}</Text>
                     <Text style={styles.cycleHint} testID="submittal-close-cycle-note">
-                      This closes Cycle {openCycleNo} — it does not start a new round. Pick the stamp it came back with and the day it came back.
+                      This closes cycle {openCycleNo}. It does not start a new round. Pick the stamp it came back with and the day it came back.
                     </Text>
                     {openCycle.reviewer?.trim() ? null : (
                       <TextInput
@@ -1181,7 +1216,7 @@ function SubmittalForm() {
                   </>
                 ) : (
                   <>
-                    <Text style={styles.sectionTitle}>New Review Cycle · Cycle {existingSubmittal.reviewCycles.reduce((m, c) => Math.max(m, c.cycleNumber || 0), 0) + 1}</Text>
+                    <Text style={styles.sectionTitle}>New review cycle · Cycle {existingSubmittal.reviewCycles.reduce((m, c) => Math.max(m, c.cycleNumber || 0), 0) + 1}</Text>
                     <TextInput
                       style={styles.input}
                       value={newReviewer}
@@ -1248,7 +1283,7 @@ function SubmittalForm() {
                   textAlignVertical="top"
                 />
                 <TouchableOpacity style={styles.addCycleSubmit} onPress={handleAddCycle} activeOpacity={0.85} testID="submittal-cycle-submit">
-                  <Text style={styles.addCycleSubmitText}>{openCycle ? `Close Cycle ${openCycleNo}` : 'Add Cycle'}</Text>
+                  <Text style={styles.addCycleSubmitText}>{openCycle ? `Close cycle ${openCycleNo}` : 'Add cycle'}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1257,7 +1292,7 @@ function SubmittalForm() {
 
         {scheduleTasks.length > 0 && (
           <>
-            <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
+            <Text style={styles.fieldLabel}>Linked schedule task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
               <Link2 size={15} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
@@ -1291,15 +1326,17 @@ function SubmittalForm() {
 
         {/* #58: save and stay, so the sends can go. */}
         {existingSubmittal && isDirty && (
-          <TouchableOpacity style={styles.addCycleBtn} onPress={handleSaveInPlace} activeOpacity={0.85} testID="submittal-save-in-place">
+          <TouchableOpacity style={[styles.addCycleBtn, !!writeBlock && { opacity: 0.5 }]} onPress={handleSaveInPlace} disabled={writeBlock ? true : undefined} accessibilityState={writeBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="submittal-save-in-place">
             <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.addCycleBtnText}>Save changes</Text>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={[styles.saveBtn, isDesktop && desktopCta]} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">
+        {/* LS-5: a viewer seat cannot file — the control says why. */}
+        {writeBlock ? <Text style={styles.cycleHint} testID="submittal-save-viewer">{writeBlock}</Text> : null}
+        <TouchableOpacity style={[styles.saveBtn, isDesktop && desktopCta, !!writeBlock && { opacity: 0.5 }]} onPress={handleSave} disabled={writeBlock ? true : undefined} accessibilityState={writeBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="submittal-save">
           <Save size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
+          <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update submittal' : 'Create submittal'}</Text>
         </TouchableOpacity>
 
         {/* Share + Email actions only appear once the submittal exists.
@@ -1321,7 +1358,7 @@ function SubmittalForm() {
               accessibilityState={{ disabled: !!sendBlock }}
             >
               <Send size={16} color="#fff" strokeWidth={1.75} />
-              <Text style={[styles.exportBtnText, { color: '#fff' }]}>Send to Reviewer</Text>
+              <Text style={[styles.exportBtnText, { color: '#fff' }]}>Send to reviewer</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1335,7 +1372,7 @@ function SubmittalForm() {
         <Pressable style={[styles.modalOverlay, fTask.overlay]} onPress={() => setShowTaskPicker(false)}>
           <Pressable style={[styles.taskPickerCard, fTask.card]} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
-              <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
+              <Text style={styles.taskPickerTitle}>Link schedule task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
@@ -1364,7 +1401,7 @@ function SubmittalForm() {
           <Pressable style={[styles.modalOverlay, fEmail.overlay]} onPress={() => setShowEmailSend(false)}>
             <Pressable style={[styles.emailModalCard, fEmail.card]} onPress={() => undefined}>
               <View style={styles.emailModalHeader}>
-                <Text style={styles.emailModalTitle}>Send Submittal</Text>
+                <Text style={styles.emailModalTitle}>Send submittal</Text>
                 <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close" accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -1394,7 +1431,7 @@ function SubmittalForm() {
                 style={[styles.emailInput, { minHeight: 80, textAlignVertical: 'top' }]}
                 value={emailMessage}
                 onChangeText={setEmailMessage}
-                placeholder="Add context for the reviewer..."
+                placeholder="Add context for the reviewer"
                 placeholderTextColor={themeColors.textMuted}
                 multiline
                 testID="submittal-email-message"

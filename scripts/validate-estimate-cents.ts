@@ -131,7 +131,7 @@ async function pdfRowsAndTotal(est: LinkedEstimate): Promise<{ rows: string[]; t
   await pdf.generateEstimatePDFUri({ id: 'p', name: 'Job', type: 'renovation', location: 'Houston, TX', squareFootage: 0, quality: 'standard', description: '', createdAt: '', updatedAt: '', estimate: null, linkedEstimate: est, status: 'estimated' } as never, { companyName: 'GC' } as never);
   const body = printedHtml.slice(printedHtml.indexOf('<tbody>'), printedHtml.indexOf('</tbody>'));
   const rows = [...body.matchAll(/font-weight:600">([^<]+)<\/td>/g)].map(m => m[1]);
-  const total = (printedHtml.match(/Estimate Total<\/span><span>([^<]+)</) ?? [])[1] ?? '';
+  const total = (printedHtml.match(/Estimate total<\/span><span>([^<]+)</) ?? [])[1] ?? '';
   return { rows, total };
 }
 

@@ -280,11 +280,11 @@ console.log('\nc) g703DraftBlocker, g703PastePlan, widths');
   eq('valid drafts, no blocker', g703DraftBlocker({ 'a:thisPeriod': '120.5', 'b:percent': '40' }, lines), null);
   eq('an invalid draft names the line and the column',
     g703DraftBlocker({ 'b:stored': '12,5o' }, lines),
-    { title: 'Line 2 — Stored', message: '"12,5o" is not an amount — this line still bills $0.00' });
+    { title: 'Line 2 · Stored', message: '"12,5o" is not an amount — this line still bills $0.00' });
   eq('the first invalid draft in LINE order wins',
-    g703DraftBlocker({ 'c:percent': '10', 'a:thisPeriod': 'x' }, lines)?.title, 'Line 1 — This period');
+    g703DraftBlocker({ 'c:percent': '10', 'a:thisPeriod': 'x' }, lines)?.title, 'Line 1 · This period');
   eq('a percent on a deductive line blocks, named',
-    g703DraftBlocker({ 'c:percent': '10' }, lines), { title: 'Line 3 — % complete', message: 'Percent needs a positive scheduled value — type This period instead.' });
+    g703DraftBlocker({ 'c:percent': '10' }, lines), { title: 'Line 3 · % complete', message: 'Percent needs a positive scheduled value — type This period instead.' });
 
   eq('paste at This period: E then F, one merged patch per line, the past-end row counted',
     g703PastePlan(lines, [['10', '20'], ['30', 'x'], ['40'], ['50']], { rowKey: 'a', colKey: 'thisPeriod' }, { sovEditing: false }),
@@ -485,8 +485,8 @@ function moneyCalls(span: string): string[] {
   ok(`the G702 KPI strip is in cents: all ${kpiMoney.length} formatMoney calls pass 2 decimals`,
     kpiMoney.length === 9 && kpiMoney.every((c) => /, 2\)$/.test(c)), kpiMoney.filter((c) => !/, 2\)$/.test(c)).join(' | '));
   ok('…it is desktop-only: {isDesktop ? (<KpiStrip … ) : null}', /\{isDesktop \? \(\s*<KpiStrip/.test(aia));
-  const coverAt = aia.indexOf('Summary (G702 Cover)');
-  const coverEnd = aia.indexOf('</View>', aia.indexOf('<Row label="Balance to Finish"', coverAt));
+  const coverAt = aia.indexOf('Summary (G702 cover)');
+  const coverEnd = aia.indexOf('</View>', aia.indexOf('<Row label="Balance to finish"', coverAt));
   const cover = coverAt < 0 || coverEnd < 0 ? '' : aia.slice(coverAt, coverEnd);
   const coverMoney = moneyCalls(cover);
   ok(`the G702 summary card prints cents on every platform (founder default 2): ${coverMoney.length} formatMoney calls, all with 2`,

@@ -903,11 +903,11 @@ ok('the sub-bid copy never cites a job count for a seeded rate',
 // it visible, so it is now a surface that can lie, and gets pinned like one.
 const seededChip = rateProvenanceChipModel(lookupRate(SEEDED_ONLY, 'Framing', 'SF'));
 const earnedChip = rateProvenanceChipModel(lookupRate(EARNED_ONLY, 'Framing', 'SF'));
-expect('the chip on a stated rate reads YOU SET THIS', seededChip?.label, 'YOU SET THIS');
+expect('the chip on a stated rate reads Your rate', seededChip?.label, 'Your rate');
 ok('…and never cites a job count, because there are none',
   !/\d+ jobs?\b/.test(seededChip?.label ?? ''), seededChip?.label);
 expect('…in the NEUTRAL tone, never the measured one', seededChip?.tone, 'stated');
-expect('the chip on a measured rate says how many jobs', earnedChip?.label, 'MEASURED · 1 job');
+expect('the chip on a measured rate says how many jobs', earnedChip?.label, 'Measured · 1 project');
 expect('…and only IT may wear the measured tone', earnedChip?.tone, 'measured');
 ok("tone 'measured' is reachable ONLY from provenance 'earned' — the firewall, in one line",
   [SEEDED_ONLY, EARNED_ONLY, buildCostDatabase(emptyProjects, emptyCommitments, [], [realSample], SEEDS)]
@@ -916,7 +916,7 @@ ok("tone 'measured' is reachable ONLY from provenance 'earned' — the firewall,
 expect('a mixed rate is labelled apart from both',
   rateProvenanceChipModel(lookupRate(
     buildCostDatabase(emptyProjects, emptyCommitments, [], [realSample], SEEDS), 'Framing', 'SF',
-  ))?.label, 'MIXED · 1 job');
+  ))?.label, 'Mixed · 1 project');
 ok('no book hit renders NO chip rather than a guess',
   rateProvenanceChipModel(null) === null && rateProvenanceChipModel(undefined) === null);
 ok('…and so does a legacy entry carrying no provenance stamp',
@@ -1235,7 +1235,7 @@ const signedEntry = lookupRate(signedBook, 'Framing', 'sq ft');
 expect('four signed subs are four real jobs', signedEntry?.jobCount, 4);
 expect('…but nothing has been paid, and the entry says so', signedEntry?.earnedBasis, 'contracted');
 expect('…so the chip reads SIGNED, not MEASURED',
-  rateProvenanceChipModel(signedEntry)?.label, 'SIGNED · 4 jobs');
+  rateProvenanceChipModel(signedEntry)?.label, 'Signed · 4 projects');
 expect('…in a tone that is not the measured one',
   rateProvenanceChipModel(signedEntry)?.tone, 'contracted');
 ok('…and the takeoff sentence says the same thing in its own words',
@@ -1288,7 +1288,7 @@ for (const claim of ['Measured on', 'Measured average', 'actually cost you', 'co
 ok('…and says instead that nothing has been paid against it',
   /not yet what you\s*\n?\s*paid/.test(contractedBody) && /Nothing settled yet/.test(contractedBody));
 ok('…while the measured branch still DOES make that claim (so the test is not vacuous)',
-  /Measured on \{model\.jobCount\} closed job/.test(chipSrc) && /Measured average/.test(chipSrc));
+  /Measured on \{model\.jobCount\} closed project/.test(chipSrc) && /Measured average/.test(chipSrc));
 // The seeded branch must be reached by tone too, or a future basis added to
 // 'earned' falls through into the measured copy exactly as 'contracted' did.
 ok('the seeded body is gated on its tone as well, not on provenance alone',
@@ -1992,9 +1992,9 @@ console.log('\n17. the pins the last pass did not leave behind:');
     /A part-paid contract is never read as a finished cost\./.test(cdb));
   const cal = src('app/estimate-calibration.tsx');
   ok('the calibration empty state says FINISHED jobs only, and why',
-    /FINISHED jobs/.test(cal) && /A job still running only tells you how far through it you are/.test(cal));
+    /finished projects/.test(cal) && /A project still running only shows how far through it you are/.test(cal));
   ok('…and its steps end on the settlement rule the engine actually enforces',
-    /a deposit is not a cost/.test(cal));
+    /A deposit is not a cost/.test(cal));
 
   // ── 17g. THE TAPE MEASURE'S ONLY ROUTE INTO THE DENOMINATOR (audit F6) ────
   // scripts/validate-estimate-cost-basis §6k proves the two ENDS behaviourally:

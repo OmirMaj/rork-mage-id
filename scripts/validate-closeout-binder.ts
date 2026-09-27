@@ -192,7 +192,7 @@ ok('found every sectionTable call site', tablesChecked + varTables.length >= 7,
   `only ${tablesChecked} literal + ${varTables.length} variable-column tables matched the call regexes — if ` +
   `the helper was renamed or reformatted this guard is checking nothing.`);
 ok('the variable-column tables are exactly the two the sharing switches shape',
-  JSON.stringify(varTables.sort()) === JSON.stringify(['Finishes & fixtures installed', 'Trade contacts']),
+  JSON.stringify(varTables.sort()) === JSON.stringify(['Finishes and fixtures installed', 'Trade contacts']),
   `got ${JSON.stringify(varTables)} — any other table must declare literal columns so the source check covers it.`);
 
 // ───────────────────────────────────────────────────────────────────────────

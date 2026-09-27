@@ -301,12 +301,12 @@ export function reviewPrequalPacket(packet: PrequalPacket): PrequalReviewResult 
   if (unreadableLicenses.length > 0) {
     findings.push({
       criterion: 'license_date_unreadable',
-      label: 'Licence expiry dates readable',
+      label: 'License expiry dates readable',
       passed: false,
-      note: `Unreadable: ${unreadableLicenses.map(l => `${l.state || 'licence'} "${licRaw(l)}"`).join(', ')} — enter as YYYY-MM-DD`,
+      note: `Unreadable: ${unreadableLicenses.map(l => `${l.state || 'license'} "${licRaw(l)}"`).join(', ')}. Enter as YYYY-MM-DD.`,
       severity: 'blocker',
     });
-    missingFields.push('Licence expiry date (YYYY-MM-DD)');
+    missingFields.push('License expiry date (YYYY-MM-DD)');
   }
   if (expiredLicenses.length > 0) {
     findings.push({

@@ -22,8 +22,10 @@ import type { Project, Invoice, ChangeOrder } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   project: Project;
@@ -42,6 +44,9 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
   const [result, setResult] = useState<ProjectReportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible: showModal, animationType: 'slide' });
 
   const handleGenerate = useCallback(async () => {
     if (isLoading) return;
@@ -71,7 +76,8 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Report] Generation failed:', err);
-      showAlert('AI Error', 'Could not generate report. Try again.');
+      const copy = describeError(err, { action: 'generate the status report' });
+      showAlert(copy.title, copy.body);
     } finally {
       setIsLoading(false);
     }
@@ -85,21 +91,24 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
         ) : (
           <MageAIMark size={16} color={themeColors.accent} />
         )}
-        <Text style={styles.triggerText}>{isLoading ? 'Generating Report...' : 'AI Project Report'}</Text>
+        <Text style={styles.triggerText}>{isLoading ? 'Generating report…' : 'Generate status report'}</Text>
       </TouchableOpacity>
 
       <Modal
         visible={showModal}
-        animationType="slide"
+        animationType={fP.animationType}
         presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        transparent={fP.transparent}
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={[styles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
-          <View style={styles.modalHandle} />
+        <SheetOverlay frame={fP}>
+        <SheetScrim frame={fP} onPress={() => setShowModal(false)} />
+        <View style={[styles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }, fP.card]}>
+          {fP.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHeader}>
             <View style={styles.headerLeft}>
               <MageAIMark size={16} color={themeColors.accent} />
-              <Text style={styles.modalTitle}>Project Status Report</Text>
+              <Text style={styles.modalTitle}>Project status report</Text>
             </View>
             <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close">
               <X size={22} color={themeColors.textSecondary} strokeWidth={1.75} />
@@ -114,26 +123,26 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Executive Summary</Text>
+                <Text style={styles.sectionTitle}>Executive summary</Text>
                 <Text style={styles.sectionText}>{result.executiveSummary}</Text>
               </View>
 
               <View style={styles.twoCol}>
                 <View style={[styles.statusCard, { borderLeftColor: themeColors.info }]}>
                   <FileText size={14} color={themeColors.info} strokeWidth={1.75} />
-                  <Text style={styles.statusLabel}>Schedule Status</Text>
+                  <Text style={styles.statusLabel}>Schedule status</Text>
                   <Text style={styles.statusText}>{result.scheduleStatus}</Text>
                 </View>
                 <View style={[styles.statusCard, { borderLeftColor: themeColors.success }]}>
                   <FileText size={14} color={themeColors.success} strokeWidth={1.75} />
-                  <Text style={styles.statusLabel}>Budget Status</Text>
+                  <Text style={styles.statusLabel}>Budget status</Text>
                   <Text style={styles.statusText}>{result.budgetStatus}</Text>
                 </View>
               </View>
 
               {(result.keyAccomplishments ?? []).length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Key Accomplishments</Text>
+                  <Text style={styles.sectionTitle}>Key accomplishments</Text>
                   {(result.keyAccomplishments ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
@@ -145,7 +154,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
 
               {(result.issuesAndRisks ?? []).length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Issues & Risks</Text>
+                  <Text style={styles.sectionTitle}>Issues and risks</Text>
                   {(result.issuesAndRisks ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <AlertTriangle size={13} color={Colors.warningLabel} strokeWidth={1.75} />
@@ -157,7 +166,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
 
               {(result.nextMilestones ?? []).length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Next Milestones</Text>
+                  <Text style={styles.sectionTitle}>Next milestones</Text>
                   {(result.nextMilestones ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <Target size={13} color={themeColors.accent} strokeWidth={1.75} />
@@ -179,10 +188,11 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                 </View>
               )}
 
-              <Text style={styles.disclaimer}>Generated by MAGE Brain · AI-generated</Text>
+              <Text style={styles.disclaimer}>Generated by MAGE</Text>
             </ScrollView>
           )}
         </View>
+        </SheetOverlay>
       </Modal>
     </>
   );

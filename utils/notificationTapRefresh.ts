@@ -153,11 +153,11 @@ export function fieldReportNoticeBody(p: FieldReportNoticePayload | null | undef
   const status = p?.portal_status === 'sent' ? 'sent' : p?.portal_status === 'draft' ? 'draft' : null;
   const tail = status === 'sent'
     ? (p?.in_weekly_digest === false
-      ? "It's already on the homeowner's portal. Hide it if it shouldn't be."
-      : "It's already on the homeowner's portal and will be in Friday's update. Hide it if it shouldn't be.")
+      ? "It's already on your client's portal. Hide it if it shouldn't be."
+      : "It's already on your client's portal and will be in Friday's update. Hide it if it shouldn't be.")
     : status === 'draft'
-      ? 'Review it before anything goes to the homeowner.'
-      : 'Open it to check what the homeowner can see.';
+      ? 'Review it before anything goes to your client.'
+      : 'Open it to check what your client can see.';
   const raw = typeof p?.report_date === 'string' ? p.report_date.trim() : '';
   // Strict 'YYYY-MM-DD' and a real date, or no day at all — never a guess
   // (formatCalendarDay echoes an unparseable value back, so parse first).

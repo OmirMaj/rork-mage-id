@@ -57,11 +57,15 @@ import { LEAD_CSV_COLUMNS, leadKpiCells, leadsBoardLayout } from '@/utils/regist
 const LEADS_VIEW_KEY = 'mageid_leads_view';
 type LeadsView = 'board' | 'list';
 
+// `new` is the brand (a getter, so it follows the theme and a picked hue) and
+// `won` the success TEAL. `qualified` was a dark green #1A6B3C — ΔE 4.9 from
+// the 2026-09-16 brand green, i.e. the same dot as `new` — so it takes the
+// mid-pipeline mustard the work-order and buyout maps use for work under way.
 const STAGE_COLORS: Record<LeadStage, string> = {
-  new: '#FF6A1A',
-  qualified: '#1A6B3C',
+  get new() { return Colors.primary; },
+  qualified: '#C99700',
   proposal: '#0D6CB1',
-  won: '#16A34A',
+  get won() { return Colors.success; },
   lost: '#9CA3AF',
 };
 
@@ -246,7 +250,7 @@ export default function LeadsScreen() {
                   <Card testID="leads-register-empty">
                     <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
                     <Text style={[styles.emptyBannerBody, isDesktopWeb && styles.emptyBannerBodyDesktop]}>
-                      Capture every inbound — homeowner calls, web inquiries, referrals — so they don&apos;t slip past the first 24 hours. Use New lead by voice to dictate one, or Add by hand to type one in. Leads land in New and move through Qualified → Proposal → Won as you work them.
+                      Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Use New lead by voice to dictate one, or Add by hand to type one in. Leads land in New and move through Qualified → Proposal → Won as you work them.
                     </Text>
                   </Card>
                 ) : null}
@@ -259,7 +263,7 @@ export default function LeadsScreen() {
               ) : !leadsLoaded ? (
                 <EmptyState
                   icon={<Clock size={28} color={themeColors.accent} strokeWidth={1.75} />}
-                  title="Loading…"
+                  title="Loading leads…"
                   message="Your pipeline appears here once it loads."
                 />
               ) : (
@@ -324,7 +328,7 @@ export default function LeadsScreen() {
                 <MageAIMark size={20} color={themeColors.accent} />
                 <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
                 <Text style={styles.emptyBannerBody}>
-                  Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
+                  Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyImportBtn}
@@ -441,7 +445,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
         <View style={[styles.waitingPill, overdue && styles.waitingPillOverdue]}>
           <Clock size={11} color={overdue ? '#FFF' : Colors.warningLabel} strokeWidth={1.75} />
           <Text style={[styles.waitingText, overdue && styles.waitingTextOverdue]}>
-            {ageHours < 1 ? 'just now' : `waiting ${ageHours}h`}
+            {ageHours < 1 ? 'Just now' : `Waiting ${ageHours}h`}
           </Text>
         </View>
       )}

@@ -78,7 +78,7 @@ export default function ScenariosModal({
   const handleCreate = useCallback(() => {
     const name = newName.trim();
     if (!name) {
-      showAlert('Missing Name', 'Saved plans need a name so you can tell them apart.');
+      showAlert('Add a name', 'Enter a name so you can tell saved plans apart.');
       return;
     }
     const scenario: ScheduleScenario = {
@@ -115,7 +115,7 @@ export default function ScenariosModal({
     (scenario: ScheduleScenario) => {
       showAlert(
         'Restore this plan?',
-        `This replaces the current ${schedule.tasks.length} task(s) with the ${scenario.tasks.length} task(s) saved in "${scenario.name}". Your current plan is snapshotted first, so you can undo.`,
+        `This replaces the current ${schedule.tasks.length} ${schedule.tasks.length === 1 ? 'task' : 'tasks'} with the ${scenario.tasks.length} ${scenario.tasks.length === 1 ? 'task' : 'tasks'} saved in "${scenario.name}". Your current plan is saved first, so you can undo.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -242,8 +242,8 @@ export default function ScenariosModal({
           <View style={styles.helpCard}>
             <GitBranch size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.helpText}>
-              Save a frozen copy of the plan — before a big change, a re-sequence or
-              an import — so you can look back at it or restore it later. A saved
+              Save a frozen copy of the plan before a big change, a re-sequence or
+              an import, so you can look back at it or restore it later. A saved
               plan can{"'"}t be edited: every change goes to the live plan.
             </Text>
           </View>
@@ -355,7 +355,7 @@ export default function ScenariosModal({
                 style={[styles.input, styles.inputMulti]}
                 value={newNote}
                 onChangeText={setNewNote}
-                placeholder="Why you saved it..."
+                placeholder="Why you saved it"
                 placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"

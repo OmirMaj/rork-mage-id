@@ -87,7 +87,7 @@ console.log('\n#5 uploads carry bytes and are read back:');
   let emptyErr: unknown = null;
   try { await pf.uploadProjectFile({ projectId: 'p1', folderKey: 'contracts', fileName: 'f.jpg', bytes }); } catch (e) { emptyErr = e; }
   ok('an empty copy that could NOT be removed is reported as such (removed=false)',
-    emptyErr instanceof pf.ProjectFileEmptyError && emptyErr.removed === false && /could not be removed/.test(emptyErr.message), String(emptyErr));
+    emptyErr instanceof pf.ProjectFileEmptyError && emptyErr.removed === false && /couldn't be removed/.test(emptyErr.message), String(emptyErr));
   removeImpl = async (paths) => ({ data: paths.map(name => ({ name })), error: null });
   emptyErr = null;
   try { await pf.uploadProjectFile({ projectId: 'p1', folderKey: 'contracts', fileName: 'g.jpg', bytes }); } catch (e) { emptyErr = e; }
@@ -151,7 +151,7 @@ console.log('\n#160 a refused delete says so:');
   try { await pf.deleteProjectFile('p1/contracts/a.pdf'); } catch (e) { threw = (e as Error).message; }
   eq('…and when the read-back cannot answer, it says it could not confirm', threw, pf.PROJECT_FILE_DELETE_UNCONFIRMED);
   listImpl = savedList;
-  ok('…naming who can delete', /only the job owner or an editor/.test(pf.PROJECT_FILE_DELETE_REFUSED));
+  ok('…naming who can delete', /Only the project owner or an editor/.test(pf.PROJECT_FILE_DELETE_REFUSED));
   removeImpl = async (paths) => ({ data: paths.map(name => ({ name })), error: null });
   let removed = true;
   try { await pf.deleteProjectFile('p1/contracts/a.pdf'); } catch { removed = false; }
@@ -181,7 +181,7 @@ console.log('\nProject Files screen:');
   const PF = readFileSync('utils/projectFiles.ts', 'utf8');
   ok('…against the same ceiling uploadProjectFile enforces',
     /export const PROJECT_FILE_MAX_BYTES = 100 \* 1024 \* 1024;/.test(PF) && /if \(size > PROJECT_FILE_MAX_BYTES\) \{/.test(PF));
-  ok('Open failures are shown, not voided', /showAlert\("Couldn't open file"/.test(B));
+  ok('Open failures are shown, not voided', /showAlert\("Couldn't open the file"/.test(B));
   // Raw source: the comment stripper would eat the `\/\/` inside the regex.
   const D = readFileSync('utils/projectDocuments.ts', 'utf8');
   const body = D.slice(D.indexOf('export async function openSavedDocument'), D.indexOf('export async function openSavedDocument') + 300);

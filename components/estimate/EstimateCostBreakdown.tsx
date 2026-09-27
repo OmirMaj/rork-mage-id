@@ -7,12 +7,16 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import type { DivisionRow } from './EstimateDivisionTable';
 
 const DIVISION_COLOR: Record<string, string> = {
-  '01': '#FF6A1A', '02': '#66BB6A', '03': '#90A4AE', '04': '#4FC3F7',
+  // 01 General Requirements is the brand's division, so it takes the
+  // general-trade token (#3E8A4B) the Gantt uses — a step lighter than the
+  // brand so it holds on the dark page, and still well clear of the pale
+  // #66BB6A / #5FBF6B site-work and finishes greens below.
+  '01': Colors.tradeColors.general, '02': '#66BB6A', '03': '#90A4AE', '04': '#4FC3F7',
   '05': '#FFA726', '06': '#8D6E63', '07': '#EF5350', '08': '#26C6DA',
   '09': '#5FBF6B', '22': '#26C6DA', '23': '#FFA726', '26': '#4FC3F7',
   '31': '#66BB6A', '32': '#66BB6A', '33': '#90A4AE', other: '#74838F',
@@ -39,7 +43,7 @@ export function EstimateCostBreakdown({ divisions }: { divisions: DivisionRow[] 
 
   return (
     <View style={styles.card}>
-      <Text style={styles.head}>COST BREAKDOWN</Text>
+      <Text style={styles.head}>Cost breakdown</Text>
       {bars.map(b => (
         <View key={b.key} style={styles.bar}>
           <View style={styles.barTop}>
@@ -57,7 +61,7 @@ export function EstimateCostBreakdown({ divisions }: { divisions: DivisionRow[] 
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, padding: 15 },
-  head: { fontSize: 11, letterSpacing: 1, color: t.textMuted, fontWeight: '800', marginBottom: 13 },
+  head: { textTransform: 'uppercase', fontSize: 11, letterSpacing: 1, color: t.textMuted, fontWeight: '800', marginBottom: 13 },
   bar: { marginBottom: 10 },
   barTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   barName: { fontSize: 11.5, color: t.textSecondary, flex: 1, marginRight: 8 },

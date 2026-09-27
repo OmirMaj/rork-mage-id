@@ -496,7 +496,7 @@ console.log('\nthe PDF a GC hands his surety carries the footnotes:');
       costBasis: { ...basisRow.costBasis!, incurredFloor: 1_300_000 },
     };
     ok('…and an overspent frozen row still says the margin above it is overstated',
-      /MORE than the cost at completion/.test(wipRowCostBasisSentence(overspent) ?? ''),
+      /more than the cost at completion/.test(wipRowCostBasisSentence(overspent) ?? ''),
       String(wipRowCostBasisSentence(overspent)));
   }
 }

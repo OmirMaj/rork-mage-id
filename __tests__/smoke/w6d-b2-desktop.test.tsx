@@ -309,7 +309,7 @@ describe('lane B2 — /reports on desktop web (1512 × 945)', () => {
     expect(screen.getByTestId('reports-wip')).toBeTruthy();
     expect(screen.getByTestId('reports-toolbar')).toBeTruthy();
     // The hero repeated the title; on desktop web only the header says it.
-    expect(screen.getAllByText('Bank-Ready Reports')).toHaveLength(1);
+    expect(screen.getAllByText('Bank-ready reports')).toHaveLength(1);
     const table = textsOf('reports-wip');
     const [fContract] = after(table, 'Total', 1);
     expect(fContract).toBe(valueAfterLabel('Revised contract'));
@@ -339,7 +339,7 @@ describe('lane B2 — /reports on desktop web (1512 × 945)', () => {
     const at = table.indexOf('Portfolio');
     expect(at).toBeGreaterThan(-1);
     // The headline under RUNNING PORTFOLIO MARGIN is formatMoney(profit.totalProfit).
-    expect(table.slice(at)).toContain(valueAfterLabel('RUNNING PORTFOLIO MARGIN'));
+    expect(table.slice(at)).toContain(valueAfterLabel('Running portfolio margin'));
     // No Export CSV on Profit (it ships no CSV); Print stays.
     expect(screen.getByTestId('reports-print')).toBeTruthy();
     expect(screen.queryByTestId('reports-toolbar-csv')).toBeNull();

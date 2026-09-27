@@ -42,6 +42,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { describeError } from '@/utils/errorCopy';
 
 // Free/Pro contractors get a monthly cap on marketplace bid responses;
 // Business+ (the 'unlimited_bid_responses' FeatureKey) is uncapped. There
@@ -236,7 +237,7 @@ export default function SubmitBidResponseScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[instant-bid] generation failed', e);
-      setError('Could not draft a bid right now. You can still fill it in manually below.');
+      setError('Couldn’t draft a bid. You can still fill it in below.');
     } finally {
       setGenerating(false);
     }
@@ -287,7 +288,7 @@ export default function SubmitBidResponseScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         showAlert(
           'Monthly bid limit reached',
-          `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. Upgrade to Business for unlimited marketplace bidding.`,
+          `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. Unlimited marketplace bids are on the Business plan.`,
           [
             { text: 'Not now', style: 'cancel' },
             { text: 'See plans', onPress: () => router.push('/paywall' as never) },
@@ -341,8 +342,8 @@ export default function SubmitBidResponseScreen() {
       // success — permanently locking the contractor out of bidding.)
       if (!ok) {
         setError(
-          "We couldn't confirm your bid was sent. If you're offline it'll send " +
-          'automatically when you reconnect — otherwise please try again.',
+          'Your bid isn’t confirmed yet. If you’re offline it sends when you ' +
+          'reconnect; otherwise try again.',
         );
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
@@ -399,13 +400,13 @@ export default function SubmitBidResponseScreen() {
       showAlert(
         'Bid submitted',
         viewSiteFirst
-          ? 'The homeowner will see your site-visit request and reach out if they want to schedule. We added it to your Leads pipeline.'
-          : 'The homeowner will review your estimate. You\'ll be notified if they shortlist or award you. We added it to your Leads pipeline.',
+          ? 'The client sees your site-visit request and reaches out if they want to schedule it. It is in your Leads pipeline.'
+          : 'The client reviews your estimate. You\'re notified if they shortlist or award you. It is in your Leads pipeline.',
         [{ text: 'OK', onPress: goBack }],
       );
     } catch (e) {
       console.warn('[submit-bid-response] failed', e);
-      setError(String((e as Error).message ?? e));
+      setError(describeError(e, { action: 'send the bid', keptLocally: true }).body);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSubmitting(false);
@@ -436,7 +437,7 @@ export default function SubmitBidResponseScreen() {
     return renderShell('Project not found', (
       <>
         <AlertTriangle size={22} color={themeColors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>We could not open that link</Text>
+        <Text style={styles.stateTitle}>Couldn’t open that link</Text>
         <Text style={styles.stateText}>It is missing a project reference. Open the project again from your MAGE ID Bids tab.</Text>
         <TouchableOpacity style={styles.stateBtn} onPress={goBack} accessibilityRole="button" testID="submit-bid-back">
           <Text style={styles.stateBtnText}>Go back</Text>
@@ -449,7 +450,7 @@ export default function SubmitBidResponseScreen() {
     return renderShell('Loading', (
       <>
         <ActivityIndicator size="small" color={themeColors.accent} />
-        <Text style={styles.stateText}>Loading this project...</Text>
+        <Text style={styles.stateText}>Loading this project…</Text>
       </>
     ));
   }
@@ -461,7 +462,7 @@ export default function SubmitBidResponseScreen() {
     return renderShell('Could not load', (
       <>
         <AlertTriangle size={22} color={themeColors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>We could not load this project</Text>
+        <Text style={styles.stateTitle}>Couldn’t load this project</Text>
         <Text style={styles.stateText}>You may be offline or on a weak connection. Nothing was lost.</Text>
         <TouchableOpacity
           style={[styles.stateBtn, isFetching && { opacity: 0.5 }]}
@@ -488,7 +489,7 @@ export default function SubmitBidResponseScreen() {
       <>
         <FileText size={22} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>This project is no longer open for bids</Text>
-        <Text style={styles.stateText}>The homeowner may have closed or awarded it. Nothing you typed was sent.</Text>
+        <Text style={styles.stateText}>The client may have closed or awarded it. Nothing you typed was sent.</Text>
         <TouchableOpacity style={styles.stateBtn} onPress={goBack} accessibilityRole="button" testID="submit-bid-back">
           <Text style={styles.stateBtnText}>Go back</Text>
         </TouchableOpacity>
@@ -520,9 +521,9 @@ export default function SubmitBidResponseScreen() {
           <View style={styles.instantHead}>
             <View style={styles.instantIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.instantTitle}>Instant Bid</Text>
+              <Text style={styles.instantTitle}>Instant bid</Text>
               <Text style={styles.instantSub}>
-                Draft a professional Good / Better / Best proposal in seconds. The first pro to respond wins the most jobs.
+                Draft a Good / Better / Best proposal from the posting. Contractors who respond first win more work.
               </Text>
             </View>
           </View>
@@ -567,7 +568,7 @@ export default function SubmitBidResponseScreen() {
                         <View style={styles.tierLabelRow}>
                           <Text style={[styles.tierLabel, active && { color: themeColors.accent }]}>{tier.label}</Text>
                           {tier.key === proposal.recommendedTier && (
-                            <View style={styles.tierBadge}><Text style={styles.tierBadgeText}>RECOMMENDED</Text></View>
+                            <View style={styles.tierBadge}><Text style={styles.tierBadgeText}>Recommended</Text></View>
                           )}
                         </View>
                         <Text style={styles.tierTagline}>{tier.tagline}</Text>
@@ -604,8 +605,8 @@ export default function SubmitBidResponseScreen() {
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Need to walk the site first?</Text>
           <Text style={styles.helper}>
-            Toggle on if you can&apos;t price the work without seeing it. The homeowner will see this
-            request and decide whether to invite you over before deciding.
+            Turn this on if you can&apos;t price the work without seeing it. The client sees this
+            request and decides whether to invite you over.
           </Text>
           <TouchableOpacity
             style={[styles.toggleRow, viewSiteFirst && styles.toggleRowActive]}
@@ -649,7 +650,7 @@ export default function SubmitBidResponseScreen() {
         )}
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Message to the homeowner *</Text>
+          <Text style={styles.cardLabel}>Message to the client *</Text>
           <Text style={styles.helper}>
             Why are you a fit, what&apos;s included, when can you start, references? This is your pitch.
           </Text>
@@ -657,7 +658,7 @@ export default function SubmitBidResponseScreen() {
             style={[styles.input, styles.inputMultiline]}
             value={message}
             onChangeText={setMessage}
-            placeholder="Hey — I'm a residential GC in your area with 12 years on remodels. I'd handle..."
+            placeholder="Your experience, what's included and when you can start"
             placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={6}
@@ -678,7 +679,7 @@ export default function SubmitBidResponseScreen() {
           </View>
           {!company && (
             <Text style={styles.identityHelper}>
-              Tip: add a company profile in Settings → Companies so the homeowner sees a verified pitch.
+              Tip: add a company profile in Settings → Companies so the client sees a verified pitch.
             </Text>
           )}
         </View>
@@ -703,7 +704,7 @@ export default function SubmitBidResponseScreen() {
               <Lock size={16} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.capTitle}>You&apos;ve used your {FREE_MONTHLY_BID_RESPONSES} bids this month</Text>
-                <Text style={styles.capSub}>Upgrade to Business for unlimited marketplace bidding.</Text>
+                <Text style={styles.capSub}>Unlimited marketplace bids are on the Business plan.</Text>
               </View>
               <ArrowRight size={16} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -725,7 +726,7 @@ export default function SubmitBidResponseScreen() {
           ) : atMonthlyCap ? (
             <>
               <Lock size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.submitBtnText}>Upgrade to bid</Text>
+              <Text style={styles.submitBtnText}>See plans</Text>
             </>
           ) : (
             <>
@@ -738,7 +739,7 @@ export default function SubmitBidResponseScreen() {
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
-          Submitting binds you to honor the estimate if the homeowner accepts. You can withdraw any
+          Submitting binds you to honor the estimate if the client accepts. You can withdraw any
           time before they award the project.
         </Text>
       </ScrollView>
@@ -868,7 +869,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tierLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   tierLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
   tierBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: t.accentFill },
-  tierBadgeText: { fontSize: 8, fontWeight: '800', color: '#FFF', letterSpacing: 0.6 },
+  tierBadgeText: { fontSize: 8, fontWeight: '800', color: '#FFF', letterSpacing: 0.6, textTransform: 'uppercase' },
   tierTagline: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 15 },
   tierRadio: {
     width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: t.line,

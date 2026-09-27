@@ -47,6 +47,7 @@ import * as Haptics from 'expo-haptics';
 import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
+import { BRAND_ACCENT, BRAND_ACCENT_ON_DARK, deriveAccentPalette } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { mergedBidBranding } from '@/utils/bidDocumentIdentity';
 import { showAlert } from '@/utils/alert';
@@ -86,16 +87,18 @@ async function takeReplayTarget(): Promise<string | null> {
 // looks identical regardless of any custom-primary the user has set
 // later in Settings. The splash IS the brand.
 const BRAND = {
-  // Hero gradient is brand amber on ink (the green preset was off-brand — the
-  // documented brand is amber/ink; see constants/colors.ts).
-  green: '#FF6A1A',
-  greenDeep: '#0B0D10',
-  greenAccent: '#FF8533',
-  orange: '#FF6A1A',
-  orangeHot: '#FF8533',
-  orangeDeep: '#C2410C',
+  // Equipment green on the dark ground (rebrand 2026-09-16). The dark-UI brand
+  // family, not the light one: #2F6B3A on this ground is 2.80:1, #5DB36E is
+  // 6.93:1. Read from the brand constants rather than the themed accent, so a
+  // custom hue never reaches the splash.
+  brand: BRAND_ACCENT_ON_DARK,
+  // The brand's lifted companion (dark accentHot) — the rate hint's ink.
+  brandHot: deriveAccentPalette(BRAND_ACCENT, 'dark').accentHot,
+  // The dark ground BrandBackdrop paints (its INK_DEEP). `ink` is the same
+  // value used as a FOREGROUND on the cream CTA.
+  ground: '#151816',
   cream: '#F4EFE6',
-  ink: '#0B0D10',
+  ink: '#151816',
   fog: 'rgba(244,239,230,0.62)',
 };
 
@@ -129,23 +132,23 @@ interface PreviewCard {
 const PREVIEW_CARDS: PreviewCard[] = [
   {
     Icon: MageAIMark,
-    title: 'Win more jobs with Instant Bid',
-    body: 'Tap once on a homeowner request — get a polished Good/Better/Best proposal with financing, ready to send in seconds.',
+    title: 'Win more work with instant bids',
+    body: 'Tap a client request and get a good, better and best proposal with financing, ready to send.',
   },
   {
     Icon: Ruler,
     title: 'AI takeoffs from a PDF',
-    body: 'Drop in plans. Get walls, doors, finishes in seconds. Then turn them into sub bid packages.',
+    body: 'Drop in plans. Get walls, doors and finishes, then turn them into sub bid packages.',
   },
   {
     Icon: TrendingUp,
-    title: 'Every job makes your next bid smarter',
-    body: 'MAGE learns your real costs as you build. Each finished job sharpens the next estimate — a moat that compounds with every project.',
+    title: 'Every project sharpens your next bid',
+    body: 'MAGE learns your costs as you build. Each finished project makes the next estimate more accurate.',
   },
   {
     Icon: Mic,
     title: 'Voice on the jobsite',
-    body: 'Tap once, talk. AI logs your daily report, files the RFI, drafts the change order. Works offline.',
+    body: 'Tap once and talk. MAGE drafts your daily report, the RFI and the change order. Works offline.',
   },
   {
     Icon: Check,
@@ -153,7 +156,7 @@ const PREVIEW_CARDS: PreviewCard[] = [
     // The sample path is now learn-by-doing, not a look-around: the first
     // tutorial (utils/tutorial/defs/dailyReportVoice) files today's report on
     // the sample by voice, so the copy promises exactly that and its time.
-    body: "Price a real bid in about two minutes — or try it on a sample job first: you'll file a day's report by voice in about 35 seconds.",
+    body: "Price a real bid in about two minutes. Or try a sample project first and file a day's report by voice in about 35 seconds.",
     isTryIt: true,
   },
 ];
@@ -412,7 +415,7 @@ export default function OnboardingScreen() {
       seedingRef.current = false;
       setSeedingSample(false);
       console.warn('[onboarding] sample seed failed', err);
-      showAlert('Could not build the sample', 'Something went wrong loading the sample job. Try again, or start with a real bid.');
+      showAlert("Couldn't build the sample project", 'Try again, or start with a real bid.');
       return;
     }
 
@@ -499,7 +502,7 @@ export default function OnboardingScreen() {
       setRateHint(
         parsed.rejected.length > 0
           ? "Couldn't read a rate from those lines. Each needs a trade, a unit (SF, LF, EA, HR…) and a price."
-          : 'Paste one rate per line — trade, unit, price. For example: Framing, SF, $12.50',
+          : 'Paste one rate per line: trade, unit, price. For example: Framing, SF, $12.50',
       );
       return;
     }
@@ -544,7 +547,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
       {/* Background — ink field with corner accent glows.
-          The large field is ink; accent orange lives only in the
+          The large field is ink; accent green lives only in the
           corner-glow layers (doctrine: accent is never the background). */}
       <BrandBackdrop />
 
@@ -596,10 +599,10 @@ export default function OnboardingScreen() {
             <Text style={styles.eyebrowDot}>●</Text>  the operating system for builders
           </Animated.Text>
 
-          {/* Display headline. Italic for the middle phrase to introduce
-              expressive serif feel using system fonts (Georgia on iOS,
-              the platform serif fallback elsewhere). No new font
-              dependency required. */}
+          {/* Display headline. The middle phrase is set in the italic
+              Barlow display (Barlow_700Bold_Italic, loaded in _layout.tsx)
+              for emphasis; it falls back to the system face if the font
+              has not loaded. */}
           <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
             <Text style={styles.headlineRoman}>Build it.{' '}</Text>
             <Text style={styles.headlineItalic}>Bill it.{' '}</Text>
@@ -607,8 +610,8 @@ export default function OnboardingScreen() {
           </Animated.Text>
 
           <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
-            Plans, estimates, AI takeoffs, daily reports, change orders, AIA pay apps,
-            a live client portal — replaced a dozen tools with one app you carry on the jobsite.
+            Plans, estimates, AI takeoffs, daily reports, change orders, AIA pay apps and
+            a live client portal. One app you carry on the jobsite instead of a dozen tools.
           </Animated.Text>
 
           {/* Trust line — sets pricing expectations upfront so users
@@ -648,7 +651,7 @@ export default function OnboardingScreen() {
           <View style={{ flex: 1 }} />
 
           <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-            <Text style={styles.eyebrowDot}>●</Text>  what you&apos;re getting
+            <Text style={styles.eyebrowDot}>●</Text>  What you&apos;re getting
           </Animated.Text>
 
           <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -679,7 +682,7 @@ export default function OnboardingScreen() {
                   testID={`onboarding-preview-card-${cardIndex}`}
                 >
                   <View style={styles.previewIcon}>
-                    <Icon size={18} color={BRAND.orange} strokeWidth={2.2} />
+                    <Icon size={18} color={BRAND.brand} strokeWidth={2.2} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.previewTitle}>{card.title}</Text>
@@ -730,12 +733,12 @@ export default function OnboardingScreen() {
                           pressed && { opacity: 0.82 },
                         ]}
                         accessibilityRole="button"
-                        accessibilityLabel="Try it on a sample job"
+                        accessibilityLabel="Try it on a sample project"
                         accessibilityState={{ busy: seedingSample, disabled: seedingSample }}
                         testID="onboarding-tour-sample"
                       >
                         <Text style={styles.ctaSecondaryText}>
-                          {seedingSample ? 'Building the sample job…' : 'Try it on a sample job'}
+                          {seedingSample ? 'Building the sample project…' : 'Try it on a sample project'}
                         </Text>
                       </Pressable>
                     )}
@@ -771,7 +774,7 @@ export default function OnboardingScreen() {
             <View style={{ flex: 1 }} />
 
             <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-              <Text style={styles.eyebrowDot}>●</Text>  price from your numbers
+              <Text style={styles.eyebrowDot}>●</Text>  Priced from your numbers
             </Animated.Text>
 
             <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -783,9 +786,8 @@ export default function OnboardingScreen() {
             {!rateReview ? (
               <Animated.View style={{ opacity: bodyOpacity }}>
                 <Text style={styles.lede}>
-                  MAGE learns your rates from every job you close — which means nothing to
-                  price with today. Paste what you already charge and your first estimate is
-                  built on your numbers, not a national average.
+                  Paste what you charge today. Your first estimate uses your rates, and every
+                  project you close makes them sharper.
                 </Text>
                 <Text style={styles.fieldLabel}>Your company name</Text>
                 <TextInput
@@ -800,8 +802,8 @@ export default function OnboardingScreen() {
                   testID="onboarding-company-name"
                 />
                 <Text style={styles.fieldNote}>
-                  Prints on the header of every bid you send. Optional — we&apos;ll ask before the
-                  first one goes out if you skip it.
+                  Prints on the header of every bid you send. Optional. If you skip it, MAGE asks
+                  before the first one goes out.
                 </Text>
                 <TextInput
                   style={styles.pasteInput}
@@ -847,7 +849,7 @@ export default function OnboardingScreen() {
               <Animated.View style={{ opacity: bodyOpacity }}>
                 <View style={styles.confirmCard}>
                   <View style={styles.confirmHeadRow}>
-                    <TrendingUp size={16} color={BRAND.orange} strokeWidth={2.2} />
+                    <TrendingUp size={16} color={BRAND.brand} strokeWidth={2.2} />
                     <Text style={styles.confirmCount}>
                       {rateReview.rows.length} rate{rateReview.rows.length === 1 ? '' : 's'} ready
                     </Text>
@@ -873,8 +875,8 @@ export default function OnboardingScreen() {
                     </Text>
                   )}
                   <Text style={styles.seedNote}>
-                    Saved as rates you set — never counted as closed jobs. Every job you finish
-                    corrects them.
+                    Saved as rates you set, never counted as closed projects. Every project you
+                    finish corrects them.
                   </Text>
                 </View>
                 <Pressable
@@ -888,7 +890,7 @@ export default function OnboardingScreen() {
                   accessibilityRole="button"
                   testID="onboarding-rates-commit"
                 >
-                  <Text style={styles.ctaPrimaryText}>Price your first bid →</Text>
+                  <Text style={styles.ctaPrimaryText}>Price your first bid</Text>
                 </Pressable>
                 <TouchableOpacity
                   onPress={() => setRateReview(null)}
@@ -911,7 +913,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BRAND.greenDeep,
+    backgroundColor: BRAND.ground,
   },
 
   topBar: {
@@ -971,7 +973,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   eyebrowDot: {
-    color: BRAND.orange,
+    color: BRAND.brand,
   },
 
   headline: {
@@ -982,17 +984,17 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   headlineRoman: {
-    // Fraunces 700 Bold — loaded in _layout.tsx via @expo-google-fonts.
-    // Falls back to Georgia / serif when the font network-blips on first
+    // Barlow 700 Bold — loaded in _layout.tsx via @expo-google-fonts.
+    // Falls back to the system face when the font network-blips on first
     // launch (we never block the user on it).
-    fontFamily: 'Fraunces_700Bold',
+    fontFamily: 'Barlow_700Bold',
     fontWeight: '700',
   },
   headlineItalic: {
-    fontFamily: 'Fraunces_700Bold_Italic',
+    fontFamily: 'Barlow_700Bold_Italic',
     fontWeight: '700',
     fontStyle: 'italic',
-    color: BRAND.orange,
+    color: BRAND.brand,
   },
 
   lede: {
@@ -1026,7 +1028,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.lg,
     ...continuousCorners, // iOS squircle — premium polish marker
     alignSelf: 'flex-start',
-    shadowColor: BRAND.orange,
+    shadowColor: BRAND.brand,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -1104,9 +1106,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.md,
-    backgroundColor: 'rgba(255,106,26,0.16)',
+    backgroundColor: 'rgba(93,179,110,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,106,26,0.3)',
+    borderColor: 'rgba(93,179,110,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1180,7 +1182,7 @@ const styles = StyleSheet.create({
   },
   rateHint: {
     fontSize: Type.footnote.fontSize,
-    color: BRAND.orangeHot,
+    color: BRAND.brandHot,
     lineHeight: 18,
     marginBottom: 12,
   },

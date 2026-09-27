@@ -44,7 +44,7 @@ const LIVE_BID_SOURCES: BidSource[] = [
   },
   {
     name: 'NY State Contract Reporter',
-    description: 'All NYS agency procurement notices & bids',
+    description: 'All NYS agency procurement notices and bids',
     url: 'https://nyspro.ogs.ny.gov/content/nys-contract-reporter',
     color: Colors.successDark,
     type: 'State',
@@ -58,21 +58,21 @@ const LIVE_BID_SOURCES: BidSource[] = [
   },
   {
     name: 'BidNet Direct',
-    description: 'State & local government bids across all 50 states',
+    description: 'State and local government bids across all 50 states',
     url: 'https://www.bidnetdirect.com/public/solicitations/open',
     color: Colors.purple,
     type: 'Multi-State',
   },
   {
     name: 'Dodge Construction Network',
-    description: 'Private & public construction project leads',
+    description: 'Private and public construction project leads',
     url: 'https://www.construction.com/',
     color: '#00695C',
     type: 'Private + Public',
   },
   {
     name: 'NYS ESD MWBE',
-    description: 'Empire State Development MWBE directory & opportunities',
+    description: 'Empire State Development MWBE directory and opportunities',
     url: 'https://ny.newnycontracts.com/',
     color: '#AD1457',
     type: 'MWBE',
@@ -86,7 +86,7 @@ const LIVE_BID_SOURCES: BidSource[] = [
   },
   {
     name: 'USASpending.gov',
-    description: 'Track federal spending & find awarded contracts',
+    description: 'Track federal spending and find awarded contracts',
     url: 'https://www.usaspending.gov/search',
     color: '#37474F',
     type: 'Federal',
@@ -109,9 +109,9 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'tools', label: 'Tools', icon: Wrench },
-  { id: 'bids', label: 'Public Bids', icon: Gavel },
+  { id: 'bids', label: 'Public bids', icon: Gavel },
   { id: 'companies', label: 'Companies', icon: Building2 },
-  { id: 'hire', label: 'Direct Hire', icon: Briefcase },
+  { id: 'hire', label: 'Direct hire', icon: Briefcase },
   { id: 'estimate', label: 'Estimator', icon: MageAIMark },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
   // No Materials pill: the standalone browser is redundant now that the
@@ -259,21 +259,21 @@ export default function DiscoverScreen() {
       >
         {/* All three quick-action tints unified on the brand accent.
             Pre-fix Post Bid was cobalt blue (#1565C0) and Post Job was
-            forest green (Colors.primary, since reassigned to orange) —
-            the row had three different oranges/blues fighting for
-            attention. They're all CREATION actions; tone them the same. */}
+            forest green (Colors.primary, since reassigned to orange and,
+            in the 2026-09-16 rebrand, to the MAGE green) — the row had
+            three different oranges/blues fighting for attention. They're all CREATION actions; tone them the same. */}
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickAction}
             onPress={() => navigateTo('/post-bid')}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Post Bid"
+            accessibilityLabel="Post bid"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
               <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
-            <Text style={styles.quickActionLabel}>Post Bid</Text>
+            <Text style={styles.quickActionLabel}>Post bid</Text>
           </TouchableOpacity>
           {HIRE_ENABLED && (
             <TouchableOpacity
@@ -281,12 +281,12 @@ export default function DiscoverScreen() {
               onPress={() => navigateTo('/post-job')}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel="Post Job"
+              accessibilityLabel="Post job"
             >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
                 <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
               </View>
-              <Text style={styles.quickActionLabel}>Post Job</Text>
+              <Text style={styles.quickActionLabel}>Post job</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -294,7 +294,7 @@ export default function DiscoverScreen() {
             onPress={() => navigateTo('/(tabs)/settings')}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="My Profile"
+            accessibilityLabel="My profile"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
               {/* Runtime audit 2026-09-06, VIS-20: this tile shipped a
@@ -305,19 +305,19 @@ export default function DiscoverScreen() {
                   profile row this tile opens. */}
               <UserCircle size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
-            <Text style={styles.quickActionLabel}>My Profile</Text>
+            <Text style={styles.quickActionLabel}>My profile</Text>
           </TouchableOpacity>
         </View>
 
         {/* Tools — the cross-project workflow hub. Section bar + card
             tint moved off amber #D97706 onto the brand accent. The
             amber was a relic of the forest-green era when accent was
-            yellow-orange; now we have one orange that covers it. */}
+            yellow-orange; now one brand green covers it. */}
         <View style={styles.sectionHeaderRow}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
-            <Text style={styles.sectionLabel}>MANAGE WORK</Text>
-            <Text style={styles.sectionHint}>Approvals, cash flow, permits, compliance & 14 more</Text>
+            <Text style={styles.sectionLabel}>Manage work</Text>
+            <Text style={styles.sectionHint}>Approvals, cash flow, permits, compliance and 14 more</Text>
           </View>
         </View>
 
@@ -326,15 +326,15 @@ export default function DiscoverScreen() {
           iconColor={Colors.accent}
           iconBg={Colors.accent + '15'}
           title="Tools"
-          subtitle="Takeoffs, RFIs, punch lists — across all your jobs"
+          subtitle="Takeoffs, RFIs and punch lists across all your projects"
           onPress={() => navigateTo('/(tabs)/discover/tools')}
         />
 
         <View style={styles.sectionHeaderRow}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
           <View>
-            <Text style={styles.sectionLabel}>SMART TOOLS</Text>
-            <Text style={styles.sectionHint}>AI estimates, schedules, code checks & pricing</Text>
+            <Text style={styles.sectionLabel}>Smart tools</Text>
+            <Text style={styles.sectionHint}>AI estimates, schedules, code checks and pricing</Text>
           </View>
         </View>
 
@@ -347,7 +347,7 @@ export default function DiscoverScreen() {
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="Estimator"
-          subtitle="Quick estimate, takeoff, risk, calibration & more — every estimating tool"
+          subtitle="Quick estimate, takeoff, risk, calibration and every other estimating tool"
           onPress={() => navigateTo('/(tabs)/discover/estimate')}
         />
 
@@ -356,7 +356,7 @@ export default function DiscoverScreen() {
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="Construction AI"
-          subtitle="Ask building code questions, get instant answers"
+          subtitle="Ask building code questions and get answers"
           onPress={() => navigateTo('/(tabs)/construction-ai')}
         />
 
@@ -364,8 +364,8 @@ export default function DiscoverScreen() {
           icon={CalendarDays}
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
-          title="Schedule Maker"
-          subtitle="AI-generate or template-based schedules"
+          title="Schedule maker"
+          subtitle="Build a schedule with AI or from a template"
           onPress={() => navigateTo('/(tabs)/discover/schedule')}
         />
 
@@ -378,7 +378,7 @@ export default function DiscoverScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
           <View>
-            <Text style={styles.sectionLabel}>MAGE ID MARKETPLACE</Text>
+            <Text style={styles.sectionLabel}>MAGE ID marketplace</Text>
             {/* NAV-03 (runtime audit 2026-09-06): Discover was selling the half
                 of the marketplace that is switched off. RFP_BROWSE_ENABLED is
                 false, so there is no BROWSE — nothing is fetched, and "Browse
@@ -396,7 +396,7 @@ export default function DiscoverScreen() {
                 end, and does not say "browse", which is not. */}
             <Text style={styles.sectionHint}>
               {RFP_BROWSE_ENABLED
-                ? 'Homeowners post projects, contractors bid, you pick a winner'
+                ? 'Clients post projects, contractors bid, you pick a winner'
                 : 'Post a project, collect bids, pick a winner'}
             </Text>
           </View>
@@ -419,8 +419,8 @@ export default function DiscoverScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.info }]} />
           <View>
-            <Text style={styles.sectionLabel}>ONLINE JOBS & BIDS</Text>
-            <Text style={styles.sectionHint}>Government contracts, private bids & company listings</Text>
+            <Text style={styles.sectionLabel}>Online jobs and bids</Text>
+            <Text style={styles.sectionHint}>Government contracts, private bids and company listings</Text>
           </View>
         </View>
 
@@ -432,8 +432,8 @@ export default function DiscoverScreen() {
           icon={Gavel}
           iconColor={Colors.infoLabel}
           iconBg={Colors.info + '15'}
-          title="Public Bids"
-          subtitle="Government & private bid opportunities"
+          title="Public bids"
+          subtitle="Government and private bid opportunities"
           onPress={() => navigateTo('/(tabs)/discover/bids')}
         />
 
@@ -451,19 +451,19 @@ export default function DiscoverScreen() {
             icon={Briefcase}
             iconColor={Colors.infoLabel}
             iconBg={Colors.info + '15'}
-            title="Job Listings"
-            subtitle="Construction jobs & direct hire openings"
+            title="Job listings"
+            subtitle="Construction jobs and direct hire openings"
             onPress={() => navigateTo('/(tabs)/discover/hire')}
           />
         )}
 
-        {/* Live-databases group: third tone (`accent` orange) — these are
+        {/* Live-databases group: third tone (`accent`, the brand green) — these are
             external resources you visit, not work happening in MAGE ID. */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
-            <Text style={styles.sectionLabel}>LIVE BID DATABASES</Text>
-            <Text style={styles.sectionHint}>Browse real government & private bid portals — updated daily</Text>
+            <Text style={styles.sectionLabel}>Live bid databases</Text>
+            <Text style={styles.sectionHint}>Government and private bid portals, updated daily</Text>
           </View>
         </View>
 
@@ -487,7 +487,7 @@ export default function DiscoverScreen() {
               <Text style={styles.bidSourceDesc} numberOfLines={2}>{source.description}</Text>
               <View style={styles.bidSourceFooter}>
                 <ExternalLink size={12} color={source.color} strokeWidth={1.75} />
-                <Text style={[styles.bidSourceLink, { color: source.color }]}>Open Portal</Text>
+                <Text style={[styles.bidSourceLink, { color: source.color }]}>Open portal</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -496,7 +496,7 @@ export default function DiscoverScreen() {
         <View style={styles.tipCard}>
           <View style={styles.tipHeader}>
             <Award size={16} color={Colors.primary} strokeWidth={1.75} />
-            <Text style={styles.tipTitle}>Pro Tip</Text>
+            <Text style={styles.tipTitle}>Pro tip</Text>
           </View>
           <Text style={styles.tipText}>
             Register your company certifications (MWBE, DBE, etc.) in the Companies section to get matched with bids that require your qualifications.
@@ -512,8 +512,8 @@ export default function DiscoverScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 24, alignItems: 'flex-start' }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.success, marginTop: 2 }]} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.sectionLabel}>EARN MORE WITH MAGE</Text>
-            <Text style={styles.sectionHint}>Embedded fintech &amp; network products — coming soon, on the waitlist now</Text>
+            <Text style={styles.sectionLabel}>Earn more with MAGE</Text>
+            <Text style={styles.sectionHint}>Payments, financing and referral products. Join the waitlist.</Text>
           </View>
         </View>
 
@@ -588,7 +588,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   // Active pill uses the brand accent so the "you're here" cue reads
-  // cleanly in BOTH light (amber on cream) and dark (amber on ink) mode.
+  // cleanly in BOTH light (green on concrete) and dark (green on ink) mode.
   // The earlier pattern (bg = Colors.text) inverted oddly in dark mode.
   tabPillActive: {
     backgroundColor: t.accentFill,

@@ -173,19 +173,19 @@ export default function MarketplaceScreen() {
           {item.inStock && (
             <View style={styles.stockBadge}>
               <CheckCircle size={10} color={themeColors.success} strokeWidth={1.75} />
-              <Text style={styles.stockText}>In Stock</Text>
+              <Text style={styles.stockText}>In stock</Text>
             </View>
           )}
         </View>
         <View style={styles.listingPriceRow}>
           <View style={styles.listingPriceBlock}>
-            <Text style={styles.listingPriceLabel}>RETAIL</Text>
+            <Text style={styles.listingPriceLabel}>Retail</Text>
             <Text style={styles.listingRetail}>${item.price.toFixed(2)}</Text>
             <Text style={styles.listingUnit}>/{item.unit}</Text>
           </View>
           <View style={styles.listingPriceDivider} />
           <View style={styles.listingPriceBlock}>
-            <Text style={[styles.listingPriceLabel, { color: themeColors.success }]}>BULK</Text>
+            <Text style={[styles.listingPriceLabel, { color: themeColors.success }]}>Bulk</Text>
             <Text style={styles.listingBulk}>${item.bulkPrice.toFixed(2)}</Text>
             <Text style={styles.listingUnit}>/{item.unit}</Text>
           </View>
@@ -255,10 +255,10 @@ export default function MarketplaceScreen() {
                   in the app built from his real records. */}
               <View style={styles.previewBanner} testID="marketplace-sample-banner">
                 <Text style={styles.previewLabel}>
-                  SAMPLE CATALOG
+                  Sample catalog
                 </Text>
                 <Text style={styles.previewBody}>
-                  Every supplier, price and stock level here is a made-up example. None of them is a real business or a MAGE ID member, and nothing on this screen contacts anyone.
+                  Every supplier, price and stock level here is an example. None of them is a real business or a MAGE ID member, and nothing on this screen contacts anyone.
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.push('/sub-scorecard' as never)}
@@ -276,7 +276,7 @@ export default function MarketplaceScreen() {
                   style={styles.searchInput}
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="Search suppliers, materials..."
+                  placeholder="Search suppliers and materials"
                   placeholderTextColor={themeColors.textMuted}
                   autoCorrect={false}
                   selectionColor={themeColors.accent}
@@ -363,7 +363,7 @@ export default function MarketplaceScreen() {
                 <Store size={40} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.emptyTitle}>No suppliers match yet</Text>
                 <Text style={styles.emptyDesc}>
-                  Clear the search box, switch the category chip, or tap the Listings tab to see products instead of vendors.
+                  Clear the search, switch the category, or open the Products tab.
                 </Text>
               </View>
             )}
@@ -372,7 +372,7 @@ export default function MarketplaceScreen() {
                 <MageMaterials size={40} color={themeColors.textMuted} />
                 <Text style={styles.emptyTitle}>No products match yet</Text>
                 <Text style={styles.emptyDesc}>
-                  Try a broader category, clear your search, or switch to the Suppliers tab to browse vendors first.
+                  Try a broader category, clear the search, or open the Suppliers tab.
                 </Text>
               </View>
             )}
@@ -428,7 +428,7 @@ export default function MarketplaceScreen() {
               </View>
 
               <Text style={styles.detailSectionLabel}>
-                PRODUCTS ({supplierListings.length})
+                Products ({supplierListings.length})
               </Text>
               <View style={styles.detailListingsCard}>
                 {supplierListings.map((listing, idx) => {
@@ -500,7 +500,7 @@ export default function MarketplaceScreen() {
                       {selectedListing.inStock && (
                         <View style={styles.popupStockBadge}>
                           <CheckCircle size={10} color={themeColors.success} strokeWidth={1.75} />
-                          <Text style={styles.popupStockText}>In Stock</Text>
+                          <Text style={styles.popupStockText}>In stock</Text>
                         </View>
                       )}
                     </View>
@@ -508,12 +508,12 @@ export default function MarketplaceScreen() {
 
                   <View style={styles.popupPriceRow}>
                     <View style={styles.popupPriceBlock}>
-                      <Text style={styles.popupPriceLabel}>RETAIL</Text>
+                      <Text style={styles.popupPriceLabel}>Retail</Text>
                       <Text style={styles.popupRetail}>${selectedListing.price.toFixed(2)}</Text>
                       <Text style={styles.popupPriceUnit}>/{selectedListing.unit}</Text>
                     </View>
                     <View style={styles.popupPriceBlock}>
-                      <Text style={[styles.popupPriceLabel, { color: themeColors.success }]}>BULK</Text>
+                      <Text style={[styles.popupPriceLabel, { color: themeColors.success }]}>Bulk</Text>
                       <Text style={styles.popupBulk}>${selectedListing.bulkPrice.toFixed(2)}</Text>
                       <Text style={styles.popupPriceUnit}>/{selectedListing.unit}</Text>
                     </View>
@@ -552,7 +552,7 @@ export default function MarketplaceScreen() {
                   {usesBulk && (
                     <View style={styles.popupBulkBanner}>
                       <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
-                      <Text style={styles.popupBulkText}>Bulk pricing applied! Save {savings}%</Text>
+                      <Text style={styles.popupBulkText}>Bulk pricing applied. Save {savings}%</Text>
                     </View>
                   )}
 
@@ -569,7 +569,7 @@ export default function MarketplaceScreen() {
                   </View>
 
                   <Text style={styles.popupSampleNote} testID="marketplace-sample-note">
-                    Sample listing — the supplier and these prices are made up, so there is no one to request a quote from.
+                    Sample listing. The supplier and these prices are examples, so there is no one to request a quote from.
                   </Text>
                 </>
               );
@@ -619,6 +619,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.warningLabel,
     letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   previewLink: {
     fontSize: Type.caption1.fontSize,
@@ -672,8 +673,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
   },
+  // accentFill, not Colors.primary, under the textOnPrimary labels here and in
+  // categoryChipActive: the dark-theme brand #5DB36E gives white 2.58:1;
+  // accentFill is solved for white in both themes (4.83:1 dark).
   modeBtnActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   modeBtnText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -703,7 +707,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   categoryChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   categoryChipText: {
     fontSize: Type.caption1.fontSize,
@@ -864,6 +868,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textMuted,
     marginRight: 4,
     letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   listingRetail: {
     fontSize: Type.bodyCompact.fontSize,
@@ -1026,6 +1031,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '600' as const,
     color: themeColors.textMuted,
     letterSpacing: 0.6,
+    textTransform: 'uppercase',
     paddingHorizontal: 20,
     marginBottom: 8,
   },
@@ -1164,6 +1170,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: themeColors.textMuted,
     letterSpacing: 0.5,
     marginRight: 4,
+    textTransform: 'uppercase',
   },
   popupRetail: {
     fontSize: Type.callout.fontSize,

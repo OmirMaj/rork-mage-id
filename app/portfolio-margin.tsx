@@ -170,7 +170,7 @@ function PortfolioMarginInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Margin Board · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Margin board · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Portfolio margin</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -190,13 +190,13 @@ function PortfolioMarginInner() {
         <EmptyState
           icon={<TrendingUp size={36} color={t.accent} strokeWidth={1.6} />}
           title="No margin to roll up yet"
-          message="The Margin Board ranks every active project by margin risk. To populate it:"
+          message="The margin board ranks every active project by margin risk. To fill it:"
           steps={[
             'Mark projects as estimated or in progress.',
             'Give each an estimate with markup so there is a margin to track.',
-            'Award buyout and approve change orders — the board updates live.',
+            'Award buyout and approve change orders. The board updates as you go.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
@@ -206,7 +206,7 @@ function PortfolioMarginInner() {
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Projected revenue</Text>
               <Text style={styles.kpiValue}>{formatMoney(totalRevenue)}</Text>
-              <Text style={styles.kpiSub}>{rows.length} active job{rows.length === 1 ? '' : 's'}</Text>
+              <Text style={styles.kpiSub}>{rows.length} active {rows.length === 1 ? 'project' : 'projects'}</Text>
             </View>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Blended margin</Text>
@@ -234,7 +234,7 @@ function PortfolioMarginInner() {
             <View style={styles.alertBanner}>
               <ShieldAlert size={16} color={t.danger} strokeWidth={1.75} />
               <Text style={styles.alertText}>
-                <Text style={styles.alertStrong}>{atRisk}</Text> job{atRisk === 1 ? '' : 's'} at elevated or high margin risk — top of the list.
+                <Text style={styles.alertStrong}>{atRisk}</Text> {atRisk === 1 ? 'project' : 'projects'} at elevated or high margin risk, top of the list.
               </Text>
             </View>
           )}
@@ -278,7 +278,7 @@ function PortfolioMarginInner() {
 
           <Text style={styles.note}>
             Only projects (estimated or in progress) with a cost-and-markup estimate appear
-            here. Tap a job to see its margin risk and the Living Estimate behind it.
+            here. Tap a project to see its margin risk and the living estimate behind it.
           </Text>
         </ScrollView>
       )}

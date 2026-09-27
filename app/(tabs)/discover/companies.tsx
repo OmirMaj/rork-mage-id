@@ -13,7 +13,6 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { LandingSlot, useLanding } from '@/components/animations/Landing';
@@ -29,6 +28,7 @@ import {
 } from '@/utils/location';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError } from '@/utils/errorCopy';
 
 // Every row is a Google Places text-search result cached by
 // supabase/functions/fetch-external-data (9 metros; production 2026-09-18:
@@ -64,8 +64,8 @@ interface CompanyWithDistance extends CachedCompany {
 const RADIUS_OPTIONS = [10, 25, 50, 100] as const;
 
 const SPECIALTY_FILTERS = [
-  'General Contractor', 'Electrical', 'Plumbing', 'HVAC',
-  'Roofing', 'Building Materials Supply', 'Concrete Supply', 'Lumber Supply',
+  'General contractor', 'Electrical', 'Plumbing', 'HVAC',
+  'Roofing', 'Building materials supply', 'Concrete supply', 'Lumber supply',
 ] as const;
 
 function StarRow({ rating }: { rating: number | null | undefined }) {
@@ -124,7 +124,7 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
             <Text style={styles.avatarText}>{company.name ? company.name.charAt(0) : '?'}</Text>
           </View>
           <View style={styles.cardTopInfo}>
-            <Text style={styles.companyName} numberOfLines={1}>{company.name ?? 'Unknown Company'}</Text>
+            <Text style={styles.companyName} numberOfLines={1}>{company.name ?? 'Unnamed business'}</Text>
             <Text style={styles.specialtyText}>{company.trade_specialty ?? 'Specialty not listed'}</Text>
             <Text style={styles.sourceText}>Public business listing (Google) · not a MAGE ID member</Text>
           </View>
@@ -134,7 +134,7 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
           <Star size={14} color="#F5A623" fill="#F5A623" strokeWidth={1.75} />
           <Text style={styles.ratingValue}>{company.rating != null ? company.rating.toFixed(1) : 'N/A'}</Text>
           <StarRow rating={company.rating} />
-          <Text style={styles.reviewCount}>({company.total_reviews ?? company.review_count ?? 0} Google reviews)</Text>
+          <Text style={styles.reviewCount}>({company.total_reviews ?? company.review_count ?? 0} Google {(company.total_reviews ?? company.review_count ?? 0) === 1 ? 'review' : 'reviews'})</Text>
         </View>
 
         <View style={styles.addressRow}>
@@ -287,7 +287,7 @@ export default function CachedCompaniesScreen() {
         </View>
 
         <View style={styles.radiusHeaderRow}>
-          <Text style={styles.filterSectionLabel}>RADIUS</Text>
+          <Text style={styles.filterSectionLabel}>Radius</Text>
           <TouchableOpacity
             style={styles.locBtn}
             onPress={() => {
@@ -319,7 +319,7 @@ export default function CachedCompaniesScreen() {
           </Text>
         )}
 
-        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>SPECIALTY</Text>
+        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>Specialty</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
           <TouchableOpacity
             style={[styles.chip, !selectedSpecialty && styles.chipActive]}
@@ -344,12 +344,10 @@ export default function CachedCompaniesScreen() {
           <AlertCircle size={40} color={themeColors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>Couldn&apos;t load companies</Text>
           <Text style={styles.emptySubtitle}>
-            {companiesQueryError instanceof Error && companiesQueryError.message
-              ? companiesQueryError.message
-              : 'The request did not come back.'}
+            {describeError(companiesQueryError, { action: 'load companies' }).body}
           </Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>Try again</Text>
           </TouchableOpacity>
         </View>
       ) : loading ? (
@@ -390,7 +388,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerTitle: { ...Type.serifHeadline, flex: 1, color: t.text },
   countPill: { backgroundColor: Colors.successLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card },
   countPillText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.successDark },
-  filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' as const },
   radiusHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   locBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -433,8 +431,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
   emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
-  // accentFill, not accent: this button carries white text, and #FF6A1A is
-  // 2.87:1 behind white. Same pair the sibling bids tab uses.
+  // accentFill, not accent: this button carries white text, and the dark
+  // theme's accent is a light green white cannot sit on (accentFill is solved
+  // for both budgets). Same pair the sibling bids tab uses.
   retryButton: { marginTop: 14, backgroundColor: t.accentFill, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
   retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },

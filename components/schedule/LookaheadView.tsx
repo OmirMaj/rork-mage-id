@@ -209,7 +209,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
               {isBlocked && (
                 <View style={s.blockedTag}>
                   <AlertTriangle size={9} color={t.dangerLabel} strokeWidth={1.75} />
-                  <Text style={s.blockedTagText}>BLOCKED</Text>
+                  <Text style={s.blockedTagText}>Blocked</Text>
                 </View>
               )}
             </View>
@@ -455,13 +455,13 @@ function LookaheadView({
           style={[s.segmentBtn, weekCount === 3 && s.segmentBtnActive]}
           onPress={() => setWeekCount(3)}
         >
-          <Text style={[s.segmentBtnText, weekCount === 3 && s.segmentBtnTextActive]}>3 Week</Text>
+          <Text style={[s.segmentBtnText, weekCount === 3 && s.segmentBtnTextActive]}>3 weeks</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.segmentBtn, weekCount === 6 && s.segmentBtnActive]}
           onPress={() => setWeekCount(6)}
         >
-          <Text style={[s.segmentBtnText, weekCount === 6 && s.segmentBtnTextActive]}>6 Week</Text>
+          <Text style={[s.segmentBtnText, weekCount === 6 && s.segmentBtnTextActive]}>6 weeks</Text>
         </TouchableOpacity>
       </View>
 
@@ -506,7 +506,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 8,
     borderRadius: Tokens.radius.md,
   },
-  segmentBtnActive: { backgroundColor: Colors.primary },
+  // accentFill, not Colors.primary: white label, and the dark-theme brand
+  // #5DB36E gives white 2.58:1 (accentFill 4.83:1).
+  segmentBtnActive: { backgroundColor: t.accentFill },
   segmentBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   segmentBtnTextActive: { color: '#FFF' },
 
@@ -596,7 +598,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   swipeBgText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: '#FFF' },
   flashOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#34C75920',
+    backgroundColor: Colors.success + '20',
     borderRadius: Tokens.radius.lg,
   },
 

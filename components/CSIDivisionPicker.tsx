@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import {
   CSI_DIVISIONS,
   csiDivisionLabel,
@@ -37,6 +38,9 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
+  // Desktop web: a centred dialog in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's bottom sheet, byte for byte.
+  const fCsi = useSheetFrame('dialog', { visible: open, animationType: 'slide' });
 
   const suggested: string | null = useMemo(() => {
     if (!suggestFromText || !suggestFromText.trim()) return null;
@@ -88,11 +92,18 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
       <Modal
         visible={open}
         transparent
-        animationType="slide"
+        animationType={fCsi.animationType}
         onRequestClose={() => setOpen(false)}
       >
+        <SheetOverlay frame={fCsi}>
+        {/* RN-web fires no onTouchEnd on a mouse click, so on desktop the
+            backdrop is the Pressable scrim (one dimming layer, not two). */}
+        {fCsi.isDesktop ? (
+          <SheetScrim frame={fCsi} onPress={() => setOpen(false)} />
+        ) : (
         <View style={styles.backdrop} onTouchEnd={() => setOpen(false)} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+        )}
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fCsi.card]}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>CSI MasterFormat division</Text>
             <TouchableOpacity
@@ -185,6 +196,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
             </TouchableOpacity>
           </View>
         </View>
+        </SheetOverlay>
       </Modal>
     </>
   );

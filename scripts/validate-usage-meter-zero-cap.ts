@@ -192,16 +192,16 @@ function after(label: string, branch: string): boolean {
 ok('the Advanced AI row is behind an aiSmartLimit > 0 branch',
   /\{aiSmartLimit > 0 \? \(/.test(settingsCode),
   'without the branch a free user sees the literal text "Advanced: 0 of 0"');
-ok('the zero-cap Advanced copy is "Advanced AI: upgrade to unlock"',
-  settings.includes('Advanced AI: upgrade to unlock'));
+ok('the zero-cap Advanced copy is "Advanced AI is on the Pro plan"',
+  settings.includes('Advanced AI is on the Pro plan'));
 ok('the "Advanced: {used} of {limit}" label only exists inside that branch',
   after('Advanced: {aiSmartUsed} of {aiSmartLimit}', '{aiSmartLimit > 0 ? ('));
 
 ok('the Takeoff row is behind a takeoffQuota.cap > 0 branch',
   /\{takeoffQuota\.cap > 0 \? \(/.test(settingsCode),
   'without the branch a free user sees "Takeoff: 0 of 0 pages this month"');
-ok('the zero-cap Takeoff copy is "Takeoff pages: upgrade to unlock"',
-  settings.includes('Takeoff pages: upgrade to unlock'));
+ok('the zero-cap Takeoff copy is "Takeoff pages are on the Pro plan"',
+  settings.includes('Takeoff pages are on the Pro plan'));
 ok('the "Takeoff: {used} of {cap}" label only exists inside that branch',
   after('Takeoff: {takeoffQuota.used} of {takeoffQuota.cap}', '{takeoffQuota.cap > 0 ? ('));
 

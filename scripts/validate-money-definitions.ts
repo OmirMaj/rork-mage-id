@@ -799,7 +799,7 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
     ok('…and at a $0.00 remainder it does NOT send him somewhere to bill nothing',
       /leaving nothing to bill against it/.test(copy)
       && /change order/.test(copy) && /update the contract value/.test(copy)
-      && !/Bill from Estimate/.test(copy),
+      && !/Bill from estimate/.test(copy),
       copy);
     const partial = milestoneBillability({
       milestone: ms(1) as never, contractValue: CONTRACT, contractStatus: 'signed',
@@ -811,7 +811,7 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
     ok('…while a refusal with a real remainder still names both ways out',
       partial.reason === 'contract_fully_billed'
       && /leaving \$1,000\.00/.test(partialCopy)
-      && /Bill from Estimate/.test(partialCopy) && /update the contract value/.test(partialCopy),
+      && /Bill from estimate/.test(partialCopy) && /update the contract value/.test(partialCopy),
       partialCopy);
   }
 
@@ -1427,8 +1427,8 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
       + 'two-screens-disagree defect moved inside one screen');
     ok('…and the footer no longer describes the arithmetic this wave replaced',
       !/Budget includes approved change orders\. Actual is/.test(jcScreen)
-      && /at their estimated COST/.test(jcScreen)
-      && /floor ONCE across the whole job/.test(jcScreen),
+      && /at their estimated cost/.test(jcScreen)
+      && /one floor across the whole\s+project/.test(jcScreen),
       'the footer said "Budget includes approved change orders" (they now enter at cost) and '
       + '"uncommitted budget is a floor" (it is now one project-level floor)');
   }
@@ -1609,7 +1609,11 @@ console.log('\nwhat the homeowner is shown (MONEY-PAID-DRAFT-1, MONEY-CONTRACT-1
   ok('…and reads the shared draft-filtered definitions instead of re-summing inline',
     !/invoices\.reduce\(\(s, i\) => s \+ i\.amountPaid, 0\)/.test(portal)
     && !/invoices\.reduce\(\(s, i\) => s \+ i\.totalDue, 0\)/.test(portal)
-    && /getPaidToDate\(invoices\)/.test(portal) && /getInvoicedToDate\(invoices\)/.test(portal),
+    // health 2026-09-26 (MONEY-CLIENTVIEW-DUE-NOW): the card now reads every
+    // figure from utils/clientViewMoney.clientViewMoneyFigures, which is
+    // getPaidToDate + getOutstandingBalance over the portal's own population.
+    && /clientViewMoneyFigures\(\{ invoices, contractValue, changeOrders \}\)/.test(portal)
+    && /getPaidToDate\(all\)/.test(read('utils/clientViewMoney.ts')),
     'the source fix landed in getPaidToDate; this screen kept its own unfiltered reduce two lines below it');
 
   // ── THE SNAPSHOT PATH, which is the mode every real homeowner is in. ────
@@ -1622,11 +1626,11 @@ console.log('\nwhat the homeowner is shown (MONEY-PAID-DRAFT-1, MONEY-CONTRACT-1
     resolveContractSum(proj, undefined).source, 'estimate');
   ok('…and the screen only asserts an ABSENCE when it could actually check',
     /const contractWasChecked = !isSnapshotMode && !!localProject\?\.id && contractQ\.isSuccess;/.test(portal)
-    && /contractWasChecked\s*\n?\s*\?\s*'Original Contract is the accepted estimate total — no signed agreement is on file/
+    && /contractWasChecked\s*\n?\s*\?\s*'Original contract is the accepted estimate total\. No signed agreement is on file/
       .test(portal),
     'the "no signed agreement" sentence must be behind contractWasChecked');
   ok('…and otherwise points the homeowner at the document that governs',
-    /open it under Documents/.test(portal));
+    /Open it under Documents/.test(portal));
 
   const contractScreen = read('app/contract.tsx');
   ok('the contract screen finally knows change orders exist',

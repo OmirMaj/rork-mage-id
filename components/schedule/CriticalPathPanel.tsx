@@ -108,7 +108,7 @@ export function CriticalPathPanel(props: {
               ))
             ) : (
               <Text style={styles.mutedLine}>
-                No critical path — the schedule has slack throughout.
+                No critical path. Every task has float.
               </Text>
             )}
 
@@ -123,7 +123,7 @@ export function CriticalPathPanel(props: {
               ))
             ) : (
               <Text style={styles.mutedLine}>
-                Every task is on the critical path — no slack anywhere.
+                Every task is on the critical path. There&apos;s no float anywhere.
               </Text>
             )}
           </ScrollView>

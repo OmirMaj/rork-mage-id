@@ -23,7 +23,7 @@ const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {
   available: 'Available Now', employed: 'Currently Employed', open_to_offers: 'Open to Offers',
 };
 const AVAILABILITY_COLORS: Record<AvailabilityStatus, string> = {
-  available: '#2E7D32', employed: '#E65100', open_to_offers: '#1565C0',
+  get available() { return Colors.successLabel; }, employed: '#E65100', open_to_offers: '#1565C0',
 };
 
 export default function WorkerDetailScreen() {
@@ -52,14 +52,14 @@ export default function WorkerDetailScreen() {
     // removing the /worker-detail entry point in app/job-detail.tsx.
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Worker Profile' }} />
+        <Stack.Screen options={{ title: 'Crew member profile' }} />
         <View style={styles.comingSoon}>
           <View style={styles.comingSoonIcon}>
             <HardHat size={32} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.comingSoonTitle}>Direct Hire is coming soon</Text>
+          <Text style={styles.comingSoonTitle}>Hiring isn&apos;t open</Text>
           <Text style={styles.comingSoonBody}>
-            The hiring marketplace isn&apos;t available yet. We&apos;ll let you know the moment worker profiles go live.
+            Crew member profiles appear here once the hiring marketplace opens.
           </Text>
           <TouchableOpacity
             style={styles.comingSoonBtn}
@@ -79,8 +79,8 @@ export default function WorkerDetailScreen() {
   if (!worker) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Worker Profile' }} />
-        <View style={styles.center}><Text style={styles.errorText}>Worker not found</Text></View>
+        <Stack.Screen options={{ title: 'Crew member profile' }} />
+        <View style={styles.center}><Text style={styles.errorText}>Crew member not found</Text></View>
       </View>
     );
   }
@@ -100,7 +100,7 @@ export default function WorkerDetailScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Worker Profile',
+        title: 'Crew member profile',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -136,7 +136,7 @@ export default function WorkerDetailScreen() {
           </View>
           <View style={styles.statCard}>
             <Briefcase size={18} color={themeColors.info} strokeWidth={1.75} />
-            <Text style={styles.statLabel}>Past Projects</Text>
+            <Text style={styles.statLabel}>Past projects</Text>
             <Text style={styles.statValue}>{worker.pastProjects.length}</Text>
           </View>
         </View>
@@ -148,7 +148,7 @@ export default function WorkerDetailScreen() {
 
         {worker.licenses.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Licenses & Certifications</Text>
+            <Text style={styles.sectionTitle}>Licenses and certifications</Text>
             {worker.licenses.map((lic, i) => (
               <View key={i} style={styles.licenseItem}>
                 <Award size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -160,7 +160,7 @@ export default function WorkerDetailScreen() {
 
         {worker.pastProjects.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Past Projects</Text>
+            <Text style={styles.sectionTitle}>Past projects</Text>
             {worker.pastProjects.map((proj, i) => (
               <View key={i} style={styles.projectItem}>
                 <View style={styles.projectDot} />
@@ -172,7 +172,7 @@ export default function WorkerDetailScreen() {
 
         {matchingJobs.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Matching Open Jobs</Text>
+            <Text style={styles.sectionTitle}>Matching job posts</Text>
             {matchingJobs.map(job => (
               <TouchableOpacity
                 key={job.id}

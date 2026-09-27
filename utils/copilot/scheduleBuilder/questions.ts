@@ -27,7 +27,7 @@ export type AnswerKind = 'text' | 'date' | 'number' | 'choice';
 export interface QuestionSpec {
   field: keyof ScheduleBuilderAnswers;
   eyebrow: string;               // JetBrains-mono label
-  question: string;              // the Fraunces headline
+  question: string;              // the display headline
   subtext: string;               // WHY it matters (grounds the ask)
   kind: AnswerKind;
   placeholder?: string;

@@ -263,4 +263,39 @@ export function describeError(err: unknown, ctx: ErrorContext): ErrorCopy {
   };
 }
 
+// reader-sentence:start
+/** The server's own sentence when it reads as one written for a person
+ *  ("Too many sign-in requests. Wait a few minutes and try again."), else
+ *  null so the caller shows describeError copy. A reader sentence ends with a
+ *  period, runs at least four words, and carries no status code, identifier
+ *  or transport wording ("Invalid email.", "Could not create invite (502)",
+ *  "projectId … required", "Edge Function returned a non-2xx status code"). */
+export function readerSentence(raw: string): string | null {
+  const s = raw.trim();
+  if (!/^[A-Za-z0-9]/.test(s) || !s.endsWith('.')) return null;
+  if (s.split(/\s+/).length < 4) return null;
+  const words = s.replace(/\S+@\S+/g, '');
+  if (/[a-z][A-Z]/.test(words)) return null;
+  if (/\(\s*(?:HTTP\s*)?\d{3}\s*\)|\b(?:edge function|non-2xx|status code|json|fetch|undefined|null)\b|error:/i.test(words)) return null;
+  return s;
+}
+// reader-sentence:end
+
+/**
+ * The thrown message itself, when nothing explains the failure better: the
+ * classifier found no offline / session / permission / … signal ('unknown'),
+ * and the text is a sentence someone wrote for a person — a guard in our own
+ * utils ("This estimate has no line items…") or an edge function's refusal
+ * ("This crew member has already claimed the profile."). Retrying those fails
+ * the same way, so hiding them behind "That didn't go through… try again" is
+ * the wrong advice. null → show describeError's copy.
+ *
+ *   const own = ownSentence(e);
+ *   const copy = describeError(e, { action: 'send the invite' });
+ *   showAlert(own ? "Couldn't send the invite" : copy.title, own ?? copy.body);
+ */
+export function ownSentence(err: unknown): string | null {
+  return classifyError(err) === 'unknown' ? readerSentence(rawErrorMessage(err)) : null;
+}
+
 export default describeError;

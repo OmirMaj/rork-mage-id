@@ -213,21 +213,21 @@ async function writeLienWaiverCache(projectId: string, waivers: LienWaiver[]): P
 export async function loadLienWaiversChecked(
   projectId: string,
 ): Promise<{ ok: true; waivers: LienWaiver[] } | { ok: false; error: string }> {
-  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, error: "Lien waivers aren't available in this version of the app." };
   try {
     const { data, error } = await supabase
       .from('lien_waivers')
       .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false });
-    if (error) return { ok: false, error: error.message || 'The waiver list could not be read.' };
+    if (error) return { ok: false, error: error.message || "The waiver list couldn't be read." };
     const waivers = (data ?? []).map(r => rowToWaiver(r as LienWaiverRow));
     await writeLienWaiverCache(projectId, waivers);
     return { ok: true, waivers };
   } catch (e) {
     // supabase-js rejects (rather than answering { error }) on a dropped
     // connection in some runtimes; that is the offline case, not a crash.
-    return { ok: false, error: e instanceof Error ? e.message : 'The waiver list could not be read.' };
+    return { ok: false, error: e instanceof Error ? e.message : "The waiver list couldn't be read." };
   }
 }
 
@@ -235,13 +235,13 @@ export async function loadLienWaiversChecked(
 export async function fetchLienWaiverChecked(
   id: string,
 ): Promise<{ ok: true; waiver: LienWaiver | null } | { ok: false; error: string }> {
-  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, error: "Lien waivers aren't available in this version of the app." };
   try {
     const { data, error } = await supabase.from('lien_waivers').select('*').eq('id', id).maybeSingle();
-    if (error) return { ok: false, error: error.message || 'The waiver could not be read.' };
+    if (error) return { ok: false, error: error.message || "The waiver couldn't be read." };
     return { ok: true, waiver: data ? rowToWaiver(data as LienWaiverRow) : null };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'The waiver could not be read.' };
+    return { ok: false, error: e instanceof Error ? e.message : "The waiver couldn't be read." };
   }
 }
 
@@ -253,7 +253,7 @@ export async function fetchLienWaiverChecked(
 export async function createLienWaiverChecked(
   w: Parameters<typeof saveLienWaiver>[0],
 ): Promise<{ ok: true; waiver: LienWaiver } | { ok: false; error: string }> {
-  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, error: "Lien waivers aren't available in this version of the app." };
   try {
     const session = await supabase.auth.getSession();
     const userId = session.data.session?.user?.id;
@@ -277,10 +277,10 @@ export async function createLienWaiverChecked(
       })
       .select('*')
       .maybeSingle();
-    if (error || !data) return { ok: false, error: error?.message || 'The waiver was not saved.' };
+    if (error || !data) return { ok: false, error: error?.message || "The waiver wasn't saved." };
     return { ok: true, waiver: rowToWaiver(data as LienWaiverRow) };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'The waiver was not saved.' };
+    return { ok: false, error: e instanceof Error ? e.message : "The waiver wasn't saved." };
   }
 }
 
@@ -297,7 +297,7 @@ export async function updateLienWaiverStatus(
   id: string,
   status: LienWaiverStatus,
 ): Promise<{ ok: true; waiver: LienWaiver | null } | { ok: false; error: string }> {
-  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, error: "Lien waivers aren't available in this version of the app." };
   try {
     const { data, error } = await supabase
       .from('lien_waivers')
@@ -305,10 +305,10 @@ export async function updateLienWaiverStatus(
       .eq('id', id)
       .select('*')
       .maybeSingle();
-    if (error) return { ok: false, error: error.message || 'The waiver was not changed.' };
+    if (error) return { ok: false, error: error.message || "The waiver wasn't changed." };
     return { ok: true, waiver: data ? rowToWaiver(data as LienWaiverRow) : null };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'The waiver was not changed.' };
+    return { ok: false, error: e instanceof Error ? e.message : "The waiver wasn't changed." };
   }
 }
 
@@ -334,7 +334,7 @@ export type RecordPaperResult =
  * the most recent email", sending him to look for an email that was never sent.
  */
 export async function recordPaperLienWaiver(id: string, name: string): Promise<RecordPaperResult> {
-  if (!isSupabaseConfigured) return { ok: false, reason: 'failed', error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, reason: 'failed', error: "Lien waivers aren't available in this version of the app." };
   const now = new Date().toISOString();
   try {
     const { data, error } = await supabase
@@ -351,14 +351,14 @@ export async function recordPaperLienWaiver(id: string, name: string): Promise<R
       .is('signed_at', null)
       .select('*')
       .maybeSingle();
-    if (error) return { ok: false, reason: 'failed', error: error.message || 'The waiver was not changed.' };
+    if (error) return { ok: false, reason: 'failed', error: error.message || "The waiver wasn't changed." };
     if (data) return { ok: true, waiver: rowToWaiver(data as LienWaiverRow) };
     // No row matched: signed underneath us, or gone. Ask the row which.
     const live = await fetchLienWaiverChecked(id);
     if (live.ok && live.waiver?.signedAt) return { ok: false, reason: 'already_signed', waiver: live.waiver };
-    return { ok: false, reason: 'failed', error: live.ok ? 'This waiver is no longer on the job.' : live.error };
+    return { ok: false, reason: 'failed', error: live.ok ? 'This waiver is no longer on the project.' : live.error };
   } catch (e) {
-    return { ok: false, reason: 'failed', error: e instanceof Error ? e.message : 'The waiver was not changed.' };
+    return { ok: false, reason: 'failed', error: e instanceof Error ? e.message : "The waiver wasn't changed." };
   }
 }
 
@@ -395,7 +395,7 @@ export function lienWaiverAccessGate(
     if (s.isLoading) return { kind: 'loading' };
     if (s.isError) return { kind: 'error' };
     if (s.isPaused && s.reason) return { kind: 'blocked', message: s.reason };
-    return { kind: 'blocked', message: 'You are not on this job, so its lien waivers are not shown here. Ask the project owner to invite you.' };
+    return { kind: 'blocked', message: "You aren't on this project, so its lien waivers aren't shown here. Ask the project owner to invite you." };
   }
   const company = (ownerCompany ?? '').trim();
   return {
@@ -553,7 +553,7 @@ export async function requestLienWaiverSignature(
   ctx: LienWaiverDocContext,
   opts?: { senderEmail?: string; senderName?: string },
 ): Promise<LienWaiverRequestResult> {
-  if (!isSupabaseConfigured) return { outcome: 'failed', error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { outcome: 'failed', error: "Lien waivers aren't available in this version of the app." };
   const recipient = (waiver.subEmail ?? '').trim();
   if (!recipient || !recipient.includes('@')) return { outcome: 'no_email' };
   // A signed release is finished. Re-requesting would mint a fresh token, seal
@@ -572,7 +572,7 @@ export async function requestLienWaiverSignature(
 
   const token = mintSignToken();
   const signUrl = buildLienWaiverSignUrl(waiver.id, token);
-  if (!signUrl) return { outcome: 'failed', error: 'Could not build a signing link.' };
+  if (!signUrl) return { outcome: 'failed', error: "Couldn't build a signing link." };
 
   const documentHtml = buildLienWaiverSignableHtml(waiver, branding, ctx);
   // Sealed WITH the document, from the same statutory resolution that built it.
@@ -641,7 +641,7 @@ export async function requestLienWaiverSignature(
       .select('status, signed_at')
       .eq('id', waiver.id)
       .maybeSingle();
-    if (!live) return { outcome: 'failed', error: 'This waiver is no longer in the database.' };
+    if (!live) return { outcome: 'failed', error: 'This waiver has been deleted.' };
     if (live.signed_at) return { outcome: 'already_signed' };
     if (live.status === 'voided') return { outcome: 'voided' };
     return { outcome: 'failed', error: 'The waiver could not be updated, so no link was sent.' };

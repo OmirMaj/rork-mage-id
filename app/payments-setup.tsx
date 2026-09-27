@@ -116,15 +116,15 @@ export default function PaymentsSetupScreen() {
       return;
     }
     if (enabled && !/^https:\/\//i.test(url)) {
-      showAlert('Invalid URL', "Your lender's prequalification link must start with https://.");
+      showAlert('Check the link', "Your lender's prequalification link must start with https://.");
       return;
     }
     if (finApr.trim() && !Number.isFinite(Number(finApr))) {
-      showAlert('Invalid number', 'Example APR must be a number (e.g. 9.99).');
+      showAlert('Check the number', 'Example APR must be a number (e.g. 9.99).');
       return;
     }
     if (finTerm.trim() && !Number.isFinite(Number(finTerm))) {
-      showAlert('Invalid number', 'Example term must be a whole number of months (e.g. 60).');
+      showAlert('Check the number', 'Example term must be a whole number of months (e.g. 60).');
       return;
     }
     const cfg: FinancingConfig = {
@@ -186,7 +186,7 @@ export default function PaymentsSetupScreen() {
 
   const handleStart = useCallback(async () => {
     if (!user?.id || !user?.email) {
-      showAlert('Sign In Required', 'Please sign in to set up payments.');
+      showAlert('Sign in first', 'Sign in to set up payments.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -218,7 +218,8 @@ export default function PaymentsSetupScreen() {
           nailIt('Payments already connected');
           return;
         }
-        showAlert('Could Not Start Setup', res.error ?? 'Stripe is unreachable.');
+        console.warn('[PaymentsSetup] start refused:', res.error);
+        showAlert('Couldn’t start setup', res.error ?? 'Stripe didn’t respond. Try again in a moment.');
         return;
       }
 
@@ -276,13 +277,13 @@ export default function PaymentsSetupScreen() {
         // No-op — we'll show the pending card.
       } else if (post.status === 'incomplete') {
         showAlert(
-          'Setup Not Finished',
+          'Setup not finished',
           'You can come back any time and pick up where you left off.',
         );
       }
     } catch (err) {
       console.error('[PaymentsSetup] start failed:', err);
-      showAlert('Setup Failed', 'Please try again.');
+      showAlert('Couldn’t start setup', 'Try again.');
     } finally {
       setStarting(false);
     }
@@ -410,7 +411,7 @@ function NotConnectedCard({
       <Text style={styles.heroTitle}>Get paid faster</Text>
       <Text style={styles.heroSub}>
         Connect your bank through Stripe's own sign-up form. Clients tap "Pay" in your invoice
-        email and the money goes to your Stripe account — no chasing checks.
+        email and the money goes to your Stripe account.
       </Text>
 
       <View style={styles.benefits}>
@@ -440,7 +441,7 @@ function NotConnectedCard({
 
       {status === 'incomplete' && (
         <Text style={styles.incompleteHint}>
-          You started onboarding earlier — pick up where you left off.
+          You started setup earlier. Pick up where you left off.
         </Text>
       )}
       {companyName ? (
@@ -493,7 +494,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
       </View>
       <Text style={styles.heroTitle}>Payments connected</Text>
       <Text style={styles.heroSub}>
-        You're all set. Every invoice you send now includes a Pay button. {PAYOUT_TIMING_COPY}
+        Every invoice you send now includes a Pay button. {PAYOUT_TIMING_COPY}
       </Text>
 
       <View style={styles.statRow}>

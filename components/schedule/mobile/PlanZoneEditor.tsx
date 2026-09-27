@@ -233,7 +233,7 @@ export function PlanZoneEditor({
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Edit Zones</Text>
+        <Text style={styles.headerTitle}>Edit zones</Text>
         <Text style={styles.headerHint}>Drag to draw · tap to edit</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <X size={18} color={colors.text} strokeWidth={1.75} />
@@ -317,7 +317,7 @@ export function PlanZoneEditor({
               style={styles.promptInput}
               value={nameInput}
               onChangeText={setNameInput}
-              placeholder="e.g. Living Room, Kitchen..."
+              placeholder="e.g. Kitchen"
               placeholderTextColor={colors.textMuted}
               autoFocus
               returnKeyType="done"
@@ -328,7 +328,7 @@ export function PlanZoneEditor({
                 <Text style={styles.promptCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.promptConfirm, { backgroundColor: colors.accentFill }, fName.footerButton]} onPress={confirmNewZone}>
-                <Text style={styles.promptConfirmText}>Add Zone</Text>
+                <Text style={styles.promptConfirmText}>Add zone</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -353,7 +353,7 @@ export function PlanZoneEditor({
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fZoneEdit.card]}>
           {/* Sheet header */}
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>Edit Zone</Text>
+            <Text style={styles.sheetTitle}>Edit zone</Text>
             <TouchableOpacity onPress={saveZoneEdit}>
               <Check size={18} color={colors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -407,7 +407,7 @@ export function PlanZoneEditor({
               activeOpacity={0.7}
             >
               <Trash2 size={14} color="#FF3B30" strokeWidth={1.75} />
-              <Text style={styles.deleteBtnText}>Delete Zone</Text>
+              <Text style={styles.deleteBtnText}>Delete zone</Text>
             </TouchableOpacity>
           )}
         </View>

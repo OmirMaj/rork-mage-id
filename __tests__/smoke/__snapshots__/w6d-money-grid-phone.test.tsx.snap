@@ -2,35 +2,35 @@
 
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (a) /aia-pay-app, a fresh progress period: an editable draft, one line over-billed, one with stored material 1`] = `
 {
-  "lines": 1189,
-  "sha256": "d7c549611bcd51a135a0a5e0d36d35ab5a1313afd6b5fb613701698ae04c5a5e",
+  "lines": 1196,
+  "sha256": "0c3fc85aa10570f2fb01d051ba13baf523c482b67a214a51788e4cec67133040",
 }
 `;
 
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (b) /aia-pay-app, the saved record: review mode, read-only 1`] = `
 {
-  "lines": 827,
-  "sha256": "27943c0f5bd5feaa035e2fce9737e183ad5e892499c39b4e2e7e4a625af15799",
+  "lines": 836,
+  "sha256": "90375af7ebef3d04f00f610a6b6a65e76b3257bb113fe4c1e0c5fce4e2b5a10c",
 }
 `;
 
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (c) /aia-pay-app, the saved record with a pay link: locked 1`] = `
 {
-  "lines": 830,
-  "sha256": "3b3c594e10306e77a688e33c9175d2a6dd740f8d892861b1bd3820b980027f50",
+  "lines": 839,
+  "sha256": "0a204c0f9d9b289bf8d95114494b9d669e37bf4b39ee18a2cd8d8db06e6183d5",
 }
 `;
 
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (d) /change-order, a draft with a needs_price and an ai_estimated line 1`] = `
 {
-  "lines": 1994,
-  "sha256": "b2563a69a9a8dfca594d71c9363f5328151a621dd0f05545595080f0443067b5",
+  "lines": 1996,
+  "sha256": "496f0e278e4032e24d905f982d4a3bb9adf30f81f6b45e1133b89953a15cae57",
 }
 `;
 
 exports[`lane M1 — the phone is unchanged except the named deltas (golden, 390 × 844 iOS) (e) /change-order, an approved CO: locked 1`] = `
 {
-  "lines": 969,
-  "sha256": "3f6d5d977ea7232a265fff8986f77e2c67666f4ffc7548ceb0371d0474c2d978",
+  "lines": 971,
+  "sha256": "d83a3bdd0dfe2e3bffc2ac1d8d22ba225db4fa57a38b23e1e150133109c42f9b",
 }
 `;

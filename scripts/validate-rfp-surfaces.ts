@@ -93,7 +93,7 @@ for (const [label, src] of [[POST, postCode], [DETAIL, detailCode]] as const) {
 }
 
 ok('rfp-detail pill does not claim "VERIFIED PROS ONLY"',
-  !detailCode.includes('VERIFIED PROS ONLY') && detailCode.includes('VERIFIED PROS NOTIFIED'),
+  !/verified pros only/i.test(detailCode) && detailCode.includes('Verified pros notified'),
   `${DETAIL} must label verified_only as a notification setting, not an access restriction.`);
 
 // ── #13: no bare-spinner dead end ───────────────────────────────────────────

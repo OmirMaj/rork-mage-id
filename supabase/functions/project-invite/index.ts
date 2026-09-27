@@ -343,9 +343,9 @@ function clientEmailSource(
 }
 
 const CLIENT_SOURCE_LINE: Record<ClientEmailSource, string> = {
-  primary_contact: "is the client contact on this job",
-  portal_invite: "is invited to this job's client portal",
-  bill_to: "is the address this job's invoices are billed to",
+  primary_contact: "is the client contact on this project",
+  portal_invite: "is invited to this project's client portal",
+  bill_to: "is the address this project's invoices are billed to",
 };
 
 /** The 200 answer (invoke() drops a non-2xx body, and this sentence is the
@@ -355,7 +355,7 @@ function clientRefusal(email: string, source: ClientEmailSource) {
     success: false,
     code: "is_client",
     source,
-    error: `${email} ${CLIENT_SOURCE_LINE[source]}. Collaborators can see the job's costs, margins and labour, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`,
+    error: `${email} ${CLIENT_SOURCE_LINE[source]}. Team members can see the project's costs, margins and labor, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`,
   };
 }
 // CLIENT-GUARD:END
@@ -390,7 +390,7 @@ async function clientSeatClosed(projectId: string, invitedEmail: string): Promis
   return json({
     success: false,
     code: "is_client",
-    error: "This job lists you as its client, so its team seat is closed to you. Ask your contractor for the client portal link.",
+    error: "This project lists you as its client, so you can't join its team. Ask your contractor for the client portal link.",
   });
 }
 
@@ -427,7 +427,7 @@ serve(async (req) => {
     // seat check and the email: no row, no link, no seat.
     {
       const ctx = await projectClientContext(projectId);
-      if (!ctx.ok) return json({ error: `Could not check who the client on this job is (${ctx.status}). Try again.` }, 502);
+      if (!ctx.ok) return json({ error: `Couldn't check who the client on this project is (${ctx.status}). Try again.` }, 502);
       const source = clientEmailSource(email, ctx.project, ctx.billTo);
       if (source) return json(clientRefusal(email, source));
     }
@@ -465,7 +465,7 @@ serve(async (req) => {
           code: "already_member",
           collaboratorId: existing.id,
           role: existing.role,
-          error: `${email} is already on this job. To change what they can see, use the role buttons on their row — re-sending an invite would lock them out until they accept again.`,
+          error: `${email} is already on this project. To change what they can see, use the role buttons on their row. Sending the invite again would lock them out until they accept it.`,
         });
       }
     }
@@ -714,7 +714,7 @@ serve(async (req) => {
       // allowed — that reduces what he sees; removing him is revoke's job.)
       {
         const ctx = await projectClientContext(own.projectId);
-        if (!ctx.ok) return json({ error: `Could not check who the client on this job is (${ctx.status}). Try again.` }, 502);
+        if (!ctx.ok) return json({ error: `Couldn't check who the client on this project is (${ctx.status}). Try again.` }, 502);
         const source = clientEmailSource(target.invited_email ?? "", ctx.project, ctx.billTo);
         if (source) return json(clientRefusal(target.invited_email, source));
       }

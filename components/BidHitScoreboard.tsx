@@ -78,7 +78,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
     <View style={styles.card} testID={testID ?? 'bid-hit-scoreboard'}>
       <View style={styles.head}>
         <View style={styles.headIcon}><Target size={15} color={colors.accent} strokeWidth={1.75} /></View>
-        <Text style={styles.headTitle}>Your Bid-Hit Scoreboard</Text>
+        <Text style={styles.headTitle}>Your bid-hit scoreboard</Text>
       </View>
 
       <View style={styles.row}>

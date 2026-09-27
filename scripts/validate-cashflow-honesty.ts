@@ -540,8 +540,8 @@ console.log('\n  6. the label says what the number is');
   }
 
   const screen = read('app/cash-flow.tsx');
-  check('the summary tile is labelled Net Cash Change',
-    screen.includes('>Net Cash Change<'),
+  check('the summary tile is labelled Net cash change',
+    screen.includes('>Net cash change<'),
     'the tile that shows totalIncome − totalExpenses must name the number');
   check('...and says in one line what it does not include',
     /Not profit\s*—\s*excludes unbilled work/.test(screen));
@@ -672,7 +672,8 @@ console.log('\n  8. the surfaces are wired to it');
   // handed in. (validate-cashflow-home-tile.ts executes the path end to end.)
   const engineSrc = read('utils/cashFlowEngine.ts');
   check('the Cash Flow screen forecasts the committed rows alongside the typed ones',
-    /expenses: \[\.\.\.typed, \.\.\.committed\.scheduled\]/.test(engineSrc) &&
+    // health 2026-09-26: plus the approved-but-unpaid sub bills (MONEY-CASH-SUB-APPROVED).
+    /expenses: \[\.\.\.typed, \.\.\.committed\.scheduled, \.\.\.subBills\.rows\]/.test(engineSrc) &&
     /export function forecastFromInputs[\s\S]{0,300}inputs\.expenses,/.test(engineSrc) &&
     /buildForecastInputs\(\{[\s\S]{0,200}commitments: relevantCommitments,/.test(screen) &&
     /const forecast = useMemo<CashFlowWeek\[\]>\(\(\) => \{[\s\S]{0,120}return forecastFromInputs\(forecastInputs, forecastWeeks\)/.test(screen),

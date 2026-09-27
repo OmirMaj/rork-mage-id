@@ -96,13 +96,13 @@ export default function ReadyToBillCard() {
       setAdvanceState('done');
       showAlert(
         'Advance requested',
-        `We've noted your interest in advancing up to ${formatMoney(advanceTotal)} against this work. ` +
-          'Funding runs through a lending partner — we\'ll reach out as soon as it opens in your state.',
+        `Your interest in an advance of up to ${formatMoney(advanceTotal)} against this work is saved. ` +
+          'Funding runs through a lending partner, and MAGE ID contacts you as soon as it opens in your state.',
       );
     } catch (e) {
       console.warn('[ReadyToBillCard] advance interest not recorded', e);
       setAdvanceState('idle');
-      showAlert('Could not save', 'Please try again in a moment.');
+      showAlert('Couldn’t save', 'Try again in a moment.');
     }
   };
 

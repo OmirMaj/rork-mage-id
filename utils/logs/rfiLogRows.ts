@@ -123,16 +123,21 @@ export function rfiSearchText(rfi: Pick<RFI, 'number' | 'subject' | 'assignedTo'
     .join(' ');
 }
 
+const RFI_PRIORITY_LABEL: Record<string, string> = { urgent: 'Urgent', high: 'High', normal: 'Normal', medium: 'Medium', low: 'Low' };
+const RFI_STATUS_LABEL: Record<string, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', void: 'Void', draft: 'Draft', pending: 'Pending' };
+/** Sentence case for a stored value the maps don't know (never Title Case). */
+const firstUpper = (s: string) => s.replace(/_/g, ' ').replace(/^[a-z]/, (c) => c.toUpperCase());
+
 /** 'Urgent' / 'Normal' / 'Low'. */
 export function rfiPriorityLabel(p: string | null | undefined): string | null {
   if (!p) return null;
-  return p.charAt(0).toUpperCase() + p.slice(1);
+  return RFI_PRIORITY_LABEL[p] ?? firstUpper(p);
 }
 
 /** 'Open' / 'Answered' / 'Closed' / 'Void'. */
 export function rfiStatusLabel(s: string | null | undefined): string | null {
   if (!s) return null;
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return RFI_STATUS_LABEL[s] ?? firstUpper(s);
 }
 
 /** Desktop "Which sub?" rail: past this many subs the rest fold behind "+N more". */

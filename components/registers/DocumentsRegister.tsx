@@ -164,7 +164,7 @@ export function DocumentsRegister({
         <Text style={styles.filesHeading}>Uploaded files and scans</Text>
       </View>
       <Text style={styles.filesBody}>
-        Files you upload and documents Scan Anything files are kept in each project&apos;s Files, not in this feed.
+        Files you upload and documents filed by Scan anything are kept in each project&apos;s Files, not in this feed.
       </Text>
       <View style={styles.filesList}>
         {fileProjects.map((p) => (

@@ -1,0 +1,807 @@
+// scripts/validate-copy-voice.ts — the copy-voice ratchet (docs/VOICE.md).
+//
+// The founder: "throughout the entire app there's a lot of vibe coded wording,
+// lower case wording, things like that that clearly show this app is vibe
+// coded". The copy pass fixed what it could reach; this guard keeps every
+// file's count of each tell from GROWING. It never fails on a count at or
+// below the committed baseline, so a lane that fixes strings only ever lowers
+// it (run with --write-baseline to record the lower number).
+//
+// SCOPE: .ts/.tsx under app/, components/, hooks/, contexts/ (skips
+// __tests__, *.d.ts, app/dev-*.tsx). Files are parsed with the TypeScript
+// compiler (parse only, no type check), so comments are never read as copy
+// and every hit carries an exact file:line.
+//
+// USER-FACING POSITIONS (rules R01-R08, R10, R12-R19 read only these):
+//   (a) JSX text children, plus string literals written directly as a JSX
+//       child ({'…'} or {cond ? '…' : '…'});
+//   (b) string / template values of the props in PROP_NAMES, and the values
+//       of the object-literal keys in OBJECT_KEYS;
+//   (c) the first two string arguments of showAlert / Alert.alert /
+//       confirmAsync / showConfirm, and the first argument of nailIt / oops /
+//       toast / setError, and of the message setters in MESSAGE_SETTERS
+//       (setSessionExpiredReason, recordDidForYou).
+//   A '+' concatenation in any of these positions is read as one sentence:
+//   its literal operands joined, every other operand standing in as "0".
+//   A template literal is tested on its literal parts, each ${…} standing in
+//   as "0". AI prompt text is not UI: a template literal that contains
+//   "You are " and any initializer bound to a name matching
+//   /prompt|instruction|schema/i are skipped, as are `description:` values
+//   inside a JSON-schema object (one with a schema `type:`).
+// LINE RULES (R09, R11) read every line after comments and prompt bodies are
+// blanked.
+//
+// Modes:
+//   (default)                      fail when any file/rule count is above the baseline
+//   --write-baseline               rewrite the baseline; refuses a raise unless
+//   --allow-raise "<reason>"       …is also passed (recorded under "raises")
+//   --report                       per-rule totals + the 20 worst files, exit 0
+//   --extra <dir>                  also scan <dir> as if in scope, baseline 0
+//   --hits [a,b]                   list every hit (in files whose path contains a or b), exit 0
+//
+// Pure node:fs + the typescript parser — no bundler, no react-native import
+// (those crash bun). fileURLToPath + join because the repo path contains a
+// space. Run: bun run scripts/validate-copy-voice.ts
+
+import { readdirSync, readFileSync, statSync, writeFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join, relative, isAbsolute, resolve } from 'node:path';
+import ts from 'typescript';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, '..');
+const BASELINE_PATH = join(ROOT, 'scripts', 'copy-voice-baseline.json');
+const ALLOWLIST_PATH = join(ROOT, 'scripts', 'copy-voice-allowlist.json');
+const SCOPE_DIRS = ['app', 'components', 'hooks', 'contexts'];
+
+type RuleId =
+  | 'R01' | 'R02' | 'R03' | 'R04' | 'R05' | 'R06' | 'R07' | 'R08' | 'R09' | 'R10'
+  | 'R11' | 'R12' | 'R13' | 'R14' | 'R15' | 'R16' | 'R17' | 'R18' | 'R19';
+
+const RULE_NAMES: Record<RuleId, string> = {
+  R01: 'dots',
+  R02: 'plural-s',
+  R03: 'exclaim',
+  R04: 'emoji',
+  R05: 'banned-tone',
+  R06: 'meta-honesty',
+  R07: 'dev-speak',
+  R08: 'please',
+  R09: 'raw-exception',
+  R10: 'caps',
+  R11: 'humanize',
+  R12: 'gendered',
+  R13: 'toast-shape',
+  R14: 'job',
+  R15: 'title-case',
+  R16: 'lowercase',
+  R17: 'dashes',
+  R18: 'first-person',
+  R19: 'homeowner',
+};
+const ALL_RULES = Object.keys(RULE_NAMES) as RuleId[];
+
+// ── Positions ────────────────────────────────────────────────────────────────
+
+/** Where a user-facing string was found. `label` positions feed R15 / R16. */
+type Kind =
+  | 'jsx' // JSX text child
+  | 'prop' // a listed JSX prop
+  | 'key' // a listed object-literal key
+  | 'alertTitle' // first arg of an alert / confirm
+  | 'alertBody' // second arg of an alert / confirm
+  | 'toast' // first arg of nailIt / oops / toast
+  | 'error'; // first arg of setError
+
+type Str = {
+  text: string; // literal parts, each ${…} as "0"; JSX text whitespace-collapsed
+  line: number;
+  kind: Kind;
+  name: string; // prop / key / callee name ('' for JSX text)
+  leadingJsx: boolean; // JSX text that starts its element (no sibling before it)
+};
+
+const PROP_NAMES = new Set([
+  'title', 'label', 'placeholder', 'accessibilityLabel', 'accessibilityHint', 'eyebrow',
+  'headline', 'subtitle', 'emptyTitle', 'emptyBody', 'confirmLabel', 'actionLabel',
+  'buttonLabel', 'ctaLabel', 'hint', 'caption', 'badge', 'message',
+]);
+const OBJECT_KEYS = new Set([
+  'label', 'title', 'subtitle', 'description', 'placeholder', 'headline', 'eyebrow',
+  'emptyTitle', 'body',
+]);
+/** Props / keys that are a LABEL (R15 title case, R16 lowercase). */
+const LABEL_NAMES = new Set([
+  'title', 'label', 'eyebrow', 'headline', 'emptyTitle', 'confirmLabel', 'actionLabel',
+  'buttonLabel', 'ctaLabel', 'badge',
+]);
+const ALERT_CALLEES = new Set(['showAlert', 'confirmAsync', 'showConfirm']);
+const ONE_ARG_CALLEES = new Set(['nailIt', 'oops', 'toast', 'setError']);
+/** Setters whose first argument is a sentence the user reads (scanned as 'error'). */
+const MESSAGE_SETTERS = new Set(['setSessionExpiredReason', 'recordDidForYou']);
+const PROMPT_NAME = /prompt|instruction|schema/i;
+const SCHEMA_TYPES = new Set([
+  'object', 'string', 'array', 'number', 'boolean', 'integer',
+  'OBJECT', 'STRING', 'ARRAY', 'NUMBER', 'BOOLEAN', 'INTEGER',
+]);
+
+// ── Allowlist ────────────────────────────────────────────────────────────────
+
+type AllowEntry = { file: string; rule: RuleId; match: string; reason: string };
+type Allowlist = { globalTokens: string[]; properNouns: string[]; entries: AllowEntry[] };
+
+const DEFAULT_ALLOWLIST: Allowlist = { globalTokens: [], properNouns: [], entries: [] };
+
+function loadAllowlist(): Allowlist {
+  if (!existsSync(ALLOWLIST_PATH)) return DEFAULT_ALLOWLIST;
+  const raw = JSON.parse(readFileSync(ALLOWLIST_PATH, 'utf8')) as Partial<Allowlist>;
+  return {
+    globalTokens: raw.globalTokens ?? [],
+    properNouns: raw.properNouns ?? [],
+    entries: raw.entries ?? [],
+  };
+}
+
+// ── Rules on one user-facing string ─────────────────────────────────────────
+
+const RE = {
+  R02: /\w\(s\)/,
+  R03: /[A-Za-z0-9)\]'"]!(\s|$)/,
+  R04: /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u,
+  R05: /\b(?:Oops|Whoops|Uh oh|Yay|Boom|Nailed it|Awesome|Magic(?:al)?|Let's|Let’s|Coming soon|coming soon|seamless(?:ly)?|effortless(?:ly)?|supercharge|[Uu]nlock(?:s|ed)?|dive in|level up|game-?changer|powerful|robust|we've got you|all-in-one|Simply|Easily|Click here)\b|\bNote:/,
+  R06: /\b(?:honest(?:ly)?|real data|no fake data|never guess|will not invent|won't invent|made-up|not a guess)\b/i,
+  R07a: /\b(?:seat|seats|tenant|payload|re?hydrat\w*|schema|sync ledger|sync queue|offline queue|edge function|sample guard|null|undefined)\b/i,
+  R07b: /\b(?:RLS|NaN|PGRST\d+|42501)\b/,
+  R07c: /\b[a-z]+_[a-z_]+\b/,
+  R08: /\bplease\b/i,
+  R09: /instanceof Error \? \w+\.message|\.message\s*(\?\?|\|\|)\s*['"`]|\(\w+ as Error\)\.message/,
+  R09call: /showAlert|Alert\.alert|setError|nailIt|oops|toast|<Text/,
+  R11: /\.replace\(\/_\/g,\s*['"` ]+\)|charAt\(0\)\.toUpperCase\(\)\s*\+|\.split\(['"`]_['"`]\)\.join\(['"`] ['"`]\)/,
+  R12: /\b(?:he|him|his|she|her|hers|himself|herself)\b/i,
+  R14: /\b(?:this job(?!s| hazard)(?:'s|’s)?|on this job|your jobs|the job's|the job’s)\b/i,
+  R17: /—[^—]*—/,
+  R18: /\bI (?:can|will|think|found)\b|\bI['’](?:m|ll)\b/,
+  R19: /\b[Hh]omeowner/,
+};
+
+const WEEKDAYS_MONTHS = [
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+  'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December',
+  'Jan', 'Feb', 'Mar', 'Apr', 'Jun', 'Jul', 'Aug', 'Sep', 'Sept', 'Oct', 'Nov', 'Dec',
+];
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+type Ctx = { allow: Allowlist; tokenRe: RegExp | null; nounRe: RegExp | null; nounWords: Set<string> };
+
+function makeCtx(allow: Allowlist): Ctx {
+  const byLen = (a: string, b: string) => b.length - a.length;
+  const toks = [...allow.globalTokens].sort(byLen).map(escapeRe);
+  const multi = [...allow.properNouns].filter((n) => /\s/.test(n)).sort(byLen).map(escapeRe);
+  const words = new Set<string>([
+    ...allow.properNouns.filter((n) => !/\s/.test(n)),
+    ...allow.globalTokens.filter((n) => !/\s/.test(n)),
+    ...WEEKDAYS_MONTHS,
+  ]);
+  return {
+    allow,
+    tokenRe: toks.length ? new RegExp(`(?<![A-Za-z0-9])(?:${toks.join('|')})(?![A-Za-z0-9])`, 'g') : null,
+    nounRe: multi.length ? new RegExp(`(?<![A-Za-z0-9])(?:${multi.join('|')})(?![A-Za-z0-9])`, 'g') : null,
+    nounWords: words,
+  };
+}
+
+function isCapsString(s: string, ctx: Ctx): boolean {
+  const t = s.trim();
+  if (!/^[A-Z0-9][A-Z0-9 ·&'’/+\-,.:?]{3,}$/.test(t)) return false;
+  const stripped = (ctx.tokenRe ? t.replace(ctx.tokenRe, ' ') : t).trim();
+  if (!stripped) return false;
+  const words = stripped.split(/\s+/).filter((w) => /[A-Z0-9]/.test(w));
+  const hasRun = /[A-Z]{3,}/.test(stripped);
+  if (words.length >= 2 && hasRun) return true;
+  return words.length === 1 && /^[^A-Z]*[A-Z]{6,}/.test(words[0]) && (words[0].match(/[A-Z]/g) ?? []).length >= 6;
+}
+
+/** Count Title-Cased words after the first word of each segment. */
+function titleCaseCount(s: string, ctx: Ctx): number {
+  let t = s;
+  if (ctx.nounRe) t = t.replace(ctx.nounRe, ' ');
+  let count = 0;
+  for (const seg of t.split(/[.:?!·—|•()\n–]+/)) {
+    const words = seg.trim().split(/\s+/).filter(Boolean);
+    for (let i = 1; i < words.length; i++) {
+      const w = words[i].replace(/^['"“‘(]+|['"”’),;]+$/g, '');
+      if (!/^[A-Z][a-z]/.test(w)) continue; // not Title-cased (acronyms and lowercase skip)
+      const base = w.replace(/['’]s$/, '');
+      if (ctx.nounWords.has(base) || ctx.nounWords.has(w)) continue;
+      count++;
+    }
+  }
+  return count;
+}
+
+function wordCount(s: string): number {
+  return s.trim().split(/\s+/).filter((w) => /[A-Za-z]/.test(w)).length;
+}
+
+function isLabelPosition(str: Str): boolean {
+  if (str.kind === 'alertTitle') return true;
+  if (str.kind === 'prop' || str.kind === 'key') return LABEL_NAMES.has(str.name);
+  if (str.kind === 'jsx') {
+    const n = wordCount(str.text);
+    return str.leadingJsx && n >= 2 && n <= 6;
+  }
+  return false;
+}
+
+/** Every rule a user-facing string breaks (each rule at most once). */
+function stringRules(str: Str, ctx: Ctx): RuleId[] {
+  const s = str.text;
+  const out: RuleId[] = [];
+  if (s.includes('...') || (str.name === 'placeholder' && /…\s*$/.test(s))) out.push('R01');
+  if (RE.R02.test(s)) out.push('R02');
+  if (RE.R03.test(s)) out.push('R03');
+  if (RE.R04.test(s)) out.push('R04');
+  if (RE.R05.test(s)) out.push('R05');
+  if (RE.R06.test(s)) out.push('R06');
+  if (RE.R07a.test(s) || RE.R07b.test(s) || RE.R07c.test(s)) out.push('R07');
+  if (RE.R08.test(s)) out.push('R08');
+  if (isCapsString(s, ctx)) out.push('R10');
+  if (RE.R12.test(s)) out.push('R12');
+  if (str.kind === 'toast') {
+    const t = s.trim();
+    if (t.includes('—') || (t.endsWith('.') && !t.includes('. '))) out.push('R13');
+  }
+  if (RE.R14.test(s)) out.push('R14');
+  if (isLabelPosition(str)) {
+    if (titleCaseCount(s, ctx) >= 2) out.push('R15');
+    const t = s.trim();
+    if (/^[a-z]/.test(t) && !/^i[A-Z]/.test(t) && (t.match(/[A-Za-z]{2,}/g) ?? []).length >= 2) out.push('R16');
+  }
+  if (RE.R17.test(s)) out.push('R17');
+  if (RE.R18.test(s)) out.push('R18');
+  if (RE.R19.test(s)) out.push('R19');
+  return out;
+}
+
+function lineRules(line: string): RuleId[] {
+  const out: RuleId[] = [];
+  if (RE.R09.test(line) && RE.R09call.test(line)) out.push('R09');
+  if (RE.R11.test(line)) out.push('R11');
+  return out;
+}
+
+// ── Extraction ───────────────────────────────────────────────────────────────
+
+function nameOf(n: ts.PropertyName | ts.BindingName | ts.Expression | undefined): string {
+  if (!n) return '';
+  if (ts.isIdentifier(n) || ts.isPrivateIdentifier(n)) return n.text;
+  if (ts.isStringLiteral(n) || ts.isNumericLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) return n.text;
+  if (ts.isPropertyAccessExpression(n)) return n.name.text;
+  return '';
+}
+
+function templateText(n: ts.TemplateExpression): string {
+  let s = n.head.text;
+  for (const span of n.templateSpans) s += '0' + span.literal.text;
+  return s;
+}
+
+/** The string values an expression can evaluate to, as written in source. */
+function literalValues(e: ts.Expression | undefined): { text: string; node: ts.Node }[] {
+  if (!e) return [];
+  if (isPromptTemplate(e)) return []; // AI prompt text is not UI, wherever it sits
+  if (ts.isParenthesizedExpression(e)) return literalValues(e.expression);
+  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return [{ text: e.text, node: e }];
+  if (ts.isTemplateExpression(e)) return [{ text: templateText(e), node: e }];
+  if (ts.isConditionalExpression(e)) return [...literalValues(e.whenTrue), ...literalValues(e.whenFalse)];
+  if (ts.isBinaryExpression(e)) {
+    const op = e.operatorToken.kind;
+    if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken) {
+      return [...literalValues(e.left), ...literalValues(e.right)];
+    }
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken) return literalValues(e.right);
+    if (op === ts.SyntaxKind.PlusToken) return concatValues(e);
+  }
+  if (ts.isAsExpression(e) || ts.isSatisfiesExpression(e)) return literalValues(e.expression);
+  return [];
+}
+
+/**
+ * A '+' concatenation read as ONE sentence: literal operands keep their text,
+ * any other operand stands in as "0" (like a ${…}). A concatenation with no
+ * literal operand is arithmetic or an opaque join and yields nothing; an
+ * operand that is itself a ternary / fallback adds its own literals too.
+ */
+function concatValues(e: ts.BinaryExpression): { text: string; node: ts.Node }[] {
+  const parts: ts.Expression[] = [];
+  const flat = (x: ts.Expression): void => {
+    if (ts.isParenthesizedExpression(x) && ts.isBinaryExpression(x.expression) && x.expression.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      flat(x.expression);
+    } else if (ts.isBinaryExpression(x) && x.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      flat(x.left);
+      flat(x.right);
+    } else parts.push(x);
+  };
+  flat(e);
+  let text = '';
+  let literal = false;
+  const extra: { text: string; node: ts.Node }[] = [];
+  for (const p of parts) {
+    if (isPromptTemplate(p)) return [];
+    if (ts.isStringLiteral(p) || ts.isNoSubstitutionTemplateLiteral(p)) { text += p.text; literal = true; }
+    else if (ts.isTemplateExpression(p)) { text += templateText(p); literal = true; }
+    else {
+      text += '0';
+      if (!ts.isIdentifier(p) && !ts.isPropertyAccessExpression(p) && !ts.isCallExpression(p)) extra.push(...literalValues(p));
+    }
+  }
+  return literal ? [{ text, node: e }, ...extra] : extra;
+}
+
+function isPromptTemplate(n: ts.Node): boolean {
+  if (ts.isNoSubstitutionTemplateLiteral(n)) return n.text.includes('You are ');
+  if (ts.isTemplateExpression(n)) {
+    if (n.head.text.includes('You are ')) return true;
+    return n.templateSpans.some((s) => s.literal.text.includes('You are '));
+  }
+  return false;
+}
+
+/** A prompt/schema initializer: its whole subtree is not UI. */
+function isPromptBinding(n: ts.Node): boolean {
+  if (ts.isVariableDeclaration(n)) return !!n.initializer && PROMPT_NAME.test(nameOf(n.name));
+  if (ts.isPropertyAssignment(n)) return PROMPT_NAME.test(nameOf(n.name));
+  if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    return PROMPT_NAME.test(nameOf(n.left));
+  }
+  return false;
+}
+
+function isSchemaObject(o: ts.ObjectLiteralExpression): boolean {
+  for (const p of o.properties) {
+    if (!ts.isPropertyAssignment(p) || nameOf(p.name) !== 'type') continue;
+    const v = p.initializer;
+    if ((ts.isStringLiteral(v) || ts.isNoSubstitutionTemplateLiteral(v)) && SCHEMA_TYPES.has(v.text)) return true;
+    if (ts.isPropertyAccessExpression(v) && SCHEMA_TYPES.has(v.name.text)) return true;
+  }
+  return false;
+}
+
+type FileScan = { strings: Str[]; lines: string[] };
+
+function extract(fileName: string, text: string): FileScan {
+  const sf = ts.createSourceFile(
+    fileName,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const lineOf = (pos: number) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+  const strings: Str[] = [];
+  const blank: [number, number][] = [];
+
+  const push = (text: string, node: ts.Node, kind: Kind, name: string, leadingJsx = false) => {
+    if (!/[A-Za-z]/.test(text) && !RE.R04.test(text) && !text.includes('...') && !text.includes('!')) return;
+    strings.push({ text, line: lineOf(node.getStart(sf)), kind, name, leadingJsx });
+  };
+
+  const addComments = (ranges: ts.CommentRange[] | undefined) => {
+    for (const r of ranges ?? []) blank.push([r.pos, r.end]);
+  };
+  const JSX_KINDS = new Set([
+    ts.SyntaxKind.JsxText, ts.SyntaxKind.JsxOpeningElement, ts.SyntaxKind.JsxClosingElement,
+    ts.SyntaxKind.JsxSelfClosingElement, ts.SyntaxKind.JsxElement, ts.SyntaxKind.JsxExpression,
+    ts.SyntaxKind.JsxFragment, ts.SyntaxKind.JsxOpeningFragment, ts.SyntaxKind.JsxClosingFragment,
+  ]);
+
+  const jsxChildren = (children: ts.NodeArray<ts.JsxChild>) => {
+    let seenContent = false;
+    for (const c of children) {
+      if (ts.isJsxText(c)) {
+        const raw = c.text;
+        if (!raw.trim()) continue;
+        const collapsed = raw.replace(/\s+/g, ' ').trim();
+        const firstNonWs = c.getStart(sf) + (raw.length - raw.trimStart().length);
+        strings.push({
+          text: collapsed,
+          line: lineOf(firstNonWs),
+          kind: 'jsx',
+          name: '',
+          leadingJsx: !seenContent,
+        });
+        seenContent = true;
+      } else if (ts.isJsxExpression(c)) {
+        if (!c.expression) {
+          blank.push([c.getStart(sf), c.end]); // {/* … */}
+          continue;
+        }
+        for (const v of literalValues(c.expression)) push(v.text, v.node, 'jsx', '', !seenContent);
+        seenContent = true;
+      } else {
+        seenContent = true;
+      }
+    }
+  };
+
+  const visit = (node: ts.Node, skip: boolean) => {
+    if (!JSX_KINDS.has(node.kind)) {
+      addComments(ts.getLeadingCommentRanges(text, node.pos));
+      addComments(ts.getLeadingCommentRanges(text, node.end));
+    }
+    if (!skip && (isPromptBinding(node) || isPromptTemplate(node))) {
+      skip = true;
+      if (isPromptTemplate(node) || ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node)) {
+        const target =
+          ts.isVariableDeclaration(node) ? node.initializer
+          : ts.isPropertyAssignment(node) ? node.initializer
+          : node;
+        if (target && (ts.isTemplateExpression(target) || ts.isNoSubstitutionTemplateLiteral(target))) {
+          blank.push([target.getStart(sf), target.end]);
+        }
+      }
+    }
+    if (!skip) {
+      if (ts.isJsxElement(node) || ts.isJsxFragment(node)) jsxChildren(node.children);
+      else if (ts.isJsxAttribute(node)) {
+        const name = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sf);
+        if (PROP_NAMES.has(name) && node.initializer) {
+          if (ts.isStringLiteral(node.initializer)) push(node.initializer.text, node.initializer, 'prop', name);
+          else if (ts.isJsxExpression(node.initializer)) {
+            for (const v of literalValues(node.initializer.expression)) push(v.text, v.node, 'prop', name);
+          }
+        }
+      } else if (ts.isObjectLiteralExpression(node)) {
+        const schema = isSchemaObject(node);
+        for (const p of node.properties) {
+          if (!ts.isPropertyAssignment(p)) continue;
+          const key = nameOf(p.name);
+          if (!OBJECT_KEYS.has(key)) continue;
+          if (schema && key === 'description') continue;
+          for (const v of literalValues(p.initializer)) push(v.text, v.node, 'key', key);
+        }
+      } else if (ts.isCallExpression(node)) {
+        const callee = node.expression;
+        let cname = '';
+        if (ts.isIdentifier(callee)) cname = callee.text;
+        else if (ts.isPropertyAccessExpression(callee)) {
+          cname = ts.isIdentifier(callee.expression) && callee.expression.text === 'Alert' && callee.name.text === 'alert'
+            ? 'Alert.alert'
+            : callee.name.text;
+        }
+        if (ALERT_CALLEES.has(cname) || cname === 'Alert.alert') {
+          node.arguments.slice(0, 2).forEach((a, i) => {
+            for (const v of literalValues(a)) push(v.text, v.node, i === 0 ? 'alertTitle' : 'alertBody', cname);
+          });
+        } else if (MESSAGE_SETTERS.has(cname) && node.arguments.length > 0) {
+          for (const v of literalValues(node.arguments[0])) push(v.text, v.node, 'error', cname);
+        } else if (ONE_ARG_CALLEES.has(cname) && node.arguments.length > 0) {
+          for (const v of literalValues(node.arguments[0])) {
+            push(v.text, v.node, cname === 'setError' ? 'error' : 'toast', cname);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, (c) => visit(c, skip));
+  };
+  visit(sf, false);
+
+  // Blank comments and prompt bodies (keep newlines) for the line rules.
+  const chars = text.split('');
+  for (const [a, b] of blank) {
+    for (let i = a; i < b && i < chars.length; i++) if (chars[i] !== '\n') chars[i] = ' ';
+  }
+  return { strings, lines: chars.join('').split('\n') };
+}
+
+// ── Scanning ─────────────────────────────────────────────────────────────────
+
+type Hit = { file: string; line: number; rule: RuleId; text: string };
+
+function scanSource(file: string, text: string, ctx: Ctx): Hit[] {
+  const { strings, lines } = extract(file, text);
+  const hits: Hit[] = [];
+  for (const s of strings) {
+    for (const rule of stringRules(s, ctx)) hits.push({ file, line: s.line, rule, text: s.text });
+  }
+  lines.forEach((l, i) => {
+    for (const rule of lineRules(l)) hits.push({ file, line: i + 1, rule, text: l.trim() });
+  });
+  hits.sort((a, b) => a.line - b.line || a.rule.localeCompare(b.rule));
+  return hits;
+}
+
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return out;
+  }
+  for (const name of entries) {
+    if (name === 'node_modules' || name === '__tests__') continue;
+    const full = join(dir, name);
+    let st;
+    try {
+      st = statSync(full);
+    } catch {
+      continue;
+    }
+    if (st.isDirectory()) out.push(...walk(full));
+    else if ((name.endsWith('.ts') || name.endsWith('.tsx')) && !name.endsWith('.d.ts')) out.push(full);
+  }
+  return out;
+}
+
+function inScope(rel: string): boolean {
+  if (/(^|\/)__tests__\//.test(rel)) return false;
+  if (rel.endsWith('.d.ts')) return false;
+  if (/^app\/dev-[^/]*\.tsx$/.test(rel)) return false;
+  return true;
+}
+
+// ── Self-test ────────────────────────────────────────────────────────────────
+
+type Fixture = { rule: RuleId; flag: boolean; src: string };
+const FIXTURES: Fixture[] = [
+  { rule: 'R01', flag: true, src: `const a = <Text>Loading...</Text>;` },
+  { rule: 'R01', flag: true, src: `const a = <TextInput placeholder="Add notes…" />;` },
+  { rule: 'R01', flag: false, src: `const x = [...items]; const a = <Text>Loading projects…</Text>;` },
+  { rule: 'R02', flag: true, src: `showAlert('Imported', 'Imported 3 task(s).');` },
+  { rule: 'R02', flag: false, src: `showAlert('Imported', 'Imported 3 tasks.');` },
+  { rule: 'R03', flag: true, src: `nailIt('Invoice sent!');` },
+  { rule: 'R03', flag: false, src: `if (a !== b) { nailIt('Invoice sent'); }` },
+  { rule: 'R04', flag: true, src: `const a = <Text>Done 🎉</Text>;` },
+  { rule: 'R04', flag: true, src: `nailIt('✓ Saved');` },
+  { rule: 'R04', flag: false, src: `const a = <Text>Kitchen · Electrical</Text>;` },
+  { rule: 'R05', flag: true, src: `const a = <Button title="Upgrade to unlock" />;` },
+  { rule: 'R05', flag: true, src: `const a = <Text>Note: rates change</Text>;` },
+  { rule: 'R05', flag: false, src: `const a = <Button title="See plans" />;` },
+  { rule: 'R06', flag: true, src: `const o = { subtitle: 'Built from real data only' };` },
+  { rule: 'R06', flag: false, src: `const o = { subtitle: 'From your 14 closed projects' };` },
+  { rule: 'R07', flag: true, src: `showAlert('Couldn’t save', 'The sync queue is full.');` },
+  { rule: 'R07', flag: true, src: `const a = <Text>Status: in_progress</Text>;` },
+  { rule: 'R07', flag: false, src: `showAlert('Couldn’t save', 'Saved on this phone. It sends when you’re back online.');` },
+  { rule: 'R08', flag: true, src: `showAlert('Add a title', 'Please enter a title.');` },
+  { rule: 'R08', flag: false, src: `showAlert('Add a title', 'Enter a title.');` },
+  { rule: 'R09', flag: true, src: `showAlert('Failed', e instanceof Error ? e.message : 'x');` },
+  { rule: 'R09', flag: false, src: `console.warn(e instanceof Error ? e.message : 'x');` },
+  { rule: 'R10', flag: true, src: `const a = <Text>MANAGE WORK</Text>;` },
+  { rule: 'R10', flag: true, src: `const a = <Text>AWARDED</Text>;` },
+  { rule: 'R10', flag: false, src: `const a = <Text>MAGE ID</Text>; const b = <Text>PDF</Text>;` },
+  { rule: 'R11', flag: true, src: `const l = s.replace(/_/g, ' ');` },
+  { rule: 'R11', flag: false, src: `// s.replace(/_/g, ' ')\nconst l = LABELS[s];` },
+  { rule: 'R11', flag: true, src: `const l = s.split('_').join(' ');` },
+  { rule: 'R11', flag: false, src: `const l = s.split('_').join('-');` },
+  { rule: 'R08', flag: true, src: `setError("We couldn't save it. " + 'Otherwise please try again.');` },
+  { rule: 'R08', flag: false, src: `setError('Couldn’t save it. ' + 'Otherwise try again.');` },
+  { rule: 'R08', flag: true, src: `setSessionExpiredReason('Your session expired — please sign in again.');` },
+  { rule: 'R08', flag: false, src: `setSessionExpiredReason('Your session expired. Sign in again.');` },
+  { rule: 'R18', flag: true, src: 'recordDidForYou(`My pace calls for ${t} slipped. I\'ll ask first again`);' },
+  { rule: 'R18', flag: false, src: 'recordDidForYou(`Your pace calls for ${t} slipped. MAGE asks first again.`);' },
+  { rule: 'R08', flag: false, src: `const total = a + b; const id = 'x' + n;` },
+  { rule: 'R12', flag: true, src: `showAlert('Remove crew member?', 'His certificates go with him.');` },
+  { rule: 'R12', flag: false, src: `showAlert('Remove crew member?', 'Their certificates go with them.');` },
+  { rule: 'R13', flag: true, src: `nailIt('Daily report saved.');` },
+  { rule: 'R13', flag: true, src: `nailIt('Saved — sent to the client');` },
+  { rule: 'R13', flag: false, src: `nailIt('Saved offline. It sends when you’re back online.'); nailIt('Daily report saved');` },
+  { rule: 'R14', flag: true, src: `const a = <Text>Your role on this job</Text>;` },
+  { rule: 'R14', flag: false, src: `const a = <Text>Job costing</Text>;` },
+  { rule: 'R15', flag: true, src: `const a = <Screen title="Waiting On Others" />;` },
+  { rule: 'R15', flag: false, src: `const a = <Screen title="Open Home Passport" />; const b = <Text>Pay app for March</Text>;` },
+  { rule: 'R16', flag: true, src: `const o = { label: 'no cost basis' };` },
+  { rule: 'R16', flag: false, src: `const a = <Text>{n} days left</Text>; const o = { label: 'iPhone app' };` },
+  { rule: 'R17', flag: true, src: `const a = <Text>One — two — three</Text>;` },
+  { rule: 'R17', flag: false, src: `const a = <Text>One — two</Text>;` },
+  { rule: 'R18', flag: true, src: `const a = <Text>I can draft that for you</Text>;` },
+  { rule: 'R18', flag: false, src: `const a = <Text>MAGE drafted this</Text>;` },
+  { rule: 'R19', flag: true, src: `const a = <Text>Send to the homeowner</Text>;` },
+  { rule: 'R19', flag: false, src: `const a = <Text>Send to the client</Text>;` },
+  // Not UI: comments, prompt text and schema descriptions never count.
+  { rule: 'R03', flag: false, src: `// Wow!\nconst a = <View>{/* Great! */}</View>;` },
+  { rule: 'R18', flag: false, src: 'const prompt = `You are a GC. I can help!`;' },
+  { rule: 'R18', flag: false, src: 'ask(`You are an estimator. I can price ${x}.`); showAlert("x", `You are a GC. I can help.`);' },
+  { rule: 'R12', flag: false, src: `const s = { type: 'object', description: 'his estimate' };` },
+];
+
+function selfTest(ctx: Ctx): string[] {
+  const failures: string[] = [];
+  FIXTURES.forEach((f, i) => {
+    const hits = scanSource(`fixture${i}.tsx`, f.src, ctx).filter((h) => h.rule === f.rule);
+    if (f.flag && hits.length === 0) failures.push(`${f.rule} should flag: ${f.src}`);
+    if (!f.flag && hits.length > 0) failures.push(`${f.rule} should NOT flag: ${f.src} (got "${hits[0].text}")`);
+  });
+  return failures;
+}
+
+// ── Baseline ─────────────────────────────────────────────────────────────────
+
+type Counts = Record<string, Partial<Record<RuleId, number>>>;
+type Baseline = { version: 1; counts: Counts; raises?: { date: string; reason: string; pairs: string[] }[] };
+
+function loadBaseline(): Baseline {
+  if (!existsSync(BASELINE_PATH)) return { version: 1, counts: {} };
+  return JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as Baseline;
+}
+
+function sortedCounts(c: Counts): Counts {
+  const out: Counts = {};
+  for (const f of Object.keys(c).sort()) {
+    const rules: Partial<Record<RuleId, number>> = {};
+    for (const r of ALL_RULES) if (c[f][r]) rules[r] = c[f][r];
+    if (Object.keys(rules).length) out[f] = rules;
+  }
+  return out;
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+function main(): number {
+  const args = process.argv.slice(2);
+  const has = (f: string) => args.includes(f);
+  const argAfter = (f: string) => {
+    const i = args.indexOf(f);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const writeBaseline = has('--write-baseline');
+  const report = has('--report');
+  const allowRaise = argAfter('--allow-raise');
+  const extraDir = argAfter('--extra');
+  const t0 = Date.now();
+
+  const allow = loadAllowlist();
+  const ctx = makeCtx(allow);
+
+  console.log('\ncopy-voice ratchet (docs/VOICE.md):');
+  const st = selfTest(ctx);
+  if (st.length) {
+    console.log(`  FAIL  self-test — ${st.length} fixture(s) misclassified:`);
+    for (const f of st) console.log('        ' + f);
+    return 1;
+  }
+  console.log(`  PASS  self-test (${FIXTURES.length} fixtures, every rule flags and passes)`);
+
+  const files: { abs: string; key: string; extra: boolean }[] = [];
+  for (const d of SCOPE_DIRS) {
+    for (const abs of walk(join(ROOT, d))) {
+      const key = relative(ROOT, abs);
+      if (inScope(key)) files.push({ abs, key, extra: false });
+    }
+  }
+  if (extraDir) {
+    const dir = isAbsolute(extraDir) ? extraDir : resolve(process.cwd(), extraDir);
+    for (const abs of walk(dir)) files.push({ abs, key: abs, extra: true });
+  }
+
+  const counts: Counts = {};
+  const hitsByFile = new Map<string, Hit[]>();
+  const allowUsed = new Set<number>();
+  for (const f of files) {
+    const hits = scanSource(f.key, readFileSync(f.abs, 'utf8'), ctx).filter((h) => {
+      const idx = allow.entries.findIndex(
+        (e) => e.file === f.key && e.rule === h.rule && (h.text === e.match || h.text.includes(e.match)),
+      );
+      if (idx >= 0) {
+        allowUsed.add(idx);
+        return false;
+      }
+      return true;
+    });
+    hitsByFile.set(f.key, hits);
+    for (const h of hits) {
+      counts[f.key] ??= {};
+      counts[f.key][h.rule] = (counts[f.key][h.rule] ?? 0) + 1;
+    }
+  }
+  const scanMs = Date.now() - t0;
+
+  const totals: Record<RuleId, number> = Object.fromEntries(ALL_RULES.map((r) => [r, 0])) as Record<RuleId, number>;
+  for (const c of Object.values(counts)) for (const r of ALL_RULES) totals[r] += c[r] ?? 0;
+  const printTotals = () => {
+    console.log('\n  rule  name            hits');
+    for (const r of ALL_RULES) console.log(`  ${r}   ${RULE_NAMES[r].padEnd(14)}  ${String(totals[r]).padStart(5)}`);
+    const sum = ALL_RULES.reduce((a, r) => a + totals[r], 0);
+    console.log(`  total                 ${String(sum).padStart(5)}   (${files.length} files, ${scanMs} ms)`);
+  };
+
+  const hitsFilter = has('--hits') ? (argAfter('--hits') ?? '') : null;
+  if (hitsFilter !== null) {
+    const pats = hitsFilter.startsWith('--') ? [''] : hitsFilter.split(',');
+    for (const [f, hits] of hitsByFile) {
+      if (!pats.some((p) => f.includes(p))) continue;
+      for (const h of hits) console.log(`  ${h.file}:${h.line}  ${h.rule}  "${h.text.slice(0, 140)}"`);
+    }
+    return 0;
+  }
+
+  if (report) {
+    printTotals();
+    const worst = Object.entries(counts)
+      .map(([f, c]) => [f, ALL_RULES.reduce((a, r) => a + (c[r] ?? 0), 0)] as const)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20);
+    console.log('\n  20 worst files:');
+    for (const [f, n] of worst) {
+      const detail = ALL_RULES.filter((r) => counts[f][r]).map((r) => `${r}:${counts[f][r]}`).join(' ');
+      console.log(`  ${String(n).padStart(4)}  ${f}   ${detail}`);
+    }
+    return 0;
+  }
+
+  let failed = false;
+
+  // Stale allowlist entries.
+  const stale = allow.entries.filter((_, i) => !allowUsed.has(i));
+  if (stale.length) {
+    failed = true;
+    console.log(`  FAIL  allowlist — ${stale.length} entr${stale.length === 1 ? 'y matches' : 'ies match'} nothing any more:`);
+    for (const e of stale) console.log(`        ${e.file}  ${e.rule}  "${e.match}"`);
+  }
+
+  const baseline = loadBaseline();
+  const base = baseline.counts;
+  const above: string[] = [];
+  const below: string[] = [];
+  const scannedKeys = new Set(files.filter((f) => !f.extra).map((f) => f.key));
+  for (const f of files) {
+    for (const r of ALL_RULES) {
+      const cur = counts[f.key]?.[r] ?? 0;
+      const was = f.extra ? 0 : (base[f.key]?.[r] ?? 0);
+      if (cur > was) above.push(`${f.key}|${r}|${was}->${cur}`);
+      else if (cur < was) below.push(`${f.key}|${r}|${was}->${cur}`);
+    }
+  }
+  // Baseline rows for files that no longer exist can always be tightened.
+  for (const f of Object.keys(base)) if (!scannedKeys.has(f)) for (const r of ALL_RULES) if (base[f][r]) below.push(`${f}|${r}|${base[f][r]}->0`);
+
+  if (writeBaseline) {
+    if (extraDir) {
+      console.log('  FAIL  --write-baseline cannot be combined with --extra');
+      return 1;
+    }
+    // The very first write seeds the ratchet; every later write may only lower it.
+    const initial = !existsSync(BASELINE_PATH);
+    if (above.length && !allowRaise && !initial) {
+      console.log(`  FAIL  --write-baseline refused: ${above.length} file/rule count(s) would go UP:`);
+      for (const p of above) console.log('        ' + p);
+      console.log('        (fix the new strings, or pass --allow-raise "<reason>" to record a deliberate raise)');
+      return 1;
+    }
+    const next: Baseline = { version: 1, counts: sortedCounts(Object.fromEntries(Object.entries(counts).filter(([k]) => scannedKeys.has(k)))) };
+    const raises = [...(baseline.raises ?? [])];
+    if (above.length && allowRaise && !initial) raises.push({ date: new Date().toISOString().slice(0, 10), reason: allowRaise, pairs: above });
+    if (raises.length) next.raises = raises;
+    writeFileSync(BASELINE_PATH, JSON.stringify(next, null, 2) + '\n');
+    printTotals();
+    console.log(`\n  WROTE scripts/copy-voice-baseline.json (${initial ? 'initial baseline' : `${below.length} pair(s) tightened${above.length ? `, ${above.length} raised: ${allowRaise}` : ''}`})`);
+    return failed ? 1 : 0;
+  }
+
+  if (above.length) {
+    failed = true;
+    console.log(`  FAIL  ${above.length} file/rule count(s) above the baseline. The new hits:`);
+    for (const p of above) {
+      const [file, rule] = p.split('|');
+      const hits = (hitsByFile.get(file) ?? []).filter((h) => h.rule === rule);
+      for (const h of hits) console.log(`        ${h.file}:${h.line}  ${h.rule}  "${h.text.slice(0, 120)}"`);
+    }
+    console.log('        (fix them per docs/VOICE.md; every listed hit for an over-count pair is shown, the new one is among them)');
+  }
+  printTotals();
+  if (extraDir) {
+    const extraHits = files.filter((f) => f.extra).flatMap((f) => hitsByFile.get(f.key) ?? []);
+    const rules = [...new Set(extraHits.map((h) => h.rule))].sort();
+    console.log(`\n  --extra ${extraDir}: ${extraHits.length} hit(s) across ${rules.length} rule(s)${rules.length ? ` (${rules.join(' ')})` : ''}`);
+  }
+  if (below.length) console.log(`\n  ${below.length} file/rule pairs can be tightened: run with --write-baseline`);
+  console.log(failed ? '\n  FAIL  copy-voice ratchet' : '\n  PASS  copy-voice ratchet (no file/rule count above its baseline)');
+  return failed ? 1 : 0;
+}
+
+process.exit(main());

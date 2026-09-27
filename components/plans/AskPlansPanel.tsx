@@ -79,7 +79,7 @@ export default function AskPlansPanel({ projectId, sheets, onUpgrade }: Props) {
       return (
         <View style={styles.upsellCard}>
           <View style={{ flex: 1, gap: 8 }}>
-            <Text style={styles.upsellSub}>Couldn&apos;t check your access to this job&apos;s plans.</Text>
+            <Text style={styles.upsellSub}>Couldn&apos;t check your access to this project&apos;s plans.</Text>
             <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} />
           </View>
         </View>
@@ -301,7 +301,7 @@ function AskPlansPanelInner({
           style={styles.input}
           value={question}
           onChangeText={setQuestion}
-          placeholder="Ask your plans…"
+          placeholder="Ask your plans"
           placeholderTextColor={t.textMuted}
           returnKeyType="send"
           onSubmitEditing={() => void handleAsk()}
@@ -348,7 +348,7 @@ function AskPlansPanelInner({
                   onPress={() => jumpToSheet(sheetId)}
                   activeOpacity={0.75}
                   accessibilityRole="button"
-                  accessibilityLabel={`Jump to Sheet ${ref}`}
+                  accessibilityLabel={`Jump to sheet ${ref}`}
                 >
                   <Text style={styles.citationChipText}>Sheet {ref}</Text>
                   <ArrowRight size={11} color={t.accent} strokeWidth={2} />

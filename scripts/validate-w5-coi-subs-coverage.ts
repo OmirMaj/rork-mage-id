@@ -144,12 +144,12 @@ console.log('\n4 · the vault list falls back to the date on the record:');
   const e1 = vaultCoiExpiry(noDates, { coiExpiry: day(10) });
   ok('certificate with no date + a typed record date → the record date', e1.day === day(10) && e1.source === 'record');
   const s1 = vaultCoiStatus(e1, NOW);
-  ok('…counted as expiring, and labelled as typed on his record', s1.key === 'expiring' && /typed on his record/.test(s1.label), s1.label);
+  ok('…counted as expiring, and labelled as typed on the sub’s record', s1.key === 'expiring' && /typed on the sub’s record/.test(s1.label), s1.label);
   ok('record date in the past → expired', vaultCoiStatus(vaultCoiExpiry(noDates, { coiExpiry: day(-3) }), NOW).key === 'expired');
   const e2 = vaultCoiExpiry({ coverages: [{ expiresAt: day(90) }] }, { coiExpiry: day(5) });
   ok("the certificate's own date wins over the record", e2.day === day(90) && e2.source === 'certificate');
   const e3 = vaultCoiExpiry(noDates, { coiExpiry: 'next spring' });
-  ok('an unparseable record date is reported, not skipped', e3.recordUnreadable && /not a date — no reminders/.test(vaultCoiStatus(e3, NOW).label));
+  ok('an unparseable record date is reported, not skipped', e3.recordUnreadable && /not a date · no reminders/.test(vaultCoiStatus(e3, NOW).label));
   ok('certificateExpiryDay reads the earliest calendar day', certificateExpiryDay({ coverages: [{ expiresAt: '2027-05-01' }, { expiresAt: '2027-02-01T12:00:00.000Z' }] }) === '2027-02-01');
 
   const vault = src('app/coi-vault.tsx');
@@ -209,7 +209,7 @@ console.log('\n7 · the award blocker names the path that works:');
   const r = reviewAwardCompliance(
     { id: 's', companyName: 'Acme', contactName: '', phone: '', email: '', address: '', trade: 'General', licenseNumber: '', w9OnFile: false, bidHistory: [], assignedProjects: [], notes: '', createdAt: '', updatedAt: '' },
     NOW.getTime(), { vaultCertCount: 1 });
-  ok('it points at the certificate\'s Coverages and the Subs record', /type the expiry under Coverages/.test(r.blockers[0] ?? '') && /COI Expiry on his record in the Subs tab/.test(r.blockers[0] ?? ''), r.blockers[0]);
+  ok('it points at the certificate\'s Coverages and the Subs record', /type the expiry under Coverages/.test(r.blockers[0] ?? '') && /COI expiry on their record in the Subs tab/.test(r.blockers[0] ?? ''), r.blockers[0]);
 }
 
 console.log('\n8 · the migration:');

@@ -267,10 +267,10 @@ export default function ClaimCrewScreen() {
       )}
 
       {state === 'already_claimed' && (
-        <Text style={styles.msg}>This invite link has already been used. Ask the contractor to resend it.</Text>
+        <Text style={styles.msg}>This invite link has already been used. Ask your contractor to resend it.</Text>
       )}
       {state === 'invalid' && (
-        <Text style={styles.msg}>This invite link is invalid or already used. Ask the contractor to resend it.</Text>
+        <Text style={styles.msg}>This invite link is invalid or already used. Ask your contractor to resend it.</Text>
       )}
 
       {/* A way out in every state except the few seconds a redeem is actually

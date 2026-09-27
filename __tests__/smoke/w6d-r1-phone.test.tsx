@@ -297,7 +297,7 @@ describe('lane R1 — the phone is unchanged (golden)', () => {
     const adds = screen.getAllByLabelText('Add');
     await act(async () => { fireEvent.press(adds[adds.length - 1]); });
     await pump(3);
-    expect(screen.getAllByText('Add Contact').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Add contact').length).toBeGreaterThan(0);
     expect(fingerprint('contacts add open', tree.toJSON())).toMatchSnapshot();
   });
 

@@ -56,7 +56,10 @@ import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { projectTypeLabel } from '@/utils/projectTypes';
+import { describeError } from '@/utils/errorCopy';
+import { edgeErrorCode } from '@/utils/edgeError';
 
 export default function PlanIntelligenceScreen() {
   const router = useRouter();
@@ -184,7 +187,7 @@ function PlanIntelligenceInner() {
       });
       const built = buildPlanRooms(raw, memory, generateUUID);
       if (built.length === 0) {
-        setError("No rooms detected — make sure the image is a floor plan (not an elevation or detail sheet), then try again.");
+        setError('No rooms found. Check that the image is a floor plan, not an elevation or detail sheet, then try again.');
         setPhase('pick');
         return;
       }
@@ -192,7 +195,13 @@ function PlanIntelligenceInner() {
       setPhase('review');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed. Try again.');
+      console.warn('[plan-intelligence] room analysis failed:', e instanceof Error ? e.message : e);
+      // A plan cap or refusal is the server's own sentence for a person
+      // ("Monthly photo-analysis limit reached …"); anything else is described.
+      const code = edgeErrorCode(e);
+      setError(code === 'monthly_cap_reached' || code === 'tier_required' || code === 'hourly_limit'
+        ? String((e as Error)?.message ?? '')
+        : describeError(e, { action: 'read the plans' }).body);
       setPhase('pick');
     }
   }, [project, memory, measureAspect]);
@@ -287,7 +296,7 @@ function PlanIntelligenceInner() {
       grandTotal: roundCents(est.grandTotal + addedSell),
     };
     // --- END plan append ---
-    updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Added from Plan Intelligence' }));
+    updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Added from plan intelligence' }));
     handleTeach();
     // The contract value moved by the SELL total, so that is the figure to
     // confirm. Naming the cost here was the on-screen half of the same defect.
@@ -305,7 +314,7 @@ function PlanIntelligenceInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Plan Intelligence · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Plan intelligence · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'AI plan estimator'}</Text>
         </View>
         {phase === 'review' ? (
@@ -325,8 +334,8 @@ function PlanIntelligenceInner() {
             'Reading the plan…',
             'Finding every room…',
             'Measuring square footage…',
-            trainedLine ? 'Applying what you taught me…' : 'Pricing each room…',
-            'Almost there…',
+            trainedLine ? 'Applying your corrections…' : 'Pricing each room…',
+            'Totaling the rooms…',
           ]}
         />
       ) : (
@@ -335,7 +344,7 @@ function PlanIntelligenceInner() {
           <View style={styles.memoryChip}>
             <GraduationCap size={14} color={trainedLine ? t.accent : t.textMuted} strokeWidth={1.75} />
             <Text style={[styles.memoryChipText, trainedLine ? { color: t.text } : null]}>
-              {trainedLine ?? 'Untrained — corrections you make here teach the AI for next time'}
+              {trainedLine ?? 'No corrections yet. Fixes you make here carry to your next plan.'}
             </Text>
           </View>
 
@@ -353,8 +362,8 @@ function PlanIntelligenceInner() {
                   <EmptyState
                     icon={<ScanSearch size={36} color={t.accent} strokeWidth={1.6} />}
                     title="No projects yet"
-                    message="Plan Intelligence reads a floor plan and builds a room-by-room estimate. Create a project first so the rooms have somewhere to land."
-                    actionLabel="Open Projects"
+                    message="Plan intelligence reads a floor plan and builds a room-by-room estimate. Create a project first so the rooms have somewhere to land."
+                    actionLabel="Open projects"
                     onAction={() => router.push('/(tabs)/(home)' as never)}
                   />
                 ) : (
@@ -375,7 +384,7 @@ function PlanIntelligenceInner() {
                       <MageAIMark size={16} color={t.accent} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resumeTitle}>Resume last session</Text>
-                        <Text style={styles.resumeSub}>{session.rooms.length} rooms · saved {new Date(session.updatedAt).toLocaleDateString()}</Text>
+                        <Text style={styles.resumeSub}>{session.rooms.length} {session.rooms.length === 1 ? 'room' : 'rooms'} · saved {new Date(session.updatedAt).toLocaleDateString()}</Text>
                       </View>
                     </TouchableOpacity>
                   )}
@@ -395,7 +404,7 @@ function PlanIntelligenceInner() {
                   </TouchableOpacity>
                   {planSheets.length === 0 && (
                     <Text style={styles.note}>
-                      Tip: plan sheets you upload in Visual Takeoff show up here automatically — including their scale calibration.
+                      Plan sheets you upload in visual takeoff show up here, with their scale calibration.
                     </Text>
                   )}
                 </>
@@ -432,7 +441,7 @@ function PlanIntelligenceInner() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.note}>Tap a room on the sheet or in the list to fix sqft, set your rate, or leave a note.</Text>
+              <Text style={styles.note}>Tap a room on the sheet or in the list to fix its square feet, set your rate, or leave a note.</Text>
 
               {/* Room cards. */}
               {rooms.map(r => (
@@ -446,10 +455,10 @@ function PlanIntelligenceInner() {
                     <Text style={styles.roomCardDot}>·</Text>
                     <Text style={styles.roomCardMetaText}>{Math.round(r.sqft)} SF @ {formatMoney(r.ratePerSqft)}/SF</Text>
                     {r.memoryApplied && (
-                      <View style={styles.learnedChip}><Text style={styles.learnedChipText}>auto-corrected</Text></View>
+                      <View style={styles.learnedChip}><Text style={styles.learnedChipText}>Auto-corrected</Text></View>
                     )}
                     {r.rateSource === 'learned' && (
-                      <View style={styles.learnedChip}><Text style={styles.learnedChipText}>your rate</Text></View>
+                      <View style={styles.learnedChip}><Text style={styles.learnedChipText}>Your rate</Text></View>
                     )}
                     {/* Absence of a positive chip is NOT a disclosure. A room
                         priced off DEFAULT_ROOM_RATES has a placeholder $/SF
@@ -457,7 +466,7 @@ function PlanIntelligenceInner() {
                         cold-start row reads exactly like a learned one. */}
                     {r.rateSource === 'default' && (
                       <View style={styles.defaultRateChip}>
-                        <Text style={styles.defaultRateChipText}>market placeholder — not your rate</Text>
+                        <Text style={styles.defaultRateChipText}>Market placeholder, not your rate</Text>
                       </View>
                     )}
                   </View>
@@ -485,12 +494,12 @@ function PlanIntelligenceInner() {
       {phase === 'review' && rooms.length > 0 && (
         <View style={[styles.footer, { paddingBottom: insets.bottom + 10 }]} onLayout={onBottomBarLayout}>
           <View style={styles.footerTotals}>
-            <Text style={styles.footerTotalsTop}>{totals.roomCount} rooms · {totals.totalSqft.toLocaleString()} SF</Text>
+            <Text style={styles.footerTotalsTop}>{totals.roomCount} {totals.roomCount === 1 ? 'room' : 'rooms'} · {totals.totalSqft.toLocaleString()} SF</Text>
             <Text style={styles.footerTotalsMain}>{formatMoney(totals.totalCost)}</Text>
             {/* How much of that total is standing on placeholder rates. */}
             {placeholderRoomCount > 0 ? (
               <Text style={styles.footerTotalsWarn} testID="plan-intel-placeholder-note">
-                {placeholderRoomCount} room{placeholderRoomCount === 1 ? '' : 's'} on market placeholders — not your rates
+                {placeholderRoomCount} room{placeholderRoomCount === 1 ? '' : 's'} priced at market placeholders, not your rates
               </Text>
             ) : null}
           </View>
@@ -500,7 +509,7 @@ function PlanIntelligenceInner() {
             activeOpacity={0.85}
           >
             <GraduationCap size={16} color={taught ? t.success : t.accent} strokeWidth={1.75} />
-            <Text style={[styles.footerBtnGhostText, taught && { color: t.success }]}>{taught ? 'Taught' : 'Teach AI'}</Text>
+            <Text style={[styles.footerBtnGhostText, taught && { color: t.success }]}>{taught ? 'Taught' : 'Teach MAGE'}</Text>
           </TouchableOpacity>
           {project?.linkedEstimate ? (
             <TouchableOpacity style={styles.footerBtn} onPress={handleAddToEstimate} activeOpacity={0.85}>
@@ -537,6 +546,9 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
   const [note, setNote] = useState('');
   const [included, setIncluded] = useState(true);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's sheet, byte for byte.
+  const fRoom = useSheetFrame('form', { visible: !!room, animationType: 'slide' });
 
   // Sync local state when a new room opens (render-time state sync — the
   // sanctioned alternative to a useEffect-on-prop pattern).
@@ -567,10 +579,13 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
     });
   };
 
+  // Desktop web: Cmd/Ctrl+Enter (and Cmd+S) = Save room.
+  useSheetPrimaryHotkey(!!room, save);
+
   return (
-    <Modal visible={!!room} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
+    <Modal visible={!!room} animationType={fRoom.animationType} transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalBackdrop, fRoom.overlay]}>
+        <View style={[styles.modalSheet, fRoom.card]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>{room?.name ?? 'Room'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
@@ -586,7 +601,7 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
               <Text style={styles.fieldLabel}>Square feet</Text>
               <TextInput style={styles.fieldInput} value={sqftStr} onChangeText={setSqftStr} keyboardType="decimal-pad" inputMode="decimal" placeholder="0" placeholderTextColor={t.textMuted} />
               {room && Math.round(room.aiSqft) !== Math.round(parseDecimalInput(sqftStr) ?? 0) ? (
-                <Text style={styles.fieldHint}>AI read {Math.round(room.aiSqft)} SF — your fix teaches it</Text>
+                <Text style={styles.fieldHint}>MAGE read {Math.round(room.aiSqft)} SF. Your fix teaches it.</Text>
               ) : null}
             </View>
             <View style={{ flex: 1 }}>
@@ -595,7 +610,7 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
             </View>
           </View>
 
-          <Text style={styles.fieldLabel}>Note for the AI (carried to future plans)</Text>
+          <Text style={styles.fieldLabel}>Note for MAGE (carried to future plans)</Text>
           <TextInput
             style={[styles.fieldInput, styles.fieldInputMultiline]}
             value={note}

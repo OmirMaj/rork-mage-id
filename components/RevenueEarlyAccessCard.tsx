@@ -155,12 +155,12 @@ export function RevenueEarlyAccessCard(props: RevenueEarlyAccessCardProps) {
           <Text style={styles.headline}>{headline}</Text>
           {state === 'idle' && (
             <View style={styles.earlyAccessPill}>
-              <Text style={styles.earlyAccessPillText}>EARLY ACCESS</Text>
+              <Text style={styles.earlyAccessPillText}>Early access</Text>
             </View>
           )}
           {state === 'done' && (
             <View style={[styles.earlyAccessPill, styles.earlyAccessPillDone]}>
-              <Text style={[styles.earlyAccessPillText, styles.earlyAccessPillDoneText]}>ON THE LIST</Text>
+              <Text style={[styles.earlyAccessPillText, styles.earlyAccessPillDoneText]}>On the list</Text>
             </View>
           )}
         </View>
@@ -177,10 +177,10 @@ export function RevenueEarlyAccessCard(props: RevenueEarlyAccessCardProps) {
           // (email, password, name). The two siblings writing this same table
           // are already channel-agnostic: TabComingSoon.tsx says "We'll let you
           // know" and ReadyToBillCard.tsx says "we'll be in touch".
-          <Text style={styles.footerDone}>We&apos;ll let you know the moment this goes live.</Text>
+          <Text style={styles.footerDone}>You&apos;ll hear from us when this is live.</Text>
         )}
         {state === 'error' && (
-          <Text style={styles.footerError}>Tap to retry.</Text>
+          <Text style={styles.footerError}>Couldn&apos;t join the waitlist. Tap to try again.</Text>
         )}
       </View>
       {state === 'idle' && (
@@ -235,7 +235,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
     borderRadius: 4,
     backgroundColor: c.accentSoft,
   },
-  earlyAccessPillText: {
+  earlyAccessPillText: { textTransform: 'uppercase',
     fontSize: 9,
     fontWeight: '800' as const,
     color: c.accent,

@@ -122,7 +122,7 @@ console.log('\n#147 a blocked PDF window throws (web):');
   ok("…and the old silent `if (newWindow)` branch is gone", !/window\.open\('', '_blank'\)/.test(src));
   const reports = read('app/reports.tsx');
   ok('/reports shows pdfFailureMessage on a failed share',
-    /showAlert\('PDF failed', pdfFailureMessage\(err, 'Could not generate the PDF\.'\)\)/.test(reports));
+    /showAlert\('Couldn’t generate PDF', pdfFailureMessage\(err, 'Couldn’t generate the PDF\. Try again\.'\)\)/.test(reports));
   const shareAt = reports.indexOf('const handleSharePdf = useCallback(async () => {');
   const shareBody = reports.slice(shareAt, reports.indexOf('}, [tab, wip, profit, aging', shareAt));
   ok('…and its success haptic is only reached after the share resolved (inside try, after the await, before catch)',
@@ -130,7 +130,7 @@ console.log('\n#147 a blocked PDF window throws (web):');
     && shareBody.indexOf('Haptics.notificationAsync') < shareBody.indexOf('} catch (err) {'));
   const wipScreen = read('app/wip-report.tsx');
   ok('/wip-report shows pdfFailureMessage on a failed WIP PDF',
-    /catch \(err\) \{ showAlert\('Export failed', pdfFailureMessage\(err, 'Could not generate the WIP PDF\.'\)\); \}/.test(wipScreen));
+    /catch \(err\) \{ showAlert\('Couldn’t export PDF', pdfFailureMessage\(err, 'Couldn’t generate the WIP PDF\. Try again\.'\)\); \}/.test(wipScreen));
 }
 
 // ── #102 A/R aging carries retainage ─────────────────────────────────────────
@@ -154,12 +154,12 @@ console.log('\n#102 retainage on the A/R aging PDF and tab:');
   const invoiceRow = html.slice(html.indexOf('#7'), html.indexOf('TOTAL'));
   ok('…on the invoice row itself: Paid 99,000.00 → Retainage 11,000.00 → Outstanding $0.00',
     /99,000\.00[\s\S]*?11,000\.00[\s\S]*?\$0\.00/.test(invoiceRow), invoiceRow.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 300));
-  ok("…under a 'Retainage Held' column", html.includes('Retainage Held'));
+  ok("…under a 'Retainage held' column", html.includes('Retainage held<'));
   ok("…with a 'Retainage held (not aged)' tile", html.includes('Retainage held (not aged)'));
-  ok("…a TOTAL row that foots (110,000.00 / 99,000.00 / 11,000.00 / 0.00)",
-    /TOTAL[\s\S]*110,000\.00[\s\S]*99,000\.00[\s\S]*11,000\.00[\s\S]*\$0\.00/.test(html));
+  ok("…a Total row that foots (110,000.00 / 99,000.00 / 11,000.00 / 0.00)",
+    />Total<[\s\S]*110,000\.00[\s\S]*99,000\.00[\s\S]*11,000\.00[\s\S]*\$0\.00/.test(html));
   ok("…the bucket reads 'Retainage' for a retainage-only row", />Retainage<\/span>/.test(html));
-  ok('…the footer says retainage is a receivable that is not aged', /Retainage is held by the owner until closeout; it is a receivable and is not aged\./.test(html));
+  ok('…the footer says retainage is a receivable that is not aged', /Retainage is held by the client until closeout. It is a receivable and is not aged\./.test(html));
   ok("…and the 'Open invoices' meta counts collectible rows only (0 here)", /Open invoices[\s\S]{0,300}?>0</.test(html));
   const empty = pdf.buildARAgingHtml(computeARAgingReport([], []), BRANDING);
   ok('the empty state no longer says "Nice work"', !/Nice work/.test(empty) && /no retainage is held/.test(empty));

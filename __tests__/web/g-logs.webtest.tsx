@@ -231,11 +231,11 @@ beforeEach(() => {
 });
 
 describe('honest loading — no "No … yet" before the collection has loaded (C6)', () => {
-  it('RFIs: not settled → "Loading RFIs…", never "No RFIs on this job yet"; no chip counts', async () => {
+  it('RFIs: not settled → "Loading RFIs…", never "No RFIs on this project yet"; no chip counts', async () => {
     mockSettle = { settled: false, failed: false, hasRecord: false };
     const { el } = await mountLog(<RfiLog projectId={P} />);
     expect(el.textContent).toContain('Loading RFIs…');
-    expect(el.textContent).not.toMatch(/No RFIs on this job yet/);
+    expect(el.textContent).not.toMatch(/No RFIs on this project yet/);
     // The chips carry no count while loading (never a 0 it has not earned).
     expect(byId(el, 'rfi-log-chip-open')?.textContent).toBe('Open');
     expect(byId(el, 'rfi-log-chip-all')?.textContent).toBe('All');
@@ -245,7 +245,7 @@ describe('honest loading — no "No … yet" before the collection has loaded (C
     mockSettle = { settled: true, failed: true, hasRecord: false };
     const { el } = await mountLog(<RfiLog projectId={P} />);
     expect(el.textContent).toContain("Couldn't load RFIs. Check your connection.");
-    expect(el.textContent).not.toMatch(/No RFIs on this job yet/);
+    expect(el.textContent).not.toMatch(/No RFIs on this project yet/);
     const spy = jest.spyOn(qc, 'invalidateQueries');
     const retry = [...el.querySelectorAll('[role="button"], div')].find((n) => n.textContent === 'Try again');
     expect(retry).toBeTruthy();
@@ -255,7 +255,7 @@ describe('honest loading — no "No … yet" before the collection has loaded (C
 
   it('RFIs: settled and truly empty → the empty copy is back', async () => {
     const { el } = await mountLog(<RfiLog projectId={P} />);
-    expect(el.textContent).toContain('No RFIs on this job yet');
+    expect(el.textContent).toContain('No RFIs on this project yet');
     expect(el.textContent).not.toMatch(/Loading/);
   });
 
@@ -263,28 +263,28 @@ describe('honest loading — no "No … yet" before the collection has loaded (C
     mockSettle = { settled: false, failed: false, hasRecord: false };
     const { el } = await mountLog(<SubmittalLog projectId={P} />);
     expect(el.textContent).toContain('Loading submittals…');
-    expect(el.textContent).not.toMatch(/No submittals on this job yet/);
+    expect(el.textContent).not.toMatch(/No submittals on this project yet/);
   });
 
   it('change orders: changeOrdersLoaded false → "Loading change orders…"', async () => {
     mockCtx = ctx({ changeOrdersLoaded: false });
     const { el } = await mountLog(<ChangeOrderLog projectId={P} />);
     expect(el.textContent).toContain('Loading change orders…');
-    expect(el.textContent).not.toMatch(/No change orders on this job yet/);
+    expect(el.textContent).not.toMatch(/No change orders on this project yet/);
   });
 
   it('invoices: invoicesLoaded false → "Loading invoices…"', async () => {
     mockCtx = ctx({ invoicesLoaded: false });
     const { el } = await mountLog(<InvoiceLog projectId={P} />);
     expect(el.textContent).toContain('Loading invoices…');
-    expect(el.textContent).not.toMatch(/No invoices on this job yet/);
+    expect(el.textContent).not.toMatch(/No invoices on this project yet/);
   });
 
   it('daily reports: dailyReportsLoaded false → "Loading daily reports…"', async () => {
     mockCtx = ctx({ dailyReportsLoaded: false });
     const { el } = await mountLog(<DailyReportLog projectId={P} filedBy={() => null} />);
     expect(el.textContent).toContain('Loading daily reports…');
-    expect(el.textContent).not.toMatch(/No daily reports on this job yet/);
+    expect(el.textContent).not.toMatch(/No daily reports on this project yet/);
   });
 });
 

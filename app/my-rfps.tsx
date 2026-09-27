@@ -230,13 +230,13 @@ export default function MyRfpsScreen() {
                   {isAwarded && (
                     <View style={[styles.statusPill, { backgroundColor: themeColors.success + '20' }]}>
                       <Trophy size={10} color={themeColors.success} strokeWidth={1.75} />
-                      <Text style={[styles.statusPillText, { color: themeColors.success }]}>AWARDED</Text>
+                      <Text style={[styles.statusPillText, { color: themeColors.success }]}>Awarded</Text>
                     </View>
                   )}
                   {isOpen && (
                     <View style={[styles.statusPill, { backgroundColor: themeColors.accent + '20' }]}>
                       <Clock size={10} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={[styles.statusPillText, { color: themeColors.accent }]}>OPEN</Text>
+                      <Text style={[styles.statusPillText, { color: themeColors.accent }]}>Open</Text>
                     </View>
                   )}
                 </View>
@@ -359,7 +359,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text, lineHeight: 21 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full },
-  statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
   rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   rfpMetaText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' },
   rfpBudget: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },

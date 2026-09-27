@@ -24,8 +24,12 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { useSheetFrame } from '@/components/ui/Sheet';
 
+// `good` is success, which is TEAL since the 2026-09-16 rebrand (the old
+// #2E7D44 read as the brand green). A getter so it follows the theme at read
+// time and still returns a hex, which keeps the '+14' / '+40' alpha suffixes
+// valid.
 const TONE_COLOR: Record<'good' | 'warn' | 'bad', string> = {
-  good: "#2E7D44",
+  get good() { return Colors.successLabel; },
   warn: Colors.warningLabel,
   bad: "#C84038",
 };
@@ -81,10 +85,10 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
       >
         <View style={styles.tileHead}>
           <View style={styles.tileIcon}>
-            <DollarSign size={14} color={"#FF6A1A"} strokeWidth={1.75} />
+            <DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tileLabel}>Planned vs. Earned</Text>
+            <Text style={styles.tileLabel}>Planned vs. earned</Text>
             <Text style={styles.tileSub}>
               {formatMoneyCompact(snapshot.totalEarnedValue)} earned · {formatMoneyCompact(snapshot.totalPlannedValue)} planned
             </Text>
@@ -111,7 +115,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             </View>
 
             <Text style={styles.modalSubtitle}>
-              Planned Value is what your budget says you should have earned by today. Earned Value is what you&apos;ve actually completed (% × cost).
+              Planned value is what your budget says you should have earned by today. Earned value is what you&apos;ve completed (% × cost).
             </Text>
 
             {/* KPI tiles */}
@@ -139,7 +143,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                   <SpiIcon size={14} color={TONE_COLOR[spiTone]} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.indexLabel}>Schedule Performance</Text>
+                  <Text style={styles.indexLabel}>Schedule performance</Text>
                   <Text style={[styles.indexValue, { color: TONE_COLOR[spiTone] }]}>
                     SPI {snapshot.spi.toFixed(2)}
                   </Text>
@@ -161,7 +165,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                     <CpiIcon size={14} color={TONE_COLOR[cpiTone]} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.indexLabel}>Cost Performance</Text>
+                    <Text style={styles.indexLabel}>Cost performance</Text>
                     <Text style={[styles.indexValue, { color: TONE_COLOR[cpiTone] }]}>
                       CPI {snapshot.cpi.toFixed(2)}
                     </Text>

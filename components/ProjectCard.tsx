@@ -8,7 +8,7 @@ import { formatMoney, displayText } from '@/utils/formatters';
 import type { Project, ProjectType } from '@/types';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
 import { nativeDriver, reducedMotion } from '@/components/ui/motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -160,12 +160,16 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, skipEntrance = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [burnAnim, burnRatio, showBurnBar]);
 
+  // The press scale is motion: skipped under Reduce Motion (it ignored the
+  // setting before). The release always lands the card at rest.
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, { toValue: 0.975, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
+    if (reducedMotion()) return;
+    Animated.spring(scaleAnim, { toValue: 0.975, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+    if (reducedMotion()) { scaleAnim.setValue(1); return; }
+    Animated.spring(scaleAnim, { toValue: 1, ...Motion.spring.snap, useNativeDriver: nativeDriver }).start();
   };
 
   const enterTranslate = enterAnim.interpolate({

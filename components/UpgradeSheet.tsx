@@ -7,6 +7,7 @@ import { X, Sparkles } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { LimitCheck } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
@@ -21,6 +22,10 @@ interface UpgradeSheetProps {
   featureLabel?: string;
 }
 
+const PLAN_NAME: Record<NonNullable<LimitCheck['upgradeTo']>, string> = {
+  pro: 'Pro', business: 'Business', enterprise: 'Enterprise',
+};
+
 // Post-value upgrade sheet. Distinct from the full-screen <Paywall> (still
 // reachable from Settings / explicit CTAs): this is the "you've now seen what
 // this does" moment, framed as earned. Frosted glass sits over the result the
@@ -29,12 +34,16 @@ export default function UpgradeSheet({ visible, onClose, limit, featureLabel }: 
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  // Desktop web: a centred card beside the sidebar; all-null on a phone.
+  const fUp = useSheetFrame('dialog', { visible, animationType: 'fade' });
 
   const headline = limit?.reason === 'lifetime_cap'
-    ? 'You’ve seen what it can do'
-    : 'Keep the momentum going';
+    ? 'You’ve used your free tries'
+    : limit?.reason === 'pro_only'
+      ? `${featureLabel ?? 'This feature'} is on the ${PLAN_NAME[limit.upgradeTo ?? 'pro']} plan`
+      : 'You’ve reached today’s limit';
   const body = limit?.message
-    ?? 'You’ve used your free trials of this feature. Upgrade to keep going.';
+    ?? 'You’ve used the free tries of this feature.';
 
   const handleUpgrade = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -45,14 +54,14 @@ export default function UpgradeSheet({ visible, onClose, limit, featureLabel }: 
   if (!visible || !limit) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={fUp.animationType} onRequestClose={onClose}>
       <BlurView
         intensity={Platform.OS === 'android' ? 40 : 28}
         tint="dark"
-        style={styles.backdrop}
+        style={[styles.backdrop, fUp.overlay]}
       >
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        <View style={styles.card}>
+        <View style={[styles.card, fUp.card]}>
           <View style={styles.head}>
             <View style={styles.iconWrap}>
               <Sparkles size={18} color={themeColors.accent} strokeWidth={1.9} />

@@ -26,6 +26,7 @@ import { Tokens } from '@/constants/designTokens';
 // HEALTH-F5: sign-correct money via the one formatter (the local Math.abs copy is gone).
 import { formatMoney } from '@/utils/formatters';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 function formatShortDate(iso: string): string {
   try {
@@ -36,15 +37,15 @@ function formatShortDate(iso: string): string {
 type KnownRisk = NonNullable<InvoicePrediction['riskLevel']>;
 
 const RISK_COLOR: Record<KnownRisk, string> = {
-  low: '#2E7D44',
+  get low() { return Colors.successLabel; },
   medium: Colors.warningLabel,
   high: '#C84038',
 };
 
 const RISK_LABEL: Record<KnownRisk, string> = {
-  low: 'On Track',
+  low: 'On track',
   medium: 'Watch',
-  high: 'At Risk',
+  high: 'At risk',
 };
 
 // A prediction the model didn't return is NOT "Watch" and NOT a coin flip —
@@ -122,7 +123,7 @@ function PaymentPredictionsScreenInner() {
   const runForecast = useCallback(async () => {
     if (loading) return;
     if (unpaidCount === 0) {
-      setForecastGate('No unpaid invoices to forecast — add an invoice first.');
+      setForecastGate('No unpaid invoices to forecast. Add an invoice first.');
       return;
     }
     setForecastGate(null);
@@ -134,8 +135,9 @@ function PaymentPredictionsScreenInner() {
       setResult(r);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
-      console.error('[PaymentPredictions] Error:', err);
-      setError(err?.message || 'Could not forecast payments.');
+      console.warn('[PaymentPredictions] Error:', rawErrorMessage(err));
+      const copy = describeError(err, { action: 'forecast your payments' });
+      setError(copy.body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -175,7 +177,7 @@ function PaymentPredictionsScreenInner() {
         <View style={styles.heroIcon}>
           <MageAIMark size={22} color={themeColors.accent} />
         </View>
-        <Text style={styles.heroTitle}>Cash-Crunch Forecast</Text>
+        <Text style={styles.heroTitle}>Cash-crunch forecast</Text>
         <Text style={styles.heroSub}>{scopeName} • {unpaidCount} unpaid invoice{unpaidCount === 1 ? '' : 's'} • {formatMoney(totalOutstanding)} outstanding</Text>
       </View>
 
@@ -198,7 +200,7 @@ function PaymentPredictionsScreenInner() {
             testID="run-payment-forecast-btn"
           >
             <MageAIMark size={16} color="#FFF" />
-            <Text style={styles.runBtnText}>Run Forecast</Text>
+            <Text style={styles.runBtnText}>Run forecast</Text>
           </TouchableOpacity>
           {forecastGate ? (
             <Text style={styles.forecastGateText}>{forecastGate}</Text>
@@ -219,7 +221,7 @@ function PaymentPredictionsScreenInner() {
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={runForecast} activeOpacity={0.85}>
             <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.retryBtnText}>Try Again</Text>
+            <Text style={styles.retryBtnText}>Try again</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -236,7 +238,7 @@ function PaymentPredictionsScreenInner() {
                   return (
                     <View style={[styles.scoreBubble, { backgroundColor: Colors.fillSecondary }]} testID="collection-risk-score-absent">
                       <Text style={[styles.scoreNum, { color: themeColors.textMuted }]}>{EMPTY}</Text>
-                      <Text style={styles.scoreLabel}>No Score</Text>
+                      <Text style={styles.scoreLabel}>No score</Text>
                     </View>
                   );
                 }
@@ -244,7 +246,7 @@ function PaymentPredictionsScreenInner() {
                 return (
                   <View style={[styles.scoreBubble, { backgroundColor: tone + '18' }]} testID="collection-risk-score">
                     <Text style={[styles.scoreNum, { color: tone }]}>{score}</Text>
-                    <Text style={styles.scoreLabel}>Risk Score</Text>
+                    <Text style={styles.scoreLabel}>Risk score</Text>
                   </View>
                 );
               })()}
@@ -292,7 +294,7 @@ function PaymentPredictionsScreenInner() {
             </Text>
           </View>
 
-          <Text style={styles.listHeading}>Per-Invoice Forecast</Text>
+          <Text style={styles.listHeading}>Forecast by invoice</Text>
           {sortedPredictions.map(pred => {
             // No risk level ⇒ no risk colour. Painting an unforecast row in
             // "Watch" amber would be the same lie the default was.
@@ -331,7 +333,7 @@ function PaymentPredictionsScreenInner() {
                       {pred.predictedPayDate ? formatShortDate(pred.predictedPayDate) : EMPTY}
                     </Text>
                     <Text style={styles.invoiceMetricSub}>
-                      {pred.daysToPay !== null ? `in ${pred.daysToPay}d` : 'no estimate returned'}
+                      {pred.daysToPay !== null ? `in ${pred.daysToPay}d` : 'No estimate returned'}
                     </Text>
                   </View>
                   <View style={styles.invoiceMetricBox}>
@@ -340,7 +342,7 @@ function PaymentPredictionsScreenInner() {
                       {pred.onTimeProbability !== null ? `${pred.onTimeProbability}%` : EMPTY}
                     </Text>
                     {pred.onTimeProbability === null ? (
-                      <Text style={styles.invoiceMetricSub}>no estimate returned</Text>
+                      <Text style={styles.invoiceMetricSub}>No estimate returned</Text>
                     ) : null}
                   </View>
                 </View>
@@ -368,7 +370,7 @@ function PaymentPredictionsScreenInner() {
 
           <TouchableOpacity style={styles.rerunBtn} onPress={runForecast} activeOpacity={0.85} testID="rerun-forecast-btn">
             <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.rerunBtnText}>Re-run Forecast</Text>
+            <Text style={styles.rerunBtnText}>Run forecast again</Text>
           </TouchableOpacity>
         </>
       )}

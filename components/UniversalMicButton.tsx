@@ -13,6 +13,7 @@ import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useProjectCapGate } from '@/hooks/useProjectCapGate';
@@ -24,6 +25,7 @@ import { matchFieldScheduleUpdates, parseVoiceAction, scheduleEditRouteForTransc
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { projectTypeFromParsedType } from '@/utils/scopeQuestions';
 import { projectTypeLabel } from '@/utils/projectTypes';
+import { humanizeEnum } from '@/utils/statusLabels';
 import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
@@ -81,6 +83,9 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
   const insets = useSafeAreaInsets();
 
   const [open, setOpen] = useState(false);
+  // Desktop web: the voice sheet is a centred card beside the sidebar;
+  // all-null on a phone.
+  const fMic = useSheetFrame('form', { visible: open, animationType: 'slide' });
   const [step, setStep] = useState<Step>('idle');
   const [parsed, setParsed] = useState<VoiceActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +187,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[UniversalMic] parse failed', e);
-      setError('AI couldn\'t parse that — try again.');
+      setError('MAGE couldn\'t read that. Try again.');
       setStep('idle');
     }
   }, [project, tier, handleClose, router]);
@@ -205,7 +210,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         setError(`Drafting on ${fallback.name}. Tap "Create" again to confirm.`);
         return;
       }
-      setError('No projects yet — say "new project: ..." first to create one.');
+      setError('No projects yet. Start with "new project:" and a name to create one.');
       return;
     }
     setStep('creating');
@@ -245,7 +250,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         // terminal — so a voice CO there would appear, then vanish. Say where
         // the scope belongs instead.
         if (proj.myRole) {
-          setError('Your GC creates change orders on this job — log it in a daily report as a field issue.');
+          setError('Your GC creates change orders on this project — log it in a daily report as a field issue.');
           setStep('reviewing');
           return;
         }
@@ -590,7 +595,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
           } as never,
         });
       } else {
-        setError('AI wasn\'t sure what to do — try again with more detail. Try starting with the action: "RFI for...", "change order to...", "punch list:", "new project:", "invoice for...", or "submittal:..."');
+        setError('Not sure what to draft. Start with the action, like "RFI for the beam size", "change order for the heat pump", "punch list:", "new project:", "invoice for demolition" or "submittal:".');
         setStep('reviewing');
       }
     } catch (e) {
@@ -613,7 +618,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
   const kindLabel = parsed?.kind === 'rfi' ? 'Request for information'
     : parsed?.kind === 'co' ? 'Change order draft'
     : parsed?.kind === 'note' ? 'Field note'
-    : parsed?.kind === 'punch' ? 'Punch-list item'
+    : parsed?.kind === 'punch' ? 'Punch item'
     : parsed?.kind === 'project' ? 'New project'
     : parsed?.kind === 'invoice' ? 'Invoice draft'
     : parsed?.kind === 'submittal' ? 'Submittal'
@@ -669,12 +674,12 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
         </TouchableOpacity>
       )}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+      <Modal visible={open} transparent animationType={fMic.animationType} onRequestClose={handleClose}>
+        <View style={[styles.modalBackdrop, fMic.overlay]}>
+          <View style={[styles.modalCard, fMic.card]}>
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalEyebrow}>Speak it, we&apos;ll draft it</Text>
+                <Text style={styles.modalEyebrow}>Draft by voice</Text>
                 <Text style={styles.modalTitle}>Voice action</Text>
               </View>
               <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -719,7 +724,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
             {step === 'idle' && (
               <View style={styles.bodyWrap}>
                 <View style={styles.tipsBox}>
-                  <Text style={styles.tipsTitle}>Try saying…</Text>
+                  <Text style={styles.tipsTitle}>Try saying</Text>
                   <Text style={styles.tipsLine}>&quot;New lead: John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Submit an RFI to the architect about the steel beam size.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Owner wants the heat pump upgrade — change order for forty-five hundred.&quot;</Text>
@@ -746,7 +751,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                     steps={[
                       'Reading what you said…',
                       'Matching it to your projects…',
-                      'Drafting the right artifact…',
+                      'Writing the draft…',
                     ]}
                   />
                 ) : (
@@ -776,7 +781,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                       <PreviewField label="Subject" value={parsed.subject || '—'} />
                       <PreviewField label="Question" value={parsed.question || '—'} multi />
                       <View style={styles.previewMetaRow}>
-                        <PreviewField label="Priority" value={(parsed.priority || 'normal').toUpperCase()} small />
+                        <PreviewField label="Priority" value={humanizeEnum(parsed.priority || 'normal')} small />
                         <PreviewField label="Assigned to" value={parsed.assignedTo || '—'} small />
                       </View>
                     </View>
@@ -817,7 +822,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                         {/* No Trade field: a punch item has no trade column, so
                             showing one here promised something never saved. */}
                         <PreviewField label="Location" value={parsed.punchLocation?.trim() ? parsed.punchLocation : 'No room given'} small />
-                        <PreviewField label="Priority" value={(parsed.punchPriority || 'medium').toUpperCase()} small />
+                        <PreviewField label="Priority" value={humanizeEnum(parsed.punchPriority || 'medium')} small />
                       </View>
                     </View>
                   )}
@@ -885,7 +890,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                       {!!parsed.fieldWorkPerformed && <PreviewField label="Work performed" value={parsed.fieldWorkPerformed} multi />}
                       {(parsed.fieldTimeEntries ?? []).filter(t => (t.hours ?? 0) > 0).map((t, i) => (
                         <View key={`t${i}`} style={styles.lineItemRow}>
-                          <Text style={styles.lineItemName} numberOfLines={1}>{t.trade || 'General'} — time</Text>
+                          <Text style={styles.lineItemName} numberOfLines={1}>Time · {t.trade || 'General'}</Text>
                           <Text style={styles.lineItemAmt}>{t.hours}h</Text>
                         </View>
                       ))}
@@ -935,7 +940,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                                     setParsed(result);
                                     setStep('reviewing');
                                   } catch {
-                                    setError('Could not re-parse — try again.');
+                                    setError('MAGE couldn\'t read that. Try again.');
                                     setStep('reviewing');
                                   }
                                 }}
@@ -947,7 +952,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
                         </>
                       ) : (
                         <Text style={styles.unsureText}>
-                          Not enough detail to know what you want. Tap &quot;Try again&quot; and start with words like &quot;submit an RFI to…&quot;, &quot;create a change order for…&quot;, or &quot;note:…&quot;.
+                          Not enough detail to know what you want. Tap &quot;Try again&quot; and start with the action, like &quot;submit an RFI&quot;, &quot;create a change order&quot; or &quot;note:&quot;.
                         </Text>
                       )}
                     </View>
@@ -979,7 +984,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
       <UpgradeSheet
         visible={!!upgradeLimit}
         limit={upgradeLimit}
-        featureLabel="Voice Capture"
+        featureLabel="Voice capture"
         onClose={() => setUpgradeLimit(null)}
       />
     </>

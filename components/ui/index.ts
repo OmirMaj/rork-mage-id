@@ -17,6 +17,7 @@
 
 export { Card, cardSurface } from './Card';
 export { Button, type ButtonVariant, type ButtonSize } from './Button';
+export { Spinner, type SpinnerProps, type SpinnerSize, type SpinnerTone } from './Spinner';
 export { Badge, type BadgeTone } from './Badge';
 export { EyebrowLabel } from './EyebrowLabel';
 export { IconWrapper, type IconWrapperTone, type IconWrapperSize } from './IconWrapper';

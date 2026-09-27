@@ -51,6 +51,7 @@ import { computePreApplyPlan, type PreApplyDecision } from '@/utils/pace/preAppl
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { showAlert } from '@/utils/alert';
 import { useProjectRole } from '@/hooks/useProjectRole';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 import {
   scheduleWriteBlockedReason as scheduleWriteBlockedReasonFor, scheduleWritePathForRole,
 } from '@/utils/fieldScheduleUpdate';
@@ -401,7 +402,7 @@ export default function ScheduleReviewScreen() {
     try {
       const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate, projects, subcontractors);
       if (fresh.tasks.length === 0) {
-        showAlert('Couldn\'t regenerate', 'The generator returned no tasks. Your current draft is unchanged.');
+        showAlert('Couldn\'t rebuild', 'No tasks came back. Your current draft is unchanged.');
         return;
       }
       setTasks(fresh.tasks);
@@ -411,8 +412,10 @@ export default function ScheduleReviewScreen() {
       setPreApplied(new Map());
       await recordAIUsage('smart', 'scheduleBuilder');
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Something went wrong while regenerating the schedule.';
-      showAlert('Couldn\'t regenerate', message);
+      console.warn('[ScheduleReview] regenerate failed', rawErrorMessage(e));
+      const own = ownSentence(e);
+      const copy = describeError(e, { action: 'rebuild the schedule', keptLocally: true });
+      showAlert('Couldn\'t rebuild', own ? `${own} Your current draft is unchanged.` : copy.body);
     } finally {
       setRegenerating(false);
     }
@@ -436,7 +439,7 @@ export default function ScheduleReviewScreen() {
         <EmptyState
           icon={<MageAIMark size={36} color={t.accent} />}
           title="No draft to review"
-          message="Generate a draft schedule from Generative Setup, then come back here to review it before applying."
+          message="Draft a schedule from your estimate, then review it here before you apply it."
           actionLabel="Go back"
           onAction={() => router.back()}
         />
@@ -477,7 +480,7 @@ export default function ScheduleReviewScreen() {
           </View>
         ) : (
           <Text style={styles.paceColdStart}>
-            Durations are AI estimates — MAGE learns your real pace as you finish tasks.
+            Durations are an AI draft. MAGE learns your pace as you finish tasks.
           </Text>
         )}
 
@@ -504,12 +507,12 @@ export default function ScheduleReviewScreen() {
                         {task.assumption && (
                           <View style={styles.assumptionChip}>
                             <AlertTriangle size={11} color={ASSUMPTION_COLOR} strokeWidth={2} />
-                            <Text style={styles.assumptionText}>assumed</Text>
+                            <Text style={styles.assumptionText}>Assumed</Text>
                           </View>
                         )}
                       </View>
                       <Text style={styles.taskMeta}>
-                        {task.durationDays}d · crew {task.crewSize ?? '—'}
+                        {task.durationDays}d · Crew {task.crewSize ?? '—'}
                       </Text>
                       {pre && (
                         <PaceChip

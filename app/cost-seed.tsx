@@ -101,8 +101,8 @@ function CostSeedInner() {
       showAlert(
         'Nothing to import',
         parsed.rejected.length > 0
-          ? `We couldn't read a rate from any of those ${parsed.rejected.length} line${parsed.rejected.length === 1 ? '' : 's'}. Each line needs a trade, a unit (SF, LF, EA, HR…), and a price.`
-          : 'Paste one rate per line — trade, unit, price. For example: Framing, SF, $12.50',
+          ? `Couldn't read a rate from any of those ${parsed.rejected.length} line${parsed.rejected.length === 1 ? '' : 's'}. Each line needs a trade, a unit (SF, LF, EA, HR…), and a price.`
+          : 'Paste one rate per line: trade, unit, price. For example: Framing, SF, $12.50',
       );
       return;
     }
@@ -126,7 +126,7 @@ function CostSeedInner() {
     setBlob('');
     showAlert(
       'Rates added',
-      `${result.added} new · ${result.replaced} updated. These are marked as rates you set — they'll price your estimates now, and every job you close will correct them.`,
+      `${result.added} new · ${result.replaced} updated. These are marked as your rates. They price your estimates now, and every project you close corrects them.`,
     );
   }, [review, addSeeds]);
 
@@ -169,10 +169,10 @@ function CostSeedInner() {
     const jobsRaw = formJobs.trim();
     const jobs = jobsRaw ? Number(jobsRaw) : undefined;
     if (jobsRaw && (!Number.isFinite(jobs) || (jobs as number) <= 0)) {
-      setFormError('Jobs must be a whole number, or leave it blank.'); return;
+      setFormError('Projects must be a whole number, or leave it blank.'); return;
     }
     if (jobs != null && jobs > MAX_REPORTED_JOBS) {
-      setFormError(`Enter up to ${MAX_REPORTED_JOBS} jobs — it's a rough count, not an exact ledger.`);
+      setFormError(`Enter up to ${MAX_REPORTED_JOBS} projects. It's a rough count, not an exact ledger.`);
       return;
     }
 
@@ -245,7 +245,7 @@ function CostSeedInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Cost Database · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Cost history · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Seed your rates</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -273,13 +273,12 @@ function CostSeedInner() {
               <Text style={styles.introTitle}>You already know your numbers</Text>
             </View>
             <Text style={styles.introBody}>
-              MAGE normally learns your rates from jobs you close here — which means nothing
-              to price from on day one. Put in what you already charge and your very next
-              estimate is built on your numbers, not a national average.
+              Paste what you charge today. Your first estimate uses your rates, and every
+              project you close makes them sharper.
             </Text>
             <Text style={styles.introFinePrint}>
-              Rates you enter are marked &ldquo;you set this&rdquo; — never counted as a closed job,
-              never folded into your bid accuracy. The first real job you close corrects them.
+              Rates you enter are marked as your rate. They are never counted as a closed project
+              or folded into your bid accuracy, and the first project you close corrects them.
             </Text>
           </View>
 
@@ -326,7 +325,7 @@ function CostSeedInner() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Paste your rates</Text>
               <Text style={styles.cardHint}>
-                One per line: trade, unit, price — plus a job count if you have one. Copy a
+                One per line: trade, unit, price, plus a project count if you have one. Copy a
                 column straight out of a spreadsheet; a header row, dollar signs, commas, and
                 tabs are all fine. SF / SQFT, LF / LNFT and EA / each all read the same.
               </Text>
@@ -476,7 +475,7 @@ function CostSeedInner() {
                 testID="cost-seed-rate"
               />
 
-              <Text style={styles.fieldLabel}>Jobs behind it (optional)</Text>
+              <Text style={styles.fieldLabel}>Projects behind it (optional)</Text>
               <TextInput
                 style={styles.input}
                 value={formJobs}
@@ -487,7 +486,7 @@ function CostSeedInner() {
                 testID="cost-seed-jobs"
               />
               <Text style={styles.fieldHint}>
-                Recorded as your own note. It won&apos;t be counted as closed jobs or shown as
+                Recorded as your own note. It won&apos;t be counted as closed projects or shown as
                 learned confidence.
               </Text>
 
@@ -522,8 +521,8 @@ function CostSeedInner() {
           </Text>
           {sorted.length === 0 ? (
             <Text style={styles.emptyHint}>
-              Nothing yet. Anything you add here shows up in your Cost Database tagged
-              &ldquo;you set this&rdquo; until a closed job proves it out.
+              Nothing yet. Anything you add here shows up in your cost history marked as
+              your rate until a closed project measures it.
             </Text>
           ) : (
             sorted.map((s) => (
@@ -535,7 +534,7 @@ function CostSeedInner() {
                     {s.reportedJobs != null ? ` · you say ${s.reportedJobs} job${s.reportedJobs === 1 ? '' : 's'}` : ''}
                   </Text>
                   <View style={styles.seedBadge}>
-                    <Text style={styles.seedBadgeText}>YOU SET THIS</Text>
+                    <Text style={styles.seedBadgeText}>Your rate</Text>
                   </View>
                 </View>
                 <TouchableOpacity
@@ -567,15 +566,15 @@ function CostSeedInner() {
                 onPress={() => router.push('/cost-database' as never)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Open your cost database"
+                accessibilityLabel="Open your cost history"
                 testID="cost-seed-open-book"
               >
                 <MageCostDb size={15} color={t.text} />
-                <Text style={styles.secondaryBtnText}>See them in your cost database</Text>
+                <Text style={styles.secondaryBtnText}>See them in your cost history</Text>
               </TouchableOpacity>
               {sorted.some(s => s.reportedJobs != null) && (
                 <Text style={styles.footNote}>
-                  A job count you type is your own note, not evidence — edit a rate to change or
+                  A project count you type is your own note, not evidence. Edit a rate to change or
                   clear it.
                 </Text>
               )}
@@ -730,7 +729,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 3,
     borderRadius: Tokens.radius.full, backgroundColor: t.accentSoft,
   },
-  seedBadgeText: {
+  seedBadgeText: { textTransform: 'uppercase',
     fontSize: Type.caption2.fontSize, fontWeight: '800' as const,
     color: t.accentLabel, letterSpacing: 0.5,
   },

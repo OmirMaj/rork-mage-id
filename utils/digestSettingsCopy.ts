@@ -36,14 +36,14 @@ export function resumeDigestErrorKind(error: RpcErrorLike): ResumeErrorKind {
 
 export const RESUME_NETWORK_COPY = {
   title: "Couldn't turn email back on",
-  message: 'We could not reach the server. Check your connection and try again.',
+  message: "MAGE couldn't reach the server. Check your connection and try again.",
 } as const;
 
 export function resumeRefusedCopy(error: RpcErrorLike): { title: string; message: string } {
   const code = (error.code ?? '').trim();
   return {
     title: "Couldn't turn email back on",
-    message: `The server refused the change${code ? ` (${code})` : ''}, so the morning email stays off. Try again later; if it keeps happening, contact support.`,
+    message: `The server refused the change, so the morning email stays off. Try again later. If it keeps happening, contact support.${code ? ` (Reference: ${code})` : ''}`,
   };
 }
 
@@ -81,7 +81,7 @@ export function morningPreviewCopy(
     const where = digestRecipientLine(signInEmail);
     return {
       title: 'Preview sent',
-      message: `${where ? `${where} ` : ''}Check your inbox in a few seconds. The digest reads what you have right now — set up a project with a location to see weather and tasks.`,
+      message: `${where ? `${where} ` : ''}Check your inbox in a few seconds. The digest reads what you have right now. Add a location to a project to see weather and tasks.`,
     };
   }
   switch (data?.reason) {
@@ -106,7 +106,7 @@ export function morningPreviewCopy(
     case 'recipient_unknown':
       return {
         title: 'Preview not sent',
-        message: 'We could not look up your sign-in email address just now, so no preview was sent. Try again in a few minutes.',
+        message: "MAGE couldn't look up your sign-in email address, so no preview was sent. Try again in a few minutes.",
       };
     case 'send_failed':
       return {
@@ -119,7 +119,7 @@ export function morningPreviewCopy(
       // only no-send cases were the ones this copy always described).
       return {
         title: 'No projects to digest',
-        message: 'Add an active project with a location to preview the digest. We use the lat/lng of each project to pull a hyperlocal weather forecast.',
+        message: 'Add an active project with a location to preview the digest. Each project\'s location sets its weather forecast.',
       };
   }
 }

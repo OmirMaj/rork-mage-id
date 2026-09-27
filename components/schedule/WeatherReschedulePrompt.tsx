@@ -20,7 +20,9 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, DailyFieldReport } from '@/types';
-import { findWeatherRisk, getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import { getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import type { ScheduleCalendar } from '@/utils/scheduleCalendarDate';
+import { findWeatherPushConflicts, type WeatherPushConflict } from '@/utils/weatherReschedule';
 import { computeWeatherHistory, weatherHistoryFactLine } from '@/utils/weatherHistory';
 import { hasSimulatedDays, SIMULATED_WEATHER_HEADLINE } from '@/utils/weatherProvenance';
 import { Type } from '@/constants/typography';
@@ -40,43 +42,17 @@ export interface WeatherReschedulePromptProps {
   /** Told whether there is a conflict to show (the signals row collapses to
    *  0 px when no chip has anything to say). */
   onPresenceChange?: (present: boolean) => void;
-}
-
-interface WeatherConflict {
-  task: ScheduleTask;
-  hitDay: DayForecast;
-  /** How many days to push so the task starts on a workable day. */
-  suggestedPushDays: number;
-}
-
-function findFirstWorkableOffset(
-  startISO: string,
-  durationDays: number,
-  forecasts: DayForecast[],
-): number {
-  // Try shifting by 1, 2, 3 days until the entire task window has no
-  // un-workable forecast day. Bound at 14 days so we don't loop forever
-  // when the forecast is all bad.
-  const startDate = new Date(startISO);
-  for (let push = 1; push <= 14; push++) {
-    let allWorkable = true;
-    for (let offset = 0; offset < durationDays; offset++) {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() + push + offset);
-      const iso = d.toISOString().split('T')[0];
-      const day = forecasts.find(f => f.date === iso);
-      if (day && !day.isWorkable) {
-        allWorkable = false;
-        break;
-      }
-    }
-    if (allWorkable) return push;
-  }
-  return 1;
+  /** The schedule's calendar (`scheduleCalendarOf(project.schedule)`). With a
+   *  start date, each task's days are its WORKING days (startDay is a working
+   *  ordinal) and the suggested push is in working days — the unit
+   *  `onPushTasks` adds to startDay. Omitted ⇒ raw calendar offsets from
+   *  projectStartDate (the engine's reading of an undated schedule). */
+  scheduleCalendar?: ScheduleCalendar;
 }
 
 function WeatherReschedulePromptImpl({
   tasks, forecasts, projectStartDate, onPushTasks, dailyReports, variant = 'card', onPresenceChange,
+  scheduleCalendar,
 }: WeatherReschedulePromptProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -90,24 +66,13 @@ function WeatherReschedulePromptImpl({
     return weatherHistoryFactLine(computeWeatherHistory(dailyReports));
   }, [dailyReports]);
 
-  const conflicts = useMemo<WeatherConflict[]>(() => {
-    if (forecasts.length === 0) return [];
-    const out: WeatherConflict[] = [];
-    for (const task of tasks) {
-      if (task.isSummary) continue;
-      if (!task.isWeatherSensitive) continue;
-      // Already started — pushing won't help.
-      if ((task.progress ?? 0) > 0) continue;
-      const risk = findWeatherRisk(projectStartDate, task.startDay, task.durationDays, forecasts);
-      if (!risk) continue;
-      const startDate = new Date(projectStartDate);
-      startDate.setDate(startDate.getDate() + (task.startDay - 1));
-      const startISO = startDate.toISOString().split('T')[0];
-      const push = findFirstWorkableOffset(startISO, task.durationDays, forecasts);
-      out.push({ task, hitDay: risk, suggestedPushDays: push });
-    }
-    return out;
-  }, [tasks, forecasts, projectStartDate]);
+  // Which weather-sensitive tasks hit bad weather and how far to push each —
+  // pure, in utils/weatherReschedule.ts, so the day-scale rule is executed by
+  // scripts/validate-health-scheddays.ts rather than trusted.
+  const conflicts = useMemo<WeatherPushConflict[]>(
+    () => findWeatherPushConflicts(tasks, forecasts, projectStartDate, scheduleCalendar),
+    [tasks, forecasts, projectStartDate, scheduleCalendar],
+  );
 
   const handlePushAll = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -144,7 +109,7 @@ function WeatherReschedulePromptImpl({
           onPress={() => setShowDetail(true)}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={`${conflicts.length} weather-sensitive task${conflicts.length === 1 ? '' : 's'} hit bad weather — review`}
+          accessibilityLabel={`Review ${conflicts.length} weather-sensitive task${conflicts.length === 1 ? '' : 's'} hit by bad weather`}
           testID="weather-chip"
         >
           <CloudRain size={12} color={themeColors.warningLabel} strokeWidth={1.75} />
@@ -284,6 +249,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bannerProvenance: {
     fontSize: Type.caption2.fontSize, fontWeight: '800',
     color: Colors.warningDark, letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   bannerTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
   bannerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14 },

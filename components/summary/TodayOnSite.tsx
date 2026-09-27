@@ -61,9 +61,9 @@ export function TodayOnSite({ tasks, jobCount, onPressTask, grouped = false, onP
         <View style={[styles.iconSq, { backgroundColor: colors.accentSoft }]}>
           <CalendarClock size={15} color={colors.accent} strokeWidth={2.2} />
         </View>
-        <Text style={styles.headerLabel}>TODAY ON SITE</Text>
+        <Text style={styles.headerLabel}>Today on site</Text>
         <Text style={styles.headerMeta}>
-          {tasks.length} task{tasks.length === 1 ? '' : 's'} · {jobCount} job{jobCount === 1 ? '' : 's'}
+          {tasks.length} task{tasks.length === 1 ? '' : 's'} · {jobCount} project{jobCount === 1 ? '' : 's'}
         </Text>
       </View>
 
@@ -174,7 +174,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { ...cardSurface(t, { radius: 'xl', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, marginBottom: 10 },
   iconSq: { width: 26, height: 26, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2 },
+  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2, textTransform: 'uppercase' as const },
   headerMeta: { marginLeft: 'auto' as const, fontSize: 11, fontWeight: '700' as const, color: t.textMuted },
   empty: { fontSize: 13, color: t.textMuted, fontWeight: '500' as const, paddingVertical: 8, textAlign: 'center' as const },
   offlineRow: {

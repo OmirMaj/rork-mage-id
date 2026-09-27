@@ -31,6 +31,7 @@ import { Camera, X, MapPin, Check, Ruler } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { TakeoffFieldVerification } from '@/types';
 import { Type } from '@/constants/typography';
@@ -90,7 +91,7 @@ function TakeoffFieldVerifyButtonImpl({
     if (Platform.OS === 'web') {
       showAlert(
         'Mobile-only feature',
-        'Field verification needs the device camera + GPS. Use the iOS or Android app on site.',
+        'Field verification needs the device camera and GPS. Use the iOS or Android app on site.',
       );
       return;
     }
@@ -155,6 +156,12 @@ function TakeoffFieldVerifyButtonImpl({
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [draft, onCapture, rowKey]);
 
+  // Desktop web: both dialogs are centred cards beside the sidebar (all-null
+  // on a phone). Above the `existing` branch, so hook order is fixed.
+  const fView = useSheetFrame('dialog', { visible: viewing, animationType: 'fade' });
+  const fVerify = useSheetFrame('dialog', { visible: !!draft, animationType: 'fade' });
+  useSheetPrimaryHotkey(!!draft, commit);
+
   if (existing) {
     // One verdict drives the pill tone, the pill's delta and whether the modal
     // offers to adopt the measurement — the tolerance used to live inline here
@@ -188,9 +195,9 @@ function TakeoffFieldVerifyButtonImpl({
             </Text>
           )}
         </TouchableOpacity>
-        <Modal visible={viewing} transparent animationType="fade" onRequestClose={() => setViewing(false)}>
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalCard}>
+        <Modal visible={viewing} transparent animationType={fView.animationType} onRequestClose={() => setViewing(false)}>
+          <View style={[styles.modalBackdrop, fView.overlay]}>
+            <View style={[styles.modalCard, fView.card]}>
               <View style={styles.modalHead}>
                 <Text style={styles.modalTitle}>Field verification</Text>
                 <TouchableOpacity onPress={() => setViewing(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
@@ -284,9 +291,9 @@ function TakeoffFieldVerifyButtonImpl({
       </TouchableOpacity>
 
       {/* Confirm modal — user types the value they measured + an optional note. */}
-      <Modal visible={!!draft} transparent animationType="fade" onRequestClose={() => setDraft(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+      <Modal visible={!!draft} transparent animationType={fVerify.animationType} onRequestClose={() => setDraft(null)}>
+        <View style={[styles.modalBackdrop, fVerify.overlay]}>
+          <View style={[styles.modalCard, fVerify.card]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Verify quantity</Text>
               <TouchableOpacity onPress={() => setDraft(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">

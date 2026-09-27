@@ -473,7 +473,7 @@ export function TutorialHost() {
       // the machine drops every signal that names another project.
       const sandbox = await bootSandbox(def, opts.sandboxProjectId ?? null);
       if (!sandbox) {
-        showAlert('Could not open the sample job', 'Something went wrong loading the sample. Try again in a moment.');
+        showAlert('Couldn’t open the sample project', 'The sample didn’t load. Try again in a moment.');
         return false;
       }
       const sandboxId = sandbox.id;

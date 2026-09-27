@@ -63,7 +63,7 @@ export function renderScheduleReportHtml(model: ScheduleReportModel, opts: Repor
   .cp .r.crit span:first-child{color:#C2260F;font-weight:600}
   .risk{background:#FFF6F5;border:1px solid #F3D6D2;border-radius:5px;padding:7px}
   .risk .i{display:flex;gap:5px;padding:2px 0;align-items:baseline}
-  .tag{font-size:6px;font-weight:800;color:#fff;border-radius:3px;padding:1px 4px;white-space:nowrap}
+  .tag{font-size:6px;font-weight:800;color:#fff;border-radius:3px;padding:1px 4px;white-space:nowrap;text-transform:uppercase}
   .tag.hi{background:${REPORT_TAG_PALETTE.high}}.tag.md{background:${REPORT_TAG_PALETTE.medium}}.tag.lo{background:${REPORT_TAG_PALETTE.low}}.tag.in{background:${REPORT_TAG_PALETTE.inProgress}}
   .la .wk{margin-bottom:5px}.la .wk b{display:block;font-size:7.5px;color:#007AFF;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
   .la .x{font-size:7.5px;padding:1px 0;color:#333}.la .x .w{color:#999}
@@ -114,7 +114,7 @@ function headerHtml(model: ScheduleReportModel): string {
   // the forecast was statused as of that day when it is the as-planned network.
   return `<div class="R">
   <div class="hd">
-    <div><div class="eb">MAGE Schedule · PM Status Report</div><h3 class="t">${esc(h.projectName)}</h3>
+    <div><div class="eb">MAGE ID schedule · PM status report</div><h3 class="t">${esc(h.projectName)}</h3>
       ${sub ? `<div class="s">${sub}</div>` : ''}</div>
     <div class="meta"><div>Report: <b>${esc(h.reportDateIso)}</b> · Printed: <b>${esc(h.dataDateIso)}</b></div>
       <div>Start: <b>${esc(h.startIso)}</b> · Contract finish: <b>${blFin}</b> · Forecast: <b${vClass}>${esc(h.forecastFinishIso)}${vTxt}</b></div>
@@ -129,20 +129,20 @@ function kpisHtml(model: ScheduleReportModel): string {
   if (k.forecastVarianceDays != null) {
     const v = k.forecastVarianceDays;
     const cls = v > 0 ? 'r' : 'g';
-    cards.push(`<div class="c ${cls}"><div class="n">${v > 0 ? '+' : ''}${v}d</div><div class="l">Forecast variance</div><div class="dd ${cls}">vs baseline</div></div>`);
+    cards.push(`<div class="c ${cls}"><div class="n">${v > 0 ? '+' : ''}${v}d</div><div class="l">Forecast variance</div><div class="dd ${cls}">Against baseline</div></div>`);
   }
   const spiCls = k.spi < 0.95 ? 'r' : 'g';
   const sv = k.svDays;
-  const svTxt = sv != null ? `SV ${sv > 0 ? '+' : ''}${sv}d` : 'on plan';
+  const svTxt = sv != null ? `SV ${sv > 0 ? '+' : ''}${sv}d` : 'On plan';
   cards.push(`<div class="c ${spiCls}"><div class="n">${k.spi.toFixed(2)}</div><div class="l">SPI</div><div class="dd ${spiCls}">${esc(svTxt)}</div></div>`);
-  cards.push(`<div class="c"><div class="n">${k.criticalCount}</div><div class="l">Critical tasks</div><div class="dd">on driving chain</div></div>`);
+  cards.push(`<div class="c"><div class="n">${k.criticalCount}</div><div class="l">Critical tasks</div><div class="dd">On the driving chain</div></div>`);
   const mtfCls = k.minTotalFloat <= 0 ? 'r' : '';
-  cards.push(`<div class="c ${mtfCls}"><div class="n">${k.minTotalFloat}d</div><div class="l">Min total float</div><div class="dd ${mtfCls}">tightest task</div></div>`);
+  cards.push(`<div class="c ${mtfCls}"><div class="n">${k.minTotalFloat}d</div><div class="l">Min total float</div><div class="dd ${mtfCls}">Tightest task</div></div>`);
   const behindCls = k.behindCount > 0 ? 'r' : '';
-  cards.push(`<div class="c ${behindCls}"><div class="n">${k.behindCount}</div><div class="l">Behind baseline</div><div class="dd ${behindCls}">tasks slipping</div></div>`);
+  cards.push(`<div class="c ${behindCls}"><div class="n">${k.behindCount}</div><div class="l">Behind baseline</div><div class="dd ${behindCls}">Tasks slipping</div></div>`);
   const overdueCls = k.overdueCount > 0 ? 'r' : '';
-  cards.push(`<div class="c ${overdueCls}"><div class="n">${k.overdueCount}</div><div class="l">Overdue</div><div class="dd ${overdueCls}">past finish</div></div>`);
-  cards.push(`<div class="c"><div class="n">${k.unstaffedCount}</div><div class="l">Unstaffed / unbooked</div><div class="dd">no crew</div></div>`);
+  cards.push(`<div class="c ${overdueCls}"><div class="n">${k.overdueCount}</div><div class="l">Overdue</div><div class="dd ${overdueCls}">Past finish</div></div>`);
+  cards.push(`<div class="c"><div class="n">${k.unstaffedCount}</div><div class="l">Unstaffed or unbooked</div><div class="dd">No crew</div></div>`);
   return `<div class="K">${cards.join('')}</div>`;
 }
 
@@ -158,13 +158,13 @@ function colsBandHtml(model: ScheduleReportModel, opts: ReportOptions): string {
   }
   if (has(opts, 'risks')) {
     const labelByKind: Record<ScheduleReportModel['risks'][number]['kind'], string> = {
-      overdue: 'OVERDUE', zero_float: '0 FLOAT', low_float: 'LOW FLOAT', unstaffed: 'UNSTAFFED', behind: 'BEHIND', inspection: 'INSPECTION',
+      overdue: 'Overdue', zero_float: '0 float', low_float: 'Low float', unstaffed: 'Unstaffed', behind: 'Behind', inspection: 'Inspection',
     };
     const items = model.risks.map((r) => {
       const tagCls = r.severity === 'hi' ? 'hi' : r.severity === 'md' ? 'md' : 'lo';
       return `<div class="i"><span class="tag ${tagCls}">${esc(labelByKind[r.kind])}</span><span>${esc(r.text)}</span></div>`;
     }).join('');
-    cols.push(`<div><div class="sh">Risk &amp; alerts</div><div class="risk">${items}</div></div>`);
+    cols.push(`<div><div class="sh">Risks and alerts</div><div class="risk">${items}</div></div>`);
   }
   const col3parts: string[] = [];
   if (has(opts, 'lookahead')) {
@@ -176,12 +176,12 @@ function colsBandHtml(model: ScheduleReportModel, opts: ReportOptions): string {
       }).join('');
       return `<div class="wk"><b>${esc(w.weekLabel)}</b>${items}</div>`;
     }).join('');
-    col3parts.push(`<div class="sh">3-week look-ahead</div><div class="la">${weeks}</div>`);
+    col3parts.push(`<div class="sh">3-week lookahead</div><div class="la">${weeks}</div>`);
   }
   if (has(opts, 'milestones')) {
     const rows = model.milestones.map((m) => {
       const dtCls = m.onTime ? 'vg' : 'vb';
-      const vTxt = m.varianceDays == null ? 'on time' : m.varianceDays <= 0 ? 'on time' : `+${m.varianceDays}d`;
+      const vTxt = m.varianceDays == null ? 'On time' : m.varianceDays <= 0 ? 'On time' : `+${m.varianceDays}d`;
       return `<div class="r"><span>◆ ${esc(m.title)}</span><span class="dt ${dtCls}">${esc(m.dateIso)} · ${esc(vTxt)}</span></div>`;
     }).join('');
     col3parts.push(`<div class="sh">Upcoming milestones</div><div class="cp">${rows}</div>`);
@@ -195,7 +195,7 @@ function ganttHtml(model: ScheduleReportModel, opts: ReportOptions, s: Scale): s
   const pred = opts.showPredecessors;
   const phasePctByName = new Map<string, number>();
   for (const p of model.phaseProgress) phasePctByName.set(p.phase, p.percent);
-  const head = `<tr><th>#</th><th>Task</th><th>Crew</th><th>Start</th><th>Finish</th><th>BL Fin</th><th>Δ</th><th>TF</th><th>FF</th><th>%</th>${pred ? '<th>Pred</th>' : ''}<th>Timeline</th></tr>`;
+  const head = `<tr><th>#</th><th>Task</th><th>Crew</th><th>Start</th><th>Finish</th><th>BL finish</th><th>Δ</th><th>TF</th><th>FF</th><th>%</th>${pred ? '<th>Pred</th>' : ''}<th>Timeline</th></tr>`;
   const colspan = pred ? 11 : 10;
   let lastPhase: string | null = null;
   const body: string[] = [];
@@ -238,9 +238,9 @@ function footerBandHtml(model: ScheduleReportModel, opts: ReportOptions): string
   const cols: string[] = [];
   if (has(opts, 'slippages')) {
     const rows = model.slippages.map((sl) =>
-      `<div class="r"><span><span class="vb">+${sl.deltaDays}d</span> ${esc(sl.title)}</span><span class="dt">vs baseline</span></div>`
+      `<div class="r"><span><span class="vb">+${sl.deltaDays}d</span> ${esc(sl.title)}</span><span class="dt">Against baseline</span></div>`
     ).join('');
-    cols.push(`<div><div class="sh">Biggest slippages vs baseline</div><div class="cp">${rows}</div></div>`);
+    cols.push(`<div><div class="sh">Biggest slippages against baseline</div><div class="cp">${rows}</div></div>`);
   }
   if (has(opts, 'phaseProgress')) {
     const rows = model.phaseProgress.map((p) => {
@@ -253,7 +253,7 @@ function footerBandHtml(model: ScheduleReportModel, opts: ReportOptions): string
     const rows = model.weatherClosures.map((w) =>
       `<div class="r"><span>${esc(w.label)}</span><span class="dt">${esc(w.note)}</span></div>`
     ).join('');
-    cols.push(`<div><div class="sh">Weather &amp; closures (this period)</div><div class="cp">${rows}</div></div>`);
+    cols.push(`<div><div class="sh">Weather and closures (this period)</div><div class="cp">${rows}</div></div>`);
   }
   if (!cols.length) return '';
   return `<div class="cols" style="margin-top:8px">${cols.join('')}</div>`;
@@ -275,7 +275,7 @@ function registerHtml(model: ScheduleReportModel, opts: ReportOptions): string {
 
 function legendHtml(model: ScheduleReportModel): string {
   return `<div class="legend">
-    <div><span class="sw" style="background:#E5F0FF;border:1px solid #007AFF"></span>On-time</div>
+    <div><span class="sw" style="background:#E5F0FF;border:1px solid #007AFF"></span>On time</div>
     <div><span class="sw" style="background:#FFDDDA;border:1px solid #FF3B30"></span>Critical</div>
     <div><span class="sw" style="background:#999;opacity:.55;height:3px"></span>Baseline</div>
     <div><span class="sw" style="background:#007AFF;width:7px;height:7px;transform:rotate(45deg)"></span>Milestone</div>

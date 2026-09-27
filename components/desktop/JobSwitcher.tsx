@@ -31,7 +31,7 @@ import { useActiveProject } from '@/contexts/ActiveProjectContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useHotkeys, type HotkeyBinding } from '@/hooks/useHotkeys';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -70,9 +70,6 @@ export interface JobSwitcherProps {
   hrefForJob?: (projectId: string) => Href | null;
 }
 
-/** See the dialog-scope note in JobSwitcher. */
-const SWITCHER_DIALOG_BINDINGS: readonly HotkeyBinding[] = [{ combo: 'escape' }];
-
 export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -97,13 +94,15 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
   );
 
   const close = useCallback(() => { setOpen(false); setQuery(''); setHighlight(0); }, []);
-  // The open popover is a DIALOG to the shortcut registry (hooks/useHotkeys).
-  // The registry hears an Esc typed in the search box BEFORE the box's own
-  // onKeyPress (capture phase), so without this a page's Esc — a SplitView
-  // record, a table search — would fire too and the switch would also close
-  // the record behind it. The entry has no handler: the popover's own
-  // onKeyPress / onRequestClose still does the closing, exactly once.
-  useHotkeys(SWITCHER_DIALOG_BINDINGS, { scope: 'dialog', enabled: open });
+  // The open popover is a DIALOG to the shortcut registry (hooks/useHotkeys),
+  // through the shared sheet hook. The registry hears an Esc typed in the
+  // search box BEFORE the box's own onKeyPress (capture phase), so without
+  // this a page's Esc — a SplitView record, a table search — would fire too
+  // and the switch would also close the record behind it. Its Esc entry has no
+  // handler: the popover's own onKeyPress / onRequestClose still does the
+  // closing, exactly once. It also swallows Cmd+S, so the browser's "Save
+  // page as…" never opens over the open switcher.
+  useSheetDialogScope(open);
 
   const openPopover = useCallback(() => {
     const node = anchorRef.current;
@@ -133,12 +132,12 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
     }
   }, [list.length, close]);
 
-  const label = activeProject?.name ?? 'Pick a job';
+  const label = activeProject?.name ?? 'Pick a project';
 
   // Section headers are derived from the list order, so they can never
   // disagree with it: recent ids first, then in-progress, then the rest.
   const sectionFor = (p: Project) =>
-    recentSet.has(p.id) ? 'RECENT' : p.status === 'in_progress' ? 'IN PROGRESS' : 'OTHER JOBS';
+    recentSet.has(p.id) ? 'Recent' : p.status === 'in_progress' ? 'In progress' : 'Other projects';
 
   // The popover drops in (web CSS; null on native and under Reduce Motion).
   // It renders only while open, so nothing changes at rest.
@@ -155,7 +154,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
         onPress={open ? close : openPopover}
         style={(s) => [styles.trigger, (s as { hovered?: boolean }).hovered && styles.triggerHovered]}
         accessibilityRole="button"
-        accessibilityLabel={activeProject ? `Current job: ${activeProject.name}. Switch job` : 'Pick a job'}
+        accessibilityLabel={activeProject ? `Current project: ${activeProject.name}. Switch project` : 'Pick a project'}
         accessibilityState={{ expanded: open }}
         testID="job-switcher"
       >
@@ -169,7 +168,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
       </Pressable>
 
       <Modal visible={open} transparent animationType="none" onRequestClose={close}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close job switcher" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close project switcher" />
         <View
           style={drop ? [styles.popover, popoverPlace, drop] : [styles.popover, popoverPlace]}
           testID="job-switcher-popover"
@@ -179,19 +178,19 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
             onChangeText={(v) => { setQuery(v); setHighlight(0); }}
             onKeyPress={onKeyPress}
             onSubmitEditing={() => { const p = list[highlight]; if (p) pick(p.id); }}
-            placeholder="Find a job…"
+            placeholder="Find a project"
             placeholderTextColor={t.textMuted}
             autoFocus
             style={styles.input}
-            accessibilityLabel="Filter jobs"
+            accessibilityLabel="Filter projects"
             testID="job-switcher-filter"
           />
           <ScrollView style={{ maxHeight: POPOVER_MAX_LIST }} keyboardShouldPersistTaps="handled">
             {list.length === 0 ? (
               <Text style={styles.empty}>
                 {query.trim()
-                  ? `No open job matches "${query.trim()}".`
-                  : 'No open jobs yet. Closed and sample jobs stay on the Projects page.'}
+                  ? `No open project matches "${query.trim()}".`
+                  : 'No open projects yet. Closed and sample projects stay on the Projects page.'}
               </Text>
             ) : list.map((p, i) => {
               const header = i === 0 || sectionFor(list[i - 1]) !== sectionFor(p) ? sectionFor(p) : null;
@@ -204,7 +203,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
                     onPress={close}
                     selected={isActive}
                     style={(s) => [styles.row, (i === highlight || s.hovered) && styles.rowHighlighted]}
-                    accessibilityLabel={`${p.name}, ${STATUS_LABEL[p.status]}${isActive ? ', current job' : ''}`}
+                    accessibilityLabel={`${p.name}, ${STATUS_LABEL[p.status]}${isActive ? ', current project' : ''}`}
                     testID={`job-switcher-row-${p.id}`}
                   >
                     <View style={[styles.dot, { backgroundColor: statusDot(t, p.status) }]} />
@@ -263,7 +262,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg, color: t.text, fontSize: Type.bodyCompact.fontSize,
   },
   section: {
-    fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: t.textMuted,
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: t.textMuted, textTransform: 'uppercase',
     paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4,
   },
   row: {

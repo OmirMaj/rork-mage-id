@@ -20,6 +20,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
+import { describeError } from '@/utils/errorCopy';
 import { segmentedDesktop } from '@/components/ui/SegmentedControl';
 import {
   formatShortDate,
@@ -174,18 +175,19 @@ function ScheduleShareSheet({
       if (isAvailable) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `${projectName} Schedule`,
+          dialogTitle: `${projectName} schedule`,
           UTI: 'com.adobe.pdf',
         });
       } else {
-        showAlert('Sharing not available', 'Sharing is not supported on this device.');
+        showAlert('Sharing not available', "This device can't share files.");
       }
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose();
     } catch (err) {
       console.log('[ScheduleShare] Error generating PDF:', err);
-      showAlert('Error', 'Failed to generate schedule PDF.');
+      const copy = describeError(err, { action: 'create the schedule PDF' });
+      showAlert(copy.title, copy.body);
     } finally {
       setIsGenerating(false);
     }
@@ -204,7 +206,7 @@ function ScheduleShareSheet({
           <View style={st.header}>
             <View style={st.headerLeft}>
               <Share2 size={18} color={Colors.primary} strokeWidth={1.75} />
-              <Text style={st.headerTitle}>Share Schedule</Text>
+              <Text style={st.headerTitle}>Share schedule</Text>
             </View>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
@@ -215,14 +217,14 @@ function ScheduleShareSheet({
               onPress={() => setShareMode('full')}
             >
               <FileText size={14} color={shareMode === 'full' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />
-              <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full Schedule</Text>
+              <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full schedule</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[st.modeBtn, shareMode === 'trade' && st.modeBtnActive, fS.isDesktop && segmentedDesktop.segment]}
               onPress={() => setShareMode('trade')}
             >
               <Users size={14} color={shareMode === 'trade' ? '#FFF' : t.textSecondary} strokeWidth={1.75} />
-              <Text style={[st.modeBtnText, shareMode === 'trade' && st.modeBtnTextActive]}>By Trade</Text>
+              <Text style={[st.modeBtnText, shareMode === 'trade' && st.modeBtnTextActive]}>By trade</Text>
             </TouchableOpacity>
           </View>
 
@@ -255,7 +257,7 @@ function ScheduleShareSheet({
               <Share2 size={16} color="#FFF" strokeWidth={1.75} />
             )}
             <Text style={st.shareBtnText}>
-              {isGenerating ? 'Generating PDF...' : 'Generate & Share PDF'}
+              {isGenerating ? 'Creating PDF…' : 'Share PDF'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -289,7 +291,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.card,
     backgroundColor: t.neutralSoft,
   },
-  modeBtnActive: { backgroundColor: Colors.primary },
+  // accentFill, not Colors.primary, under the white labels here and on
+  // shareBtn: the dark-theme brand #5DB36E gives white 2.58:1 (accentFill 4.83:1).
+  modeBtnActive: { backgroundColor: t.accentFill },
   modeBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   modeBtnTextActive: { color: '#FFF' },
 
@@ -316,7 +320,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 8,
     minHeight: 52,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
   },
   shareBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

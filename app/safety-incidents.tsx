@@ -456,7 +456,7 @@ function SafetyIncidentsInner() {
     if (!draftNotes.trim()) { showAlert('Add notes', 'Type or dictate what happened first.'); return; }
     if (draftBlocked) { showAlert('Business feature', draftBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Daily AI limit reached.'); return; }
+    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Daily limit reached. Try again tomorrow.'); return; }
     setDrafting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -468,7 +468,7 @@ function SafetyIncidentsInner() {
       const refusal = safetyAiServerRefusal('incident_draft', res.status);
       if (refusal) { showAlert('Business feature', refusal); return; }
       const json = await res.json();
-      if (!res.ok || !json.success) { showAlert('AI unavailable', json.error ?? 'Fill the incident manually.'); return; }
+      if (!res.ok || !json.success) { console.warn('[safety-incidents] draft failed', json.error); showAlert("Couldn't draft the report", 'Fill it in by hand, or try again in a moment.'); return; }
       // Only apply AI enums when they match the union — otherwise keep the
       // current/default so a hallucinated value can't corrupt the pickers.
       if (isValidType(json.data.type)) setType(json.data.type);
@@ -478,7 +478,7 @@ function SafetyIncidentsInner() {
       await recordAIUsage('smart');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      showAlert('AI unavailable', 'Network issue — fill the incident manually.');
+      showAlert("Couldn't draft the report", "You may be offline. Fill it in by hand, or try again when you're back online.");
     } finally {
       setDrafting(false);
     }
@@ -577,7 +577,7 @@ function SafetyIncidentsInner() {
     if (item && isRecordableCase(item)) {
       showAlert(
         'Kept on the OSHA 300',
-        'This case is OSHA-recordable, and recordable cases must be kept for five years (29 CFR 1904.33), so it cannot be deleted. Close it when the follow-up is done. If it was marked recordable by mistake, open it and correct the classification.',
+        'OSHA-recordable cases must be kept for five years (29 CFR 1904.33), so this one can\'t be deleted. Close it when the follow-up is done, or open it and fix the classification if it was marked recordable by mistake.',
       );
       return;
     }
@@ -605,15 +605,15 @@ function SafetyIncidentsInner() {
         <EmptyState
           icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="Open a project first"
-          message="Incidents are tied to a project so each report carries its people, corrective actions, and OSHA classification. To log one:"
+          message="Incidents are tied to a project so each report carries its people, corrective actions and OSHA classification. To log one:"
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
-            'Open Incidents and hit + to report one, or draft it with AI.',
+            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
+            'Open Incidents and tap + to report one, or draft it from your notes.',
           ]}
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel="Pick a job"
+          actionLabel="Pick a project"
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -637,7 +637,7 @@ function SafetyIncidentsInner() {
             the GC's OSHA 300, which is the GC's own record to keep. */}
         {seat === 'crew' ? (
           <Text style={styles.collabNote} testID="incident-collab-note">
-            Only you and this job&apos;s owner can see the cases you report here, never the rest of the crew. Your list shows the cases you filed.
+            Only you and this project&apos;s owner can see the cases you report here, never the rest of the crew. Your list shows the cases you filed.
           </Text>
         ) : null}
         {items.map(item => {
@@ -662,7 +662,7 @@ function SafetyIncidentsInner() {
                 {isRecordableCase(item) ? (
                   <View style={styles.oshaBadge}>
                     <AlertTriangle size={11} color={themeColors.accent} strokeWidth={2} />
-                    <Text style={styles.oshaBadgeText}>OSHA Recordable</Text>
+                    <Text style={styles.oshaBadgeText}>OSHA recordable</Text>
                   </View>
                 ) : null}
                 <TouchableOpacity style={[styles.statusChip, { backgroundColor: sc.bg }]} onPress={() => handleAdvanceStatus(item)}>
@@ -696,7 +696,7 @@ function SafetyIncidentsInner() {
             <EmptyState
               icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title="No incidents logged"
-              message="Report injuries, near misses, and property damage the moment they happen. AI can draft the report from your notes, and OSHA-recordable status is classified automatically."
+              message="Report injuries, near misses and property damage as they happen. MAGE drafts the report from your notes and classifies OSHA-recordable status."
               actionLabel="Report incident"
               onAction={() => { resetForm(); setShowForm(true); }}
             />
@@ -716,7 +716,7 @@ function SafetyIncidentsInner() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-incident">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Report Incident</Text>
+          <Text style={styles.addItemBtnText}>Report incident</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -730,7 +730,7 @@ function SafetyIncidentsInner() {
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingIncident ? 'Edit Incident' : 'Report Incident'}</Text>
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingIncident ? 'Edit incident' : 'Report incident'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -744,7 +744,7 @@ function SafetyIncidentsInner() {
                       style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]}
                       value={draftNotes}
                       onChangeText={setDraftNotes}
-                      placeholder="Dictate or type what happened — AI will fill in the fields..."
+                      placeholder="Describe what happened. MAGE fills in the fields."
                       placeholderTextColor={themeColors.textMuted}
                       multiline
                     />
@@ -946,11 +946,11 @@ function SafetyIncidentsInner() {
                         style={[styles.doneToggle, p.injured ? styles.doneToggleOn : null]}
                         onPress={() => markInjured(idx)}
                         accessibilityRole="button"
-                        accessibilityLabel={p.injured ? 'Marked as the injured worker' : 'Mark as the injured worker'}
+                        accessibilityLabel={p.injured ? 'Marked as the injured person' : 'Mark as the injured person'}
                         testID={`incident-person-injured-${idx}`}
                       >
                         <Text style={[styles.doneToggleText, { color: p.injured ? themeColors.success : themeColors.textSecondary }]}>
-                          {p.injured ? 'Injured worker' : 'Injured?'}
+                          {p.injured ? 'Injured person' : 'Injured?'}
                         </Text>
                       </TouchableOpacity>
                       {p.injured ? (

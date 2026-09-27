@@ -105,13 +105,13 @@ export function SubCredentialCard({
       {profile.isEmpty ? (
         <Text style={styles.emptyBody}>
           Nothing linked yet. The moment a general contractor sends you a bid invite or a
-          commitment through MAGE, the job lands here — and it stays yours, on every job,
+          commitment through MAGE, the project lands here. It stays yours, on every project,
           for every GC.
         </Text>
       ) : (
         <>
           <View style={styles.statRow}>
-            <Stat value={String(c.jobCount)} label={c.jobCount === 1 ? 'job' : 'jobs'} styles={styles} />
+            <Stat value={String(c.jobCount)} label={c.jobCount === 1 ? 'project' : 'projects'} styles={styles} />
             <View style={styles.statDivider} />
             <Stat value={String(c.gcCount)} label={c.gcCount === 1 ? 'general contractor' : 'general contractors'} styles={styles} />
             <View style={styles.statDivider} />

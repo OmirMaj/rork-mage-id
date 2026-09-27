@@ -24,6 +24,7 @@ import { confirmQuotaFits } from '@/utils/quotaPrecheck';
 import { pdfPageSheetName, priorImportOf } from '@/utils/planSheetBatchCore';
 import { planControlBlock, effectivePlanRole } from '@/utils/plans/revisionActions';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 import { pdfDropVerdict, pdfDropDoneLine, pdfDropSavingLine } from '@/utils/takeoff/pdfDrop';
 
 export interface TakeoffPdfDrop {
@@ -38,7 +39,7 @@ export interface TakeoffPdfDrop {
 const DONE_MS = 4000;
 
 /** A settled null seat: he is not on this job's team (RLS would refuse the sheets). */
-export const NO_SEAT_IMPORT = 'You\u2019re not on this job\u2019s team, so you can\u2019t add sheets to it \u2014 ask the project owner for an editor seat.';
+export const NO_SEAT_IMPORT = 'You\u2019re not on this project\u2019s team, so you can\u2019t add sheets to it. Ask the project owner for Editor access.';
 
 const INERT: TakeoffPdfDrop = {
   importing: false,
@@ -137,9 +138,10 @@ export function useTakeoffPdfDrop(projectId: string | null | undefined): Takeoff
       settle(created.length > 0 ? pdfDropDoneLine(created.length) : 'The PDF rendered no pages, so no sheets were added.');
       return created.map((s) => s.id);
     } catch (err) {
-      const msg = (err as Error)?.message || 'Could not import that PDF.';
+      console.warn('[takeoff] PDF import failed:', (err as Error)?.message);
+      const copy = describeError(err, { action: 'import that PDF' });
       setStatus('');
-      showAlert('Import failed', msg);
+      showAlert(copy.title, copy.body);
       return [];
     } finally {
       URL.revokeObjectURL(fileUri);

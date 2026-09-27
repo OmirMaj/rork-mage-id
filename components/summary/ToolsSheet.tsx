@@ -25,6 +25,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { NavRow } from '@/components/NavRow';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import { featureFor, type FeatureId } from '@/utils/featureRegistry';
 
 interface SheetRow {
@@ -39,17 +40,17 @@ interface SheetRow {
 }
 
 const SHEET_ROWS: SheetRow[] = [
-  { feature: 'margin-board', route: '/portfolio-margin', Icon: Gauge, title: 'Margin board', subtitle: "Every active job's projected margin + risk, ranked", testID: 'tools-margin-board' },
+  { feature: 'margin-board', route: '/portfolio-margin', Icon: Gauge, title: 'Margin board', subtitle: "Every active project's projected margin and risk, ranked", testID: 'tools-margin-board' },
   { feature: 'margin-alerts', route: '/margin-alerts', Icon: BellRing, title: 'Margin alerts', subtitle: 'What crossed since you last looked — risk, health, erosion', testID: 'tools-margin-alerts' },
   // PRODUCT-F4: the chase list was sidebar-only — invisible on iPhone.
   { feature: 'waiting-on', route: '/waiting-on', Icon: Hourglass, title: 'Waiting on others', subtitle: 'Who owes you an answer — overdue RFIs, submittals, sub confirmations', testID: 'tools-waiting-on' },
-  { feature: 'cost-database', route: '/cost-database', Icon: Library, title: 'Cost database', subtitle: 'Your unit prices, learned from closed jobs', testID: 'tools-cost-database' },
+  { feature: 'cost-database', route: '/cost-database', Icon: Library, title: 'Cost history', subtitle: 'Your unit prices, learned from closed projects', testID: 'tools-cost-database' },
   { feature: 'area-takeoff', route: '/area-takeoff', Icon: PenTool, title: 'Visual takeoff', subtitle: 'Circle an area on a plan → instant priced quantity', testID: 'tools-area-takeoff' },
-  { feature: 'report-inbox', route: '/report-inbox', Icon: Inbox, title: 'Reports inbox', subtitle: 'Daily field reports waiting for review', testID: 'tools-report-inbox' },
+  { feature: 'report-inbox', route: '/report-inbox', Icon: Inbox, title: 'Reports inbox', subtitle: 'Daily reports waiting for review', testID: 'tools-report-inbox' },
   { feature: 'reports', route: '/reports', Icon: FileDown, title: 'Reports', subtitle: 'WIP · Profit by project · A/R aging', testID: 'tools-reports' },
   { feature: 'cash-flow', route: '/cash-flow', Icon: Wallet, title: 'Cash flow', subtitle: 'Multi-week forecast across all projects', testID: 'tools-cash-flow' },
   { feature: 'leads', route: '/leads', Icon: UserPlus, title: 'Pipeline', subtitle: 'Inquiries → qualified → proposal → won', testID: 'tools-pipeline' },
-  { feature: 'buyout', route: '/buyout', Icon: Gavel, title: 'Buyout', subtitle: 'Sub package builder + bid award flow', testID: 'tools-buyout' },
+  { feature: 'buyout', route: '/buyout', Icon: Gavel, title: 'Buyout', subtitle: 'Build sub packages and award bids', testID: 'tools-buyout' },
   { feature: 'tax-1099', route: '/tax-1099-export', Icon: FileDown, title: '1099-NEC export', subtitle: 'Year-end CSV for your CPA — flags subs paid ≥ $600', testID: 'tools-tax-1099' },
   { feature: 'insurance-audit', route: '/insurance-audit', Icon: ShieldCheck, title: 'Insurance audit pack', subtitle: "Sub payments vs. workers' comp certificates", testID: 'insaudit-tools' },
   { feature: 'tomorrow-lineup', route: '/tomorrow-lineup', Icon: CalendarCheck, title: "Tomorrow's lineup", subtitle: 'A ready-to-send text per sub for the next work day', testID: 'lineup-tools' },
@@ -65,6 +66,9 @@ interface ToolsSheetProps {
 export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   // Navigate by registry route, not by the row's literal, so a stale literal
   // sends nobody anywhere wrong in the window before the guard is next run.
@@ -74,15 +78,16 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
   );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={fX.animationType} onRequestClose={onClose}>
+      <SheetOverlay frame={fX}>
       <TouchableOpacity
-        style={styles.backdrop}
+        style={[styles.backdrop, fX.backdrop]}
         activeOpacity={1}
         onPress={onClose}
         testID="summary-tools-backdrop"
       />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]} testID="summary-tools-sheet">
-        <View style={styles.handle} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fX.card]} testID="summary-tools-sheet">
+        {fX.showHandle && <View style={styles.handle} />}
         <Text style={styles.title}>Tools</Text>
         <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
           {SHEET_ROWS.map(row => (
@@ -97,6 +102,7 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
           ))}
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

@@ -72,14 +72,14 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 // ── Brand palette (match auth-magic-link / morning-digest) ──────────
 const INK = '#0B0D10';
-const AMBER = '#FF6A1A';
-const CREAM = '#F4EFE6';
-const SAND = '#E8DFCD';
+const BRAND = '#2F6B3A';
+const CONCRETE = '#ECEDE9';
+const HAIRLINE = '#D7DAD4';
 const FOG = '#9AA3AD';
 const STONE = '#4A5159';
 const PAPER = '#FFFFFF';
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 function escapeHtml(text: unknown): string {
   if (text == null) return '';
@@ -208,9 +208,9 @@ function buildTemplateSummary(
     bullets.push(`${cos.length} change order${cos.length === 1 ? ' was' : 's were'} sent to you this week. Review ${cos.length === 1 ? 'it' : 'them'} in your portal.`);
   }
   if (bullets.length === 0) {
-    bullets.push('A quiet week on this project — no major activity to report. Let us know if you have questions.');
+    bullets.push('A quiet week on this project, with no major activity to report. Reply with any questions.');
   }
-  const headline = `Week in review — ${project.name}`;
+  const headline = `Week in review · ${project.name}`;
   // The template is never less safe than the AI path: the same post-filter.
   return { headline, bullets: bullets.map(sanitizeBullet).filter(b => b.length > 0) };
 }
@@ -363,7 +363,7 @@ Return JSON only, no preamble.`;
       .filter((b) => b.length > 0)
       .slice(0, 6);
     const headline = sanitizeForHomeowner(String(parsed.headline ?? '')).slice(0, 100)
-      || `Week in review — ${project.name}`;
+      || `Week in review · ${project.name}`;
     return {
       headline,
       paragraph: sanitizeForHomeowner(String(parsed.paragraph ?? '')).slice(0, 800),
@@ -550,7 +550,7 @@ async function sendForProject(
   let headline: string;
   let bullets: string[];
   let paragraph: string | undefined;
-  let subject = `${project.name} — week in review`;
+  let subject = `Week in review · ${project.name}`;
   if (plan.kind === 'final') {
     // Deterministic, never AI: a finished job has no "this week" to invent.
     const binderRes = await client
@@ -561,7 +561,7 @@ async function sendForProject(
       .limit(1);
     const hasBinder = ((binderRes.data ?? []) as unknown[]).length > 0;
     const closesLabel = localDayLabel(plan.linkClosesAt, ownerProfile?.digest_timezone);
-    headline = `Your project is complete — ${project.name}`;
+    headline = `Your project is complete · ${project.name}`;
     paragraph = `${companyName} has closed out ${project.name}. This is the last weekly update you'll get for it. Your portal link stays open until ${closesLabel}, then it closes.`;
     bullets = [
       hasBinder
@@ -569,7 +569,7 @@ async function sendForProject(
         : 'Save copies of anything in your portal you want to keep.',
       `The portal link stops working after ${closesLabel}.`,
     ];
-    subject = `${project.name} — project complete`;
+    subject = `Project complete · ${project.name}`;
   } else {
     // Gate at the data: neither the AI nor the template ever sees a draft CO,
     // a hidden photo or an unsent daily report.

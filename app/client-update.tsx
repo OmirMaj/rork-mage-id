@@ -30,6 +30,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 export default function ClientUpdateScreen() {
   const { colors: themeColors } = useTheme();
@@ -78,7 +79,7 @@ export default function ClientUpdateScreen() {
     setRecipients(inviteEmails);
   }, [inviteEmails]);
 
-  const gcName = settings?.branding?.companyName || 'Your General Contractor';
+  const gcName = settings?.branding?.companyName || 'Your contractor';
   const primaryInvite = project?.clientPortal?.invites?.[0];
   const ownerName = primaryInvite?.name ?? '';
 
@@ -95,7 +96,7 @@ export default function ClientUpdateScreen() {
       // components/AIWeeklySummary.tsx). Without it a free user just saw an error.
       const limit = await checkAILimit(subscriptionTier, 'smart', 'weeklyAnalysis');
       if (!limit.allowed) {
-        setErrorMsg(limit.message ?? 'Weekly AI analysis requires Pro. Upgrade to unlock it.');
+        setErrorMsg(limit.message ?? 'Weekly AI drafts are on the Pro plan.');
         setDrafting(false);
         return;
       }
@@ -114,14 +115,15 @@ export default function ClientUpdateScreen() {
 
       const res = await draftWeeklyUpdate(ctx, gcName, ownerName || 'there');
       if (!res.success || !res.draft) {
-        setErrorMsg(res.error ?? 'AI draft failed');
+        console.warn('[ClientUpdate] draft failed:', res.error);
+        setErrorMsg("MAGE couldn't draft the update. Try again, or write it yourself below.");
       } else {
         setDraft(res.draft);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
       console.error('[ClientUpdate] draft failed', err);
-      setErrorMsg(err instanceof Error ? err.message : 'Unknown error');
+      setErrorMsg(describeError(err, { action: 'draft the update' }).body);
     } finally {
       setDrafting(false);
     }
@@ -178,18 +180,30 @@ export default function ClientUpdateScreen() {
 
       if (sent > 0) {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        const tail = failed.length > 0 ? ` (${failed.length} could not be delivered)` : '';
+        const tail = failed.length > 0 ? ` (${failed.length} couldn't be delivered)` : '';
         showAlert(
-          'Sent',
+          'Update sent',
           `Weekly update sent to ${sent} ${sent === 1 ? 'recipient' : 'recipients'}${tail}.`,
           [{ text: 'OK', onPress: () => router.back() }],
         );
       } else {
-        showAlert('Send failed', failed[0]?.error ?? 'Could not send the update. Check your connection and try again.');
+        const reason = failed[0]?.error;
+        console.warn('[ClientUpdate] send refused:', reason);
+        // sendEmail's own sentences ("Saved to your drafts…", "Not sent. We opened a
+        // draft…", "No email app is set up…") say what actually happened; show them.
+        // A raw code or stack falls back to the generic line.
+        const readable = typeof reason === 'string'
+          && /^[A-Z][^\n]{0,240}[.!]$/.test(reason)
+          && !/^(Error|TypeError|FunctionsHttpError)\b/.test(reason);
+        showAlert(
+          "Couldn't send the update",
+          readable ? `${reason} Your draft is still here.` : 'No emails went out. Check your connection and try again. Your draft is still here.',
+        );
       }
     } catch (err) {
       console.error('[ClientUpdate] send failed', err);
-      showAlert('Send failed', err instanceof Error ? err.message : 'Unknown error');
+      console.warn('[ClientUpdate] send failed:', rawErrorMessage(err));
+      showAlert("Couldn't send the update", describeError(err, { action: 'send the update', keptLocally: true }).body);
     } finally {
       setSending(false);
     }
@@ -250,7 +264,7 @@ export default function ClientUpdateScreen() {
           </Text>
         </View>
 
-        <Text style={styles.sectionLabel}>PROJECT</Text>
+        <Text style={styles.sectionLabel}>Project</Text>
         <View style={styles.projectList}>
           {projects.length === 0 ? (
             <Text style={styles.emptyTxt}>Create a project first.</Text>
@@ -275,10 +289,10 @@ export default function ClientUpdateScreen() {
           )}
         </View>
 
-        <Text style={styles.sectionLabel}>RECIPIENTS</Text>
+        <Text style={styles.sectionLabel}>Recipients</Text>
         <View style={styles.recipientCard}>
           {recipients.length === 0 && (
-            <Text style={styles.emptyInline}>No recipients yet — add one below, or set up the client portal first.</Text>
+            <Text style={styles.emptyInline}>No recipients yet. Add one below, or set up the client portal first.</Text>
           )}
           {recipients.map(email => (
             <View key={email} style={styles.chip}>
@@ -317,7 +331,7 @@ export default function ClientUpdateScreen() {
             ) : (
               <>
                 <MageAIMark size={16} color={'#FFFFFF'} />
-                <Text style={styles.draftBtnTxt}>Draft update with AI</Text>
+                <Text style={styles.draftBtnTxt}>Draft update</Text>
               </>
             )}
           </TouchableOpacity>
@@ -333,7 +347,7 @@ export default function ClientUpdateScreen() {
         {draft && (
           <>
             <View style={styles.draftHeader}>
-              <Text style={styles.sectionLabel}>DRAFT · Edit anything</Text>
+              <Text style={styles.sectionLabel}>AI draft · Edit anything</Text>
               <TouchableOpacity onPress={handleDraft} style={styles.regenBtn} activeOpacity={0.7}>
                 <RefreshCw size={12} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.regenTxt}>Regenerate</Text>
@@ -371,21 +385,21 @@ export default function ClientUpdateScreen() {
             </View>
 
             <BulletEditor
-              title="This week we..."
+              title="This week"
               items={draft.accomplishments}
               onChange={(i, v) => updateBullet('accomplishments', i, v)}
               onAdd={() => addBullet('accomplishments')}
               onRemove={(i) => removeBullet('accomplishments', i)}
             />
             <BulletEditor
-              title="Coming up..."
+              title="Coming up"
               items={draft.upcoming}
               onChange={(i, v) => updateBullet('upcoming', i, v)}
               onAdd={() => addBullet('upcoming')}
               onRemove={(i) => removeBullet('upcoming', i)}
             />
             <BulletEditor
-              title="Heads up..."
+              title="Heads up"
               items={draft.issues}
               onChange={(i, v) => updateBullet('issues', i, v)}
               onAdd={() => addBullet('issues')}
@@ -400,7 +414,7 @@ export default function ClientUpdateScreen() {
                 onChangeText={(v) => setDraft({ ...draft, financial: v })}
                 multiline
                 textAlignVertical="top"
-                placeholder="Change orders, invoices, contract impact..."
+                placeholder="Change orders, invoices, contract impact"
                 placeholderTextColor={themeColors.textMuted}
               />
             </View>
@@ -482,7 +496,7 @@ function BulletEditor({
             onChangeText={(v) => onChange(i, v)}
             multiline
             textAlignVertical="top"
-            placeholder="Type a bullet…"
+            placeholder="Type a bullet"
             placeholderTextColor={themeColors.textMuted}
           />
           <TouchableOpacity onPress={() => onRemove(i)} hitSlop={8} style={styles.bulletRemove} accessibilityRole="button" accessibilityLabel="Close">
@@ -515,7 +529,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   sectionLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
-    letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
+    letterSpacing: 0.8, marginBottom: 8, marginTop: 20, textTransform: 'uppercase',
   },
 
   projectList: {

@@ -68,6 +68,7 @@ import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Layout, Shadow, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { TASK_STATUS_LABEL } from '@/utils/statusLabels';
 import PredecessorPicker, { type PredecessorLink, type PredecessorCandidate } from '@/components/schedule/PredecessorPicker';
 
 /** GridPane's container border (each side). The split's leading columns fit inside it. */
@@ -97,7 +98,7 @@ const FROZEN_KEYS: ColumnKey[] = ['rowNum', 'wbs', 'name'];
 const COLUMNS: ColumnDef[] = [
   { key: 'rowNum',       label: '#',              width: 40,  align: 'center', kind: 'readonly' },
   { key: 'wbs',          label: 'WBS',            width: 70,  align: 'left',   kind: 'readonly' },
-  { key: 'name',         label: 'Task Name',      width: 240, align: 'left',   kind: 'text' },
+  { key: 'name',         label: 'Task name',      width: 240, align: 'left',   kind: 'text' },
   { key: 'duration',     label: 'Dur.',           width: 62,  align: 'right',  kind: 'number' },
   { key: 'start',        label: 'Start',          width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'finish',       label: 'Finish',         width: 88,  align: 'left',   kind: 'readonly' },
@@ -190,7 +191,7 @@ const makeResizeHandleStyles = (t: ThemeColors) => StyleSheet.create({
   // Inner visible bar — 2 px wide, faint by default. Sits flush with the
   // right edge so it visually anchors to the column boundary.
   // The bar was a fixed `rgba(0,0,0,0.18)` — black-on-black, i.e. invisible,
-  // on the dark theme's #14181D header (audit 2026-09-07). `t.line` is the
+  // on the dark theme's header (then #14181D, now #1D211F) (audit 2026-09-07). `t.line` is the
   // same "column boundary" identity in both themes.
   bar: {
     width: 2,
@@ -1571,7 +1572,7 @@ export default function GridPane({
           {onBulkAskAI && (
             <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnAI]} onPress={runBulkAskAI} activeOpacity={0.7}>
               <MageAIMark size={12} color="#fff" />
-              <Text style={[styles.bulkBtnText, { color: '#fff' }]}>Ask AI</Text>
+              <Text style={[styles.bulkBtnText, { color: '#fff' }]}>Describe a change</Text>
             </TouchableOpacity>
           )}
           {onBulkShiftDays && (
@@ -1669,7 +1670,7 @@ export default function GridPane({
             })}
             {showExtendedColumns && (
               <View style={[styles.headerCell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
-                <Text style={styles.headerText}>PHASE</Text>
+                <Text style={styles.headerText}>Phase</Text>
               </View>
             )}
           </View>
@@ -1768,7 +1769,7 @@ export default function GridPane({
                 ref={ghostRef}
                 value={ghostDraft}
                 onChangeText={setGhostDraft}
-                placeholder="＋  Type a task name…"
+                placeholder="＋  Type a task name"
                 placeholderTextColor={themeColors.textSecondary}
                 style={styles.ghostInput}
                 onFocus={() => { ghostFocusedRef.current = true; }}
@@ -2065,8 +2066,9 @@ const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
   radioActive: { borderColor: t.accent },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.accent },
   optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
-  // accentLabel, not accent: the selected option's label is TEXT, and the brand
-  // #FF6A1A is 2.87:1 on a light card.
+  // accentLabel, not accent: the selected option's label is TEXT. The retired
+  // orange brand was 2.87:1 on a light card; accentLabel is solved to AA for
+  // whatever hue is in force, so a user-picked preset stays legible too.
   optionLabelActive: { color: t.accentLabel },
   optionHelp: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
   dateRow: {
@@ -2104,8 +2106,9 @@ const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
   btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
   btnPrimary: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
-    // accentFill, not accent: btnPrimaryText below is white, and white on the
-    // brand #FF6A1A is 2.87:1. #BC440C carries it at 5.29:1.
+    // accentFill, not accent: btnPrimaryText below is white. On the dark theme
+    // the brand ink (#5DB36E) is too light to carry white; accentFill is the
+    // solved button fill (white 6.39:1 on the light green).
     backgroundColor: t.accentFill,
   },
   btnDisabled: { opacity: 0.45 },
@@ -2117,8 +2120,9 @@ const makeAnchorStyles = (t: ThemeColors) => StyleSheet.create({
 // ---------------------------------------------------------------------------
 
 // Takes the resolved theme rather than reading the static Colors module: the
-// pale *Light tints (#E8FAF0, #EBF3FF) and the light inks (#2E7D44, #1565C0)
-// were the same on both themes, so a Done chip in dark mode was mid-green type
+// pale *Light tints (#E8FAF0, #EBF3FF) and the light inks (#2E7D44 — the
+// retired pre-rebrand success green; Done is teal successLabel now — and
+// #1565C0) were the same on both themes, so a Done chip in dark mode was mid-green type
 // on a near-white slab inside an otherwise dark grid (audit 2026-09-07). The
 // *Soft/*Label pairs are the tint-and-ink split constants/colors.ts documents.
 function statusChip(status: TaskStatus, t: ThemeColors): { bg: string; fg: string; label: string; Icon?: any } {
@@ -2130,7 +2134,7 @@ function statusChip(status: TaskStatus, t: ThemeColors): { bg: string; fg: strin
     case 'on_hold':
       return { bg: t.warningSoft, fg: t.warningLabel, label: 'Hold', Icon: Pause };
     default:
-      return { bg: t.neutralSoft, fg: t.textMuted, label: 'Not Started', Icon: Circle };
+      return { bg: t.neutralSoft, fg: t.textMuted, label: TASK_STATUS_LABEL.not_started, Icon: Circle };
   }
 }
 

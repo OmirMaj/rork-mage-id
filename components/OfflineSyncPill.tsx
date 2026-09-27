@@ -50,6 +50,7 @@ import { CloudOff, CircleAlert, CircleHelp } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { Type } from '@/constants/typography';
@@ -82,6 +83,9 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
   const sheetOpenRef = useRef(false);
   sheetOpenRef.current = sheetOpen;
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Desktop web: the "what failed" sheet is a centred card beside the sidebar;
+  // all-null on a phone. Above the `!visible` return, so hook order is fixed.
+  const fSync = useSheetFrame('form', { visible: sheetOpen && tone === 'failed', animationType: 'slide' });
   // Every ask for the sheet PRESENTS it, even when it is already marked open.
   // iOS shows one Modal at a time: a request made while another Modal was up
   // (the invoice's Record Payment sheet) was silently refused, sheetOpen stayed
@@ -128,7 +132,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
       line.canRetry
         // Worded per operation: a failed edit or delete is not a lost record.
         ? discardConfirmBody(line.discards)
-        : `${line.line}.\n\nDismissing this notice does NOT recover the data — you need to re-enter it.`,
+        : `${line.line}.\n\nDismissing this notice doesn’t recover the data. You need to re-enter it.`,
       [
         { text: 'Keep it', style: 'cancel' },
         {
@@ -177,11 +181,11 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
       <Modal
         visible={sheetOpen && failedTone}
         transparent
-        animationType="slide"
+        animationType={fSync.animationType}
         onRequestClose={() => setSheetOpen(false)}
       >
-        <View style={styles.backdrop}>
-          <View style={styles.sheet} testID="offline-sync-sheet">
+        <View style={[styles.backdrop, fSync.overlay]}>
+          <View style={[styles.sheet, fSync.card]} testID="offline-sync-sheet">
             <Text style={styles.sheetTitle}>{title}</Text>
             {/* The rows below ARE the "What failed" list — not repeated. */}
             <Text style={styles.sheetDetail}>

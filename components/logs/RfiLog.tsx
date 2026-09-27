@@ -8,7 +8,7 @@
 // a time through updateRFI with persistForm's exact patch (rfiBulkClosePlan).
 //
 // Until the RFI read has settled the empty table says "Loading RFIs…", never
-// "No RFIs on this job yet" (a hard refresh on a slow network used to); a
+// "No RFIs on this project yet" (a hard refresh on a slow network used to); a
 // failed read says so, with a retry.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -205,7 +205,7 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
               <EmptyState
                 icon={<MessageSquareText size={28} color={t.accent} />}
                 title="Loading RFIs…"
-                message="This job's RFIs appear here once they load."
+                message="This project's RFIs appear here once they load."
               />
             ) : all.length === 0 && settle.failed ? (
               <EmptyState
@@ -218,7 +218,7 @@ export function RfiLog({ projectId, openId, detail }: RfiLogProps) {
             ) : (
               <EmptyState
                 icon={<MessageSquareText size={28} color={t.accent} />}
-                title={all.length === 0 ? 'No RFIs on this job yet' : 'Nothing under this filter'}
+                title={all.length === 0 ? 'No RFIs on this project yet' : 'Nothing under this filter'}
                 message={all.length === 0 ? 'Raise one when the drawings leave a question open.' : 'Pick another chip, or All.'}
                 actionLabel="New RFI"
                 onAction={newRfi}

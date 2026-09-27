@@ -24,10 +24,11 @@ import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { useResponsive } from '@/utils/useResponsive';
 import type { ScheduleTask, TaskStatus } from '@/types';
+import { TASK_STATUS_LABEL } from '@/utils/statusLabels';
 
 const COLUMNS: { key: TaskStatus; title: string }[] = [
-  { key: 'not_started', title: 'Not Started' },
-  { key: 'in_progress', title: 'In Progress' },
+  { key: 'not_started', title: TASK_STATUS_LABEL.not_started },
+  { key: 'in_progress', title: TASK_STATUS_LABEL.in_progress },
   { key: 'done',        title: 'Done' },
 ];
 
@@ -326,7 +327,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '600',
   },
   phoneSwitcherLabelActive: {
-    color: '#0B0D10',
+    color: Colors.textOnAccent,
     fontWeight: '700',
   },
   phoneSwitcherCount: {
@@ -335,7 +336,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '600',
   },
   phoneSwitcherCountActive: {
-    color: '#0B0D10',
+    color: Colors.textOnAccent,
     fontWeight: '700',
   },
   phoneCol: { flex: 1, backgroundColor: t.surfaceAlt },

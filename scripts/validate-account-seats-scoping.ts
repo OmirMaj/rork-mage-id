@@ -135,7 +135,7 @@ ok(
   ]);
   const blocked = previewSeat('pro', twoLeaked, 'editor', 'realteammate@x.com');
   ok('two leaked invites would block the first real invite entirely', !blocked.allowed);
-  ok('…with an upgrade prompt the server would never send', /upgrade/i.test(blocked.message));
+  ok('…with a see-plans prompt the server would never send', /see plans/i.test(blocked.message));
 }
 
 if (fail > 0) {

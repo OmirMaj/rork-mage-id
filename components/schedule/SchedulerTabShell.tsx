@@ -44,6 +44,7 @@ import { viewToTab, type Density, type ProView } from '@/utils/scheduleProLayout
 import type { SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
 import type { ProjectSchedule, ScheduleTask, ProjectResource } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 export type SchedulerTabKey =
   | 'overview'
@@ -269,7 +270,6 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
           <SheetRow label="Closures" onPress={() => { actions.onClosures(); close(); }} />
           <Text style={styles.overflowGroup}>Track</Text>
           <SheetRow label="Workload" active={active === 'workload'} onPress={() => { onChange('workload'); close(); }} />
-          <SheetRow label="Calendar · soon" active={active === 'calendar'} onPress={() => { onChange('calendar'); close(); }} />
           <SheetRow label="Critical path" onPress={() => { actions.onCriticalPath(); close(); }} />
           <SheetRow label="Fix overloads" onPress={() => { actions.onLevelResources?.(); close(); }} />
           <SheetRow label="History" onPress={() => { actions.onHistory?.(); close(); }} />
@@ -370,7 +370,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps, layout?:
       <TabComingSoon
         tabName="Calendar"
         eventKey="scheduler_calendar_tab"
-        tagline="Month view with tasks plotted on dates. Drag to reschedule."
+        tagline="The calendar view isn't built yet. Use the Timeline tab for this for now."
         previewMock={<CalendarPreviewMock />}
       />
     );
@@ -385,18 +385,18 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps, layout?:
   }
 
   // list, handled in later tasks — generic placeholder for now
-  return <ComingSoonPlaceholder />;
+  return <ComingSoonPlaceholder tabName={humanizeEnum(key)} />;
 }
 
 // A component, not JSX inlined into renderTab: renderTab is a plain function
 // with early returns, so it cannot hold the useThemedStyles hook.
-function ComingSoonPlaceholder() {
+function ComingSoonPlaceholder({ tabName }: { tabName: string }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.comingSoon}>
-      <Text style={styles.comingSoonTitle}>Coming soon</Text>
+      <Text style={styles.comingSoonTitle}>{tabName}</Text>
       <Text style={styles.comingSoonSub}>
-        This tab ships next week. The Timeline tab is your current home.
+        Use the Timeline tab for this for now.
       </Text>
     </View>
   );

@@ -67,7 +67,7 @@ export async function generateScheduleFromEstimate(
   constraints?: { phased?: boolean | null },
 ): Promise<AutoScheduleResult> {
   if (!estimate || !estimate.items || estimate.items.length === 0) {
-    throw new Error('Estimate has no line items to generate a schedule from.');
+    throw new Error('This estimate has no line items to build a schedule from.');
   }
 
   const { summary, categoryMap } = buildEstimateSummary(estimate);

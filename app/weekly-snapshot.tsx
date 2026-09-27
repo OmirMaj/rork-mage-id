@@ -31,7 +31,7 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { formatMoney } from '@/utils/formatters';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
-import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
+import { issuedInvoiceWindowStats } from '@/utils/clientViewMoney'; // MONEY-F5 net outstanding; drafts excluded
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { daysUntilCalendarDay } from '@/utils/calendarDate';
@@ -176,24 +176,23 @@ export default function WeeklySnapshotScreen() {
     return { opened, closed, stillOpen, overdue };
   }, [rfis, range]);
 
+  // MONEY-DRAFTS-COUNTED (health 2026-09-26): a DRAFT is a document issued to
+  // nobody, so it is not "issued", not "unpaid" and not "billed". The sums
+  // used to run over every invoice — a draft's full balance sat in Unpaid and
+  // filled the burn bar. They live in utils/clientViewMoney so the guard can
+  // run them.
   const invoiceStats = useMemo(() => {
-    const issuedThisWindow = invoices.filter(i => inRange(i.issueDate));
-    const totalIssued = issuedThisWindow.reduce((s, i) => s + (i.totalDue ?? 0), 0);
-    const totalUnpaid = invoices.reduce((s, i) => s + invoiceOutstanding(i), 0); // MONEY-F5: net of held retention
-    const paidThisWindow = invoices
-      .flatMap(i => i.payments ?? [])
+    const receivedInWindow = (p: InvoicePayment) => {
       // #85: the day the money was RECEIVED (a check keyed in Monday for
       // Friday's deposit counts in Friday's week), the same date Payments,
       // QuickBooks, cash flow and the portal use. paymentReceivedAt, not the
       // bare day: new Date('YYYY-MM-DD') is UTC midnight — the previous
       // evening across the Americas — and would drop a first-day-of-window
       // payment into the week before.
-      .filter(p => {
-        const t = paymentReceivedAt(p as InvoicePayment & RecordedPaymentFields).getTime();
-        return Number.isFinite(t) && t >= range.start && t <= range.end;
-      })
-      .reduce((s, p) => s + (p.amount ?? 0), 0);
-    return { issuedCount: issuedThisWindow.length, totalIssued, totalUnpaid, paidThisWindow };
+      const t = paymentReceivedAt(p as InvoicePayment & RecordedPaymentFields).getTime();
+      return Number.isFinite(t) && t >= range.start && t <= range.end;
+    };
+    return issuedInvoiceWindowStats(invoices, inRange, receivedInWindow);
   }, [invoices, range]);
 
   const photoCount = useMemo(() => photos.filter(p => inRange(p.timestamp)).length, [photos, range]);
@@ -207,17 +206,17 @@ export default function WeeklySnapshotScreen() {
   if (!project) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ title: 'Weekly Snapshot' }} />
+        <Stack.Screen options={{ title: 'Weekly snapshot' }} />
         <EmptyState
           icon={<TrendingUp size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No project to snapshot yet"
-          message="Weekly Snapshot rolls up DFRs, RFIs, invoices, and photos for one project across a 7-day window. To see one:"
+          message="Weekly snapshot rolls up daily reports, RFIs, invoices and photos for one project across 7 days. To see one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Log a few daily reports, photos, or invoices to give the snapshot something to summarize.',
-            'Tap Weekly Snapshot inside the project tile grid.',
+            'Tap Weekly snapshot inside the project tile grid.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -225,21 +224,21 @@ export default function WeeklySnapshotScreen() {
   }
 
   const chips: FilterChip<WindowKey>[] = [
-    { value: 'thisWeek', label: 'This Week' },
-    { value: 'lastWeek', label: 'Last Week' },
-    { value: 'last30', label: 'Last 30d' },
+    { value: 'thisWeek', label: 'This week' },
+    { value: 'lastWeek', label: 'Last week' },
+    { value: 'last30', label: 'Last 30 days' },
   ];
 
   // Burn % for the concrete-pour visual: how much of the budget has been
   // billed-out so far, capped at 1.0 for display purposes.
-  const totalBilled = invoices.reduce((s, i) => s + (i.totalDue ?? 0), 0);
+  const totalBilled = invoiceStats.totalBilled; // non-draft only (MONEY-DRAFTS-COUNTED)
   const budgetCap = effectiveEstimateTotal(project) || totalBilled;
   const burnPct = budgetCap > 0 ? Math.min(1, totalBilled / budgetCap) : 0;
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'This Week',
+        title: 'This week',
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} testID="snapshot-back">
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
@@ -275,7 +274,7 @@ export default function WeeklySnapshotScreen() {
                 <Text style={styles.cardSub}>{weatherStats.dominant || '—'}</Text>
               </>
             ) : (
-              <Text style={styles.cardEmpty}>No DFR weather logged</Text>
+              <Text style={styles.cardEmpty}>No weather in daily reports</Text>
             )}
           </View>
           <View style={[styles.card, styles.cardHalf]}>
@@ -350,7 +349,7 @@ export default function WeeklySnapshotScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} /> : <TrendingDown size={16} color={Colors.warningLabel} strokeWidth={1.75} />}
-              <Text style={styles.cardLabel}>Budget Burn</Text>
+              <Text style={styles.cardLabel}>Budget burn</Text>
               <Text style={styles.burnPct}>{Math.round(burnPct * 100)}%</Text>
             </View>
             <ConcretePour value={burnPct} height={10} fillColor={burnPct < 0.85 ? themeColors.success : Colors.warning} />
@@ -372,14 +371,14 @@ export default function WeeklySnapshotScreen() {
               }}
               testID="snapshot-back-to-project"
             >
-              <Text style={styles.actionBtnText}>Project Detail</Text>
+              <Text style={styles.actionBtnText}>Project details</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() => router.push({ pathname: '/daily-report' as any, params: { projectId: project.id, new: '1' } })}
               testID="snapshot-new-dfr"
             >
-              <Text style={styles.actionBtnText}>+ New DFR</Text>
+              <Text style={styles.actionBtnText}>+ New daily report</Text>
             </TouchableOpacity>
           </View>
         </View>

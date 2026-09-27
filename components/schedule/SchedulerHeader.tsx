@@ -174,27 +174,27 @@ export function SchedulerHeader({
           <View style={[styles.verdictChipDot, { backgroundColor: vColor }]} />
           <Text style={styles.verdictChipText} numberOfLines={1}>{v.headline}</Text>
         </View>
-        <Kpi label="START"     value={startDate} />
-        <Kpi label="FINISH"    value={finishDate} />
-        <Kpi label="DURATION"  value={`${totalDuration} days`} />
+        <Kpi label="Start"     value={startDate} />
+        <Kpi label="Finish"    value={finishDate} />
+        <Kpi label="Duration"  value={`${totalDuration} days`} />
         <View style={styles.kpiWithDonut}>
-          <Kpi label="PROGRESS" value={`${progress}%`} />
+          <Kpi label="Progress" value={`${progress}%`} />
           <ProgressDonut percent={progress} />
         </View>
-        <Kpi label="TASKS"     value={String(total)} />
-        <Kpi label="OVERDUE"   value={String(overdueCount)} color={overdueCount > 0 ? Colors.pillLate : undefined} />
-        <Kpi label="COMPLETED" value={String(completed)} />
+        <Kpi label="Tasks"     value={String(total)} />
+        <Kpi label="Overdue"   value={String(overdueCount)} color={overdueCount > 0 ? Colors.pillLate : undefined} />
+        <Kpi label="Completed" value={String(completed)} />
 
         <View style={styles.spacer} />
 
         <View style={styles.pickerGroup}>
-          <Text style={styles.kpiLabel}>BASELINE</Text>
+          <Text style={styles.kpiLabel}>Baseline</Text>
           <Pressable onPress={onBaselinePress} style={styles.picker} hitSlop={8}>
             <Text style={styles.pickerText}>Current ▾</Text>
           </Pressable>
         </View>
         <View style={styles.pickerGroup}>
-          <Text style={styles.kpiLabel}>VIEW</Text>
+          <Text style={styles.kpiLabel}>View</Text>
           <ViewScalePicker value={viewScale} onChange={setViewScale} />
         </View>
       </View>
@@ -223,6 +223,7 @@ function KpiChip({ label, value, color }: { label: string; value: string; color?
 }
 
 const VIEW_SCALE_ORDER: ReadonlyArray<ViewScale> = ['days', 'weeks', 'months'];
+const VIEW_SCALE_LABEL: Record<ViewScale, string> = { days: 'Days', weeks: 'Weeks', months: 'Months' };
 
 function ViewScalePicker({ value, onChange }: { value: ViewScale; onChange: (s: ViewScale) => void }) {
   const styles = useThemedStyles(makeStyles);
@@ -232,7 +233,7 @@ function ViewScalePicker({ value, onChange }: { value: ViewScale; onChange: (s: 
   };
   return (
     <Pressable onPress={() => onChange(next())} style={styles.picker} hitSlop={8}>
-      <Text style={styles.pickerText}>{value.charAt(0).toUpperCase() + value.slice(1)} ▾</Text>
+      <Text style={styles.pickerText}>{VIEW_SCALE_LABEL[value] ?? value} ▾</Text>
     </Pressable>
   );
 }
@@ -279,7 +280,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   verdictChipDot: { width: 8, height: 8, borderRadius: Tokens.radius.full },
   verdictChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, maxWidth: 240 },
   kpi: { gap: 2 },
-  kpiLabel: { fontSize: 9, color: t.textSecondary, letterSpacing: 0.8, fontWeight: '700' },
+  kpiLabel: { fontSize: 9, color: t.textSecondary, letterSpacing: 0.8, fontWeight: '700', textTransform: 'uppercase' },
   kpiValue: { fontSize: 14, color: t.text, fontWeight: '600' },
   kpiWithDonut: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   spacer: { flex: 1 },
@@ -306,7 +307,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     minHeight: 32,
     justifyContent: 'center',
   },
-  phoneExportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
+  phoneExportBtnText: { fontSize: 11, color: Colors.textOnAccent, fontWeight: '700' },
   chip: {
     backgroundColor: t.surfaceAlt,
     borderRadius: 9,

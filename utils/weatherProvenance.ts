@@ -43,9 +43,10 @@ export type ForecastCoverage = 'live' | 'mixed' | 'simulated' | 'empty';
  *  EXPO_PUBLIC_OPENWEATHER_API_KEY"). */
 export const WEATHER_API_KEY_ENV = 'EXPO_PUBLIC_OPENWEATHER_API_KEY';
 
-/** Unmissable headline for the in-app marker. Deliberately shouty — a
- *  contractor must never mistake invented weather for a forecast. */
-export const SIMULATED_WEATHER_HEADLINE = 'SIMULATED WEATHER — NOT A FORECAST';
+/** Unmissable headline for the in-app marker — a contractor must never
+ *  mistake invented weather for a forecast. Written in sentence case; every
+ *  Text that renders it uppercases it by style (docs/VOICE.md §3). */
+export const SIMULATED_WEATHER_HEADLINE = 'Simulated weather. Not a forecast.';
 
 /** Body copy under the headline. Says what it is; the CAUSE (no address vs
  *  live weather unreachable) comes from describeForecast() and is appended by
@@ -59,7 +60,7 @@ export const SIMULATED_DAY_LABEL = 'SIM';
 
 /** Shown where a reschedule is applied, to explain why nothing was logged. */
 export const SIMULATED_NO_LOG_NOTICE =
-  'Simulated forecast — this reschedule will NOT be recorded in the weather delay log.';
+  "Simulated forecast. This reschedule won't be recorded in the weather delay log.";
 
 interface SourcedDay {
   source: ForecastSource;
@@ -128,13 +129,13 @@ export interface WeatherLocationInput {
 }
 
 export const NO_ADDRESS_WEATHER_CAUSE =
-  'This job has no jobsite address, so there is nowhere to forecast. Add the address in Edit Project to see live weather.';
+  'This project has no jobsite address, so there is nowhere to forecast. Add the address in Edit project to see live weather.';
 
 export const PADDED_TAIL_WEATHER_CAUSE =
   'Live forecasts reach about 5 days out; the later days are simulated.';
 
 export function unavailableWeatherCause(place: string): string {
-  return `Live weather for ${place} couldn't be loaded right now. Check the address in Edit Project, or try again later.`;
+  return `Live weather for ${place} couldn't be loaded right now. Check the address in Edit project, or try again later.`;
 }
 
 export interface ForecastDescription {
@@ -186,7 +187,7 @@ export function weatherCheckMessage(opts: {
   alertCount: number;
 }): { tone: WeatherCheckTone; text: string } {
   if (!opts.place) {
-    return { tone: 'info', text: 'Add a jobsite address to check weather — open the job, tap Edit, and type the address.' };
+    return { tone: 'info', text: 'Add a jobsite address to check weather. Open the project, tap Edit, and type the address.' };
   }
   if (opts.loading) {
     return { tone: 'info', text: `Still loading the forecast for ${opts.place} — tap again in a moment.` };

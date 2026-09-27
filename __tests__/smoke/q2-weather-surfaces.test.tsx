@@ -148,14 +148,14 @@ describe('Q2 weather surfaces', () => {
       const rest = lines.filter((l) => !/^Weather for /.test(l));
       // The banner body may carry the cause sentence after the golden copy.
       const norm = (l: string) => l
-        .replace(/ This job has no jobsite address, so there is nowhere to forecast\. Add the address in Edit Project to see live weather\.$/, '')
+        .replace(/ This project has no jobsite address, so there is nowhere to forecast\. Add the address in Edit project to see live weather\.$/, '')
         .replace(/ Live forecasts reach about 5 days out; the later days are simulated\.$/, '');
       const goldenNorm = golden.map((l) => l.replace(/ Set EXPO_PUBLIC_OPENWEATHER_API_KEY to show the live forecast\.$/, ''));
       expect(rest.map(norm)).toEqual(goldenNorm);
       if (s.name.includes('live')) expect(added).toEqual(['Weather for 124 Park Slope, Brooklyn NY 11215']);
       else expect(added).toEqual([]);
       if (s.name.includes('no-address')) {
-        expect(lines.some((l) => l.includes('This job has no jobsite address'))).toBe(true);
+        expect(lines.some((l) => l.includes('This project has no jobsite address'))).toBe(true);
       }
       // No developer jargon on a contractor's screen.
       expect(lines.some((l) => l.includes('EXPO_PUBLIC_'))).toBe(false);

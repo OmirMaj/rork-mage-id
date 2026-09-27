@@ -49,6 +49,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { LandingSlot, useLanding } from '@/components/animations/Landing';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { supabase } from '@/lib/supabase';
 import {
   useUserLocation,
@@ -62,6 +63,9 @@ import {
 import { US_STATES } from '@/constants/states';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+// SUPA-H1: how old the feed is, said on screen ('Not checked' when unknown).
+import { bidsFeedFreshness } from '@/utils/bidsFreshness';
+import { describeError } from '@/utils/errorCopy';
 
 interface CachedBid {
   id: string;
@@ -202,7 +206,7 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
             </View>
           ) : (
             <View style={styles.openBadge}>
-              <Text style={styles.openBadgeText}>OPEN</Text>
+              <Text style={styles.openBadgeText}>Open</Text>
             </View>
           )}
           {bid.isConstruction && (
@@ -290,6 +294,10 @@ export default function CachedBidsScreen() {
   const [showStateList, setShowStateList] = useState(false);
   const [showSetAsideDropdown, setShowSetAsideDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  // Desktop web: each dropdown is a centred dialog in the content column, the
+  // scrim over the sidebar. Phone: every part is null — today's dropdowns.
+  const fSort = useSheetFrame('dialog', { visible: showSortDropdown, animationType: 'fade' });
+  const fAside = useSheetFrame('dialog', { visible: showSetAsideDropdown, animationType: 'fade' });
 
   // Hydrate persisted filter state on mount. Don't block the first
   // render — defaults keep the screen usable while AsyncStorage warms.
@@ -327,22 +335,22 @@ export default function CachedBidsScreen() {
 
   const { data: bids, isLoading, refetch, isRefetching, error: bidsQueryError } = useQuery({
     queryKey: ['cached_bids'],
+    // SUPA-H1: a failed read THROWS, so the "Couldn't load bids" branch
+    // below renders. It used to return [], which showed a failed read as
+    // "no bids" and made that branch unreachable.
     queryFn: async (): Promise<CachedBid[]> => {
-      try {
-        const { data, error } = await supabase
-          .from('cached_bids')
-          .select('id,title,department,response_deadline,posted_date,estimated_value,city,state,latitude,longitude,source_url,set_aside,naics_code,solicitation_number,fetched_at')
-          .order('response_deadline', { ascending: true, nullsFirst: false })
-          .limit(2000);
-        if (error) {
-          console.log('[CachedBids] supabase error:', error.message);
-          return [];
-        }
-        return (data ?? []) as CachedBid[];
-      } catch (err) {
-        console.log('[CachedBids] network/fetch error:', String(err));
-        return [];
+      const { data, error } = await supabase
+        .from('cached_bids')
+        .select('id,title,department,response_deadline,posted_date,estimated_value,city,state,latitude,longitude,source_url,set_aside,naics_code,solicitation_number,fetched_at')
+        .order('response_deadline', { ascending: true, nullsFirst: false })
+        .limit(2000);
+      if (error) {
+        console.log('[CachedBids] supabase error:', error.message);
+        // Raw text and code ride on the error for describeError to classify;
+        // the screen shows its sentence, never this message.
+        throw Object.assign(new Error(error.message), { code: error.code });
       }
+      return (data ?? []) as CachedBid[];
     },
     retry: 1,
   });
@@ -508,6 +516,8 @@ export default function CachedBidsScreen() {
   ), [handleBidPress, landingRow]);
 
   const totalCount = bidsWithMeta.length;
+  // Newest fetched_at on screen: 'Updated 3 days ago', or 'Not checked'.
+  const freshness = useMemo(() => bidsFeedFreshness(bids ?? []), [bids]);
   const filteredCount = filteredBids.length;
   const sortLabel = SORT_OPTIONS.find((s) => s.key === sortBy)?.label ?? 'Sort';
 
@@ -519,12 +529,12 @@ export default function CachedBidsScreen() {
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Public Bids</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Public bids</Text>
             <Text style={styles.headerSubtitle}>
               {filteredCount === totalCount
                 ? `${totalCount.toLocaleString()} active`
                 : `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()}`}
-              {' · SAM.gov'}
+              {' · SAM.gov · '}{freshness.label}
             </Text>
           </View>
           <TouchableOpacity
@@ -536,6 +546,16 @@ export default function CachedBidsScreen() {
             <Text style={styles.sortBtnText}>{sortLabel}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* SUPA-H1: a feed the sync stopped refreshing says so, instead of
+            showing months-old bids as open. */}
+        {freshness.stale && (
+          <View style={styles.locNotice} testID="bids-stale-notice">
+            <Text style={styles.locNoticeText}>
+              {`This feed was last refreshed ${freshness.label.replace('Updated ', '')}. Deadlines and open status may be out of date, so check SAM.gov before you bid.`}
+            </Text>
+          </View>
+        )}
 
         {/* Search box */}
         <View style={styles.searchWrap}>
@@ -703,11 +723,11 @@ export default function CachedBidsScreen() {
       <Modal
         visible={showSortDropdown}
         transparent
-        animationType="fade"
+        animationType={fSort.animationType}
         onRequestClose={() => setShowSortDropdown(false)}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
-          <View style={styles.dropdownModal}>
+        <TouchableOpacity style={[styles.modalOverlay, fSort.overlay]} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
+          <View style={[styles.dropdownModal, fSort.card]}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Sort by</Text>
               <TouchableOpacity onPress={() => setShowSortDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -732,11 +752,11 @@ export default function CachedBidsScreen() {
       <Modal
         visible={showSetAsideDropdown}
         transparent
-        animationType="fade"
+        animationType={fAside.animationType}
         onRequestClose={() => setShowSetAsideDropdown(false)}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
-          <View style={styles.dropdownModal}>
+        <TouchableOpacity style={[styles.modalOverlay, fAside.overlay]} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
+          <View style={[styles.dropdownModal, fAside.card]}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Set-aside type</Text>
               <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -775,7 +795,7 @@ export default function CachedBidsScreen() {
         <View style={styles.loadingContainer}>
           <AlertCircle size={40} color="#D32F2F" strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>Couldn't load bids</Text>
-          <Text style={styles.emptySubtitle}>{bidsQueryError.message}</Text>
+          <Text style={styles.emptySubtitle}>{describeError(bidsQueryError, { action: 'load the bids feed' }).body}</Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -806,8 +826,8 @@ export default function CachedBidsScreen() {
                   // currently says rather than a label it may not be wearing.
                   ? `Near me needs your location before it can measure anything. Tap ${locationControlLabel(locStatus, false, LOCATION_PLATFORM)} above, or switch to All US, City or State.`
                   : totalCount > 0
-                    ? `${totalCount.toLocaleString()} bids in the cache. Loosen your filters to see more.`
-                    : 'The SAM.gov sync is still warming up. Pull to refresh.'}
+                    ? `${totalCount.toLocaleString()} ${totalCount === 1 ? 'bid' : 'bids'} in the feed. Loosen your filters to see more.`
+                    : "The SAM.gov feed hasn't loaded any bids yet. Pull to refresh."}
               </Text>
               <TouchableOpacity onPress={clearAllFilters} style={styles.retryButton}>
                 <Text style={styles.retryButtonText}>Clear all filters</Text>
@@ -904,7 +924,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   setAsideBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
   setAsideText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#1E5128', letterSpacing: 0.2 },
   openBadge: { backgroundColor: Colors.infoLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
-  openBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6 },
+  openBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6, textTransform: 'uppercase' as const },
   constructionBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#FFF4E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs,

@@ -47,8 +47,8 @@ export interface WorkflowStage {
 const PIPELINES: Record<WorkflowKind, WorkflowStage[]> = {
   punch: [
     { key: 'open', label: 'Open' },
-    { key: 'in_progress', label: 'In Progress' },
-    { key: 'ready_for_review', label: 'Ready for Review' },
+    { key: 'in_progress', label: 'In progress' },
+    { key: 'ready_for_review', label: 'Ready for review' },
     { key: 'closed', label: 'Closed', terminal: true },
   ],
   // Application path only. Ends at approved — the permit is issued. The labels
@@ -56,7 +56,7 @@ const PIPELINES: Record<WorkflowKind, WorkflowStage[]> = {
   // not this module's job.
   permit: [
     { key: 'applied', label: 'Applied' },
-    { key: 'under_review', label: 'In Review' },
+    { key: 'under_review', label: 'In review' },
     { key: 'approved', label: 'Approved', terminal: true },
   ],
   // The second loop, rendered separately once a permit is issued.
@@ -72,14 +72,14 @@ const PIPELINES: Record<WorkflowKind, WorkflowStage[]> = {
   prequal: [
     { key: 'draft', label: 'Draft' },
     { key: 'invited', label: 'Invited' },
-    { key: 'in_progress', label: 'In Progress' },
+    { key: 'in_progress', label: 'In progress' },
     { key: 'submitted', label: 'Submitted' },
     { key: 'approved', label: 'Approved', terminal: true },
   ],
   oac: [
     { key: 'draft', label: 'Draft' },
     { key: 'scheduled', label: 'Scheduled' },
-    { key: 'in_progress', label: 'In Progress' },
+    { key: 'in_progress', label: 'In progress' },
     { key: 'concluded', label: 'Concluded' },
     { key: 'distributed', label: 'Distributed', terminal: true },
   ],

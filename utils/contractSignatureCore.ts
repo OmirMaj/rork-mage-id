@@ -43,14 +43,14 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** Why this draft cannot be recorded yet, or null when it can. `todayDay` is
  *  the device's local calendar day (utils/calendarDate). */
 export function recordSignatureBlockReason(d: RecordSignatureDraft, todayDay: string): string | null {
-  if (d.name.trim().length < 2) return "Type the homeowner's full legal name.";
+  if (d.name.trim().length < 2) return "Type the client's full legal name.";
   if (d.method === 'in_person') {
-    if (!d.signaturePaths || d.signaturePaths.length === 0) return 'Hand the phone to the homeowner to sign in the box.';
+    if (!d.signaturePaths || d.signaturePaths.length === 0) return 'Hand the phone to your client to sign in the box.';
     return null;
   }
   if (!d.signedDay || !DAY_RE.test(d.signedDay)) return 'Pick the day written on the signed page.';
-  if (d.signedDay > todayDay) return 'The signing day cannot be in the future.';
-  if (!d.hasPagePhoto) return 'Add a photo of the signed page — it is the proof this signature was given.';
+  if (d.signedDay > todayDay) return "The signing day can't be in the future.";
+  if (!d.hasPagePhoto) return 'Add a photo of the signed page. It is the proof this signature was given.';
   return null;
 }
 
@@ -120,9 +120,9 @@ export function recordSignatureOutcomeMessage(o: RecordSignatureOutcome): { titl
       body: 'Nothing was recorded — the contract is still Sent. Try again when you have signal; keep the signed page.',
     };
     case 'not_sent': return o.homeownerSigned || o.status === 'signed'
-      ? { title: 'Already signed', body: 'The homeowner has already signed this contract (in their portal or on another device). Nothing was changed.' }
-      : { title: 'Not recorded', body: `This contract is ${o.status ?? 'no longer on file'}, not Sent, so a homeowner signature can't be recorded on it.` };
-    case 'failed': return { title: 'Not recorded', body: `The signature was not saved (${o.error}). The contract is still Sent.` };
+      ? { title: 'Already signed', body: 'Your client has already signed this contract, in their portal or on another device. Nothing was changed.' }
+      : { title: 'Not recorded', body: `This contract is ${o.status ?? 'no longer on file'}, not Sent, so a client signature can't be recorded on it.` };
+    case 'failed': return { title: 'Signature not recorded', body: "The signature wasn't saved. The contract is still Sent. Check your connection and try again." };
   }
 }
 

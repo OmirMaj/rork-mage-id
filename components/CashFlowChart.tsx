@@ -29,6 +29,7 @@ import { formatCurrencyShort } from '@/utils/cashFlowEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
+import { nativeDriver, reducedMotion } from '@/components/ui/motion';
 
 interface CashFlowChartProps {
   weeks: CashFlowWeek[];
@@ -41,6 +42,15 @@ const BAR_GAP = 10;
 const CHART_HEIGHT = 220;
 const LABEL_HEIGHT = 30;
 const Y_GUTTER = 56;
+
+// The trailing dot's pulse: ONE linear 0 → 1 timing, looped, shaped into a
+// 0 → 1 → 0 swell by a 9-point pre-sampled cosine, c(t) = (1 − cos 2πt) / 2.
+// Linear pieces only, so it runs on the native driver (it drives a View's
+// opacity + scale); at 0 it reads exactly like the old sequence's resting value.
+const PULSE_IN = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+const PULSE_C = PULSE_IN.map((t) => (1 - Math.cos(2 * Math.PI * t)) / 2);
+const PULSE_SCALE = PULSE_C.map((c) => 1 + 0.6 * c);
+const PULSE_OPACITY = PULSE_C.map((c) => 0.55 * (1 - c));
 
 const CashFlowChart = React.memo(function CashFlowChart({
   weeks,
@@ -71,6 +81,20 @@ const CashFlowChart = React.memo(function CashFlowChart({
   const pulseAnim = useRef(new Animated.Value(0));
 
   useEffect(() => {
+    // Reduce Motion: everything at its final value, no pulse.
+    if (reducedMotion()) {
+      barAnims.current.values.forEach((v) => v.setValue(1));
+      lineProgress.current.setValue(1);
+      return;
+    }
+    // Every value here drives a View's transform or opacity (the bars' scaleY,
+    // the line segments' and dots' opacity, the pulse ring), so all of it runs
+    // on the native driver. Every started animation is kept and stopped in the
+    // cleanup: the old pulse loop was never stopped, so each visit (and each
+    // horizon switch) left another JS loop running app-wide — and a JS
+    // animation holds an interaction handle, stalling every
+    // runAfterInteractions for as long as it ran.
+    //
     // Stagger bars from left to right, then draw the line on top.
     const barSequence = Animated.stagger(
       40,
@@ -79,7 +103,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
           toValue: 1,
           duration: 480,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
+          useNativeDriver: nativeDriver,
         }),
       ),
     );
@@ -87,27 +111,23 @@ const CashFlowChart = React.memo(function CashFlowChart({
       toValue: 1,
       duration: 800,
       easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: false,
+      useNativeDriver: nativeDriver,
     });
-    Animated.sequence([barSequence, linePath]).start();
+    const intro = Animated.sequence([barSequence, linePath]);
 
-    // Continuous soft pulse on the trailing-edge dot.
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim.current, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(pulseAnim.current, {
-          toValue: 0,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-      ]),
-    ).start();
+    // Continuous soft pulse on the trailing-edge dot: one timing, looped.
+    const pulse = Animated.loop(
+      Animated.timing(pulseAnim.current, {
+        toValue: 1,
+        duration: 1800,
+        easing: Easing.linear,
+        isInteraction: false,
+        useNativeDriver: nativeDriver,
+      }),
+    );
+    const running = [intro, pulse];
+    running.forEach((a) => a.start());
+    return () => running.forEach((a) => a.stop());
   }, [animKey]);
 
   const { maxAbsNet, maxAbsBalance, balancePoints } = useMemo(() => {
@@ -172,7 +192,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
                 const angle = Math.atan2(dy, dx) * (180 / Math.PI);
                 const ratio = i / (balancePoints.length - 1);
                 const segOpacity = lineProgress.current.interpolate({
-                  inputRange: [Math.max(0, ratio - 0.05), ratio],
+                  inputRange: [Math.max(0, ratio - 0.05), Math.max(ratio, 0.001)],
                   outputRange: [0, 1],
                   extrapolate: 'clamp',
                 });
@@ -197,18 +217,20 @@ const CashFlowChart = React.memo(function CashFlowChart({
               {balancePoints.map((pt, i) => {
                 const ratio = balancePoints.length > 1 ? i / (balancePoints.length - 1) : 0;
                 const dotOpacity = lineProgress.current.interpolate({
-                  inputRange: [Math.max(0, ratio - 0.02), ratio],
+                  // Never a zero-width range: iOS's native interpolation divides by
+                  // (max - min), so the first point's [0, 0] would read NaN.
+                  inputRange: [Math.max(0, ratio - 0.02), Math.max(ratio, 0.001)],
                   outputRange: [0, 1],
                   extrapolate: 'clamp',
                 });
                 const isLast = i === balancePoints.length - 1;
                 const pulseScale = isLast ? pulseAnim.current.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.6],
+                  inputRange: PULSE_IN,
+                  outputRange: PULSE_SCALE,
                 }) : 1;
                 const pulseOpacity = isLast ? pulseAnim.current.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.55, 0],
+                  inputRange: PULSE_IN,
+                  outputRange: PULSE_OPACITY,
                 }) : 0;
                 return (
                   <React.Fragment key={`dot-${i}`}>
@@ -257,10 +279,10 @@ const CashFlowChart = React.memo(function CashFlowChart({
               const isSelected = selectedWeek === i;
               const isDanger = week.runningBalance < 0;
               const anim = barAnims.current.values[i] ?? new Animated.Value(1);
-              const animatedHeight = anim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, Math.max(barHeight, 2)],
-              });
+              // Laid out at full height; scaleY grows it from the zero line
+              // (transformOrigin bottom for a positive bar, top for a negative
+              // one) on the native driver — no per-frame layout.
+              const fullHeight = Math.max(barHeight, 2);
               const barColor = isDanger
                 ? (isPositive ? Colors.warning : themeColors.danger)
                 : (isPositive ? themeColors.success : themeColors.danger);
@@ -282,8 +304,10 @@ const CashFlowChart = React.memo(function CashFlowChart({
                           style={[
                             styles.bar,
                             {
-                              height: animatedHeight,
+                              height: fullHeight,
                               backgroundColor: barColor,
+                              transform: [{ scaleY: anim }],
+                              transformOrigin: 'bottom',
                             },
                           ]}
                         >
@@ -299,8 +323,10 @@ const CashFlowChart = React.memo(function CashFlowChart({
                             style={[
                               styles.barNeg,
                               {
-                                height: animatedHeight,
+                                height: fullHeight,
                                 backgroundColor: barColor,
+                                transform: [{ scaleY: anim }],
+                                transformOrigin: 'top',
                               },
                             ]}
                           >
@@ -334,7 +360,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendLine, { backgroundColor: themeColors.info }]} />
-          <Text style={styles.legendText}>Running Balance</Text>
+          <Text style={styles.legendText}>Running balance</Text>
         </View>
       </View>
     </View>

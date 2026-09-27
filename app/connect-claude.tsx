@@ -30,6 +30,7 @@ import { edgeFunctionError } from '@/utils/edgeError';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 
 const MCP_URL = `${SUPABASE_FUNCTIONS_URL}/mcp`;
 
@@ -71,7 +72,8 @@ export default function ConnectClaudeScreen() {
       setTokens(Array.isArray(data?.tokens) ? data.tokens : []);
     } catch (err) {
       console.error('[ConnectClaude] list failed', err);
-      showAlert('Could not load tokens', err instanceof Error ? err.message : 'Please try again.');
+      const copy = describeError(err, { action: 'load your connections' });
+      showAlert(copy.title, copy.body);
     } finally {
       setLoading(false);
     }
@@ -103,7 +105,8 @@ export default function ConnectClaudeScreen() {
       await load();
     } catch (err) {
       console.error('[ConnectClaude] create failed', err);
-      showAlert('Could not create token', err instanceof Error ? err.message : 'Please try again.');
+      const copy = describeError(err, { action: 'create the token' });
+      showAlert(copy.title, copy.body);
     } finally {
       setCreating(false);
     }
@@ -128,7 +131,8 @@ export default function ConnectClaudeScreen() {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               await load();
             } catch (err) {
-              showAlert('Could not revoke', err instanceof Error ? err.message : 'Please try again.');
+              const copy = describeError(err, { action: 'revoke the token' });
+              showAlert(copy.title, copy.body);
             }
           },
         },
@@ -158,8 +162,8 @@ export default function ConnectClaudeScreen() {
           <View style={styles.heroIcon}><MageAIMark size={24} color={themeColors.accent} /></View>
           <Text style={styles.heroTitle}>Connect Claude</Text>
           <Text style={styles.heroSub}>
-            Ask Claude (on claude.ai or Claude Desktop) about your business — &quot;what&apos;s overdue?&quot;,
-            &quot;how much am I owed?&quot;, &quot;which RFIs are open?&quot; — answered from your live MAGE ID data.
+            Ask Claude (on claude.ai or Claude Desktop) about your business, like &quot;what&apos;s overdue?&quot;,
+            &quot;how much am I owed?&quot; or &quot;which RFIs are open?&quot;. Answers come from your live MAGE ID data.
           </Text>
           <View style={styles.roBadge}>
             <ShieldCheck size={13} color={themeColors.success} strokeWidth={1.75} />
@@ -176,10 +180,10 @@ export default function ConnectClaudeScreen() {
           >
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.text }}>Data access needs Pro</Text>
-              <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 }}>Connect and browse the tools on any plan — but pulling your projects, costs, and RFIs into Claude requires Pro.</Text>
+              <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.text }}>Data access is on the Pro plan</Text>
+              <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 }}>Connect and browse the tools on any plan. Pulling your projects, costs and RFIs into Claude needs Pro.</Text>
             </View>
-            <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.accent }}>Upgrade</Text>
+            <Text style={{ fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.accent }}>See plans</Text>
           </TouchableOpacity>
         ) : null}
 
@@ -188,7 +192,7 @@ export default function ConnectClaudeScreen() {
           <View style={styles.freshCard}>
             <View style={styles.freshHeader}>
               <AlertTriangle size={15} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.freshTitle}>Save this now — it won&apos;t be shown again</Text>
+              <Text style={styles.freshTitle}>Save this now. It won&apos;t be shown again.</Text>
             </View>
 
             <Text style={styles.fieldLabel}>Connector URL (paste into Claude)</Text>
@@ -204,13 +208,13 @@ export default function ConnectClaudeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.dismissBtn} onPress={() => setFreshToken(null)} activeOpacity={0.8}>
-              <Text style={styles.dismissText}>I&apos;ve saved it — done</Text>
+              <Text style={styles.dismissText}>I saved it</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Create a token */}
-        <Text style={styles.sectionLabel}>CREATE A CONNECTION</Text>
+        <Text style={styles.sectionLabel}>Create a connection</Text>
         <View style={styles.createCard}>
           <TextInput
             style={styles.input}
@@ -232,7 +236,7 @@ export default function ConnectClaudeScreen() {
         </View>
 
         {/* Setup steps */}
-        <Text style={styles.sectionLabel}>HOW TO CONNECT</Text>
+        <Text style={styles.sectionLabel}>How to connect</Text>
         <View style={styles.stepsCard}>
           <Step n={1} text="Create a token above and copy the Connector URL it gives you." />
           <Step n={2} text="In Claude, open Settings → Connectors → Add custom connector (or your MCP client's config)." />
@@ -243,12 +247,12 @@ export default function ConnectClaudeScreen() {
           <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.hintText}>
             Server URL: {MCP_URL}{'\n'}
-            The token authenticates the connection — keep it private; it grants read access to your data.
+            Keep the token private. It gives read access to your data.
           </Text>
         </View>
 
         {/* Existing tokens */}
-        <Text style={styles.sectionLabel}>YOUR CONNECTIONS</Text>
+        <Text style={styles.sectionLabel}>Your connections</Text>
         {loading ? (
           <ActivityIndicator color={themeColors.accent} style={{ marginVertical: 20 }} />
         ) : tokens.length === 0 ? (
@@ -337,7 +341,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   sectionLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
-    letterSpacing: 0.8, marginBottom: 8, marginTop: 4,
+    letterSpacing: 0.8, marginBottom: 8, marginTop: 4, textTransform: 'uppercase',
   },
   createCard: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line,

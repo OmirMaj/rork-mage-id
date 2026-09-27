@@ -37,7 +37,7 @@ import { onlineManager } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import CraneLoader from '@/components/CraneLoader';
+import WorkProgress from '@/components/loaders/WorkProgress';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -79,6 +79,7 @@ import { cardSurface, Button } from '@/components/ui';
 import type { PlanSheet } from '@/types';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 
 type Step = 'pickOld' | 'pickNew' | 'analyzing' | 'review';
 
@@ -268,7 +269,7 @@ export default function CompareDrawingsScreen() {
       await runCompareRef.current({ kind: 'image', asset });
     } catch (e) {
       console.warn('[compare-drawings] pick failed', e);
-      setError(String((e as Error).message ?? e));
+      setError(describeError(e, { action: 'open that file' }).body);
       setStep('pickNew');
     }
   }, [project, oldSheet, resetComparison, limitAllows]);
@@ -299,7 +300,7 @@ export default function CompareDrawingsScreen() {
             maxPages: 1,
             startPage: src.page,
           });
-          if (!pages[0]) throw new Error('Could not render the PDF page.');
+          if (!pages[0]) throw new Error('Couldn\u2019t render that PDF page.');
           rendered = { key, url: pages[0].viewUrl, path: pages[0].storagePath, width: pages[0].width, height: pages[0].height };
         } else {
           // #160: a JPG/PNG goes into plan-sheets exactly like a Plans image
@@ -364,7 +365,7 @@ export default function CompareDrawingsScreen() {
       console.warn('[compare-drawings] failed', e);
       // The function's own sentence (edgeError) — a page past the end keeps
       // the page picker open with the real page count in the reason.
-      setError(String((e as Error).message ?? e));
+      setError(ownSentence(e) ?? describeError(e, { action: 'compare the sheets' }).body);
       if (src.kind === 'pdf' && edgeErrorCode(e) === 'start_page_past_end') {
         setPendingPdf({ asset: src.asset, pageCount: src.pageCount });
       }
@@ -411,7 +412,7 @@ export default function CompareDrawingsScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[compare-drawings] failed', e);
-      setError(String((e as Error).message ?? e));
+      setError(ownSentence(e) ?? describeError(e, { action: 'compare the sheets' }).body);
       setStep('pickNew');
     }
   }, [project, oldSheet, pairNew, resetComparison, limitAllows]);
@@ -567,10 +568,10 @@ export default function CompareDrawingsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title="Find what changed" />
+        <ToolHeader eyebrow="Compare drawings · MAGE ID" title="Find what changed" />
         <ToolProjectPicker
-          toolName="Compare Drawings"
-          message="Compare Drawings diffs a new revision against the sheet in the field and flags every scope, dimension, and note change with its likely cost or schedule impact."
+          toolName="Compare drawings"
+          message="Compare drawings checks a new revision against the sheet in the field and flags every scope, dimension and note change with its likely cost or schedule impact."
           projects={projects}
           onPick={setPickedProjectId}
         />
@@ -594,18 +595,18 @@ export default function CompareDrawingsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
+        <ToolHeader eyebrow="Compare drawings · MAGE ID" title={project.name} />
         <View style={[styles.hero, { alignItems: 'flex-start' }]} testID="compare-role-gate">
           {roleWaiting ? (
             <ActivityIndicator size="small" color={themeColors.accent} />
           ) : roleFailed ? (
             <>
-              <Text style={styles.heroBody}>Couldn&apos;t check your role on this job. Check your connection and try again.</Text>
+              <Text style={styles.heroBody}>Couldn&apos;t check your role on this project. Check your connection and try again.</Text>
               <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} testID="compare-role-retry" />
             </>
           ) : (
             <>
-              <Text style={styles.heroTitle}>Compare isn&apos;t available on your seat</Text>
+              <Text style={styles.heroTitle}>Your role on this project can&apos;t compare drawings</Text>
               <Text style={styles.heroBody}>{compareBlock}</Text>
             </>
           )}
@@ -614,14 +615,14 @@ export default function CompareDrawingsScreen() {
     );
   }
 
-  // Full-screen crane + rotating facts during the 30-60s AI compare (was a tiny
-  // centered spinner on an otherwise empty screen).
+  // The 30-60s AI compare: the real phase, the elapsed time and the typical
+  // range; facts stay as a quiet footer.
   if (step === 'analyzing') {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
-        <CraneLoader label="Comparing sheets" facts={CONSTRUCTION_FACTS} />
+        <ToolHeader eyebrow="Compare drawings · MAGE ID" title={project.name} />
+        <WorkProgress title="Comparing sheets" typical="usually 30–60 s" facts={CONSTRUCTION_FACTS} />
       </View>
     );
   }
@@ -636,7 +637,7 @@ export default function CompareDrawingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
+      <ToolHeader eyebrow="Compare drawings · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
 
         {/* ── Step 1: pick the OLD sheet ─────────────────────────── */}
@@ -648,14 +649,14 @@ export default function CompareDrawingsScreen() {
               </View>
               <Text style={styles.heroTitle}>Find what changed</Text>
               <Text style={styles.heroBody}>
-                Pick the sheet that&apos;s currently in the field. Then upload the new revision — a PDF (any page of a re-issued set) or a JPG/PNG — and AI will tell you exactly what changed — scope, dimensions, notes — and what each change probably means for cost or schedule.
+                Pick the sheet that&apos;s currently in the field, then upload the new revision: a PDF (any page of a re-issued set) or a JPG/PNG. MAGE marks what changed between the two sheets and what each change likely means for cost or schedule.
               </Text>
             </View>
 
             <Text style={styles.sectionLabel}>Pick the current sheet</Text>
             {planSheets.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No plan sheets in this project yet.</Text>
+                <Text style={styles.emptyText}>No plan sheets in this project yet</Text>
                 <Text style={styles.emptyBody}>Add a sheet from the Plans screen first — that&apos;s the &quot;current&quot; reference for the comparison.</Text>
               </View>
             ) : (
@@ -685,7 +686,7 @@ export default function CompareDrawingsScreen() {
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>Compare two revisions</Text>
               <Text style={styles.heroBody}>
-                Both sheets are already in the plan set, so nothing is uploaded or filed. AI compares {sheetCitation(oldSheet)} with {sheetCitation(pairNew)} and flags every change.
+                Both sheets are already in the plan set, so nothing is uploaded or filed. MAGE compares {sheetCitation(oldSheet)} with {sheetCitation(pairNew)} and flags every change.
               </Text>
             </View>
             <View style={styles.previewRow}>
@@ -716,7 +717,7 @@ export default function CompareDrawingsScreen() {
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>Now upload the revision</Text>
               <Text style={styles.heroBody}>
-                Pick the new PDF, or a JPG/PNG, showing the same drawing as <Text style={{ fontWeight: '700' }}>{oldSheet.name}</Text>. For a whole re-issued set you choose the page. We&apos;ll render it and run the comparison.
+                Pick the new PDF, or a JPG/PNG, showing the same drawing as <Text style={{ fontWeight: '700' }}>{oldSheet.name}</Text>. For a whole re-issued set you choose the page. MAGE renders it and runs the comparison.
               </Text>
             </View>
 
@@ -903,8 +904,8 @@ export default function CompareDrawingsScreen() {
 
             {result.changes.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No changes detected.</Text>
-                <Text style={styles.emptyBody}>The two sheets look the same to AI. Worth a quick eyeball confirmation before you trust this.</Text>
+                <Text style={styles.emptyText}>No changes found</Text>
+                <Text style={styles.emptyBody}>The two sheets look the same to MAGE. Check them side by side before you rely on this.</Text>
               </View>
             ) : (
               result.changes.map((c, i) => (
@@ -918,7 +919,7 @@ export default function CompareDrawingsScreen() {
                       <Text style={styles.changeDescription}>{c.description}</Text>
                       {c.impact !== 'none' && (
                         <View style={[styles.impactChip, impactBg(c.impact)]}>
-                          <Text style={styles.impactText}>{c.impact} impact</Text>
+                          <Text style={styles.impactText}>{impactLabel(c.impact)}</Text>
                         </View>
                       )}
                       {c.suggestedAction ? (
@@ -1037,9 +1038,10 @@ function labelForType(t: ChangeType): string {
   if (t === 'modified') return 'Modified';
   return 'Note revised';
 }
-// Module-level — hardcoded hex to stay theme-agnostic.
+// Module-level. `added` is the success TEAL (Colors.success, static, white
+// glyph 4.9:1): the pre-rebrand #2E7D44 sat ΔE 9.2 from the brand green.
 function changeBg(t: ChangeType) {
-  if (t === 'added') return { backgroundColor: '#2E7D44' };
+  if (t === 'added') return { backgroundColor: Colors.success };
   if (t === 'removed') return { backgroundColor: '#C84038' };
   if (t === 'modified') return { backgroundColor: Colors.warning };
   return { backgroundColor: '#1565C0' };
@@ -1047,17 +1049,23 @@ function changeBg(t: ChangeType) {
 function impactBg(i: ChangeImpact) {
   if (i === 'major') return { backgroundColor: '#C84038' + '25' };
   if (i === 'moderate') return { backgroundColor: Colors.warning + '25' };
-  return { backgroundColor: '#F4EFE6' };
+  return { backgroundColor: Colors.surfaceAlt };
 }
 function severityHero(s: 'low' | 'medium' | 'high') {
   if (s === 'high') return { backgroundColor: '#C84038' + '12', borderColor: '#C84038' + '30' };
   if (s === 'medium') return { backgroundColor: Colors.warning + '14', borderColor: Colors.warning + '40' };
-  return { backgroundColor: '#2E7D44' + '12', borderColor: '#2E7D44' + '30' };
+  return { backgroundColor: Colors.success + '12', borderColor: Colors.success + '30' };
 }
 function severityLabel(s: 'low' | 'medium' | 'high'): string {
-  if (s === 'high') return 'HIGH IMPACT';
-  if (s === 'medium') return 'MEDIUM IMPACT';
-  return 'LOW IMPACT';
+  if (s === 'high') return 'High impact';
+  if (s === 'medium') return 'Medium impact';
+  return 'Low impact';
+}
+const IMPACT_LABEL: Record<ChangeImpact, string> = {
+  none: 'No impact', minor: 'Minor impact', moderate: 'Moderate impact', major: 'Major impact',
+};
+function impactLabel(i: ChangeImpact): string {
+  return IMPACT_LABEL[i] ?? 'Impact not rated';
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
@@ -1078,7 +1086,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 8 },
   heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
-  severityLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.text, marginBottom: 6, letterSpacing: 0.6 },
+  severityLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.text, marginBottom: 6, letterSpacing: 0.6, textTransform: 'uppercase' },
   modelTag: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 8 },
 
   sectionLabel: {

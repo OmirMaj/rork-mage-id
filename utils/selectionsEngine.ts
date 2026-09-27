@@ -152,14 +152,14 @@ export async function fetchSelectionsForProject(projectId: string): Promise<Sele
 export async function loadSelectionsChecked(
   projectId: string,
 ): Promise<{ ok: true; value: SelectionCategory[] } | { ok: false; error: string }> {
-  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, error: "Selections aren't available in this version of the app." };
   try {
     const { data: cats, error: catsErr } = await supabase
       .from('selection_categories')
       .select('*')
       .eq('project_id', projectId)
       .order('display_order', { ascending: true });
-    if (catsErr || !cats) return { ok: false, error: catsErr?.message || 'The selections could not be read.' };
+    if (catsErr || !cats) return { ok: false, error: "The selections couldn't be read. Check your connection and try again." };
     const ids = cats.map(c => c.id);
     if (ids.length === 0) return { ok: true, value: [] };
     const { data: opts, error: optsErr } = await supabase
@@ -167,7 +167,7 @@ export async function loadSelectionsChecked(
       .select('*')
       .in('category_id', ids)
       .order('unit_price', { ascending: true });
-    if (optsErr || !opts) return { ok: false, error: optsErr?.message || 'The selection options could not be read.' };
+    if (optsErr || !opts) return { ok: false, error: "The selection options couldn't be read. Check your connection and try again." };
     const byCategory = new Map<string, SelectionOption[]>();
     for (const o of opts) {
       const opt = rowToOption(o as SelectionOptionRow);
@@ -178,7 +178,7 @@ export async function loadSelectionsChecked(
     return { ok: true, value: cats.map(c => rowToCategory(c as SelectionCategoryRow, byCategory.get(c.id) ?? [])) };
   } catch (e) {
     // supabase-js can reject (not answer { error }) on a dropped connection.
-    return { ok: false, error: e instanceof Error ? e.message : 'The selections could not be read.' };
+    return { ok: false, error: "The selections couldn't be read. Check your connection and try again." };
   }
 }
 
@@ -420,7 +420,7 @@ export type ChooseOutcome =
 /** Choosing is refused offline rather than queued: the homeowner may be
  *  picking the same category in the portal right now, and a pick replayed
  *  hours later would silently overwrite his. */
-export const CHOOSE_OFFLINE_MESSAGE = 'Choosing needs signal — the homeowner may be picking in the portal right now. Try again when you\'re back online.';
+export const CHOOSE_OFFLINE_MESSAGE = 'Choosing needs a connection, because your client may be picking in the portal right now. Try again when you\'re back online.';
 
 function looksLikeNetworkFailure(message: string): boolean {
   const m = message.toLowerCase();
@@ -438,7 +438,7 @@ function looksLikeNetworkFailure(message: string): boolean {
  * stays.
  */
 export async function chooseSelectionOptionDetailed(categoryId: string, optionId: string): Promise<ChooseOutcome> {
-  if (!isSupabaseConfigured) return { ok: false, reason: 'failed', message: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, reason: 'failed', message: "Selections aren't available in this version of the app." };
   try {
     const { data, error } = await supabase.rpc('gc_choose_selection', {
       p_category_id: categoryId,
@@ -448,13 +448,13 @@ export async function chooseSelectionOptionDetailed(categoryId: string, optionId
       const msg = error.message ?? '';
       if (looksLikeNetworkFailure(msg)) return { ok: false, reason: 'offline', message: CHOOSE_OFFLINE_MESSAGE };
       if (msg.includes('selection_denied') || (error as { code?: string }).code === '42501') {
-        return { ok: false, reason: 'denied', message: 'Only the project owner can choose on this category.' };
+        return { ok: false, reason: 'denied', message: 'Only the project owner can choose in this category.' };
       }
       console.warn('[selectionsEngine] gc_choose_selection error:', msg);
-      return { ok: false, reason: 'failed', message: 'The pick was not saved. Nothing changed — try again.' };
+      return { ok: false, reason: 'failed', message: "The pick wasn't saved. Nothing changed. Try again." };
     }
     const res = (data ?? {}) as { ok?: boolean; status?: string; over?: number | string };
-    if (!res.ok) return { ok: false, reason: 'failed', message: 'The pick was not saved. Nothing changed — try again.' };
+    if (!res.ok) return { ok: false, reason: 'failed', message: "The pick wasn't saved. Nothing changed. Try again." };
     return {
       ok: true,
       status: res.status === 'exceeded' ? 'exceeded' : 'chosen',
@@ -465,7 +465,7 @@ export async function chooseSelectionOptionDetailed(categoryId: string, optionId
     if (e instanceof TypeError || looksLikeNetworkFailure(msg)) {
       return { ok: false, reason: 'offline', message: CHOOSE_OFFLINE_MESSAGE };
     }
-    return { ok: false, reason: 'failed', message: 'The pick was not saved. Nothing changed — try again.' };
+    return { ok: false, reason: 'failed', message: "The pick wasn't saved. Nothing changed. Try again." };
   }
 }
 

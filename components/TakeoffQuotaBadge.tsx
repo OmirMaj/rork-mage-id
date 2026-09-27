@@ -65,11 +65,11 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
         activeOpacity={0.85}
       >
         <View style={styles.iconWrap}>
-          <Crown size={14} color="#FF6A1A" strokeWidth={1.75} />
+          <Crown size={14} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.upgradeTitle}>Takeoffs are a Pro feature</Text>
-          <Text style={styles.muted}>Tap to upgrade and start running AI takeoffs.</Text>
+          <Text style={styles.upgradeTitle}>Takeoffs are on the Pro plan</Text>
+          <Text style={styles.muted}>Tap to see plans.</Text>
         </View>
       </TouchableOpacity>
     );
@@ -108,7 +108,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
           <Text style={[styles.subtitle, exceeds && { color: Colors.errorDark }]}>
             {pendingPages != null
               ? exceeds
-                ? `Only ${remaining} of ${cap} pages left — won't fit.`
+                ? `Only ${remaining} of ${cap} pages left. This file won't fit.`
                 : `Uses ${willUse} of ${remaining} remaining (${cap} ${tier ?? ''} cap)`
               : `${used} of ${cap} pages used · ${remaining} remaining`}
           </Text>
@@ -128,7 +128,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
         <View style={styles.exceedRow}>
           <TouchableOpacity onPress={onUpgrade} style={styles.upgradePill} activeOpacity={0.85}>
             <TrendingUp size={12} color={themeColors.surface} strokeWidth={1.75} />
-            <Text style={styles.upgradePillText}>Upgrade plan</Text>
+            <Text style={styles.upgradePillText}>See plans</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -152,7 +152,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 14, gap: 10,
   },
   upgradeRow: {
-    backgroundColor: '#FF6A1A' + '14',
+    backgroundColor: t.accentSoft,
     borderRadius: Tokens.radius.md,
   },
   iconWrap: {
@@ -162,7 +162,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
-  upgradeTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FF6A1A' },
+  upgradeTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accentLabel },
   subtitle: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
   muted: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   meter: {
@@ -183,7 +183,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: '#FF6A1A',
+    // accentFill, not accent: the pill carries text, and accentFill is the
+    // fill solved for white text at AA in both themes. textOnAccent rather than
+    // t.surface, which is near-black in dark mode.
+    backgroundColor: t.accentFill,
   },
-  upgradePillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.surface },
+  upgradePillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
 });

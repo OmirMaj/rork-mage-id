@@ -98,12 +98,12 @@ function PunchPinScreenInner() {
         {!projectsLoaded ? (
           <View style={styles.center} testID="pin-queue-loading-job">
             <ActivityIndicator color={t.textMuted} />
-            <Text style={styles.body}>Loading this job{'…'}</Text>
+            <Text style={styles.body}>Loading this project{'…'}</Text>
           </View>
         ) : (
           <ToolProjectPicker
             toolName="Pin items"
-            message="Pick the job whose punch items you want to pin on the plan."
+            message="Pick the project whose punch items you want to pin on the plan."
             projects={projects}
             onPick={setPickedProjectId}
             staleProjectId={staleProjectId}

@@ -388,7 +388,7 @@ export default function PredecessorPicker(props: PredecessorPickerProps) {
           {candidates.length > 0 && (
             <Text style={[styles.helper, { marginTop: 10 }]}>
               Tick everything this task waits on. Add a wait when there has to be
-              a gap — curing, drying, an inspector&apos;s visit — or step below
+              a gap (curing, drying, an inspector&apos;s visit), or step below
               zero to start early and overlap the task before it.
             </Text>
           )}

@@ -396,7 +396,7 @@ export function estimateWidgetRange(input: WidgetEstimateInput): WidgetEstimate 
   if (!type) {
     return emptyEstimate(
       input.projectType
-        ? `We don't publish a defensible rate for "${String(input.projectType).slice(0, 60)}". Pick the closest scope, or send the details straight to the contractor.`
+        ? `There is no defensible published rate for "${String(input.projectType).slice(0, 60)}". Pick the closest scope, or send the details straight to the contractor.`
         : 'Tell us what kind of project it is and we can put a range on it.',
       asOf,
     );

@@ -1,7 +1,8 @@
 import type { ScheduleTask, DependencyLink, ProjectSchedule, ScheduleRiskItem, ScheduleBaseline } from '@/types';
-import { PHASE_PALETTE, PHASE_FALLBACK } from '@/constants/colors';
+import { Colors, PHASE_PALETTE, PHASE_FALLBACK } from '@/constants/colors';
 import { generateUUID } from '@/utils/generateId';
 import { isWorkingDayOfWeek } from '@/utils/cpm';
+import { taskStatusLabel } from '@/utils/statusLabels';
 
 export const PHASE_OPTIONS = [
   'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
@@ -152,7 +153,7 @@ export function calculateHealthScore(tasks: ScheduleTask[], updatedAt: string): 
 }
 
 export function getHealthColor(score: number): string {
-  if (score >= 80) return '#34C759';
+  if (score >= 80) return Colors.successLabel;
   if (score >= 60) return '#FF9500';
   return '#FF3B30';
 }
@@ -211,17 +212,12 @@ export function getTaskDateRange(
 }
 
 export function getStatusLabel(status: ScheduleTask['status']): string {
-  switch (status) {
-    case 'done': return 'Complete';
-    case 'in_progress': return 'In Progress';
-    case 'on_hold': return 'On Hold';
-    default: return 'Not Started';
-  }
+  return taskStatusLabel(status);
 }
 
 export function getStatusColor(status: ScheduleTask['status']): string {
   switch (status) {
-    case 'done': return '#34C759';
+    case 'done': return Colors.successLabel; // label ink: app/client-view.tsx prints this as badge TEXT
     case 'in_progress': return '#007AFF';
     case 'on_hold': return '#FF9500';
     default: return '#8E8E93';
@@ -230,7 +226,7 @@ export function getStatusColor(status: ScheduleTask['status']): string {
 
 export function getTaskBorderColor(task: ScheduleTask, projectStartDate: Date, workingDaysPerWeek: number): string {
   if (task.isMilestone) return '#007AFF';
-  if (task.status === 'done') return '#34C759';
+  if (task.status === 'done') return Colors.success;
   if (task.status === 'not_started' && task.progress === 0) return '#C7C7CC';
 
   const { end } = getTaskDateRange(task, projectStartDate, workingDaysPerWeek);
@@ -239,7 +235,7 @@ export function getTaskBorderColor(task: ScheduleTask, projectStartDate: Date, w
 
   if (daysUntilEnd < 0) return '#FF3B30';
   if (daysUntilEnd <= 3) return '#FF9500';
-  return '#34C759';
+  return Colors.success;
 }
 
 export function suggestDuration(taskName: string): number {

@@ -93,7 +93,7 @@ describe('prequal form (Q5)', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('prequal-submit')); });
     await waitFor(() => expect(alertTitles()).toContain('Not submitted'));
     expect(alertTitles()).not.toContain('Submitted');
-    expect(screen.getByText('Link closed — ask the GC for a fresh link')).toBeTruthy();
+    expect(screen.getByText('Link closed. Ask your contractor for a fresh link.')).toBeTruthy();
     expect(screen.getByTestId('prequal-locked')).toBeTruthy();
   });
 

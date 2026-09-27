@@ -16,6 +16,7 @@ import { MONEY_FORMAT_HINT, setupBalanceFromInput, setupExpenseFromInput } from 
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface CashFlowSetupProps {
   visible: boolean;
@@ -26,9 +27,9 @@ interface CashFlowSetupProps {
 const EXPENSE_SUGGESTIONS: { name: string; category: ExpenseCategory; frequency: ExpenseFrequency }[] = [
   { name: 'Payroll', category: 'payroll', frequency: 'weekly' },
   { name: 'Insurance', category: 'insurance', frequency: 'monthly' },
-  { name: 'Office Overhead', category: 'overhead', frequency: 'monthly' },
-  { name: 'Vehicle Payments', category: 'loan', frequency: 'monthly' },
-  { name: 'Equipment Rental', category: 'equipment_rental', frequency: 'monthly' },
+  { name: 'Office overhead', category: 'overhead', frequency: 'monthly' },
+  { name: 'Vehicle payments', category: 'loan', frequency: 'monthly' },
+  { name: 'Equipment rental', category: 'equipment_rental', frequency: 'monthly' },
 ];
 
 const TERMS_OPTIONS = [
@@ -44,6 +45,9 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop: the 880 px right-docked panel over the cash-flow page (d6r X3,
+  // R-PANEL); a phone keeps its native page sheet (every frame part is null).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [step, setStep] = useState(0);
   const [startingBalance, setStartingBalance] = useState('');
   const [expenses, setExpenses] = useState<CashFlowExpense[]>([]);
@@ -132,10 +136,10 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
 
   const freqLabel = (f: ExpenseFrequency) => {
     switch (f) {
-      case 'weekly': return '/week';
-      case 'biweekly': return '/2 weeks';
-      case 'monthly': return '/month';
-      case 'one_time': return 'one-time';
+      case 'weekly': return 'Weekly';
+      case 'biweekly': return 'Every 2 weeks';
+      case 'monthly': return 'Monthly';
+      case 'one_time': return 'One-time';
     }
   };
 
@@ -144,9 +148,9 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.accent + '15' }]}>
         <Wallet size={32} color={themeColors.accent} strokeWidth={1.75} />
       </View>
-      <Text style={styles.stepTitle}>Current Bank Balance</Text>
+      <Text style={styles.stepTitle}>Current bank balance</Text>
       <Text style={styles.stepDesc}>
-        This is your starting point. We'll project forward from here.
+        Your forecast starts from this number.
       </Text>
       <View style={styles.balanceInputWrap}>
         <Text style={styles.dollarSign}>$</Text>
@@ -171,7 +175,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.danger + '15' }]}>
         <DollarSign size={32} color={themeColors.danger} strokeWidth={1.75} />
       </View>
-      <Text style={styles.stepTitle}>Recurring Expenses</Text>
+      <Text style={styles.stepTitle}>Recurring expenses</Text>
       <Text style={styles.stepDesc}>
         Add your regular business expenses. You can always add more later.
       </Text>
@@ -213,7 +217,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
                 testID={`setup-expense-amount-${exp.name}`}
               />
             </View>
-            <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel="Delete">
+            <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel={`Remove ${exp.name}`}>
               <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -224,7 +228,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
           </Text>
         )}
         {expenses.length === 0 && (
-          <Text style={styles.emptyText}>Tap suggestions above to add expenses</Text>
+          <Text style={styles.emptyText}>Tap a suggestion above to add an expense.</Text>
         )}
       </ScrollView>
     </View>
@@ -235,7 +239,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.info + '15' }]}>
         <Clock size={32} color={themeColors.info} strokeWidth={1.75} />
       </View>
-      <Text style={styles.stepTitle}>Default Payment Terms</Text>
+      <Text style={styles.stepTitle}>Default payment terms</Text>
       <Text style={styles.stepDesc}>
         When you invoice clients, how long do they typically take to pay?
       </Text>
@@ -268,39 +272,40 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
         default: return sum;
       }
     }, 0);
+    const pricedCount = pricedExpenses.filter(e => e.amount > 0).length;
 
     return (
       <View style={styles.stepContent}>
         <View style={[styles.stepIconWrap, { backgroundColor: themeColors.success + '15' }]}>
           <CheckCircle size={32} color={themeColors.success} strokeWidth={1.75} />
         </View>
-        <Text style={styles.stepTitle}>You're All Set!</Text>
+        <Text style={styles.stepTitle}>Cash-flow forecast ready</Text>
         <Text style={styles.stepDesc}>
-          As you create invoices and track expenses in MAGE ID, your forecast gets smarter automatically.
+          Your forecast updates as you send invoices and log expenses in MAGE ID.
         </Text>
 
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Starting Balance</Text>
+            <Text style={styles.summaryLabel}>Starting balance</Text>
             <Text style={styles.summaryValue} testID="setup-summary-balance">
               {parsedBalance === null ? MONEY_FORMAT_HINT : `${parsedBalance < 0 ? '-' : ''}$${Math.abs(parsedBalance).toLocaleString('en-US', { maximumFractionDigits: 2 })}`}
             </Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Recurring Expenses</Text>
-            <Text style={styles.summaryValue}>{pricedExpenses.filter(e => e.amount > 0).length} items</Text>
+            <Text style={styles.summaryLabel}>Recurring expenses</Text>
+            <Text style={styles.summaryValue}>{pricedCount} {pricedCount === 1 ? 'item' : 'items'}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Est. Monthly Burn</Text>
+            <Text style={styles.summaryLabel}>Monthly spend (est.)</Text>
             <Text style={[styles.summaryValue, { color: themeColors.danger }]}>
               ${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Payment Terms</Text>
+            <Text style={styles.summaryLabel}>Payment terms</Text>
             <Text style={styles.summaryValue}>
               {TERMS_OPTIONS.find(t => t.value === defaultTerms)?.label}
             </Text>
@@ -314,13 +319,15 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const isLast = step === 3;
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} transparent={fP.transparent} onRequestClose={onClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <KeyboardAvoidingView style={[{ flex: 1 }, fP.card, fP.isDesktop && { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
-          <View style={styles.handle} />
+          {fP.showHandle && <View style={styles.handle} />}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
-            <Text style={styles.headerTitle}>Cash Flow Setup</Text>
+            <Text style={styles.headerTitle}>Set up cash flow</Text>
             <Text style={styles.stepIndicator}>{step + 1}/4</Text>
           </View>
 
@@ -351,12 +358,13 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
               activeOpacity={0.85}
               testID="cash-flow-setup-next"
             >
-              <Text style={styles.nextButtonText}>{isLast ? 'Start Forecasting' : 'Continue'}</Text>
+              <Text style={styles.nextButtonText}>{isLast ? 'Start forecast' : 'Continue'}</Text>
               {!isLast && <ChevronRight size={18} color={'#FFFFFF'} strokeWidth={1.75} />}
             </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
+      </SheetOverlay>
     </Modal>
   );
 }

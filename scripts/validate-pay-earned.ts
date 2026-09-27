@@ -60,7 +60,7 @@ ok('approve === 16,800 − 13,000 = 3,800 in exact cents', a.suggestApproveCents
 ok('approve + hold === this, in cents', (a.suggestApproveCents ?? 0) + (a.holdCents ?? 0) === a.thisCents && a.thisCents === 1_676_000);
 ok('hold is 12,960', a.holdCents === 1_296_000, String(a.holdCents));
 ok('headline states billed % and work %',
-  a.headline === 'Acme Electric LLC has billed 62% of their $48,000 contract. Their scheduled tasks are 35% done, and your daily reports list them on site on 6 day(s).',
+  a.headline === 'Acme Electric LLC has billed 62% of their $48,000 contract. Their scheduled tasks are 35% done, and your daily reports list them on site on 6 days.',
   a.headline);
 ok('suggestion names both amounts',
   a.suggestion === 'Suggest approving $3,800 now and holding $12,960 until the work catches up.', a.suggestion ?? '');
@@ -69,8 +69,8 @@ ok('note to sub names the invoice, the amount and the split',
   && a.noteToSub.includes('We can approve $3,800 now') && a.noteToSub.includes('remaining $12,960'), a.noteToSub ?? '');
 ok('evidence lists every task, presence and punch',
   a.evidence.includes('Task a: 35% (10 d)') && a.evidence.includes('Task b: 35% (20 d)')
-  && a.evidence.some(e => e.startsWith('Acme Electric LLC is on your daily reports (by company name) on 6 day(s), last '))
-  && a.evidence.includes('2 open punch item(s) on this sub'), JSON.stringify(a.evidence));
+  && a.evidence.some(e => e.startsWith('Acme Electric LLC is on your daily reports (by company name) on 6 days, last '))
+  && a.evidence.includes('2 open punch items on this sub'), JSON.stringify(a.evidence));
 
 // Rounding: an odd-cent case still reconciles exactly.
 const odd = subBillCheck(input({
@@ -97,7 +97,7 @@ ok('no_tasks copy', nt.headline === 'No schedule tasks are assigned to Acme Elec
 const st = subBillCheck(input({ tasks: [task('a', 0, 10), task('b', 0, 5)], presence: { reportedDaysPresent: 6, lastSeen: '2026-09-20' } }));
 ok('all tasks 0% + 6 presence days → stale_schedule', st.verdict === 'stale_schedule', st.verdict);
 ok('stale_schedule holds nothing', st.holdCents === null && st.suggestApproveCents === null && st.noteToSub === null);
-ok('stale_schedule copy', st.headline === 'Every task assigned to Acme Electric LLC still reads 0%, but your daily reports list them on site on 6 day(s). Update task progress before holding any money.', st.headline);
+ok('stale_schedule copy', st.headline === 'Every task assigned to Acme Electric LLC still reads 0%, but your daily reports list them on site on 6 days. Update task progress before holding any money.', st.headline);
 const st1 = subBillCheck(input({ tasks: [task('a', 0, 10)], presence: { reportedDaysPresent: 1, lastSeen: '2026-09-20' } }));
 ok('one presence day is not enough to call the schedule stale', st1.verdict !== 'stale_schedule', st1.verdict);
 

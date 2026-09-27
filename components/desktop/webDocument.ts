@@ -58,12 +58,15 @@ export const THEME_BODY_CSS = [
 ].join('\n');
 
 /**
- * Print (Cmd+P). Two jobs:
+ * Print (Cmd+P). Three jobs:
  *
  * 1. The shell must not reach paper: the primary <nav> (DesktopSidebar's
  *    accessibilityRole="navigation" + label), the right-hand dock, the
- *    floating sync pill and anything a screen tags data-print="hide" (FABs,
- *    rails, sticky footers — wave 6c tags its own).
+ *    floating sync pill, the Brain and Help floating buttons (by their
+ *    testIDs, 'brain-fab' / 'help-fab', at every width — d6r Z1;
+ *    scripts/validate-desktop-page-map pins both ids in their components) and
+ *    anything a screen tags data-print="hide" (FABs, rails, sticky footers —
+ *    wave 6c tags its own).
  *
  * 2. The whole page must print, not one window of it. react-native-web locks
  *    html/body/#root to the window with overflow:hidden and every ScrollView
@@ -84,6 +87,13 @@ export const THEME_BODY_CSS = [
  * untagged footer at the bottom of sheet 1 and the tagged one gone; with no
  * release it printed 1 clipped sheet + 1 blank; with `height:auto` the
  * untagged footer printed over the title.
+ *
+ * 3. A canvas wider than the sheet is zoomed to fit it: hooks/usePrintFit tags
+ *    the canvas root data-print="fit", and on `beforeprint` sets
+ *    --mage-print-fit on it (utils/printFit printFitZoom: the landscape page
+ *    width over the canvas's full scroll width, clamped at Layout.print.fitMin)
+ *    and appends a landscape @page; `afterprint` removes both. With no
+ *    variable set the zoom is 1 — a tagged canvas prints as it always did.
  */
 export const PRINT_CSS = [
   '@media print {',
@@ -97,8 +107,13 @@ export const PRINT_CSS = [
   "  nav[aria-label='Primary navigation'],",
   '  #mage-shell-dock,',
   '  #mage-sync-pill,',
+  "  [data-testid='brain-fab'],",
+  "  [data-testid='help-fab'],",
   "  [data-print='hide'] {",
   '    display: none !important;',
+  '  }',
+  "  [data-print='fit'] {",
+  '    zoom: var(--mage-print-fit, 1);',
   '  }',
   '}',
 ].join('\n');
@@ -126,8 +141,9 @@ export const PRINT_CSS = [
  *  - A brand focus ring for keyboard focus (:focus-visible only, so a mouse
  *    click draws none). The accent is a per-user hue at runtime, and a static
  *    document cannot follow it, so the ring is the BRAND family: accentFill on
- *    light (#FF6A1A itself is 2.87:1 there, under the 3:1 a focus indicator
- *    needs) and accent on dark, keyed on the same data-theme tag as the page
+ *    light (#2F6B3A since the 2026-09-16 rebrand; the raw accent of a picked
+ *    hue may miss the 3:1 a focus indicator needs, accentFill never does) and
+ *    accent on dark (#5DB36E), keyed on the same data-theme tag as the page
  *    ground above.
  */
 const FOCUS_LIGHT = deriveAccentPalette(BRAND_ACCENT, 'light').accentFill;

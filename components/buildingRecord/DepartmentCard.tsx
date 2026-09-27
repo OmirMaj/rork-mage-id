@@ -83,7 +83,7 @@ function DepartmentCardBody({
 
   return (
     <Card testID={testID}>
-      <Card.Label>BUILDING DEPARTMENT</Card.Label>
+      <Card.Label>Building department</Card.Label>
       {headline ? <Text style={s.note} testID={`${testID}-headline`}>{headline}</Text> : null}
       <Card.Title>{authorityName}</Card.Title>
 
@@ -144,7 +144,7 @@ function PermitOfficeLookup({ query, testID }: { query: PlaceQuery; testID: stri
   if (lookup.status === 'idle' || lookup.status === 'loading') {
     return (
       <Card testID={`${testID}-loading`}>
-        <Card.Label>BUILDING DEPARTMENT</Card.Label>
+        <Card.Label>Building department</Card.Label>
         <Text style={s.body}>Finding which town, village or city issues permits here…</Text>
       </Card>
     );
@@ -152,7 +152,7 @@ function PermitOfficeLookup({ query, testID }: { query: PlaceQuery; testID: stri
   if (lookup.status === 'error') {
     return (
       <Card testID={`${testID}-error`}>
-        <Card.Label>BUILDING DEPARTMENT</Card.Label>
+        <Card.Label>Building department</Card.Label>
         <Text style={s.body}>Couldn&apos;t reach the Census geocoder, so MAGE didn&apos;t look up the permit office. It will try again next time.</Text>
       </Card>
     );
@@ -167,7 +167,7 @@ function PermitOfficeLookup({ query, testID }: { query: PlaceQuery; testID: stri
   if (answer.kind === 'unresolved' || !answer.office) {
     return (
       <Card testID={`${testID}-unresolved`}>
-        <Card.Label>BUILDING DEPARTMENT</Card.Label>
+        <Card.Label>Building department</Card.Label>
         {answer.headline ? <Text style={s.note} testID={`${testID}-headline`}>{answer.headline}</Text> : null}
         <Card.Meta>From US Census geography</Card.Meta>
       </Card>
@@ -187,7 +187,7 @@ function PermitOfficeBody({
 
   return (
     <Card testID={testID}>
-      <Card.Label>BUILDING DEPARTMENT</Card.Label>
+      <Card.Label>Building department</Card.Label>
       {headline ? <Text style={s.note} testID={`${testID}-headline`}>{headline}</Text> : null}
       <Card.Title>{o.title}</Card.Title>
       {o.subtitle ? <Text style={s.body}>{o.subtitle}</Text> : null}

@@ -40,7 +40,8 @@ import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
-import { Button, cardSurface } from '@/components/ui';
+import { Button, cardSurface, useIsDesktopWeb } from '@/components/ui';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { markupForSource, sourcePhotoIdOf } from '@/components/PhotoMarkupOverlay';
 import { nailIt } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
@@ -98,6 +99,9 @@ import {
 export function PunchExportHeaderButton({ onPress }: { onPress: () => void }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Desktop web: the sheet prints (a print tab) as well as exporting, so the
+  // header says so. The phone keeps 'Export'.
+  const isDesktopWeb = useIsDesktopWeb();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -105,11 +109,11 @@ export function PunchExportHeaderButton({ onPress }: { onPress: () => void }) {
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel="Export the punch list"
-      accessibilityHint="PDF report or spreadsheet"
+      accessibilityHint={isDesktopWeb ? 'Print, save as PDF, or download a spreadsheet' : 'PDF report or spreadsheet'}
       testID="punch-export-open"
     >
       <FileDown size={18} color={t.accent} strokeWidth={1.75} />
-      <Text style={styles.headerBtnText}>Export</Text>
+      <Text style={styles.headerBtnText}>{isDesktopWeb ? 'Print / export' : 'Export'}</Text>
     </TouchableOpacity>
   );
 }
@@ -300,7 +304,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
     // The sheet is gone by the time the share sheet fails, so the failure is
     // told in an alert rather than in the (closed) sheet.
     const share = () => {
-      void shareExportFile(uri, kind, `Punch list — ${projectName}`).then(res => {
+      void shareExportFile(uri, kind, `Punch list · ${projectName}`).then(res => {
         if (res.ok) return;
         const copy = shareFailureCopy(kind);
         showAlert(copy.title, copy.body);
@@ -391,7 +395,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
     trackDone(blockedState.model, 'pdf', blockedState.photoCount);
     setPhase({ kind: 'idle' });
     onClose();
-    nailIt('The report is open in a new tab — print it or save it as a PDF from there.');
+    nailIt('Report opened in a new tab. Print or save it as a PDF.');
   }, [trackDone, onClose]);
 
   const runWebPdf = useCallback(async (id: number, handle: PrintWindowHandle, model: PunchExportModel, includePhotos: boolean) => {
@@ -530,15 +534,20 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
     next?.();
   }, []);
 
+  // Desktop web: a centred wide card beside the sidebar (all-null on a phone).
+  // The primary shares / downloads the file, so Cmd/Ctrl+Enter only.
+  const fExport = useSheetFrame('wide', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, !disabledReason && !running ? onPrimaryPress : null, { saveKey: false });
+
   // ── Render ────────────────────────────────────────────────────────────
   const showCrewToggle = effScope === 'all' && listChoice.available;
   const progress = phase.kind === 'running' ? phase : null;
   const determinate = progress && (progress.step === 'photos' || progress.step === 'plans') && progress.total > 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose} onDismiss={handleDismissed}>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }]}>
+    <Modal visible={visible} transparent animationType={fExport.animationType} onRequestClose={handleClose} onDismiss={handleDismissed}>
+      <View style={[styles.overlay, fExport.overlay]}>
+        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }, fExport.card]}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.headerRow}>
               <View style={styles.headerText}>
@@ -557,7 +566,7 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionLabel}>WHAT TO EXPORT</Text>
+            <Text style={styles.sectionLabel}>What to export</Text>
             <View accessibilityRole="radiogroup">
               {options.map(o => {
                 const checked = o.scope === effScope;
@@ -602,13 +611,13 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
                 <View style={styles.optionText}>
                   <Text style={styles.optionLabel}>Include the crew list (internal)</Text>
                   <Text style={styles.optionDetail}>
-                    Marked INTERNAL in the PDF and the file name. Turn it off for a copy you send to the owner or client.
+                    Marked INTERNAL in the PDF and the file name. Turn it off for a copy you send to the client.
                   </Text>
                 </View>
               </TouchableOpacity>
             ) : null}
 
-            <Text style={styles.sectionLabel}>FORMAT</Text>
+            <Text style={styles.sectionLabel}>Format</Text>
             <View style={styles.chipRow}>
               {([
                 { f: 'pdf' as const, label: 'PDF report', Icon: FileText },
@@ -634,13 +643,13 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
             </View>
             {format === 'csv' ? (
               <Text style={styles.note}>
-                One row per item with every field — dates as YYYY-MM-DD. Opens in Excel, Numbers or Google Sheets. A cell that starts with = + - or @ gets a leading apostrophe so a spreadsheet will not run it as a formula.
+                One row per item with every field, dates as YYYY-MM-DD, ready for Excel, Numbers or Google Sheets. A cell that starts with = + - or @ gets a leading apostrophe so it never runs as a formula.
               </Text>
             ) : null}
 
             {format === 'pdf' ? (
               <>
-                <Text style={styles.sectionLabel}>PHOTOS</Text>
+                <Text style={styles.sectionLabel}>Photos</Text>
                 <TouchableOpacity
                   onPress={togglePhotos}
                   disabled={running}
@@ -756,6 +765,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     ...Type.caption2,
     fontWeight: '700',
     letterSpacing: 0.8,
+    textTransform: 'uppercase',
     color: t.textSecondary,
     marginTop: Tokens.spacing.md,
     marginBottom: 8,

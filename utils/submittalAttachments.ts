@@ -97,8 +97,8 @@ export function attachmentUploadBlock(o: {
   roleError: boolean;
 }): string | null {
   if (o.role === 'owner' || o.role === 'editor') return null;
-  if (o.roleLoading) return 'Checking your access to this job…';
-  if (o.roleError) return "Couldn't check your access to this job, so files can't be added yet. Check your connection.";
+  if (o.roleLoading) return 'Checking your access to this project…';
+  if (o.roleError) return "Couldn't check your access to this project, so files can't be added yet. Check your connection.";
   if (o.role === 'field' || o.role === 'viewer') {
     return 'Only the project owner or an editor can attach files to a submittal. Send the cut sheet to your GC to attach.';
   }
@@ -150,9 +150,9 @@ export function submittalEmailIntro(o: { coverSheet: boolean; productNames: stri
   }
   if (o.coverSheet) parts.unshift('the submittal cover sheet');
   if (parts.length === 0) {
-    return 'Please review the submittal details below and reply with your action code when ready.';
+    return 'Review the submittal details below and reply with your action code when ready.';
   }
-  return `Attached: ${parts.join(' and ')}. Please review and reply with your action code when ready.`;
+  return `Attached: ${parts.join(' and ')}. Review them and reply with your action code when ready.`;
 }
 
 /**

@@ -91,7 +91,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
         {!loaded ? (
           <Text style={[styles.muted, styles.pad]}>Loading backcharges…</Text>
         ) : open.length === 0 && applied.length === 0 ? (
-          <Text style={[styles.muted, styles.pad]}>No backcharges on this sub for this job.</Text>
+          <Text style={[styles.muted, styles.pad]}>No backcharges on this sub for this project.</Text>
         ) : null}
         {open.map((b, i) => {
           const thumb = thumbOf(b);
@@ -161,7 +161,7 @@ export function BackchargeSection({ project, sub, commitments, invoices }: Backc
           />
         ) : null}
       </View>
-      {!loaded ? <Text style={styles.muted}>Loading — New backcharge opens once the list is read.</Text> : null}
+      {!loaded ? <Text style={styles.muted}>Loading. New backcharge opens once the list loads.</Text> : null}
       {shareMsg ? <Text style={styles.muted}>{shareMsg}</Text> : null}
       {sheetOpen ? (
         <BackchargeSheet

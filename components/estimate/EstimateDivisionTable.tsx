@@ -10,7 +10,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import * as Haptics from 'expo-haptics';
 import { ChevronRight, ChevronDown, Layers } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import type { CostBookEntry } from '@/utils/costDatabase';
 import { RateProvenanceChip } from '@/components/estimate/RateProvenanceChip';
@@ -40,7 +40,11 @@ export interface DivisionRow {
 // tokens (steel/closeout) per the redesign's no-purple rule; unmapped
 // divisions fall back to slate.
 const DIVISION_COLOR: Record<string, string> = {
-  '01': '#FF6A1A', '02': '#66BB6A', '03': '#90A4AE', '04': '#4FC3F7',
+  // 01 General Requirements is the brand's division, so it takes the
+  // general-trade token (#3E8A4B) the Gantt uses — a step lighter than the
+  // brand so it holds on the dark page, and still well clear of the pale
+  // #66BB6A / #5FBF6B site-work and finishes greens below.
+  '01': Colors.tradeColors.general, '02': '#66BB6A', '03': '#90A4AE', '04': '#4FC3F7',
   '05': '#FFA726', '06': '#8D6E63', '07': '#EF5350', '08': '#26C6DA',
   '09': '#5FBF6B', '22': '#26C6DA', '23': '#FFA726', '26': '#4FC3F7',
   '31': '#66BB6A', '32': '#66BB6A', '33': '#90A4AE',
@@ -66,7 +70,7 @@ export function EstimateDivisionTable({ divisions }: { divisions: DivisionRow[] 
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <Text style={styles.headerLabel}>SCOPE</Text>
+        <Text style={styles.headerLabel}>Scope</Text>
         <Text style={styles.headerCount}>{divisions.length} {divisions.length === 1 ? 'division' : 'divisions'}</Text>
       </View>
       <View style={styles.card}>
@@ -125,7 +129,7 @@ export function EstimateDivisionTable({ divisions }: { divisions: DivisionRow[] 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   wrap: { marginTop: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 },
-  headerLabel: { fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800' },
+  headerLabel: { textTransform: 'uppercase', fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800' },
   headerCount: { fontSize: 11.5, color: t.textMuted },
   card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, paddingVertical: 12 },

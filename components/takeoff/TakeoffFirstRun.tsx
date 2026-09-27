@@ -36,11 +36,11 @@ export default function TakeoffFirstRun({ projectId, jobs, onPickJob, onDropFile
     return (
       <View style={styles.wrap} testID="takeoffws-firstrun-nojob">
         <View style={styles.col}>
-          <Text style={styles.title} accessibilityRole="header">Pick a job to take off</Text>
+          <Text style={styles.title} accessibilityRole="header">Pick a project to take off</Text>
           {jobs.length > 0 ? (
             <EstimateJobPicker label="Take off for" jobs={jobs} selectedId={undefined} onPick={onPickJob} testID="takeoffws-firstrun-jobs" />
           ) : (
-            <Text style={styles.steps}>No job has an estimate yet. Start one in Estimate, then come back to measure its plans.</Text>
+            <Text style={styles.steps}>No project has an estimate yet. Start one in Estimate, then come back to measure its plans.</Text>
           )}
         </View>
       </View>
@@ -52,7 +52,7 @@ export default function TakeoffFirstRun({ projectId, jobs, onPickJob, onDropFile
   const column = (
     <View style={styles.wrap} testID="takeoffws-firstrun">
       <View style={styles.col}>
-        <Text style={styles.title} accessibilityRole="header">Measure a plan. Price it from your own jobs.</Text>
+        <Text style={styles.title} accessibilityRole="header">Measure a plan. Price it from your own projects.</Text>
         <TouchableOpacity
           style={styles.primary}
           onPress={() => router.push({ pathname: '/plans', params: { projectId } })}

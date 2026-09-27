@@ -106,7 +106,7 @@ console.log('\n#17 (carry) · deleting a paid sub:');
   ok('…and paid sub-portal invoices', /\.from\('sub_submitted_invoices'\)[\s\S]*?\.eq\('subcontractor_id', sub\.id\)[\s\S]*?\.eq\('status', 'paid'\)/.test(del));
   ok('…and warns that the 1099 export loses the TIN and address', /They'll still appear on the 1099 export, but their TIN and address will be gone/.test(del));
   ok('…with keeping them the cancel (easy) choice', /\{ text: 'Keep them', style: 'cancel' \}/.test(del));
-  ok('a failed invoice check is said out loud, not read as "none"', /We couldn't check his portal invoices just now/.test(del));
+  ok('a failed invoice check is said out loud, not read as "none"', /Couldn’t check this sub’s portal invoices/.test(del));
 }
 
 console.log(`\nvalidate-w5-coi-subs-evaluator: ${pass} passed, ${fail} failed\n`);

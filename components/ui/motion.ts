@@ -46,6 +46,30 @@ import { Motion } from '@/constants/designTokens';
  */
 export const nativeDriver = Platform.OS !== 'web';
 
+/**
+ * Motion.easing as real Animated curves — the first use of those tokens.
+ * `out` for everything arriving, `in` for everything leaving (an exit starts
+ * slow and gets out of the way), `inOut` for a move between two resting places.
+ * Built here, not in designTokens: that file stays pure data (the bun
+ * validators load it under a react-native stub with no Easing).
+ *
+ * Each curve is built on first READ (then cached), never at module load: the
+ * bun validators import this file under a react-native stub whose Easing has
+ * no bezier, and a module-load call would crash them.
+ */
+type Curve = (t: number) => number;
+const curveCache: Partial<Record<'out' | 'in' | 'inOut', Curve>> = {};
+function curve(key: 'out' | 'in' | 'inOut', p: readonly [number, number, number, number]): Curve {
+  return (curveCache[key] ??= Easing.bezier(p[0], p[1], p[2], p[3]));
+}
+export const motionCurve = {
+  get out(): Curve { return curve('out', Motion.easing.decelerate); },
+  get in(): Curve { return curve('in', Motion.easing.accelerate); },
+  get inOut(): Curve { return curve('inOut', Motion.easing.standard); },
+};
+
+type SpringPreset = { damping: number; stiffness: number; mass: number };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Reduce Motion — one module-level store, one OS listener for the whole app.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,13 +190,16 @@ export function layoutNext(): void {
  * null until this hook has SEEN `visible` go false → true after mount (so a
  * first render and every golden is unchanged). From then on it returns
  * `{ transform: [{ translateY }] }` for good, resting at 0: each open starts
- * `distance` points low and springs up with Motion.spring.rise (ζ≈0.96, no
- * bounce). Under Reduce Motion, and on web, it is always null.
+ * `distance` points low and springs up with `spring` (default
+ * Motion.spring.rise, ζ≈0.96, no bounce; a phone sheet travelling its own
+ * height passes Motion.spring.sheet). `distance` is read at the open: a change
+ * while the sheet is already open does not restart it. Under Reduce Motion,
+ * and on web, it is always null.
  *
  * The transform lives on the CARD, never on the Modal root: a transform on an
  * ancestor re-roots position:fixed children on web.
  */
-export function useRiseOnOpen(visible: boolean, distance = 28): ViewStyle | null {
+export function useRiseOnOpen(visible: boolean, distance = 28, spring: SpringPreset = Motion.spring.rise): ViewStyle | null {
   const reduce = useReducedMotion();
   const prev = useRef(visible);
   const armed = useRef(false);
@@ -196,11 +223,56 @@ export function useRiseOnOpen(visible: boolean, distance = 28): ViewStyle | null
     const v = value.current;
     if (was || !visible || !v || reducedMotion()) return;
     v.setValue(distance);
-    Animated.spring(v, { toValue: 0, ...Motion.spring.rise, useNativeDriver: nativeDriver }).start();
+    Animated.spring(v, { toValue: 0, ...spring, useNativeDriver: nativeDriver }).start();
     // Never a setState on completion: the resting value is already 0.
-  }, [visible, distance]);
+    // A new `distance` / `spring` while open re-runs this, but `was` is true
+    // then, so it only shapes the NEXT open.
+  }, [visible, distance, spring]);
 
   return reduce ? null : style.current;
+}
+
+/**
+ * The translateY Animated.Value inside a useRiseOnOpen style (null for null).
+ * For a card that composes the rise with a value of its own (the <Sheet>
+ * drag), so the shape of the rise style is known in this one file.
+ */
+export function riseValueOf(style: ViewStyle | null): Animated.Value | null {
+  const t = style?.transform as unknown as { translateY?: unknown }[] | undefined;
+  const v = t?.[0]?.translateY;
+  return v instanceof Animated.Value ? v : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// tabFadeThrough — the phone tab switch.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type TabSceneProps = { current: { progress: Animated.Value } };
+
+// progress per scene: -1 left of the active tab, 0 active, 1 right of it. The
+// leaving scene fades out over the first 45 % of the switch and the arriving
+// one fades in over the last 45 % — they are never both visible, so Home's
+// cards no longer ghost through Schedule's rows (the stock forFade maps
+// [-1, 0, 1] → [0, 1, 0]: both scenes half-visible at the midpoint).
+// Linear pieces only: bottom-tabs drives it on the native driver.
+const FADE_THROUGH = { inputRange: [-1, -0.45, 0, 0.45, 1], outputRange: [0, 0, 1, 0, 0] };
+
+/**
+ * sceneStyleInterpolator for the phone tab navigator: a fade-through, and the
+ * arriving scene rises the last 8 pt into place.
+ */
+export function tabFadeThrough({ current }: TabSceneProps) {
+  return {
+    sceneStyle: {
+      opacity: current.progress.interpolate(FADE_THROUGH),
+      transform: [{ translateY: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [8, 0, 8] }) }],
+    },
+  };
+}
+
+/** tabFadeThrough under Reduce Motion: opacity only, nothing moves. */
+export function tabFadeThroughReduced({ current }: TabSceneProps) {
+  return { sceneStyle: { opacity: current.progress.interpolate(FADE_THROUGH) } };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

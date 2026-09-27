@@ -18,6 +18,7 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import {
   parseVoiceCommand,
   parseBatchVoiceCommand,
@@ -72,7 +73,7 @@ const HistoryItem = React.memo(function HistoryItem({
   const timeAgo = useMemo(() => {
     const diff = Date.now() - new Date(item.timestamp).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
+    if (mins < 1) return 'Just now';
     if (mins < 60) return `${mins} min ago`;
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `${hours} hr ago`;
@@ -116,6 +117,10 @@ export default function VoiceCommandModal({
   const inputRef = useRef<TextInput>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const autoDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Desktop web: a centred card in the content column (the whole-window
+  // Pressable stays the scrim, over the sidebar too). Phone: every part is
+  // null — today's sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   useEffect(() => {
     if (visible) {
@@ -159,7 +164,7 @@ export default function VoiceCommandModal({
     try {
       if (isDailyReport(text)) {
         const reportData = await parseDailyReportVoice(text, projectName);
-        setResultMessage('Daily report data extracted! Open Daily Report to review.');
+        setResultMessage('Daily report details captured. Open the daily report to review them.');
         setModalState('success');
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -182,7 +187,7 @@ export default function VoiceCommandModal({
           const batchItems: BatchResultItem[] = batchParsed.commands.map((cmd, i) => ({
             taskName: cmd.taskName,
             success: results[i]?.success ?? false,
-            message: results[i]?.message ?? 'Unknown error',
+            message: results[i]?.message ?? `Couldn't update "${cmd.taskName}"`,
           }));
           setBatchResults(batchItems);
           setUndoAction(results[0]?.undoAction ? () => results[0].undoAction?.() : null);
@@ -316,11 +321,11 @@ export default function VoiceCommandModal({
         />
         <View style={s.inputHint}>
           <Mic size={14} color={Colors.textMuted} strokeWidth={1.75} />
-          <Text style={s.inputHintText}>Tap mic on keyboard to speak</Text>
+          <Text style={s.inputHintText}>Tap the mic on your keyboard to speak</Text>
         </View>
       </View>
 
-      <Text style={s.sectionLabel}>Quick Commands</Text>
+      <Text style={s.sectionLabel}>Quick commands</Text>
       <View style={s.chipsRow}>
         {QUICK_COMMANDS.map((cmd, i) => (
           <TouchableOpacity
@@ -355,8 +360,8 @@ export default function VoiceCommandModal({
   const renderProcessing = () => (
     <View style={s.stateContainer}>
       <ConstructionLoader size="lg" />
-      <Text style={s.stateTitle}>Understanding...</Text>
-      <Text style={s.stateSubtitle}>Analyzing your command</Text>
+      <Text style={s.stateTitle}>Reading your command…</Text>
+      <Text style={s.stateSubtitle}>Matching it to your schedule</Text>
     </View>
   );
 
@@ -365,7 +370,7 @@ export default function VoiceCommandModal({
       <View style={s.successIcon}>
         <CheckCircle2 size={36} color={Colors.successLabel} strokeWidth={1.75} />
       </View>
-      <Text style={s.stateTitle}>Done!</Text>
+      <Text style={s.stateTitle}>Done</Text>
       <Text style={s.stateMessage}>{resultMessage}</Text>
       <View style={s.actionRow}>
         {undoAction && (
@@ -376,7 +381,7 @@ export default function VoiceCommandModal({
         )}
         <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
           <Mic size={14} color="#fff" strokeWidth={1.75} />
-          <Text style={s.newCmdBtnText}>New Command</Text>
+          <Text style={s.newCmdBtnText}>New command</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -387,7 +392,7 @@ export default function VoiceCommandModal({
       <View style={s.successIcon}>
         <CheckCircle2 size={36} color={Colors.successLabel} strokeWidth={1.75} />
       </View>
-      <Text style={s.stateTitle}>{batchResults.filter(r => r.success).length} updates applied</Text>
+      <Text style={s.stateTitle}>{batchResults.filter(r => r.success).length} {batchResults.filter(r => r.success).length === 1 ? 'update' : 'updates'} applied</Text>
       <View style={s.batchList}>
         {batchResults.map((r, i) => (
           <View key={i} style={s.batchItem}>
@@ -404,11 +409,11 @@ export default function VoiceCommandModal({
         {undoAction && (
           <TouchableOpacity style={s.undoBtn} onPress={handleUndo} activeOpacity={0.7}>
             <RotateCcw size={14} color={Colors.primary} strokeWidth={1.75} />
-            <Text style={s.undoBtnText}>Undo All</Text>
+            <Text style={s.undoBtnText}>Undo all</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
-          <Text style={s.newCmdBtnText}>Done</Text>
+          <Text style={s.newCmdBtnText}>New command</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -429,7 +434,7 @@ export default function VoiceCommandModal({
       </View>
       <View style={s.actionRow}>
         <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
-          <Text style={s.newCmdBtnText}>Try Again</Text>
+          <Text style={s.newCmdBtnText}>Try again</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -442,7 +447,7 @@ export default function VoiceCommandModal({
       </View>
       <Text style={s.stateTitle}>Which task?</Text>
       <Text style={s.stateMessage}>
-        I found {clarificationTasks.length} matching tasks:
+        {clarificationTasks.length} tasks match. Pick one.
       </Text>
       <View style={s.clarifyList}>
         {clarificationTasks.map(task => (
@@ -471,7 +476,7 @@ export default function VoiceCommandModal({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={fX.animationType}
       onRequestClose={onClose}
     >
       {/* The scrim colour is read INLINE, not from the sheet: ThemeColors has
@@ -480,17 +485,17 @@ export default function VoiceCommandModal({
       <Pressable style={[s.overlay, { backgroundColor: Colors.overlay }]} onPress={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={s.keyboardView}
+          style={[s.keyboardView, fX.overlay, fX.isDesktop && s.keyboardViewDesktop]}
         >
           <Pressable
-            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }, fX.card]}
             onPress={() => undefined}
           >
-            <View style={s.handle} />
+            {fX.showHandle && <View style={s.handle} />}
             <View style={s.header}>
               <View style={s.headerLeft}>
                 <Mic size={18} color={Colors.primary} strokeWidth={1.75} />
-                <Text style={s.headerTitle}>MAGE Voice</Text>
+                <Text style={s.headerTitle}>Voice commands</Text>
                 <View style={s.aiBadge}>
                   <MageAIMark size={9} color={Colors.primary} />
                   <Text style={s.aiBadgeText}>AI</Text>
@@ -540,6 +545,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   keyboardView: {
     justifyContent: 'flex-end',
   },
+  // Desktop: the KAV fills the scrim so the frame's overlay centres the card
+  // vertically too (on a phone the KAV hugs the sheet at the bottom).
+  keyboardViewDesktop: { flex: 1 },
   sheet: {
     backgroundColor: t.surface,
     borderTopLeftRadius: 24,
@@ -728,7 +736,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
   },
   newCmdBtnText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -820,7 +828,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

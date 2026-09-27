@@ -157,8 +157,8 @@ function AutoBidsInner() {
               <>
                 <Text style={styles.heroStat}>Nothing to price yet</Text>
                 <Text style={styles.heroSub}>
-                  As opportunities come in — and as you close jobs that teach MAGE your real costs —
-                  they show up here already priced.
+                  Opportunities show up here already priced. Each project you close teaches
+                  MAGE your costs.
                 </Text>
               </>
             )}
@@ -216,14 +216,14 @@ function AutoBidsInner() {
                   <View style={styles.flag}>
                     <AlertTriangle size={11} color={Colors.warningLabel} strokeWidth={2} />
                     <Text style={[styles.flagText, { color: Colors.warningLabel }]}>
-                      above their posted budget
+                      Above their posted budget
                     </Text>
                   </View>
                 )}
                 {b.fit >= 1 && (
                   <View style={styles.flag}>
                     <Target size={11} color={t.success} strokeWidth={2} />
-                    <Text style={[styles.flagText, { color: t.success }]}>your typical size</Text>
+                    <Text style={[styles.flagText, { color: t.success }]}>Your typical size</Text>
                   </View>
                 )}
               </View>
@@ -242,8 +242,8 @@ function AutoBidsInner() {
           <View style={styles.footnote}>
             <Text style={styles.footnoteText}>
               {anyHistory
-                ? `Prices come from what your closed jobs cost and your win record, at ${markupPhrase}.`
-                : `Priced off each owner's posted budget at ${markupPhrase} — close jobs to teach MAGE your costs.`}
+                ? `Prices come from what your closed projects cost and your win record, at ${markupPhrase}.`
+                : `Priced off each client's posted budget at ${markupPhrase}. Close projects to teach MAGE your costs.`}
             </Text>
             <InfoBubble
               title="How MAGE prices a bid"

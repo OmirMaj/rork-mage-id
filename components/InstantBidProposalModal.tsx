@@ -32,6 +32,7 @@ import { Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -228,20 +229,25 @@ export default function InstantBidProposalModal({
     setSent(true);
   }, [proposal, lead, selectedTier, addLeadTouch, updateLead]);
 
+  // Desktop web: a centred wide card beside the sidebar (all-null on a phone).
+  // Its primary marks the proposal sent, so Cmd/Ctrl+Enter only — never Cmd+S.
+  const fBid = useSheetFrame('wide', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, proposal && !sent ? handleMarkSent : null, { saveKey: false });
+
   if (!lead) return null;
   // Shown under its own name so the GC sees it for what it is (audit #24).
   const widgetBallpark = widgetBallparkOf(lead);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+    <Modal visible={visible} transparent animationType={fBid.animationType} onRequestClose={handleClose}>
+      <View style={[styles.overlay, fBid.overlay]}>
+        <View style={[styles.sheet, fBid.card]}>
+          {fBid.showHandle && <View style={styles.handle} />}
           <View style={styles.head}>
             <View style={styles.headIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Instant Bid</Text>
-              <Text style={styles.sub} numberOfLines={1}>for {lead.name}</Text>
+              <Text style={styles.title}>Instant bid</Text>
+              <Text style={styles.sub} numberOfLines={1}>For {lead.name}</Text>
             </View>
             <TouchableOpacity onPress={handleClose} hitSlop={8}><X size={20} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
@@ -261,7 +267,7 @@ export default function InstantBidProposalModal({
           ) : !proposal ? (
             <View style={styles.genWrap}>
               <Text style={styles.genBody}>
-                Draft a professional Good / Better / Best proposal for {lead.name} in seconds —
+                Draft a Good / Better / Best proposal for {lead.name},
                 {(() => { const b = statedBudgetOf(lead); return b.min || b.max ? ' tuned to their budget' : ' from the scope on file'; })()}.
               </Text>
               {widgetBallpark ? (
@@ -295,7 +301,7 @@ export default function InstantBidProposalModal({
                       onPress={() => doGenerate()}
                       activeOpacity={0.75}
                     >
-                      <Text style={styles.ballparkSkipText}>Skip — use AI estimate</Text>
+                      <Text style={styles.ballparkSkipText}>Skip and use AI estimate</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.primaryBtn, { flex: 1 }]}
@@ -305,7 +311,7 @@ export default function InstantBidProposalModal({
                     >
                       {generating
                         ? <ActivityIndicator size="small" color="#FFF" />
-                        : <Text style={styles.primaryBtnText}>Generate</Text>}
+                        : <Text style={styles.primaryBtnText}>Draft proposal</Text>}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -341,7 +347,7 @@ export default function InstantBidProposalModal({
                           <View style={styles.tierLabelRow}>
                             <Text style={[styles.tierLabel, active && { color: colors.accent }]}>{tier.label}</Text>
                             {tier.key === proposal.recommendedTier && (
-                              <View style={styles.tierBadge}><Text style={styles.tierBadgeText}>RECOMMENDED</Text></View>
+                              <View style={styles.tierBadge}><Text style={styles.tierBadgeText}>Recommended</Text></View>
                             )}
                           </View>
                           <Text style={styles.tierTagline}>{tier.tagline}</Text>
@@ -375,7 +381,7 @@ export default function InstantBidProposalModal({
               </View>
               {proposal.basis === 'history' && proposal.groundingRateCount ? (
                 <Text style={styles.noteGrounded}>
-                  Anchored on your last {proposal.groundingRateCount} learned rate{proposal.groundingRateCount === 1 ? '' : 's'} from similar jobs.
+                  Priced with your cost history · {proposal.groundingRateCount} learned rate{proposal.groundingRateCount === 1 ? '' : 's'} from similar projects
                 </Text>
               ) : proposal.basis === 'budget' ? (
                 <Text style={styles.note}>Blended toward the budget range provided.</Text>
@@ -421,7 +427,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tierLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   tierLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
   tierBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: t.accentFill },
-  tierBadgeText: { fontSize: 8, fontWeight: '800', color: '#FFF', letterSpacing: 0.6 },
+  tierBadgeText: { fontSize: 8, fontWeight: '800', color: '#FFF', letterSpacing: 0.6, textTransform: 'uppercase' },
   tierTagline: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 15 },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: t.line, alignItems: 'center', justifyContent: 'center' },
   radioActive: { backgroundColor: t.accent, borderColor: t.accent },

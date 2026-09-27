@@ -26,7 +26,7 @@
     "70°F",
     "10%",
     "SIM",
-    "SIMULATED WEATHER — NOT A FORECAST",
+    "Simulated weather. Not a forecast.",
     "These conditions are generated from the calendar date, not observed, and have no relation to this jobsite. Do not record them as a weather delay.",
     "Fri",
     "🌧️",
@@ -44,9 +44,9 @@
     "No tasks active today"
   ],
   "lookahead-live-padded": [
-    "3 Week",
-    "6 Week",
-    "SIMULATED WEATHER — NOT A FORECAST",
+    "3 weeks",
+    "6 weeks",
+    "Simulated weather. Not a forecast.",
     "9 of 12 days shown are simulated (marked SIM). These conditions are generated from the calendar date, not observed, and have no relation to this jobsite. Do not record them as a weather delay.",
     "Sep 21 – Sep 25",
     "0 tasks · 0 crews",
@@ -92,9 +92,9 @@
     "No tasks this week"
   ],
   "lookahead-simulated-no-address": [
-    "3 Week",
-    "6 Week",
-    "SIMULATED WEATHER — NOT A FORECAST",
+    "3 weeks",
+    "6 weeks",
+    "Simulated weather. Not a forecast.",
     "These conditions are generated from the calendar date, not observed, and have no relation to this jobsite. Do not record them as a weather delay.",
     "Sep 21 – Sep 25",
     "0 tasks · 0 crews",

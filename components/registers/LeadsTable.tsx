@@ -105,7 +105,7 @@ export function LeadsTable({ grouped, loaded, stageColors, onNew }: LeadsTablePr
     <EmptyState
       icon={icon}
       title="No leads in the pipeline yet"
-      message="Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours."
+      message="Capture every inbound call, web inquiry and referral so none slips past the first 24 hours."
       actionLabel="Add by hand"
       onAction={onNew}
     />

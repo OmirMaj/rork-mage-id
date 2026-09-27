@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { PartyPopper, Share2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -36,13 +37,14 @@ export default function ReferralPrompt({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Desktop web: a centred card beside the sidebar; all-null on a phone.
+  const fRef = useSheetFrame('dialog', { visible, animationType: 'fade' });
 
   const handleShare = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const who = companyName ? companyName : 'I';
     const message =
-      `${who === 'I' ? "I've" : who + ' has'} been winning more jobs with MAGE ID — ` +
-      `it drafts professional bids in seconds and keeps every project organized. ` +
+      `${who === 'I' ? "I've" : who + ' has'} been using MAGE ID for estimates, bids and project tracking. ` +
       `Worth a look if you run a construction business: ${APP_LINK}`;
     try {
       await shareText({ message, url: APP_LINK });
@@ -54,18 +56,17 @@ export default function ReferralPrompt({
   }, [companyName, onClose]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+    <Modal visible={visible} transparent animationType={fRef.animationType} onRequestClose={onClose}>
+      <View style={[styles.overlay, fRef.overlay]}>
+        <View style={[styles.card, fRef.card]}>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
             <X size={18} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
           <View style={styles.iconWrap}><PartyPopper size={32} color={colors.accent} strokeWidth={1.75} /></View>
-          <Text style={styles.title}>Nice win!{jobName ? ` ${jobName}` : ''}</Text>
+          <Text style={styles.title}>Project won{jobName ? ` · ${jobName}` : ''}</Text>
           <Text style={styles.body}>
-            Know another contractor who could use an edge like this? Most of our
-            best users come from a referral — takes 10 seconds.
+            Know another contractor who could use MAGE ID? Send them a link.
           </Text>
 
           <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85} testID="referral-share">

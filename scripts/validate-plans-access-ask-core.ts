@@ -83,7 +83,7 @@ console.log('\n#73 the plan screens open for the job, not only for the tier');
   ok('an unresolved role is refused as "checking", not waved through', /Checking/.test(planControlBlock(null, 'import') ?? ''));
   // Round 2: a null role is refused with the sentence true for WHY it is null.
   ok('a FAILED role read says so and points at Try again (not "checking")',
-    /Couldn\u2019t check your role on this job/.test(planControlBlock(null, 'delete', { isError: true }) ?? '')
+    /Couldn\u2019t check your role on this project/.test(planControlBlock(null, 'delete', { isError: true }) ?? '')
     && !/Checking/.test(planControlBlock(null, 'delete', { isError: true }) ?? ''));
   ok('an offline-paused role read says it waits for signal', /offline/.test(planControlBlock(null, 'import', { offline: true }) ?? ''));
   ok('an offline-paused read on the screen gate is the retry, never "no access"', g({ role: null, offline: true }) === 'error');

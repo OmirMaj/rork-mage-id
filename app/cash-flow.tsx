@@ -36,6 +36,7 @@ import {
   getCachedAIAnalysis, setCachedAIAnalysis,
 } from '@/utils/cashFlowStorage';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
@@ -120,13 +121,18 @@ type AIAnalysis = z.infer<typeof cashFlowAnalysisSchema>;
 const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
   { value: 'payroll', label: 'Payroll' },
   { value: 'materials', label: 'Materials' },
-  { value: 'equipment_rental', label: 'Equipment Rental' },
-  { value: 'subcontractor', label: 'Subcontractor' },
+  { value: 'equipment_rental', label: 'Equipment rental' },
+  { value: 'subcontractor', label: 'Subs' },
   { value: 'insurance', label: 'Insurance' },
   { value: 'overhead', label: 'Overhead' },
-  { value: 'loan', label: 'Loan/Financing' },
+  { value: 'loan', label: 'Loan or financing' },
   { value: 'other', label: 'Other' },
 ];
+
+/** Invoice payment terms as a person reads them (never the raw enum). */
+const PAYMENT_TERMS_LABEL: Record<string, string> = {
+  net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45', due_on_receipt: 'Due on receipt',
+};
 
 const FREQUENCY_OPTIONS: { value: ExpenseFrequency; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
@@ -322,6 +328,23 @@ function CashFlowScreenInner() {
   // Balance", so every payment recorded since the balance was set moves it,
   // whichever job it came from — allInvoices in both modes. Income stays
   // scoped to the job through `invoices` and `expectedPayments`.
+  // Approved-but-unpaid sub bills and the retainage withheld from subs
+  // (health 2026-09-26, MONEY-CASH-SUB-APPROVED): commitments.paid_to_date
+  // counts an APPROVED bill as paid and is gross of retainage, so without the
+  // sub invoices themselves the check due now and the closeout retainage
+  // vanish from the runway. Company-wide read (RLS-scoped to the GC's own
+  // portals), narrowed to the job in a job's view. `undefined` until the read
+  // has answered — the forecast then says sub bills were not checked instead
+  // of treating them as $0.
+  const subBillRead = useSubSubmittedInvoices({ companyWide: true });
+  const relevantSubInvoices = useMemo(() => {
+    if (!subBillRead.subBillsChecked) return undefined;
+    if (!projectId) return subBillRead.invoices;
+    const jobCommitmentIds = new Set(relevantCommitments.map(c => c.id));
+    return subBillRead.invoices.filter(i =>
+      i.projectId === projectId || (!!i.commitmentId && jobCommitmentIds.has(i.commitmentId)));
+  }, [subBillRead.subBillsChecked, subBillRead.invoices, projectId, relevantCommitments]);
+
   const forecastInputs = useMemo(() => buildForecastInputs({
     cashData: cashFlowData,
     invoices: relevantInvoices,
@@ -330,9 +353,14 @@ function CashFlowScreenInner() {
     changeOrders: relevantChangeOrders,
     balanceInvoices: allInvoices,
     expectedPayments: relevantExpectedPayments,
-  }), [cashFlowData, relevantInvoices, relevantCommitments, projects, relevantChangeOrders, allInvoices, relevantExpectedPayments]);
+    subInvoices: relevantSubInvoices,
+  }), [cashFlowData, relevantInvoices, relevantCommitments, projects, relevantChangeOrders, allInvoices, relevantExpectedPayments, relevantSubInvoices]);
   const effectiveStartingBalance = forecastInputs.startingBalance;
   const committed = forecastInputs.committed;
+  const subBillRows = useMemo(() => forecastInputs.subBills?.rows ?? [], [forecastInputs.subBills]);
+  const subBillsChecked = forecastInputs.subBillsChecked === true;
+  const subRetainagePayable = forecastInputs.subRetainagePayable ?? 0;
+  const subBillsOnFinishedJobs = forecastInputs.subBills?.approvedOnFinishedJobs ?? 0;
 
   // A Set, because the expense list looks every row up as it renders it.
   const ambiguousIds = useMemo(() => new Set(committed.ambiguousManualIds), [committed.ambiguousManualIds]);
@@ -408,7 +436,7 @@ function CashFlowScreenInner() {
       case 'undated_commitments':
         // Committed money is COST — outflow — which is why it cannot fill the
         // income side on its own, and why the instruction is dates, not money.
-        return `${opener} The ${formatCurrencyShort(noForecastReason.amount)} you have already committed has no dates on it — put a schedule on those jobs and it lands on a week.`;
+        return `${opener} The ${formatCurrencyShort(noForecastReason.amount)} you have already committed has no dates on it — put a schedule on those projects and it lands on a week.`;
       case 'bills_without_amounts':
         // "can place it", not "it lands on a week": the row's own start date
         // decides which week, and a row imported with an old date may still
@@ -612,6 +640,9 @@ ${cashFlowData.expenses.map(e => `${e.name}: ${e.amount}/${e.frequency}`).join('
 COMMITTED OUTFLOW (signed subcontracts and POs, remaining balance spread across each job's schedule — already inside the weekly numbers above):
 ${committed.scheduled.map(e => `${e.name}: ${Math.round(e.amount)}/${e.frequency}`).join('\n') || 'None'}
 ${committed.undated > 0 ? `\nNOT in the weekly numbers above: ${Math.round(committed.undated)} of committed subcontract/PO balance that could not be dated — the job has no schedule, or it is finished and nothing recorded the payment. Say so rather than treating the runway as complete, and do not call it overdue: the app cannot tell an unpaid balance from an unrecorded payment.` : ''}
+APPROVED SUB BILLS NOT YET PAID (due now — already inside week 1 above):
+${!subBillsChecked ? 'NOT CHECKED — the sub invoices could not be read, so approved bills may be missing from the weeks above. Say so; never assume there are none.' : (subBillRows.map(e => `${e.name}: ${Math.round(e.amount)}`).join('\n') || 'None')}
+${subBillsChecked && subRetainagePayable > 0 ? `\nNOT in the weekly numbers above: ${Math.round(subRetainagePayable)} of retainage withheld from subs, owed to them at closeout (no date is known).` : ''}${subBillsChecked && subBillsOnFinishedJobs > 0 ? `\nNOT in the weekly numbers above: ${Math.round(subBillsOnFinishedJobs)} of approved sub bills on finished jobs that were never marked paid — they may have been paid outside the app; do not call them overdue.` : ''}
 
 ${(summary.pendingCoUpside ?? 0) > 0 ? `NOT in the weekly numbers above: ${Math.round(summary.pendingCoUpside ?? 0)} of submitted change orders the owner has not approved. It is upside, not income — never count it toward the balance.\n\n` : ''}PENDING INVOICES:
 ${relevantInvoices.filter(i => i.status !== 'paid').map(i => `#${i.number}: ${i.totalDue} | Sent: ${i.issueDate} | Terms: ${i.paymentTerms} | Due: ${i.dueDate}`).join('\n') || 'None pending'}
@@ -623,7 +654,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         feature: 'cashFlowForecaster',
       });
       if (!aiResult.success) {
-        showAlert('AI Unavailable', aiResult.error || 'Try again.');
+        showAlert('Couldn’t get advice', aiResult.error || 'Try again.');
         return;
       }
       setAiAnalysis(aiResult.data);
@@ -631,11 +662,11 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[CashFlow] AI analysis failed:', err);
-      showAlert('AI Unavailable', 'Cash flow analysis is unavailable right now. Try again in a moment.');
+      showAlert('Couldn’t get advice', 'Cash-flow advice isn’t available right now. Try again in a moment.');
     } finally {
       setAiLoading(false);
     }
-  }, [forecast, hasCashMovement, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId, summary.pendingCoUpside]);
+  }, [forecast, hasCashMovement, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId, summary.pendingCoUpside, subBillRows, subBillsChecked, subRetainagePayable, subBillsOnFinishedJobs]);
 
   const toggleSection = useCallback((key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -711,7 +742,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
   // entered. parseMoneyInput refuses "3200,50" on purpose — stripping that
   // comma would record 320050 — so the note has to say what shape to type.
   const unreadable = (raw: string, parsed: number | null) => raw.trim().length > 0 && parsed === null;
-  const BAD_NUMBER_NOTE = 'That amount is not a number this can read — type it as 3200 or 3200.50.';
+  const BAD_NUMBER_NOTE = 'That amount isn’t a number MAGE can read. Type it as 3200 or 3200.50.';
   const canUpdateBalance = editBalanceParsed !== null;
   const canAddExpense = newExpenseName.trim().length > 0 && newExpenseParsed !== null && newExpenseParsed > 0;
   const canAddPayment = newPaymentDesc.trim().length > 0 && newPaymentParsed !== null && newPaymentParsed !== 0;
@@ -729,7 +760,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Cash Flow' }} />
+        <Stack.Screen options={{ title: 'Cash flow' }} />
         <ConstructionLoader size="lg" />
       </View>
     );
@@ -738,7 +769,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{
-        title: projectId ? 'Project Cash Flow' : 'Cash Flow Forecast',
+        title: projectId ? 'Project cash flow' : 'Cash-flow forecast',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -763,16 +794,16 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <DashboardColumns
           main={<>
         <FeatureHeader
-          eyebrow="Cash Flow"
+          eyebrow="Cash flow"
           title="When will money come in?"
           subtitle={projectId
-            ? 'This project’s invoice income, charted against your company-wide bank balance and recurring expenses. Balance and expenses are shared across all projects — not scoped to this job.'
-            : 'A 12-week chart of expected draws and bills across your projects. We use your invoices, scheduled draws, and payroll to project the next quarter.'}
+            ? 'This project’s invoice income, charted against your company-wide bank balance and recurring expenses. Balance and expenses are shared across all projects, not just this one.'
+            : 'A 12-week chart of expected draws and bills across your projects, built from your invoices, scheduled draws and payroll.'}
           explainer={{
-            term: 'Cash Flow Forecast',
-            definition: 'A cash flow forecast projects when money will arrive (draws from owners, deposits, paid invoices) and when it will leave (sub payments, payroll, materials). The gap between income and outflow each week tells you whether you can cover this Friday\'s payroll or need to chase a draw.',
+            term: 'Cash-flow forecast',
+            definition: 'A cash-flow forecast projects when money will arrive (draws from clients, deposits, paid invoices) and when it will leave (sub payments, payroll, materials). The gap between income and outflow each week tells you whether you can cover this Friday\'s payroll or need to chase a draw.',
             whenToUse: [
-              'Before agreeing to a payment schedule with a new owner',
+              'Before agreeing to a payment schedule with a new client',
               'When you\'re weighing whether to take on another project',
               'Weekly, to spot a payroll-week shortfall a month early',
             ],
@@ -784,7 +815,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.heroLabelRow}>
                 <Wallet size={12} color="rgba(255,255,255,0.85)" strokeWidth={1.75} />
                 <Text style={styles.heroLabel}>
-                  {projectId ? 'Company Balance' : 'Current Balance'}
+                  {projectId ? 'Company balance' : 'Current balance'}
                   {effectiveStartingBalance !== (cashFlowData?.startingBalance ?? 0) ? ' · auto' : ''}
                 </Text>
               </View>
@@ -896,7 +927,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
           <View style={styles.pendingRow}>
             <View style={styles.pendingItem}>
-              <Text style={styles.pendingLabel}>Total Pending</Text>
+              <Text style={styles.pendingLabel}>Total pending</Text>
               <Text style={styles.pendingValue}>{formatCurrency(totalPending)}</Text>
             </View>
             <View style={styles.pendingDivider} />
@@ -909,7 +940,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
         {forecast.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>FORECAST</Text>
+            <Text style={styles.sectionLabel}>Forecast</Text>
             {/* Twelve empty bars are not a chart of anything. With every week at
                 zero, components/CashFlowChart.tsx clamps its own scale away from
                 a divide-by-zero (`if (maxNet === 0) maxNet = 1`), so the axis
@@ -940,7 +971,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={styles.dangerCard}>
               <View style={styles.dangerHeader}>
                 <AlertTriangle size={18} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                <Text style={styles.dangerTitle}>Danger Zone</Text>
+                <Text style={styles.dangerTitle}>Cash shortfall</Text>
               </View>
               {summary.dangerWeeks.map((dw, i) => (
                 <View key={i} style={styles.dangerRow}>
@@ -957,7 +988,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         {selectedWeekData && selectedWeek !== null && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
-              WEEK {selectedWeek + 1} DETAIL · {formatCalendarDay(selectedWeekData.weekStart, { month: 'short', day: 'numeric' })}
+              Week {selectedWeek + 1} detail · {formatCalendarDay(selectedWeekData.weekStart, { month: 'short', day: 'numeric' })}
             </Text>
             <View style={styles.weekDetailCard}>
               <View style={styles.weekDetailRow}>
@@ -1010,7 +1041,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   row says so. */}
               {(selectedWeekData.pendingCoItems ?? []).length > 0 && (
                 <View style={styles.weekItemsGroup} testID="cash-flow-week-pending-cos">
-                  <Text style={styles.weekItemsLabel}>If approved — not in the balance</Text>
+                  <Text style={styles.weekItemsLabel}>If approved (not in the balance)</Text>
                   {(selectedWeekData.pendingCoItems ?? []).map((item, i) => (
                     <View key={i} style={styles.weekItemRow}>
                       <Text style={styles.weekItemName} numberOfLines={1}>{item.description}</Text>
@@ -1018,7 +1049,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                     </View>
                   ))}
                   <Text style={styles.listNote}>
-                    Unsigned. The week assumes the owner approves within 3 weeks and pays on your default terms.
+                    Unsigned. The week assumes the client approves within 3 weeks and pays on your default terms.
                   </Text>
                 </View>
               )}
@@ -1044,7 +1075,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>SUMMARY ({forecastWeeks} WEEKS)</Text>
+          <Text style={styles.sectionLabel}>Summary ({forecastWeeks} weeks)</Text>
           <View style={styles.summaryGrid}>
             <View style={[styles.summaryItem, { borderLeftColor: themeColors.success, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
@@ -1052,11 +1083,11 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <TrendingUp size={14} color={themeColors.success} strokeWidth={1.75} />
                 </View>
               </View>
-              <Text style={styles.summaryItemLabel}>Total Income</Text>
+              <Text style={styles.summaryItemLabel}>Total income</Text>
               <Text style={[styles.summaryItemValue, { color: themeColors.success }]}>{formatCurrencyShort(summary.totalIncome)}</Text>
               {retentionHeld > 0 && (
                 <Text style={styles.summaryItemSub}>
-                  + {formatCurrencyShort(retentionHeld)} retention held to closeout
+                  + {formatCurrencyShort(retentionHeld)} retainage held to closeout
                 </Text>
               )}
               {pendingCoUpside > 0 && (
@@ -1071,7 +1102,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <TrendingDown size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </View>
               </View>
-              <Text style={styles.summaryItemLabel}>Total Expenses</Text>
+              <Text style={styles.summaryItemLabel}>Total expenses</Text>
               <Text style={[styles.summaryItemValue, { color: themeColors.danger }]}>{formatCurrencyShort(summary.totalExpenses)}</Text>
               {/* Committed money we could not honestly put on a week — the job
                   has no schedule, or it is finished and the balance was never
@@ -1080,7 +1111,26 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   data, not as money the app lost. */}
               {committed.undated > 0 && (
                 <Text style={styles.summaryItemSub}>
-                  + {formatCurrencyShort(committed.undated)} committed on jobs with no schedule or already finished — not in the weeks above
+                  + {formatCurrencyShort(committed.undated)} committed on projects with no schedule or already finished — not in the weeks above
+                </Text>
+              )}
+              {/* Sub bills (MONEY-CASH-SUB-APPROVED): an unread list is said
+                  out loud, never shown as nothing owed; retainage withheld
+                  from subs is reported beside the runway, like receivable
+                  retention, because no closeout date is known. */}
+              {!subBillsChecked && (
+                <Text style={styles.summaryItemSub} testID="cash-flow-sub-bills-unchecked">
+                  Approved sub bills not checked yet — a check you owe a sub may be missing from the weeks above
+                </Text>
+              )}
+              {subBillsChecked && subBillsOnFinishedJobs > 0 && (
+                <Text style={styles.summaryItemSub} testID="cash-flow-sub-bills-finished-jobs">
+                  + {formatCurrencyShort(subBillsOnFinishedJobs)} of approved sub bills on finished projects, not marked paid — not in the weeks above
+                </Text>
+              )}
+              {subBillsChecked && subRetainagePayable > 0 && (
+                <Text style={styles.summaryItemSub} testID="cash-flow-sub-retainage">
+                  + {formatCurrencyShort(subRetainagePayable)} retainage withheld from subs — owed at closeout, not in the weeks above
                 </Text>
               )}
             </View>
@@ -1090,7 +1140,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <DollarSign size={14} color={summary.netCashChange >= 0 ? themeColors.success : themeColors.danger} strokeWidth={1.75} />
                 </View>
               </View>
-              <Text style={styles.summaryItemLabel}>Net Cash Change</Text>
+              <Text style={styles.summaryItemLabel}>Net cash change</Text>
               <Text style={[styles.summaryItemValue, { color: summary.netCashChange >= 0 ? themeColors.success : themeColors.danger }]}>
                 {formatCurrencyShort(summary.netCashChange)}
               </Text>
@@ -1120,7 +1170,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <Wallet size={14} color={summary.lowestBalance < 0 ? themeColors.danger : themeColors.info} strokeWidth={1.75} />
                 </View>
               </View>
-              <Text style={styles.summaryItemLabel}>Lowest Balance</Text>
+              <Text style={styles.summaryItemLabel}>Lowest balance</Text>
               <Text style={[styles.summaryItemValue, { color: summary.lowestBalance < 0 ? themeColors.danger : themeColors.text }]}>
                 {formatCurrencyShort(summary.lowestBalance)}
               </Text>
@@ -1134,7 +1184,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('expenses')} activeOpacity={0.7}>
             <DollarSign size={18} color={themeColors.danger} strokeWidth={1.75} />
-            <Text style={styles.sectionTitle}>{projectId ? 'Monthly Expenses (company-wide)' : 'Monthly Expenses'}</Text>
+            <Text style={styles.sectionTitle}>{projectId ? 'Monthly expenses (company-wide)' : 'Monthly expenses'}</Text>
             <Text style={styles.sectionAmount}>{formatCurrencyShort(totalMonthlyExpenses)}/mo</Text>
             {expandedSections.expenses ? <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
           </TouchableOpacity>
@@ -1180,10 +1230,30 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                       <View style={styles.expenseListInfo}>
                         <Text style={styles.expenseListName}>{row.name}</Text>
                         <Text style={styles.expenseListMeta}>
-                          {EXPENSE_CATEGORIES.find(c => c.value === row.category)?.label} · remaining balance, spread across the job&apos;s schedule
+                          {EXPENSE_CATEGORIES.find(c => c.value === row.category)?.label} · remaining balance, spread across the project&apos;s schedule
                         </Text>
                       </View>
                       <Text style={styles.expenseListAmount}>{formatCurrency(row.amount)}{freqLabel(row.frequency)}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* Approved sub bills — week-0 checks the rollup had counted as
+                  paid. Listed so a week's outflow can be traced; they leave
+                  this list when the GC marks the bill paid. */}
+              {subBillRows.length > 0 && (
+                <>
+                  <Text style={styles.listNoteStrong}>Approved sub bills, not yet paid</Text>
+                  {subBillRows.map(row => (
+                    <View key={row.id} style={styles.expenseListRow}>
+                      <View style={styles.expenseListInfo}>
+                        <Text style={styles.expenseListName}>{row.name}</Text>
+                        <Text style={styles.expenseListMeta}>
+                          {EXPENSE_CATEGORIES.find(c => c.value === row.category)?.label} · due now, net of retainage withheld
+                        </Text>
+                      </View>
+                      <Text style={styles.expenseListAmount}>{formatCurrency(row.amount)}</Text>
                     </View>
                   ))}
                 </>
@@ -1199,8 +1269,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   {committed.ambiguousManualCount === 1
                     ? '1 row above is sub or material money you typed yourself and is flagged in place.'
                     : `${committed.ambiguousManualCount} rows above are sub or material money you typed yourself and are flagged in place.`}
-                  {' '}We only suppress a duplicate we can match by id, so nothing was removed for you —
-                  a name guess that fired wrongly would delete real money you owe.
+                  {' '}Nothing was removed automatically. Only an exact match is removed, because a
+                  wrong guess would delete money you owe.
                 </Text>
               )}
 
@@ -1219,7 +1289,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.addItemText}>Add Expense</Text>
+                <Text style={styles.addItemText}>Add expense</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1228,7 +1298,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('income')} activeOpacity={0.7}>
             <TrendingUp size={18} color={themeColors.success} strokeWidth={1.75} />
-            <Text style={styles.sectionTitle}>Expected Income</Text>
+            <Text style={styles.sectionTitle}>Expected income</Text>
             <Text style={[styles.sectionAmount, { color: themeColors.success }]}>
               {formatCurrencyShort(totalPending)} pending
             </Text>
@@ -1246,7 +1316,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                       <Text style={styles.incomeListMeta}>
                         {/* The day the forecast buckets it by (#20). A bare
                             'YYYY-MM-DD' through new Date() read a day early. */}
-                        Due: {formatCalendarDay(calendarDayOf(inv.dueDate), { month: 'short', day: 'numeric' }) || 'no due date'} · {inv.paymentTerms?.replace('_', ' ')}
+                        Due: {formatCalendarDay(calendarDayOf(inv.dueDate), { month: 'short', day: 'numeric' }) || 'no due date'} · {PAYMENT_TERMS_LABEL[inv.paymentTerms] ?? ''}
                       </Text>
                     </View>
                     <Text style={styles.incomeListAmount}>{formatCurrency(remaining)}</Text>
@@ -1285,8 +1355,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {companyWidePaymentsLeftOut.length > 0 && (
                 <Text style={styles.listNote} testID="cash-flow-company-wide-payments">
                   {companyWidePaymentsLeftOut.length === 1
-                    ? `1 company-wide expected payment (${formatCurrency(companyWidePaymentsLeftOut[0].amount ?? 0)}) isn't tied to a job, so it is left out of this job's forecast. It counts on the company Cash Flow screen.`
-                    : `${companyWidePaymentsLeftOut.length} company-wide expected payments (${formatCurrency(companyWidePaymentsLeftOut.reduce((s, p) => s + (p.amount ?? 0), 0))}) aren't tied to a job, so they are left out of this job's forecast. They count on the company Cash Flow screen.`}
+                    ? `1 company-wide expected payment (${formatCurrency(companyWidePaymentsLeftOut[0].amount ?? 0)}) isn't tied to a project, so it's left out of this project's forecast. It counts on the company cash-flow screen.`
+                    : `${companyWidePaymentsLeftOut.length} company-wide expected payments (${formatCurrency(companyWidePaymentsLeftOut.reduce((s, p) => s + (p.amount ?? 0), 0))}) aren't tied to a project, so they're left out of this project's forecast. They count on the company cash-flow screen.`}
                 </Text>
               )}
               {/* Same jsonb-blob caveat as the expense list — the expected
@@ -1298,7 +1368,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               </Text>
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
                 <Plus size={16} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={[styles.addItemText, { color: themeColors.success }]}>Add Expected Payment</Text>
+                <Text style={[styles.addItemText, { color: themeColors.success }]}>Add expected payment</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1318,7 +1388,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <MageAIMark size={18} color={"#FFFFFF"} />
             )}
             <Text style={styles.aiButtonText}>
-              {aiLoading ? 'Analyzing...' : 'Get AI Advice'}
+              {aiLoading ? 'Reading your invoices…' : 'Get cash-flow advice'}
             </Text>
           </TouchableOpacity>
           {/* A blocked button says why. Without the line it looks broken, and
@@ -1341,7 +1411,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             testID="payment-forecast-btn"
           >
             <TrendingUp size={18} color={"#FFFFFF"} strokeWidth={1.75} />
-            <Text style={styles.aiButtonText}>Payment Forecast</Text>
+            <Text style={styles.aiButtonText}>Payment forecast</Text>
           </TouchableOpacity>
 
           {/* hasCashMovement, not just showAiResults: the analysis outlives the
@@ -1353,7 +1423,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={styles.aiResultsCard}>
               <View style={styles.aiResultsHeader}>
                 <MageAIMark size={16} color={themeColors.accent} />
-                <Text style={styles.aiResultsTitle}>AI Cash Flow Analysis</Text>
+                <Text style={styles.aiResultsTitle}>Cash-flow advice</Text>
                 {/* No score returned ⇒ no badge. A "50/100" placeholder once
                     showed an insolvent business a healthy-looking number. */}
                 {aiAnalysis.healthScore !== undefined ? (
@@ -1369,7 +1439,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
               {(aiAnalysis.criticalWeeks ?? []).length > 0 && (
                 <View style={styles.aiSection}>
-                  <Text style={styles.aiSectionTitle}>Critical Weeks</Text>
+                  <Text style={styles.aiSectionTitle}>Critical weeks</Text>
                   {(aiAnalysis.criticalWeeks ?? []).map((cw, i) => (
                     <View key={i} style={styles.criticalWeekRow}>
                       <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
@@ -1406,7 +1476,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
               {(aiAnalysis.billingOptimizations ?? []).length > 0 && (
                 <View style={styles.aiSection}>
-                  <Text style={styles.aiSectionTitle}>Billing Optimizations</Text>
+                  <Text style={styles.aiSectionTitle}>Billing optimizations</Text>
                   {(aiAnalysis.billingOptimizations ?? []).map((opt, i) => (
                     <View key={i} style={styles.bulletRow}>
                       <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
@@ -1418,7 +1488,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <MageAIMark size={12} color={themeColors.accent} />
-                <Text style={styles.aiGenLabel}>AI-generated</Text>
+                <Text style={styles.aiGenLabel}>AI draft</Text>
               </View>
             </View>
           )}
@@ -1438,12 +1508,12 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           <View style={[styles.modalOverlay, fBalance.overlay]}>
             <View style={[styles.modalCard, fBalance.card]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Edit Balance</Text>
+                <Text style={styles.modalTitle}>Edit balance</Text>
                 <TouchableOpacity onPress={() => setShowEditBalance(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.modalFieldLabel}>Current Bank Balance</Text>
+              <Text style={styles.modalFieldLabel}>Current bank balance</Text>
               <View style={styles.modalInputRow}>
                 <Text style={styles.modalDollar}>$</Text>
                 <TextInput
@@ -1459,7 +1529,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <Text style={styles.modalBlockedNote} testID="balance-blocked-note">
                   {unreadable(editBalanceValue, editBalanceParsed)
                     ? BAD_NUMBER_NOTE
-                    : 'Type the balance as a number. An empty box used to save as $0, which reads on this screen exactly like a real zero.'}
+                    : 'Type the balance as a number. A blank balance would read as a real $0.'}
                 </Text>
               )}
               <TouchableOpacity
@@ -1469,7 +1539,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 activeOpacity={0.85}
                 testID="update-balance-btn"
               >
-                <Text style={styles.modalSaveBtnText}>Update Balance</Text>
+                <Text style={styles.modalSaveBtnText}>Update balance</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1481,7 +1551,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           <View style={[styles.modalOverlay, fExpense.overlay]}>
             <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }, fExpense.card]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Expense</Text>
+                <Text style={styles.modalTitle}>Add expense</Text>
                 <TouchableOpacity onPress={() => setShowAddExpense(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -1526,7 +1596,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 testID="add-expense-btn"
               >
                 <Plus size={18} color={"#FFFFFF"} strokeWidth={1.75} />
-                <Text style={styles.modalSaveBtnText}>Add Expense</Text>
+                <Text style={styles.modalSaveBtnText}>Add expense</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1538,7 +1608,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           <View style={[styles.modalOverlay, fPayment.overlay]}>
             <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }, fPayment.card]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Expected Payment</Text>
+                <Text style={styles.modalTitle}>Add expected payment</Text>
                 <TouchableOpacity onPress={() => setShowAddPayment(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -1578,7 +1648,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 testID="add-payment-btn"
               >
                 <Plus size={18} color={"#FFFFFF"} strokeWidth={1.75} />
-                <Text style={styles.modalSaveBtnText}>Add Payment</Text>
+                <Text style={styles.modalSaveBtnText}>Add payment</Text>
               </TouchableOpacity>
             </View>
           </View>

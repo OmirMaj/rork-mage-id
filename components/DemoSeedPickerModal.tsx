@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { X, ChevronRight, HardHat, Building2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -33,16 +34,28 @@ export interface DemoSeedPickerModalProps {
   showMedium?: boolean;
 }
 
-/** Map flavor → icon + accent color for the card grid. */
+/** Map flavor → icon + accent color for the card grid.
+ *
+ *  `accent: 'brand'` resolves through the THEME at render (accentLabel for the
+ *  icon / total / bullets, accentFill under the white CTA label), not a hex.
+ *  A literal cannot serve both jobs in both themes: the light brand #2F6B3A is
+ *  under 3:1 on the dark card, and the dark brand gives white 2.58:1.
+ *
+ *  Small was the old success green #2E7D44 and Medium the retired brand orange.
+ *  After the 2026-09-16 rebrand that green sits ΔE 9.2 from the brand — the
+ *  same swatch — so Small is now simply the brand, and so is Medium (it wears
+ *  the MAGE mark). The two only meet when `showMedium` is set, and their icon
+ *  and name carry the difference there. Neither is a state, so neither is the
+ *  success teal. */
 const FLAVOR_VISUAL: Record<DemoFlavor, {
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
-  accent: string;
+  accent: 'brand' | string;
   pitch: string;
   bullets: string[];
 }> = {
   small: {
     Icon: HardHat,
-    accent: "#2E7D44",
+    accent: 'brand',
     pitch: 'Bread-and-butter residential remodel. Solo operator or small crew.',
     bullets: [
       '2 invoices, 4 daily reports',
@@ -53,7 +66,7 @@ const FLAVOR_VISUAL: Record<DemoFlavor, {
   },
   medium: {
     Icon: MageAIMark as React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>,
-    accent: "#FF6A1A",
+    accent: 'brand',
     pitch: 'Premium full-gut renovation. Architect-led, multi-trade.',
     bullets: [
       '3 invoices, 3 daily reports',
@@ -86,6 +99,9 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's bottom sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   const flavors: DemoFlavor[] = showMedium ? ['small', 'medium', 'large'] : ['small', 'large'];
 
@@ -95,15 +111,16 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
   }, [onPick]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.handle} />
+    <Modal visible={visible} transparent animationType={fX.animationType} onRequestClose={onClose}>
+      <SheetOverlay frame={fX}>
+      <TouchableOpacity style={[styles.backdrop, fX.backdrop]} activeOpacity={1} onPress={onClose} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, fX.card]}>
+        {fX.showHandle && <View style={styles.handle} />}
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Pick a sample project</Text>
             <Text style={styles.subtitle}>
-              Both load instantly. Wipe anytime from Settings → Reset, or tap Delete on the project tile.
+              Each loads right away. Remove one later from Settings → Reset, or tap Delete on its project tile.
             </Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} testID="demo-picker-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -114,17 +131,19 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
             const meta = DEMO_FLAVORS[flavor];
             const visual = FLAVOR_VISUAL[flavor];
             const Icon = visual.Icon;
+            const ink = visual.accent === 'brand' ? themeColors.accentLabel : visual.accent;
+            const fill = visual.accent === 'brand' ? themeColors.accentFill : visual.accent;
             return (
               <TouchableOpacity
                 key={flavor}
-                style={[styles.card, { borderColor: visual.accent + '40' }]}
+                style={[styles.card, { borderColor: ink + '40' }]}
                 onPress={() => handlePick(flavor)}
                 activeOpacity={0.85}
                 testID={`demo-picker-${flavor}`}
               >
                 <View style={styles.cardHead}>
-                  <View style={[styles.cardIcon, { backgroundColor: visual.accent + '14' }]}>
-                    <Icon size={20} color={visual.accent} strokeWidth={2.2} />
+                  <View style={[styles.cardIcon, { backgroundColor: ink + '14' }]}>
+                    <Icon size={20} color={ink} strokeWidth={2.2} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardName}>{meta.name.replace('Sample — ', '')}</Text>
@@ -136,7 +155,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
                 <View style={styles.cardStats}>
                   <View style={styles.cardStat}>
                     <Text style={styles.cardStatLabel}>Total</Text>
-                    <Text style={[styles.cardStatValue, { color: visual.accent }]}>{formatMoney(meta.total)}</Text>
+                    <Text style={[styles.cardStatValue, { color: ink }]}>{formatMoney(meta.total)}</Text>
                   </View>
                   <View style={styles.cardStatDiv} />
                   <View style={styles.cardStat}>
@@ -155,13 +174,13 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
                 <View style={styles.bulletList}>
                   {visual.bullets.map((b, i) => (
                     <View key={i} style={styles.bulletRow}>
-                      <View style={[styles.bulletDot, { backgroundColor: visual.accent }]} />
+                      <View style={[styles.bulletDot, { backgroundColor: ink }]} />
                       <Text style={styles.bulletText}>{b}</Text>
                     </View>
                   ))}
                 </View>
 
-                <View style={[styles.cta, { backgroundColor: visual.accent }]}>
+                <View style={[styles.cta, { backgroundColor: fill }]}>
                   <Text style={styles.ctaText}>Load this sample</Text>
                   <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
                 </View>
@@ -170,11 +189,12 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
           })}
 
           <Text style={styles.disclaimer}>
-            Sample projects are local-only. They don&apos;t consume any of your monthly AI quota.
-            Both prepend &quot;Sample —&quot; in the project name so you can never confuse them with real work.
+            Sample projects stay on this device and don&apos;t use any of your monthly AI allowance.
+            Each name starts with &quot;Sample —&quot; so it never mixes with real work.
           </Text>
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

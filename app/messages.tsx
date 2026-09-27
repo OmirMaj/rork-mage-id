@@ -126,8 +126,8 @@ export default function MessagesScreen() {
         <Stack.Screen options={{ title: 'Messages' }} />
         <EmptyState
           icon={<MessageCircle size={36} color={themeColors.accent} strokeWidth={1.6} />}
-          title="Messaging is coming soon"
-          message="In-app messaging isn't available yet. We'll turn it on once the hiring marketplace goes live."
+          title="Messaging isn't open yet"
+          message="In-app messaging turns on when the hiring marketplace launches."
         />
       </View>
     );
@@ -148,7 +148,7 @@ export default function MessagesScreen() {
             'Tap a person to open their profile.',
             'Hit Message to start chatting — replies show up here automatically.',
           ]}
-          actionLabel="Open Hire"
+          actionLabel="Open hiring"
           onAction={() => router.push('/(tabs)/discover/hire' as any)}
           secondaryLabel="View Subs"
           onSecondaryAction={() => router.push('/(tabs)/subs' as any)}
@@ -201,7 +201,7 @@ export default function MessagesScreen() {
             style={styles.textInput}
             value={text}
             onChangeText={setText}
-            placeholder="Type a message..."
+            placeholder="Type a message"
             placeholderTextColor={themeColors.textMuted}
             multiline
             maxLength={1000}

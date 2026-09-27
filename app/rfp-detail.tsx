@@ -33,6 +33,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { formatCalendarDay } from '@/utils/calendarDate';
+import { describeError } from '@/utils/errorCopy';
 
 interface RfpRow {
   id: string;
@@ -133,7 +134,7 @@ export default function RfpDetailScreen() {
   const [submittingQ, setSubmittingQ] = useState(false);
   const handleAsk = useCallback(async () => {
     if (!bidId || !newQuestion.trim() || newQuestion.trim().length < 8) {
-      showAlert('Question too short', 'Add a few more words so the homeowner has something to answer.');
+      showAlert('Question too short', 'Add a few more words so the client has something to answer.');
       return;
     }
     setSubmittingQ(true);
@@ -158,7 +159,8 @@ export default function RfpDetailScreen() {
         if (ok) void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
         else showAlert('Could not post', 'Try again in a moment.');
       } catch (e) {
-        showAlert('Could not post', e instanceof Error ? e.message : 'Try again.');
+        const copy = describeError(e, { action: 'post the answer' });
+        showAlert(copy.title, copy.body);
       }
     };
     // UX-F17: RN's Alert.prompt is a no-op on Android (defined, does nothing),
@@ -229,7 +231,7 @@ export default function RfpDetailScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Homeowner RFP</Text>
+          <Text style={styles.eyebrow}>Client RFP</Text>
           <Text style={styles.title} numberOfLines={2}>{heading}</Text>
         </View>
       </View>
@@ -241,7 +243,7 @@ export default function RfpDetailScreen() {
     return renderShell('Project not found', (
       <>
         <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>We could not open that link</Text>
+        <Text style={styles.stateTitle}>Couldn’t open that link</Text>
         <Text style={styles.stateText}>
           It is missing a project reference. Open the project again from your MAGE ID Bids tab.
         </Text>
@@ -256,7 +258,7 @@ export default function RfpDetailScreen() {
     return renderShell('Loading', (
       <>
         <ActivityIndicator size="small" color={themeColors.accent} />
-        <Text style={styles.stateText}>Loading this project...</Text>
+        <Text style={styles.stateText}>Loading this project…</Text>
       </>
     ));
   }
@@ -265,7 +267,7 @@ export default function RfpDetailScreen() {
     return renderShell('Could not load', (
       <>
         <AlertTriangle size={22} color={Colors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.stateTitle}>We could not load this project</Text>
+        <Text style={styles.stateTitle}>Couldn’t load this project</Text>
         <Text style={styles.stateText}>
           You may be offline or on a weak connection. Nothing was lost.
         </Text>
@@ -295,7 +297,7 @@ export default function RfpDetailScreen() {
         <FileText size={22} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.stateTitle}>This project is no longer available</Text>
         <Text style={styles.stateText}>
-          The homeowner may have awarded it, closed it, or taken it down.
+          The client may have awarded it, closed it, or taken it down.
         </Text>
         <TouchableOpacity style={styles.stateBtn} onPress={handleBack} accessibilityRole="button" testID="rfp-detail-back">
           <Text style={styles.stateBtnText}>Go back</Text>
@@ -313,7 +315,7 @@ export default function RfpDetailScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Homeowner RFP</Text>
+          <Text style={styles.eyebrow}>Client RFP</Text>
           <Text style={styles.title} numberOfLines={2}>{rfp.title}</Text>
         </View>
       </View>
@@ -340,13 +342,13 @@ export default function RfpDetailScreen() {
             {isAwarded && (
               <View style={[styles.pill, { backgroundColor: themeColors.success + '20' }]}>
                 <Trophy size={10} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: themeColors.success }]}>AWARDED</Text>
+                <Text style={[styles.pillText, { color: themeColors.success }]}>Awarded</Text>
               </View>
             )}
             {isOpen && (
               <View style={[styles.pill, { backgroundColor: themeColors.accent + '20' }]}>
                 <Clock size={10} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: themeColors.accent }]}>OPEN FOR BIDS</Text>
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>Open for bids</Text>
               </View>
             )}
             {rfp.verified_only && (
@@ -359,7 +361,7 @@ export default function RfpDetailScreen() {
                     USING(true) to authenticated and bid_responses has no
                     verification predicate. "ONLY" claimed a restriction that does
                     not exist, to both the homeowner and every bidder. */}
-                <Text style={[styles.pillText, { color: themeColors.accent }]}>VERIFIED PROS NOTIFIED</Text>
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>Verified pros notified</Text>
               </View>
             )}
             {/* address_verified is written by the HOMEOWNER'S device when its
@@ -370,13 +372,13 @@ export default function RfpDetailScreen() {
             {rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: themeColors.surfaceAlt }]}>
                 <MapPin size={10} color={themeColors.textSecondary} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: themeColors.textSecondary }]}>ADDRESS FOUND ON MAP</Text>
+                <Text style={[styles.pillText, { color: themeColors.textSecondary }]}>Address found on map</Text>
               </View>
             )}
             {!rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: Colors.warning + '15' }]}>
                 <MapPinOff size={10} color={Colors.warningLabel} strokeWidth={1.75} />
-                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>ADDRESS NOT ON MAP</Text>
+                <Text style={[styles.pillText, { color: Colors.warningLabel }]}>Address not on map</Text>
               </View>
             )}
           </View>
@@ -388,7 +390,7 @@ export default function RfpDetailScreen() {
             <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.cardRowText}>
               {[rfp.city, rfp.state].filter(Boolean).join(', ') || 'Location pending'}
-              {' '}<Text style={styles.cardRowMuted}>(exact address shared after homeowner accepts a site visit)</Text>
+              {' '}<Text style={styles.cardRowMuted}>(exact address shared after the client accepts a site visit)</Text>
             </Text>
           </View>
           {(rfp.budget_min || rfp.budget_max) && (
@@ -424,7 +426,7 @@ export default function RfpDetailScreen() {
         {/* Drawings */}
         {rfp.drawing_urls && rfp.drawing_urls.length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Drawings & documents</Text>
+            <Text style={styles.cardLabel}>Plans and documents</Text>
             <View style={styles.drawingList}>
               {rfp.drawing_urls.map(url => {
                 const name = url.split('/').pop()?.replace(/^\d+_/, '') ?? 'attachment';
@@ -444,7 +446,7 @@ export default function RfpDetailScreen() {
         <View style={styles.qaCard}>
           <View style={styles.qaHead}>
             <HelpCircle size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.qaTitle}>Questions & answers</Text>
+            <Text style={styles.qaTitle}>Questions and answers</Text>
             {(questions?.length ?? 0) > 0 && (
               <View style={styles.qaCount}>
                 <Text style={styles.qaCountText}>{questions!.length}</Text>
@@ -453,8 +455,8 @@ export default function RfpDetailScreen() {
           </View>
           <Text style={styles.qaHelper}>
             {isOwner
-              ? 'Contractors ask here before submitting bids. Answer once and every prospective bidder sees it — saves you a dozen DMs.'
-              : 'Ask the homeowner anything you need to know before bidding. Answers are public so every bidder works from the same info.'}
+              ? 'Contractors ask here before they bid. Answer once and every bidder sees it.'
+              : 'Ask the client anything you need to know before bidding. Answers are public, so every bidder works from the same information.'}
           </Text>
 
           {/* Question composer (contractors only, on open RFPs) */}
@@ -511,7 +513,7 @@ export default function RfpDetailScreen() {
                       <Text style={styles.qaAnswerCtaText}>Answer →</Text>
                     </TouchableOpacity>
                   ) : (
-                    <Text style={styles.qaPending}>Awaiting homeowner answer</Text>
+                    <Text style={styles.qaPending}>Waiting on the client’s answer</Text>
                   )}
                 </View>
               ))}
@@ -582,7 +584,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   metaRow: { marginBottom: 14 },
   metaPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full },
-  pillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  pillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,

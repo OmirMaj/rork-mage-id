@@ -79,19 +79,21 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 // ── Brand palette (match the rest of the transactional email suite) ──
 const INK = '#0B0D10';
-const AMBER = '#FF6A1A';
-const CREAM = '#F4EFE6';
-const SAND = '#E8DFCD';
+const BRAND = '#2F6B3A';
+const CONCRETE = '#ECEDE9';
+const HAIRLINE = '#D7DAD4';
 const FOG = '#9AA3AD';
 const STONE = '#4A5159';
 const PAPER = '#FFFFFF';
+// The app's light dangerLabel (constants/colors.ts) — 5.3:1 on white.
+const OVERDUE = '#B93A32';
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 // Keep linter happy: these are only here for parity with the brand-const
 // block the other functions carry; they're referenced indirectly via the
 // shared helpers.
-void INK, AMBER, CREAM, SAND, FOG, STONE, PAPER, FONT_STACK, FONT_DISPLAY;
+void INK, BRAND, CONCRETE, HAIRLINE, FOG, STONE, PAPER, FONT_STACK, FONT_DISPLAY;
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -370,24 +372,24 @@ function buildDunningHtml(opts: {
   })();
 
   const stageLabel =
-    opts.stage === 3 ? 'FINAL NOTICE' :
-    opts.stage === 2 ? 'SECOND NOTICE' :
-    'PAYMENT REMINDER';
+    opts.stage === 3 ? 'Final notice' :
+    opts.stage === 2 ? 'Second notice' :
+    'Payment reminder';
 
   const subject = opts.stage === 3
-    ? `Final notice — Invoice #${opts.invoiceNumber} is ${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'} overdue`
+    ? `Final notice: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
     : opts.stage === 2
-    ? `Second notice — Invoice #${opts.invoiceNumber} is ${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'} overdue`
-    : `Friendly reminder — Invoice #${opts.invoiceNumber} is past due`;
+    ? `Second notice: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
+    : `Reminder: invoice #${opts.invoiceNumber} is past due`;
 
   // Stage-appropriate intro tone:
   // 1 = friendly, 2 = firmer, 3 = urgent
   const introLine =
     opts.stage === 3
-      ? `This is a final notice regarding an outstanding balance on your project. Please arrange payment immediately to avoid further action.`
+      ? `This is a final notice about an outstanding balance on your project. Arrange payment now to avoid further action.`
       : opts.stage === 2
-      ? `We haven't received payment yet for the invoice below. Please take a moment to review and arrange payment at your earliest convenience.`
-      : `Just a friendly reminder that the invoice below is now past due. If you've already sent payment, please disregard this notice.`;
+      ? `Payment for the invoice below hasn't been received yet. Review it and arrange payment as soon as you can.`
+      : `The invoice below is now past due. If you've already sent payment, you can ignore this notice.`;
 
   // Exact to the cent (#135 family): the shared fmtMoney rounds to whole
   // dollars, so the notice demanded "$77,485" while the Pay button beside it
@@ -399,7 +401,7 @@ function buildDunningHtml(opts: {
       ${introLine}
     </p>
     <table role="presentation" cellspacing="0" cellpadding="0" border="0"
-           style="width:100%;background:${CREAM};border:1px solid ${SAND};border-radius:14px;margin:16px 0;">
+           style="width:100%;background:${CONCRETE};border:1px solid ${HAIRLINE};border-radius:14px;margin:16px 0;">
       <tr><td style="padding:18px 22px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
@@ -412,11 +414,11 @@ function buildDunningHtml(opts: {
           </tr>
           <tr>
             <td style="padding:6px 0;font-family:${FONT_STACK};font-size:13px;color:${FOG};">Days overdue</td>
-            <td align="right" style="padding:6px 0;font-family:${FONT_STACK};font-size:13px;color:${AMBER};font-weight:700;">${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'}</td>
+            <td align="right" style="padding:6px 0;font-family:${FONT_STACK};font-size:13px;color:${OVERDUE};font-weight:700;">${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'}</td>
           </tr>
           <tr>
-            <td style="padding:10px 0 0;font-family:${FONT_STACK};font-size:15px;font-weight:700;color:${INK};border-top:1px solid ${SAND};">Amount due</td>
-            <td align="right" style="padding:10px 0 0;font-family:${FONT_STACK};font-size:20px;font-weight:800;color:${INK};letter-spacing:-0.3px;border-top:1px solid ${SAND};">${amountFormatted}</td>
+            <td style="padding:10px 0 0;font-family:${FONT_STACK};font-size:15px;font-weight:700;color:${INK};border-top:1px solid ${HAIRLINE};">Amount due</td>
+            <td align="right" style="padding:10px 0 0;font-family:${FONT_STACK};font-size:20px;font-weight:800;color:${INK};letter-spacing:-0.3px;border-top:1px solid ${HAIRLINE};">${amountFormatted}</td>
           </tr>
         </table>
       </td></tr>
@@ -429,7 +431,7 @@ function buildDunningHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `Invoice #${opts.invoiceNumber} — ${amountFormatted} overdue by ${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'} on ${opts.projectName}.`,
+    preheader: `Invoice #${opts.invoiceNumber} · ${amountFormatted} overdue by ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} on ${opts.projectName}.`,
     eyebrow: stageLabel,
     title: subject,
     subtitle: `${opts.projectName}`,
@@ -632,10 +634,10 @@ async function processInvoice(
   // ── Compose email ──
   const subject =
     target === 3
-      ? `Final notice — Invoice #${invoice.number} is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue`
+      ? `Final notice: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
       : target === 2
-      ? `Second notice — Invoice #${invoice.number} is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue`
-      : `Friendly reminder — Invoice #${invoice.number} is past due`;
+      ? `Second notice: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
+      : `Reminder: invoice #${invoice.number} is past due`;
 
   // #81: the portal link only to a portal invitee — a bill-to address the
   // homeowner never invited gets the Pay button, not his whole portal.

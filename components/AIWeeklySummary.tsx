@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Modal, Alert,
+  ScrollView, Modal, Alert, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +18,8 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   projects: Project[];
@@ -26,17 +28,17 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  on_track: { icon: CheckCircle2, color: "#2E7D44", label: 'ON TRACK', bg: Colors.successLight },
-  at_risk: { icon: AlertTriangle, color: Colors.warningLabel, label: 'AT RISK', bg: Colors.warningLight },
-  behind: { icon: AlertTriangle, color: "#C84038", label: 'BEHIND', bg: Colors.errorLight },
-  ahead: { icon: TrendingUp, color: "#1565C0", label: 'AHEAD', bg: Colors.infoLight },
+  on_track: { icon: CheckCircle2, color: Colors.successDark, label: 'On track', bg: Colors.successLight },
+  at_risk: { icon: AlertTriangle, color: Colors.warningLabel, label: 'At risk', bg: Colors.warningLight },
+  behind: { icon: AlertTriangle, color: "#C84038", label: 'Behind', bg: Colors.errorLight },
+  ahead: { icon: TrendingUp, color: "#1565C0", label: 'Ahead', bg: Colors.infoLight },
 } as const;
 
 const SEVERITY_CONFIG = {
-  critical: { color: '#D32F2F', bg: Colors.errorLight,  label: 'CRITICAL' },
-  high:     { color: Colors.warningDark, bg: Colors.warningLight,  label: 'HIGH' },
-  medium:   { color: '#F57F17', bg: '#FFFDE7',  label: 'MEDIUM' },
-  low:      { color: '#5E6873', bg: '#F2F4F7',  label: 'LOW' },
+  critical: { color: '#D32F2F', bg: Colors.errorLight,  label: 'Critical' },
+  high:     { color: Colors.warningDark, bg: Colors.warningLight,  label: 'High' },
+  medium:   { color: '#F57F17', bg: '#FFFDE7',  label: 'Medium' },
+  low:      { color: '#5E6873', bg: '#F2F4F7',  label: 'Low' },
 } as const;
 
 const SEVERITY_ORDER: Record<string, number> = {
@@ -54,6 +56,9 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { tier: subscriptionTier } = useSubscription();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [result, setResult] = useState<WeeklySummaryResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // Track whether the user was blocked by a paywall so the modal can show
@@ -67,7 +72,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
     // out is too expensive for free tier.
     const limit = await checkAILimit(subscriptionTier, 'smart', 'weeklyAnalysis');
     if (!limit.allowed) {
-      setPaywallReason(limit.message ?? 'Upgrade to unlock Full Analysis.');
+      setPaywallReason(limit.message ?? 'Full project analysis is on the Pro plan.');
       return;
     }
     setIsLoading(true);
@@ -85,7 +90,8 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
       // who opened Full Analysis on a dropped connection watched the loader
       // vanish into an empty page (audit 2026-09-07, ai-features).
       console.error('[AI Weekly] Failed:', err);
-      setError(`Couldn't analyze your portfolio. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      const copy = describeError(err, { action: 'analyze your projects' });
+      setError(`${copy.title}. ${copy.body}`);
     } finally {
       setIsLoading(false);
     }
@@ -111,21 +117,25 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
     if (!visible) setError(null);
   }, [visible]);
 
+  // Esc / the scrim close on the web only: the iPhone's swipe-down stays
+  // exactly as it is today (founder decision 2, d6r X3).
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle="pageSheet" transparent={fP.transparent} {...(Platform.OS === 'web' ? { onRequestClose: onClose } : null)}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <View style={[styles.container, { paddingTop: insets.top }, fP.card]}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <MageAIMark size={18} color={"#FF6A1A"} />
-            <Text style={styles.headerTitle}>Full Project Analysis</Text>
+            <MageAIMark size={18} color={themeColors.accent} />
+            <Text style={styles.headerTitle}>Full project analysis</Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {paywallReason ? (
           <View style={styles.loadingState}>
-            <MageAIMark size={40} color={"#FF6A1A"} />
-            <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>Pro Feature</Text>
+            <MageAIMark size={40} color={themeColors.accent} />
+            <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>On the Pro plan</Text>
             <Text style={[styles.loadingSubtext, { marginTop: 8, textAlign: 'center', paddingHorizontal: 24 }]}>{paywallReason}</Text>
           </View>
         ) : error && !result ? (
@@ -144,8 +154,8 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
           </View>
         ) : isLoading && !result ? (
           <View style={styles.loadingState}>
-            <ConstructionLoader size="lg" label="Analyzing your portfolio..." />
-            <Text style={styles.loadingSubtext}>Reviewing {projects.length} project(s)</Text>
+            <ConstructionLoader size="lg" label="Analyzing your projects…" />
+            <Text style={styles.loadingSubtext}>Reviewing {projects.length} {projects.length === 1 ? 'project' : 'projects'}</Text>
           </View>
         ) : result ? (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -154,19 +164,19 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             </View>
 
             <View style={styles.overviewCard}>
-              <Text style={styles.sectionLabel}>PORTFOLIO OVERVIEW</Text>
+              <Text style={styles.sectionLabel}>Portfolio overview</Text>
               <View style={styles.overviewGrid}>
                 <View style={styles.overviewItem}>
                   <Text style={styles.overviewValue}>{result.portfolioSummary?.totalProjects ?? 0}</Text>
                   <Text style={styles.overviewLabel}>Active</Text>
                 </View>
                 <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: "#2E7D44" }]}>{result.portfolioSummary?.onTrack ?? 0}</Text>
-                  <Text style={styles.overviewLabel}>On Track</Text>
+                  <Text style={[styles.overviewValue, { color: themeColors.successLabel }]}>{result.portfolioSummary?.onTrack ?? 0}</Text>
+                  <Text style={styles.overviewLabel}>On track</Text>
                 </View>
                 <View style={styles.overviewItem}>
                   <Text style={[styles.overviewValue, { color: Colors.warningLabel }]}>{result.portfolioSummary?.atRisk ?? 0}</Text>
-                  <Text style={styles.overviewLabel}>At Risk</Text>
+                  <Text style={styles.overviewLabel}>At risk</Text>
                 </View>
                 <View style={styles.overviewItem}>
                   <Text style={styles.overviewValue}>{result.portfolioSummary?.tasksCompletedThisWeek ?? 0}</Text>
@@ -218,7 +228,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                               <Target size={11} color={Colors.warningDark} strokeWidth={1.75} />
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.issueRowLabel}>CAUSE</Text>
+                              <Text style={styles.issueRowLabel}>Cause</Text>
                               <Text style={styles.issueRowText}>{iss.cause}</Text>
                             </View>
                           </View>
@@ -230,7 +240,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                               <MageAIMark size={11} color="#D32F2F" />
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.issueRowLabel}>IMPACT</Text>
+                              <Text style={styles.issueRowLabel}>Impact</Text>
                               <Text style={styles.issueRowText}>{iss.impact}</Text>
                             </View>
                           </View>
@@ -242,7 +252,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                               <Wrench size={11} color={Colors.successDark} strokeWidth={1.75} />
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={[styles.issueRowLabel, { color: Colors.successDark }]}>NEXT STEP</Text>
+                              <Text style={[styles.issueRowLabel, { color: Colors.successDark }]}>Next step</Text>
                               <Text style={[styles.issueRowText, styles.issueRowFixText]}>{iss.fix}</Text>
                             </View>
                           </View>
@@ -253,11 +263,11 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
               </View>
             ) : (
               <View style={styles.noIssuesCard}>
-                <CheckCircle2 size={20} color={"#2E7D44"} strokeWidth={1.75} />
+                <CheckCircle2 size={20} color={themeColors.successLabel} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.noIssuesTitle}>Nothing critical to flag</Text>
                   <Text style={styles.noIssuesBody}>
-                    AI didn&apos;t spot any blocking issues this week. Project status is below.
+                    MAGE found no blocking issues this week. Project status is below.
                   </Text>
                 </View>
               </View>
@@ -280,7 +290,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                     <Text style={styles.progressLabel}>Progress:</Text>
                     <Text style={styles.progressValue}>
                       {proj.progressStart}% → {proj.progressEnd}%{' '}
-                      <Text style={{ color: "#2E7D44" }}>
+                      <Text style={{ color: themeColors.successLabel }}>
                         (+{proj.progressEnd - proj.progressStart}% this week)
                       </Text>
                     </Text>
@@ -303,12 +313,12 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
 
             {result.overallRecommendation ? (
               <View style={styles.overallRec}>
-                <MageAIMark size={14} color={"#FF6A1A"} />
+                <MageAIMark size={14} color={themeColors.accent} />
                 <Text style={styles.overallRecText}>{result.overallRecommendation}</Text>
               </View>
             ) : null}
 
-            <Text style={styles.aiDisclaimer}>Generated by MAGE Brain</Text>
+            <Text style={styles.aiDisclaimer}>Generated by MAGE</Text>
           </ScrollView>
         ) : (
           <View style={styles.loadingState}>
@@ -316,6 +326,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
           </View>
         )}
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }
@@ -365,7 +376,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 11,
     borderRadius: Tokens.radius.md,
-    // accentFill (#BC440C, 5.29:1), never the 2.87:1 accent, behind white.
+    // accentFill (white 6.39:1 light / 4.83:1 dark), never the raw accent,
+    // behind white: the dark theme's accent #5DB36E carries white at 2.58:1.
     backgroundColor: t.accentFill,
   },
   retryBtnText: {
@@ -406,6 +418,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.textMuted,
     letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   overviewGrid: {
     flexDirection: 'row',
@@ -475,6 +488,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   statusText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
+    textTransform: 'uppercase',
   },
   progressRow: {
     flexDirection: 'row',
@@ -594,6 +608,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: 9,
     fontWeight: '800' as const,
     letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   issueProject: {
     flex: 1,
@@ -634,6 +649,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textMuted,
     letterSpacing: 0.8,
     marginBottom: 3,
+    textTransform: 'uppercase',
   },
   issueRowText: {
     fontSize: Type.footnote.fontSize,
@@ -641,7 +657,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     lineHeight: 18,
   },
   issueRowFixText: {
-    color: '#1B5E20',
+    color: t.successLabel,
     fontWeight: '600' as const,
   },
   noIssuesCard: {

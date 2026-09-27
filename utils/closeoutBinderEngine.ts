@@ -9,7 +9,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
-  pdfShell, pdfHeader, pdfTitle, pdfFooter, escHtml, fmtMoney, PDF_PALETTE,
+  pdfShell, pdfHeader, pdfTitle, pdfFooter, escHtml, fmtMoney, PDF_PALETTE, PDF_FONT_DISPLAY,
 } from './pdfDesign';
 import type {
   CompanyBranding, Project, Commitment, ProjectPhoto, RFI,
@@ -82,8 +82,8 @@ function rowToBinder(r: CloseoutBinderRow): CloseoutBinder {
 export const DEFAULT_MAINTENANCE: MaintenanceItem[] = [
   { id: 'm1', task: 'HVAC filter replacement',  frequency: 'Quarterly', notes: 'Replace MERV 11 or higher.' },
   { id: 'm2', task: 'HVAC professional service', frequency: 'Annual',    notes: 'Spring tune-up recommended before cooling season.' },
-  { id: 'm3', task: 'Smoke + CO detectors test', frequency: 'Monthly',   notes: 'Replace batteries annually.' },
-  { id: 'm4', task: 'Caulk + sealant inspection', frequency: 'Annual',   notes: 'Check kitchen + bath grout, exterior caulking.' },
+  { id: 'm3', task: 'Smoke and CO detector test', frequency: 'Monthly',   notes: 'Replace batteries annually.' },
+  { id: 'm4', task: 'Caulk and sealant inspection', frequency: 'Annual',   notes: 'Check kitchen and bath grout, and exterior caulking.' },
   { id: 'm5', task: 'Gutter cleaning',           frequency: 'Bi-annual', notes: 'Spring and fall.' },
   { id: 'm6', task: 'Water heater flush',        frequency: 'Annual',    notes: 'Drain sediment to extend life.' },
 ];
@@ -114,7 +114,7 @@ export async function fetchCloseoutBinder(projectId: string): Promise<CloseoutBi
 export async function loadCloseoutBinderChecked(
   projectId: string,
 ): Promise<{ ok: true; value: CloseoutBinder | null } | { ok: false; error: string }> {
-  if (!isSupabaseConfigured) return { ok: false, error: 'No backend configured.' };
+  if (!isSupabaseConfigured) return { ok: false, error: "The closeout binder isn't available in this version of the app." };
   try {
     const { data, error } = await supabase
       .from('closeout_binders')
@@ -123,10 +123,10 @@ export async function loadCloseoutBinderChecked(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) return { ok: false, error: error.message || 'The closeout binder could not be read.' };
+    if (error) return { ok: false, error: "The closeout binder couldn't be read. Check your connection and try again." };
     return { ok: true, value: data ? rowToBinder(data as CloseoutBinderRow) : null };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'The closeout binder could not be read.' };
+    return { ok: false, error: "The closeout binder couldn't be read. Check your connection and try again." };
   }
 }
 
@@ -289,16 +289,16 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     : ['Company', 'Scope', 'Phase'];
   const subContactRows = tradeContacts.map(t => shareContacts ? `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(t.company)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.scope ?? '')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.phone ?? '')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.email ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;font-weight:700">${escHtml(t.company)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.scope ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.phone ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.email ?? '')}</td>
       </tr>
     ` : `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(t.company)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.scope ?? '')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.phase ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;font-weight:700">${escHtml(t.company)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.scope ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(t.phase ?? '')}</td>
       </tr>
     `).join('');
   // Honesty line: a blank phone/email cell means we never captured it, not that
@@ -331,10 +331,10 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   // make a complete log look incomplete.
   const rfiRows = projectRfis.map(r => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">#${escHtml(r.number)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(r.subject)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(r.dateSubmitted, '')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(RFI_STATUS_LABELS[r.status] ?? r.status)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;font-weight:700">#${escHtml(r.number)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(r.subject)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(r.dateSubmitted, '')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(RFI_STATUS_LABELS[r.status] ?? r.status)}</td>
     </tr>
   `).join('');
 
@@ -358,10 +358,10 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     .sort((a, b) => a.number - b.number);
   const submittalRows = projectSubmittals.map(s => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">SUB-${escHtml(String(s.number).padStart(3, '0'))}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(s.specSection ?? '')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(s.title)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(SUBMITTAL_STATUS_LABELS[s.currentStatus] ?? s.currentStatus)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;font-weight:700">SUB-${escHtml(String(s.number).padStart(3, '0'))}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(s.specSection ?? '')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text}">${escHtml(s.title)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(SUBMITTAL_STATUS_LABELS[s.currentStatus] ?? s.currentStatus)}</td>
     </tr>
   `).join('');
 
@@ -373,9 +373,9 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     : ['Category', 'Product · Brand · SKU'];
   const selectionRows = chosenSelections.map(s => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;font-weight:800;color:${PDF_PALETTE.textMuted};text-transform:uppercase;letter-spacing:0.4px;width:25%">${escHtml(s.category)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;color:${PDF_PALETTE.text}"><strong>${escHtml(s.chosen!.productName)}</strong>${s.chosen!.brand ? ` · ${escHtml(s.chosen!.brand)}` : ''}${s.chosen!.sku ? ` · SKU ${escHtml(s.chosen!.sku)}` : ''}</td>${shareSuppliers ? `
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.textMuted}">${s.chosen!.supplier ? escHtml(s.chosen!.supplier) : ''}</td>` : ''}
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;font-weight:800;color:${PDF_PALETTE.textMuted};text-transform:uppercase;letter-spacing:0.4px;width:25%">${escHtml(s.category)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;color:${PDF_PALETTE.text}"><strong>${escHtml(s.chosen!.productName)}</strong>${s.chosen!.brand ? ` · ${escHtml(s.chosen!.brand)}` : ''}${s.chosen!.sku ? ` · SKU ${escHtml(s.chosen!.sku)}` : ''}</td>${shareSuppliers ? `
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.textMuted}">${s.chosen!.supplier ? escHtml(s.chosen!.supplier) : ''}</td>` : ''}
     </tr>
   `).join('');
 
@@ -387,10 +387,10 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     .sort((a, b) => (b.throughDate ?? '').localeCompare(a.throughDate ?? ''));
   const lienWaiverRows = projectLienWaivers.map(w => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(w.subName)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(WAIVER_LABELS[w.waiverType]?.short ?? w.waiverType)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(w.throughDate, '—')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtMoney(w.paidAmount)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;font-weight:700">${escHtml(w.subName)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(WAIVER_LABELS[w.waiverType]?.short ?? w.waiverType)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(w.throughDate, '—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${fmtMoney(w.paidAmount)}</td>
     </tr>
   `).join('');
 
@@ -398,28 +398,28 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     .filter(w => w.projectId === project.id)
     .map(w => `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(w.title ?? w.category ?? 'Item')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(w.provider ?? '')}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${w.durationMonths ? w.durationMonths + ' mo' : ''}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(w.endDate, '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;font-weight:700">${escHtml(w.title ?? w.category ?? 'Item')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(w.provider ?? '')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${w.durationMonths ? w.durationMonths + ' mo' : ''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(w.endDate, '')}</td>
       </tr>
     `).join('');
 
   const maintenanceRows = (binder.maintenanceSchedule ?? []).map(m => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(m.task)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(m.frequency)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(m.nextDate, '—')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(m.notes ?? '')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:12px;font-weight:700">${escHtml(m.task)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(m.frequency)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${fmtCellDay(m.nextDate, '—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.hairline};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(m.notes ?? '')}</td>
     </tr>
   `).join('');
 
   const sectionTable = (title: string, columns: string[], rowsHtml: string, emptyMsg: string) => `
     <div class="no-break" style="margin-bottom:24px">
-      <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${PDF_PALETTE.ink};margin:0 0 10px;letter-spacing:-0.3px">${escHtml(title)}</h2>
+      <h2 style="font-family:${PDF_FONT_DISPLAY};font-size:18px;font-weight:700;color:${PDF_PALETTE.ink};margin:0 0 10px;letter-spacing:-0.3px">${escHtml(title)}</h2>
       ${rowsHtml ? `
-        <table style="width:100%;border-collapse:collapse;background:${PDF_PALETTE.surface};border:1px solid ${PDF_PALETTE.bone};border-radius:8px;overflow:hidden">
-          <thead><tr>${columns.map(c => `<th style="text-align:left;padding:10px 12px;background:${PDF_PALETTE.cream2};font-size:9px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;border-bottom:2px solid ${PDF_PALETTE.bone}">${escHtml(c)}</th>`).join('')}</tr></thead>
+        <table style="width:100%;border-collapse:collapse;background:${PDF_PALETTE.surface};border:1px solid ${PDF_PALETTE.hairline};border-radius:8px;overflow:hidden">
+          <thead><tr>${columns.map(c => `<th style="text-align:left;padding:10px 12px;background:${PDF_PALETTE.ground2};font-size:9px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;border-bottom:2px solid ${PDF_PALETTE.hairline}">${escHtml(c)}</th>`).join('')}</tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
       ` : `<p style="font-size:12px;color:${PDF_PALETTE.textMuted};font-style:italic">${escHtml(emptyMsg)}</p>`}
@@ -427,7 +427,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   `;
 
   const heroSection = heroPhoto?.uri ? `
-    <div style="margin:24px 0;border-radius:12px;overflow:hidden;border:1px solid ${PDF_PALETTE.bone}">
+    <div style="margin:24px 0;border-radius:12px;overflow:hidden;border:1px solid ${PDF_PALETTE.hairline}">
       <img src="${escHtml(heroPhoto.uri)}" style="width:100%;height:auto;display:block;max-height:300px;object-fit:cover" alt="" />
     </div>
   ` : '';
@@ -435,9 +435,9 @@ export function buildBinderHtml(input: BuildBinderInput): string {
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Project Closeout',
-      title:   `${project.name} — Closeout Binder`,
-      subtitle: `Everything you need to maintain, troubleshoot, and improve this build.`,
+      eyebrow: 'Project closeout',
+      title:   `${project.name} · Closeout binder`,
+      subtitle: `Everything you need to maintain, troubleshoot and improve this project.`,
       meta: [
         { label: 'Address',     value: project.location ?? '—' },
         { label: 'Completion',  value: completionLabel(completionDate) },
@@ -447,13 +447,13 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     ${heroSection}
 
     ${binder.notes ? `
-    <div style="background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};border-radius:10px;padding:14px 16px;margin-bottom:24px;font-size:13px;line-height:1.6;color:${PDF_PALETTE.text}">
-      <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:6px">A note from your contractor</div>
+    <div style="background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};border-radius:10px;padding:14px 16px;margin-bottom:24px;font-size:13px;line-height:1.6;color:${PDF_PALETTE.text}">
+      <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.brand};text-transform:uppercase;margin-bottom:6px">A note from your contractor</div>
       ${escHtml(binder.notes).replace(/\n/g, '<br/>')}
     </div>
     ` : ''}
 
-    ${sectionTable('Finishes & fixtures installed',
+    ${sectionTable('Finishes and fixtures installed',
       selectionColumns,
       selectionRows,
       'No selections recorded.')}
@@ -471,7 +471,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
     ${sectionTable('Maintenance schedule',
       ['Task', 'Frequency', 'Next due', 'Notes'],
       maintenanceRows,
-      'No maintenance items configured.')}
+      'No maintenance items.')}
 
     ${sectionTable('Trade contacts',
       tradeContactColumns,
@@ -493,10 +493,10 @@ export function buildBinderHtml(input: BuildBinderInput): string {
       submittalRows,
       '') : ''}
 
-    <div style="margin-top:28px;padding:16px 18px;background:${PDF_PALETTE.amberTint};border:1px solid ${PDF_PALETTE.amber}40;border-radius:10px;font-size:12px;color:${PDF_PALETTE.text};line-height:1.6">
+    <div style="margin-top:28px;padding:16px 18px;background:${PDF_PALETTE.brandTint};border:1px solid ${PDF_PALETTE.brand}40;border-radius:10px;font-size:12px;color:${PDF_PALETTE.text};line-height:1.6">
       <strong style="color:${PDF_PALETTE.ink};font-size:13px">If something breaks during the warranty period:</strong>
       <ol style="margin:8px 0 0 20px;padding:0">
-        <li>Document with a photo + short description of the issue.</li>
+        <li>Take a photo and write a short description of the issue.</li>
         <li>Email the contractor at <strong>${escHtml(branding.email ?? '—')}</strong> within the warranty window.</li>
         <li>For urgent items (water leak, no heat, no power), call <strong>${escHtml(branding.phone ?? '—')}</strong>.</li>
       </ol>
@@ -507,14 +507,14 @@ export function buildBinderHtml(input: BuildBinderInput): string {
 
   return pdfShell({
     bodyHtml, branding,
-    title: `${project.name} — Closeout Binder`,
+    title: `${project.name} · Closeout binder`,
     pageMargin: '32px 36px',
   });
 }
 
 export async function shareCloseoutBinderPDF(input: BuildBinderInput): Promise<void> {
   const html = buildBinderHtml(input);
-  const title = `Closeout Binder — ${input.project.name}`;
+  const title = `Closeout binder · ${input.project.name}`;
   if (Platform.OS === 'web') {
     // A blocked pop-up used to return here as if the binder had been shared
     // (#147): the caller played its success haptic over nothing. Now the

@@ -76,6 +76,7 @@ import { useAccountSeats } from '@/hooks/useAccountSeats';
 import { isBillableSeat } from '@/utils/seatModel';
 import type { ProjectCollaborator } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { describeError, classifyError, rawErrorMessage, readerSentence } from '@/utils/errorCopy';
 import { Button } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -88,12 +89,13 @@ function emailsIn(v: unknown): string[] {
   return v.split(/[\s,;<>"'()]+/).map((x) => x.trim().toLowerCase()).filter((x) => x.includes('@'));
 }
 
+
 type ClientSource = 'primary_contact' | 'portal_invite' | 'bill_to';
 /** Where this job records its client — the same three places project-invite reads. */
 const CLIENT_SOURCE_LINES: Record<ClientSource, string> = {
-  primary_contact: 'is the client contact on this job',
-  portal_invite: "is invited to this job's client portal",
-  bill_to: "is the address this job's invoices are billed to",
+  primary_contact: 'is the client contact on this project',
+  portal_invite: "is invited to this project's client portal",
+  bill_to: "is the address this project's invoices are billed to",
 };
 
 /** The server's is_client sentence always carries this phrase; unwrap() in
@@ -147,7 +149,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
   }, [projectId, getProject, getInvoicesForProject]);
   const clientSource = useMemo(() => clientSourceFor(email), [clientSourceFor, email]);
   const clientReason = clientSource
-    ? `${email.trim()} ${CLIENT_SOURCE_LINES[clientSource]}. Collaborators can see the job's costs, margins and labour, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`
+    ? `${email.trim()} ${CLIENT_SOURCE_LINES[clientSource]}. Team members can see the project's costs, margins and labor, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`
     : null;
   // The guard runs at invite, accept and promotion. A seat taken BEFORE the
   // address was recorded as this job's client (the GC invited first, then
@@ -183,7 +185,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     if (!validEmail) return;
     if (inviteBlocked) { showAlert("Can't send the invite yet", inviteBlocked); return; }
     // The client first: no role makes this invite safe (see the header).
-    if (clientReason) { showAlert("This is the job's client", clientReason); return; }
+    if (clientReason) { showAlert("This is the project's client", clientReason); return; }
     // Someone already active on this job is never re-invited: the invite
     // resets his row to 'pending' and he loses the project until he accepts
     // again. Point at the row's role picker instead.
@@ -191,7 +193,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     const active = collaborators.find((c) => c.status === 'accepted' && c.email.trim().toLowerCase() === typed);
     if (active) {
       showAlert(
-        'Already on this job',
+        'Already on this project',
         `${active.email} is already here as ${ROLE_LABELS[active.role] ?? active.role}. To change what they can see, use the role buttons on their row below. Sending a new invite would lock them out until they accept it again.`,
       );
       return;
@@ -204,8 +206,8 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     // request we know will fail.
     if (!seatPreview.allowed) {
       showAlert(
-        'Out of team seats',
-        `${seatPreview.message}\n\nField collaborators don't use a seat — if they only need the schedule, daily reports, photos and RFIs, invite them as Field.`,
+        'Your team is full',
+        `${seatPreview.message}\n\nField team members don't count toward it. If they only need the schedule, daily reports, photos and RFIs, invite them as Field.`,
         [
           { text: 'Not now', style: 'cancel' },
           { text: 'See plans', onPress: () => router.push('/paywall') },
@@ -231,11 +233,11 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     // exactly the surprise that makes people distrust per-seat pricing.
     if (seatPreview.bills) {
       showAlert(
-        'This adds a paid seat',
-        `${seatPreview.message}\n\nField access stays free — if they only need the schedule, daily reports and photos, invite them as Field instead.`,
+        'This adds a paid team member',
+        `${seatPreview.message}\n\nField access stays free. If they only need the schedule, daily reports and photos, invite them as Field instead.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: `Add seat · $${seatPreview.addedMonthlyUsd}/mo`, onPress: send },
+          { text: `Add team member · $${seatPreview.addedMonthlyUsd}/mo`, onPress: send },
         ],
       );
       return;
@@ -253,7 +255,10 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
         { collaboratorId: c.id, role: next },
         {
           onSuccess: () => { void seats.refetch(); },
-          onError: (err) => showAlert("Couldn't change the role", (err as Error)?.message ?? 'Please try again.'),
+          onError: (err) => {
+            console.warn('[Collaborators] role change failed:', rawErrorMessage(err));
+            showAlert("Couldn't change the role", describeError(err, { action: 'change the role' }).body);
+          },
         },
       );
     };
@@ -264,14 +269,14 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     if (isBillableSeat(next) && !isBillableSeat(c.role)) {
       if (!canAccess('schedule_collaboration')) {
         showAlert(
-          `${label} needs a Pro plan`,
-          `Editors and viewers use a team seat, which starts on Pro. ${c.email} can stay on Field — free — with the schedule, daily reports, photos and RFIs.`,
+          `${label} access is on the Pro plan`,
+          `Editors and viewers count toward your team, which starts on Pro. ${c.email} can stay on Field for free, with the schedule, daily reports, photos and RFIs.`,
         );
         return;
       }
       const preview = seats.preview(next, c.email);
       if (!preview.allowed) {
-        showAlert('Out of team seats', `${preview.message}\n\n${c.email} can stay on Field, which doesn't use a seat.`);
+        showAlert('Your team is full', `${preview.message}\n\n${c.email} can stay on Field, which doesn't count toward your team.`);
         return;
       }
       if (preview.bills) seatLine = `\n\n${preview.message}`;
@@ -281,7 +286,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
     if (isFinancialsBlinded(c.role) && !isFinancialsBlinded(next)) {
       showAlert(
         `Make ${c.email} ${next === 'editor' ? 'an' : 'a'} ${label}?`,
-        `${label}s see costs, margins, the estimate and contract terms on this job.${seatLine}`,
+        `${label}s see costs, margins, the estimate and contract terms on this project.${seatLine}`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: `Make ${label}`, onPress: run },
@@ -304,7 +309,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
   const requestRevoke = useCallback((c: ProjectCollaborator) => {
     if (revoke.isPending) return;
     showAlert(
-      `Remove ${c.email} from this job?`,
+      `Remove ${c.email} from this project?`,
       "They lose access right away. To bring them back you'll have to send a new invite, and they'll have to accept it again.",
       [
         { text: 'Cancel', style: 'cancel' },
@@ -317,7 +322,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
               onSuccess: () => { void seats.refetch(); },
               onError: (err) => showAlert(
                 `Couldn't remove ${c.email}`,
-                `${(err as Error)?.message || 'Check your connection and try again.'}\n\nThey still have access to this job.`,
+                `${describeError(err, { action: 'remove them' }).body}\n\nThey still have access to this project.`,
               ),
             });
           },
@@ -336,7 +341,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
         setRowCopiedId(c.id);
         setTimeout(() => setRowCopiedId((cur) => (cur === c.id ? null : cur)), 1500);
       },
-      onError: (err) => showAlert("Couldn't get the invite link", (err as Error)?.message || 'Check your connection and try again.'),
+      onError: (err) => showAlert("Couldn't get the invite link", describeError(err, { action: 'get the invite link' }).body),
     });
   }, [getLink]);
 
@@ -345,7 +350,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
       {/* Invite form — owner only */}
       {isOwner ? (
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.line }]}>
-          <Text style={[styles.cardTitle, { color: t.text }]}>Invite a collaborator</Text>
+          <Text style={[styles.cardTitle, { color: t.text }]}>Invite a team member</Text>
 
           {/* Account-wide seat state. Field seats are shown alongside so the
               free-forever crew allowance is visible, not buried in pricing. */}
@@ -363,12 +368,12 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
                 <Text style={{ color: t.text, fontWeight: '700' }}>
                   {seats.status.used}/{seats.status.included}
                 </Text>
-                {' '}team seats used
+                {' '}team members
                 {seats.status.overage > 0
                   ? ` · ${seats.status.overage} extra · $${seats.status.overageMonthlyUsd}/mo`
                   : ''}
                 {seats.counts.field > 0
-                  ? ` · ${seats.counts.field} field seat${seats.counts.field === 1 ? '' : 's'} (free)`
+                  ? ` · ${seats.counts.field} Field ${seats.counts.field === 1 ? 'member' : 'members'} (free)`
                   : ''}
               </Text>
             </View>
@@ -440,13 +445,17 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
               <Text style={[styles.clientNoteText, { color: t.text }]}>{clientReason}</Text>
             </View>
           ) : null}
-          {invite.isError ? <Text style={[styles.errText, { color: t.danger }]}>{(invite.error as Error)?.message}</Text> : null}
+          {/* The project-invite function answers in sentences written for the
+              GC (the client refusal, the plan limit). Only text that reads as
+              such a sentence is shown (readerSentence); a transport failure or
+              a terse server note gets describeError copy instead. */}
+          {invite.isError ? <Text style={[styles.errText, { color: t.danger }]}>{(classifyError(invite.error) === 'unknown' ? readerSentence(rawErrorMessage(invite.error)) : null) ?? describeError(invite.error, { action: 'send the invite' }).body}</Text> : null}
           {(clientReason || serverClientRefusal) ? (
             onOpenClientPortal ? (
               <Button label="Open the client portal" size="sm" variant="secondary" onPress={onOpenClientPortal} testID="collab-open-client-portal" />
             ) : (
               <Text style={[styles.roleHint, { color: t.textSecondary }]} testID="collab-client-portal-hint">
-                The Client Portal tile on this job is where you invite them.
+                Invite them from the Client Portal tile on this project.
               </Text>
             )
           ) : null}
@@ -459,7 +468,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
               {lastSend.sent === true
                 ? `Emailed to ${lastSend.email}.`
                 : lastSend.sent === false
-                  ? `Email not sent to ${lastSend.email} — copy the link below and send it yourself.`
+                  ? `Email not sent to ${lastSend.email}. Copy the link below and send it yourself.`
                   : `Invite created for ${lastSend.email}. If the email doesn't arrive, copy the link below.`}
             </Text>
           ) : null}
@@ -485,7 +494,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
           ) : null}
         </View>
       ) : view === 'empty' ? (
-        <Text style={[styles.empty, { color: t.textMuted }]}>No collaborators yet{isOwner ? ' — invite your first above.' : '.'}</Text>
+        <Text style={[styles.empty, { color: t.textMuted }]}>No team members yet{isOwner ? '. Invite your first above.' : '.'}</Text>
       ) : (
         collaborators.map((c) => (
           <View key={c.id} style={[styles.row, { borderColor: t.line }]}>
@@ -499,7 +508,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
                   <ShieldAlert size={16} color={t.danger} strokeWidth={1.75} />
                   <View style={{ flex: 1, gap: 6 }}>
                     <Text style={[styles.clientNoteText, { color: t.text }]}>
-                      {`${c.email} ${CLIENT_SOURCE_LINES[clientSeats.get(c.id)!]}. ${c.status === 'accepted' ? 'This seat can see' : 'If accepted, this seat would see'} ${c.role === 'field' ? "the crew's daily reports and hours" : "the job's costs, margins and labour"}. Remove it and share the client portal instead.`}
+                      {`${c.email} ${CLIENT_SOURCE_LINES[clientSeats.get(c.id)!]}. ${c.status === 'accepted' ? 'This person can see' : 'If accepted, this person would see'} ${c.role === 'field' ? "the crew's daily reports and hours" : "the project's costs, margins and labor"}. Remove them and share the client portal instead.`}
                     </Text>
                     <Button
                       label={`Remove ${c.email}`}

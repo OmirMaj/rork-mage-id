@@ -61,7 +61,7 @@ console.log('\n#90 — his queued writes for a removed job go to the failure pat
   ok('his own job\'s writes are kept', queuedEntryRevokedProject({ table: 'daily_reports', operation: 'update', data: { id: 'dfr-mine' } }, ids, child) === null
     && queuedEntryRevokedProject({ table: 'projects', operation: 'upsert', data: { id: 'mine' } }, ids, child) === null);
   ok('the sentence names the job', noLongerHaveAccessReason('Henderson') === 'You no longer have access to Henderson'
-    && noLongerHaveAccessReason('  ') === 'You no longer have access to this job');
+    && noLongerHaveAccessReason('  ') === 'You no longer have access to this project');
   const dq = slice(OQ, 'export async function discardQueuedWrites(', '\n}\n');
   // Integration round 1: as NOTES — a write to a job he left can never land,
   // so the sheet must not offer it a Retry.
@@ -121,7 +121,7 @@ console.log('\n#90 — the provider applies it:');
   const cleanup = slice(CTX, 'if (!revokedCleanup || revokedCleanup.size === 0) return;', '}, [revokedCleanup]);');
   ok('the one-time cleanup records the jobs for later sweeps and runs the sweep',
     /for \(const \[pid, name\] of names\) revokedSweepRef\.current\.set\(pid, name\);/.test(cleanup) && /sweepRevokedJobs\(ids, names\)\.then\(tell,/.test(cleanup));
-  ok('...and tells him once, counting only what was really unsent', /showAlert\(\s*'No longer on a job',/.test(cleanup) && /unsent > 0 \?/.test(cleanup));
+  ok('...and tells him once, counting only what was really unsent', /showAlert\(\s*'No longer on a project',/.test(cleanup) && /unsent > 0 \?/.test(cleanup));
   const late = slice(CTX, 'const swept = revokedSweepRef.current;', '}, revokedSweepLists as unknown[]);');
   ok('a list that hydrates AFTER the cleanup is swept again (silently)',
     /if \(!listsHoldRevoked\(revokedSweepLists, ids\)\) return;/.test(late) && /sweepRevokedJobs\(ids, new Map\(swept\)\)/.test(late) && !/showAlert/.test(late));

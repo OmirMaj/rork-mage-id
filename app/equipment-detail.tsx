@@ -24,6 +24,7 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { EQUIPMENT_HOURS_PER_DAY } from '@/utils/jobCostEngine';
 import { cardSurface, labelOn, neutralInk } from '@/components/ui';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 // A factory, not a frozen object. `retired` was the DARK theme's textSecondary
@@ -36,7 +37,7 @@ import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 function statusConfig(t: ThemeColors): Record<string, { label: string; color: string }> {
   return {
     available: { label: 'Available', color: t.success },
-    in_use: { label: 'In Use', color: t.info },
+    in_use: { label: 'In use', color: t.info },
     maintenance: { label: 'Maintenance', color: t.warningLabel },
     retired: { label: 'Retired', color: neutralInk(t) },
   };
@@ -108,8 +109,8 @@ export default function EquipmentDetailScreen() {
   const logBlockedReason = logProject
     ? null
     : editProjectId
-      ? 'That project no longer exists. Scroll up to Assigned Project and pick another — hours logged against a deleted job never reach any cost report.'
-      : 'Scroll up to Assigned Project and pick a job first. Equipment hours are charged to that job at this machine’s day rate, and hours with no job never reach its cost.';
+      ? 'That project no longer exists. Scroll up to Assigned project and pick another. Hours logged against a deleted project never reach any cost report.'
+      : 'Scroll up to Assigned project and pick a project first. Equipment hours are charged to that project at this machine’s day rate, and hours with no project never reach its cost.';
 
   // What this write will actually cost the job, in the job's own terms and
   // with the engine's own arithmetic — hours ÷ EQUIPMENT_HOURS_PER_DAY × day
@@ -126,17 +127,17 @@ export default function EquipmentDetailScreen() {
     if (!logProject || !equip) return null;
     const rate = Number.isFinite(equip.dailyRate) ? equip.dailyRate : 0;
     if (rate <= 0) {
-      return `Logged against ${logProject.name}. This machine has no daily rate, so these hours carry no cost on that job until you set one.`;
+      return `Logged against ${logProject.name}. This machine has no daily rate, so these hours carry no cost on that project until you set one.`;
     }
     const hours = Math.max(0, parseFloat(logHours) || 0);
     const cost = (hours / EQUIPMENT_HOURS_PER_DAY) * rate;
     const money = cost.toLocaleString(undefined, { maximumFractionDigits: 2 });
-    return `Charged to ${logProject.name} at $${rate.toLocaleString()}/day — ${EQUIPMENT_HOURS_PER_DAY} hours is one day, so ${hours} h adds $${money} to that job's cost.`;
+    return `Charged to ${logProject.name} at $${rate.toLocaleString()}/day — ${EQUIPMENT_HOURS_PER_DAY} hours is one day, so ${hours} h adds $${money} to that project's cost.`;
   }, [logProject, equip, logHours]);
 
   const handleSave = useCallback(() => {
     if (!equip || !editName.trim()) {
-      showAlert('Missing Name', 'Please enter an equipment name.');
+      showAlert('Add a name', 'Enter an equipment name.');
       return;
     }
     updateEquipment(equip.id, {
@@ -151,12 +152,12 @@ export default function EquipmentDetailScreen() {
       currentProjectId: editProjectId || undefined,
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Saved', 'Equipment updated successfully.');
+    showAlert('Saved', 'Equipment updated.');
   }, [equip, editName, editMake, editModel, editDailyRate, editStatus, editCategory, editSerialNumber, editNotes, editProjectId, updateEquipment]);
 
   const handleDelete = useCallback(() => {
     if (!equip) return;
-    showAlert('Delete Equipment', `Delete ${equip.name}? This cannot be undone.`, [
+    showAlert(`Delete ${equip.name}?`, "This can't be undone.", [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -172,14 +173,14 @@ export default function EquipmentDetailScreen() {
     if (!equip) return;
     const hours = parseFloat(logHours) || 0;
     if (hours <= 0) {
-      showAlert('Invalid Hours', 'Please enter valid hours.');
+      showAlert('Check the hours', 'Enter hours as a number.');
       return;
     }
     // The button that opens this modal is disabled and says why, so this is the
     // last gate rather than the first — but it is a money write, and the cost of
     // being wrong is hours that exist on the machine and nowhere in the books.
     if (!logProject) {
-      showAlert('No job selected', 'Assign this machine to a project before logging hours, or the time is charged to nothing.');
+      showAlert('No project selected', 'Assign this machine to a project before logging hours, or the time is charged to nothing.');
       return;
     }
     logUtilization({
@@ -194,11 +195,18 @@ export default function EquipmentDetailScreen() {
     setLogOperator('');
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [equip, logHours, logOperator, logProject, logUtilization]);
+  // Above the not-found return (hook order). Desktop web: the Log Usage dialog
+  // is a centred card in the content column, the scrim over the sidebar.
+  // Logging charges the hours to a job (a money write), so the primary takes
+  // Cmd/Ctrl+Enter only — a habitual Cmd+S never books hours. Phone: every
+  // part is null — today's dialog, byte for byte.
+  const fLog = useSheetFrame('dialog', { visible: showLogModal, animationType: 'fade' });
+  useSheetPrimaryHotkey(showLogModal, handleLogUse, { saveKey: false });
 
   if (!equip) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Not Found' }} />
+        <Stack.Screen options={{ title: 'Not found' }} />
         <Text style={styles.emptyText}>Equipment not found</Text>
       </View>
     );
@@ -212,7 +220,7 @@ export default function EquipmentDetailScreen() {
       <Stack.Screen options={{
         title: equip.name,
         headerStyle: { backgroundColor: themeColors.bg },
-        headerTintColor: "#FF6A1A",
+        headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView
@@ -223,7 +231,7 @@ export default function EquipmentDetailScreen() {
       >
         <View style={styles.headerCard}>
           <View style={styles.equipIconWrap}>
-            <Truck size={28} color={"#FF6A1A"} strokeWidth={1.75} />
+            <Truck size={28} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={[styles.statusBadge, { backgroundColor: status.color + '20' }]}>
             <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.label}</Text>
@@ -245,10 +253,10 @@ export default function EquipmentDetailScreen() {
           </View>
         </View>
 
-        <Text style={styles.fieldLabel}>Serial Number</Text>
+        <Text style={styles.fieldLabel}>Serial number</Text>
         <TextInput style={styles.input} value={editSerialNumber} onChangeText={setEditSerialNumber} placeholder="Optional" placeholderTextColor={themeColors.textMuted} />
 
-        <Text style={styles.fieldLabel}>Daily Rate ($)</Text>
+        <Text style={styles.fieldLabel}>Daily rate ($)</Text>
         <TextInput style={styles.input} value={editDailyRate} onChangeText={setEditDailyRate} placeholder="350" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
 
         <Text style={styles.fieldLabel}>Status</Text>
@@ -266,7 +274,7 @@ export default function EquipmentDetailScreen() {
                 onPress={() => { setEditStatus(key as any); setShowStatusPicker(false); }}
               >
                 {/* Not '#fff': in dark mode `val.color` is the light end of each
-                    hue (success #4ED37A, warningLabel #FF9500), where a white
+                    hue (success #1ABCA2, warningLabel #FF9500), where a white
                     label is ~1.7-2.2:1. labelOn measures both candidates. */}
                 <Text style={[styles.optionChipText, editStatus === key && { color: labelOn(val.color) }]}>{val.label}</Text>
               </TouchableOpacity>
@@ -274,7 +282,7 @@ export default function EquipmentDetailScreen() {
           </View>
         )}
 
-        <Text style={styles.fieldLabel}>Assigned Project</Text>
+        <Text style={styles.fieldLabel}>Assigned project</Text>
         <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowProjectPicker(!showProjectPicker)}>
           <Text style={styles.pickerBtnText}>
             {editProjectId ? (projects.find(p => p.id === editProjectId)?.name ?? 'Unknown') : 'None'}
@@ -288,7 +296,7 @@ export default function EquipmentDetailScreen() {
             </TouchableOpacity>
             {projects.map(p => (
               <TouchableOpacity key={p.id} style={styles.projectItem} onPress={() => { setEditProjectId(p.id); setShowProjectPicker(false); }}>
-                <Text style={[styles.projectItemText, editProjectId === p.id && { color: "#FF6A1A", fontWeight: '600' as const }]}>{p.name}</Text>
+                <Text style={[styles.projectItemText, editProjectId === p.id && { color: themeColors.accentLabel, fontWeight: '600' as const }]}>{p.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -299,13 +307,13 @@ export default function EquipmentDetailScreen() {
           style={[styles.input, { minHeight: 70, paddingTop: 12 }]}
           value={editNotes}
           onChangeText={setEditNotes}
-          placeholder="Notes..."
+          placeholder="Notes"
           placeholderTextColor={themeColors.textMuted}
           multiline
           textAlignVertical="top"
         />
 
-        <Text style={styles.sectionTitle}>Maintenance Schedule</Text>
+        <Text style={styles.sectionTitle}>Maintenance schedule</Text>
         {equip.maintenanceSchedule.length === 0 ? (
           <Text style={styles.noDataText}>No maintenance items scheduled.</Text>
         ) : (
@@ -317,13 +325,13 @@ export default function EquipmentDetailScreen() {
                 {item.isOverdue && <AlertTriangle size={14} color={"#C84038"} strokeWidth={1.75} />}
               </View>
               <Text style={styles.maintDetail}>
-                Every {item.intervalDays} days | Next: {new Date(item.nextDue).toLocaleDateString()}
+                Every {item.intervalDays} days · Next due {new Date(item.nextDue).toLocaleDateString()}
               </Text>
             </View>
           ))
         )}
 
-        <Text style={styles.sectionTitle}>Utilization (Last 30 Days)</Text>
+        <Text style={styles.sectionTitle}>Utilization (last 30 days)</Text>
         {last30Days.length === 0 ? (
           <Text style={styles.noDataText}>No utilization logged yet.</Text>
         ) : (
@@ -339,7 +347,7 @@ export default function EquipmentDetailScreen() {
                     width={14}
                     height={barHeight}
                     rx={4}
-                    fill={"#FF6A1A"}
+                    fill={themeColors.accent}
                     opacity={0.8}
                   />
                 );
@@ -358,8 +366,8 @@ export default function EquipmentDetailScreen() {
           accessibilityHint={logBlockedReason ?? undefined}
           testID="log-usage-open"
         >
-          <Clock size={16} color={"#FF6A1A"} strokeWidth={1.75} />
-          <Text style={styles.logBtnText}>Log Today's Use</Text>
+          <Clock size={16} color={themeColors.accent} strokeWidth={1.75} />
+          <Text style={styles.logBtnText}>Log today's use</Text>
         </TouchableOpacity>
         {logBlockedReason ? (
           <Text style={styles.logBlockedText} testID="log-usage-blocked">{logBlockedReason}</Text>
@@ -374,25 +382,25 @@ export default function EquipmentDetailScreen() {
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-equipment">
           <Save size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.saveBtnText}>Save Changes</Text>
+          <Text style={styles.saveBtnText}>Save changes</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
           <Trash2 size={16} color={"#C84038"} strokeWidth={1.75} />
-          <Text style={styles.deleteBtnText}>Delete Equipment</Text>
+          <Text style={styles.deleteBtnText}>Delete equipment</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={showLogModal} transparent animationType="fade" onRequestClose={() => setShowLogModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+      <Modal visible={showLogModal} transparent animationType={fLog.animationType} onRequestClose={() => setShowLogModal(false)}>
+        <View style={[styles.modalOverlay, fLog.overlay]}>
+          <View style={[styles.modalCard, fLog.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log Usage</Text>
+              <Text style={styles.modalTitle}>Log usage</Text>
               <TouchableOpacity onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.fieldLabel}>Hours Used</Text>
+            <Text style={styles.fieldLabel}>Hours used</Text>
             <TextInput style={styles.input} value={logHours} onChangeText={setLogHours} keyboardType="numeric" placeholder="8" placeholderTextColor={themeColors.textMuted} />
             {/* Directly under the field that drives it: which job this lands on
                 and what it costs there, recomputed as the hours are typed and
@@ -401,10 +409,10 @@ export default function EquipmentDetailScreen() {
             {chargePreview ? (
               <Text style={styles.modalChargeNote} testID="log-usage-charge-note">{chargePreview}</Text>
             ) : null}
-            <Text style={styles.fieldLabel}>Operator Name</Text>
+            <Text style={styles.fieldLabel}>Operator name</Text>
             <TextInput style={styles.input} value={logOperator} onChangeText={setLogOperator} placeholder="Optional" placeholderTextColor={themeColors.textMuted} />
             <TouchableOpacity style={styles.saveBtn} onPress={handleLogUse} activeOpacity={0.85}>
-              <Text style={styles.saveBtnText}>Log Usage</Text>
+              <Text style={styles.saveBtnText}>Log usage</Text>
             </TouchableOpacity>
           </View>
         </View>

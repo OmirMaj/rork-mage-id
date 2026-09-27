@@ -135,7 +135,7 @@ export default function HomePassportScreen() {
     try {
       await shareText({ message: buildPassportHandoff(passport) });
     } catch {
-      showAlert('Could not share', 'Please try again.');
+      showAlert("Couldn't share the Home Passport", 'Try again.');
     }
   };
 
@@ -160,7 +160,7 @@ export default function HomePassportScreen() {
       </View>
       {/* What this screen is, in one line, before any of it is shared. */}
       <Text style={styles.headerNote}>
-        Compiled from your jobs at this address. Share sends your client a copy.
+        Compiled from your projects at this address. Share sends your client a copy.
       </Text>
 
       <ScrollView
@@ -224,7 +224,7 @@ export default function HomePassportScreen() {
             <House size={20} color={t.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>Nothing on record yet</Text>
             <Text style={styles.emptyText}>
-              As your jobs here are completed, this fills in with the warranties, permits, model numbers
+              As your projects here are completed, this fills in with the warranties, permits, model numbers
               and maintenance dates from your records, ready to share with your client as a copy.
             </Text>
           </View>

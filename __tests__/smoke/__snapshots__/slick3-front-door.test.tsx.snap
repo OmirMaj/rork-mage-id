@@ -3,27 +3,27 @@
 exports[`slick3 front door golden — /login and /signup at rest (a) /login phone 390 × 844 iOS 1`] = `
 {
   "lines": 361,
-  "sha256": "25984e7e6897395331ece098b4cdd3bc5c4d629cde04cc9b35f40a2ff5de5c6f",
+  "sha256": "9e9b625e88cbab959fd448b6d20f51aa0ab0cc3ddab94f001e8bc02eb68c808a",
 }
 `;
 
 exports[`slick3 front door golden — /login and /signup at rest (b) /signup phone 390 × 844 iOS 1`] = `
 {
   "lines": 448,
-  "sha256": "91a1e5bb1a9221ba80de7cbb10a197f9a2d1bdd3111684058407a304b039abb0",
+  "sha256": "817a367bf2a8b6a34c99dbfb41dc6002fba3fa36e148f635b342bc1f2c86c763",
 }
 `;
 
 exports[`slick3 front door golden — /login and /signup at rest (c) /login desktop 1280 × 800 (desktop-web layout forced) 1`] = `
 {
   "lines": 364,
-  "sha256": "3f9de13f39076e5a7dc2e2dfe1a270798bdd66c8cfa4f094198e5e9c2591ab62",
+  "sha256": "bbb5e9524bb3df114987ca9f3d545f724f982bf2b75d2b91cf5a86a1f30b96f1",
 }
 `;
 
 exports[`slick3 front door golden — /login and /signup at rest (d) /signup desktop 1280 × 800 (desktop-web layout forced) 1`] = `
 {
   "lines": 451,
-  "sha256": "58ed7db731e6d33b302a52659e105e2050deb5c489ec0a9e53b2d02e85880b85",
+  "sha256": "a9d6cfdb07d348ccfaf00fb0b88d50c65ebca1019dc9c8b834c161bfbe0d7606",
 }
 `;

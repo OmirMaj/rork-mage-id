@@ -1,7 +1,7 @@
 // components/ProjectHero.tsx — the "number-as-hero" financial pulse for a project.
 //
-// One big number as the subject: projected final margin %, counted up in
-// Fraunces, framed by a drafting dimension bracket that measures out to its
+// One big number as the subject: projected final margin %, counted up in the
+// display face, framed by a drafting dimension bracket that measures out to its
 // health label. Below it, a spirit level whose bubble settles toward centre when
 // the job reads healthy and drifts off as margin risk climbs — then a compact
 // row of the numbers that move the finish: owed, schedule, open RFIs, punch.
@@ -14,7 +14,7 @@
 // fontSize).
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, InteractionManager, StyleSheet, Text, View } from 'react-native';
 import type { Project } from '@/types';
 import type { ProjectPulse } from '@/hooks/useProjectPulse';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -25,7 +25,24 @@ import type { MarginHealth } from '@/utils/livingEstimate';
 import { riskBandLabel } from '@/utils/marginRiskScore';
 import { canViewFinancials } from '@/utils/roleBlinding';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { motionCurve, nativeDriver, reducedMotion } from '@/components/ui/motion';
+
+/**
+ * Run `start` once the screen's push transition has settled, so the entrance
+ * never competes with the native push of a 6,800-line screen. A backstop timer
+ * starts it anyway: on web, and wherever a JS-driven loop keeps an interaction
+ * handle open, runAfterInteractions can wait forever — and a margin that never
+ * counts up reads 0.0 %. Returns the cancel for the effect cleanup.
+ */
+const AFTER_PUSH_BACKSTOP_MS = 700;
+function afterPush(start: () => void): () => void {
+  let done = false;
+  const once = () => { if (!done) { done = true; start(); } };
+  const task = InteractionManager.runAfterInteractions(once);
+  const backstop = setTimeout(once, AFTER_PUSH_BACKSTOP_MS);
+  return () => { done = true; task?.cancel?.(); clearTimeout(backstop); };
+}
 
 function fmtMoney(v: number): string {
   const abs = Math.abs(v);
@@ -35,7 +52,7 @@ function fmtMoney(v: number): string {
   return `${sign}$${Math.round(abs)}`;
 }
 
-const HEALTH_LABEL: Record<MarginHealth, string> = { healthy: 'HEALTHY', watch: 'WATCH', critical: 'CRITICAL' };
+const HEALTH_LABEL: Record<MarginHealth, string> = { healthy: 'Healthy', watch: 'Watch', critical: 'Critical' };
 
 export default function ProjectHero({ project: _project, pulse }: { project: Project; pulse: ProjectPulse }) {
   const { colors: t } = useTheme();
@@ -62,15 +79,28 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
   const schedulePct = pulse.progress.hasSchedule ? pulse.progress.pct : null;
 
   // ── count the margin number up on mount ──
+  // All three entrances (this count-up, the bracket, the bubble) start after
+  // the push transition (afterPush), not on mount: on mount they were JS-thread
+  // work competing with the slide-in. Reduce Motion: final values at once.
   const anim = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(0);
   useEffect(() => {
     // Not until the cost streams are in — see costSourcesReady above.
     if (!costSourcesReady) return;
     const id = anim.addListener(({ value }) => setShown(value));
+    if (reducedMotion()) {
+      // The listener carries it to the text: the final number, at once.
+      anim.setValue(marginPct);
+      return () => anim.removeListener(id);
+    }
     anim.setValue(0);
-    Animated.timing(anim, { toValue: marginPct, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-    return () => anim.removeListener(id);
+    // The number is text, so it counts on the JS driver (a listener per frame).
+    let run: Animated.CompositeAnimation | null = null;
+    const cancel = afterPush(() => {
+      run = Animated.timing(anim, { toValue: marginPct, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+      run.start();
+    });
+    return () => { cancel(); run?.stop(); anim.removeListener(id); };
   }, [anim, marginPct, costSourcesReady]);
 
   // ── dimension bracket draws out ──
@@ -79,8 +109,25 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
   const bubble = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!costSourcesReady) return;
-    Animated.timing(bracket, { toValue: 1, duration: 900, delay: 250, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-    Animated.spring(bubble, { toValue: Math.max(0, Math.min(1, riskScore / 100)), friction: 5, tension: 40, delay: 350, useNativeDriver: true }).start();
+    const target = Math.max(0, Math.min(1, riskScore / 100));
+    if (reducedMotion()) {
+      bracket.setValue(1);
+      bubble.setValue(target);
+      return;
+    }
+    let runs: Animated.CompositeAnimation[] = [];
+    const cancel = afterPush(() => {
+      runs = [
+        // The bar is laid out at full width; scaleX draws it from the left on
+        // the native driver (it was a '0%' → '100%' width on the JS thread).
+        Animated.timing(bracket, { toValue: 1, duration: 900, delay: 250, easing: motionCurve.out, useNativeDriver: nativeDriver }),
+        // Settles on the rise preset (ζ≈0.96); it was friction 5 / tension 40
+        // (ζ≈0.4, a visible wobble).
+        Animated.spring(bubble, { toValue: target, ...Motion.spring.rise, delay: 350, useNativeDriver: nativeDriver }),
+      ];
+      runs.forEach((r) => r.start());
+    });
+    return () => { cancel(); runs.forEach((r) => r.stop()); };
   }, [bracket, bubble, riskScore, costSourcesReady]);
 
   // Field-role collaborators never see the money hero. canViewFinancials fails
@@ -99,7 +146,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
     if (!roleError) return <LockedAccessCard what="Margin" />;
     return (
       <View style={styles.card} testID="project-hero-unavailable">
-        <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+        <Text style={styles.eyebrow}>Projected margin</Text>
         <Text style={styles.unavailable}>
           Couldn't verify your access to this project's financials. Check your connection and pull to refresh.
         </Text>
@@ -115,7 +162,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
         accessibilityRole="progressbar"
         accessibilityLabel="Loading crew hours and receipts"
       >
-        <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+        <Text style={styles.eyebrow}>Projected margin</Text>
         <View style={styles.loadingRow}>
           <ActivityIndicator size="small" color={t.accent} />
           <Text style={styles.loadingText}>Loading crew hours and receipts…</Text>
@@ -139,7 +186,6 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
     : t.dangerLabel;
   // Bubble travels within the vial; 0 (no risk) sits centred, 1 (max) drifts right.
   const bubbleX = bubble.interpolate({ inputRange: [0, 1], outputRange: [0, 92] });
-  const bracketW = bracket.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
   const erosionLabel = Math.abs(erosion) < 0.1
     ? 'On bid'
@@ -148,7 +194,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
 
   return (
     <View style={styles.card}>
-      <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+      <Text style={styles.eyebrow}>Projected margin</Text>
       <View style={styles.numRow}>
         <Text style={styles.num}>{shown.toFixed(1)}</Text>
         <Text style={styles.pct}>%</Text>
@@ -160,7 +206,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
       <View style={styles.bracket}>
         <View style={styles.bracketLine}>
           <View style={[styles.tick, { backgroundColor: healthColor }]} />
-          <Animated.View style={[styles.bracketBar, { width: bracketW, backgroundColor: healthColor }]} />
+          <Animated.View style={[styles.bracketBar, { backgroundColor: healthColor, transform: [{ scaleX: bracket }] }]} />
           <View style={[styles.tick, { backgroundColor: healthColor }]} />
         </View>
         <Text style={[styles.bracketLabel, { color: healthColor }]} numberOfLines={1}>{HEALTH_LABEL[health]}</Text>
@@ -171,7 +217,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
       {/* spirit level → margin risk */}
       <View style={styles.levelWrap}>
         <View style={styles.levelHead}>
-          <Text style={styles.levelLabel}>MARGIN RISK</Text>
+          <Text style={styles.levelLabel}>Margin risk</Text>
           <Text style={[styles.levelBand, { color: riskColor }]}>{riskBandLabel(risk.band)}</Text>
         </View>
         <View style={styles.vial}>
@@ -209,7 +255,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
     borderRadius: 20, padding: 22,
   },
-  eyebrow: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.4 },
+  eyebrow: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.4, textTransform: 'uppercase' },
   numRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 6 },
   num: { ...Type.serifHero, color: t.text, fontVariant: ['tabular-nums'] },
   pct: { ...Type.serifLargeTitle, color: t.textMuted, marginTop: 6, marginLeft: 2 },
@@ -223,8 +269,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // overflow:'hidden' clips the BAR, which is the intent; it never made room.
   bracketLine: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
   tick: { width: 1.5, height: 12, borderRadius: 1 },
-  bracketBar: { height: 1.5, marginHorizontal: 0 },
-  bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8, flexShrink: 0 },
+  // Full width at rest (the old width animation's end state); the draw-out is
+  // a native scaleX from the left edge (the ProjectCard burn-bar recipe — the
+  // rounded ends squash while it runs, accepted).
+  bracketBar: { height: 1.5, marginHorizontal: 0, width: '100%', transformOrigin: 'left' },
+  bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8, flexShrink: 0, textTransform: 'uppercase' },
 
   erosion: { fontSize: Type.footnote.fontSize, fontWeight: '600', marginTop: 12 },
   unavailable: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 19 },
@@ -233,7 +282,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   levelWrap: { marginTop: 18 },
   levelHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
-  levelLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.2 },
+  levelLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.2, textTransform: 'uppercase' },
   levelBand: { ...Type.monoCaption, letterSpacing: 0.6, fontWeight: '700' },
   vial: {
     height: 22, borderRadius: 11, backgroundColor: t.bg,

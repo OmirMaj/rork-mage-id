@@ -93,7 +93,7 @@ async function storedSchedule(): Promise<{ tasks: ScheduleTask[]; criticalPathDa
 }
 
 describe('iPhone schedule: AI editor commit', () => {
-  jest.setTimeout(40000);
+  jest.setTimeout(180000); // passes in ~3 s alone; the local gate shares 2 jest slots with other runs
   beforeEach(async () => {
     mockPanel.last = null;
     await primeWorld('empty');

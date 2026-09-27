@@ -410,7 +410,7 @@ describe('lane DB — golden (recorded on the untouched base)', () => {
       );
       await pump(2);
       expect(fingerprint('share-sheet-full-390', r.toJSON())).toMatchSnapshot();
-      fireEvent.press(r.getByText('By Trade'));
+      fireEvent.press(r.getByText('By trade'));
       await pump(2);
       expect(fingerprint('share-sheet-trade-390', r.toJSON())).toMatchSnapshot();
     });
@@ -456,7 +456,7 @@ describe('lane DB — desktop 1512 × 945', () => {
     // The command field: flex, 200–360 wide, 32 high.
     const cmd = styleOf(screen.getByTestId('schedule-command-field') as unknown as Styled);
     expect(cmd).toMatchObject({ minWidth: 200, maxWidth: 360, height: 32 });
-    expect(screen.queryByText('BASELINE')).toBeNull(); // SchedulerHeader's KPI strip
+    expect(screen.queryByText('Baseline')).toBeNull(); // SchedulerHeader's KPI strip
     expect(screen.queryByText('Tell me what to change')).toBeNull();
     // Plan ▾ Track ▾ Share ▾ live once, inside Row 2.
     expect(screen.getAllByText(/^Plan/)).toHaveLength(1);

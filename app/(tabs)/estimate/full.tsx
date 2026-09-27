@@ -63,8 +63,10 @@ import AIEstimateValidator from '@/components/AIEstimateValidator';
 import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
 import { formatMoney, formatNumber, parseLenientNumber, displayText } from '@/utils/formatters';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -479,8 +481,8 @@ export default function EstimateScreen() {
       source: 'ai',
     }).then(() => getRecentMaterials().then(setRecentMaterials)).catch(() => {});
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [cartAnim, ctxAddToCart]);
 
@@ -533,7 +535,7 @@ export default function EstimateScreen() {
   const handleAddCustomMaterial = useCallback(() => {
     const price = parseLenientNumber(customPrice);
     if (!customName.trim() || price === null || price <= 0) {
-      showAlert('Invalid Input', 'Please enter a valid name and price.');
+      showAlert('Check the name and price', 'Enter a name and a price above $0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -547,7 +549,7 @@ export default function EstimateScreen() {
       bulkMinQty: 10,
       supplier: 'Custom',
       pricingModel: 'market',
-      sourceLabel: 'Custom Entry',
+      sourceLabel: 'Custom entry',
     };
     ctxAddToCart(materialItem, 1);
     saveToLocalDatabase({
@@ -580,8 +582,8 @@ export default function EstimateScreen() {
     setCustomPrice('');
     setCustomNotes('');
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [customName, customPrice, customUnit, customCategory, customNotes, cartAnim, ctxAddToCart]);
 
@@ -600,7 +602,7 @@ export default function EstimateScreen() {
       baseRetailPrice: recent.unitPrice,
       baseBulkPrice: round2(recent.unitPrice * 0.85),
       bulkMinQty: 10,
-      supplier: recent.source === 'ai' ? 'AI Found' : recent.source === 'custom' ? 'Custom' : 'Built-in',
+      supplier: recent.source === 'ai' ? 'AI estimate' : recent.source === 'custom' ? 'Custom' : 'Built-in',
     };
     openItemPopupRef.current(materialItem);
   }, [materials]);
@@ -792,7 +794,7 @@ export default function EstimateScreen() {
     const hours = parseLenientNumber(laborHoursInput);
     const rate = parseLenientNumber(laborRateInput);
     if (hours === null || hours <= 0 || rate === null || rate <= 0) {
-      showAlert('Invalid Input', 'Please enter valid hours and rate.');
+      showAlert('Check the hours and rate', 'Enter hours and an hourly rate above 0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -835,7 +837,7 @@ export default function EstimateScreen() {
     if (!selectedAssembly) return;
     const qty = parseLenientNumber(assemblyQtyInput);
     if (qty === null || qty <= 0) {
-      showAlert('Invalid Quantity', 'Please enter a valid quantity.');
+      showAlert('Check the quantity', 'Enter a quantity above 0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -892,8 +894,8 @@ export default function EstimateScreen() {
       return Array.from(map.values());
     });
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.4, useNativeDriver: true, speed: 30, bounciness: 12 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [cartAnim, ctxAddManyToCart]);
 
@@ -908,7 +910,7 @@ export default function EstimateScreen() {
     }
     showAlert(
       `Load ${template.name}?`,
-      `This will add ${newAssemblies.length} assemblies to your estimate. ${template.priceRange}`,
+      `Adds ${newAssemblies.length} ${newAssemblies.length === 1 ? 'assembly' : 'assemblies'} to your estimate. ${template.priceRange}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -965,17 +967,17 @@ export default function EstimateScreen() {
     }, 0);
     return [
       {
-        id: 'switch', title: 'Alt Supplier Delta',
-        detail: switchSavings > 0 ? `Swap to lowest category supplier to unlock ~${switchSavings.toFixed(0)} in savings.` : 'Current cart is close to the lowest category pricing baseline.',
+        id: 'switch', title: 'Supplier price gap',
+        detail: switchSavings > 0 ? `Switch to the lowest-priced supplier in this category to save about ${formatMoney(switchSavings, 0)}.` : 'This estimate is already close to the lowest supplier prices in each category.',
         delta: switchSavings, tone: switchSavings > 80 ? 'positive' : 'neutral', icon: TrendingUp,
       },
       {
-        id: 'bulk-gap', title: 'Bulk Trigger Gap',
-        detail: quantityGap > 0 ? `You are near bulk thresholds. Closing gaps can recover ~${quantityGap.toFixed(0)}.` : 'All bulk-eligible lines are already optimized.',
+        id: 'bulk-gap', title: 'Bulk pricing gap',
+        detail: quantityGap > 0 ? `Some lines are close to bulk pricing. Reaching those quantities saves about ${formatMoney(quantityGap, 0)}.` : 'Every bulk-eligible line is already at bulk pricing.',
         delta: quantityGap, tone: quantityGap > 0 ? 'positive' : 'neutral', icon: MageAIMark,
       },
       {
-        id: 'concentration', title: 'Supplier Concentration Risk',
+        id: 'concentration', title: 'Supplier concentration',
         detail: concentration > 65 && topSupplier ? `${topSupplier[0]} holds ${concentration.toFixed(0)}% of spend. Add fallback quotes.` : 'Spend is distributed enough to reduce single-vendor pricing shocks.',
         delta: concentration, tone: concentration > 65 ? 'warning' : 'neutral', icon: AlertTriangle,
       },
@@ -995,7 +997,7 @@ export default function EstimateScreen() {
     if (!selectedMaterial) return;
     const qty = parseLenientNumber(itemQty);
     if (qty === null || qty <= 0) {
-      showAlert('Invalid Quantity', 'Please enter a valid quantity.');
+      showAlert('Check the quantity', 'Enter a quantity above 0.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1008,8 +1010,8 @@ export default function EstimateScreen() {
       ctxAddToCart(selectedMaterial, qty);
     }
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
     addRecentMaterial({
       id: selectedMaterial.id,
@@ -1165,7 +1167,7 @@ export default function EstimateScreen() {
 
   const handleSelectProject = useCallback(() => {
     if (!selectedProjectId) {
-      showAlert('Select a project', 'Please choose a project to attach this estimate to.');
+      showAlert('Choose a project', 'Choose a project to attach this estimate to.');
       return;
     }
     const proj = projects.find(p => p.id === selectedProjectId);
@@ -1213,8 +1215,8 @@ export default function EstimateScreen() {
     setPendingLinkProject(null);
     const projId = pendingLinkProject.id;
     const projName = pendingLinkProject.name;
-    showAlert('Estimate Linked', `Your estimate has been ${mode === 'merge' ? 'merged into' : 'linked to'} "${projName}".`, [
-      { text: 'View Project', onPress: () => router.push({ pathname: '/project-detail', params: { id: projId } }) },
+    showAlert('Estimate linked', `Your estimate has been ${mode === 'merge' ? 'merged into' : 'linked to'} "${projName}".`, [
+      { text: 'View project', onPress: () => router.push({ pathname: '/project-detail', params: { id: projId } }) },
       { text: 'OK' },
     ]);
   }, [pendingLinkProject, buildLinkedEstimate, updateProject, router]);
@@ -1289,8 +1291,8 @@ export default function EstimateScreen() {
           showAlert(
             'PDF could not be attached',
             Platform.OS === 'web'
-              ? `The web app cannot generate the estimate PDF file, so nothing can be attached to this email.\n\nWe can still email ${options.recipient.trim()} the estimate summary — project, item count and total. To send the PDF itself, use Share instead and save it from the print dialog, or send from the iPhone app.`
-              : `The estimate PDF could not be generated on this device, so nothing can be attached.\n\nWe can still email ${options.recipient.trim()} the estimate summary without it.`,
+              ? `The web app can't create the estimate PDF, so nothing can be attached to this email.\n\nYou can still email ${options.recipient.trim()} the estimate summary: project, item count and total. To send the PDF itself, use Share and save it from the print dialog, or send from the iPhone app.`
+              : `The estimate PDF couldn't be created on this device, so nothing can be attached.\n\nYou can still email ${options.recipient.trim()} the estimate summary without it.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
               { text: 'Send without PDF', onPress: () => resolve(true) },
@@ -1346,7 +1348,7 @@ export default function EstimateScreen() {
           with_pdf: !pdfMissing,
         });
         showAlert(
-          pdfMissing ? 'Sent — without the PDF' : 'Email Sent',
+          pdfMissing ? 'Sent without the PDF' : 'Email sent',
           pdfMissing
             ? `The estimate summary was emailed to ${options.recipient}, but the PDF could not be attached. Send the PDF separately if the client needs the itemized document.`
             : `Estimate emailed to ${options.recipient}`,
@@ -1361,10 +1363,10 @@ export default function EstimateScreen() {
       } else {
         console.warn('[Estimate] Email send failed:', result.error);
         showAlert(
-          'Email Issue',
+          "Couldn't send the email",
           pdfUri
-            ? 'Could not send via email. Would you like to share the PDF using another app instead?'
-            : `Could not send via email.${result.error ? ` ${result.error}` : ''}`,
+            ? "The email didn't go through. Share the PDF from another app instead?"
+            : ownSentence(result.error) ?? describeError(result.error, { action: 'send the email' }).body,
           // Only offer Share when there is a file to share — on web pdfUri is
           // null and Sharing is unavailable, so the button did nothing.
           pdfUri
@@ -1419,7 +1421,7 @@ export default function EstimateScreen() {
       }, 'share');
     } catch (e) {
       console.error('[Estimate] PDF share error:', e);
-      showAlert('Error', pdfFailureMessage(e, 'Failed to generate PDF. Please try again.'));
+      showAlert("Couldn't create the PDF", pdfFailureMessage(e, "The PDF couldn't be created. Try again."));
     }
   }, [cart, settings, buildLinkedEstimate, cartTotal, grandTotal, totalItemCount, isFree, bulkSavingsForPdf]);
 
@@ -1456,27 +1458,27 @@ export default function EstimateScreen() {
       contactName: settings.branding?.contactName,
       phone: settings.branding?.phone,
     });
-    const subject = settings.branding?.companyName ? `${settings.branding.companyName} - Estimate` : 'MAGE ID Estimate';
+    const subject = settings.branding?.companyName ? `Estimate from ${settings.branding.companyName}` : 'MAGE ID estimate';
     const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
     Linking.openURL(url).catch(() => {
-      showAlert('Unable to open email', 'Please check your email app is configured.');
+      showAlert("Couldn't open email", 'Check that an email app is set up on this device.');
     });
   }, [cart, laborCart, assemblyCart, pricedCart, grandTotal, settings]);
 
   const handleShareText = useCallback(() => {
-    let body = 'MAGE ID Estimate\n';
+    let body = 'MAGE ID estimate\n';
     // grandTotal / totalItemCount, NOT cartTotal / cart.length. cartTotal is the
     // materials reduce declared above; it excludes labor and assemblies. This
     // line texted a homeowner $9,020 for an estimate whose own footer read
     // $36,960, and texted "Total: $0.00 (0 items)" for a labor-only job — the
     // one message in the product whose entire content is the number.
-    body += `Total: $${grandTotal.toFixed(2)} (${totalItemCount} items)\n`;
+    body += `Total: $${grandTotal.toFixed(2)} (${totalItemCount} ${totalItemCount === 1 ? 'item' : 'items'})\n`;
     if (settings.branding?.companyName) body += `From: ${settings.branding.companyName}\n`;
     const url = Platform.OS === 'ios'
       ? `sms:&body=${encodeURIComponent(body)}`
       : `sms:?body=${encodeURIComponent(body)}`;
     Linking.openURL(url).catch(() => {
-      showAlert('Unable to open messages', 'Please check your messaging app.');
+      showAlert("Couldn't open messages", 'Check that a messaging app is set up on this device.');
     });
   }, [grandTotal, totalItemCount, settings]);
 
@@ -1681,7 +1683,7 @@ export default function EstimateScreen() {
             <View style={styles.costBreakdownDivider} />
             <View style={styles.costBreakdownRow}>
               <View style={[styles.costBreakdownDot, { backgroundColor: 'transparent' }]} />
-              <Text style={[styles.costBreakdownLabel, { fontWeight: '700' as const, color: Colors.text }]}>All-In Total</Text>
+              <Text style={[styles.costBreakdownLabel, { fontWeight: '700' as const, color: Colors.text }]}>All-in total</Text>
               <Text style={styles.costBreakdownRate} />
               <Text style={[styles.costBreakdownValue, { fontWeight: '700' as const, color: Colors.primary }]}>
                 ${((matCostPerUnit + labCostPerUnit + eqCostPerUnit) * item.quantity).toFixed(2)}
@@ -1726,7 +1728,7 @@ export default function EstimateScreen() {
             {item.quantity >= item.material.bulkMinQty && (
               <View style={styles.bulkActiveBanner}>
                 <CheckCircle size={13} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={styles.bulkActiveTxt}>Bulk discount applied — min {item.material.bulkMinQty} {item.material.unit}</Text>
+                <Text style={styles.bulkActiveTxt}>Bulk discount applied · min {item.material.bulkMinQty} {item.material.unit}</Text>
               </View>
             )}
 
@@ -1758,7 +1760,7 @@ export default function EstimateScreen() {
           </View>
           <View style={styles.wizardCtaText}>
             <Text style={styles.wizardCtaTitle}>Build by voice</Text>
-            <Text style={styles.wizardCtaSubtitle}>Say the scope — MAGE prices it from your past jobs</Text>
+            <Text style={styles.wizardCtaSubtitle}>Say the scope and MAGE prices it from your past projects</Text>
           </View>
           <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -1779,7 +1781,7 @@ export default function EstimateScreen() {
           </View>
           <View style={styles.wizardCtaText}>
             <Text style={styles.wizardCtaTitle}>Edit by voice</Text>
-            <Text style={styles.wizardCtaSubtitle}>Say a change — MAGE shows the new total before it sticks</Text>
+            <Text style={styles.wizardCtaSubtitle}>Say a change and MAGE shows the new total before it sticks</Text>
           </View>
           <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -1795,8 +1797,8 @@ export default function EstimateScreen() {
           <MageAIMark size={18} color={Colors.surface} />
         </View>
         <View style={styles.wizardCtaText}>
-          <Text style={styles.wizardCtaTitle}>Quick Estimate Wizard</Text>
-          <Text style={styles.wizardCtaSubtitle}>Answer 8 questions, get an AI-generated estimate</Text>
+          <Text style={styles.wizardCtaTitle}>Quick estimate wizard</Text>
+          <Text style={styles.wizardCtaSubtitle}>Answer 8 questions and MAGE drafts the estimate</Text>
         </View>
         <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
       </TouchableOpacity>
@@ -1817,8 +1819,8 @@ export default function EstimateScreen() {
           <Ruler size={18} color={Colors.surface} strokeWidth={1.75} />
         </View>
         <View style={styles.takeoffCtaText}>
-          <Text style={styles.takeoffCtaTitle}>AI Quantity Takeoff</Text>
-          <Text style={styles.takeoffCtaSubtitle}>Upload plan sheets — AI counts walls, doors, fixtures, finishes</Text>
+          <Text style={styles.takeoffCtaTitle}>Quantity takeoff</Text>
+          <Text style={styles.takeoffCtaSubtitle}>Upload plan sheets and MAGE counts walls, doors, fixtures and finishes</Text>
         </View>
         <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
       </TouchableOpacity>
@@ -1837,7 +1839,7 @@ export default function EstimateScreen() {
             <View style={styles.provenanceRow}>
               <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.provenanceLabel}>
-                {formatNumber(totalMaterialCount)} MATERIALS · REFERENCE PRICE BOOK
+                {formatNumber(totalMaterialCount)} materials · Reference price book
               </Text>
             </View>
             <Text style={styles.provenanceDetail} numberOfLines={1} testID="estimator-price-provenance">
@@ -1968,7 +1970,7 @@ export default function EstimateScreen() {
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search lumber, insulation, HVAC..."
+            placeholder="Search lumber, insulation, HVAC"
             placeholderTextColor={Colors.textMuted}
             autoCorrect={false}
             selectionColor={Colors.primary}
@@ -2070,7 +2072,7 @@ export default function EstimateScreen() {
         <View style={aiStyles.recentSection}>
           <View style={aiStyles.recentHeader}>
             <History size={14} color={Colors.textSecondary} strokeWidth={1.75} />
-            <Text style={aiStyles.recentTitle}>Recently Used</Text>
+            <Text style={aiStyles.recentTitle}>Recently used</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={aiStyles.recentChipsRow}>
             {recentMaterials.slice(0, 10).map((item, idx) => (
@@ -2093,7 +2095,7 @@ export default function EstimateScreen() {
         <View style={aiStyles.recentSection}>
           <View style={aiStyles.recentHeader}>
             <Star size={14} color={Colors.accent} strokeWidth={1.75} />
-            <Text style={aiStyles.recentTitle}>Frequently Used</Text>
+            <Text style={aiStyles.recentTitle}>Frequently used</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={aiStyles.recentChipsRow}>
             {popularMaterials.slice(0, 10).map((item, idx) => (
@@ -2128,11 +2130,11 @@ export default function EstimateScreen() {
                 feed, so the model answers from recall and the number is an
                 estimate, not a quote off anyone's shelf. "Search suppliers for
                 real-time pricing" claimed both. */}
-            <Text style={aiStyles.aiSearchPromptDesc}>MAGE AI can estimate a price for it from recall — not a supplier quote</Text>
+            <Text style={aiStyles.aiSearchPromptDesc}>MAGE can estimate a price from memory. It isn&apos;t a supplier quote.</Text>
           </View>
           <TouchableOpacity accessibilityRole="button" style={aiStyles.aiSearchBtn} onPress={handleAiSearch} activeOpacity={0.8}>
             <MageAIMark size={14} color={Colors.textOnPrimary} />
-            <Text style={aiStyles.aiSearchBtnText}>Ask AI</Text>
+            <Text style={aiStyles.aiSearchBtnText}>Estimate a price</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -2151,7 +2153,7 @@ export default function EstimateScreen() {
           {isAiSearching && (
             <View style={aiStyles.aiLoadingRow}>
               <Animated.View style={[styles.liveDot, { backgroundColor: Colors.primary, transform: [{ scale: pulseAnim }] }]} />
-              <Text style={aiStyles.aiLoadingText}>Asking MAGE AI…</Text>
+              <Text style={aiStyles.aiLoadingText}>Estimating a price…</Text>
             </View>
           )}
           {aiSearchError && (
@@ -2174,7 +2176,7 @@ export default function EstimateScreen() {
                     <View style={aiStyles.aiResultTags}>
                       <View style={aiStyles.aiSourceTag}>
                         <MageAIMark size={9} color={Colors.accent} />
-                        <Text style={aiStyles.aiSourceTagText}>AI Found</Text>
+                        <Text style={aiStyles.aiSourceTagText}>AI estimate</Text>
                       </View>
                       <View style={[aiStyles.aiConfBadge, { backgroundColor: confColor + '18' }]}>
                         <View style={[aiStyles.aiConfDot, { backgroundColor: confColor }]} />
@@ -2192,8 +2194,8 @@ export default function EstimateScreen() {
           })}
           {aiSearchResults.length > 0 && (
             <Text style={aiStyles.aiProvenanceNote} testID="ai-price-provenance">
-              Prices recalled by the model, not read from a supplier — MAGE has no
-              supplier feed. Confirm before you bid.
+              Prices are MAGE&apos;s estimates, not read from a supplier. MAGE has no
+              supplier feed, so confirm them before you bid.
             </Text>
           )}
           {aiSearchResults.length > 0 && aiSearchResults[0].relatedItems.length > 0 && (
@@ -2208,7 +2210,7 @@ export default function EstimateScreen() {
       {activeTab === 'materials' && (
         <TouchableOpacity accessibilityRole="button" style={aiStyles.customEntryBtn} onPress={() => setShowCustomForm(true)} activeOpacity={0.7}>
           <PlusCircle size={14} color={Colors.primary} strokeWidth={1.75} />
-          <Text style={aiStyles.customEntryBtnText}>Add Custom Material</Text>
+          <Text style={aiStyles.customEntryBtnText}>Add custom material</Text>
           <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       )}
@@ -2218,7 +2220,7 @@ export default function EstimateScreen() {
           <View style={styles.opportunityHeader}>
             <View style={styles.opportunityTitleWrap}>
               <Clock3 size={14} color={Colors.infoLabel} strokeWidth={1.75} />
-              <Text style={styles.opportunityTitle}>Blindspot Radar</Text>
+              <Text style={styles.opportunityTitle}>Blind spots</Text>
             </View>
             <Text style={styles.opportunitySubtitle}>Live basket</Text>
           </View>
@@ -2276,7 +2278,7 @@ export default function EstimateScreen() {
               <Text style={styles.priceLabel}>Source</Text>
               <View style={styles.rsMeansBadge}>
                 <Database size={10} color={Colors.infoLabel} strokeWidth={1.75} />
-                <Text style={styles.rsMeansBadgeText}>BLS Data</Text>
+                <Text style={styles.rsMeansBadgeText}>BLS data</Text>
               </View>
             </View>
           </View>
@@ -2331,7 +2333,7 @@ export default function EstimateScreen() {
           </View>
           <View style={styles.priceRow}>
             <View style={styles.priceBlock}>
-              <Text style={styles.priceLabel}>Per Unit</Text>
+              <Text style={styles.priceLabel}>Per unit</Text>
               <Text style={styles.bulkPrice}>${sampleCost.totalCost.toFixed(2)}</Text>
               <Text style={styles.priceUnit}>/{item.unit.replace('per ', '')}</Text>
             </View>
@@ -2481,7 +2483,7 @@ export default function EstimateScreen() {
         activeOpacity={0.7}
       >
         <PlusCircle size={14} color={Colors.primary} strokeWidth={1.75} />
-        <Text style={aiStyles.customEntryBtnText}>Cost book / My rates</Text>
+        <Text style={aiStyles.customEntryBtnText}>Your labor rates</Text>
         <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
     </View>
@@ -2506,7 +2508,7 @@ export default function EstimateScreen() {
       </View>
       <View style={styles.resultsHeader}>
         <Text style={styles.resultsCount}>{formatNumber(filteredAssemblies.length)} assembl{filteredAssemblies.length !== 1 ? 'ies' : 'y'}</Text>
-        <Text style={styles.resultsMicroCopy}>Materials + Labor bundled</Text>
+        <Text style={styles.resultsMicroCopy}>Materials and labor bundled</Text>
       </View>
       {/* "+ New assembly" — opens AssemblyEditorModal in create mode */}
       <TouchableOpacity
@@ -2618,7 +2620,7 @@ export default function EstimateScreen() {
             <View style={styles.provenanceRow}>
               <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.provenanceLabel}>
-                {formatNumber(totalMaterialCount)} MATERIALS · REFERENCE PRICE BOOK
+                {formatNumber(totalMaterialCount)} materials · Reference price book
               </Text>
             </View>
             <Text style={styles.provenanceDetail} numberOfLines={1}>{catalogProvenance}</Text>
@@ -2695,7 +2697,7 @@ export default function EstimateScreen() {
               testID="desktop-takeoff-cta"
             >
               <Ruler size={14} color={Colors.surface} strokeWidth={1.75} />
-              <Text style={dStyles.desktopHeroBtnText}>AI Takeoff</Text>
+              <Text style={dStyles.desktopHeroBtnText}>Takeoff</Text>
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Square-foot estimator" style={styles.refreshIconBtn} onPress={() => setShowSqftEstimator(true)} activeOpacity={0.7}>
               <Calculator size={15} color={Colors.textSecondary} strokeWidth={1.75} />
@@ -2736,7 +2738,7 @@ export default function EstimateScreen() {
                     style={styles.searchInput}
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Search materials..."
+                    placeholder="Search materials"
                     placeholderTextColor={Colors.textMuted}
                     autoCorrect={false}
                     returnKeyType="search"
@@ -2917,7 +2919,7 @@ export default function EstimateScreen() {
                   <ShoppingCart size={40} color={Colors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.emptyTitle}>No items in this estimate yet</Text>
                   <Text style={styles.emptyDesc}>
-                    Tap a material, trade, or assembly in the catalog on the left to add it here. Or hit Voice Estimate at the top to dictate the scope and let AI build the line items.
+                    Add a material, trade or assembly from the catalog on the left.
                   </Text>
                 </View>
               ) : (
@@ -3009,7 +3011,7 @@ export default function EstimateScreen() {
                     </View>
                   )}
                   <View style={dStyles.wsGrandTotal}>
-                    <Text style={dStyles.wsGrandTotalLabel}>Grand Total</Text>
+                    <Text style={dStyles.wsGrandTotalLabel}>Grand total</Text>
                     <Text style={dStyles.wsGrandTotalValue}>{formatMoney(grandTotal, 2)}</Text>
                   </View>
                 </>
@@ -3023,7 +3025,7 @@ export default function EstimateScreen() {
                 They did not before: Materials showed the marked-up figure
                 while a separate Markup row showed that same markup again, and
                 the column added up to more than the total it sat above. */}
-            <Text style={dStyles.summaryTitle}>Cost Summary</Text>
+            <Text style={dStyles.summaryTitle}>Cost summary</Text>
             <View style={dStyles.summaryRow}>
               <Text style={dStyles.summaryLabel}>Materials (cost)</Text>
               <Text style={dStyles.summaryValue}>{formatMoney(cartBaseTotal, 2)}</Text>
@@ -3044,7 +3046,7 @@ export default function EstimateScreen() {
             ) : directCostTotal > 0 ? (
               <View style={dStyles.summaryRow}>
                 <Text style={[dStyles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead &amp; profit</Text>
-                <Text style={[dStyles.summaryValue, { color: themeColors.dangerLabel }]}>none — at cost</Text>
+                <Text style={[dStyles.summaryValue, { color: themeColors.dangerLabel }]}>None (at cost)</Text>
               </View>
             ) : null}
             <View style={dStyles.summaryDivider} />
@@ -3055,7 +3057,7 @@ export default function EstimateScreen() {
 
             {grandTotal > 0 && (
               <View style={dStyles.summaryMetrics}>
-                <Text style={dStyles.summaryMetricTitle}>Key Metrics</Text>
+                <Text style={dStyles.summaryMetricTitle}>Key metrics</Text>
                 <View style={dStyles.summaryMetricRow}>
                   <Text style={dStyles.summaryMetricLabel}>Mat:Lab ratio</Text>
                   <Text style={dStyles.summaryMetricValue}>
@@ -3068,7 +3070,7 @@ export default function EstimateScreen() {
                 </View>
                 <View style={dStyles.summaryMetricRow}>
                   <Text style={dStyles.summaryMetricLabel}>Location</Text>
-                  <Text style={dStyles.summaryMetricValue}>{settings.location || 'US Avg'}</Text>
+                  <Text style={dStyles.summaryMetricValue}>{settings.location || 'US average'}</Text>
                 </View>
               </View>
             )}
@@ -3080,7 +3082,7 @@ export default function EstimateScreen() {
                 setShowAddToProject(true);
               }} activeOpacity={0.85}>
                 <FolderOpen size={14} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                <Text style={dStyles.summaryActionText}>Save to Project</Text>
+                <Text style={dStyles.summaryActionText}>Save to project</Text>
               </TouchableOpacity>
               {/* Gated like its neighbours above. handleOpenPDFPreSend returns
                   silently on an empty estimate, so an ungated button rendered
@@ -3113,14 +3115,14 @@ export default function EstimateScreen() {
                       Measured from {validatorCalibration.summary.categoryCount}{' '}
                       {validatorCalibration.summary.categoryCount === 1 ? 'category' : 'categories'} with traced
                       actuals across {validatorCalibration.summary.totalJobs}{' '}
-                      {validatorCalibration.summary.totalJobs === 1 ? 'job' : 'jobs'}. Not a market average —
+                      {validatorCalibration.summary.totalJobs === 1 ? 'project' : 'projects'}. Not a market average —
                       your own paid costs against your own bids.
                     </Text>
                   </>
                 ) : (
                   <Text style={dStyles.calibrationChip}>
                     No traced actuals yet, so MAGE has nothing measured to check this bid against. Link
-                    payments to estimate lines on a finished job and this becomes your own bias, per trade.
+                    payments to estimate lines on a finished project and this becomes your own bias, per trade.
                   </Text>
                 )}
               </View>
@@ -3164,12 +3166,12 @@ export default function EstimateScreen() {
                     </TouchableOpacity>
                   </View>
                   <View style={styles.popupTotalRow}>
-                    <Text style={styles.popupTotalLabel}>Line Total</Text>
+                    <Text style={styles.popupTotalLabel}>Line total</Text>
                     <Text style={styles.popupTotalValue} testID="popup-line-total">{formatMoney(popupPreview.lineTotal, 2)}</Text>
                   </View>
                   <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddFromPopup} activeOpacity={0.85}>
                     <ShoppingCart size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                    <Text style={styles.popupAddBtnText}>{cart.find(i => i.material.id === selectedMaterial.id) ? 'Update' : 'Add to Estimate'}</Text>
+                    <Text style={styles.popupAddBtnText}>{cart.find(i => i.material.id === selectedMaterial.id) ? 'Update' : 'Add to estimate'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -3194,7 +3196,7 @@ export default function EstimateScreen() {
                   <Text style={styles.popupFieldLabel}>Hours</Text>
                   <TextInput style={styles.popupQtyInput} value={laborHoursInput} onChangeText={setLaborHoursInput} keyboardType="decimal-pad" textAlign="center" />
                   <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddLabor} activeOpacity={0.85}>
-                    <Text style={styles.popupAddBtnText}>{laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update' : 'Add Labor'}</Text>
+                    <Text style={styles.popupAddBtnText}>{laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update' : 'Add labor'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -3217,7 +3219,7 @@ export default function EstimateScreen() {
                   <Text style={styles.popupFieldLabel}>Quantity</Text>
                   <TextInput style={styles.popupQtyInput} value={assemblyQtyInput} onChangeText={setAssemblyQtyInput} keyboardType="decimal-pad" textAlign="center" />
                   <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddAssembly} activeOpacity={0.85}>
-                    <Text style={styles.popupAddBtnText}>{assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update' : 'Add Assembly'}</Text>
+                    <Text style={styles.popupAddBtnText}>{assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update' : 'Add assembly'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -3229,7 +3231,7 @@ export default function EstimateScreen() {
           <Pressable style={[styles.popupOverlay, fAddProj.overlay]} onPress={() => setShowAddToProject(false)}>
             <Pressable style={[styles.addToProjectCard, fAddProj.card]} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
-                <Text style={styles.addToProjectTitle}>Link to Project</Text>
+                <Text style={styles.addToProjectTitle}>Link to project</Text>
                 <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3254,7 +3256,7 @@ export default function EstimateScreen() {
               )}
               <TouchableOpacity accessibilityRole="button" style={styles.addToProjectConfirmBtn} onPress={handleSelectProject} activeOpacity={0.85}>
                 <Send size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                <Text style={styles.addToProjectConfirmText}>Select Project</Text>
+                <Text style={styles.addToProjectConfirmText}>Select project</Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>
@@ -3263,13 +3265,13 @@ export default function EstimateScreen() {
           <Pressable style={[styles.popupOverlay, fConfirm.overlay]} onPress={closeConfirmLink}>
             <Pressable style={[styles.addToProjectCard, fConfirm.card]} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
-                <Text style={styles.addToProjectTitle}>Confirm</Text>
+                <Text style={styles.addToProjectTitle}>Link this estimate</Text>
                 <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
               {pendingLinkProject && (
                 <TouchableOpacity accessibilityRole="button" style={styles.addToProjectConfirmBtn} onPress={() => handleConfirmLink('replace')} activeOpacity={0.85}>
                   <CheckCircle size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                  <Text style={styles.addToProjectConfirmText}>Confirm & Link</Text>
+                  <Text style={styles.addToProjectConfirmText}>Link to project</Text>
                 </TouchableOpacity>
               )}
             </Pressable>
@@ -3318,7 +3320,7 @@ export default function EstimateScreen() {
           <View style={styles.emptyState}>
             <Search size={40} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No materials found</Text>
-            <Text style={styles.emptyDesc}>Try a different search term or category</Text>
+            <Text style={styles.emptyDesc}>Try a different search term or category.</Text>
           </View>
         }
       />}
@@ -3388,7 +3390,7 @@ export default function EstimateScreen() {
         >
           <View style={styles.floatingCartLeft}>
             <ShoppingCart size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
-            <Text style={styles.floatingCartItems}>{totalItemCount} items</Text>
+            <Text style={styles.floatingCartItems}>{totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}</Text>
           </View>
           <Text style={styles.floatingCartTotal} testID="floating-cart-total">{formatMoney(grandTotal, 2)}</Text>
           <ArrowRight size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
@@ -3479,7 +3481,7 @@ export default function EstimateScreen() {
                 {popupPreview.usesBulk && (
                   <View style={styles.popupBulkBanner}>
                     <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
-                    <Text style={styles.popupBulkText}>Bulk pricing applied!</Text>
+                    <Text style={styles.popupBulkText}>Bulk pricing applied</Text>
                   </View>
                 )}
 
@@ -3512,7 +3514,7 @@ export default function EstimateScreen() {
                     : 0;
                   return (
                     <View style={styles.popupBreakdown}>
-                      <Text style={styles.popupBreakdownTitle}>Price Breakdown</Text>
+                      <Text style={styles.popupBreakdownTitle}>Price breakdown</Text>
                       <View style={styles.popupBreakdownRow}>
                         <Text style={styles.popupBreakdownLabel}>MSRP base</Text>
                         <Text style={styles.popupBreakdownValue}>${msrp.toFixed(2)}</Text>
@@ -3553,7 +3555,7 @@ export default function EstimateScreen() {
                 })()}
 
                 <View style={styles.popupTotalRow}>
-                  <Text style={styles.popupTotalLabel}>Line Total</Text>
+                  <Text style={styles.popupTotalLabel}>Line total</Text>
                   <Text style={styles.popupTotalValue} testID="popup-line-total">{formatMoney(popupPreview.lineTotal, 2)}</Text>
                 </View>
 
@@ -3569,7 +3571,7 @@ export default function EstimateScreen() {
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddFromPopup} activeOpacity={0.85} testID="popup-add-btn">
                   <ShoppingCart size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                   <Text style={styles.popupAddBtnText}>
-                    {cart.find(i => i.material.id === selectedMaterial.id) ? 'Update in Estimate' : 'Add to Estimate'}
+                    {cart.find(i => i.material.id === selectedMaterial.id) ? 'Update in estimate' : 'Add to estimate'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -3614,9 +3616,9 @@ export default function EstimateScreen() {
               <View style={styles.cartEmpty}>
                 <ShoppingCart size={48} color={Colors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.cartEmptyTitle}>No items yet</Text>
-                <Text style={styles.cartEmptyDesc}>Search and add materials, labor, or assemblies to start your estimate</Text>
+                <Text style={styles.cartEmptyDesc}>Search and add materials, labor or assemblies to start your estimate.</Text>
                 <TouchableOpacity accessibilityRole="button" style={styles.cartEmptyBtn} onPress={() => setShowCart(false)}>
-                  <Text style={styles.cartEmptyBtnText}>Browse Items</Text>
+                  <Text style={styles.cartEmptyBtnText}>Browse items</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -3665,7 +3667,7 @@ export default function EstimateScreen() {
                         <MageAIMark size={16} color={Colors.surface} />
                       </View>
                       <View style={styles.askAIBtnText}>
-                        <Text style={styles.askAIBtnTitle}>Ask AI</Text>
+                        <Text style={styles.askAIBtnTitle}>Tune with MAGE</Text>
                         <Text style={styles.askAIBtnSub}>Tune quantities and markup for your project</Text>
                       </View>
                       <ChevronRight size={16} color={Colors.surface} strokeWidth={1.75} />
@@ -3757,7 +3759,7 @@ export default function EstimateScreen() {
                   />
 
                   <View style={styles.summaryCard}>
-                    <Text style={styles.summaryTitle}>Estimate Summary</Text>
+                    <Text style={styles.summaryTitle}>Estimate summary</Text>
                     {/* Cost rows, then ONE whole-job markup row. The old shape
                         labelled the markup "Materials markup" because that is
                         all it was; labor and assemblies went out at cost. */}
@@ -3778,18 +3780,18 @@ export default function EstimateScreen() {
                       <Text style={[styles.summaryValue, { color: Colors.accent }]}>+{formatMoney(markupTotal, 2)}</Text>
                     </View> : directCostTotal > 0 ? <View style={styles.summaryRow}>
                       <Text style={[styles.summaryLabel, { color: themeColors.dangerLabel }]}>Overhead &amp; profit</Text>
-                      <Text style={[styles.summaryValue, { color: themeColors.dangerLabel }]}>none — at cost</Text>
+                      <Text style={[styles.summaryValue, { color: themeColors.dangerLabel }]}>None (at cost)</Text>
                     </View> : null}
                     <View style={styles.summaryDivider} />
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryTotal}>Grand Total</Text>
+                      <Text style={styles.summaryTotal}>Grand total</Text>
                       <Text style={styles.summaryTotalValue} testID="summary-grand-total">{formatMoney(grandTotal, 2)}</Text>
                     </View>
                     {cart.some(i => i.usesBulk) && (
                       <View style={styles.bulkNote}>
                         <CheckCircle size={13} color={themeColors.success} strokeWidth={1.75} />
                         <Text style={styles.bulkNoteText}>
-                          Bulk pricing on {cart.filter(i => i.usesBulk).length} item(s)
+                          Bulk pricing on {cart.filter(i => i.usesBulk).length} {cart.filter(i => i.usesBulk).length === 1 ? 'item' : 'items'}
                         </Text>
                       </View>
                     )}
@@ -3822,7 +3824,7 @@ export default function EstimateScreen() {
                       testID="add-to-project-btn"
                     >
                       <FolderOpen size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                      <Text style={styles.addToProjectBtnText}>Add to Project</Text>
+                      <Text style={styles.addToProjectBtnText}>Add to project</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       accessibilityRole="button" accessibilityLabel="Compare estimates"
@@ -3884,7 +3886,7 @@ export default function EstimateScreen() {
         <Pressable style={[styles.popupOverlay, fAddProj.overlay]} onPress={() => setShowAddToProject(false)}>
           <Pressable style={[styles.addToProjectCard, fAddProj.card]} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
-              <Text style={styles.addToProjectTitle}>Link to Project</Text>
+              <Text style={styles.addToProjectTitle}>Link to project</Text>
               <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -3937,7 +3939,7 @@ export default function EstimateScreen() {
                 testID="confirm-link-btn"
               >
                 <Send size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                <Text style={styles.addToProjectConfirmText}>Select Project</Text>
+                <Text style={styles.addToProjectConfirmText}>Select project</Text>
               </TouchableOpacity>
             )}
           </Pressable>
@@ -3970,7 +3972,7 @@ export default function EstimateScreen() {
         <Pressable style={[styles.popupOverlay, fConfirm.overlay]} onPress={closeConfirmLink}>
           <Pressable style={[styles.addToProjectCard, fConfirm.card]} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
-              <Text style={styles.addToProjectTitle}>Confirm Estimate Link</Text>
+              <Text style={styles.addToProjectTitle}>Link this estimate</Text>
               <TouchableOpacity onPress={closeConfirmLink} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -3978,7 +3980,7 @@ export default function EstimateScreen() {
 
             {pendingLinkProject && (
               <View style={styles.confirmLinkBody}>
-                <Text style={styles.confirmFieldLabel}>Estimate Name</Text>
+                <Text style={styles.confirmFieldLabel}>Estimate name</Text>
                 <TextInput
                   style={styles.confirmInput}
                   value={estimateName}
@@ -4012,7 +4014,7 @@ export default function EstimateScreen() {
                     </View>
                   )}
                   <View style={styles.confirmSummaryRow}>
-                    <Text style={styles.confirmSummaryLabel}>Estimate Value</Text>
+                    <Text style={styles.confirmSummaryLabel}>Estimate value</Text>
                     <Text style={styles.confirmSummaryValueBold}>{formatMoney(grandTotal, 2)}</Text>
                   </View>
                   <View style={styles.confirmDivider} />
@@ -4040,7 +4042,7 @@ export default function EstimateScreen() {
                       activeOpacity={0.85}
                     >
                       <Layers size={16} color={Colors.infoLabel} strokeWidth={1.75} />
-                      <Text style={styles.confirmMergeBtnText}>Merge Items</Text>
+                      <Text style={styles.confirmMergeBtnText}>Merge items</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -4060,7 +4062,7 @@ export default function EstimateScreen() {
                     activeOpacity={0.85}
                   >
                     <CheckCircle size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                    <Text style={styles.addToProjectConfirmText}>Confirm & Link</Text>
+                    <Text style={styles.addToProjectConfirmText}>Link to project</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -4094,7 +4096,7 @@ export default function EstimateScreen() {
                     <Text style={styles.popupPriceUnit}>/hr</Text>
                   </View>
                 </View>
-                <Text style={styles.popupFieldLabel}>Hourly Rate ($)</Text>
+                <Text style={styles.popupFieldLabel}>Hourly rate ($)</Text>
                 <TextInput style={styles.popupQtyInput} value={laborRateInput} onChangeText={setLaborRateInput} keyboardType="decimal-pad" textAlign="center" />
                 <Text style={styles.popupFieldLabel}>Hours</Text>
                 <View style={styles.popupQtyRow}>
@@ -4107,7 +4109,7 @@ export default function EstimateScreen() {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.popupTotalRow}>
-                  <Text style={styles.popupTotalLabel}>Line Total</Text>
+                  <Text style={styles.popupTotalLabel}>Line total</Text>
                   <Text style={styles.popupTotalValue} testID="labor-popup-line-total">{formatMoney(laborPopupPreview.sell, 2)}</Text>
                 </View>
                 {globalMarkup > 0 && (
@@ -4118,7 +4120,7 @@ export default function EstimateScreen() {
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddLabor} activeOpacity={0.85}>
                   <HardHat size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                   <Text style={styles.popupAddBtnText}>
-                    {laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update Labor' : 'Add Labor'}
+                    {laborCart.find(i => i.labor.id === selectedLabor.id) ? 'Update labor' : 'Add labor'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -4209,7 +4211,7 @@ export default function EstimateScreen() {
                 <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddAssembly} activeOpacity={0.85}>
                   <Boxes size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                   <Text style={styles.popupAddBtnText}>
-                    {assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update Assembly' : 'Add Assembly'}
+                    {assemblyCart.find(i => i.assembly.id === selectedAssembly.id) ? 'Update assembly' : 'Add assembly'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -4248,12 +4250,12 @@ export default function EstimateScreen() {
         <Pressable style={[styles.popupOverlay, fCustom.overlay]} onPress={() => setShowCustomForm(false)}>
           <Pressable style={[styles.popupCard, fCustom.card]} onPress={() => undefined}>
             <View style={styles.popupHeader}>
-              <Text style={styles.popupTitle}>Add Custom Material</Text>
+              <Text style={styles.popupTitle}>Add custom material</Text>
               <TouchableOpacity onPress={() => setShowCustomForm(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.popupFieldLabel}>Material Name</Text>
+            <Text style={styles.popupFieldLabel}>Material name</Text>
             <TextInput
               style={[styles.popupQtyInput, { textAlign: 'left' as const, paddingHorizontal: 14, fontSize: Type.subhead.fontSize }]}
               value={customName}
@@ -4314,7 +4316,7 @@ export default function EstimateScreen() {
             />
             <TouchableOpacity accessibilityRole="button" style={styles.popupAddBtn} onPress={handleAddCustomMaterial} activeOpacity={0.85}>
               <PlusCircle size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
-              <Text style={styles.popupAddBtnText}>Add to Estimate</Text>
+              <Text style={styles.popupAddBtnText}>Add to estimate</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -4363,6 +4365,10 @@ export default function EstimateScreen() {
   );
 }
 
+// Solid fills under a white label or glyph use themeColors.accentFill, never
+// Colors.primary: the dark theme's primary #5DB36E carries white at 2.58:1,
+// accentFill at 4.83:1 (6.39:1 light, where the two are the same #2F6B3A).
+// Colors.primary stays on icons, text, borders, tints and text-free dots.
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
@@ -4587,7 +4593,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 6,
   },
-  // Fraunces display face at the shared page-title size — matches PageHeader
+  // The display face (Barlow) at the shared page-title size — matches PageHeader
   // (every primary tab) instead of a one-off 32px system-font title.
   headerTitle: {
     ...Type.serifTitle,
@@ -4616,6 +4622,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: themeColors.textMuted,
     letterSpacing: 0.8,
+    textTransform: 'uppercase' as const,
   },
   provenanceDetail: {
     fontSize: Type.caption2.fontSize,
@@ -4634,7 +4641,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     height: 34,
     paddingHorizontal: 12,
     borderRadius: 17,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   aiEstimateBtnText: {
     fontSize: Type.caption1.fontSize,
@@ -4653,7 +4660,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4724,7 +4731,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   markupChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   markupChipText: {
     fontSize: Type.footnote.fontSize,
@@ -4774,7 +4781,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   categoryChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   categoryChipText: {
     fontSize: Type.caption1.fontSize,
@@ -4932,7 +4939,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -5052,7 +5059,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     position: 'absolute' as const,
     left: 16,
     right: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.xl,
     flexDirection: 'row',
     alignItems: 'center',
@@ -5166,8 +5173,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   repriceBtnPrimary: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
+    borderColor: themeColors.accentFill,
   },
   repriceBtnText: {
     fontSize: Type.subhead.fontSize,
@@ -5388,7 +5395,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     shadowColor: Colors.primary,
@@ -5527,7 +5534,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   cartEmptyBtn: {
     marginTop: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
@@ -5738,7 +5745,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 4,
@@ -5817,7 +5824,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 4,
@@ -5917,7 +5924,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
@@ -6152,7 +6159,7 @@ const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.card,
     paddingVertical: 12,
   },
@@ -6230,7 +6237,7 @@ const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
     height: 16,
     paddingHorizontal: 3,
     borderRadius: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -6324,7 +6331,7 @@ const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -6473,7 +6480,7 @@ const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -349,7 +349,7 @@ export default function DelayEventsScreen() {
   // ── Save a delay event ────────────────────────────────────────────────────
   const saveEvent = useCallback(() => {
     if (!projectId) {
-      showAlert('Pick a project first', 'A delay event has to belong to a job.');
+      showAlert('Pick a project first', 'A delay event has to belong to a project.');
       return;
     }
     if (!formDesc.trim()) {
@@ -561,7 +561,7 @@ export default function DelayEventsScreen() {
             </Text>
             <Text style={styles.heroSub}>
               Every delay, dated and evidenced, counted against the notice window you set for
-              this job.
+              this project.
             </Text>
           </View>
 
@@ -613,7 +613,7 @@ export default function DelayEventsScreen() {
                         : `${summary.awaitingResponse} with no response recorded`}
                   </Text>
                   <Text style={styles.cardMeta}>
-                    Counted against the notice window you set for this job.
+                    Counted against the notice window you set for this project.
                   </Text>
                 </View>
               </View>
@@ -733,7 +733,7 @@ export default function DelayEventsScreen() {
 
               <Text style={styles.fieldLabel}>Date you first knew</Text>
               <Text style={styles.fieldHint}>
-                The countdown runs from this date — not the day you got round to typing it up.
+                The countdown runs from this date, not the day you typed it up.
               </Text>
               <TextInput
                 style={styles.input}
@@ -770,8 +770,8 @@ export default function DelayEventsScreen() {
 
               <Text style={styles.fieldLabel}>Days another delay ran concurrently</Text>
               <Text style={styles.fieldHint}>
-                Optional, and worth being honest about. If one of your own delays overlapped
-                this one, record how many days overlapped.
+                Optional. If one of your own delays overlapped this one, enter the overlapping
+                days.
               </Text>
               <TextInput
                 style={styles.input}
@@ -849,8 +849,7 @@ export default function DelayEventsScreen() {
                 {/* SUGGEST, NEVER CONCLUDE. */}
                 <Text style={styles.fieldLabel}>Your classification</Text>
                 <Text style={styles.fieldHint}>
-                  Yours to set. MAGE can suggest a starting point from the cause; the call is
-                  yours.
+                  MAGE suggests a starting point from the cause. The call is yours.
                 </Text>
                 <View style={styles.chipWrap}>
                   {CLASSIFICATIONS.map((c) => {
@@ -955,8 +954,8 @@ export default function DelayEventsScreen() {
           <ScrollView contentContainerStyle={styles.scroll}>
             <View style={[styles.content, isDesktop && styles.contentDesktop]}>
               <Text style={styles.fieldHint}>
-                Evidence is linked, never copied — the original record stays the authority, so
-                nothing here can drift out of step with it.
+                Evidence is linked, not copied. The original record stays the source, so nothing
+                here drifts out of step with it.
               </Text>
               {/* Says why an older schedule edit is missing, so a short list is
                   not read as "the app never recorded it". */}
@@ -965,7 +964,7 @@ export default function DelayEventsScreen() {
                 other edits made within{` ${SCHEDULE_AUDIT_WINDOW_DAYS} `}days of when this delay was first observed.
               </Text>
               {availableEvidence.length === 0 ? (
-                <Text style={styles.emptyText}>Nothing captured on this job yet.</Text>
+                <Text style={styles.emptyText}>Nothing captured on this project yet.</Text>
               ) : availableEvidence.map((ref) => {
                 const Icon = EVIDENCE_ICON[ref.kind];
                 return (
@@ -1033,8 +1032,8 @@ function NoticePeriodModal({
           <ScrollView>
             <Text style={styles.fieldHint}>{NOTICE_PERIOD_QUESTION}</Text>
             <Text style={styles.fieldHint}>
-              MAGE deliberately doesn&apos;t assume one. Guessing 21 days when your agreement
-              gives you 7 would hand you a countdown that runs two weeks long.
+              There&apos;s no default. Guessing 21 days when your agreement gives you 7 would
+              run the countdown two weeks long.
             </Text>
 
             <View style={styles.chipWrap}>

@@ -19,6 +19,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EmptyState from '@/components/EmptyState';
 import type { Contact, ContactRole } from '@/types';
+import { getInvoicedToDate, getPaidToDate, getOutstandingBalance } from '@/utils/projectFinancials';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
@@ -36,9 +37,9 @@ function createId(_prefix: string): string {
 const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   { value: 'Client', label: 'Client' },
   { value: 'Architect', label: 'Architect' },
-  { value: "Owner's Rep", label: "Owner's Rep" },
+  { value: "Owner's Rep", label: "Owner's rep" },
   { value: 'Engineer', label: 'Engineer' },
-  { value: 'Sub', label: 'Subcontractor' },
+  { value: 'Sub', label: 'Sub' },
   { value: 'Supplier', label: 'Supplier' },
   { value: 'Lender', label: 'Lender' },
   { value: 'Inspector', label: 'Inspector' },
@@ -47,10 +48,11 @@ const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   // which meant the contact list could not be filtered by the role that
   // actually predicts who is holding up the job.
   { value: 'Landlord', label: 'Landlord' },
-  { value: 'Building Engineer', label: 'Building Engineer' },
-  { value: 'Property Manager', label: 'Property Manager' },
+  { value: 'Building Engineer', label: 'Building engineer' },
+  { value: 'Property Manager', label: 'Property manager' },
   { value: 'Other', label: 'Other' },
 ];
+const contactRoleLabel = (role: ContactRole): string => CONTACT_ROLES.find(r => r.value === role)?.label ?? role;
 
 // Warm-editorial role accents (mirrors ContactPickerModal for consistency).
 // The role name is always shown as text, so color is a decorative accent —
@@ -157,7 +159,7 @@ export default function ContactsScreen() {
 
   const handleSave = useCallback(() => {
     if (!firstName.trim() && !lastName.trim() && !companyName.trim()) {
-      showAlert('Missing Info', 'Please enter at least a name or company.');
+      showAlert('Add a name', 'Enter a name or a company.');
       return;
     }
 
@@ -200,7 +202,7 @@ export default function ContactsScreen() {
   }, [firstName, lastName, companyName, role, email, phone, address, notes, editingContact, addContact, updateContact, resetForm]);
 
   const handleDelete = useCallback((contact: Contact) => {
-    showAlert('Delete Contact', `Remove ${contact.firstName} ${contact.lastName}?`, [
+    showAlert('Delete contact', `Delete ${contact.firstName} ${contact.lastName}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: () => {
@@ -220,16 +222,17 @@ export default function ContactsScreen() {
 
   const getContactFinancials = useCallback((contact: Contact) => {
     if (contact.role !== 'Client') return null;
-    let totalInvoiced = 0;
-    let totalPaid = 0;
-    contact.linkedProjectIds.forEach(pid => {
-      const invoices = getInvoicesForProject(pid);
-      invoices.forEach(inv => {
-        totalInvoiced += inv.totalDue;
-        totalPaid += inv.amountPaid;
-      });
-    });
-    return { totalInvoiced, totalPaid, outstanding: totalInvoiced - totalPaid };
+    // health 2026-09-26: through the shared definitions. The inline sums
+    // counted DRAFT invoices as invoiced and their logged payments as paid, and
+    // `outstanding` was invoiced − paid — gross of the retention the contract
+    // lets the client hold (MONEY-F5), so a client paid up to retention showed
+    // a red balance the portal and A/R both call $0.
+    const invoices = contact.linkedProjectIds.flatMap(pid => getInvoicesForProject(pid));
+    return {
+      totalInvoiced: getInvoicedToDate(invoices),
+      totalPaid: getPaidToDate(invoices),
+      outstanding: getOutstandingBalance(invoices),
+    };
   }, [getInvoicesForProject]);
 
   const renderContact = useCallback(({ item }: { item: Contact }) => {
@@ -254,7 +257,7 @@ export default function ContactsScreen() {
           ) : null}
           <View style={styles.contactMetaRow}>
             <View style={[styles.roleBadge, { backgroundColor: roleColor + '15' }]}>
-              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{item.role}</Text>
+              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{contactRoleLabel(item.role)}</Text>
             </View>
             {item.email ? (
               <Text style={styles.contactEmail} numberOfLines={1}>{item.email}</Text>
@@ -287,7 +290,7 @@ export default function ContactsScreen() {
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={[styles.detailRoleBadge, { backgroundColor: roleColor + '15' }]}>
             <Briefcase size={14} color={roleColor} strokeWidth={1.75} />
-            <Text style={[styles.detailRoleText, { color: roleColor }]}>{c.role}</Text>
+            <Text style={[styles.detailRoleText, { color: roleColor }]}>{contactRoleLabel(c.role)}</Text>
             {c.companyName && c.firstName ? (
               <Text style={styles.detailCompany}> · {c.companyName}</Text>
             ) : null}
@@ -316,13 +319,13 @@ export default function ContactsScreen() {
 
           {financials && (
             <View style={styles.financialCard}>
-              <Text style={styles.financialTitle}>Financial Summary</Text>
+              <Text style={styles.financialTitle}>Financial summary</Text>
               <View style={styles.financialRow}>
-                <Text style={styles.financialLabel}>Total Invoiced</Text>
+                <Text style={styles.financialLabel}>Total invoiced</Text>
                 <Text style={styles.financialValue}>${financials.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.financialRow}>
-                <Text style={styles.financialLabel}>Total Paid</Text>
+                <Text style={styles.financialLabel}>Total paid</Text>
                 <Text style={[styles.financialValue, { color: themeColors.success }]}>${financials.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.financialDivider} />
@@ -337,7 +340,7 @@ export default function ContactsScreen() {
 
           {linkedProjects.length > 0 && (
             <View style={styles.linkedSection}>
-              <Text style={styles.linkedTitle}>Linked Projects</Text>
+              <Text style={styles.linkedTitle}>Linked projects</Text>
               {linkedProjects.map(p => (
                 <TouchableOpacity
                   key={p.id}
@@ -431,7 +434,7 @@ export default function ContactsScreen() {
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search contacts..."
+            placeholder="Search contacts"
             placeholderTextColor={themeColors.textMuted}
             testID="contacts-search"
           />
@@ -474,7 +477,7 @@ export default function ContactsScreen() {
               title={query || filterRole !== 'all' ? 'No contacts match' : 'No contacts yet'}
               message={query || filterRole !== 'all'
                 ? 'Try a different search term or clear the role filter to see everyone.'
-                : 'Add your owners, architects, engineers, inspectors, and lenders here. Every RFI, daily report, and invoice can pull from this list automatically.'}
+                : 'Add your clients, architects, engineers, inspectors and lenders here. RFIs, daily reports and invoices pull from this list.'}
               actionLabel={!query && filterRole === 'all' ? 'Add first contact' : undefined}
               onAction={!query && filterRole === 'all' ? openAddModal : undefined}
             />
@@ -489,7 +492,7 @@ export default function ContactsScreen() {
           <View style={[styles.modalOverlay, fAdd.overlay]}>
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fAdd.card]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingContact ? 'Edit Contact' : 'New Contact'}</Text>
+                <Text style={styles.modalTitle}>{editingContact ? 'Edit contact' : 'New contact'}</Text>
                 <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -498,11 +501,11 @@ export default function ContactsScreen() {
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.formRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>First Name</Text>
+                    <Text style={styles.formLabel}>First name</Text>
                     <TextInput style={styles.formInput} value={firstName} onChangeText={setFirstName} placeholder="John" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.formLabel}>Last Name</Text>
+                    <Text style={styles.formLabel}>Last name</Text>
                     <TextInput style={styles.formInput} value={lastName} onChangeText={setLastName} placeholder="Smith" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
@@ -533,10 +536,10 @@ export default function ContactsScreen() {
                 <TextInput style={styles.formInput} value={address} onChangeText={setAddress} placeholder="123 Main St, City, State" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.formLabel}>Notes</Text>
-                <TextInput style={[styles.formInput, { minHeight: 70 }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
+                <TextInput style={[styles.formInput, { minHeight: 70 }]} value={notes} onChangeText={setNotes} placeholder="Additional notes" placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
                 <TouchableOpacity style={[styles.saveBtn, fAdd.footerButton]} onPress={handleSave} activeOpacity={0.85}>
-                  <Text style={styles.saveBtnText}>{editingContact ? 'Save Changes' : 'Add Contact'}</Text>
+                  <Text style={styles.saveBtnText}>{editingContact ? 'Save changes' : 'Add contact'}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>

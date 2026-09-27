@@ -147,7 +147,7 @@ export default function CopilotScreen() {
           {(!project || changing) ? picker
             : !precondition.ok ? (
               <View style={styles.block} testID="copilot-gate-no-estimate">
-                <Text style={styles.eyebrow}>{(project.name || 'This job').toUpperCase()}</Text>
+                <Text style={styles.eyebrow}>{(project.name || 'This project').toUpperCase()}</Text>
                 <Text style={styles.headline}>{precondition.message}</Text>
                 <Text style={styles.muted}>
                   {capabilityId === 'invoice' ? 'Billing draws against the estimate.' : 'The schedule is built from the estimate’s lines.'} Nothing has been charged.
@@ -157,7 +157,7 @@ export default function CopilotScreen() {
                   <Text style={styles.primaryText}>Build the estimate first</Text>
                 </TouchableOpacity>
                 <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
-                  <Text style={styles.secondaryText}>Pick another job</Text>
+                  <Text style={styles.secondaryText}>Pick another project</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -169,10 +169,10 @@ export default function CopilotScreen() {
                     <Text style={styles.muted}>Checking your role on {project.name}…</Text>
                   </View>
                 ) : roleState.isPaused && roleState.role == null ? (
-                  <Text style={styles.headline}>{roleState.reason ?? 'You’re offline — your role on this job can’t be checked until you’re back online.'}</Text>
+                  <Text style={styles.headline}>{roleState.reason ?? 'You’re offline. Your role on this project can’t be checked until you’re back online.'}</Text>
                 ) : roleState.isError && roleState.role == null ? (
                   <>
-                    <Text style={styles.headline}>Couldn’t check your role on this job.</Text>
+                    <Text style={styles.headline}>Couldn’t check your role on this project.</Text>
                     <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={roleState.refetch} activeOpacity={0.9}>
                       <RefreshCw size={16} color={Colors.textOnAccent} strokeWidth={2} />
                       <Text style={styles.primaryText}>Try again</Text>
@@ -182,7 +182,7 @@ export default function CopilotScreen() {
                   <Text style={styles.headline}>{WARRANTY_OWNER_ONLY_COPY}</Text>
                 )}
                 <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setChanging(true)} activeOpacity={0.8}>
-                  <Text style={styles.secondaryText}>Pick another job</Text>
+                  <Text style={styles.secondaryText}>Pick another project</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -227,7 +227,7 @@ type Styles = ReturnType<typeof makeStyles>;
 function GateTopbar({ styles, colors, onClose }: { styles: Styles; colors: ThemeColors; onClose: () => void }) {
   return (
     <View style={styles.topbar}>
-      <Text style={styles.brand}>MAGE&nbsp;COPILOT</Text>
+      <Text style={styles.brand}>MAGE&nbsp;Copilot</Text>
       <TouchableOpacity accessibilityRole="button" onPress={onClose} accessibilityLabel="Close" hitSlop={10}>
         <X size={20} color={colors.textMuted} strokeWidth={2} />
       </TouchableOpacity>
@@ -243,16 +243,16 @@ function ProjectPicker({ styles, colors, candidates, loading, staleId, currentId
     return (
       <View style={styles.center} testID="copilot-picker-loading">
         <ActivityIndicator color={colors.accent} />
-        <Text style={styles.muted}>Loading your jobs…</Text>
+        <Text style={styles.muted}>Loading your projects…</Text>
       </View>
     );
   }
   if (candidates.length === 0) {
     return (
       <View style={styles.block} testID="copilot-picker-empty">
-        <Text style={styles.eyebrow}>NO JOB YET</Text>
+        <Text style={styles.eyebrow}>No project yet</Text>
         <Text style={styles.headline}>Create a project first.</Text>
-        <Text style={styles.muted}>This goes on a job, and you don’t have an open one. Nothing has been charged.</Text>
+        <Text style={styles.muted}>This goes on a project, and you don’t have an open one. Nothing has been charged.</Text>
         <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={onNewProject} activeOpacity={0.9} testID="copilot-picker-new-project">
           <FolderPlus size={18} color={Colors.textOnAccent} strokeWidth={2} />
           <Text style={styles.primaryText}>Start a project</Text>
@@ -262,23 +262,23 @@ function ProjectPicker({ styles, colors, candidates, loading, staleId, currentId
   }
   return (
     <View style={styles.block} testID="copilot-picker">
-      <Text style={styles.eyebrow}>WHICH JOB IS THIS FOR?</Text>
+      <Text style={styles.eyebrow}>Which project is this for?</Text>
       {staleId ? (
-        <Text style={styles.muted}>That job isn’t on this device any more — pick the one this is for.</Text>
+        <Text style={styles.muted}>That project isn’t on this device any more. Pick the one this is for.</Text>
       ) : (
-        <Text style={styles.muted}>Pick the job first, so nothing you say is spent on the wrong one.</Text>
+        <Text style={styles.muted}>Pick the project first, so nothing you say goes to the wrong one.</Text>
       )}
       {candidates.map((p) => (
         <TouchableOpacity accessibilityRole="button" key={p.id} style={[styles.card, p.id === currentId && styles.cardCurrent]} onPress={() => onPick(p.id)} activeOpacity={0.85} testID={`copilot-picker-${p.id}`}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardLabel} numberOfLines={1}>{p.name || 'Untitled job'}</Text>
+            <Text style={styles.cardLabel} numberOfLines={1}>{p.name || 'Untitled project'}</Text>
             {!!p.location && <Text style={styles.muted} numberOfLines={1}>{p.location}</Text>}
           </View>
           <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
         </TouchableOpacity>
       ))}
       <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={onNewProject} activeOpacity={0.8}>
-        <Text style={styles.secondaryText}>It’s a new job — start a project</Text>
+        <Text style={styles.secondaryText}>Start a new project</Text>
       </TouchableOpacity>
     </View>
   );

@@ -79,30 +79,30 @@ interface Feature {
 
 const FEATURES: Feature[] = [
   {
-    title: 'AI Cost Estimator',
-    description: 'Turn a scope description into a line-item estimate in seconds.',
+    title: 'AI cost estimator',
+    description: 'Turn a scope description into a line-item estimate.',
     Icon: Calculator,
   },
   {
-    title: 'Schedule Maker',
+    title: 'Schedule builder',
     description: 'Generate critical-path Gantt schedules with crew and phase logic.',
     Icon: CalendarDays,
   },
   {
-    title: 'AI Takeoff',
+    title: 'AI takeoff',
     description: 'Turn a plan PDF into linear- and square-foot quantities.',
     Icon: FileText,
   },
   {
-    title: 'AI Photo Triage',
+    title: 'AI photo triage',
     // #41: punch items are Business (punch_list_closeout); this screen sells
     // Pro first, so it must not promise them.
     description: 'Sort jobsite photos into RFIs, daily-report notes and progress shots.',
     Icon: ClipboardList,
   },
   {
-    title: 'Voice-to-Report',
-    description: 'Dictate updates and let MAGE build the daily report for you.',
+    title: 'Voice-to-report',
+    description: 'Dictate updates and MAGE drafts the daily report.',
     Icon: Mic,
   },
   {
@@ -332,8 +332,8 @@ export default function OnboardingPaywallScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       showAlert(
-        'Welcome to MAGE ID ' + (selectedPlan === 'pro' ? 'Pro' : 'Business') + '!',
-        'Your subscription is active.',
+        "You're on " + (selectedPlan === 'pro' ? 'Pro' : 'Business'),
+        'Every ' + (selectedPlan === 'pro' ? 'Pro' : 'Business') + ' feature is on for your account.',
       );
       void leaveToNextScreen();
     } catch (err: unknown) {
@@ -345,8 +345,8 @@ export default function OnboardingPaywallScreen() {
       if (cancelled) return;
       console.log('[OnboardingPaywall] purchase failed', err);
       showAlert(
-        'Purchase Failed',
-        'Something went wrong. Please try again, or tap Restore if you already purchased.',
+        "Couldn't complete purchase",
+        "The purchase didn't go through. Try again, or tap Restore if you already paid.",
       );
     }
   }, [selectedPlan, selectedPeriod, purchasePro, purchaseBusiness, leaveToNextScreen]);
@@ -426,7 +426,7 @@ export default function OnboardingPaywallScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.hero}>Unlock every tool on the jobsite</Text>
+        <Text style={styles.hero}>Every tool for the jobsite</Text>
 
         {/* Feature list with vertical gradient rail */}
         <View style={styles.featureBlock}>
@@ -512,7 +512,7 @@ export default function OnboardingPaywallScreen() {
                 when either is missing rather than printing a typed 20%. */}
             {savePct !== null && (
               <View style={styles.saveBadge}>
-                <Text style={styles.saveBadgeText}>{`SAVE ${savePct}%`}</Text>
+                <Text style={styles.saveBadgeText}>{`Save ${savePct}%`}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -562,7 +562,7 @@ export default function OnboardingPaywallScreen() {
           />
           <PlanCard
             label="Business"
-            tagline={`Teams · ${INCLUDED_ADMIN_SEATS.business} office seats`}
+            tagline={`Teams · ${INCLUDED_ADMIN_SEATS.business} office team members`}
             priceTop={
               selectedPeriod === 'annual'
                 ? pricing.businessAnnualPerMonth
@@ -728,7 +728,7 @@ function PlanCard({
       ) : null}
       {featured && (
         <View style={styles.popularBadge}>
-          <Text style={styles.popularBadgeText}>POPULAR</Text>
+          <Text style={styles.popularBadgeText}>Popular</Text>
         </View>
       )}
       <Text style={[styles.planLabel, active && styles.planLabelActive]}>{label}</Text>
@@ -901,6 +901,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: t.success,
     letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   planRow: {
     flexDirection: 'row',
@@ -935,6 +936,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: '#FFFFFF',
     letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
   },
   planLabel: {
     fontSize: Type.callout.fontSize,

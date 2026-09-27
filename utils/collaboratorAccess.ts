@@ -191,14 +191,45 @@ export function resolveClockGate(args: {
 }): ClockGate {
   const { hasProject, stampedRole, ownTierAllows, live } = args;
   if (!hasProject) return { kind: 'ok' };
-  const business: ClockGate = { kind: 'blocked', reason: 'Clocking crew in on your own jobs needs Business.' };
+  const business: ClockGate = { kind: 'blocked', reason: 'Clocking in crew on your own projects is on the Business plan.' };
   const viewer: ClockGate = { kind: 'blocked', reason: 'Clocking crew in on this job needs a field or editor seat. You have view access.' };
   if (stampedRole == null || stampedRole === 'owner') return ownTierAllows ? { kind: 'ok' } : business;
   if (live.isLoading || live.isError) {
     if (stampedRole === 'field' || stampedRole === 'editor') return { kind: 'ok' };
     return live.isLoading ? { kind: 'loading' } : { kind: 'error' };
   }
-  if (live.role === null) return { kind: 'blocked', reason: 'You no longer have access to this job, so you cannot clock crew in on it.' };
+  if (live.role === null) return { kind: 'blocked', reason: "You no longer have access to this project, so you can't clock in crew on it." };
   if (resolveProjectAccess(ownTierAllows, live.role, 'crew_time_tracking')) return { kind: 'ok' };
   return live.role === 'viewer' ? viewer : business;
+}
+
+// ── Filing records on a job (LS-5, health lane NOTIFYOPS) ──────────────────
+// COLLABORATOR_PROJECT_FEATURES opens RFIs, submittals, punch, photos and
+// field tickets to EVERY collaborator role, and it should: a viewer reads
+// them. But every insert AND update policy on those tables
+// (rfis/submittals/punch_items/field_tickets/photos _collab_insert/_update)
+// requires can_access_project(project_id, 'field') — owner, editor and field
+// pass, a viewer does not. So a viewer got the full create form, saved, saw it
+// land optimistically, and then the server refused it: a "Not saved" line in
+// the ledger for work he was never allowed to file. FEATURE_ROLES is NOT the
+// fix (that would hide the screens from him); the create / save controls are.
+
+/** The copy every blocked create/save control shows (and its alert says). */
+export const PROJECT_RECORD_VIEWER_BLOCK =
+  'You have view access to this project. Filing needs Field or Editor access. Ask the project owner.';
+
+/**
+ * May this seat create or save records on the job? Owner, editor and field:
+ * yes. Viewer: no. null / undefined: yes — that is how the screens represent
+ * "no project picked yet" and "still reading the seat"; the screens' own
+ * access gates already stop a settled no-access (removed) seat before the
+ * form, and RLS still decides whatever is written.
+ */
+export function canWriteProjectRecords(role: ProjectRole | undefined): boolean {
+  return role !== 'viewer';
+}
+
+/** Why the create/save control is off for this seat, or null when it is on. */
+export function projectRecordWriteBlock(role: ProjectRole | undefined): string | null {
+  return canWriteProjectRecords(role) ? null : PROJECT_RECORD_VIEWER_BLOCK;
 }

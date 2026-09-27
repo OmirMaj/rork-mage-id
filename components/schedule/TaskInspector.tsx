@@ -36,6 +36,7 @@ import { TRADE_KEYS, tradeKeyForTask, tradeLabel, type TradeKey } from '@/utils/
 import { showAlert } from '@/utils/alert';
 import { taskStatusInk, CHIP_TINT_SUFFIX } from '@/components/ui/ink';
 import { useSheetFrame } from '@/components/ui/Sheet';
+import { TASK_STATUS_LABEL } from '@/utils/statusLabels';
 
 interface TaskInspectorProps {
   task: ScheduleTask | null;
@@ -65,14 +66,14 @@ function dayToDate(startDate: Date, day: number): string {
 // Labels only — the four INKS come from `taskStatusInk(themeColors)` at render
 // time. This table used to carry them, and all four were wrong on a light
 // screen: `not_started` was the dark theme's textSecondary (#9AA3AD, 2.55:1),
-// `in_progress` the raw brand accent (#FF6A1A, 2.87:1 — founder decision #1
+// `in_progress` the raw retired-orange brand accent (2.87:1 — founder decision #1
 // routes text through accentLabel), and `Colors.warningLabel` is a getter, so
 // it froze to whichever theme was active at import.
 const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: string }[] = [
-  { value: 'not_started', label: 'Not started' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'on_hold', label: 'On hold' },
-  { value: 'done', label: 'Done' },
+  { value: 'not_started', label: TASK_STATUS_LABEL.not_started },
+  { value: 'in_progress', label: TASK_STATUS_LABEL.in_progress },
+  { value: 'on_hold', label: TASK_STATUS_LABEL.on_hold },
+  { value: 'done', label: TASK_STATUS_LABEL.done },
 ];
 
 export default function TaskInspector({
@@ -363,7 +364,7 @@ export default function TaskInspector({
               activeOpacity={0.85}
               testID="task-add-photo"
             >
-              <Camera size={18} color={"#FF6A1A"} strokeWidth={1.75} />
+              <Camera size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
             </TouchableOpacity>
             {Platform.OS !== 'web' && (
@@ -372,7 +373,7 @@ export default function TaskInspector({
                 onPress={() => handleAddPhoto('library')}
                 activeOpacity={0.85}
               >
-                <Plus size={18} color={"#FF6A1A"} strokeWidth={1.75} />
+                <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.photoAddLabel}>Library</Text>
               </TouchableOpacity>
             )}
@@ -387,7 +388,7 @@ export default function TaskInspector({
             <Text style={styles.sectionTitle}>Notification list {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
           </View>
           <Text style={styles.notesText}>
-            Only people on this list get pinged when this task shifts. Add a sub by name, email, or phone — login not required.
+            Only people on this list get pinged when this task shifts. Add a sub by name, email or phone. No sign-in needed.
           </Text>
           <View style={styles.subRow}>
             <TextInput

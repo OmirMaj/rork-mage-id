@@ -5,7 +5,7 @@
 // mobile card wastes vertical real estate. Renders one horizontal row per
 // project with table-style columns.
 //
-// Phase 1.5: migrated to themed styles + Fraunces name + mono status badge.
+// Phase 1.5: migrated to themed styles + display-face name + mono status badge.
 // ============================================================================
 
 import React, { useMemo } from 'react';
@@ -27,6 +27,10 @@ import { AnimatedFill } from '@/components/animations/AnimatedFill';
 // Wave 6c (C2): the badge speaks utils/projectStage's words — the same ones as
 // the Home chips and the job page ('Construction', 'Post-Con', 'Closeout').
 import { statusLabel as stageStatusLabel } from '@/utils/projectStage';
+
+// Quality labels come from a map, never the raw enum (docs/VOICE.md §6).
+const QUALITY_LABEL: Record<string, string> = { economy: 'Economy', standard: 'Standard', premium: 'Premium', luxury: 'Luxury' };
+
 
 const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes, Wrench,
@@ -142,7 +146,7 @@ const ProjectRow = React.memo(function ProjectRow({
       <View style={styles.metaCol}>
         <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Quality</Text>
         <Text style={[styles.metaValue, { color: colors.text }]} numberOfLines={1}>
-          {project.quality ? project.quality.charAt(0).toUpperCase() + project.quality.slice(1) : '—'}
+          {project.quality ? (QUALITY_LABEL[project.quality] ?? project.quality) : '—'}
         </Text>
       </View>
 

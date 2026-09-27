@@ -70,8 +70,8 @@ type Tab = 'wip' | 'profit' | 'aging';
  *  bottom export bar is not drawn at all; the desktop header's actions stay
  *  visible and say why, as every blocked button in this app does. */
 const WIP_LOCKED_REASON =
-  'The WIP schedule is part of the Business plan, so it cannot be printed or exported on this one. '
-  + 'Profit and A/R Aging stay open on your plan.';
+  'The WIP schedule is on the Business plan, so it can’t be printed or exported on this one. '
+  + 'Profit and A/R aging stay open on your plan.';
 
 export default function ReportsScreen() {
   const { colors: themeColors } = useTheme();
@@ -277,7 +277,7 @@ export default function ReportsScreen() {
       // WindowOrThrow, #147) instead of doing nothing and buzzing "done", and
       // pdfFailureMessage lets that one sentence — "allow pop-ups" — through
       // while any other failure keeps this screen's own wording.
-      showAlert('PDF failed', pdfFailureMessage(err, 'Could not generate the PDF.'));
+      showAlert('Couldn’t generate PDF', pdfFailureMessage(err, 'Couldn’t generate the PDF. Try again.'));
     } finally {
       setGenerating(false);
     }
@@ -319,11 +319,11 @@ export default function ReportsScreen() {
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      ok ? 'CSV copied' : 'Copy failed',
+      ok ? 'CSV copied' : 'Couldn’t export CSV',
       ok
-        ? 'This device could not hand over a file, so the schedule is on your clipboard — paste it '
-          + 'into Excel / QuickBooks / Sage.'
-        : 'Could not save or copy the CSV.',
+        ? "This device couldn't hand over a file, so the schedule is on your clipboard. Paste it "
+          + 'into Excel, QuickBooks or Sage.'
+        : "Couldn't save or copy the CSV.",
     );
   }, [tab, wip, aging, wipUnlocked, nothingToExport, blockedReason]);
 
@@ -365,8 +365,8 @@ export default function ReportsScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Financial Reports</Text>
-          <Text style={styles.title}>Bank-Ready Reports</Text>
+          <Text style={styles.eyebrow}>Financial reports</Text>
+          <Text style={styles.title}>Bank-ready reports</Text>
         </View>
         {isDesktop && <ToolbarActions actions={toolbar} testID="reports-toolbar" />}
       </View>
@@ -375,7 +375,7 @@ export default function ReportsScreen() {
       <View style={[styles.tabRow, isDesktop && segmentedDesktop.container]}>
         <TabBtn label="WIP"      icon={ClipboardList} active={tab === 'wip'}    onPress={() => setTab('wip')} />
         <TabBtn label="Profit"   icon={TrendingUp}    active={tab === 'profit'} onPress={() => setTab('profit')} />
-        <TabBtn label="A/R Aging" icon={AlertTriangle} active={tab === 'aging'}  onPress={() => setTab('aging')} />
+        <TabBtn label="A/R aging" icon={AlertTriangle} active={tab === 'aging'}  onPress={() => setTab('aging')} />
       </View>
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
@@ -388,7 +388,7 @@ export default function ReportsScreen() {
           <View style={styles.reportsHeroIcon}>
             <TrendingUp size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.reportsHeroTitle}>Bank-Ready Reports</Text>
+          <Text style={styles.reportsHeroTitle}>Bank-ready reports</Text>
           <Text style={styles.reportsHeroSub}>
             WIP, profit margin, and A/R aging — auto-compiled across every project. Export to CSV or PDF in one tap.
           </Text>
@@ -508,7 +508,7 @@ function reportExclusionLine(
 ): string {
   const parts: string[] = [];
   if (shared > 0) {
-    parts.push(`${shared} job${shared === 1 ? '' : 's'} shared with you by another company `
+    parts.push(`${shared} ${shared === 1 ? 'project' : 'projects'} shared with you by another company `
       + `(${shared === 1 ? 'its' : 'their'} contract, not yours)`);
   }
   if (unsigned > 0) {
@@ -532,7 +532,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
   // totals row is the CSV's own TOTAL line (reportsWipFooter), never a sum of
   // the visible rows. A margin cell goes through marginCellText only.
   const wipColumns: DataTableColumn<WIPReportRow>[] = [
-    { key: 'job', label: 'Job', flex: 1, minWidth: 180, sortValue: (r) => r.projectName, value: (r) => r.projectName },
+    { key: 'job', label: 'Project', flex: 1, minWidth: 180, sortValue: (r) => r.projectName, value: (r) => r.projectName },
     { key: 'contract', label: 'Revised contract', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).contract, value: (r) => formatMoney(reportsWipCells(r).contract) },
     { key: 'estFinal', label: 'Est. final cost', width: 110, numeric: true, hideBelow: 1050, sortValue: (r) => reportsWipCells(r).estFinal, value: (r) => formatMoney(reportsWipCells(r).estFinal) },
     {
@@ -563,7 +563,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
       render: (r) => {
         const m = reportsWipCells(r).margin;
         return m == null
-          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>no cost basis</Text>
+          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>No cost basis</Text>
           : <Text style={[styles.tableCellText, marginTextTone(m, themeColors)]} numberOfLines={1}>{marginCellText(m)}</Text>;
       },
     },
@@ -572,7 +572,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
   if (report.rows.length === 0) {
     return (
       <>
-        <EmptyState icon={ClipboardList} title="No active projects" body="WIP reports compile across your own signed, active projects. Add or activate a project to populate this report." />
+        <EmptyState icon={ClipboardList} title="No active projects" body="The WIP report covers your own signed, active projects. Add or activate a project to fill it in." />
         {exclusion ? <Text style={styles.basisLine} testID="wip-excluded">{exclusion}</Text> : null}
       </>
     );
@@ -608,7 +608,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
             this sentence. */}
         {report.totals.noCostBasisCount > 0 ? (
           <Text style={styles.basisLine} testID="wip-no-cost-basis">
-            {`Measured on the jobs that have a cost basis. ${report.totals.noCostBasisCount} contract`
+            {`Measured on the projects that have a cost basis. ${report.totals.noCostBasisCount} contract`
               + `${report.totals.noCostBasisCount === 1 ? '' : 's'} worth `
               + `${formatMoney(report.totals.noCostBasisContract)} `
               + `${report.totals.noCostBasisCount === 1 ? 'carries' : 'carry'} no cost estimate, no signed `
@@ -669,7 +669,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
               </View>
             ) : (
               <View style={[styles.marginPill, styles.marginPillNone]}>
-                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>no cost basis</Text>
+                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>No cost basis</Text>
               </View>
             )}
           </View>
@@ -738,7 +738,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
   // struck on the measurable jobs. Revenue carries no total on purpose.
   const profitColumns: DataTableColumn<ProfitReportRow>[] = [
     {
-      key: 'job', label: 'Job', flex: 1, minWidth: 180, sortValue: (r) => r.projectName,
+      key: 'job', label: 'Project', flex: 1, minWidth: 180, sortValue: (r) => r.projectName,
       render: (r) => (
         <View style={styles.tableJobCell}>
           <View style={[styles.healthDot, healthTone(r.health, themeColors)]} />
@@ -765,7 +765,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
       render: (r) => {
         const m = profitCells(r).margin;
         return m == null
-          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>no cost basis</Text>
+          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>No cost basis</Text>
           : <Text style={[styles.tableCellText, marginTextTone(m, themeColors)]} numberOfLines={1}>{marginCellText(m)}</Text>;
       },
     },
@@ -775,7 +775,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
   if (profit.rows.length === 0) {
     return (
       <>
-        <EmptyState icon={TrendingUp} title="No projects yet" body="Profit dashboard pulls live margins across your own signed projects. Add one to get started." />
+        <EmptyState icon={TrendingUp} title="No projects yet" body="Live margins across your own signed projects show here. Add a project to see them." />
         {exclusion ? <Text style={styles.basisLine} testID="profit-excluded">{exclusion}</Text> : null}
       </>
     );
@@ -783,7 +783,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
   return (
     <>
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryEyebrow}>RUNNING PORTFOLIO MARGIN</Text>
+        <Text style={styles.summaryEyebrow}>Running portfolio margin</Text>
         <View style={styles.profitHero}>
           <Text style={styles.profitHeroAmount}>{formatMoney(profit.totalProfit)}</Text>
           <Text style={[styles.profitHeroPct, marginTextTone(profit.weightedMargin, themeColors)]}>
@@ -838,7 +838,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
               </View>
             ) : (
               <View style={[styles.marginPill, styles.marginPillNone]}>
-                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>no cost basis</Text>
+                <Text style={[styles.marginPillText, styles.marginPillNoneText]}>No cost basis</Text>
               </View>
             )}
           </View>
@@ -855,7 +855,7 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
           </View>
           {profitRowHasCostBasis(r) ? null : (
             <Text style={styles.basisLine}>
-              No cost estimate, no signed commitment and nothing spent on this job, so there is no
+              No cost estimate, no signed commitment and nothing spent on this project, so there is no
               margin to measure. It is excluded from the portfolio profit and margin above.
             </Text>
           )}
@@ -881,7 +881,7 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
   // through the same callback the card uses.
   const agingColumns: DataTableColumn<ARAgingReport['rows'][number]>[] = [
     { key: 'invoiceNumber', label: 'Invoice #', width: 70, sortValue: (r) => agingCells(r).invoiceNumber, value: (r) => `#${agingCells(r).invoiceNumber}` },
-    { key: 'job', label: 'Job', flex: 1, minWidth: 160, sortValue: (r) => agingCells(r).job, value: (r) => agingCells(r).job },
+    { key: 'job', label: 'Project', flex: 1, minWidth: 160, sortValue: (r) => agingCells(r).job, value: (r) => agingCells(r).job },
     { key: 'issued', label: 'Issued', width: 96, hideBelow: 1100, sortValue: (r) => agingCells(r).issued, value: (r) => new Date(r.issueDate).toLocaleDateString() },
     { key: 'due', label: 'Due', width: 96, sortValue: (r) => agingCells(r).due, value: (r) => new Date(r.dueDate).toLocaleDateString() },
     { key: 'total', label: 'Total', width: 110, numeric: true, sortValue: (r) => agingCells(r).total, value: (r) => formatMoney(agingCells(r).total) },

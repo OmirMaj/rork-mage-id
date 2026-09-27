@@ -651,9 +651,9 @@ function PlanPinStepBody({
     body = (
       <ScrollView style={styles.panelWrap} contentContainerStyle={styles.panel} testID="walk-pin-no-plan">
         <FileImage size={28} color={t.textMuted} strokeWidth={1.75} />
-        <Text style={styles.panelTitle}>No floor plan on this job yet</Text>
+        <Text style={styles.panelTitle}>No floor plan on this project yet</Text>
         <Text style={styles.panelBody}>
-          Add one to pin where each item is. A photo of the paper plan on the wall works. It saves to the job, so the office and your subs see the same pins.
+          Add one to pin where each item is. A photo of the paper plan on the wall works. It saves to the project, so the office and your subs see the same pins.
         </Text>
         {renderAddButtons('the plan', { pdf: true })}
       </ScrollView>
@@ -783,7 +783,7 @@ function PlanPinStepBody({
               The office and your subs see a blank sheet. Save it to the job, then pin {'—'} anything already on it stays.
             </Text>
             <Button
-              label="Save plan to the job"
+              label="Save plan to the project"
               onPress={() => void runSaveDeviceOnly()}
               loading={busy === 'save'}
               disabled={!!uploadBlockedReason || (busy !== null && busy !== 'save')}

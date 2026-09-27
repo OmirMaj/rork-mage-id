@@ -108,7 +108,7 @@ export function MonthCalendarSheet({ visible, selectedDate, tasks, startDateIso,
           })}
         </View>
         <TouchableOpacity style={styles.todayBtn} onPress={() => pick(new Date())} testID="cal-today">
-          <Text style={styles.todayBtnText}>Jump to Today</Text>
+          <Text style={styles.todayBtnText}>Jump to today</Text>
         </TouchableOpacity>
       </View>
     </Modal>

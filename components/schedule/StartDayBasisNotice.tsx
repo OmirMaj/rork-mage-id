@@ -47,7 +47,7 @@ import {
   type StartDayBasisMigrationPreview,
 } from '@/utils/cpm';
 
-export const START_DAY_BASIS_TITLE = 'THESE START DAYS CAN BE READ TWO WAYS';
+export const START_DAY_BASIS_TITLE = 'These start days can be read two ways';
 export const START_DAY_BASIS_ACCEPT = 'Re-anchor';
 export const START_DAY_BASIS_DECLINE = 'Keep as-is';
 
@@ -85,12 +85,10 @@ export function StartDayBasisNotice({
   const { inflationDays, storedFinishDay, remappedFinishDay } = preview;
   const rows = model.rows.length;
   const body =
-    `These start days can be read two ways, and MAGE cannot tell from the numbers alone which ` +
-    `one you meant. Read as stored, this plan finishes ${dayLabel(projectStartDate, storedFinishDay)}. ` +
-    `Read the other way it finishes ${dayLabel(projectStartDate, remappedFinishDay)}, ` +
-    `${inflationDays} day${inflationDays === 1 ? '' : 's'} earlier. Check the ${rows} row${rows === 1 ? '' : 's'} ` +
-    `below against dates you know: re-anchor if the second column is the one you set, keep them if the first ` +
-    `is. Either way nothing else changes — no duration, no link. It is undoable, and you will only be asked once.`;
+    `Read as stored, this plan finishes ${dayLabel(projectStartDate, storedFinishDay)}. Read the other way, it ` +
+    `finishes ${dayLabel(projectStartDate, remappedFinishDay)}, ${inflationDays} day${inflationDays === 1 ? '' : 's'} earlier. ` +
+    `Check the ${rows} row${rows === 1 ? '' : 's'} below against dates you know: re-anchor if the second date is the ` +
+    `one you set, keep them if the first is. No duration or link changes, you can undo it, and you're only asked once.`;
 
   return (
     <View style={[s.card, style]} accessibilityRole="alert" testID="schedule-startday-basis-notice">
@@ -114,7 +112,7 @@ export function StartDayBasisNotice({
         </Text>
       ))}
       {model.rows.length > 4 && (
-        <Text style={s.evidence}>• …and {model.rows.length - 4} more</Text>
+        <Text style={s.evidence}>• {model.rows.length - 4} more</Text>
       )}
 
       {/* ONE mapped handler, over `cpm.startDayBasisNoticeModel().actions`. Two
@@ -162,6 +160,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   title: {
     fontSize: Type.caption1.fontSize, fontWeight: '800' as const,
     color: t.warningLabel, letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   text: { fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
   evidence: {

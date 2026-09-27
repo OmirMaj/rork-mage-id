@@ -135,7 +135,7 @@ describe('Schedule Pro AI drawer — add requests go to the editor', () => {
     const onHandOff = jest.fn();
     const r = render(<AIAssistantPanel {...baseProps} onHandOffToEditor={onHandOff} />, { wrapper: Wrapper });
     fireEvent.press(r.getByText('Ask'));
-    const input = r.getByPlaceholderText('Ask anything about the schedule…');
+    const input = r.getByPlaceholderText('Ask anything about the schedule');
     fireEvent.changeText(input, 'Add three tasks after rough-in: drywall hang 4 days, drywall tape 3 days, prime and paint 5 days');
     fireEvent(input, 'submitEditing');
     expect(onHandOff).toHaveBeenCalledTimes(1);
@@ -146,7 +146,7 @@ describe('Schedule Pro AI drawer — add requests go to the editor', () => {
   it('hands a Bulk add over with the selected rows named', () => {
     const onHandOff = jest.fn();
     const r = render(<AIAssistantPanel {...baseProps} selectedIds={new Set(['t2'])} onHandOffToEditor={onHandOff} />, { wrapper: Wrapper });
-    const input = r.getByPlaceholderText('What should I do with the selected tasks?');
+    const input = r.getByPlaceholderText('What should change on the selected tasks?');
     fireEvent.changeText(input, 'Add a drywall inspection after this');
     fireEvent(input, 'submitEditing');
     expect(onHandOff).toHaveBeenCalledWith('Add a drywall inspection after this (selected: Rough-in inspection)');
@@ -157,7 +157,7 @@ describe('Schedule Pro AI drawer — add requests go to the editor', () => {
     const onHandOff = jest.fn();
     const r = render(<AIAssistantPanel {...baseProps} onHandOffToEditor={onHandOff} />, { wrapper: Wrapper });
     fireEvent.press(r.getByText('Generate'));
-    const input = r.getByPlaceholderText('Describe your project in 1-2 sentences…');
+    const input = r.getByPlaceholderText('Describe the project in 1 or 2 sentences');
     fireEvent.changeText(input, 'Add three tasks after rough-in: drywall hang 4 days, drywall tape 3 days, prime and paint 5 days');
     fireEvent(input, 'submitEditing');
     expect(onHandOff).toHaveBeenCalledTimes(1);
@@ -169,7 +169,7 @@ describe('Schedule Pro AI drawer — add requests go to the editor', () => {
     const onHandOff = jest.fn();
     const r = render(<AIAssistantPanel {...baseProps} onHandOffToEditor={onHandOff} />, { wrapper: Wrapper });
     fireEvent.press(r.getByText('Ask'));
-    const input = r.getByPlaceholderText('Ask anything about the schedule…');
+    const input = r.getByPlaceholderText('Ask anything about the schedule');
     fireEvent.changeText(input, 'When does drywall start?');
     fireEvent(input, 'submitEditing');
     expect(onHandOff).not.toHaveBeenCalled();

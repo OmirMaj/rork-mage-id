@@ -26,7 +26,7 @@ import { usePortalSnapshot, type PortalSnapshotStatus } from '@/hooks/usePortalS
 import { hydratePortalSnapshot } from '@/utils/portalSnapshotHydrate';
 import { formatMoney } from '@/utils/formatters';
 import { calendarDayStart } from '@/utils/calendarDate';
-import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
+import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry, ChangeOrderStatus, RFIStatus, DocumentStatus } from '@/types';
 import { punchListTypeOf } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
 import { documentTypeInfo } from '@/mocks/documents';
@@ -41,7 +41,8 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { portalFinancingBlock, portalFinancingRedirectUrl, portalFinancingPreviewNote } from '@/utils/financingCore';
 import { linkState } from '@/utils/portalLinkExpiry';
-import { resolveContractSum, getPaidToDate, getInvoicedToDate } from '@/utils/projectFinancials';
+import { resolveContractSum } from '@/utils/projectFinancials';
+import { clientViewMoneyFigures } from '@/utils/clientViewMoney';
 import { buildOwnerConfidence } from '@/utils/ownerConfidence';
 import {
   buildOwnerDecisions, summarizeOwnerDecisions, buildCOConsentRecord, coCarriesTax, buildCOAuditDetail,
@@ -51,6 +52,10 @@ import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
 import { InfoBubble } from '@/components/InfoBubble';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
+import { pdfFailureMessage } from '@/utils/platformFile';
+import { humanizeEnum } from '@/utils/statusLabels';
+import { useSheetDialogScope, useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildPortalProposal, PROPOSAL_ESIGN_VERSION, PROPOSAL_NOT_A_CONTRACT_NOTE, type PortalProposal } from '@/utils/portalSnapshot';
 
@@ -78,6 +83,19 @@ function formatDate(iso: string | undefined, opts: Intl.DateTimeFormatOptions): 
   const d = calendarDayStart(iso);
   return d ? d.toLocaleDateString('en-US', opts) : null;
 }
+
+// Status words the client reads come from a label map, never the raw enum
+// (docs/VOICE.md §6). Unknown values fall back to a sentence-case humanizer.
+const CO_STATUS_LABEL: Record<ChangeOrderStatus, string> = {
+  draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
+  rejected: 'Rejected', revised: 'Revised', void: 'Void',
+};
+const RFI_STATUS_LABEL: Record<RFIStatus, string> = {
+  open: 'Open', answered: 'Answered', closed: 'Closed', void: 'Void',
+};
+const DOC_STATUS_LABEL: Record<DocumentStatus, string> = {
+  draft: 'Draft', pending_signature: 'Pending', signed: 'Signed', expired: 'Expired', void: 'Void',
+};
 
 /**
  * Copy for every way opening a portal can fail.
@@ -107,7 +125,7 @@ function portalFailureCopy(
       const when = state.kind === 'expired' ? `${state.label}. ` : '';
       return {
         title: 'This link has expired',
-        body: `${when}Project links stay open for the whole job and close 30 days after it is handed over, or on a date your contractor set. Ask them to send you a new one — your project is still there.`,
+        body: `${when}Project links stay open until 30 days after handover, or until a date your contractor set. Ask your contractor for a new link. Your project is still there.`,
       };
     }
     case 'revoked':
@@ -123,17 +141,17 @@ function portalFailureCopy(
     case 'not_published':
       return {
         title: 'Nothing here yet',
-        body: 'This portal is real, but your contractor has not published anything to it yet. It will fill in as soon as they do.',
+        body: 'Your contractor hasn\'t published anything to this portal yet. It fills in as soon as they do.',
       };
     case 'unreachable':
       return {
-        title: 'Could not load your portal',
-        body: 'We could not reach the server. Check your connection and try again.',
+        title: 'Couldn\'t load your portal',
+        body: 'Couldn\'t reach the server. Check your connection and try again.',
       };
     default:
       return {
-        title: 'We could not find this portal',
-        body: 'This link does not match a portal we know about. Ask your contractor to send you a new link.',
+        title: 'Couldn\'t find this portal',
+        body: 'This link doesn\'t match any portal. Ask your contractor to send you a new link.',
       };
   }
 }
@@ -413,7 +431,7 @@ export default function ClientViewScreen() {
         projectId: project.id,
         projectName: project.name,
         type: 'other',
-        title: `${project.name} — Closeout Binder`,
+        title: `${project.name} · Closeout binder`,
         status: 'signed',
         createdAt: binder.createdAt,
         signedAt: binder.finalizedAt ?? binder.sentAt,
@@ -454,7 +472,11 @@ export default function ClientViewScreen() {
       try {
         await downloadSealedContractPdf({ contract, userId: contract.userId, supabase });
       } catch (err) {
-        showAlert('Couldn’t open the signed PDF', err instanceof Error ? err.message : 'Try again from the contract screen.');
+        console.warn('[client-view] sealed PDF open failed:', err);
+        // A blocked pop-up keeps its own sentence (it names the fix); anything
+        // else reads as describeError, never the raw exception text.
+        const copy = describeError(err, { action: 'open the signed PDF' });
+        showAlert(copy.title, pdfFailureMessage(err, copy.body));
       }
       return;
     }
@@ -678,22 +700,22 @@ export default function ClientViewScreen() {
     const project = localProject;
     if (!approvalCO || !project) return;
     if (!approverName.trim()) {
-      showAlert('Name Required', 'Please enter your name as it appears on the contract.');
+      showAlert('Name required', 'Enter your name as it appears on the contract.');
       return;
     }
     if (approvalMode === 'approve' && signaturePaths.length === 0) {
-      showAlert('Signature Required', 'Please sign above to approve this change order.');
+      showAlert('Signature required', 'Sign above to approve this change order.');
       return;
     }
     if (approvalMode === 'approve' && !esignConsent) {
       showAlert(
-        'Consent Required',
-        'Approving a change order is an electronic signature. Please read the disclosure and check "I agree" to continue.',
+        'Consent required',
+        'Approving a change order is an electronic signature. Read the disclosure and check "I agree" to continue.',
       );
       return;
     }
     if (approvalMode === 'reject' && !rejectionReason.trim()) {
-      showAlert('Reason Required', 'Please briefly explain why you are rejecting this change order.');
+      showAlert('Reason required', 'Briefly explain why you are rejecting this change order.');
       return;
     }
 
@@ -839,11 +861,11 @@ export default function ClientViewScreen() {
     // push/email fan-out on this path — so tell the homeowner exactly what
     // happened rather than implying the GC was pinged.
     const tail = serverPersisted
-      ? 'Your response has been recorded and will appear in your contractor\'s dashboard.'
-      : 'We saved your response locally. If you don\'t hear back within a day, please contact the contractor directly.';
+      ? 'Your response is recorded and shows up in your contractor\'s dashboard.'
+      : 'Your response is saved on this device. If you don\'t hear back within a day, contact your contractor directly.';
     showAlert(
       approvalMode === 'approve' ? 'Approved' : 'Rejected',
-      `Change Order #${approvalCO.number} has been ${verb}. ${tail}`,
+      `Change order #${approvalCO.number} has been ${verb}. ${tail}`,
       [{ text: 'OK', onPress: closeApprovalFlow }]
     );
   }, [approvalCO, localProject, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, esignConsent, updateChangeOrder, closeApprovalFlow]);
@@ -922,23 +944,24 @@ export default function ClientViewScreen() {
   /** True when this render COULD have seen a contract and found none. */
   // isSuccess, not !isPending: a read that FAILED checked nothing (#122).
   const contractWasChecked = !isSnapshotMode && !!localProject?.id && contractQ.isSuccess;
-  // MONEY-PAID-DRAFT-1: through the shared definitions, not re-derived here.
-  // These two reduces used to be inline and unfiltered, so this screen counted
-  // payments logged against DRAFT invoices as money collected while
-  // utils/portalSnapshot.ts (the web portal, same homeowner) did not — two
-  // views of one job disagreeing about "Paid to date".
-  const invoicedTotal = getInvoicedToDate(invoices);
-  const paidTotal = getPaidToDate(invoices);
+  // MONEY-PAID-DRAFT-1 + MONEY-CLIENTVIEW-DUE-NOW (health 2026-09-26): every
+  // figure on this card comes from utils/clientViewMoney.clientViewMoneyFigures,
+  // the same arithmetic on the same population utils/portalSnapshot.ts
+  // publishes to the web portal. "Due now" used to be invoiced − paid — GROSS
+  // of the retention the contract lets the client hold ($1,000 due where the
+  // portal said $0) — and "Remaining" / "Balance Remaining" subtracted
+  // tax-inclusive invoice money from the pre-tax contract, the mix the portal
+  // removed on purpose (PORTAL-01). Paid + Due now + Retention held is what
+  // has been billed; the contract stays in its own rows above.
+  const money = clientViewMoneyFigures({ invoices, contractValue, changeOrders });
+  const invoicedTotal = money.invoicedToDate;
+  const paidTotal = money.paidToDate;
   const approvedCOs = changeOrders.filter(c => c.status === 'approved');
-  const coTotal = approvedCOs.reduce((s, c) => s + c.changeAmount, 0);
-  const revisedContract = contractValue + coTotal;
-  // Financial-truth metrics tied to the estimate spine: what's paid, what's
-  // billed-but-unpaid, what's still to come, and the homeowner's remaining
-  // balance against the projected final (revised contract).
-  const outstanding = Math.max(0, invoicedTotal - paidTotal);
-  const notYetBilled = Math.max(0, revisedContract - invoicedTotal);
-  const balanceRemaining = Math.max(0, revisedContract - paidTotal);
-  const pctOf = (n: number) => (revisedContract > 0 ? Math.round((n / revisedContract) * 100) : 0);
+  const coTotal = money.approvedChanges;
+  const revisedContract = money.revisedContract;
+  const outstanding = money.outstanding;
+  const retentionHeld = money.retentionHeld;
+  const pctOfBilled = (n: number) => (money.barTotal > 0 ? Math.round((n / money.barTotal) * 100) : 0);
 
   // Schedule metrics
   const tasks = project?.schedule?.tasks ?? [];
@@ -949,6 +972,16 @@ export default function ClientViewScreen() {
   // "0% Schedule Health" bar on a perfectly healthy job.
   const healthScore = project?.schedule?.healthScore ?? null;
 
+  // Desktop: the change-order approval sheet is a centred form card (d6r X3,
+  // batch F); a phone keeps its bottom sheet (every frame part is null there).
+  // Approve & sign signs — Cmd/Ctrl+Enter only, never Cmd+S — and does nothing
+  // while a submit is in flight, like its disabled button. The photo lightbox
+  // is only a dialog to the shortcut registry (nothing on this public page
+  // depends on the signed-in shell).
+  const fApproval = useSheetFrame('form', { visible: !!approvalCO, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!approvalCO, submittingApproval ? null : submitApproval, { saveKey: false });
+  useSheetDialogScope(lightboxIndex !== null);
+
   if (!project || !portal) {
     // Resolution in flight. NEVER render a failure here: a "not found" that
     // flashes for the half-second before data lands is indistinguishable from
@@ -958,7 +991,7 @@ export default function ClientViewScreen() {
     if (resolving) {
       return (
         <View style={styles.notFoundContainer} testID="client-view-loading">
-          <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
+          <Stack.Screen options={{ title: 'Client portal', headerShown: false }} />
           <ActivityIndicator color={themeColors.accent} />
           <Text style={styles.notFoundSubtitle}>Opening your portal…</Text>
         </View>
@@ -974,7 +1007,7 @@ export default function ClientViewScreen() {
     );
     return (
       <View style={styles.notFoundContainer} testID={`client-view-${failure}`}>
-        <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Client portal', headerShown: false }} />
         <Globe size={48} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.notFoundTitle}>{copy.title}</Text>
         <Text style={styles.notFoundSubtitle}>{copy.body}</Text>
@@ -1063,10 +1096,10 @@ export default function ClientViewScreen() {
           <View style={styles.passcodeIconWrap}>
             <Lock size={32} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.passcodeTitle}>Protected Portal</Text>
+          <Text style={styles.passcodeTitle}>Protected portal</Text>
           <Text style={styles.passcodeSub}>{project.name}</Text>
           <Text style={styles.passcodeDesc}>
-            Enter the passcode shared with you to access this project portal.
+            Enter the passcode your contractor gave you to open this portal.
           </Text>
           <TextInput
             style={[styles.passcodeInput, passcodeError && { borderColor: themeColors.danger }]}
@@ -1091,7 +1124,7 @@ export default function ClientViewScreen() {
             <Text style={styles.passcodeErrorText}>
               {passcodeErrorKind === 'network'
                 ? "Couldn't reach the server. Check your connection and try again."
-                : 'Incorrect passcode. Please try again.'}
+                : 'Incorrect passcode. Try again.'}
             </Text>
           ) : null}
           <TouchableOpacity
@@ -1100,7 +1133,7 @@ export default function ClientViewScreen() {
             activeOpacity={0.85}
             disabled={verifying}
           >
-            <Text style={styles.passcodeBtnText}>{verifying ? 'Verifying…' : 'Unlock Portal'}</Text>
+            <Text style={styles.passcodeBtnText}>{verifying ? 'Checking passcode…' : 'Open portal'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1131,16 +1164,16 @@ export default function ClientViewScreen() {
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={styles.headerBrand}>
             <Globe size={22} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.headerBrandText}>Client Portal</Text>
+            <Text style={styles.headerBrandText}>Client portal</Text>
           </View>
           <Text style={styles.headerProjectName}>{project.name}</Text>
           <Text style={styles.headerLocation}>{project.location}</Text>
           <Text style={styles.headerLastUpdated} testID="client-last-updated">
             Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
-          <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? '#34C75940' : '#FF950040' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? themeColors.success + '40' : '#FF950040' }]}>
             <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.success : Colors.warning }]}>
-              {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
+              {project.status === 'in_progress' ? 'In progress' : project.status === 'completed' ? 'Completed' : 'Active'}
             </Text>
           </View>
         </View>
@@ -1209,12 +1242,12 @@ export default function ClientViewScreen() {
                 <View style={styles.msgEmpty}>
                   <MessageSquare size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.msgEmptyTitle}>
-                    {isSnapshotMode ? 'No messages yet.' : 'Ask us anything.'}
+                    {isSnapshotMode ? 'No messages yet' : 'Ask your contractor anything'}
                   </Text>
                   <Text style={styles.msgEmptyHint}>
                     {isSnapshotMode
                       ? 'Anything your contractor sends you will show up here.'
-                      : 'Questions about the schedule, finishes, or anything on-site — this goes straight to your GC.'}
+                      : 'Questions about the schedule, finishes or anything on site go straight to your contractor.'}
                   </Text>
                 </View>
               ) : (
@@ -1258,7 +1291,7 @@ export default function ClientViewScreen() {
                     style={styles.msgInput}
                     value={composeBody}
                     onChangeText={setComposeBody}
-                    placeholder="Write a message…"
+                    placeholder="Write a message"
                     placeholderTextColor={themeColors.textMuted}
                     multiline
                     textAlignVertical="top"
@@ -1268,7 +1301,7 @@ export default function ClientViewScreen() {
                     style={[styles.msgSendBtn, (!composeBody.trim() || sendingMsg) && styles.msgSendBtnDisabled]}
                     onPress={handleSendMessage}
                     disabled={!composeBody.trim() || sendingMsg}
-                    activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send"><Send size={16} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
+                    activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send message"><Send size={16} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
                 </View>
               )}
             </View>
@@ -1279,7 +1312,7 @@ export default function ClientViewScreen() {
         {portal.showSchedule && tasks.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Project Schedule"
+              title="Project schedule"
               icon={<CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />}
               count={tasks.length}
               expanded={expanded.schedule}
@@ -1291,7 +1324,7 @@ export default function ClientViewScreen() {
                     rather than shown as a red 0%. */}
                 {healthScore !== null && (
                   <View style={styles.healthRow}>
-                    <Text style={styles.healthLabel}>Schedule Health</Text>
+                    <Text style={styles.healthLabel}>Schedule health</Text>
                     <View style={styles.healthBar}>
                       <View style={[styles.healthFill, {
                         width: `${healthScore}%` as any,
@@ -1315,7 +1348,7 @@ export default function ClientViewScreen() {
         {proposalBlock && (
           <View style={styles.section}>
             <SectionHeader
-              title="Your Proposal"
+              title="Your proposal"
               icon={<FileSignature size={18} color={themeColors.accent} strokeWidth={1.75} />}
               expanded={expanded.proposal}
               onToggle={() => toggleSection('proposal')}
@@ -1334,7 +1367,7 @@ export default function ClientViewScreen() {
                 ))}
                 {proposalBlock.allowances.length > 0 && (
                   <>
-                    <Text style={styles.budgetCaption}>Allowances — you choose within these:</Text>
+                    <Text style={styles.budgetCaption}>Allowances. You pick finishes within these amounts.</Text>
                     {proposalBlock.allowances.map(a => (
                       <View key={a.name} style={styles.budgetRow}>
                         <Text style={styles.budgetLabel}>{a.name}</Text>
@@ -1360,17 +1393,17 @@ export default function ClientViewScreen() {
                   <Text style={styles.budgetCaption} testID="proposal-terms-pending">
                     {isSnapshotMode
                       ? 'Your contractor is confirming the payment schedule. You can accept once it is set.'
-                      : 'Payment terms not confirmed — your client can\u2019t accept until you confirm them in Client Portal.'}
+                      : 'Payment terms not confirmed. Your client can\u2019t accept until you confirm them in client portal settings.'}
                   </Text>
                 ) : proposalBlock.version !== PROPOSAL_ESIGN_VERSION ? (
                   <Text style={styles.budgetCaption} testID="proposal-version-outdated">
                     {isSnapshotMode
                       ? 'Your contractor is updating this proposal. You can accept it once they have.'
-                      : 'This proposal was published by an older version of the app — open Client Portal to republish it with your payment terms.'}
+                      : 'This proposal was published by an older version of MAGE ID. Open client portal settings to republish it with your payment terms.'}
                   </Text>
                 ) : proposalBlock.payment.map(m => (
                   <View key={m.label} style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>{m.label} — {m.detail}</Text>
+                    <Text style={styles.budgetLabel}>{m.label} · {m.detail}</Text>
                     <Text style={styles.budgetValue}>
                       {typeof m.amount === 'number' ? formatMoney(m.amount) : '—'}
                     </Text>
@@ -1396,7 +1429,7 @@ export default function ClientViewScreen() {
         {portal.showBudgetSummary && (
           <View style={styles.section}>
             <SectionHeader
-              title="Budget Summary"
+              title="Budget summary"
               icon={<BarChart3 size={18} color={themeColors.success} strokeWidth={1.75} />}
               expanded={expanded.budget}
               onToggle={() => toggleSection('budget')}
@@ -1404,19 +1437,19 @@ export default function ClientViewScreen() {
             {expanded.budget && (
               <View style={styles.sectionBody}>
                 <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Original Contract</Text>
+                  <Text style={styles.budgetLabel}>Original contract</Text>
                   <Text style={styles.budgetValue}>{formatMoney(contractValue)}</Text>
                 </View>
                 {coTotal !== 0 && (
                   <View style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>Approved Change Orders</Text>
+                    <Text style={styles.budgetLabel}>Approved change orders</Text>
                     <Text style={[styles.budgetValue, { color: coTotal > 0 ? themeColors.danger : themeColors.success }]}>
                       {coTotal > 0 ? '+' : ''}{formatMoney(coTotal)}
                     </Text>
                   </View>
                 )}
                 <View style={[styles.budgetRow, styles.budgetRowTotal]}>
-                  <Text style={styles.budgetLabelTotal}>Revised Contract</Text>
+                  <Text style={styles.budgetLabelTotal}>Revised contract</Text>
                   <Text style={styles.budgetValueTotal}>{formatMoney(revisedContract)}</Text>
                 </View>
                 <Text style={styles.budgetCaption}>Projected final cost — your contract plus any change orders you&apos;ve approved.</Text>
@@ -1424,57 +1457,63 @@ export default function ClientViewScreen() {
                     came from is what MONEY-CONTRACT-1 was. */}
                 <Text style={styles.budgetCaption} testID="contract-sum-source">
                   {contractSum.source === 'signed_contract'
-                    ? 'Original Contract is the sum on your signed agreement.'
+                    ? 'Original contract is the sum on your signed agreement.'
                     : contractWasChecked
-                      ? 'Original Contract is the accepted estimate total — no signed agreement is on file for this project yet.'
-                      : 'Original Contract is the accepted estimate total. If you have signed an agreement, the sum on it is the one that governs — open it under Documents.'}
+                      ? 'Original contract is the accepted estimate total. No signed agreement is on file for this project yet.'
+                      : 'Original contract is the accepted estimate total. If you have signed an agreement, the sum on it is the one that governs. Open it under Documents.'}
                 </Text>
 
                 <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Total Invoiced</Text>
+                  <Text style={styles.budgetLabel}>Total invoiced</Text>
                   <Text style={styles.budgetValue}>{formatMoney(invoicedTotal)}</Text>
                 </View>
                 <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Total Paid</Text>
+                  <Text style={styles.budgetLabel}>Total paid</Text>
                   <Text style={[styles.budgetValue, { color: themeColors.success }]}>{formatMoney(paidTotal)}</Text>
                 </View>
                 {outstanding > 0 && (
                   <View style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>Invoiced, awaiting payment</Text>
+                    <Text style={styles.budgetLabel}>Invoiced, due now</Text>
                     <Text style={[styles.budgetValue, { color: themeColors.accent }]}>{formatMoney(outstanding)}</Text>
                   </View>
                 )}
-                <View style={[styles.budgetRow, styles.budgetRowTotal]}>
-                  <Text style={styles.budgetLabelTotal}>Balance Remaining</Text>
-                  <Text style={styles.budgetValueTotal}>{formatMoney(balanceRemaining)}</Text>
-                </View>
+                {retentionHeld > 0 && (
+                  <View style={styles.budgetRow} testID="client-view-retention-held">
+                    <Text style={styles.budgetLabel}>Retainage held (due at closeout)</Text>
+                    <Text style={styles.budgetValue}>{formatMoney(retentionHeld)}</Text>
+                  </View>
+                )}
 
-                {/* Where your money stands — paid / due now / remaining, as one bar */}
+                {/* Where the billed money stands — paid / due now / retention
+                    held, as one bar over what has been invoiced (the portal's
+                    BILLED TO DATE bar). The pre-tax contract is not on this axis. */}
                 <View style={styles.moneyBarWrap}>
                   <View style={styles.moneyBar}>
-                    {revisedContract > 0 ? (
+                    {money.barTotal > 0 ? (
                       <>
                         {paidTotal > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.success, flexGrow: paidTotal }]} />}
                         {outstanding > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.accent, flexGrow: outstanding }]} />}
-                        {notYetBilled > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.line, flexGrow: notYetBilled }]} />}
+                        {retentionHeld > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.line, flexGrow: retentionHeld }]} />}
                       </>
                     ) : null}
                   </View>
                   <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: themeColors.success }]} />
-                      <Text style={styles.legendText}>Paid {pctOf(paidTotal)}%</Text>
+                      <Text style={styles.legendText}>Paid {pctOfBilled(paidTotal)}%</Text>
                     </View>
                     {outstanding > 0 && (
                       <View style={styles.legendItem}>
                         <View style={[styles.legendDot, { backgroundColor: themeColors.accent }]} />
-                        <Text style={styles.legendText}>Due now {pctOf(outstanding)}%</Text>
+                        <Text style={styles.legendText}>Due now {pctOfBilled(outstanding)}%</Text>
                       </View>
                     )}
-                    <View style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: themeColors.line }]} />
-                      <Text style={styles.legendText}>Remaining {pctOf(notYetBilled)}%</Text>
-                    </View>
+                    {retentionHeld > 0 && (
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: themeColors.line }]} />
+                        <Text style={styles.legendText}>Retainage held {pctOfBilled(retentionHeld)}%</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
 
@@ -1545,7 +1584,7 @@ export default function ClientViewScreen() {
             {expanded.invoices && (
               <View style={styles.sectionBody}>
                 {invoices.map(inv => {
-                  const statusColor = inv.status === 'paid' ? '#34C759' : inv.status === 'overdue' ? themeColors.danger : '#FF9500';
+                  const statusColor = inv.status === 'paid' ? themeColors.successLabel : inv.status === 'overdue' ? themeColors.danger : '#FF9500';
                   return (
                     <View key={inv.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1575,7 +1614,7 @@ export default function ClientViewScreen() {
         {portal.showChangeOrders && changeOrders.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Change Orders"
+              title="Change orders"
               infoTerm="change_order"
               icon={<FileText size={18} color={themeColors.danger} strokeWidth={1.75} />}
               count={changeOrders.length}
@@ -1585,7 +1624,7 @@ export default function ClientViewScreen() {
             {expanded.changeOrders && (
               <View style={styles.sectionBody}>
                 {changeOrders.map(co => {
-                  const statusColor = co.status === 'approved' ? '#34C759' : co.status === 'rejected' ? themeColors.danger : '#FF9500';
+                  const statusColor = co.status === 'approved' ? themeColors.successLabel : co.status === 'rejected' ? themeColors.danger : '#FF9500';
                   // Signing needs a session (see submitApproval). Offering a
                   // "Sign & Approve" button that can't persist an e-signature
                   // would be worse than not offering it at all.
@@ -1595,7 +1634,7 @@ export default function ClientViewScreen() {
                     <View key={co.id} style={styles.coCard}>
                       <View style={styles.listRow}>
                         <View style={styles.listRowLeft}>
-                          <Text style={styles.listRowTitle}>CO #{co.number} — {co.description}</Text>
+                          <Text style={styles.listRowTitle}>CO #{co.number} · {co.description}</Text>
                           {(() => {
                             const submitted = formatDate(co.date, { month: 'short', day: 'numeric', year: 'numeric' });
                             return submitted ? <Text style={styles.listRowMeta}>{submitted}</Text> : null;
@@ -1607,7 +1646,7 @@ export default function ClientViewScreen() {
                           </Text>
                           <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
                             <Text style={[styles.listStatusText, { color: statusColor }]}>
-                              {co.status.charAt(0).toUpperCase() + co.status.slice(1).replace('_', ' ')}
+                              {CO_STATUS_LABEL[co.status] ?? humanizeEnum(co.status)}
                             </Text>
                           </View>
                         </View>
@@ -1628,7 +1667,7 @@ export default function ClientViewScreen() {
                             activeOpacity={0.85}
                           >
                             <FileSignature size={14} color="#FFF" strokeWidth={1.75} />
-                            <Text style={[styles.coActionText, { color: '#FFF' }]}>Sign & Approve</Text>
+                            <Text style={[styles.coActionText, { color: '#FFF' }]}>Sign and approve</Text>
                           </TouchableOpacity>
                         </View>
                       )}
@@ -1653,7 +1692,7 @@ export default function ClientViewScreen() {
         {portal.showPhotos && photos.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Site Photos"
+              title="Project photos"
               icon={<ImageIcon size={18} color={Colors.purple} strokeWidth={1.75} />}
               count={photos.length}
               expanded={expanded.photos}
@@ -1678,7 +1717,7 @@ export default function ClientViewScreen() {
         {portal.showDailyReports && dailyReports.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Daily Reports"
+              title="Daily reports"
               icon={<ClipboardList size={18} color="#32ADE6" strokeWidth={1.75} />}
               count={dailyReports.length}
               expanded={expanded.dailyReports}
@@ -1709,7 +1748,7 @@ export default function ClientViewScreen() {
         {portal.showPunchList && punchItems.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
-              title="Punch List"
+              title="Punch list"
               infoTerm="punch_list"
               icon={<CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />}
               count={punchItems.filter(p => p.status !== 'closed').length}
@@ -1719,7 +1758,7 @@ export default function ClientViewScreen() {
             {expanded.punchList && (
               <View style={styles.sectionBody}>
                 {punchItems.map(item => {
-                  const statusColor = item.status === 'closed' ? '#34C759' : item.status === 'in_progress' ? '#007AFF' : '#FF9500';
+                  const statusColor = item.status === 'closed' ? themeColors.successLabel : item.status === 'in_progress' ? '#007AFF' : '#FF9500';
                   return (
                     <View key={item.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1733,7 +1772,7 @@ export default function ClientViewScreen() {
                       </View>
                       <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
                         <Text style={[styles.listStatusText, { color: statusColor }]}>
-                          {item.status === 'closed' ? 'Closed' : item.status === 'in_progress' ? 'In Progress' : 'Open'}
+                          {item.status === 'closed' ? 'Closed' : item.status === 'in_progress' ? 'In progress' : 'Open'}
                         </Text>
                       </View>
                     </View>
@@ -1758,11 +1797,11 @@ export default function ClientViewScreen() {
             {expanded.rfis && (
               <View style={styles.sectionBody}>
                 {rfis.map(rfi => {
-                  const statusColor = rfi.status === 'answered' ? '#34C759' : rfi.status === 'closed' ? themeColors.textMuted : '#FF9500';
+                  const statusColor = rfi.status === 'answered' ? themeColors.successLabel : rfi.status === 'closed' ? themeColors.textMuted : '#FF9500';
                   return (
                     <View key={rfi.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
-                        <Text style={styles.listRowTitle} numberOfLines={1}>RFI #{rfi.number} — {rfi.subject}</Text>
+                        <Text style={styles.listRowTitle} numberOfLines={1}>RFI #{rfi.number} · {rfi.subject}</Text>
                         {(() => {
                           const due = formatDate(rfi.dateRequired, { month: 'short', day: 'numeric' });
                           return due ? <Text style={styles.listRowMeta}>Due {due}</Text> : null;
@@ -1770,7 +1809,7 @@ export default function ClientViewScreen() {
                       </View>
                       <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
                         <Text style={[styles.listStatusText, { color: statusColor }]}>
-                          {rfi.status.charAt(0).toUpperCase() + rfi.status.slice(1)}
+                          {RFI_STATUS_LABEL[rfi.status] ?? humanizeEnum(rfi.status)}
                         </Text>
                       </View>
                     </View>
@@ -1796,13 +1835,13 @@ export default function ClientViewScreen() {
                 {documents.length === 0 ? (
                   <View style={styles.emptyDocs}>
                     <FileText size={20} color={themeColors.textMuted} strokeWidth={1.75} />
-                    <Text style={styles.emptyDocsText}>No documents shared yet.</Text>
-                    <Text style={styles.emptyDocsHint}>Contracts, lien waivers, permits, and COIs will appear here.</Text>
+                    <Text style={styles.emptyDocsText}>No documents shared yet</Text>
+                    <Text style={styles.emptyDocsHint}>Contracts, lien waivers, permits and COIs show up here.</Text>
                   </View>
                 ) : (
                   documents.map(doc => {
                     const typeInfo = documentTypeInfo(themeColors)[doc.type] ?? { label: doc.type, color: themeColors.textMuted, bgColor: themeColors.surfaceAlt };
-                    const statusColor = doc.status === 'signed' ? '#34C759' : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
+                    const statusColor = doc.status === 'signed' ? themeColors.successLabel : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
                     const hasFile = !!doc.fileUrl;
                     const rowInner = (
                       <>
@@ -1816,13 +1855,13 @@ export default function ClientViewScreen() {
                           <Text style={styles.listRowMeta}>
                             {typeInfo.label}
                             {doc.signedAt ? ` · Signed ${new Date(doc.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
-                            {doc.expiresAt ? ` · Exp ${new Date(doc.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                            {doc.expiresAt ? ` · Expires ${new Date(doc.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
                             {!hasFile ? ' · Not available yet' : ''}
                           </Text>
                         </View>
                         <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
                           <Text style={[styles.listStatusText, { color: statusColor }]}>
-                            {doc.status === 'pending_signature' ? 'Pending' : doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                            {DOC_STATUS_LABEL[doc.status] ?? humanizeEnum(doc.status)}
                           </Text>
                         </View>
                       </>
@@ -1869,14 +1908,14 @@ export default function ClientViewScreen() {
       <Modal
         visible={!!approvalCO}
         transparent
-        animationType="slide"
+        animationType={fApproval.animationType}
         onRequestClose={closeApprovalFlow}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <View style={[styles.modalOverlay, fApproval.overlay]}>
+          <View style={[styles.modalCard, fApproval.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {approvalMode === 'approve' ? 'Sign & Approve' : 'Reject Change Order'}
+                {approvalMode === 'approve' ? 'Sign and approve' : 'Reject change order'}
               </Text>
               <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
@@ -1884,16 +1923,16 @@ export default function ClientViewScreen() {
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
               {approvalCO && (
                 <View style={styles.modalSummary}>
-                  <Text style={styles.modalSummaryLabel}>Change Order #{approvalCO.number}</Text>
+                  <Text style={styles.modalSummaryLabel}>Change order #{approvalCO.number}</Text>
                   <Text style={styles.modalSummaryTitle}>{approvalCO.description}</Text>
                   <View style={styles.modalSummaryRow}>
-                    <Text style={styles.modalSummaryKey}>Change Amount</Text>
+                    <Text style={styles.modalSummaryKey}>Change amount</Text>
                     <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? themeColors.danger : themeColors.success }]}>
                       {approvalCO.changeAmount > 0 ? '+' : ''}{formatMoney(approvalCO.changeAmount)}
                     </Text>
                   </View>
                   <View style={styles.modalSummaryRow}>
-                    <Text style={styles.modalSummaryKey}>New Contract Total</Text>
+                    <Text style={styles.modalSummaryKey}>New contract total</Text>
                     <Text style={styles.modalSummaryVal}>{formatMoney(approvalCO.newContractTotal)}</Text>
                   </View>
                   {!!approvalCO.reason && (
@@ -1902,12 +1941,12 @@ export default function ClientViewScreen() {
                 </View>
               )}
 
-              <Text style={styles.modalFieldLabel}>Your Name</Text>
+              <Text style={styles.modalFieldLabel}>Your name</Text>
               <TextInput
                 style={styles.modalInput}
                 value={approverName}
                 onChangeText={setApproverName}
-                placeholder="Full legal name as on contract"
+                placeholder="Full legal name, as on the contract"
                 placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="words"
               />
@@ -1960,12 +1999,12 @@ export default function ClientViewScreen() {
                 </>
               ) : (
                 <>
-                  <Text style={styles.modalFieldLabel}>Reason for Rejection</Text>
+                  <Text style={styles.modalFieldLabel}>Reason for rejection</Text>
                   <TextInput
                     style={[styles.modalInput, { minHeight: 100, textAlignVertical: 'top' }]}
                     value={rejectionReason}
                     onChangeText={setRejectionReason}
-                    placeholder="Briefly explain what needs to change before you can approve…"
+                    placeholder="What needs to change before you can approve"
                     placeholderTextColor={themeColors.textMuted}
                     multiline
                   />
@@ -1992,7 +2031,7 @@ export default function ClientViewScreen() {
                   : <ThumbsDown size={15} color="#FFF" strokeWidth={1.75} />
                 }
                 <Text style={styles.modalSubmitText}>
-                  {approvalMode === 'approve' ? 'Approve & Sign' : 'Submit Rejection'}
+                  {approvalMode === 'approve' ? 'Approve and sign' : 'Reject change order'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2009,7 +2048,7 @@ export default function ClientViewScreen() {
       >
         <View style={styles.lbBackdrop}>
           <View style={styles.lbHeader}>
-            <TouchableOpacity onPress={() => setLightboxIndex(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close lightbox">
+            <TouchableOpacity onPress={() => setLightboxIndex(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close photo viewer">
               <X size={22} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.lbCaption} numberOfLines={1}>
@@ -2208,8 +2247,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   coActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
   coSignedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#34C75915', paddingHorizontal: 10, paddingVertical: 8,
-    borderTopWidth: 1, borderTopColor: '#34C75920',
+    backgroundColor: t.success + '15', paddingHorizontal: 10, paddingVertical: 8,
+    borderTopWidth: 1, borderTopColor: t.success + '20',
   },
   coSignedBannerText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.successDark, flex: 1 },
 
