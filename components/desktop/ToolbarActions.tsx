@@ -29,12 +29,12 @@ import { Type } from '@/constants/typography';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useHotkeys, type HotkeyBinding } from '@/hooks/useHotkeys';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
 import { cardSurface } from '@/components/ui/Card';
 import { labelOn } from '@/components/ui/ink';
 import { webMotion } from '@/components/ui/motion';
+import { useSheetDialogScope } from '@/components/ui/Sheet';
 
 type IconComponent = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 
@@ -102,19 +102,18 @@ function runAction(a: ToolbarAction): void {
 
 const MENU_WIDTH = Layout.menu.maxWidth;
 
-/** The open ⋯ menu is a DIALOG to the shortcut registry: a handler-less Esc
- *  entry makes the dialog scope exclusive, so the Esc that closes the menu
- *  (RN-web's Modal, onRequestClose) never also closes the SplitView record the
- *  toolbar sits on. A handler here would close the menu twice. */
-const MENU_DIALOG_BINDINGS: readonly HotkeyBinding[] = [{ combo: 'escape' }];
-
 export function ToolbarActions({ actions, breadcrumbs, maxVisible, style, testID }: ToolbarActionsProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { isDesktop, width: windowWidth } = useResponsiveLayout();
   const [menu, setMenu] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<View>(null);
-  useHotkeys(MENU_DIALOG_BINDINGS, { scope: 'dialog', enabled: menu !== null });
+  // The open ⋯ menu is a DIALOG to the shortcut registry (the shared sheet
+  // hook): its handler-less Esc entry makes the dialog scope exclusive, so the
+  // Esc that closes the menu (RN-web's Modal, onRequestClose) never also closes
+  // the SplitView record the toolbar sits on, and its Cmd+S noop keeps the
+  // browser's "Save page as…" from opening over the menu.
+  useSheetDialogScope(menu !== null);
 
   const { visible, overflow } = splitToolbarActions(actions, maxVisible ?? (isDesktop ? 6 : 3));
   // The ⋯ menu drops in (web CSS; null on native and under Reduce Motion). It

@@ -40,7 +40,8 @@ import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
-import { Button, cardSurface } from '@/components/ui';
+import { Button, cardSurface, useIsDesktopWeb } from '@/components/ui';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { markupForSource, sourcePhotoIdOf } from '@/components/PhotoMarkupOverlay';
 import { nailIt } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
@@ -98,6 +99,9 @@ import {
 export function PunchExportHeaderButton({ onPress }: { onPress: () => void }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Desktop web: the sheet prints (a print tab) as well as exporting, so the
+  // header says so. The phone keeps 'Export'.
+  const isDesktopWeb = useIsDesktopWeb();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -105,11 +109,11 @@ export function PunchExportHeaderButton({ onPress }: { onPress: () => void }) {
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel="Export the punch list"
-      accessibilityHint="PDF report or spreadsheet"
+      accessibilityHint={isDesktopWeb ? 'Print, save as PDF, or download a spreadsheet' : 'PDF report or spreadsheet'}
       testID="punch-export-open"
     >
       <FileDown size={18} color={t.accent} strokeWidth={1.75} />
-      <Text style={styles.headerBtnText}>Export</Text>
+      <Text style={styles.headerBtnText}>{isDesktopWeb ? 'Print / export' : 'Export'}</Text>
     </TouchableOpacity>
   );
 }
@@ -530,15 +534,20 @@ export function PunchExportSheet(props: PunchExportSheetProps) {
     next?.();
   }, []);
 
+  // Desktop web: a centred wide card beside the sidebar (all-null on a phone).
+  // The primary shares / downloads the file, so Cmd/Ctrl+Enter only.
+  const fExport = useSheetFrame('wide', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, !disabledReason && !running ? onPrimaryPress : null, { saveKey: false });
+
   // ── Render ────────────────────────────────────────────────────────────
   const showCrewToggle = effScope === 'all' && listChoice.available;
   const progress = phase.kind === 'running' ? phase : null;
   const determinate = progress && (progress.step === 'photos' || progress.step === 'plans') && progress.total > 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose} onDismiss={handleDismissed}>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }]}>
+    <Modal visible={visible} transparent animationType={fExport.animationType} onRequestClose={handleClose} onDismiss={handleDismissed}>
+      <View style={[styles.overlay, fExport.overlay]}>
+        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }, fExport.card]}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.headerRow}>
               <View style={styles.headerText}>

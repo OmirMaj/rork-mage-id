@@ -40,6 +40,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useRiseOnOpen } from '@/components/ui/motion';
+import { useSheetDialogScope, useSheetFrame } from '@/components/ui/Sheet';
 
 interface ConfirmEmailModalProps {
   visible: boolean;
@@ -60,11 +61,14 @@ const RESEND_COOLDOWN_SECONDS = 60;
  * from then on an Animated.View whose rise style is appended LAST, so the card
  * rises the last 20 pt while the Modal's own fade brings the scrim in.
  */
-function Card({ rise, style, testID, children }: {
-  rise: ViewStyle | null; style: StyleProp<ViewStyle>; testID?: string; children: React.ReactNode;
+function Card({ rise, style: base, card, testID, children }: {
+  rise: ViewStyle | null; style: StyleProp<ViewStyle>; card?: ViewStyle | null; testID?: string; children: React.ReactNode;
 }) {
   // testID only when given: the unarmed card must carry exactly today's props.
   const id = testID ? { testID } : null;
+  // Desktop web: the sheet frame's card goes AFTER the phone style. It is null
+  // on a phone, so `style` is exactly today's prop there.
+  const style = card ? [base, card] : base;
   if (!rise) return <View style={style} {...id}>{children}</View>;
   return <Animated.View style={[style, rise]} {...id}>{children}</Animated.View>;
 }
@@ -76,6 +80,16 @@ export default function ConfirmEmailModal({
   const styles = useThemedStyles(makeStyles);
   const { resendConfirmation } = useAuth();
   const rise = useRiseOnOpen(visible, 20);
+  // Desktop web: a centred card beside the sidebar (all-null on a phone, where
+  // the card keeps its own rise above). ONE frame styles both cards — they open
+  // on the same `visible` — through Card's `card` prop and the overlay arrays.
+  // Both Modals keep the literal animationType="fade": it is the frame's own
+  // value on every platform, and validate-front-door-motion pins the literal.
+  // So neither tag "consumes" fEmail in SA6's textual sense, and the dialog
+  // scope below is the second Modal's SA6 budget — a no-op duplicate of the
+  // scope fEmail already claims on the same `visible`.
+  const fEmail = useSheetFrame('dialog', { visible, animationType: 'fade' });
+  useSheetDialogScope(visible);
 
   const [isResending, setIsResending] = useState(false);
   const [resentAt, setResentAt] = useState<number | null>(null);
@@ -139,8 +153,8 @@ export default function ConfirmEmailModal({
   if (confirmedElsewhere) {
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <View style={styles.overlay}>
-          <Card rise={rise} style={styles.card} testID="confirm-email-confirmed-elsewhere">
+        <View style={[styles.overlay, fEmail.overlay]}>
+          <Card rise={rise} style={styles.card} card={fEmail.card} testID="confirm-email-confirmed-elsewhere">
             <View style={styles.iconWrap}>
               <CheckCircle2 size={28} color={themeColors.accent} strokeWidth={2} />
             </View>
@@ -170,8 +184,8 @@ export default function ConfirmEmailModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <Card rise={rise} style={styles.card}>
+      <View style={[styles.overlay, fEmail.overlay]}>
+        <Card rise={rise} style={styles.card} card={fEmail.card}>
           <View style={styles.iconWrap}>
             <Mail size={28} color={themeColors.accent} strokeWidth={2} />
           </View>

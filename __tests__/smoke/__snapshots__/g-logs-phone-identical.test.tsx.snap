@@ -24,14 +24,14 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (a r
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (project only) 1`] = `
 {
   "lines": 1003,
-  "sha256": "39155c7ffd527dd44f733645931c345f375a11f7631f72364049712c57f1fdcf",
+  "sha256": "b38829adec2db2d6ae42fbcb749d4dd15276609ed7af6af0e431fc081220bad2",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (the tutorial route, type=progress) 1`] = `
 {
   "lines": 1014,
-  "sha256": "6518dadc3de1850b6fb346cde2ca30152e913f74c09252c45fc21d9f73ced6d0",
+  "sha256": "a35484495e6b348b0a09334e119d53be2100eaee00884de8cac8c8a9186da321",
 }
 `;
 

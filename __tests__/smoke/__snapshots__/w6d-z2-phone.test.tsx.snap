@@ -23,22 +23,22 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (b2) daily-report
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c1) construction-ai, tier enterprise (Code Check) 1`] = `
 {
-  "lines": 748,
-  "sha256": "f8d4885aad48f8404a7c78a495c0fdbf3b3d74a72a551ae8f855ec6d8b743f42",
+  "lines": 764,
+  "sha256": "b998eeddf9a34420e77ad449402fecf42c9661ced8689dcc03442ffe04985902",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c2) construction-ai, tier enterprise (Project Roadmap) 1`] = `
 {
-  "lines": 724,
-  "sha256": "e9802a9aa040ee01cb73109b2d366f5b23acfcf458b73e87834343b092a45ea3",
+  "lines": 740,
+  "sha256": "770231402c16797cc585fede5832c933d0e77dbd64744271348bf426d0625629",
 }
 `;
 
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (c3) construction-ai, tier pro (Code Check) 1`] = `
 {
-  "lines": 751,
-  "sha256": "711f70ce09cd85897834bc0f5f0055f6843e0c6a25b0b0e72679bc1803b6ad16",
+  "lines": 767,
+  "sha256": "0e395465f70436a89dd1f3c33e63cbf7673d566caee9cbb46ac6ea7074c26b0b",
 }
 `;
 
@@ -52,7 +52,7 @@ exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (d) onboarding-pa
 exports[`Z2 golden — the phone is unchanged (390 × 844 iOS) (e) dev-ar-measure 1`] = `
 {
   "lines": 1907,
-  "sha256": "63d765bcc210a49a33cd79e70413cdab83f24d125a76dbca6e1a26cb271a0db6",
+  "sha256": "b0d655593ea3f20824853556c9c3e9ceb43109111083bae31be360e39bcc2154",
 }
 `;
 

@@ -14,7 +14,7 @@
 // filtered by portal_id (the column BOTH ends always populate).
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Animated, Easing, Pressable,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Animated, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
@@ -32,7 +32,8 @@ import { useProjectRole } from '@/hooks/useProjectRole';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import type { PortalMessage } from '@/types';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 import { showAlert } from '@/utils/alert';
 import { oops, nailIt } from '@/components/animations/NailItToast';
 
@@ -117,9 +118,8 @@ function MessageBubble({
   useEffect(() => {
     Animated.spring(enter, {
       toValue: 1,
-      tension: 80,
-      friction: 11,
-      useNativeDriver: true,
+      ...Motion.spring.rise,
+      useNativeDriver: nativeDriver,
     }).start();
   }, [enter]);
 
@@ -294,21 +294,22 @@ export default function ClientMessagesScreen() {
   useEffect(() => {
     Animated.spring(sendActivate, {
       toValue: canSend ? 1 : 0,
-      tension: 110,
-      friction: 8,
+      ...Motion.spring.rise,
       useNativeDriver: false, // backgroundColor isn't transformable
     }).start();
   }, [canSend, sendActivate]);
 
   const sendScale = useRef(new Animated.Value(1)).current;
   const handlePressIn = useCallback(() => {
-    Animated.timing(sendScale, {
-      toValue: 0.86, duration: 80, easing: Easing.out(Easing.quad), useNativeDriver: true,
+    // A firm press, no squash: 0.94 on the snap preset (was a 0.86 squash).
+    Animated.spring(sendScale, {
+      toValue: 0.94, ...Motion.spring.snap, useNativeDriver: nativeDriver,
     }).start();
   }, [sendScale]);
   const handlePressOut = useCallback(() => {
+    // Release settles back without the old pop-and-wobble (ζ≈0.83).
     Animated.spring(sendScale, {
-      toValue: 1, tension: 130, friction: 6, useNativeDriver: true,
+      toValue: 1, ...Motion.spring.snap, useNativeDriver: nativeDriver,
     }).start();
   }, [sendScale]);
 

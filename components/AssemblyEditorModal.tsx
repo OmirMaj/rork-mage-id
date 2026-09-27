@@ -8,6 +8,7 @@ import { X, Plus, ChevronLeft, CheckCircle2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -210,18 +211,23 @@ function AssemblyEditorModalImpl({
     onClose();
   }, [name, category, description, unit, notes, materials, labors, initial, onSave, onClose]);
 
+  // Desktop web: a centred wide card beside the sidebar (all-null on a phone);
+  // Cmd/Ctrl+Enter or Cmd/Ctrl+S saves.
+  const fAsm = useSheetFrame('wide', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, handleSave);
+
   // ── Render ────────────────────────────────────────────────────────────────
   const isEditing = Boolean(initial?.id);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={fAsm.animationType} onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}
+        style={[styles.backdrop, fAsm.overlay]}
       >
-        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }, fAsm.card]}>
           {/* Drag handle */}
-          <View style={styles.handle} />
+          {fAsm.showHandle && <View style={styles.handle} />}
 
           {/* Header */}
           <View style={styles.head}>
@@ -447,12 +453,12 @@ function AssemblyEditorModalImpl({
           </ScrollView>
 
           {/* Footer */}
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}>
+          <View style={[styles.footer, fAsm.footer]}>
+            <TouchableOpacity style={[styles.secondaryBtn, fAsm.footerButton]} onPress={onClose}>
               <Text style={styles.secondaryBtnText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.primaryBtn}
+              style={[styles.primaryBtn, fAsm.footerButton]}
               onPress={handleSave}
               activeOpacity={0.85}
             >

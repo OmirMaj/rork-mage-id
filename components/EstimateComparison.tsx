@@ -15,6 +15,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { priceMaterialLine } from '@/utils/estimateMarkup';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface CartItem {
   material: MaterialItem;
@@ -114,6 +115,9 @@ const EstimateComparison = React.memo(function EstimateComparison({
   // and ink at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [savedVersions, setSavedVersions] = useState<SavedEstimateVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<SavedEstimateVersion | null>(null);
   const [loading, setLoading] = useState(true);
@@ -268,8 +272,10 @@ const EstimateComparison = React.memo(function EstimateComparison({
   }, [selectedVersion, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, currentCart]);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
-      <View style={s.container}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} transparent={fP.transparent} onRequestClose={onClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
             <Text style={s.headerTitle}>Compare Estimates</Text>
@@ -400,6 +406,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
           <View style={{ height: 40 }} />
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 });

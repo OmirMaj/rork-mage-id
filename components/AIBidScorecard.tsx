@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
 } from 'react-native';
+import { Spinner } from '@/components/ui/Spinner';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target, XCircle, BookOpen,
@@ -240,7 +241,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]} testID={testID}>
-        <ActivityIndicator size="small" color={"#FF6A1A"} />
+        <Spinner tone="accent" />
         <Text style={styles.loadingText}>Scoring bid against your profile…</Text>
       </View>
     );

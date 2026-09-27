@@ -50,6 +50,7 @@ import { Tokens } from '@/constants/designTokens';
 import { useResponsive } from '@/utils/useResponsive';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { usePrintFit } from '@/hooks/usePrintFit';
 import {
   DENSITY, GRID_WIDTH_STORAGE_KEY, committedGridWidth, dragGridWidth, parseStoredGrid, proPanes, type Density,
 } from '@/utils/scheduleProLayout';
@@ -181,6 +182,9 @@ export const GanttTab = forwardRef<GanttTabHandle, GanttTabProps>(function Gantt
 
   // ---- Desktop split geometry (wave 6c) ----
   const { isDesktop } = useResponsiveLayout();
+  // Cmd+P on desktop web zooms the split to fit the sheet (lane Z1; `{}` and
+  // no listener anywhere else).
+  const printFit = usePrintFit(isDesktop);
   const { width: rowWidth, onLayout: onRowLayout } = useContainerWidth();
   const [storedGrid, setStoredGrid] = useState<number | null>(null);
   const [dragGrid, setDragGrid] = useState<number | null>(null);
@@ -440,9 +444,11 @@ export const GanttTab = forwardRef<GanttTabHandle, GanttTabProps>(function Gantt
 
   return (
     <View
+      ref={printFit.ref}
       style={styles.nonPhoneRoot}
       onLayout={isDesktop ? onRowLayout : undefined}
       testID={isDesktop ? 'gantt-tab-root' : undefined}
+      {...printFit.printProps}
     >
       {proCanvas ? null : (
       <View style={styles.layoutBar}>

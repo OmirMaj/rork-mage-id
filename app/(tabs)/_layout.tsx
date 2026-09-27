@@ -13,6 +13,7 @@ import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { Type } from '@/constants/typography';
 import { Tokens, Layout, Motion } from '@/constants/designTokens';
 import { nativeDriver, useReducedMotion, webMotion } from '@/components/ui';
+import { tabFadeThrough, tabFadeThroughReduced } from '@/components/ui/motion';
 import { pageTypeForTab } from '@/utils/desktopPage';
 import { actionRailVisible, attentionBadgeLabel } from '@/utils/sidebarRail';
 import { useShellDock } from '@/components/desktop/ShellDock';
@@ -38,13 +39,15 @@ function TabIcon({
   // the icon's own scale. The scale used to overshoot to 1.08 and spring back
   // with bounciness 6 on every focus — a bounce the smoothness pass retired
   // (springs with a tiny overshoot at most, never bouncy). `bounce` stays a
-  // static 1 so the tree (and every golden) is unchanged.
+  // static 1 so the tree (and every golden) is unchanged. The pill springs on
+  // the quick glideLead preset (ζ≈0.96) so it lands WITH the 200 ms scene
+  // fade-through instead of trailing it on the slower rise spring.
   const focus = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const bounce = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.spring(focus, {
       toValue: focused ? 1 : 0,
-      ...Motion.spring.rise,
+      ...Motion.spring.glideLead,
       useNativeDriver: nativeDriver,
     }).start();
   }, [focused, focus]);
@@ -261,16 +264,22 @@ export default function TabLayout() {
       }}
       screenOptions={{
         headerShown: false,
-        // Switching tabs cross-fades the scene (bottom-tabs drives it with RN
-        // Animated + the native driver — no reanimated). The stock FadeSpec is
-        // 150 ms LINEAR; this is the app's swap duration with an ease-out.
-        // `animation` stays 'fade' under Reduce Motion (a 0 ms fade): switching
-        // it to 'none' swaps the iOS scene container type, which remounts every
-        // tab and loses its scroll, open sheets and typed input.
+        // Switching tabs is a FADE-THROUGH (bottom-tabs drives it with RN
+        // Animated + the native driver — no reanimated): the leaving scene is
+        // gone before the arriving one appears and rises 8 pt into place
+        // (components/ui/motion tabFadeThrough). The stock forFade showed both
+        // scenes at once, so Home's cards ghosted through Schedule's rows.
+        // Native only; phone web keeps the stock fade. `animation` stays 'fade'
+        // under Reduce Motion (a 0 ms fade, opacity only): switching it to
+        // 'none' swaps the iOS scene container type, which remounts every tab
+        // and loses its scroll, open sheets and typed input.
         animation: 'fade',
+        ...(Platform.OS !== 'web'
+          ? { sceneStyleInterpolator: reduced ? tabFadeThroughReduced : tabFadeThrough }
+          : null),
         transitionSpec: {
           animation: 'timing',
-          config: { duration: reduced ? 0 : Motion.duration.swap, easing: Easing.out(Easing.cubic) },
+          config: { duration: reduced ? 0 : Motion.duration.tab, easing: Easing.out(Easing.cubic) },
         },
         tabBarActiveTintColor: themeColors.accent,
         tabBarInactiveTintColor: themeColors.textSecondary,

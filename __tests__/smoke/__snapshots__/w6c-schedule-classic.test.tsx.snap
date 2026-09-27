@@ -3,42 +3,42 @@
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Board view 1`] = `
 {
   "lines": 2133,
-  "sha256": "5f357b5bae58e207568186fa40b4d7f5943b3eddf30a9f9adc9e16cdefd44f06",
+  "sha256": "71ac019eeec4612bd97a4c8c9aa30ea9e137d95f0a9e69c5f8383210f8adbdc6",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Gantt view 1`] = `
 {
   "lines": 1979,
-  "sha256": "ff9cc7aeab74548b0febf820e6d148fda705e644068987a9860e382661843a6a",
+  "sha256": "1887e706d5349e5b8faaeff6e451f6b14b97550ce092d03948a51bac833b2096",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Lookahead view 1`] = `
 {
   "lines": 2224,
-  "sha256": "ab304967d2f41f7d085adc860b92fcc9bc265f768386a499b0083e19e1416513",
+  "sha256": "614a3891edf74bd51e9fe7520ebc83d6ffca93309921c7917a2c9319f342e818",
 }
 `;
 
 exports[`lane DC — the classic tab at 820 (tablet branch, golden) Today view 1`] = `
 {
   "lines": 2150,
-  "sha256": "4807b03d7b0721b1e7a1e1539b2679ae2a928f32a948b43bf61d1d3fa7cb213f",
+  "sha256": "d271574fa4d0a30366481bb636de989559f96f7473a9e874027514595f56b10a",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/discover/schedule 1`] = `
 {
   "lines": 503,
-  "sha256": "7840b2dec744eed81ab4eddd7578a7d7d55a25b70902498c74837b1a5466812b",
+  "sha256": "77377832dab9bf9c57be72785bb8f23dd7a36f06582d522d4e7520b1c5621c0e",
 }
 `;
 
 exports[`lane DC — the phone is unchanged (golden, 390 × 844 iOS) /(tabs)/schedule (MobileScheduleScreen) 1`] = `
 {
   "lines": 1774,
-  "sha256": "2b108eca3659eb2f3255c631bcbbbd887b3a4007902734f3a348b6731c1453c1",
+  "sha256": "7387be1478447ee2e11864de985447b57018ccd29afac2c5ba36ef268240f1f4",
 }
 `;
 

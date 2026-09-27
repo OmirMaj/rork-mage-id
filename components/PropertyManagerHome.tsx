@@ -31,6 +31,7 @@ import {
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProperties } from '@/contexts/PropertyContext';
@@ -120,6 +121,11 @@ export default function PropertyManagerHome() {
     resetDraft();
     router.push({ pathname: '/managed-property' as never, params: { propertyId: created.id } as never });
   }, [draftName, draftAddress, draftType, addProperty, router, resetDraft]);
+
+  // Desktop web: the add-property sheet is a centred card beside the sidebar
+  // (all-null on a phone); Cmd/Ctrl+Enter adds once a name is typed.
+  const fAdd = useSheetFrame('form', { visible: addOpen, animationType: 'slide' });
+  useSheetPrimaryHotkey(addOpen, draftName.trim() ? handleAdd : null);
 
   const isEmpty = properties.length === 0;
 
@@ -241,13 +247,13 @@ export default function PropertyManagerHome() {
       {/* Add-property modal — minimal: name (required) + address + type.
           Everything else (owner contact, notes, units) is editable on the
           property detail screen. */}
-      <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
+      <Modal visible={addOpen} transparent animationType={fAdd.animationType} onRequestClose={() => setAddOpen(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, fAdd.overlay]}
         >
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+          <View style={[styles.modalSheet, fAdd.card]}>
+            {fAdd.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Building2 size={16} color="#FFF" strokeWidth={1.75} /></View>
               <Text style={styles.modalTitle}>Add a property</Text>

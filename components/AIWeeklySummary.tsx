@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Modal, Alert,
+  ScrollView, Modal, Alert, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +18,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface Props {
   projects: Project[];
@@ -54,6 +55,9 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { tier: subscriptionTier } = useSubscription();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [result, setResult] = useState<WeeklySummaryResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // Track whether the user was blocked by a paywall so the modal can show
@@ -111,9 +115,13 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
     if (!visible) setError(null);
   }, [visible]);
 
+  // Esc / the scrim close on the web only: the iPhone's swipe-down stays
+  // exactly as it is today (founder decision 2, d6r X3).
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle="pageSheet" transparent={fP.transparent} {...(Platform.OS === 'web' ? { onRequestClose: onClose } : null)}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <View style={[styles.container, { paddingTop: insets.top }, fP.card]}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MageAIMark size={18} color={"#FF6A1A"} />
@@ -316,6 +324,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
           </View>
         )}
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

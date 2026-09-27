@@ -56,6 +56,7 @@ import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { projectTypeLabel } from '@/utils/projectTypes';
 
 export default function PlanIntelligenceScreen() {
@@ -537,6 +538,9 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
   const [note, setNote] = useState('');
   const [included, setIncluded] = useState(true);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's sheet, byte for byte.
+  const fRoom = useSheetFrame('form', { visible: !!room, animationType: 'slide' });
 
   // Sync local state when a new room opens (render-time state sync — the
   // sanctioned alternative to a useEffect-on-prop pattern).
@@ -567,10 +571,13 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
     });
   };
 
+  // Desktop web: Cmd/Ctrl+Enter (and Cmd+S) = Save room.
+  useSheetPrimaryHotkey(!!room, save);
+
   return (
-    <Modal visible={!!room} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
-        <View style={styles.modalSheet}>
+    <Modal visible={!!room} animationType={fRoom.animationType} transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalBackdrop, fRoom.overlay]}>
+        <View style={[styles.modalSheet, fRoom.card]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>{room?.name ?? 'Room'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">

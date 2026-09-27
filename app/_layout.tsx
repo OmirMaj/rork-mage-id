@@ -8,9 +8,10 @@ import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandSplash from "@/components/BrandSplash";
-import CraneLoader from "@/components/CraneLoader";
+import BootShell from "@/components/loaders/BootShell";
+import ScreenLoader from "@/components/loaders/ScreenLoader";
 import ReloadVeil from "@/components/launch/ReloadVeil";
-import { setBootReady } from "@/components/launch/launchCurtain";
+import { getHasBooted, setBootReady } from "@/components/launch/launchCurtain";
 import DesktopSidebar from "@/components/DesktopSidebar";
 import { useSidebarRailRouteSync } from "@/hooks/useSidebarRail";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
@@ -67,6 +68,7 @@ import {
 } from '@react-navigation/native';
 import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';
 import { renderDesktopPageFrame } from '@/components/desktop/DesktopPageFrame';
+import { renderDesktopStackHeader } from '@/components/desktop/DesktopStackHeader';
 import { ShellDockProvider, ShellDockHost, ASK_DOCK_ID } from '@/components/desktop/ShellDock';
 import { ShellHotkeys } from '@/components/desktop/ShellHotkeys';
 import { useReducedMotion, webMotion } from '@/components/ui/motion';
@@ -502,6 +504,9 @@ function pendingLinkQuery(segments: string[], params: Record<string, string | st
 
 /** No extra root-Stack options (phone, native, Reduce Motion). */
 const NO_STACK_MOTION = {};
+/** No header override: native-stack's own header (phone, native — an Android
+ *  tablet at >= 1024 included — and a phone-width browser). */
+const NO_HEADER_OVERRIDE = {} as const;
 
 function RootLayoutNav() {
   const router = useRouter();
@@ -838,6 +843,16 @@ function RootLayoutNav() {
       : NO_STACK_MOTION),
     [desktopWebStack, reduceMotion],
   );
+  // Desktop web: the root Stack's header renders through DesktopStackHeader,
+  // inset to the page column DesktopPageFrame draws below it (d6r Z1); a
+  // 'bleed' route gets inset 0. Gated on the browser: a native Android tablet
+  // (isDesktop at >= 1024) keeps native-stack's own header. Spread AFTER
+  // headerTitleStyle in the <Stack> literal (validate-contrast check 11).
+  const desktopWebHeader = Platform.OS === 'web' && layout.isDesktop;
+  const desktopHeaderOption = React.useMemo(
+    () => (desktopWebHeader ? { header: renderDesktopStackHeader } : NO_HEADER_OVERRIDE),
+    [desktopWebHeader],
+  );
 
   // public/index.html (the SPA template; +html is ignored in single output)
   // paints <body> from a data-theme attribute its inline boot script sets
@@ -877,8 +892,11 @@ function RootLayoutNav() {
   });
   navStateRef.current = navNext;
 
+  // The first boot keeps the splash ink + level (BootShell: a still replica
+  // under BrandSplash that adopts its stage if the splash's failsafe fires
+  // first); an account switch gets the theme-ground level (ScreenLoader).
   if (navMode === 'loader') {
-    return <CraneLoader label="MAGE ID" />;
+    return getHasBooted() ? <ScreenLoader /> : <BootShell />;
   }
 
   return (
@@ -900,7 +918,7 @@ function RootLayoutNav() {
           returns the screen untouched everywhere else (utils/desktopPage). */}
       <NavThemeProvider value={navTheme}>
       <View style={{ flex: 1 }} key={`stack-${navNext.generation}`}>
-        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE, ...stackMotion }} screenLayout={renderDesktopPageFrame}>
+        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE, ...stackMotion, ...desktopHeaderOption }} screenLayout={renderDesktopPageFrame}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
@@ -1710,36 +1728,55 @@ export default Sentry.wrap(function RootLayout() {
   });
 
   // Splash hand-off state.
+  //   splashPainted — BrandSplash (mounted from the FIRST render, under the
+  //     native splash) has laid out and painted its frame 0: the same level,
+  //     same pixels, same place as the native splash.
   //   nativeHidden — the pre-JS native splash (app.json level-line) has been
-  //     dismissed. We hide it only once fonts are ready (or a failsafe fires)
-  //     so the animated BrandSplash below already has its Fraunces wordmark.
-  //   brandSplashDone — the animated BrandSplash has finished playing and the
-  //     app should now be fully revealed. It plays exactly once per cold
-  //     start (guarded by the fact this component mounts once).
+  //     dismissed. We hide it only once fonts are ready (or the 1.2 s failsafe
+  //     fires) AND the JS replica is painted, so the hand-off has no frame of
+  //     the app and no blink; an absolute 1.5 s backstop hides it regardless
+  //     (a crashed BrandSplash must never pin the native splash). BrandSplash's
+  //     timeline starts at `live={nativeHidden}`.
+  //   brandSplashDone — BrandSplash has handed back and the app should now be
+  //     fully revealed. It plays exactly once per cold start (guarded by the
+  //     fact this component mounts once).
   const [nativeHidden, setNativeHidden] = useState(false);
   const [brandSplashDone, setBrandSplashDone] = useState(false);
+  const [splashPainted, setSplashPainted] = useState(false);
+  const [fontsTimedOut, setFontsTimedOut] = useState(false);
 
+  // Failsafe: stop waiting for fonts after 1.2 s. BrandSplash + onboarding
+  // fall back to the platform serif so they remain usable.
   useEffect(() => {
-    // Hand the native splash off to the animated BrandSplash: the app tree
-    // renders underneath from the first frame, so hiding the native layer
-    // reveals BrandSplash (an ink overlay identical to the native ink) with
-    // no white flash, and interactivity is never blocked beyond the ~1s
-    // animation — the app is already mounted and hydrating below it.
-    if (fontsLoaded) {
-      void SplashScreen.hideAsync();
-      setNativeHidden(true);
-      return;
-    }
-    // Failsafe: hand off after 1.2s even if fonts haven't loaded. BrandSplash
-    // + onboarding fall back to the platform serif so they remain usable.
-    const timer = setTimeout(() => {
-      void SplashScreen.hideAsync();
-      setNativeHidden(true);
-    }, 1200);
+    if (fontsLoaded) return;
+    const timer = setTimeout(() => setFontsTimedOut(true), 1200);
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
+  // hideAsync runs once, whichever path gets there first.
+  const nativeHiddenRef = useRef(false);
+  const hideNativeSplash = useCallback(() => {
+    if (nativeHiddenRef.current) return;
+    nativeHiddenRef.current = true;
+    void SplashScreen.hideAsync();
+    setNativeHidden(true);
+  }, []);
+
+  // Hand the native splash off once the fonts are in (or timed out) AND the
+  // JS replica is painted under it.
+  useEffect(() => {
+    if ((fontsLoaded || fontsTimedOut) && splashPainted) hideNativeSplash();
+  }, [fontsLoaded, fontsTimedOut, splashPainted, hideNativeSplash]);
+
+  // Absolute backstop, from the first render and never re-armed: the native
+  // splash never outlives 1.5 s of JS, painted replica or not.
+  useEffect(() => {
+    const backstop = setTimeout(hideNativeSplash, 1500);
+    return () => clearTimeout(backstop);
+  }, [hideNativeSplash]);
+
   const handleBrandSplashDone = useCallback(() => setBrandSplashDone(true), []);
+  const handleSplashFirstFrame = useCallback(() => setSplashPainted(true), []);
 
   // Capture the marketing-site signup intent (?plan=pro&trial=14) on first
   // web load. Runs once per session, before auth, so a fresh arrival from the
@@ -1832,11 +1869,13 @@ export default Sentry.wrap(function RootLayout() {
             </AuthProvider>
             </ThemeProvider>
           </ThemeLoader>
-          {/* Animated launch — mounts as a full-screen overlay ABOVE the app
-              (which renders + hydrates underneath) once the native splash is
-              handed off, plays the level-settle once, then unmounts. */}
-          {nativeHidden && !brandSplashDone && (
-            <BrandSplash onDone={handleBrandSplashDone} />
+          {/* The launch — a full-screen overlay ABOVE the app (which renders
+              + hydrates underneath), mounted from the FIRST render so its
+              frame 0 (the native splash, redrawn) is painted before the native
+              splash leaves; its timeline starts when it goes live. It lies
+              OUTSIDE ThemeProvider on purpose and never reads the theme. */}
+          {!brandSplashDone && (
+            <BrandSplash onDone={handleBrandSplashDone} live={nativeHidden} onFirstFrame={handleSplashFirstFrame} />
           )}
         </GestureHandlerRootView>
       </QueryClientProvider>
