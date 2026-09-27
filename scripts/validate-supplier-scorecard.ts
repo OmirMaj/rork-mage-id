@@ -22,6 +22,7 @@ import {
   W_ON_TIME,
 } from '../utils/supplierScorecard';
 import type { Delivery } from '../utils/deliverySchedule';
+import { buildArrival, isUnplannedArrival } from '../utils/deliveryArrival';
 
 let failures = 0;
 function check(label: string, cond: boolean) {
@@ -230,6 +231,68 @@ const cardFor = (cards: ReturnType<typeof computeSupplierScorecards>, name: stri
     !!call && /\bdeliveryReceipts\b/.test(call[2]));
   check('#112: no call to computeSupplierScorecards without receipts',
     (screen.match(/computeSupplierScorecards\(/g) ?? []).length === 1);
+}
+
+// ── UX wave B6: "It's here now" loads were never promised a day ─────────────
+// A load logged when it arrived is saved delivered, with expectedDate set to
+// the day it came (the column is NOT NULL). Grading that as a promise would
+// hand the supplier on-time credit it never earned and a "confirmed 0 of 5"
+// it never had the chance to give. Such loads give no slip, no confirmation
+// and no on-time credit; their receipts still count toward damage.
+{
+  const now = new Date('2026-09-27T14:00:00Z');
+  const walkIn = (i: number, supplier: string, date: string) => buildArrival({
+    projectId: 'p1', deliveryId: `walk${i}`, receiptId: `wr${i}`, now,
+    draft: { what: 'lumber', supplier, receivedBy: 'Site', date },
+  }).delivery;
+  const five = [1, 2, 3, 4, 5].map(i => walkIn(i, 'Walk Supply', `2026-09-2${i}`));
+  check('B6: every "It\'s here now" fixture reads as unplanned', five.every(isUnplannedArrival));
+  const allWalk = cardFor(computeSupplierScorecards({ deliveries: five }), 'Walk Supply');
+  check('B6: an all-unplanned supplier still gets a card (bought from, never measured)', !!allWalk);
+  check('B6: …with no score and no grade', allWalk?.score === null && allWalk?.grade === null);
+  check('B6: …and no settled, late or on-time count', allWalk?.settledCount === 0 && allWalk?.lateCount === 0);
+  check('B6: …never "Confirmed 0 of 5 dates"', !allWalk?.factors.some(f => /Confirmed \d+ of/.test(f.detail)));
+  check('B6: …never "Every one of 5 deliveries landed on or before its date"',
+    !allWalk?.factors.some(f => /Every one of/.test(f.detail)));
+  check('B6: …the on-time line says the loads were logged on arrival',
+    /logged when they arrived/.test(allWalk?.factors.find(f => f.key === 'on_time')?.detail ?? ''));
+
+  // A back-dated unplanned row whose expectedDate is earlier than the day it
+  // came (an older row shape) must not be scored as a slip either.
+  const oddWalkIn: Delivery = {
+    ...del('Mixed Co', '2026-03-02', 4, { confirmedAt: undefined }),
+    createdAt: '2026-03-10T09:00:00.000Z',
+  };
+  check('B6: the odd back-dated row is unplanned', isUnplannedArrival(oddWalkIn));
+  const mixed = computeSupplierScorecards({
+    deliveries: [
+      del('Mixed Co', '2026-03-02', 0), del('Mixed Co', '2026-03-09', 0), del('Mixed Co', '2026-03-16', 0),
+      oddWalkIn, walkIn(9, 'Mixed Co', '2026-09-26'),
+    ],
+    receipts: [
+      { supplier: 'Mixed Co', hasDamage: false }, { supplier: 'Mixed Co', hasDamage: false },
+      { supplier: 'Mixed Co', hasDamage: false }, { supplier: 'Mixed Co', hasDamage: true },
+      { supplier: 'Mixed Co', hasDamage: false },
+    ],
+  });
+  const m = cardFor(mixed, 'Mixed Co')!;
+  check('B6: planned loads still settle; unplanned ones do not', m.settledCount === 3 && m.deliveryCount === 5);
+  check('B6: an unplanned load gives no slip', m.lateCount === 0 && m.avgSlipDays === null);
+  check('B6: …and no confirmation (3 of 3 planned, not 3 of 5)',
+    m.factors.find(f => f.key === 'confirmation')!.detail === 'Confirmed 3 of 3 dates before delivering');
+  check('B6: …and no on-time credit (3 deliveries, not 5)',
+    m.factors.find(f => f.key === 'on_time')!.detail === 'Every one of 3 deliveries landed on or before its date');
+  check('B6: receipts from unplanned loads still count toward damage', m.receiptCount === 5 && m.damagedCount === 1);
+
+  // A load scheduled first and received later is a real promise, graded as before.
+  const scheduledThenReceived: Delivery = {
+    ...del('Kept Co', '2026-03-02', 2), createdAt: '2026-02-20T09:00:00.000Z',
+  };
+  check('B6: a scheduled-then-received load is not unplanned', !isUnplannedArrival(scheduledThenReceived));
+  const kept = cardFor(computeSupplierScorecards({
+    deliveries: [scheduledThenReceived, del('Kept Co', '2026-03-09', 0), del('Kept Co', '2026-03-16', 0)],
+  }), 'Kept Co')!;
+  check('B6: …and its slip still counts', kept.lateCount === 1 && kept.settledCount === 3);
 }
 
 // ── confidence ladder + summary ─────────────────────────────────────────────

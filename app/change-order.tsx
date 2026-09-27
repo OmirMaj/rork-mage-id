@@ -52,6 +52,7 @@ import { nextChangeOrderNumber } from '@/utils/coNumbering';
 import { coApprovalLine } from '@/utils/coApproval';
 import { generateChangeOrderPDF } from '@/utils/pdfGenerator';
 import { useServerChangeOrderNumber, coNumberHoldReason } from '@/hooks/useServerChangeOrderNumber';
+import { resolveClientContact, NO_CLIENT_ON_FILE } from '@/utils/clientContact';
 
 // The CO pipeline (and its side branches) is coPipelineFor, in the co-w4
 // block below — it used to map rejected/void onto 'Submitted' (#73).
@@ -1285,6 +1286,10 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   );
   // CO being previewed before its schedule impact is applied (pipeline approve).
   const [reflowPreviewCO, setReflowPreviewCO] = useState<ChangeOrder | null>(null);
+  // C5 (UX wave): the #131 tax freeze an unsigned approval carries into the
+  // schedule preview. It is written WITH the status flip on confirm, so a
+  // cancelled preview leaves the draft exactly as it was.
+  const reflowFreezeRef = useRef<COFrozenFields>({});
   // #37: placing the days of an ALREADY approved CO (portal approval deferred them).
   const [placePreviewCO, setPlacePreviewCO] = useState<ChangeOrder | null>(null);
   // Pre-seed line items: single overage line so the dollar amount
@@ -1336,6 +1341,30 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
   );
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
+
+  // C5 (UX wave): the approver is the job's client — entered once, on the
+  // job — else the last client this job's change orders went to. Filled when
+  // the send sheet OPENS with both fields blank (a pending approver already
+  // on the CO wins, #78), so clearing them while it is up is respected.
+  // Never invented: nothing on file → blank, and the sheet says so.
+  const coClientOnFile = useMemo(() => {
+    const lastClient = [...(existingCOs ?? [])]
+      .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))
+      .flatMap(co => co.approvers ?? [])
+      .find(a => a.role === 'Client' && (a.email ?? '').includes('@'));
+    return resolveClientContact(project, {
+      need: 'email',
+      lastRecipient: lastClient ? { email: lastClient.email, name: lastClient.name } : null,
+    });
+  }, [project, existingCOs]);
+  const coSendSheetWasOpen = useRef(false);
+  useEffect(() => {
+    const opening = showSendRecipient && !coSendSheetWasOpen.current;
+    coSendSheetWasOpen.current = showSendRecipient;
+    if (!opening || sendRecipientName.trim() || sendRecipientEmail.trim() || !coClientOnFile?.email) return;
+    setSendRecipientEmail(coClientOnFile.email);
+    if (coClientOnFile.name) setSendRecipientName(coClientOnFile.name);
+  }, [showSendRecipient, sendRecipientName, sendRecipientEmail, coClientOnFile]);
 
   // His markup and whether he has ever been asked for it. Same pair
   // app/estimate-wizard.tsx:258, app/quick-quote.tsx:65 and
@@ -2503,6 +2532,40 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
     ]);
   }, [confirmedNumber, updateChangeOrder]);
 
+  // C5: "Client approved without signing" — one action instead of three
+  // pipeline taps (Mark submitted → Move to review → Mark approved). Every
+  // rule those taps enforce still runs: an unpriced line is refused (#76),
+  // the tax is frozen the way going out freezes it (#131), a schedule impact
+  // previews before it touches the Gantt, and the money is confirmed (#79)
+  // with its "no client signature on this path" line. The approval it writes
+  // is the manual one coApprovalLine labels "no client signature on file"
+  // on the card, the list and the PDF.
+  const approveWithoutSigning = useCallback((co: ChangeOrder) => {
+    const refusal = coUnconfirmedPriceBlocker(co.lineItems, co.description ?? '', formatCurrency);
+    if (refusal?.kind === 'refuse') { showAlert(refusal.title, refusal.message); return; }
+    const freeze: COFrozenFields = existingFrozenTaxRate == null ? coTaxFreeze(co.changeAmount, liveTaxRatePct) : {};
+    if (
+      (co.scheduleImpactDays ?? 0) > 0 &&
+      !co.scheduleImpactApplied &&
+      (project?.schedule?.tasks?.length ?? 0) > 0
+    ) {
+      reflowFreezeRef.current = freeze;
+      setReflowPreviewCO(co);
+      return;
+    }
+    const copy = coApproveConfirmCopy(confirmedNumber ?? co.number, co.changeAmount, formatCurrency);
+    showAlert(copy.title, copy.message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Approve',
+        onPress: () => {
+          updateChangeOrder(co.id, { status: 'approved', ...freeze });
+          nailIt(`CO #${confirmedNumber ?? co.number} approved, unsigned`);
+        },
+      },
+    ]);
+  }, [existingFrozenTaxRate, liveTaxRatePct, project?.schedule?.tasks?.length, confirmedNumber, updateChangeOrder]);
+
   const declineLine = useMemo(() => (existingCO ? coDeclineLine(existingCO) : null), [existingCO]);
 
   useBrainFabLift(!isLocked || coBilling ? bottomBarH : 0);
@@ -2605,6 +2668,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           {existingCO && serverNumber.state !== 'confirmed' && serverNumber.state !== 'checking' && (
             <View style={styles.numberNote} testID="co-number-pending">
               <Text style={styles.numberNoteText}>{coNumberHoldReason(serverNumber.state, 'email')}</Text>
+              {existingCO.status !== 'approved' && existingCO.status !== 'rejected' && existingCO.status !== 'void' ? (
+                <Text style={[styles.numberNoteText, { marginTop: 4 }]}>
+                  Nothing is emailed until the number is settled. If the client is with you, record the decision below with Client approved without signing — no email or number needed.
+                </Text>
+              ) : null}
             </View>
           )}
           {existingCO && serverNumber.renumberedFrom != null && confirmedNumber != null && serverNumber.renumberedFrom !== confirmedNumber && (
@@ -2648,6 +2716,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                       !existingCO.scheduleImpactApplied &&
                       (project?.schedule?.tasks?.length ?? 0) > 0
                     ) {
+                      reflowFreezeRef.current = {};
                       setReflowPreviewCO(existingCO);
                       return;
                     }
@@ -2678,6 +2747,20 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                     : undefined
                   }
                 />
+                {pipe.canAdvance && existingCO.status !== 'approved' && (
+                  <View style={styles.approveUnsignedWrap} testID="co-approve-unsigned">
+                    <Button
+                      label="Client approved without signing"
+                      variant="secondary"
+                      onPress={() => approveWithoutSigning(existingCO)}
+                      fullWidth
+                      testID="co-approve-unsigned-btn"
+                    />
+                    <Text style={styles.numberNoteText}>
+                      This records approval with no signature, the weakest proof in a dispute.
+                    </Text>
+                  </View>
+                )}
               </View>
             );
           })()}
@@ -3315,6 +3398,11 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 </View>
               ) : (
                 <>
+                  {!coClientOnFile && !sendRecipientName.trim() && !sendRecipientEmail.trim() ? (
+                    <Text style={styles.numberNoteText} testID="co-no-client-on-file">
+                      {`${NO_CLIENT_ON_FILE}. Add the client on the project once and every change order fills it in.`}
+                    </Text>
+                  ) : null}
                   <Text style={styles.modalFieldLabel}>Approver Name</Text>
                   <TextInput
                     style={styles.modalInput}
@@ -3635,11 +3723,13 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
           moneyLine={reflowPreviewCO.changeAmount < 0
             ? `Credits ${formatCurrency(-reflowPreviewCO.changeAmount)} back to the contract.`
             : `Commits ${formatCurrency(reflowPreviewCO.changeAmount)} to the contract.`}
-          onClose={() => setReflowPreviewCO(null)}
+          onClose={() => { reflowFreezeRef.current = {}; setReflowPreviewCO(null); }}
           onConfirm={(anchorTaskId) => {
             const co = reflowPreviewCO;
+            const freeze = reflowFreezeRef.current;
+            reflowFreezeRef.current = {};
             setReflowPreviewCO(null);
-            updateChangeOrder(co.id, { status: 'approved' }, { anchorTaskId });
+            updateChangeOrder(co.id, { status: 'approved', ...freeze }, { anchorTaskId });
             nailIt(`CO #${co.number} approved`);
           }}
         />
@@ -3710,6 +3800,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   approvalTitle: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '600' as const },
   numberNote: { marginHorizontal: 20, marginTop: 10, padding: 10, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line },
   numberNoteText: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, lineHeight: 16 },
+  approveUnsignedWrap: { marginTop: 10, gap: 6 },
   pdfRow: { marginHorizontal: 20, marginTop: 10, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, flexWrap: 'wrap' as const },
   pdfReason: { flex: 1, minWidth: 160, fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
   linePriceTag: { fontSize: Type.caption1.fontSize, color: themeColors.dangerLabel, marginTop: 6, fontWeight: '600' as const },

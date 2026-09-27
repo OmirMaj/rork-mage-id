@@ -33,7 +33,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
-import { buildDailyLogGaps, type DailyLogGapRow } from '@/utils/portfolio/attentionRows';
+import {
+  buildDailyLogGaps, dailyLogGapTarget, dailyLogVoiceDraft, VOICE_NOTE_ONLY, type DailyLogGapRow,
+} from '@/utils/portfolio/attentionRows';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatCalendarDay } from '@/utils/calendarDate';
@@ -58,9 +60,13 @@ export default function DailyLogCard() {
 
   if (rows.length === 0) return null;
 
-  const owedToday = rows.filter(r => r.c.todayExpected && !r.c.todayFiled).length;
+  // UX A5: a job whose only report today is a voice note is not "no log" —
+  // it has a draft to finish. Counted apart so the headline says so.
+  const voiceToday = rows.filter(r => { const v = dailyLogVoiceDraft(r); return !!v && v.date === r.c.today; }).length;
+  const owedToday = rows.filter(r => r.c.todayExpected && !r.c.todayFiled).length - voiceToday;
   const totalMissed = rows.reduce((s, r) => s + r.c.missedDays, 0);
   const jobsWithGaps = rows.filter(r => r.c.missedDays > 0).length;
+  const voiceJobs = rows.filter(r => !!dailyLogVoiceDraft(r)).length;
 
   // NAV-10 (runtime audit 2026-09-06): this read
   //   `${totalMissed} working days in the last 30 have no log.`
@@ -82,7 +88,11 @@ export default function DailyLogCard() {
 
   const headline = owedToday > 0
     ? `${owedToday} ${owedToday === 1 ? 'job has' : 'jobs have'} no log for today.`
-    : gapHeadline;
+    : voiceToday > 0
+      ? `${voiceToday} ${voiceToday === 1 ? 'project has' : 'projects have'} only a voice note for today. Finish it to file the day.`
+      : jobsWithGaps > 0
+        ? gapHeadline
+        : `${voiceJobs} ${voiceJobs === 1 ? 'project has' : 'projects have'} a voice note to finish.`;
 
   const visible = rows.slice(0, MAX_VISIBLE);
   const overflow = rows.length - visible.length;
@@ -99,8 +109,19 @@ export default function DailyLogCard() {
   // this row means "file today's", so it asks for a new one (the same target
   // utils/portfolio/attentionRows dailyLogGapTarget gives the action rail and
   // /attention).
+  //
+  // UX A5: a row whose day has only a voice note opens THAT draft to finish
+  // (utils/portfolio/attentionRows dailyLogGapTarget — the rail and
+  // /attention use the same target). Such a row never has a gap day of its
+  // own: dailyLogVoiceDraft only names one when today is owed or nothing is
+  // missing, so `missingDay` is undefined for it.
   const open = (projectId: string, missingDay?: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    const voiceRow = rows.find(x => x.projectId === projectId);
+    if (voiceRow && dailyLogVoiceDraft(voiceRow)) {
+      router.push({ pathname: '/daily-report', params: dailyLogGapTarget(voiceRow) });
+      return;
+    }
     const target = {
       pathname: '/daily-report' as const,
       params: missingDay ? { projectId, date: missingDay } : { projectId },
@@ -125,9 +146,12 @@ export default function DailyLogCard() {
       <View style={styles.list}>
         {visible.map(r => {
           const needsToday = r.c.todayExpected && !r.c.todayFiled;
-          const state = needsToday
-            ? 'Today not filed'
-            : `${r.c.missedDays} ${r.c.missedDays === 1 ? 'day' : 'days'} missing`;
+          const voice = dailyLogVoiceDraft(r);
+          const state = voice
+            ? VOICE_NOTE_ONLY
+            : needsToday
+              ? 'Today not filed'
+              : `${r.c.missedDays} ${r.c.missedDays === 1 ? 'day' : 'days'} missing`;
           const gapDay = needsToday ? undefined : r.c.missedDates[0];
           const gapLabel = gapDay ? formatCalendarDay(gapDay, { weekday: 'short', month: 'short', day: 'numeric' }) : '';
           return (
@@ -137,7 +161,7 @@ export default function DailyLogCard() {
               onPress={() => open(r.projectId, gapDay)}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={`${r.projectName}: ${state}. ${r.c.filedDays} of ${r.c.closedExpectedDays} working days logged. ${gapLabel ? `Open a report for ${gapLabel}.` : 'Open daily report.'}`}
+              accessibilityLabel={`${r.projectName}: ${state}. ${r.c.filedDays} of ${r.c.closedExpectedDays} working days logged. ${voice ? 'Open the voice note to finish it.' : gapLabel ? `Open a report for ${gapLabel}.` : 'Open daily report.'}`}
             >
               <View style={styles.rowText}>
                 <Text style={styles.rowName} numberOfLines={1}>{r.projectName}</Text>
@@ -147,7 +171,7 @@ export default function DailyLogCard() {
                   {gapLabel ? ` · opens ${gapLabel}` : ''}
                 </Text>
               </View>
-              <Text style={[styles.rowState, needsToday ? styles.rowStateDue : styles.rowStateGap]}>
+              <Text style={[styles.rowState, needsToday || voice ? styles.rowStateDue : styles.rowStateGap]}>
                 {state}
               </Text>
               <ChevronRight size={14} color={colors.textMuted} strokeWidth={2} />

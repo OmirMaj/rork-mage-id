@@ -37,6 +37,22 @@ import {
 export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout' | 'punch' | 'changeOrder' | 'delivery' | 'buildingAccess' | 'rfi' | 'submittal';
 export type AttnSeverity = 'critical' | 'high' | 'medium';
 
+/**
+ * UX wave, lane A (A7): the one-click job a row can do beside "open it". The
+ * desktop Action Required dock renders it as a trailing button; every other
+ * surface ignores it (the row still opens the record). Nothing runs without
+ * the click, and each action goes through its screen's own guards:
+ *   • remind — utils/remindInvoice (sample refusal, QuickBooks-closed confirm,
+ *     the server's outcome), the same helper the invoice screen calls;
+ *   • nudge  — utils/chaseNudge (share / clipboard, or on the web a
+ *     pre-addressed email logged only after "Did you send it?");
+ *   • prep   — opens Inspection Ready's checklist on the job.
+ */
+export type AttentionAction =
+  | { kind: 'remind'; invoiceId: string }
+  | { kind: 'nudge'; record: 'rfi' | 'submittal'; recordId: string }
+  | { kind: 'prep'; permitId: string };
+
 export interface AttentionItem {
   id: string;
   projectId: string;
@@ -47,6 +63,8 @@ export interface AttentionItem {
   /** Typed against the router's generated Route union — a dead route here
    *  fails tsc (this contract feeds One Mind drill-in chips too). */
   route: { pathname: Route; params?: Record<string, string> };
+  /** Optional one-click action (UX A7) — see AttentionAction. */
+  action?: AttentionAction;
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -155,6 +173,7 @@ export function invoiceAttention(
         pathname: '/invoice',
         params: { projectId: project.id, invoiceId: inv.id },
       },
+      action: { kind: 'remind', invoiceId: inv.id },
     });
   }
 
@@ -299,6 +318,9 @@ export function permitAttention(
       route: daysUntil <= 3
         ? { pathname: '/project-detail', params: { id: project.id, prep: `permit:${permit.id}` } }
         : { pathname: '/permits', params: { projectId: project.id } },
+      // UX A7: "Prep" opens the inspection checklist on the job at any
+      // distance inside the week (the row itself keeps its route above).
+      action: { kind: 'prep', permitId: permit.id },
     });
   }
 
@@ -361,10 +383,12 @@ export function rfiAttention(
       kind: 'rfi',
       severity,
       message: `${project.name}: RFI #${rfi.number} is ${daysLate}d past due${waiting}`,
+      // UX A7: the row opens THIS RFI (rfi.tsx reads rfiId), not the log.
       route: {
         pathname: '/rfi',
-        params: { projectId: project.id },
+        params: { projectId: project.id, rfiId: rfi.id },
       },
+      action: { kind: 'nudge', record: 'rfi', recordId: rfi.id },
     });
   }
 
@@ -417,10 +441,12 @@ export function submittalAttention(
       kind: 'submittal',
       severity,
       message: `${project.name}: submittal #${subm.number} has been in review ${daysStale}d`,
+      // UX A7: the row opens THIS submittal (submittal.tsx reads submittalId).
       route: {
         pathname: '/submittal',
-        params: { projectId: project.id },
+        params: { projectId: project.id, submittalId: subm.id },
       },
+      action: { kind: 'nudge', record: 'submittal', recordId: subm.id },
     });
   }
 
@@ -759,6 +785,36 @@ export function changeOrderAttention(changeOrders: ChangeOrder[]): AttentionItem
       route: { pathname: '/project-detail', params: { id: pending[0].projectId } },
     },
   ];
+}
+
+// ─── Canonical routing of the two portfolio rollups (UX A7) ────────────────
+//
+// punchAttention / changeOrderAttention stay the portfolio rules the Summary
+// dashboard mirrors (validate-brain-watch pins their rollup shape). The
+// canonical hook reshapes their output for the attention list, where every row
+// has to open something that answers it:
+//   • punch — the hook calls punchAttention once PER PROJECT (the job's own
+//     urgent items) and scopePunchToProject names the job and opens its punch
+//     list (/punch-list?projectId), instead of one portfolio row that opened
+//     only the first job's page;
+//   • change orders — the "N awaiting approval" rollup opens /waiting-on, the
+//     screen that lists every one of them and chases them.
+
+/** One project's punch rollup, named for the job and opening its list. */
+export function scopePunchToProject(item: AttentionItem, project: Pick<Project, 'id' | 'name'>): AttentionItem {
+  return {
+    ...item,
+    id: `punch-high-open-${project.id}`,
+    projectId: project.id,
+    projectName: project.name,
+    message: `${project.name}: ${item.message}`,
+    route: { pathname: '/punch-list', params: { projectId: project.id } },
+  };
+}
+
+/** The change-order rollup opens /waiting-on (where each one is chased). */
+export function coRollupToWaitingOn(item: AttentionItem): AttentionItem {
+  return { ...item, route: { pathname: '/waiting-on' } };
 }
 
 // ─── closeoutAttention ────────────────────────────────────────────────────────

@@ -43,7 +43,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
@@ -71,6 +71,12 @@ import { showAlert } from '@/utils/alert';
 import { canShare, shareText } from '@/utils/shareText';
 import { calendarDayOf, daysUntilCalendarDay, formatCalendarDay } from '@/utils/calendarDate';
 import type { FollowUp, FollowUpChase, FollowUpHold, SelectionCategory } from '@/types';
+// UX A7: the send and the chase-log append live in utils/chaseNudge, shared
+// with the desktop Action Required dock's "Nudge" button.
+import {
+  appendChase, chaseMailSubject, chaseRecipientEmail, onChaseRecorded,
+  sendNudge as sendChaseNudge, type SendNudgeInput,
+} from '@/utils/chaseNudge';
 import { loadSelectionsChecked } from '@/utils/selectionsEngine';
 import { scheduleCalendarOf } from '@/utils/scheduleCalendarDate';
 
@@ -479,27 +485,15 @@ export default function WaitingOnScreen() {
     message: string,
   ) => {
     const at = new Date().toISOString();
-    const chase: FollowUpChase = { at, via, message };
-    setHolds((prev) => {
-      const existing = prev[id];
-      const chases = [...(existing?.chases ?? []), chase];
-      const hold: FollowUpHold = {
-        ...existing,
-        id,
-        projectId,
-        // His ENGAGEMENT with the item, not the record's own status — the RFI
-        // is still open, he has just now chased it (see FollowUpStatus).
-        status: 'chased',
-        chases,
-        // Denormalised from the array it is written beside, in the same
-        // statement, so the two can never disagree.
-        lastFollowUpAt: at,
-        createdAt: existing?.createdAt ?? at,
-        updatedAt: at,
-      };
-      return { ...prev, [id]: hold };
-    });
+    // The updater itself moved verbatim to utils/chaseNudge appendChase (UX
+    // A7), so the dock's "Nudge" writes the exact same hold.
+    setHolds((prev) => appendChase(prev, { id, projectId, via, message, at }));
   }, []);
+
+  // UX A7: a chase recorded by the desktop dock while this screen is mounted
+  // joins this in-memory log (which the effect above persists wholesale), so
+  // the next write here keeps it instead of overwriting it.
+  useEffect(() => onChaseRecorded((e) => setHolds((prev) => appendChase(prev, e))), []);
 
   /**
    * Rank for "where do the next ten minutes go", not just "what is reddest".
@@ -538,48 +532,52 @@ export default function WaitingOnScreen() {
    * A second copy of this function for the second list is how the two would
    * have drifted into recording different things.
    */
-  const sendNudge = async (holdId: string, projectId: string, message: string) => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    // Sending the follow-up is the ONLY action on this screen — the entire
-    // point of the System of Action — and on web it used to throw instantly.
-    // react-native-web's Share rejects outright when navigator.share is absent,
-    // which is desktop Firefox and Chromium on Linux, and the old copy told the
-    // user to "copy it from the item" when the nudge renders numberOfLines={3}
-    // and cannot be selected. Clipboard is the honest fallback: same outcome,
-    // one paste away. (app/sub-portal-setup.tsx solved this same problem once
-    // already, with a send modal.)
-    //
-    // Routed through utils/shareText so this screen reads the share RESULT the
-    // same way Quick Quote and Smart Proposal do. It used to call Share.share
-    // directly and log the chase as soon as the promise resolved — but iOS
-    // resolves (with dismissedAction) when he taps X on the sheet, so a chase
-    // that never left the phone reset the reminder clock and went into the
-    // delay-evidence log (audit 2026-09-23 #54). A cancel records nothing:
-    // nothing left the app.
-    const couldOpenSheet = canShare();
-    const outcome = await shareText({ message });
-    if (outcome === 'cancelled') return;
-    if (outcome === 'shared') {
-      recordChase(holdId, projectId, 'share', message);
-      return;
-    }
-    // 'copied' — the text IS on his clipboard (no share sheet here, or the
-    // sheet failed), which is exactly the claim a clipboard chase records.
-    if (outcome === 'copied') recordChase(holdId, projectId, 'clipboard', message);
-    if (!couldOpenSheet) {
-      showAlert(
-        outcome === 'copied' ? 'Follow-up copied' : 'Could not copy',
-        outcome === 'copied' ? 'Paste it into your email or text to send it.'
-          : 'Select the follow-up text and copy it manually.',
-      );
-      return;
-    }
-    showAlert(
-      outcome === 'copied' ? 'Follow-up copied instead' : 'Could not open share',
-      outcome === 'copied' ? 'Sharing was unavailable, so the follow-up is on your clipboard.'
-        : 'Copy the follow-up from the item instead.',
+  const sendNudge = async (holdId: string, projectId: string, message: string, mail?: Omit<SendNudgeInput, 'message'>) => {
+    // The whole send — the share sheet, the clipboard fallback, the honest
+    // alerts, and (UX A7) on the web a pre-addressed email logged only after
+    // "Did you send it?" — is utils/chaseNudge sendNudge, moved there verbatim
+    // from this function so the desktop dock chases the same way. It resolves
+    // how the words left ('share' / 'clipboard'), or null when nothing left:
+    // a cancel records nothing (audit 2026-09-23 #54).
+    const via = await sendChaseNudge(
+      { message, ...mail },
+      {
+        platform: Platform.OS,
+        shareText,
+        canShare,
+        showAlert,
+        openURL: (u) => Linking.openURL(u),
+        haptic: Platform.OS !== 'web' ? () => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } : undefined,
+      },
     );
+    if (via) recordChase(holdId, projectId, via, message);
+  };
+
+  // UX A7: who an RFI / submittal follow-up can be emailed to on the web —
+  // only an address the record states (utils/chaseNudge chaseRecipientEmail).
+  const { contacts } = useCoreData();
+  const mailTargetFor = (item: ChaseItem): Omit<SendNudgeInput, 'message'> | undefined => {
+    if (item.kind === 'rfi') {
+      const r = rfis.find((x) => x.id === item.id);
+      if (!r) return undefined;
+      return {
+        to: chaseRecipientEmail({ text: r.assignedTo, subId: r.assignedSubId }, { contacts, subs: subcontractors }),
+        toName: r.assignedTo,
+        subject: chaseMailSubject('rfi', r.number, item.projectName),
+      };
+    }
+    if (item.kind === 'submittal' && !item.unsent) {
+      const sb = submittals.find((x) => x.id === item.id);
+      if (!sb) return undefined;
+      const cycles = sb.reviewCycles ?? [];
+      const reviewer = cycles.length > 0 ? cycles[cycles.length - 1].reviewer : undefined;
+      return {
+        to: chaseRecipientEmail({ text: reviewer }, { contacts, subs: subcontractors }),
+        toName: reviewer,
+        subject: chaseMailSubject('submittal', sb.number, item.projectName),
+      };
+    }
+    return undefined;
   };
 
   const severityColor = (s: ChaseItem['severity']) =>
@@ -761,7 +759,7 @@ export default function WaitingOnScreen() {
 
                   <TouchableOpacity
                     style={styles.sendBtn}
-                    onPress={() => void sendNudge(chaseHoldId(item), item.projectId, item.nudge)}
+                    onPress={() => void sendNudge(chaseHoldId(item), item.projectId, item.nudge, mailTargetFor(item))}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel={

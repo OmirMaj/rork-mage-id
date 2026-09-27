@@ -51,7 +51,9 @@ import {
   resolveDestination, defaultTitleFor, recordKindPhrase, scanFolderLabel, scanFiledMessage,
   scanPageFileName, scanPayloadTooLarge, coiPickerSubs, scanCoiCoverages, scanCalendarDay,
   buildScanPermit, buildScanWarranty, buildScanReceipt, scanInvoiceLines, scanOwnerOnlyGate,
+  scanOpensArrival, deliveryArrivalFromScan, scanArrivalParams, SCAN_TICKET_NEXT_STEP,
 } from '@/utils/scanRouting';
+import { deliveryArrivedHref } from '@/utils/uxRoutes';
 import { linkableCommitments, autoLinkCommitment, commitmentChipLabel } from '@/utils/commitmentLinking';
 import { uploadProjectFile, ProjectFileEmptyError } from '@/utils/projectFiles';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
@@ -146,7 +148,7 @@ function ScanInner() {
   const [subPick, setSubPick] = useState<string | null>(null);
   const [commitmentPick, setCommitmentPick] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<{ kind: ScanRecordKind; folder: string; pages: number } | null>(null);
+  const [saved, setSaved] = useState<{ kind: ScanRecordKind; folder: string; pages: number; arrival?: Record<string, string> } | null>(null);
   // #64: pages already on the server for THIS scan, so a retry after a
   // partial failure files only the rest (never a duplicate). The stamp and
   // title are frozen at the first attempt so a retry re-targets the same names.
@@ -529,13 +531,24 @@ function ScanInner() {
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);
-    setSaved({ kind: madeKind, folder: destination.folder, pages: pages.length });
+    // UX wave B6: a filed delivery ticket's next step is "It's here now",
+    // pre-filled from what the scan read (each field "from scan, check it")
+    // with the filed page as the ticket. He saves it there — the scan itself
+    // writes no delivery.
+    const arrival = scanOpensArrival(result.docType)
+      ? scanArrivalParams(deliveryArrivalFromScan(editedFields), pages[0].path)
+      : undefined;
+    setSaved({ kind: madeKind, folder: destination.folder, pages: pages.length, arrival });
+    if (arrival) {
+      const href = deliveryArrivedHref(effectiveProjectId);
+      router.push({ pathname: href.pathname, params: { ...href.params, ...arrival } });
+    }
     setResult(null);
     setCaptures([]);
     setLanded({});
     fileStemRef.current = null;
     pageAttemptRef.current = {};
-  }, [result, destination, effectiveRecordKind, ownerGate.state, effectiveProjectId, saving, editedFields, captures, landed, createDomainRecord, addScan]);
+  }, [result, destination, effectiveRecordKind, ownerGate.state, effectiveProjectId, saving, editedFields, captures, landed, createDomainRecord, addScan, router]);
 
   const scanAnother = useCallback(() => {
     setSaved(null);
@@ -690,6 +703,21 @@ function ScanInner() {
             <Text style={[styles.warnText, { color: t.text }]} testID="scan-filed-message">{scanFiledMessage(saved.kind, saved.folder, saved.pages)}</Text>
           </View>
         )}
+        {saved?.arrival && effectiveProjectId ? (
+          <TouchableOpacity
+            style={[styles.secondaryBtn, isDesktop && desktopCta]}
+            onPress={() => {
+              const href = deliveryArrivedHref(effectiveProjectId);
+              router.push({ pathname: href.pathname, params: { ...href.params, ...saved.arrival } });
+            }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            testID="scan-log-arrival"
+          >
+            <Check size={16} color={t.accent} strokeWidth={1.75} />
+            <Text style={styles.secondaryBtnText}>Log this delivery as received</Text>
+          </TouchableOpacity>
+        ) : null}
         {saved && (
           <TouchableOpacity style={[styles.secondaryBtn, isDesktop && desktopCta]} onPress={scanAnother} activeOpacity={0.85} testID="scan-another">
             <ScanLine size={16} color={t.accent} strokeWidth={1.75} />
@@ -739,7 +767,7 @@ function ScanInner() {
               <Folder size={15} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.destText} testID="scan-destination">
                 Files {captures.length > 1 ? `all ${captures.length} pages ` : ''}to <Text style={styles.destStrong}>{scanFolderLabel(destination.folder)}</Text>
-                {' · '}{recordKindPhrase(effectiveRecordKind ?? destination.recordKind)}
+                {' · '}{scanOpensArrival(result.docType) ? SCAN_TICKET_NEXT_STEP : recordKindPhrase(effectiveRecordKind ?? destination.recordKind)}
               </Text>
             </View>
 

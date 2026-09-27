@@ -101,6 +101,7 @@ import { PortfolioHomeLayout } from '@/components/portfolio/PortfolioHomeLayout'
 import { buildPortfolioRows } from '@/utils/portfolio/portfolioRow';
 import { actionRailVisible } from '@/utils/sidebarRail';
 import { stageLabel } from '@/utils/projectStage';
+import { clientFieldsProblem, editedPrimaryContact, readNewJobThen, type NewJobThen } from '@/utils/uxDoors';
 
 // Status filter buckets. ONE label map for the dense table's section header,
 // the chips and the empty-bucket state, so "No closeout jobs" names the same
@@ -147,7 +148,7 @@ export { RouteErrorFallback as ErrorBoundary } from '@/components/ErrorBoundary'
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { openCreate } = useLocalSearchParams<{ openCreate?: string }>();
+  const { openCreate, then: thenParam } = useLocalSearchParams<{ openCreate?: string; then?: string }>();
   const openCreateConsumed = useRef(false);
 
   // The old home-only FAB stack was retired — the one global MAGE Brain FAB
@@ -415,6 +416,27 @@ export default function HomeScreen() {
   // starting value: we never pre-fill an address nobody told us.
   const [projectLocation, setProjectLocation] = useState('');
   const [projectSqft, setProjectSqft] = useState('');
+  // UX wave, Lane D (D4): the client, entered once on the job. Optional;
+  // written through seedClientEverywhere (utils/uxDoors editedPrimaryContact)
+  // to project.primaryContact, which the contract, CO and new-invoice flows
+  // read. Blank stays blank — nothing is guessed.
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  // D1: the wizard a "+ New job" row asked for, run once the job exists.
+  const [createThen, setCreateThen] = useState<NewJobThen | null>(null);
+  const closeCreateModal = useCallback(() => {
+    setShowCreateModal(false);
+    setCreateThen(null);
+  }, []);
+  // The chain is armed only when the create modal will actually open: when
+  // the project cap shows the paywall instead, closeCreateModal never runs,
+  // and a stale chain would throw his NEXT unrelated New Project into a
+  // wizard. Same test handleCreatePress makes.
+  const startCreate = useCallback((then: NewJobThen | null) => {
+    setCreateThen(canCreateProject(realProjectCount) ? then : null);
+    handleCreatePress();
+  }, [canCreateProject, realProjectCount, handleCreatePress]);
   // The contractor's default market from Settings ("Houston, TX"). Offered as
   // a ONE-TAP fill, never as a pre-filled value: it is where they usually
   // work, not necessarily where this job is, and silently stamping it on a
@@ -509,13 +531,15 @@ export default function HomeScreen() {
   // Open the create modal exactly once, then clear the param. The ref
   // guard guarantees fire-once even if a re-render re-delivers it before
   // setParams clears; no param ⇒ inert ⇒ zero change to normal entry.
+  // UX wave, Lane D (D1): `then=estimate|schedule` rides along from the +
+  // menu's "+ New job" row, so the new job goes straight into its wizard.
   useEffect(() => {
     if (openCreate && !openCreateConsumed.current) {
       openCreateConsumed.current = true;
-      handleCreatePress();
-      router.setParams({ openCreate: undefined });
+      startCreate(readNewJobThen(thenParam));
+      router.setParams({ openCreate: undefined, then: undefined });
     }
-  }, [openCreate, router, handleCreatePress]);
+  }, [openCreate, thenParam, router, startCreate]);
 
   const filteredProjects = useMemo(
     () => statusBuckets[statusFilter],
@@ -642,6 +666,14 @@ export default function HomeScreen() {
       showAlert('Describe the job', typeBlock);
       return;
     }
+    // D4: a typed client email / phone that cannot be used is said, not dropped.
+    const clientTyped = { name: clientName, phone: clientPhone, email: clientEmail };
+    const clientProblem = clientFieldsProblem(clientTyped);
+    if (clientProblem) {
+      showAlert('Check the client details', clientProblem);
+      return;
+    }
+    const client = editedPrimaryContact(undefined, clientTyped);
     const now = new Date().toISOString();
     // MUST be a real UUID — projects.id is uuid in Supabase. Pre-fix this
     // used `project-{timestamp}-{rand}`, which Postgres rejected on upsert.
@@ -681,6 +713,7 @@ export default function HomeScreen() {
       // it for something the contractor told us.
       quality: 'standard',
       description: projectDescription.trim(),
+      ...(client.next ? { primaryContact: client.next } : {}),
       createdAt: now,
       updatedAt: now,
       estimate: null,
@@ -695,15 +728,29 @@ export default function HomeScreen() {
     setJustCreatedId(id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowCreateModal(false);
-    setCreatedProjectId(id);
-    setShowNextStepModal(true);
+    // D1: opened from "+ > Estimate / Schedule > + New job" — the new job goes
+    // straight into that wizard (the same push the next-step sheet makes).
+    // Otherwise the usual "what next?" sheet.
+    const then = createThen;
+    setCreateThen(null);
+    if (then === 'estimate') {
+      router.push({ pathname: '/estimate-wizard', params: { projectId: id } } as never);
+    } else if (then === 'schedule') {
+      router.push({ pathname: '/schedule-wizard', params: { projectId: id, scratch: '1' } } as never);
+    } else {
+      setCreatedProjectId(id);
+      setShowNextStepModal(true);
+    }
     setProjectName('');
     setProjectDescription('');
     setProjectType('renovation');
     setProjectTypeOther('');
     setProjectLocation('');
     setProjectSqft('');
-  }, [projectName, projectDescription, projectType, projectTypeOther, projectLocation, projectSqft, addProject, statusFilter, pickStatusFilter]);
+    setClientName('');
+    setClientPhone('');
+    setClientEmail('');
+  }, [projectName, projectDescription, projectType, projectTypeOther, projectLocation, projectSqft, clientName, clientPhone, clientEmail, createThen, router, addProject, statusFilter, pickStatusFilter]);
 
   // The highlight clears 6 s after the next-step dialog closes, or as soon as
   // he leaves Home (opening a row, or the wizard the dialog sent him to).
@@ -1589,13 +1636,13 @@ export default function HomeScreen() {
           colliding with the status bar (sim-audit #7). */}
       <StatusBarMask />
 
-      <Modal visible={showCreateModal} transparent animationType={createFrame.animationType} onRequestClose={() => setShowCreateModal(false)}>
+      <Modal visible={showCreateModal} transparent animationType={createFrame.animationType} onRequestClose={closeCreateModal}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalOverlay, createFrame.overlay]}>
             <Animated.View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }, createFrame.card, createFrame.cardMotion]}>
               <View style={styles.createModalHeader}>
                 <Text style={styles.createModalTitle}>New Project</Text>
-                <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+                <TouchableOpacity onPress={closeCreateModal} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
@@ -1777,6 +1824,54 @@ export default function HomeScreen() {
                   unknown, so the wizard asks instead of pricing against zero.
                 </Text>
                 </FormField>
+
+                {/* D4: the client, once, on the job. The contract email, the
+                    change-order approver, the portal invite and a new
+                    invoice's bill-to are seeded from it. Optional. */}
+                <FormField span="full" size="md">
+                <Text style={styles.fieldLabel}>Client name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={clientName}
+                  onChangeText={setClientName}
+                  placeholder="e.g. Tom Reyes — optional"
+                  placeholderTextColor={themeColors.textMuted}
+                  autoCapitalize="words"
+                  textContentType="name"
+                  onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
+                  testID="project-client-name-input"
+                />
+                </FormField>
+                <FormField span="half" size="sm">
+                <Text style={styles.fieldLabel}>Client phone</Text>
+                <TextInput
+                  style={styles.input}
+                  value={clientPhone}
+                  onChangeText={setClientPhone}
+                  placeholder="Optional"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="phone-pad"
+                  textContentType="telephoneNumber"
+                  onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
+                  testID="project-client-phone-input"
+                />
+                </FormField>
+                <FormField span="half" size="md">
+                <Text style={styles.fieldLabel}>Client email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={clientEmail}
+                  onChangeText={setClientEmail}
+                  placeholder="Optional"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="emailAddress"
+                  onSubmitEditing={desktopWeb ? handleCreateProject : undefined}
+                  testID="project-client-email-input"
+                />
+                </FormField>
                 </FormGrid>
                 <View style={{ height: 20 }} />
               </ScrollView>
@@ -1908,7 +2003,7 @@ export default function HomeScreen() {
       <CreateMenu
         visible={showCreateMenu}
         onClose={() => setShowCreateMenu(false)}
-        onCreateProject={handleCreatePress}
+        onCreateProject={(then) => startCreate(then ?? null)}
       />
       <Paywall
         visible={projectCapPaywall}

@@ -171,7 +171,9 @@ export default function CommandPalette({
       case 'needs-project':
         onRan(query);
         onClose();
-        router.push(routeHref('/', { openCreate: '1' }));
+        // UX wave D1: an Estimate / Schedule row "for a new project" chains the
+        // New Project form to its wizard (Home reads `then`).
+        router.push(routeHref('/', ref.then ? { openCreate: '1', then: ref.then } : { openCreate: '1' }));
         return;
       case 'ask':
         onRan(query);

@@ -1396,19 +1396,97 @@ console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer p
       && /dataSet: \{ title: label \}/.test(tip)
       && ['mouseenter', 'focusin', 'mouseleave', 'focusout'].every(e => tip.includes(`addEventListener('${e}'`) && tip.includes(`removeEventListener?.('${e}'`)));
   }
+  // UX wave D6 widened the one <JobRowCounts> read: in the expanded rail it
+  // also feeds the "More for this job" toggle and the DOCUMENTS rows (RFIs,
+  // Submittals) behind it; on the collapsed rail it also draws the DOCUMENTS
+  // squares that carry a count. Still ONE hook call, still only through the
+  // render prop, and the pill style is used by the row pill and the toggle.
   ok('K3 the count pill renders only from useJobRowCounts (through <JobRowCounts>, in both modes)',
     (side.match(/useJobRowCounts\(/g) ?? []).length === 1
     && /function JobRowCounts\([^\n]*\) \{\s*const counts = useJobRowCounts\(jobId\);/.test(side)
-    && (side.match(/countOf\(counts, item\.key\)/g) ?? []).length === 2
-    && /<JobRowCounts jobId=\{jobId\}>\s*\{counts => itemsIn\(JOB_SECTION\)\.map\(item => renderNavItem\(item, false, countOf\(counts, item\.key\)\)\)\}/.test(side)
-    && /<JobRowCounts jobId=\{jobId\}>\s*\{counts => itemsIn\(JOB_SECTION\)\.map\(item => renderRailItem\(item, countOf\(counts, item\.key\)\)\)\}/.test(side)
-    && (side.match(/styles\.countPill\b/g) ?? []).length === 1);
+    && /<JobRowCounts jobId=\{jobId\}>\s*\{counts => \(\s*<>\s*\{itemsIn\(JOB_SECTION\)\.map\(item => renderNavItem\(item, false, countOf\(counts, item\.key\)\)\)\}/.test(side)
+    && /<JobRowCounts jobId=\{jobId\}>\s*\{counts => \(\s*<>\s*\{itemsIn\(JOB_SECTION\)\.map\(item => renderRailItem\(item, countOf\(counts, item\.key\)\)\)\}/.test(side)
+    && (side.match(/styles\.countPill\b/g) ?? []).length === 2);
   {
     const pm = side.slice(side.indexOf('const PM_NAV_ITEMS'), side.indexOf('const PM_SECTIONS'));
     const keys = [...pm.matchAll(/feature: '([^']+)'/g)].map(m => m[1]);
     ok(`K3 PM_NAV_ITEMS' feature keys are still exactly projects / contacts / notifications / settings (${keys.join(', ')})`,
       keys.join(',') === 'projects,contacts,notifications,settings');
   }
+}
+
+// ── UX wave, Lane D: the doors (D1, D3, D6) ─────────────────────────────────
+// D6 — the desktop rail's THIS JOB, ordered for a small GC: price it, sign it,
+// change it, bill it, then the field. RFIs and Submittals moved behind "More
+// for this job" (DOCUMENTS) WITH their live counts: the shut toggle carries
+// them, the DOCUMENTS rows carry them when open, and the collapsed rail keeps
+// their squares while one has a count — so an overdue RFI is never hidden.
+// The property-manager rail is a separate table (PM_NAV_ITEMS, pinned above).
+{
+  const side = read(join('components', 'DesktopSidebar.tsx'));
+  const table = side.slice(side.indexOf('const NAV_ITEMS'), side.indexOf('const JOB_SECTION'));
+  const rowsIn = (section: string) => table.split('\n')
+    .filter(l => !/^\s*\/\//.test(l) && l.includes(`section: '${section}'`))
+    .map(l => /\bkey: '([^']+)'/.exec(l)?.[1] ?? '?');
+  const jobOrder = rowsIn('THIS JOB');
+  ok(`D6 THIS JOB reads Estimate, Proposal & contract, Change Orders, Invoices, Daily Reports, Schedule, Punch List (${jobOrder.join(', ')})`,
+    jobOrder.join(',') === 'estimate,contract,change-order,invoice,daily-report,schedule,punch-list');
+  ok("D6 the contract row is labelled 'Proposal & contract' and the Estimate row carries the job (jobRoute)",
+    /\{ key: 'contract',\s*label: 'Proposal & contract',/.test(table)
+    && /\{ key: 'estimate',[^\n]*jobRoute: '\/\(tabs\)\/estimate\/full',[^\n]*section: 'THIS JOB'/.test(table));
+  ok(`D6 RFIs and Submittals sit in DOCUMENTS, the first "More for this job" group (${rowsIn('DOCUMENTS').join(', ')})`,
+    rowsIn('DOCUMENTS').join(',') === 'rfi,submittal'
+    && /const MORE_JOB_SECTIONS = \['DOCUMENTS', 'PLANNING', 'FIELD OPS', 'FINANCIALS', 'CLIENT'\];/.test(side)
+    && /const COUNTED_MORE_SECTION = 'DOCUMENTS';/.test(side));
+  ok('D6 the shut toggle carries the DOCUMENTS counts (combineRowCounts), the open DOCUMENTS rows carry their own',
+    /renderToggle\(MORE_TOGGLE, 'More for this job', moreOpen, MORE_JOB_SECTIONS,\s*moreOpen \? undefined : combineRowCounts\(itemsIn\(COUNTED_MORE_SECTION\)\.map\(item => countOf\(counts, item\.key\)\)/.test(side)
+    && /renderNavItem\(item, false, sub === COUNTED_MORE_SECTION \? countOf\(counts, item\.key\) : undefined\)/.test(side)
+    && /const renderToggle = \([^)]*count\?: RowCount\) =>/.test(side)
+    && /testID=\{`sidebar-section-count-dot-\$\{toggle\}`\}/.test(side));
+  ok('D6 the collapsed rail keeps an RFI / Submittal square while it carries a count',
+    /itemsIn\(COUNTED_MORE_SECTION\)\s*\.filter\(item => countOf\(counts, item\.key\) !== undefined\)\s*\.map\(item => renderRailItem\(item, countOf\(counts, item\.key\)\)\)/.test(side));
+}
+
+// D1 / D3 — the + New… menu knows the job and has the field rows.
+{
+  const menu = read(join('components', 'CreateMenu.tsx'));
+  const rowOf = (label: string) => menu.split('\n').find(l => l.includes(`label: '${label}'`) && !/^\s*\/\//.test(l)) ?? '';
+  const fieldRows: [string, string, RegExp | null][] = [
+    ['Clock in', 'time-tracking', /extraParams: \{ \[UX_PARAM\.clockIn\]: '1' \}/],
+    ['Delivery arrived', 'deliveries', /extraParams: \{ \[UX_PARAM\.arrived\]: '1' \}/],
+    ['Code check', 'construction-ai', /extraParams: \{ \[UX_PARAM\.source\]: SOURCE_PROJECT \}/],
+    ['Send lineup', 'tomorrow-lineup', null],
+  ];
+  for (const [label, feature, flag] of fieldRows) {
+    const line = rowOf(label);
+    const entry = FEATURE_REGISTRY.find(e => e.id === feature);
+    ok(`D3 '+ > ${label}' is a Field row gated by the registry '${feature}' (its route, its lock chip)${flag ? ', with the route-contract flag' : ''}`,
+      line.includes(`feature: '${feature}'`) && line.includes("category: 'field'") && /scoped: true/.test(line)
+      && !!entry && line.includes(`href: '${entry.route}'`) && !/\btier: '/.test(line)
+      && (!flag || flag.test(line)));
+  }
+  ok("D3 'Progress Billing' reads 'Progress draw' (the AIA words stay searchable)",
+    rowOf('Progress draw').includes("'progress billing'") && rowOf('Progress Billing') === '');
+  ok('D3 Sub portal invite asks which sub (subPicker) and pushes subPortalSetupHref(projectId, subId)',
+    /label: 'Sub portal invite'[^\n]*subPicker: true/.test(menu) && /router\.push\(subPortalSetupHref\(pid, sb\.id\)\)/.test(menu));
+  ok('D3 the phone default job is pickDefaultProjectId (never the resolver guess); desktop keeps the active job',
+    /const pid = pickDefaultProjectId\(\{ activeProjectId, recentProjectIds, projects \}\);/.test(menu)
+    && /const defaultJob = isDesktopWeb \? \(activeJob \? activeProject : null\) : phoneDefaultJob;/.test(menu));
+  ok('D3 on a phone "+ > Punch item" opens the Add form (new=1); desktop keeps the list-first set',
+    /const PHONE_NEW_HREFS: ReadonlySet<string> = new Set\(\['\/punch-list'\]\);/.test(menu)
+    && /const opensPhoneAdd = !desktopWeb && PHONE_NEW_HREFS\.has\(opt\.href\);/.test(menu)
+    && /\.\.\.\(opensPhoneAdd \? \{ \[UX_PARAM\.newItem\]: '1' \} : \{\}\)/.test(menu));
+  ok('D1 Estimate / Schedule / Scope Sheet always show the picker, "+ New job" first, and never auto-route',
+    /const always = alwaysPicksJob\(opt\.label\);\s*if \(jobShortcut && !always\)/.test(menu)
+    && /if \(projects\.length === 1 && !always\)/.test(menu)
+    && /\{alwaysPicksJob\(pickFor\.label\) \? \(\s*<TouchableOpacity[\s\S]{0,500}?testID="createmenu-new-job"/.test(menu)
+    && /if \(onCreateProject\) onCreateProject\(then\);/.test(menu));
+  ok('D3 the field role never sees the Money rows (moneyRowsHidden: a field default job, or every job field)',
+    /const hideMoney = useMemo\(\(\) => moneyRowsHidden\(defaultRole, projects\.map\(p => p\.myRole \?\? null\)\), \[defaultRole, projects\]\);/.test(menu)
+    && /if \(cat === 'money' && hideMoney\) continue;/.test(menu));
+  ok('D1 every picker lists jobs through sortJobsForPicker (closed and completed last)',
+    /const sortedProjects = useMemo\(\(\) => sortJobsForPicker\(projects, recentProjectIds \?\? \[\]\)/.test(menu)
+    && !/\{projects\.map\(p => \(/.test(menu));
 }
 
 // ── Result ──────────────────────────────────────────────────────────────────

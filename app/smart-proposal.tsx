@@ -378,7 +378,10 @@ function SmartProposalInner() {
                 testID="proposal-accept"
               >
                 <CheckCircle2 size={16} color={t.success} strokeWidth={1.75} />
-                <Text style={[styles.outcomeBtnText, { color: t.success }]}>Mark accepted</Text>
+                {/* C9: a price someone said yes to is not a signed agreement.
+                    The lead still closes as won (handleAccept); the contract
+                    is the one path that records a signed acceptance. */}
+                <Text style={[styles.outcomeBtnText, { color: t.success }]}>Client said yes (not signed)</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.outcomeBtn, { borderColor: t.danger }, status === 'declined' && { backgroundColor: t.danger + '22' }]}
@@ -391,6 +394,19 @@ function SmartProposalInner() {
                 <Text style={[styles.outcomeBtnText, { color: t.danger }]}>Mark declined</Text>
               </TouchableOpacity>
             </View>
+            {project ? (
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: '/contract', params: { projectId: project.id } })}
+                accessibilityRole="link"
+                accessibilityLabel="To lock it in, send the contract"
+                hitSlop={8}
+                testID="proposal-lock-in-contract"
+              >
+                <Text style={[styles.lockInLine, { color: t.accent }]}>To lock it in, send the contract</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.lockInLine} testID="proposal-lock-in-contract">To lock it in, send the contract</Text>
+            )}
 
             {/* GC-facing reasoning */}
             <Text style={styles.sectionTitle}>Why these prices</Text>
@@ -544,6 +560,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1.5,
   },
   outcomeBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const },
+  lockInLine: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textMuted, marginTop: -10, marginBottom: 18 },
 
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 10, marginTop: 2 },
 

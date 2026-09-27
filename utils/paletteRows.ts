@@ -17,6 +17,7 @@
 // ============================================================================
 
 import { searchFeatures, type FeatureEntry, type FeatureHit, type FeatureId } from '@/utils/featureRegistry';
+import { alwaysPicksJob, newJobThenFor, type NewJobThen } from '@/utils/uxDoors';
 import type { SubscriptionTier } from '@/types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -50,8 +51,10 @@ export type PaletteRef<O, H, R> =
   | { kind: 'project'; id: string }
   /** Create `option` for `projectId` (null: the option is not job-scoped). */
   | { kind: 'create'; option: O; projectId: string | null }
-  /** A job-scoped option with no job to scope it to: start a project first. */
-  | { kind: 'needs-project'; option: O }
+  /** A job-scoped option with no job to scope it to: start a project first.
+   *  `then` (UX wave D1) chains Home's New Project form to the estimate or
+   *  schedule wizard once the project exists. */
+  | { kind: 'needs-project'; option: O; then?: NewJobThen | null }
   | { kind: 'ask'; seed: string }
   | { kind: 'feature'; hit: H }
   | { kind: 'record'; result: R }
@@ -272,6 +275,29 @@ export function buildPaletteRows<O extends PaletteCreateOption, H extends Palett
           sublabel: option.subtitle,
           ref: { kind: 'create', option, projectId: null },
         });
+      } else if (alwaysPicksJob(option.label)) {
+        // UX wave D1, in Cmd+K too: Estimate, Schedule and Scope Sheet never go
+        // silently to the active job (a new lead must not rewrite the live
+        // job's estimate). Like the + menu's picker: "for a new project" first,
+        // then named jobs, the active one leading, each saying which it is.
+        actions.push({
+          key: `action:${option.label}:new-job`,
+          lane: 'actions',
+          label: paletteActionLabel(option, false),
+          sublabel: 'For a new project',
+          ref: { kind: 'needs-project', option, then: newJobThenFor(option.label) },
+        });
+        const jobs = activeJob ? [activeJob, ...recentJobs.filter(j => j.id !== activeJob.id)] : recentJobs;
+        for (const job of jobs.slice(0, PALETTE_MRU_FANOUT)) {
+          if (actions.length >= PALETTE_LANE_MAX) break;
+          actions.push({
+            key: `action:${option.label}:${job.id}`,
+            lane: 'actions',
+            label: paletteActionLabel(option, true),
+            sublabel: job.name,
+            ref: { kind: 'create', option, projectId: job.id },
+          });
+        }
       } else if (activeJob) {
         actions.push({
           key: `action:${option.label}:${activeJob.id}`,

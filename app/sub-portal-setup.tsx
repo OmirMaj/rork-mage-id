@@ -43,6 +43,7 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { Button } from '@/components/ui/Button';
 
 const SUB_PORTAL_BASE_URL = 'https://mageid.app/sub-portal';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
@@ -765,10 +766,40 @@ function SubPortalSetupEditor() {
   }, [payingId, submitted, releasesByInvoice, sub, openRelease]);
 
   if (!project || !sub) {
+    // UX wave (C / D3): a job with no sub named is a choice, not a dead end —
+    // list this job's subs (assigned to it, or holding a commitment on it) and
+    // open the one he taps. Only a missing JOB is still a stop, and it says so.
+    const jobSubIds = project
+      ? new Set([
+        ...subcontractors.filter(s => (s.assignedProjects ?? []).includes(project.id)).map(s => s.id),
+        ...getCommitmentsForProject(project.id).map(c => c.subcontractorId).filter((id): id is string => !!id),
+      ])
+      : new Set<string>();
+    const jobSubs = subcontractors.filter(s => jobSubIds.has(s.id));
     return (
       <View style={styles.loadingContainer}>
         <Stack.Screen options={{ title: 'Sub Portal' }} />
-        <Text style={styles.loadingText}>Project or sub not found.</Text>
+        {!project ? (
+          <Text style={styles.loadingText}>This project isn&apos;t on this device. It may have been deleted, or it hasn&apos;t loaded yet.</Text>
+        ) : jobSubs.length === 0 ? (
+          <Text style={styles.loadingText} testID="sub-portal-no-subs">
+            {`No subs on ${project.name} yet. Add one from Subs (or sign a subcontract on the project), then invite them here.`}
+          </Text>
+        ) : (
+          <View style={{ alignSelf: 'stretch', gap: 10 }} testID="sub-portal-pick-sub">
+            <Text style={styles.loadingText}>{`Which sub on ${project.name}?`}</Text>
+            {jobSubs.map(s => (
+              <Button
+                key={s.id}
+                label={s.companyName || s.contactName || 'Sub'}
+                variant="secondary"
+                fullWidth
+                onPress={() => router.replace({ pathname: '/sub-portal-setup', params: { projectId: project.id, subId: s.id } })}
+                testID={`sub-portal-pick-${s.id}`}
+              />
+            ))}
+          </View>
+        )}
       </View>
     );
   }

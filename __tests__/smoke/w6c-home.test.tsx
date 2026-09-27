@@ -45,6 +45,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { mountRouteChecked, primeWorld } from '@/__tests__/helpers/mountRoute';
+import { fieldGroupFirst } from '@/utils/uxDoors';
 import { allowConsoleErrors } from '@/__tests__/setup/strict-mode';
 import { PROJECT_ID, ESTIMATE_ID, world } from '@/__tests__/fixtures/world';
 import { stripSanctioned } from '@/__tests__/helpers/sanctionedStrip';
@@ -260,6 +261,13 @@ async function mountHome(os: 'ios' | 'android', width: number, height: number, b
   await primeWorld('populated');
   if (before) await before();
   const tree = await mountRouteChecked('/');
+  // UX wave D3: the + menu (mounted in Home's tree, every Modal body drawn)
+  // floats its Field group before 11 am on a weekday, so these goldens depend
+  // on the clock. renderRouter's fake clock starts at GOLDEN_CLOCK (Fri 25 Sep,
+  // noon in New York, where the goldens are recorded); pin it explicitly to
+  // that weekday afternoon and prove the float is off.
+  jest.setSystemTime(GOLDEN_CLOCK);
+  expect(fieldGroupFirst(new Date(), null)).toBe(false);
   await pump();
   return tree;
 }

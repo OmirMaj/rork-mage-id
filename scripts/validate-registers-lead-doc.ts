@@ -295,7 +295,13 @@ function phoneArm(src: string, opener: RegExp): string {
   check('deliveries: ReceiveSheet binds Cmd+Enter to Mark received', /useSheetPrimaryHotkey\(!!delivery, save\);/.test(receive) && receive.indexOf('useSheetPrimaryHotkey(') < receive.indexOf('if (!delivery) return null'));
   check('deliveries: AddDeliverySheet framed, Cmd+Enter only while valid', /useSheetFrame\('form', \{ visible, animationType: 'slide' \}\)/.test(del) && /useSheetPrimaryHotkey\(visible && valid, save\);/.test(del));
   check('deliveries: both Modals consume their frame', count(del, /animationType=\{f\.animationType\}/g) === 2);
-  check('deliveries: date and window get the sm field on desktop', count(del, /\[styles\.input, isDesktop && \(desktopField\('sm'\) as TextStyle\)\]/g) === 2);
+  // UX wave B6: the promised date and the arrival day are TouchableOpacity
+  // pickers now, so their sm field is uncast (a ViewStyle); the window is still
+  // a TextInput and keeps the TextStyle cast.
+  check('deliveries: date and window get the sm field on desktop',
+    count(del, /\[styles\.input, isDesktop && \(desktopField\('sm'\) as TextStyle\)\]/g) === 1
+    && count(del, /\[styles\.input, isDesktop && desktopField\('sm'\), styles\.dateField\]/g) === 1
+    && count(del, /\[styles\.input, styles\.dateField, isDesktop && desktopField\('sm'\)\]/g) === 1);
   check('deliveries: no casts (0 / 0)', castLines(del, 'never') === 0 && castLines(del, 'any') === 0);
 
   const dReg = stripComments(read('components/registers/DeliveriesRegister.tsx'));

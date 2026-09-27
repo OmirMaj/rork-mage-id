@@ -10,10 +10,13 @@
  * - An unreadable store says "Couldn't read…", never "No saved checks".
  * - A check with no jurisdiction on file says so instead of guessing one.
  */
-import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronRight } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Camera, ChevronRight } from 'lucide-react-native';
+import CodeLookSheet from '@/components/codeLook/CodeLookSheet';
+import { showAlert } from '@/utils/alert';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Type } from '@/constants/typography';
@@ -60,6 +63,26 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
   const [expanded, setExpanded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
+  // UX wave B7: "Check a photo" — the camera, then the shipped Photo Code Look
+  // for this job (it asks for Pro itself when it runs).
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const checkAPhoto = useCallback(async () => {
+    try {
+      let res: ImagePicker.ImagePickerResult;
+      if (Platform.OS === 'web') {
+        res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
+      } else {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { showAlert('Camera access needed', 'Allow camera access in Settings to check a photo.'); return; }
+        res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
+      }
+      if (res.canceled || !res.assets[0]?.uri) return;
+      setPhotoUri(res.assets[0].uri);
+    } catch (e) {
+      showAlert('Couldn\u2019t open the camera', 'Try again.');
+    }
+  }, []);
+
   const shown = useMemo(() => (expanded ? checks : checks.slice(0, COLLAPSED_ROWS)), [checks, expanded]);
   const open = openId ? checks.find((c) => c.id === openId) ?? null : null;
 
@@ -76,6 +99,15 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
             onPress={() => router.push(codeCheckRoute({ projectId: project.id, source: 'project' }))}
           />
         </View>
+        <Button
+          label="Check a photo"
+          variant="secondary"
+          fullWidth
+          iconLeft={<Camera size={16} color={colors.text} strokeWidth={1.75} />}
+          testID="codethread-check-photo"
+          onPress={() => { void checkAPhoto(); }}
+          containerStyle={styles.photoBtn}
+        />
 
         {status === 'loading' ? null : status === 'failed' ? (
           <Text style={styles.note}>{CODE_CHECKS_FAILED_TEXT}</Text>
@@ -118,6 +150,9 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
         ) : null}
       </Card>
 
+      {photoUri ? (
+        <CodeLookSheet visible onClose={() => setPhotoUri(null)} project={project} photoUri={photoUri} />
+      ) : null}
       {open ? (
         <SavedCodeCheckSheet
           record={open}
@@ -135,6 +170,7 @@ const makeStyles = (t: ThemeColors) =>
     wrap: { marginTop: 12 },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
     heading: { ...Type.headline, color: t.text },
+    photoBtn: { marginTop: 10 },
     note: { ...Type.subhead, color: t.textSecondary, marginTop: 10 },
     list: { marginTop: 8 },
     row: {

@@ -10,6 +10,15 @@
 // exactly how it stays forgotten. All maths lives in utils/deliverySchedule
 // (pure, pinned by test:delivery-schedule); this file is a read plus three
 // status writes.
+//
+// UX wave B6 — "It's here now": a truck nobody logged is ONE sheet (what,
+// supplier chips, a ticket photo, received by = him, the day on a picker, the
+// same damage question receiving asks). Saving writes the delivery and its
+// receipt together through the context writers (the offline queue); a due or
+// late load from the same supplier is offered instead of a duplicate. Opened
+// by the header button, by `arrived=1` (Lane 0's route contract) and by a
+// scanned delivery ticket (pre-filled, each field "from scan, check it").
+// Rules: utils/deliveryArrival. No typed dates are left on this screen.
 
 import React, { useMemo, useState, useCallback } from 'react';
 import {
@@ -19,10 +28,21 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Plus, Truck, X, Check, CalendarDays, Building2 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
+import { ChevronLeft, Plus, Truck, X, Check, CalendarDays, Building2, Camera, PackageCheck } from 'lucide-react-native';
+import DatePickerModal from '@/components/DatePickerModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { nailIt } from '@/components/animations/NailItToast';
+import { readUxDoorParams, readParam } from '@/utils/uxRoutes';
+import { SCAN_ARRIVAL_PARAM } from '@/utils/scanRouting';
+import { arrivalDayProblem, arrivalProblem, buildArrival, deliveredAtFor, lateMatchForSupplier, FROM_SCAN_LABEL, DELIVERY_TICKET_TAG, type ArrivalDraft } from '@/utils/deliveryArrival';
+import { recentSuppliers } from '@/utils/recentChips';
+import { buildPhotoStoragePath, isDeviceLocalUri, photoExtFromUri } from '@/utils/photoUploadCore';
+import { calendarDayOf, formatCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -58,12 +78,31 @@ export default function DeliveriesScreen() {
   const fabScroll = useBrainFabScroll();
   const router = useRouter();
   const goBack = useSafeBack(); // UX-F18: cold-start safe
-  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  const rawParams = useLocalSearchParams<{ projectId?: string } & Record<string, string | string[]>>();
+  const paramProjectId = readParam(rawParams.projectId) ?? undefined;
+  const openArrived = readUxDoorParams(rawParams).openArrived;
+  // A scanned delivery ticket (app/scan.tsx) hands over what it read.
+  // Primitives first, so the memo (and the sheet's reset effect) only moves
+  // when a value does — never on a new params object.
+  const scanFlag = readParam(rawParams[SCAN_ARRIVAL_PARAM.fromScan]) === '1';
+  const scanWhat = readParam(rawParams[SCAN_ARRIVAL_PARAM.what]) ?? '';
+  const scanSupplier = readParam(rawParams[SCAN_ARRIVAL_PARAM.supplier]) ?? '';
+  const scanDate = readParam(rawParams[SCAN_ARRIVAL_PARAM.date]);
+  const scanPo = readParam(rawParams[SCAN_ARRIVAL_PARAM.po]) ?? '';
+  const scanTicket = readParam(rawParams[SCAN_ARRIVAL_PARAM.ticket]);
+  const scanPrefill = useMemo(() => (scanFlag ? {
+    what: scanWhat, supplier: scanSupplier,
+    // Only a real calendar day pre-fills the picker.
+    date: scanDate && parseCalendarDay(scanDate) ? scanDate : null,
+    poNumber: scanPo, ticket: scanTicket,
+  } : null), [scanFlag, scanWhat, scanSupplier, scanDate, scanPo, scanTicket]);
 
   const {
     projects, deliveries, addDelivery, updateDelivery,
     getBuildingAccess, accessReservations, addDeliveryReceipt,
+    deliveryReceipts, addProjectPhoto,
   } = useProjects();
+  const { user } = useAuth();
 
   // Reached from the chase list, search or the sidebar with no project — same
   // picker pattern as the other tool screens.
@@ -74,6 +113,18 @@ export default function DeliveriesScreen() {
   const [horizon, setHorizon] = useState<LookaheadDays>(7);
   const [showAdd, setShowAdd] = useState(false);
   const [receiving, setReceiving] = useState<Delivery | null>(null);
+  // "It's here now" — opened once by arrived=1 (or a scan), then by the button.
+  const [showArrived, setShowArrived] = useState(false);
+  const openedArrivedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (openedArrivedRef.current || !openArrived || !project) return;
+    openedArrivedRef.current = true;
+    setShowArrived(true);
+  }, [openArrived, project]);
+  const supplierChips = useMemo(
+    () => recentSuppliers(deliveries, deliveryReceipts ?? [], projectId),
+    [deliveries, deliveryReceipts, projectId],
+  );
 
   const scoped = useMemo(
     () => deliveries.filter(d => d.projectId === projectId),
@@ -109,14 +160,17 @@ export default function DeliveriesScreen() {
 
   const commitReceipt = useCallback((d: Delivery, form: {
     receivedBy: string; hasDamage: boolean; damageNotes: string; notes: string;
-  }) => {
+  }, extra?: { bolPhotoUri?: string; date?: string }) => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const now = new Date();
     const receipt: DeliveryReceipt = {
       id: generateUUID(),
       projectId: d.projectId,
       deliveryId: d.id,
-      date: todayLocal(),
+      // UX wave B6: "It's here now" passes the day on its picker and the
+      // ticket photo; the Received sheet passes neither (today, no photo).
+      date: extra?.date ?? todayLocal(),
+      bolPhotoUri: extra?.bolPhotoUri,
       supplier: d.supplier,
       poNumber: d.poNumber,
       commitmentId: d.commitmentId,
@@ -134,7 +188,10 @@ export default function DeliveriesScreen() {
     addDeliveryReceipt(receipt);
     updateDelivery(d.id, {
       status: 'delivered',
-      deliveredAt: now.toISOString(),
+      // The day it landed. From "It's here now" that is the picked day (a
+      // back-dated load is not scored late by the days he back-dated); the
+      // Received sheet passes no day, so it stays the moment he tapped.
+      deliveredAt: extra?.date ? deliveredAtFor(extra.date, now) : now.toISOString(),
       receivedBy: receipt.receivedBy,
       // Links the promise to the witness statement — populates deliveries
       // .receipt_id, which existed unused until receiving was built.
@@ -142,6 +199,48 @@ export default function DeliveriesScreen() {
     });
     setReceiving(null);
   }, [addDeliveryReceipt, updateDelivery]);
+
+  /** The ticket photo, filed to the job's photos as a DRAFT (a supplier's
+   *  ticket can carry his pricing — it is never auto-shared to the client
+   *  portal) and uploaded by the photo queue. The receipt keeps the durable
+   *  storage path the photo row uses, so another device can open it. */
+  const fileTicketPhoto = useCallback((uri: string): string => {
+    if (!isDeviceLocalUri(uri)) return uri; // a scanned ticket: already in Project Files
+    const id = generateUUID();
+    const nowIso = new Date().toISOString();
+    addProjectPhoto({
+      id, projectId, uri, timestamp: nowIso, createdAt: nowIso,
+      tag: DELIVERY_TICKET_TAG, location: DELIVERY_TICKET_TAG,
+      portalState: { status: 'draft' },
+    });
+    return user?.id ? buildPhotoStoragePath(user.id, projectId, id, photoExtFromUri(uri)) : uri;
+  }, [addProjectPhoto, projectId, user?.id]);
+
+  const commitArrival = useCallback((draft: ArrivalDraft & { hasDamage: boolean; damageNotes: string }, match: Delivery | null) => {
+    const ticket = draft.ticketUri ? fileTicketPhoto(draft.ticketUri) : undefined;
+    if (match) {
+      // The load he was expecting: close THAT delivery, no duplicate.
+      commitReceipt(match, {
+        receivedBy: draft.receivedBy, hasDamage: draft.hasDamage, damageNotes: draft.damageNotes, notes: draft.notes ?? '',
+      }, { bolPhotoUri: ticket, date: draft.date });
+      setShowArrived(false);
+      nailIt(`Received: ${match.description}`);
+      return;
+    }
+    const { delivery, receipt } = buildArrival({
+      projectId, draft: { ...draft, ticketUri: ticket }, now: new Date(), deliveryId: generateUUID(), receiptId: generateUUID(),
+    });
+    const withDamage: DeliveryReceipt = draft.hasDamage
+      ? { ...receipt, hasDamage: true, damageNotes: draft.damageNotes.trim() || undefined }
+      : receipt;
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Two writers, two collections — the delivery is born delivered and
+    // linked to its receipt, so neither write depends on the other's state.
+    addDelivery(delivery);
+    addDeliveryReceipt(withDamage);
+    setShowArrived(false);
+    nailIt(`Logged: ${delivery.description}`);
+  }, [fileTicketPhoto, commitReceipt, projectId, addDelivery, addDeliveryReceipt]);
   const isDesktop = useIsDesktop();
   // Desktop web only: the look-ahead becomes a register (Late and Upcoming
   // tables). The phone and a native tablet keep today's rows.
@@ -175,6 +274,21 @@ export default function DeliveriesScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top || 16 }, isDesktopWeb && styles.rootDesktop]}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* UX wave B6: the register draws its own title row, so the desk's
+          "It's here now" door sits above it. */}
+      {isDesktopWeb ? (
+        <View style={styles.arrivedDeskRow}>
+          <TouchableOpacity
+            onPress={() => setShowArrived(true)}
+            style={styles.arrivedBtn}
+            accessibilityRole="button"
+            testID="deliveries-arrived-desk"
+          >
+            <PackageCheck size={16} color={t.accentLabel} strokeWidth={1.9} />
+            <Text style={styles.arrivedBtnText}>It&apos;s here now</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {isDesktopWeb ? (
         <DeliveriesRegister
           projectId={projectId}
@@ -199,6 +313,7 @@ export default function DeliveriesScreen() {
             styles={styles}
             t={t}
             onAdd={() => setShowAdd(true)}
+            onArrived={() => setShowArrived(true)}
           />
 
           <ScrollView
@@ -301,6 +416,19 @@ export default function DeliveriesScreen() {
         t={t}
       />
 
+      <ArrivedSheet
+        visible={showArrived}
+        onClose={() => setShowArrived(false)}
+        onSave={commitArrival}
+        deliveries={scoped}
+        projectId={projectId}
+        supplierChips={supplierChips}
+        defaultReceivedBy={user?.name?.trim() || ''}
+        scanPrefill={scanPrefill}
+        styles={styles}
+        t={t}
+      />
+
       <AddDeliverySheet
         visible={showAdd}
         onClose={() => setShowAdd(false)}
@@ -327,10 +455,12 @@ export default function DeliveriesScreen() {
 }
 
 function Header({
-  onBack, title, subtitle, styles, t, onAdd,
+  onBack, title, subtitle, styles, t, onAdd, onArrived,
 }: {
   onBack: () => void; title: string; subtitle: string;
   styles: ReturnType<typeof makeStyles>; t: ThemeColors; onAdd?: () => void;
+  /** UX wave B6: "It's here now" — a delivery nobody logged. */
+  onArrived?: () => void;
 }) {
   return (
     <View style={styles.header}>
@@ -342,6 +472,12 @@ function Header({
         <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
         {subtitle ? <Text style={styles.headerSub} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
+      {onArrived ? (
+        <TouchableOpacity onPress={onArrived} style={styles.arrivedBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="It's here now. Log a delivery that just arrived" testID="deliveries-arrived">
+          <PackageCheck size={16} color={t.accentLabel} strokeWidth={1.9} />
+          <Text style={styles.arrivedBtnText}>Here now</Text>
+        </TouchableOpacity>
+      ) : null}
       {onAdd ? (
         <TouchableOpacity onPress={onAdd} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add delivery">
           <Plus size={18} color="#FFFFFF" strokeWidth={1.75} />
@@ -523,6 +659,7 @@ function AddDeliverySheet({
 }) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<Draft>({ description: '', supplier: '', expectedDate: todayLocal(), window: '' });
+  const [pickingDate, setPickingDate] = useState(false);
   const valid = draft.description.trim().length > 0 && draft.supplier.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(draft.expectedDate.trim());
   const isDesktop = useIsDesktop();
   const f = useSheetFrame('form', { visible, animationType: 'slide' });
@@ -566,14 +703,24 @@ function AddDeliverySheet({
           />
 
           <Text style={styles.fieldLabel}>Promised date</Text>
-          <TextInput
-            style={[styles.input, isDesktop && (desktopField('sm') as TextStyle)]}
-            value={draft.expectedDate}
-            onChangeText={(x) => setDraft(p => ({ ...p, expectedDate: x }))}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={t.textMuted}
-            autoCapitalize="none"
+          {/* UX wave B6: a picker, never a typed YYYY-MM-DD. */}
+          <TouchableOpacity
+            style={[styles.input, isDesktop && desktopField('sm'), styles.dateField]}
+            onPress={() => setPickingDate(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Promised date ${formatCalendarDay(draft.expectedDate) || draft.expectedDate}. Change`}
             testID="delivery-date"
+          >
+            <CalendarDays size={15} color={t.textSecondary} strokeWidth={1.75} />
+            <Text style={styles.dateFieldText}>{formatCalendarDay(draft.expectedDate, { weekday: 'short', month: 'short', day: 'numeric' }) || draft.expectedDate}</Text>
+          </TouchableOpacity>
+          <DatePickerModal
+            visible={pickingDate}
+            value={parseCalendarDay(draft.expectedDate)?.toISOString() ?? ''}
+            allowFuture
+            title="Promised date"
+            onClose={() => setPickingDate(false)}
+            onChange={(iso) => { setDraft(p => ({ ...p, expectedDate: calendarDayOf(iso) ?? p.expectedDate })); setPickingDate(false); }}
           />
 
           <Text style={styles.fieldLabel}>
@@ -598,6 +745,242 @@ function AddDeliverySheet({
             <CalendarDays size={16} color="#FFFFFF" strokeWidth={1.75} />
             <Text style={styles.saveBtnText}>Add to the look-ahead</Text>
           </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+type ArrivalForm = ArrivalDraft & { hasDamage: boolean; damageNotes: string };
+interface ScanPrefill { what: string; supplier: string; date: string | null; poNumber: string; ticket: string | null }
+
+/**
+ * "It's here now" (UX wave B6). One sheet for a load nobody logged: what, the
+ * supplier (his recent ones as chips), the ticket photo, who received it (his
+ * own name until he changes it), the day on a picker, and the damage question
+ * receiving always asks. A due or late load from the same supplier is offered
+ * as "Mark this one received" so it closes that delivery instead of adding a
+ * second. A scanned ticket opens it pre-filled, labelled "from scan, check it".
+ */
+function ArrivedSheet({
+  visible, onClose, onSave, deliveries, projectId, supplierChips, defaultReceivedBy, scanPrefill, styles, t,
+}: {
+  visible: boolean; onClose: () => void;
+  onSave: (form: ArrivalForm, match: Delivery | null) => void;
+  deliveries: Delivery[]; projectId: string; supplierChips: string[]; defaultReceivedBy: string;
+  scanPrefill: ScanPrefill | null;
+  styles: ReturnType<typeof makeStyles>; t: ThemeColors;
+}) {
+  const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
+  const frame = useSheetFrame('form', { visible, animationType: 'slide' });
+  const blank = useCallback((): ArrivalForm => ({
+    what: scanPrefill?.what ?? '',
+    supplier: scanPrefill?.supplier ?? '',
+    receivedBy: defaultReceivedBy,
+    date: scanPrefill?.date ?? todayLocal(),
+    ticketUri: scanPrefill?.ticket ?? null,
+    poNumber: scanPrefill?.poNumber ?? '',
+    notes: '',
+    hasDamage: false,
+    damageNotes: '',
+  }), [scanPrefill, defaultReceivedBy]);
+  const [form, setForm] = useState<ArrivalForm>(blank);
+  const [pickingDate, setPickingDate] = useState(false);
+  const [useMatch, setUseMatch] = useState(true);
+  // Fresh every time it opens: last load's damage note never rides along.
+  React.useEffect(() => { if (visible) { setForm(blank()); setUseMatch(true); } }, [visible, blank]);
+
+  const problem = arrivalProblem(form, todayLocal());
+  const match = useMemo(
+    () => lateMatchForSupplier(deliveries, projectId, form.supplier, todayLocal()),
+    [deliveries, projectId, form.supplier],
+  );
+  const closing = useMatch ? match : null;
+  // Closing an expected load needs no "what" (the delivery already says it).
+  const blocked = closing
+    ? (!form.supplier.trim() ? 'Name the supplier.' : arrivalDayProblem(form.date, todayLocal()))
+    : problem;
+  const save = () => { if (!blocked) onSave(form, closing); };
+  useSheetPrimaryHotkey(visible && !blocked, save);
+  const fromScan = (v: string | null | undefined) => !!scanPrefill && !!v && v.trim().length > 0;
+
+  const takeTicket = useCallback(async () => {
+    try {
+      let res: ImagePicker.ImagePickerResult;
+      if (Platform.OS === 'web') {
+        res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
+      } else {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { showAlert('Camera access needed', 'Allow camera access in Settings to photograph the ticket.'); return; }
+        res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
+      }
+      if (res.canceled || !res.assets[0]?.uri) return;
+      const uri = res.assets[0].uri;
+      setForm(p => ({ ...p, ticketUri: uri }));
+    } catch (e) {
+      showAlert('Couldn\u2019t open the camera', 'Try again.');
+    }
+  }, []);
+
+  return (
+    <Modal visible={visible} transparent animationType={frame.animationType} onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.overlay, frame.overlay]}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }, frame.card]}>
+          <View style={styles.sheetHead}>
+            <Text style={styles.sheetTitle}>It&apos;s here now</Text>
+            <TouchableOpacity onPress={onClose} style={styles.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+              <X size={20} color={t.textMuted} strokeWidth={1.75} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false} style={styles.sheetScroll}>
+            <Text style={styles.fieldLabel}>
+              Supplier{fromScan(scanPrefill?.supplier) ? <Text style={styles.fieldHint}>{` · ${FROM_SCAN_LABEL}`}</Text> : null}
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={form.supplier}
+              onChangeText={(x) => setForm(p => ({ ...p, supplier: x }))}
+              placeholder="Who sent it"
+              placeholderTextColor={t.textMuted}
+              testID="arrived-supplier"
+            />
+            {supplierChips.length > 0 ? (
+              <View style={styles.chipRow}>
+                {supplierChips.map(sup => (
+                  <TouchableOpacity
+                    key={sup}
+                    style={[styles.chip, form.supplier.trim().toLowerCase() === sup.toLowerCase() && styles.chipOn]}
+                    onPress={() => setForm(p => ({ ...p, supplier: sup }))}
+                    accessibilityRole="button"
+                    testID={`arrived-supplier-chip-${sup}`}
+                  >
+                    <Text style={styles.chipText} numberOfLines={1}>{sup}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+
+            {match ? (
+              <TouchableOpacity
+                style={[styles.damageToggle, useMatch && styles.matchOn]}
+                onPress={() => setUseMatch(v => !v)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: useMatch }}
+                testID="arrived-match"
+              >
+                <View style={[styles.damageBox, useMatch && { backgroundColor: t.accentFill, borderColor: t.accentFill }]}>
+                  {useMatch ? <Check size={13} color={Colors.textOnAccent} strokeWidth={2.5} /> : null}
+                </View>
+                <Text style={styles.damageLabel}>
+                  Mark this one received: {match.description} (expected {formatCalendarDay(match.expectedDate, { month: 'short', day: 'numeric' }) || match.expectedDate})
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {!closing ? (
+              <>
+                <Text style={styles.fieldLabel}>
+                  What arrived{fromScan(scanPrefill?.what) ? <Text style={styles.fieldHint}>{` · ${FROM_SCAN_LABEL}`}</Text> : null}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.what}
+                  onChangeText={(x) => setForm(p => ({ ...p, what: x }))}
+                  placeholder="40 sheets 5/8 board, 2 pallets block"
+                  placeholderTextColor={t.textMuted}
+                  testID="arrived-what"
+                />
+              </>
+            ) : null}
+
+            <Text style={styles.fieldLabel}>Ticket</Text>
+            {form.ticketUri && isDeviceLocalUri(form.ticketUri) ? (
+              <View style={styles.ticketRow}>
+                <Image source={{ uri: form.ticketUri }} style={styles.ticketThumb} contentFit="cover" />
+                <TouchableOpacity onPress={() => { void takeTicket(); }} accessibilityRole="button" testID="arrived-ticket-retake">
+                  <Text style={styles.linkText}>Retake</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setForm(p => ({ ...p, ticketUri: null }))} accessibilityRole="button" testID="arrived-ticket-remove">
+                  <Text style={styles.linkText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            ) : form.ticketUri ? (
+              <Text style={styles.fieldHint} testID="arrived-ticket-scanned">The scanned ticket is attached (it is in Project Files).</Text>
+            ) : (
+              <TouchableOpacity style={styles.buildingLink} onPress={() => { void takeTicket(); }} accessibilityRole="button" testID="arrived-ticket">
+                <Camera size={16} color={t.textSecondary} strokeWidth={1.8} />
+                <Text style={styles.buildingLinkText}>{Platform.OS === 'web' ? 'Attach the ticket photo' : 'Photograph the ticket'}</Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={styles.fieldLabel}>Received by</Text>
+            <TextInput
+              style={styles.input}
+              value={form.receivedBy}
+              onChangeText={(x) => setForm(p => ({ ...p, receivedBy: x }))}
+              placeholder="Who signed for it"
+              placeholderTextColor={t.textMuted}
+              testID="arrived-by"
+            />
+
+            <Text style={styles.fieldLabel}>
+              Day{fromScan(scanPrefill?.date) ? <Text style={styles.fieldHint}>{` · ${FROM_SCAN_LABEL}`}</Text> : null}
+            </Text>
+            <TouchableOpacity
+              style={[styles.input, styles.dateField, isDesktop && desktopField('sm')]}
+              onPress={() => setPickingDate(true)}
+              accessibilityRole="button"
+              testID="arrived-date"
+            >
+              <CalendarDays size={15} color={t.textSecondary} strokeWidth={1.75} />
+              <Text style={styles.dateFieldText}>{form.date === todayLocal() ? 'Today' : formatCalendarDay(form.date, { weekday: 'short', month: 'short', day: 'numeric' }) || form.date}</Text>
+            </TouchableOpacity>
+            <DatePickerModal
+              visible={pickingDate}
+              value={parseCalendarDay(form.date)?.toISOString() ?? ''}
+              title="Arrived on"
+              onClose={() => setPickingDate(false)}
+              onChange={(iso) => { setForm(p => ({ ...p, date: calendarDayOf(iso) ?? p.date })); setPickingDate(false); }}
+            />
+
+            <TouchableOpacity
+              style={[styles.damageToggle, form.hasDamage && styles.damageToggleOn]}
+              onPress={() => setForm(p => ({ ...p, hasDamage: !p.hasDamage }))}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: form.hasDamage }}
+              testID="arrived-damage"
+            >
+              <View style={[styles.damageBox, form.hasDamage && { backgroundColor: t.danger, borderColor: t.danger }]}>
+                {form.hasDamage ? <Check size={13} color={Colors.textOnAccent} strokeWidth={2.5} /> : null}
+              </View>
+              <Text style={[styles.damageLabel, form.hasDamage && { color: t.danger }]}>Something arrived damaged or short</Text>
+            </TouchableOpacity>
+            {form.hasDamage ? (
+              <TextInput
+                style={[styles.input, styles.inputMulti, { marginTop: 8 }]}
+                value={form.damageNotes}
+                onChangeText={(x) => setForm(p => ({ ...p, damageNotes: x }))}
+                placeholder="Two lites cracked, one unit short"
+                placeholderTextColor={t.textMuted}
+                multiline
+                testID="arrived-damage-notes"
+              />
+            ) : null}
+
+            {blocked ? <Text style={styles.damageHint} testID="arrived-blocked">{blocked}</Text> : null}
+            <TouchableOpacity
+              style={[styles.saveBtn, blocked ? styles.saveBtnOff : null, isDesktop && styles.saveBtnDesktop]}
+              onPress={save}
+              disabled={!!blocked}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !!blocked }}
+              testID="arrived-save"
+            >
+              <PackageCheck size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+              <Text style={styles.saveBtnText}>{closing ? 'Mark received' : 'Log it as received'}</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -718,4 +1101,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   damageHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 6, lineHeight: 15 },
 
   saveBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+
+  // UX wave B6 — "It's here now". Theme tokens only; no new surface card.
+  arrivedBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    minHeight: 40, paddingHorizontal: 12, marginRight: 6,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.accent + '40', backgroundColor: t.accentSoft,
+  },
+  arrivedBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  arrivedDeskRow: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const, paddingHorizontal: 16, paddingTop: 12 },
+  chipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 8 },
+  chip: {
+    minHeight: 36, justifyContent: 'center' as const, paddingHorizontal: 12, maxWidth: 220,
+    borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line, backgroundColor: t.bg,
+  },
+  chipOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  matchOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  ticketRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14 },
+  ticketThumb: { width: 64, height: 64, borderRadius: Tokens.radius.md, backgroundColor: t.bg },
+  linkText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accentLabel, paddingVertical: 8 },
+  dateField: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  dateFieldText: { fontSize: Type.subhead.fontSize, color: t.text },
 });

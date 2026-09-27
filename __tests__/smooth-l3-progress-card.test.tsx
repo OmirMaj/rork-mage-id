@@ -32,6 +32,16 @@ jest.mock('@/utils/weatherService', () => ({
   getForecastWithFallback: () => Promise.resolve([]),
 }));
 
+// UX wave B5: TodayView's Tomorrow block gates its "Send lineup" door through
+// useProjectAccess (schedule_gantt_pdf, the /tomorrow-lineup gate). This
+// harness mounts TodayView bare, with no SubscriptionProvider, so the hook is
+// stubbed open; its own gate is covered by validate-ux-lane-b.
+jest.mock('@/hooks/useProjectAccess', () => ({
+  useProjectAccess: () => ({
+    tier: 'pro', role: null, canAccess: () => true, canAccessOwnTier: () => true, requiredTierFor: () => 'pro',
+  }),
+}));
+
 const events: string[] = [];
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => { events.push('haptic'); return Promise.resolve(); }),

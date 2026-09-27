@@ -72,6 +72,17 @@ import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import { sendEmail } from '@/utils/emailService';
 import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import { portalShareUrl } from '@/utils/portalSnapshot';
+import { portalDeliveryState, portalRecipients } from '@/utils/portalReady';
+// C1 (UX wave): the pre-send question, the one-field ask and this device's
+// delivery marker (decision: LOCAL — see utils/portalReady).
+import {
+  portalDeliveryFacts, contractDeliveryKey, stampContractDelivery, readContractDelivery,
+  type ContractDelivery, type PortalDeliveryState,
+} from '@/utils/portalReady';
+import { resolveClientContact, seedClientEverywhere, isUsableEmail } from '@/utils/clientContact';
+import { copyToClipboard } from '@/utils/clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Sheet } from '@/components/ui/Sheet';
 import SignaturePad from '@/components/SignaturePad';
 import { supabase } from '@/lib/supabase';
 import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError, SEALED_PDF_DOWNLOAD_FAILED_MESSAGE } from '@/utils/contractSealing';
@@ -79,7 +90,7 @@ import { pdfFailureMessage } from '@/utils/platformFile';
 import { nailIt } from '@/components/animations/NailItToast';
 import { fireConfetti } from '@/components/animations/Confetti';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
-import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus, PaymentSplit } from '@/types';
+import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus, PaymentSplit, Project } from '@/types';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
@@ -251,6 +262,27 @@ function ContractScreenInner() {
   // press cancels the first and neither is seen. A notice also survives the
   // scroll back up through the schedule, which a 2-second toast does not.
   const [reviewBeforeSigning, setReviewBeforeSigning] = useState(false);
+  // ── C1 (UX wave): a contract is never "Sent" to nobody ────────────────────
+  // Sign & send asks portalDeliveryState BEFORE the pad opens; anything but
+  // 'ready' opens the one-field ask (or explains) instead of the flip.
+  // "Sign together now" runs the same GC flip with no email, then opens the
+  // Record-homeowner-signature modal (it only works on a SENT contract, so the
+  // order is fixed). The mode travels by ref: the Sign & send button calls
+  // handleSignPress directly, so the press event can never be read as a mode.
+  const pendingSignModeRef = useRef<'send' | 'together'>('send');
+  const activeSignModeRef = useRef<'send' | 'together'>('send');
+  const togetherRecordRef = useRef(false);
+  const userIdRef = useRef<string | null>(user?.id ?? null);
+  userIdRef.current = user?.id ?? null;
+  // The ask: what blocked delivery, what he typed, and whether a Retry (not a
+  // signature) waits behind it.
+  const [deliveryAsk, setDeliveryAsk] = useState<null | { state: PortalDeliveryState; email: string; name: string; then: 'sign' | 'retry' }>(null);
+  const [savingDeliveryAsk, setSavingDeliveryAsk] = useState(false);
+  // This device's delivery marker for the contract on screen (null = none).
+  const [delivery, setDelivery] = useState<{ contractId: string; d: ContractDelivery } | null>(null);
+  const [retryingDelivery, setRetryingDelivery] = useState(false);
+  // The pad's words follow its mode ("Sign & send" vs the in-person pair).
+  const [padInPerson, setPadInPerson] = useState(false);
   const gate = useClientDocumentGate();
   const gateRun = gate.run;
 
@@ -805,9 +837,97 @@ function ContractScreenInner() {
       askContractTerms({ terms: needsTerms, warranty: needsWarranty }, 'review');
       return;
     }
+    // C1: which pad is opening. Consumed here, so a later plain Sign & send
+    // press is always 'send'.
+    const mode = pendingSignModeRef.current;
+    pendingSignModeRef.current = 'send';
+    activeSignModeRef.current = mode;
+    setPadInPerson(mode === 'together');
+    if (mode === 'send') {
+      // Can the homeowner actually RECEIVE it? Asked before the signature,
+      // never after the flip. Read through refs so this callback keeps its
+      // one dependency.
+      const p = projectRef.current;
+      const state = portalDeliveryState(p, userIdRef.current);
+      if (state === 'collaborator') {
+        showAlert(
+          'Only the project owner can send this',
+          'The client portal\'s signing link belongs to the account that owns this project, so the contract can\'t be emailed from yours. Ask the project owner to sign and send it, or use Sign together now if the client is with you.',
+        );
+        return;
+      }
+      if (state !== 'ready') {
+        const known = resolveClientContact(p, { need: 'email' });
+        setReviewBeforeSigning(false);
+        setDeliveryAsk({ state, email: known?.email ?? '', name: known?.name ?? '', then: 'sign' });
+        return;
+      }
+    }
     setReviewBeforeSigning(false);
     setSignatureModal(true);
   }, [askContractTerms]);
+
+  // C1: "Sign together now" — the same press, with the in-person mode queued.
+  const handleSignTogetherPress = useCallback(() => {
+    pendingSignModeRef.current = 'together';
+    handleSignPress();
+  }, [handleSignPress]);
+
+  // C1: the homeowner's email — moved here verbatim from handleSignAndSend so
+  // the "Signed by you, not delivered" Retry sends the same message. Returns
+  // how many recipients the email service accepted.
+  const emailContractLink = useCallback(async (
+    contract: ProjectContract,
+    project: Project,
+    portalUrl: string,
+    recipients: { email: string; name: string }[],
+  ): Promise<number> => {
+    const companyName = settings?.branding?.companyName || 'MAGE ID';
+    // CONTRACT-TIME-1: the homeowner is being asked to counter-sign a
+    // completion date. Stated from the SAME helper the screen renders, so
+    // the email and the document can never name different days. Omitted
+    // entirely when either half is blank — never a half-stated timeline.
+    const emailTimeline = contractTimeline(contract.startDate, contract.durationDays);
+    const senderName = settings?.branding?.contactName || companyName;
+    const senderEmail = settings?.branding?.email;
+    const greetingFirstName = (recipients[0].name ?? '').split(' ')[0] || 'there';
+    const html = wrapEmailHtml({
+      preheader: `${companyName} sent you the contract for ${project.name}. Tap to review and counter-sign.`,
+      eyebrow: 'Contract — ready to sign',
+      title: `${project.name}`,
+      subtitle: `Hi ${greetingFirstName}, ${companyName} sent you the construction contract.`,
+      bodyHtml: [
+        `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
+           Your construction contract is ready for your review and counter-signature in your project portal. The contract value${emailTimeline ? ' and timeline are' : ' is'} below${contract.scopeText ? ', with the start of the scope of work' : ''}.
+           If the contract isn't showing yet when you open the portal, it is still being posted — check back in a few minutes. Once you sign, ${escapeHtml(companyName)} can start.
+         </p>`,
+        contract.scopeText ? emailQuote(contract.scopeText.slice(0, 600)) : '',
+        `<p style="margin:0 0 6px 0;font-size:13px;line-height:20px;color:#4A5159;">
+           <strong style="color:#0B0D10;">Project:</strong> ${escapeHtml(project.name)}<br/>
+           ${project.location ? `<strong style="color:#0B0D10;">Location:</strong> ${escapeHtml(project.location)}<br/>` : ''}
+           <strong style="color:#0B0D10;">Contract value:</strong> ${escapeHtml(formatMoney(contract.contractValue ?? 0))}
+           ${emailTimeline ? `<br/><strong style="color:#0B0D10;">Timeline:</strong> ${escapeHtml(emailTimeline.startLabel)} to ${escapeHtml(emailTimeline.completionLabel)} (${emailTimeline.durationDays} calendar days)` : ''}
+         </p>`,
+      ].join(''),
+      cta: { label: 'Review & sign in your portal', href: portalUrl },
+      companyName,
+      project: { name: project.name, location: project.location },
+      sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
+      growthBadge: isFree,
+    });
+
+    const subject = `${project.name} — your contract is ready to sign`;
+    const sendResults = await Promise.all(recipients.map(r =>
+      sendEmail({
+        to: r.email,
+        subject,
+        html,
+        replyTo: senderEmail,
+        fromCompanyName: companyName,
+      })
+    ));
+    return sendResults.filter(r => r.success).length;
+  }, [settings, isFree]);
 
   // Sign + send — captures the GC's signature, status='sent'.
   const handleSignAndSend = useCallback(async (signaturePaths: string[], typedName: string) => {
@@ -919,18 +1039,34 @@ function ContractScreenInner() {
         ctxUpdateProject(project.id, { status: 'in_progress' });
       }
 
+      // C1 — "Sign together now": no email goes out and none is claimed. The
+      // homeowner signs on this phone in the Record-homeowner-signature modal,
+      // which needs the SENT contract the flip above just made. The pad is
+      // dismissed first and the record modal opens after it (iOS tears down a
+      // modal presented while another is dismissing).
+      if (activeSignModeRef.current === 'together') {
+        activeSignModeRef.current = 'send';
+        setSignatureModal(false);
+        togetherRecordRef.current = true;
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => setRecordModal(true), Platform.OS === 'ios' ? 450 : 0);
+        return;
+      }
+
       // Email the homeowner the portal URL + a sign-and-send prompt.
       // Pre-fix this was the audit's #4 finding — the contract status
       // flipped to 'sent' but no email actually went out, so the homeowner
       // had no idea there was anything to counter-sign. Best-effort —
       // failure here doesn't roll back the contract send.
       let emailNote = '';
+      // C1: what this device saw happen to the email, stamped below.
+      let deliveryMarker: ContractDelivery | null = null;
+      const deliveredAt = new Date().toISOString();
       try {
         const portalSettings = project?.clientPortal;
-        const invites = portalSettings?.invites ?? [];
-        const recipients = invites
-          .filter(i => (i.email ?? '').trim().includes('@'))
-          .map(i => ({ email: i.email!.trim(), name: i.name }));
+        // Who can receive it, by the one rule utils/portalReady shares with
+        // the pre-send check (an '@' in the trimmed invitee address).
+        const recipients = portalRecipients(portalSettings);
         // The link in this email IS the homeowner's authority to counter-sign:
         // the portal's signing RPCs all gate on `?t=<accessToken>`. A bare
         // `mageid.app/portal/<id>` opens a portal that cannot do the one thing
@@ -940,72 +1076,59 @@ function ContractScreenInner() {
         // send. Tell the GC what is missing instead of mailing a dead CTA.
         const portalUrl = project ? portalShareUrl(portalSettings) : null;
         if (project && portalUrl && recipients.length > 0) {
-          const companyName = settings?.branding?.companyName || 'MAGE ID';
-          // CONTRACT-TIME-1: the homeowner is being asked to counter-sign a
-          // completion date. Stated from the SAME helper the screen renders, so
-          // the email and the document can never name different days. Omitted
-          // entirely when either half is blank — never a half-stated timeline.
-          const emailTimeline = contractTimeline(contract.startDate, contract.durationDays);
-          const senderName = settings?.branding?.contactName || companyName;
-          const senderEmail = settings?.branding?.email;
-          const greetingFirstName = (recipients[0].name ?? '').split(' ')[0] || 'there';
-          const html = wrapEmailHtml({
-            preheader: `${companyName} sent you the contract for ${project.name}. Tap to review and counter-sign.`,
-            eyebrow: 'Contract — ready to sign',
-            title: `${project.name}`,
-            subtitle: `Hi ${greetingFirstName}, ${companyName} sent you the construction contract.`,
-            bodyHtml: [
-              `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
-                 Your construction contract is ready for your review and counter-signature in your project portal. The contract value${emailTimeline ? ' and timeline are' : ' is'} below${contract.scopeText ? ', with the start of the scope of work' : ''}.
-                 If the contract isn't showing yet when you open the portal, it is still being posted — check back in a few minutes. Once you sign, ${escapeHtml(companyName)} can start.
-               </p>`,
-              contract.scopeText ? emailQuote(contract.scopeText.slice(0, 600)) : '',
-              `<p style="margin:0 0 6px 0;font-size:13px;line-height:20px;color:#4A5159;">
-                 <strong style="color:#0B0D10;">Project:</strong> ${escapeHtml(project.name)}<br/>
-                 ${project.location ? `<strong style="color:#0B0D10;">Location:</strong> ${escapeHtml(project.location)}<br/>` : ''}
-                 <strong style="color:#0B0D10;">Contract value:</strong> ${escapeHtml(formatMoney(contract.contractValue ?? 0))}
-                 ${emailTimeline ? `<br/><strong style="color:#0B0D10;">Timeline:</strong> ${escapeHtml(emailTimeline.startLabel)} to ${escapeHtml(emailTimeline.completionLabel)} (${emailTimeline.durationDays} calendar days)` : ''}
-               </p>`,
-            ].join(''),
-            cta: { label: 'Review & sign in your portal', href: portalUrl },
-            companyName,
-            project: { name: project.name, location: project.location },
-            sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
-            growthBadge: isFree,
-          });
-
-          const subject = `${project.name} — your contract is ready to sign`;
-          const sendResults = await Promise.all(recipients.map(r =>
-            sendEmail({
-              to: r.email,
-              subject,
-              html,
-              replyTo: senderEmail,
-              fromCompanyName: companyName,
-            })
-          ));
-          const sentCount = sendResults.filter(r => r.success).length;
+          // C1: the email itself lives in emailContractLink, so the
+          // "not delivered" Retry sends exactly what this sends.
+          const sentCount = await emailContractLink(contract, project, portalUrl, recipients);
           if (sentCount > 0) {
             emailNote = ` Emailed the portal link to ${sentCount} recipient${sentCount === 1 ? '' : 's'}.`;
+            deliveryMarker = { state: 'delivered', at: deliveredAt, count: sentCount };
           } else {
             emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
+            deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: 'send_failed' };
           }
-        } else if (recipients.length === 0) {
-          emailNote = ' Note: no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.';
-        } else if (portalSettings?.enabled && portalSettings.portalId) {
-          emailNote = ' Note: this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.';
         } else {
-          emailNote = ' Note: the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.';
+          // Why nothing went out, from utils/portalReady — the same answer the
+          // pre-send check gets. 'ready' cannot reach this branch (it is the
+          // `if` above); it shares the last note only to keep the switch total,
+          // and its marker records 'send_failed' — never "ready" for an email
+          // that did not go out.
+          switch (portalDeliveryState(project, user?.id ?? null)) {
+            case 'collaborator':
+              emailNote = ' Only the project owner holds this portal\'s signing link, so nothing was emailed. Ask them to share it from the client portal.';
+              break;
+            case 'no_email':
+              emailNote = ' Note: no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.';
+              break;
+            case 'no_signing_key':
+              emailNote = ' Note: this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.';
+              break;
+            case 'portal_off':
+            case 'ready':
+              emailNote = ' Note: the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.';
+              break;
+          }
+          const why = portalDeliveryState(project, user?.id ?? null);
+          deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: why === 'ready' ? 'send_failed' : why };
         }
       } catch (err) {
         console.warn('[contract] email send failed', err);
         emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
+        deliveryMarker = { state: 'not_delivered', at: deliveredAt, reason: 'send_failed' };
+      }
+      // C1: remember on THIS device whether the email went out, so the status
+      // line never claims receipt it did not see (a second device has no
+      // marker and says only what is true everywhere).
+      if (deliveryMarker) {
+        setDelivery({ contractId: saved.id, d: deliveryMarker });
+        if (user?.id) {
+          void AsyncStorage.setItem(contractDeliveryKey(saved.id), stampContractDelivery(user.id, deliveryMarker)).catch(() => undefined);
+        }
       }
 
       setSignatureModal(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Contract sent',
+        deliveryMarker?.state === 'delivered' ? 'Contract sent' : 'Signed — not delivered yet',
         (createdCount > 0
           ? `Your client portal is being updated with the contract; once it is, the homeowner can review and counter-sign there. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
           : 'Your client portal is being updated with the contract; once it is, the homeowner can review and counter-sign there. You\'ll be notified when they do.')
@@ -1014,7 +1137,152 @@ function ContractScreenInner() {
     } finally {
       setSigning(false);
     }
-  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds, requestPortalPublish]);
+  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds, requestPortalPublish, user?.id, emailContractLink]);
+
+  // ── C1: this device's delivery marker, the ask sheet, Retry, Copy link ────
+  // The marker is read for the contract on screen. A read that finds nothing
+  // never erases a marker this session just wrote for the same contract (the
+  // write is async and may land after the re-read the post-sign refresh
+  // triggers).
+  useEffect(() => {
+    const id = contract?.id;
+    const uid = user?.id;
+    if (!id || !uid) { setDelivery(null); return; }
+    let live = true;
+    AsyncStorage.getItem(contractDeliveryKey(id))
+      .then(raw => {
+        if (!live) return;
+        const d = readContractDelivery(raw, uid);
+        setDelivery(prev => (d ? { contractId: id, d } : prev?.contractId === id ? prev : null));
+      })
+      .catch(() => { if (live) setDelivery(prev => (prev?.contractId === id ? prev : null)); });
+    return () => { live = false; };
+  }, [contract?.id, user?.id]);
+
+  const retryDelivery = useCallback(async (projectOverride?: Project) => {
+    const c = contractRef.current;
+    const p = projectOverride ?? projectRef.current;
+    if (!c?.id || !p || c.status !== 'sent') return;
+    const state = portalDeliveryState(p, user?.id ?? null);
+    if (state === 'collaborator') {
+      showAlert('Only the project owner can send this', 'The client portal\'s signing link belongs to the account that owns this project.');
+      return;
+    }
+    if (state !== 'ready') {
+      const known = resolveClientContact(p, { need: 'email' });
+      setDeliveryAsk({ state, email: known?.email ?? '', name: known?.name ?? '', then: 'retry' });
+      return;
+    }
+    const url = portalShareUrl(p.clientPortal);
+    const recipients = portalRecipients(p.clientPortal);
+    if (!url || recipients.length === 0) return;
+    setRetryingDelivery(true);
+    let sent = 0;
+    try {
+      sent = await emailContractLink(c, p, url, recipients);
+    } catch (err) {
+      console.warn('[contract] retry email failed', err);
+      sent = 0;
+    } finally {
+      setRetryingDelivery(false);
+    }
+    const at = new Date().toISOString();
+    const marker: ContractDelivery = sent > 0
+      ? { state: 'delivered', at, count: sent }
+      : { state: 'not_delivered', at, reason: 'send_failed' };
+    setDelivery({ contractId: c.id, d: marker });
+    if (user?.id) void AsyncStorage.setItem(contractDeliveryKey(c.id), stampContractDelivery(user.id, marker)).catch(() => undefined);
+    if (sent > 0) nailIt(`Emailed the portal link to ${sent} recipient${sent === 1 ? '' : 's'}`);
+    else showAlert('Still not delivered', 'The email service did not accept it. Copy the link and text it to the client, or try again in a minute.');
+  }, [emailContractLink, user?.id]);
+
+  const copyContractLink = useCallback(async () => {
+    const url = portalShareUrl(projectRef.current?.clientPortal);
+    if (!url) {
+      showAlert('No signing link yet', 'This project\'s client portal has no signing link yet. Open the client portal once to finish it, then copy the link here.');
+      return;
+    }
+    const ok = await copyToClipboard(url);
+    showAlert(ok ? 'Copied' : 'Copy failed', ok ? 'The client\'s signing link is on your clipboard — text or email it to them.' : 'Couldn\'t copy the link. Open the client portal to share it from there.');
+  }, []);
+
+  // What the ask does after it unblocks delivery: open the pad (Sign & send)
+  // or send the email again (Retry). The sheet closes first; on iOS the pad
+  // opens after it has gone (a modal presented under a dismissing one is
+  // torn down with it).
+  const continueAfterAsk = useCallback((then: 'sign' | 'retry', patched: Project) => {
+    setDeliveryAsk(null);
+    const delay = Platform.OS === 'ios' ? 450 : 0;
+    if (then === 'sign') {
+      activeSignModeRef.current = 'send';
+      setPadInPerson(false);
+      setTimeout(() => setSignatureModal(true), delay);
+    } else {
+      setTimeout(() => { void retryDelivery(patched); }, delay);
+    }
+  }, [retryDelivery]);
+
+  const saveDeliveryAsk = useCallback(() => {
+    const ask = deliveryAsk;
+    const p = projectRef.current;
+    if (!ask || !p) return;
+    // 'no_signing_key': the ask is a wait with a Retry — nothing to type.
+    if (ask.state === 'no_signing_key') {
+      const now = portalDeliveryState(p, user?.id ?? null);
+      if (now === 'ready') continueAfterAsk(ask.then, p);
+      else if (now !== 'no_signing_key') setDeliveryAsk({ ...ask, state: now });
+      else showAlert('Still getting it ready', 'The signing link isn\'t ready yet. Open the client portal once to finish it, then tap Sign & send again.');
+      return;
+    }
+    if (!isUsableEmail(ask.email)) {
+      showAlert('Check the email', 'Type the address the client reads, like name@example.com.');
+      return;
+    }
+    const portal = p.clientPortal;
+    const portalExists = !!(portal && portal.portalId);
+    setSavingDeliveryAsk(true);
+    try {
+      // The client goes on the job (primaryContact) and, when this job has a
+      // portal, onto its invite list. The portal is switched on ONLY here,
+      // after the sheet said what the client will see — never silently.
+      const patch = seedClientEverywhere(p, { email: ask.email, name: ask.name }, {
+        portalBeingEnabled: portalExists,
+        newId: generateUUID,
+        nowIso: new Date().toISOString(),
+      });
+      if (portalExists && !portal!.enabled) {
+        patch.clientPortal = { ...(patch.clientPortal ?? portal!), enabled: true };
+      }
+      if (Object.keys(patch).length > 0) ctxUpdateProject(p.id, patch);
+      if (!portalExists) {
+        // No portal was ever set up: its id and signing key are made on the
+        // Client Portal screen, which this one does not copy. The email is
+        // saved on the job; say what is left and take him there.
+        setDeliveryAsk(null);
+        showAlert(
+          'Set up the client portal once',
+          `${ask.email} is saved on this project. The client signs through the client portal, which isn't set up for this project yet. Set it up (it shows them the schedule, invoices, change orders and photos), then come back and tap Sign & send.`,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Set up the portal', onPress: () => router.push({ pathname: '/client-portal-setup', params: { id: p.id } }) },
+          ],
+        );
+        return;
+      }
+      const patched = { ...p, ...patch } as Project;
+      const next = portalDeliveryState(patched, user?.id ?? null);
+      if (next === 'ready') continueAfterAsk(ask.then, patched);
+      else setDeliveryAsk({ ...ask, state: next });
+    } finally {
+      setSavingDeliveryAsk(false);
+    }
+  }, [deliveryAsk, user?.id, ctxUpdateProject, continueAfterAsk, router]);
+
+  // The ask sheet's "Sign together now instead".
+  const signTogetherFromAsk = useCallback(() => {
+    setDeliveryAsk(null);
+    setTimeout(() => handleSignTogetherPress(), Platform.OS === 'ios' ? 450 : 0);
+  }, [handleSignTogetherPress]);
 
   // #67: record a homeowner signature given OUTSIDE the portal. The rules
   // (name, pad or page photo + day, never a future day) and the conditional
@@ -1022,6 +1290,9 @@ function ContractScreenInner() {
   // paper → upload the page photo first (no photo on file, no record), then
   // re-read + flip only if the row is still 'sent' and unsigned. No signal
   // refuses with the reason — the contract stays Sent, nothing half-written.
+  // C1: the marker for the contract on screen (never another contract's).
+  const contractDelivery = delivery && contract?.id && delivery.contractId === contract.id ? delivery.d : null;
+
   const handleRecordSignature = useCallback(async (draft: RecordSignatureDraft, pagePhotoUri: string | null) => {
     const c = contractRef.current;
     if (!c?.id || c.status !== 'sent' || !user?.id) return;
@@ -1055,7 +1326,12 @@ function ContractScreenInner() {
       requestPortalPublish(c.projectId);
       setRecordModal(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      nailIt(draft.method === 'paper' ? 'Paper signature recorded' : 'Homeowner signature recorded');
+      // C1: after "Sign together now" the record completes the pair.
+      const together = togetherRecordRef.current;
+      togetherRecordRef.current = false;
+      nailIt(together && draft.method === 'in_person'
+        ? 'Signed by both of you'
+        : draft.method === 'paper' ? 'Paper signature recorded' : 'Client signature recorded');
     } finally {
       setRecording(false);
     }
@@ -1810,8 +2086,25 @@ function ContractScreenInner() {
             />
           </ActionBar>
         )}
+        {/* C1: the homeowner is at the kitchen table — both sign on this
+            phone, no email, none claimed. Same gates as Sign & send. */}
+        {contract.status === 'draft' && (
+          <Button
+            label="Sign together now"
+            variant="secondary"
+            onPress={handleSignTogetherPress}
+            disabled={(contract.paymentSchedule.length > 0 && !scheduleMatchesValue) || saving}
+            iconLeft={<FileSignature size={14} color={themeColors.text} strokeWidth={1.75} />}
+            style={{ marginTop: 10 }}
+            testID="contract-sign-together"
+          />
+        )}
 
-        {contract.status === 'sent' && (
+        {/* C1: "Sent to the homeowner" only when THIS device saw the email
+            go out (the local delivery marker). A failed send says so, with
+            Retry and Copy link; with no marker (another device, or signed
+            together) the line says only what is true everywhere. */}
+        {contract.status === 'sent' && contractDelivery?.state === 'delivered' && (
           <View style={styles.statusBanner}>
             <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
@@ -1819,6 +2112,49 @@ function ContractScreenInner() {
               <Text style={styles.statusBannerBody}>
                 You'll be notified when they sign. Until then this contract is read-only.
                 If they signed in person or on paper, record it here so the deposit can be billed.
+              </Text>
+            </View>
+          </View>
+        )}
+        {contract.status === 'sent' && contractDelivery?.state === 'not_delivered' && (
+          <View style={[styles.statusBanner, { backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]} testID="contract-not-delivered">
+            <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <Text style={[styles.statusBannerTitle, { color: themeColors.warningLabel }]}>Signed by you, not delivered</Text>
+              <Text style={styles.statusBannerBody}>
+                {contractDelivery.reason === 'send_failed'
+                  ? 'The email to the client did not go out. Nothing reached them yet. Try again, or copy the signing link and text it.'
+                  : 'Nothing was emailed to the client. Fix what is missing and try again, or copy the signing link and text it.'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Button
+                  label={retryingDelivery ? 'Sending…' : 'Retry'}
+                  onPress={() => { void retryDelivery(); }}
+                  loading={retryingDelivery}
+                  disabled={retryingDelivery}
+                  containerStyle={{ flex: 1 }}
+                  testID="contract-delivery-retry"
+                />
+                <Button
+                  label="Copy link"
+                  variant="secondary"
+                  onPress={() => { void copyContractLink(); }}
+                  containerStyle={{ flex: 1 }}
+                  testID="contract-delivery-copy"
+                />
+              </View>
+            </View>
+          </View>
+        )}
+        {contract.status === 'sent' && !contractDelivery && (
+          <View style={styles.statusBanner} testID="contract-signed-by-you">
+            <FileSignature size={16} color={themeColors.accent} strokeWidth={1.75} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.statusBannerTitle}>Signed by you — waiting on the client</Text>
+              <Text style={styles.statusBannerBody}>
+                {portalDeliveryState(project, user?.id ?? null) === 'ready'
+                  ? 'They can review and counter-sign from their client portal link. Until then this contract is read-only. If they signed in person or on paper, record it here so the deposit can be billed.'
+                  : 'This device has no record of the portal link reaching them. Share it from the client portal, or if they signed in person or on paper, record it here so the deposit can be billed.'}
               </Text>
             </View>
           </View>
@@ -1900,7 +2236,69 @@ function ContractScreenInner() {
         onSign={handleSignAndSend}
         signing={signing}
         defaultName={user?.name ?? user?.email ?? ''}
+        inPerson={padInPerson}
       />
+
+      {/* C1: "Where should we send it?" — mounted only while it is open. */}
+      {deliveryAsk && (
+        <Sheet
+          visible
+          onClose={() => setDeliveryAsk(null)}
+          title={deliveryAsk.state === 'no_signing_key' ? 'Getting the signing link ready…' : 'Who gets the contract?'}
+          subtitle={deliveryAsk.state === 'no_signing_key'
+            ? undefined
+            : 'The client gets a link to review and counter-sign. Nothing is signed or sent until you do.'}
+          primaryAction={{
+            label: deliveryAsk.state === 'no_signing_key'
+              ? 'Retry'
+              : project?.clientPortal?.portalId && !project.clientPortal.enabled
+                ? 'Turn on the portal and continue'
+                : project?.clientPortal?.portalId ? 'Save and continue' : 'Save the email',
+            onPress: saveDeliveryAsk,
+            loading: savingDeliveryAsk,
+            disabled: deliveryAsk.state !== 'no_signing_key' && !isUsableEmail(deliveryAsk.email),
+            disabledReason: deliveryAsk.state !== 'no_signing_key' && !isUsableEmail(deliveryAsk.email) ? 'Type the client\'s email first' : undefined,
+          }}
+          secondaryAction={{ label: 'Sign together now instead', onPress: signTogetherFromAsk }}
+          testID="contract-delivery-ask"
+        >
+          {deliveryAsk.state === 'no_signing_key' ? (
+            <View style={{ gap: 10 }}>
+              <Text style={styles.statusBannerBody}>
+                This project&apos;s portal is on, but its secure signing link isn&apos;t ready yet. Open the client portal once to finish it, then come back and tap Retry.
+              </Text>
+              <Button
+                label="Open client portal"
+                variant="secondary"
+                onPress={() => { const id = project?.id; setDeliveryAsk(null); if (id) router.push({ pathname: '/client-portal-setup', params: { id } }); }}
+                testID="contract-delivery-open-portal"
+              />
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              <Text style={styles.cardLabel}>Client email</Text>
+              <TextInput
+                style={styles.input}
+                value={deliveryAsk.email}
+                onChangeText={(email) => setDeliveryAsk(prev => (prev ? { ...prev, email } : prev))}
+                placeholder="name@example.com"
+                placeholderTextColor={themeColors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                testID="contract-delivery-email"
+              />
+              {!portalDeliveryFacts(project, user?.id ?? null).portalOn && (
+                <Text style={styles.statusBannerBody} testID="contract-delivery-portal-line">
+                  {project?.clientPortal?.portalId
+                    ? 'Sending turns on this project\'s client portal. Your client will see the schedule, invoices, change orders and photos there.'
+                    : 'This project has no client portal yet. The client signs through it, and it shows them the schedule, invoices, change orders and photos. Saving keeps the email and takes you to set it up.'}
+                </Text>
+              )}
+            </View>
+          )}
+        </Sheet>
+      )}
 
       {/* CONTRACT-TIME-1. This render was MISSING on first pass: the field
           above set `startDatePicker` true and nothing listened, so the start
@@ -2151,12 +2549,15 @@ function SignatureBlock({ label, name, signedAt, how }: { label: string; name: s
   );
 }
 
-function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
+function SignatureModal({ visible, onClose, onSign, signing, defaultName, inPerson = false }: {
   visible: boolean;
   onClose: () => void;
   onSign: (paths: string[], typedName: string) => void;
   signing: boolean;
   defaultName: string;
+  /** C1 "Sign together now": his signature first, then the homeowner's on
+   *  this phone. Nothing is emailed, so the words never say "send". */
+  inPerson?: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
   const { colors: themeColors } = useTheme();
@@ -2177,10 +2578,11 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
     <Modal visible={visible} animationType={fSign.animationType} transparent onRequestClose={() => { if (!signing) onClose(); }}>
       <View style={[styles.modalOverlay, fSign.overlay]}>
         <View style={[styles.modalCard, fSign.card]}>
-          <Text style={styles.modalTitle}>Sign & send</Text>
+          <Text style={styles.modalTitle}>{inPerson ? 'Your signature first' : 'Sign & send'}</Text>
           <Text style={styles.modalBody}>
-            Sign below + type your full legal name. The contract becomes binding when the
-            homeowner counter-signs in their portal.
+            {inPerson
+              ? 'Sign below and type your full legal name. Nothing is emailed. Next, hand the phone to the client to sign.'
+              : 'Sign below and type your full legal name. The contract becomes binding when the client counter-signs in their portal.'}
           </Text>
           <SignaturePad
             initialPaths={paths}
@@ -2208,7 +2610,7 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
               {signing ? <ActivityIndicator size="small" color="#FFF" /> : (
                 <>
                   <FileSignature size={14} color="#FFF" strokeWidth={1.75} />
-                  <Text style={styles.modalConfirmText}>Sign & send</Text>
+                  <Text style={styles.modalConfirmText}>{inPerson ? 'Sign, then hand over' : 'Sign & send'}</Text>
                 </>
               )}
             </TouchableOpacity>

@@ -2300,6 +2300,12 @@ export interface DailyFieldReport {
    * must NOT be added to the supabaseWrite payloads in ProjectContext.
    */
   leakScan?: LeakScanRecord;
+  /** UX wave A5: 'voice' on a draft the app created from a voice note on the
+   *  user's behalf (utils/dailyLogCompletion VOICE_ORIGIN). Local only, like
+   *  leakScan: never in a write payload (dailyReportColumns does not name
+   *  it); ProjectContext merges it forward on a refetch. Saving the report in
+   *  the form clears it, and the day then counts as filed. */
+  origin?: 'voice';
   createdAt: string;
   updatedAt: string;
   // Client portal send/recall lifecycle — Phase 1.

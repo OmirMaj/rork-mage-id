@@ -50,14 +50,9 @@ describe('sub pay sheet — workers’ comp warning', () => {
     expect(onSkip).toHaveBeenCalledTimes(1);
   });
 
-  it('re-reads when the date changes', async () => {
-    await mount({ notice: (d: string) => (d === '2026-07-01' ? WARN : null) });
-    expect(screen.queryByTestId('insaudit-pay-warning')).toBeTruthy();
-    fireEvent.changeText(screen.getByTestId('payment-date-input'), '2026-05-01');
-    expect(screen.queryByTestId('insaudit-pay-warning')).toBeNull();
-    fireEvent.changeText(screen.getByTestId('payment-date-input'), '2026-07-01');
-    expect(screen.queryByTestId('insaudit-pay-warning')).toBeTruthy();
-  });
+  // 're-reads when the date changes' moved to ux-lane-c-pay-date case 1: UX
+  // wave C7 replaced the typed date field with a picker, and the re-read is
+  // proven through the picker there.
 
   it('a notice returning null draws nothing', async () => {
     const { onSubmit } = await mount({ notice: () => null });
