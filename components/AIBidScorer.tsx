@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal,
-  ScrollView, Switch,
+  ScrollView, Switch, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -13,6 +13,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { saveCompanyProfile, type CompanyAIProfile } from '@/utils/aiService';
 
 const SPECIALTIES = ['Residential', 'Commercial', 'Industrial', 'Government', 'Renovation', 'New Construction'];
@@ -67,6 +68,9 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
   // values once at import and dark mode painted near-black ink on the dark
   // container this component already themed inline (audit 2026-09-07).
   const setupStyles = useThemedStyles(makeSetupStyles);
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [specialties, setSpecialties] = useState<string[]>(initialProfile?.specialties ?? []);
   const [trades, setTrades] = useState<string[]>(initialProfile?.trades ?? []);
   const [preferredSize, setPreferredSize] = useState(initialProfile?.preferredSize ?? '$100K-$500K');
@@ -84,9 +88,13 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
     onClose();
   };
 
+  // Esc / the scrim close on the web only: the iPhone's swipe-down stays
+  // exactly as it is today (founder decision 2, d6r X3).
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={[setupStyles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle="pageSheet" transparent={fP.transparent} {...(Platform.OS === 'web' ? { onRequestClose: onClose } : null)}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <View style={[setupStyles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }, fP.card]}>
         <View style={setupStyles.header}>
           <Text style={setupStyles.title}>Company AI Profile</Text>
           <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
@@ -149,6 +157,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
           </TouchableOpacity>
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

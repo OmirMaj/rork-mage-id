@@ -36,6 +36,7 @@ import {
 } from '@/utils/buildingAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 /** Today as YYYY-MM-DD in LOCAL time — toISOString() rolls the date over in the
  *  evening for anyone west of UTC, which would book the wrong morning. */
@@ -461,13 +462,23 @@ function AddSlotSheet({
 }) {
   const [draft, setDraft] = useState<Draft>({ kind: 'freight_elevator', date: todayLocal(), window: '' });
   const valid = draft.date.trim().length >= 8;
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar; Cmd/Ctrl+Enter (and Cmd+S) books the slot while the date is
+  // valid. Phone: every part is null — today's sheet, byte for byte.
+  const fAdd = useSheetFrame('form', { visible, animationType: 'slide' });
+  const book = () => {
+    if (!valid) return;
+    onSave(draft);
+    setDraft({ kind: 'freight_elevator', date: todayLocal(), window: '' });
+  };
+  useSheetPrimaryHotkey(visible, valid ? book : null);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType={fAdd.animationType} transparent onRequestClose={onClose}>
       {/* UX-F15: same keyboard fix as app/deliveries.tsx — the Date / Window
           inputs and the Save button sat under the keyboard. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
-        <View style={styles.sheet}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.overlay, fAdd.overlay]}>
+        <View style={[styles.sheet, fAdd.card]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Book a slot</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -516,11 +527,7 @@ function AddSlotSheet({
           <TouchableOpacity
             style={[styles.saveBtn, !valid && styles.saveBtnOff]}
             disabled={!valid}
-            onPress={() => {
-              if (!valid) return;
-              onSave(draft);
-              setDraft({ kind: 'freight_elevator', date: todayLocal(), window: '' });
-            }}
+            onPress={book}
             accessibilityRole="button"
             testID="slot-save"
           >

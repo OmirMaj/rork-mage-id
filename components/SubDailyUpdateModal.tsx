@@ -27,6 +27,7 @@ import {
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
@@ -181,16 +182,21 @@ function SubDailyUpdateModalImpl({
     }
   }, [task, subName, projectId, projectName, progressNum, hours, crew, notes, blocker, photos, onSubmit, onClose, gcEmail, gcPhone, gcName]);
 
+  // Desktop web: a centred card beside the sidebar (all-null on a phone). The
+  // submit emails or texts the GC, so Cmd/Ctrl+Enter only — never Cmd+S.
+  const fSub = useSheetFrame('form', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, busy ? null : handleSubmit, { saveKey: false });
+
   if (!task) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={fSub.animationType} onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}
+        style={[styles.backdrop, fSub.overlay]}
       >
-        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.handle} />
+        <View style={[styles.card, { paddingBottom: insets.bottom + 16 }, fSub.card]}>
+          {fSub.showHandle && <View style={styles.handle} />}
           <View style={styles.head}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Today&apos;s update</Text>
@@ -343,16 +349,16 @@ function SubDailyUpdateModalImpl({
           </ScrollView>
 
           {/* Footer */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, fSub.footer]}>
             <TouchableOpacity
-              style={styles.secondaryBtn}
+              style={[styles.secondaryBtn, fSub.footerButton]}
               onPress={onClose}
               disabled={busy}
             >
               <Text style={styles.secondaryBtnText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
+              style={[styles.primaryBtn, busy && { opacity: 0.6 }, fSub.footerButton]}
               onPress={handleSubmit}
               disabled={busy}
               activeOpacity={0.85}

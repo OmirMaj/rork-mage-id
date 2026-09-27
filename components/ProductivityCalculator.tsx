@@ -10,6 +10,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { PRODUCTIVITY_RATES, PRODUCTIVITY_CATEGORIES, type ProductivityRate } from '@/constants/productivityRates';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface ProductivityCalculatorProps {
   visible: boolean;
@@ -22,6 +23,9 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
   // ink at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedRate, setSelectedRate] = useState<ProductivityRate | null>(null);
@@ -78,8 +82,10 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
   }, [onClose]);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={handleClose}>
-      <View style={s.container}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} transparent={fP.transparent} onRequestClose={handleClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={handleClose} />
+      <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
             <Text style={s.headerTitle}>Productivity Calc</Text>
@@ -244,6 +250,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
           </View>
         )}
       </View>
+      </SheetOverlay>
     </Modal>
   );
 });

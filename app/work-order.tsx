@@ -54,6 +54,7 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import {
   composeDispatchMessage, buildDispatchSmsUrl, buildDispatchMailtoUrl,
   postForBidsGate, dispatchSenderName, workOrderStatusTone,
@@ -283,6 +284,14 @@ export default function WorkOrderScreen() {
     ]);
   }, [wo, deleteWorkOrder, router]);
 
+  // Desktop: the dispatch picker is a centred form card (d6r X3, batch F); a
+  // phone keeps its bottom sheet (every frame part is null there). The only
+  // footer primary is Save contractor, in the add-contractor step; the picker
+  // itself dispatches, so Cmd+S never fires anything here (saveKey: false) and
+  // Cmd/Ctrl+Enter runs the save only (it guards its own blocked state).
+  const fDispatch = useSheetFrame('form', { visible: dispatchOpen, animationType: 'slide' });
+  useSheetPrimaryHotkey(dispatchOpen, addingContractor ? saveNewContractor : null, { saveKey: false });
+
   if (!wo) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -444,10 +453,10 @@ export default function WorkOrderScreen() {
       </ScrollView>
 
       {/* Dispatch picker */}
-      <Modal visible={dispatchOpen} transparent animationType="slide" onRequestClose={closeDispatch}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+      <Modal visible={dispatchOpen} transparent animationType={fDispatch.animationType} onRequestClose={closeDispatch}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalOverlay, fDispatch.overlay]}>
+          <View style={[styles.modalSheet, fDispatch.card]}>
+            {fDispatch.showHandle && <View style={styles.modalHandle} />}
             <View style={styles.modalHead}>
               <View style={styles.modalHeadIcon}><Users size={15} color={Colors.textOnAccent} strokeWidth={1.75} /></View>
               <Text style={styles.modalTitle}>{addingContractor ? 'Add a contractor' : 'Send to…'}</Text>

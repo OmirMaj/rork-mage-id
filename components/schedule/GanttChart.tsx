@@ -22,6 +22,8 @@ import { SimulatedWeatherBanner } from '@/components/schedule/SimulatedWeatherNo
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ganttPxPerDay, GANTT_CHROME } from '@/utils/scheduleRoute';
+import { useIsDesktop } from '@/components/ui/desktop';
+import { usePrintFit } from '@/hooks/usePrintFit';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -54,6 +56,10 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
   // Colors.borderLight/textMuted/surfaceAlt/text at import (audit 2026-09-07).
   const s = useThemedStyles(makeStyles);
   const { colors: t } = useTheme();
+  // Cmd+P on desktop web zooms the timeline to fit the sheet (lane Z1; `{}`
+  // and no listener anywhere else).
+  const isDesktop = useIsDesktop();
+  const printFit = usePrintFit(isDesktop);
   const totalDays = schedule.totalDurationDays;
   const fitPxPerDay = ganttPxPerDay(viewportWidth, totalDays);
   const ganttWidth = fitPxPerDay === null
@@ -207,7 +213,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
   }, [tasks, forecast, projectStartDate]);
 
   return (
-    <View style={s.container}>
+    <View ref={printFit.ref} style={s.container} {...printFit.printProps}>
       {/* Self-hiding when every badge is backed by a live reading. */}
       <SimulatedWeatherBanner days={displayedRiskDays} style={s.simBannerSpacing} />
       <ScrollView horizontal showsHorizontalScrollIndicator style={s.horizontalScroll}>

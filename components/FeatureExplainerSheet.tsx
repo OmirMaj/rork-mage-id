@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, ExternalLink, PlayCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -59,6 +60,9 @@ function FeatureExplainerSheetImpl({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's half-sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   const handleVideo = () => {
     if (!videoUrl) return;
@@ -78,18 +82,19 @@ function FeatureExplainerSheetImpl({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType={fX.animationType}
       transparent
       onRequestClose={onClose}
       statusBarTranslucent
     >
+      <SheetOverlay frame={fX}>
       <TouchableOpacity
-        style={styles.backdrop}
+        style={[styles.backdrop, fX.backdrop]}
         activeOpacity={1}
         onPress={onClose}
       />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-        <View style={styles.handle} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }, fX.card]}>
+        {fX.showHandle && <View style={styles.handle} />}
 
         <View style={styles.header}>
           <Text style={[Type.eyebrow, { color: themeColors.accent }]}>What is this?</Text>
@@ -156,6 +161,7 @@ function FeatureExplainerSheetImpl({
           )}
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { X, ChevronRight, HardHat, Building2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -86,6 +87,9 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's bottom sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   const flavors: DemoFlavor[] = showMedium ? ['small', 'medium', 'large'] : ['small', 'large'];
 
@@ -95,10 +99,11 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
   }, [onPick]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.handle} />
+    <Modal visible={visible} transparent animationType={fX.animationType} onRequestClose={onClose}>
+      <SheetOverlay frame={fX}>
+      <TouchableOpacity style={[styles.backdrop, fX.backdrop]} activeOpacity={1} onPress={onClose} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, fX.card]}>
+        {fX.showHandle && <View style={styles.handle} />}
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Pick a sample project</Text>
@@ -175,6 +180,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
           </Text>
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

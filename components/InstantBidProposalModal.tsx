@@ -32,6 +32,7 @@ import { Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -228,15 +229,20 @@ export default function InstantBidProposalModal({
     setSent(true);
   }, [proposal, lead, selectedTier, addLeadTouch, updateLead]);
 
+  // Desktop web: a centred wide card beside the sidebar (all-null on a phone).
+  // Its primary marks the proposal sent, so Cmd/Ctrl+Enter only — never Cmd+S.
+  const fBid = useSheetFrame('wide', { visible, animationType: 'slide' });
+  useSheetPrimaryHotkey(visible, proposal && !sent ? handleMarkSent : null, { saveKey: false });
+
   if (!lead) return null;
   // Shown under its own name so the GC sees it for what it is (audit #24).
   const widgetBallpark = widgetBallparkOf(lead);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+    <Modal visible={visible} transparent animationType={fBid.animationType} onRequestClose={handleClose}>
+      <View style={[styles.overlay, fBid.overlay]}>
+        <View style={[styles.sheet, fBid.card]}>
+          {fBid.showHandle && <View style={styles.handle} />}
           <View style={styles.head}>
             <View style={styles.headIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>

@@ -24,7 +24,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { TakeoffResult } from '@/types';
 import type { RenderedPlanPage } from '@/utils/pdfRenderClient';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface RelatedRow {
   category: 'walls' | 'floorAreas' | 'doors' | 'windows' | 'finishes' | 'fixtures' | 'bulkMaterials';
@@ -61,6 +62,9 @@ function TakeoffPageInspectorImpl({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop: the 880 px right-docked panel over the takeoff (d6r X3, R-PANEL);
+  // a phone keeps today's opaque full-window sheet (`?? false` is today's value).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [activePage, setActivePage] = useState(initialPage);
   const [zoom, setZoom] = useState(1);
 
@@ -138,12 +142,18 @@ function TakeoffPageInspectorImpl({
 
   const screenW = Dimensions.get('window').width;
   const screenH = Dimensions.get('window').height;
-  const isWide = screenW >= 760;
+  // The width the sheet actually has: the window on a phone, the 880 panel's
+  // content box (less its 24 px padding) on desktop, so the page image is sized
+  // to the panel rather than to the whole window behind it.
+  const frameW = fP.isDesktop ? Math.min(screenW, Layout.sheet.panel) - 48 : screenW;
+  const isWide = frameW >= 760;
   const imgMaxH = screenH - insets.top - insets.bottom - 220;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent={false}>
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+    <Modal visible={visible} animationType={fP.animationType} onRequestClose={onClose} transparent={fP.transparent ?? false}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <View style={[styles.container, { paddingTop: insets.top }, fP.card]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
@@ -184,7 +194,7 @@ function TakeoffPageInspectorImpl({
                   <Image
                     source={{ uri: currentPage.viewUrl }}
                     style={{
-                      width: Math.min(screenW - (isWide ? 360 : 32), currentPage.width) * zoom,
+                      width: Math.min(frameW - (isWide ? 360 : 32), currentPage.width) * zoom,
                       height: imgMaxH * zoom,
                     }}
                     resizeMode="contain"
@@ -261,6 +271,7 @@ function TakeoffPageInspectorImpl({
           </View>
         </View>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

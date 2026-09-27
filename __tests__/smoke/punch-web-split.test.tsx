@@ -36,7 +36,7 @@ async function stored() {
 }
 
 describe('punch web split panel', () => {
-  jest.setTimeout(60000);
+  jest.setTimeout(180000); // passes in ~3 s alone; the local gate shares 2 jest slots with other runs
   beforeEach(async () => {
     await primeWorld('populated');
     photoQueue.queuePhotoUpload.mockClear();

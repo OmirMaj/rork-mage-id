@@ -16,6 +16,7 @@ import { MONEY_FORMAT_HINT, setupBalanceFromInput, setupExpenseFromInput } from 
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
 interface CashFlowSetupProps {
   visible: boolean;
@@ -44,6 +45,9 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop: the 880 px right-docked panel over the cash-flow page (d6r X3,
+  // R-PANEL); a phone keeps its native page sheet (every frame part is null).
+  const fP = useSheetFrame('panel', { visible, animationType: 'slide' });
   const [step, setStep] = useState(0);
   const [startingBalance, setStartingBalance] = useState('');
   const [expenses, setExpenses] = useState<CashFlowExpense[]>([]);
@@ -314,10 +318,12 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const isLast = step === 3;
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <Modal visible={visible} animationType={fP.animationType} presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} transparent={fP.transparent} onRequestClose={onClose}>
+      <SheetOverlay frame={fP}>
+      <SheetScrim frame={fP} onPress={onClose} />
+      <KeyboardAvoidingView style={[{ flex: 1 }, fP.card, fP.isDesktop && { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
-          <View style={styles.handle} />
+          {fP.showHandle && <View style={styles.handle} />}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             <Text style={styles.headerTitle}>Cash Flow Setup</Text>
@@ -357,6 +363,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
           </View>
         </View>
       </KeyboardAvoidingView>
+      </SheetOverlay>
     </Modal>
   );
 }

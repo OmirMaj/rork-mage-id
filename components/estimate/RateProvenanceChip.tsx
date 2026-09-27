@@ -48,6 +48,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import type { CostBookEntry } from '@/utils/costDatabase';
 import { SEED_SAMPLE_LABEL } from '@/utils/costSeedCore';
 import { rateProvenanceChipModel, measuredWindow } from '@/utils/rateProvenance';
@@ -101,6 +102,10 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
     setOpen(true);
   }, []);
   const hide = useCallback(() => setOpen(false), []);
+  // Above the no-chip return below (hook order). Desktop web: a centred dialog
+  // in the content column, the scrim over the sidebar. Phone: every part is
+  // null — today's sheet, byte for byte.
+  const fX = useSheetFrame('dialog', { visible: open, animationType: 'slide' });
 
   const model = rateProvenanceChipModel(entry);
   // No resolvable provenance → no chip. Never a placeholder, never a guess.
@@ -137,10 +142,11 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
         <Text style={[styles.chipText, { color: fg }]} numberOfLines={1}>{model.label}</Text>
       </TouchableOpacity>
 
-      <Modal visible={open} animationType="slide" transparent onRequestClose={hide} statusBarTranslucent>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={hide} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-          <View style={styles.handle} />
+      <Modal visible={open} animationType={fX.animationType} transparent onRequestClose={hide} statusBarTranslucent>
+        <SheetOverlay frame={fX}>
+        <TouchableOpacity style={[styles.backdrop, fX.backdrop]} activeOpacity={1} onPress={hide} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }, fX.card]}>
+          {fX.showHandle && <View style={styles.handle} />}
           <View style={styles.sheetHead}>
             <Text style={[styles.eyebrow, { color: fg }]}>{model.label}</Text>
             <TouchableOpacity
@@ -244,6 +250,7 @@ export function RateProvenanceChip({ entry, testID }: RateProvenanceChipProps) {
             )}
           </ScrollView>
         </View>
+        </SheetOverlay>
       </Modal>
     </>
   );

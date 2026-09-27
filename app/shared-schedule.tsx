@@ -48,6 +48,7 @@ import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 export default function SharedScheduleScreen() {
   const { colors: themeColors } = useTheme();
@@ -232,6 +233,13 @@ export default function SharedScheduleScreen() {
     const next = await appendSubUpdate(payload.projectId, update);
     setSubUpdates(next);
   }, [payload?.projectId]);
+
+  // Desktop: the reschedule-reason sheet is a centred form card (d6r X3,
+  // batch F); a phone keeps its bottom sheet (every frame part is null there).
+  // Its primary opens the sub's email / message to the GC — a send — so it
+  // takes Cmd/Ctrl+Enter only, never Cmd+S.
+  const fReschedule = useSheetFrame('form', { visible: !!rescheduleTask, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!rescheduleTask, submitReschedule, { saveKey: false });
 
   if (!payload) {
     // v2.4 (audit Item 6) — Distinguish "snapshot still loading" from
@@ -447,11 +455,11 @@ export default function SharedScheduleScreen() {
       <Modal
         visible={!!rescheduleTask}
         transparent
-        animationType="slide"
+        animationType={fReschedule.animationType}
         onRequestClose={() => setRescheduleTask(null)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.modalBackdrop, fReschedule.overlay]}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fReschedule.card]}>
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>Why do you need to reschedule?</Text>
@@ -472,15 +480,15 @@ export default function SharedScheduleScreen() {
               multiline
               autoFocus
             />
-            <View style={styles.modalActions}>
+            <View style={[styles.modalActions, fReschedule.footer]}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnSecondary]}
+                style={[styles.modalBtn, styles.modalBtnSecondary, fReschedule.footerButton]}
                 onPress={() => setRescheduleTask(null)}
               >
                 <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
+                style={[styles.modalBtn, styles.modalBtnPrimary, fReschedule.footerButton]}
                 onPress={submitReschedule}
                 activeOpacity={0.85}
               >
