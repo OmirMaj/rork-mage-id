@@ -62,7 +62,7 @@ export function clockInButton(pickedCount: number, hasJob: boolean): ClockInButt
 /** "Clock in N" on the chip that picks everyone. */
 export function allCrewChipLabel(availableCount: number, allPicked: boolean): string {
   if (availableCount === 0) return 'Nobody left to clock in';
-  return allPicked ? `Clear all ${availableCount}` : `All ${availableCount} on this job`;
+  return allPicked ? `Clear all ${availableCount}` : `All ${availableCount} on this project`;
 }
 
 /**
@@ -78,7 +78,7 @@ export function splitAlreadyOnClock<M extends CrewPickMember>(
   const alreadyOn: M[] = [];
   for (const m of members) (onClock.has(m.id) ? alreadyOn : go).push(m);
   const note = alreadyOn.length === 0 ? null
-    : `${listNames(alreadyOn.map(m => m.name))} ${alreadyOn.length === 1 ? 'is' : 'are'} already on the clock, so ${alreadyOn.length === 1 ? 'he was' : 'they were'} left out — a second shift is paid twice.`;
+    : `${listNames(alreadyOn.map(m => m.name))} ${alreadyOn.length === 1 ? 'is' : 'are'} already on the clock, so they were left out — a second shift is paid twice.`;
   return { go, alreadyOn, note };
 }
 
@@ -103,7 +103,7 @@ export function batchLapsedText(
     lines.push(`${m.name}: ${expired.map(f => `${f.type} (expired ${formatCalendarDay(f.expiresDate, { month: 'short', day: 'numeric' }) || f.expiresDate})`).join(', ')}`);
   }
   if (lines.length === 0) return null;
-  const head = lines.length === 1 ? '1 worker in this batch has a lapsed card.' : `${lines.length} workers in this batch have a lapsed card.`;
+  const head = lines.length === 1 ? '1 crew member you picked has a lapsed card.' : `${lines.length} crew members you picked have a lapsed card.`;
   return { names, ids, message: `${head}\n\n${lines.join('\n')}\n\nClock them in anyway, or leave them out?` };
 }
 
@@ -202,6 +202,6 @@ export function planBatchClockOut(input: {
     const p = outTimeProblem(e, input.outMs, input.nowMs);
     if (p) { problem = n === 1 ? p : `${e.workerName}: ${p}`; break; }
   }
-  const message = `Ends ${n === 1 ? `${targets[0].workerName}'s shift` : `the shifts of ${listNames(targets.map(e => e.workerName))}`} on ${input.jobName} at ${at || 'the time you enter'}. Each keeps its own hours, and a running break is taken off. Shifts on other jobs, your team's, and missed clock-outs are not touched.`;
+  const message = `Ends ${n === 1 ? `${targets[0].workerName}'s shift` : `the shifts of ${listNames(targets.map(e => e.workerName))}`} on ${input.jobName} at ${at || 'the time you enter'}. Each keeps its own hours, and a running break is taken off. Shifts on other projects, your team's, and missed clock-outs are not touched.`;
   return { targets, problem, title, message };
 }

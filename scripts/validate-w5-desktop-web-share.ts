@@ -128,12 +128,19 @@ console.log('\n#54 /waiting-on logs a chase only for what actually left:');
   const code = src.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
   ok('the screen no longer calls Share.share itself', !/Share\.share\(/.test(code),
     'a direct Share.share records the chase on a resolve, and iOS resolves on dismiss');
-  ok('it goes through shareText', /const outcome = await shareText\(\{ message \}\);/.test(code));
+  // UX wave A7 moved the send verbatim to utils/chaseNudge sendNudge (so the
+  // desktop dock chases the same way); /waiting-on records only the channel
+  // it resolves. The pins follow the code there.
+  const nudge = read('utils/chaseNudge.ts').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  ok('it goes through shareText', /outcome = await deps\.shareText\(\{ message \}\)/.test(nudge)
+    && /import \{[^}]*\bsendNudge as sendChaseNudge\b[^}]*\} from '@\/utils\/chaseNudge'/.test(code)
+    && /await sendChaseNudge\(/.test(code) && /\bshareText,/.test(code));
   ok("a cancel returns before anything is recorded",
-    /if \(outcome === 'cancelled'\) return;/.test(code)
-    && code.indexOf("if (outcome === 'cancelled') return;") < code.indexOf("recordChase(holdId, projectId, 'share', message)"));
-  ok("'shared' records a share chase", /if \(outcome === 'shared'\) \{\s*recordChase\(holdId, projectId, 'share', message\);/.test(code));
-  ok("'copied' records a clipboard chase", /if \(outcome === 'copied'\) recordChase\(holdId, projectId, 'clipboard', message\);/.test(code));
+    /if \(outcome === 'cancelled'\) return null;/.test(nudge)
+    && nudge.indexOf("if (outcome === 'cancelled') return null;") < nudge.indexOf("if (outcome === 'shared') return 'share';")
+    && /if \(via\) recordChase\(holdId, projectId, via, message\);/.test(code));
+  ok("'shared' records a share chase", /if \(outcome === 'shared'\) return 'share';/.test(nudge));
+  ok("'copied' records a clipboard chase", /outcome === 'copied' \? 'clipboard'/.test(nudge));
   ok('the duplicate canWebShare / clipboard fallback is gone', !/canWebShare/.test(code) && !/copyToClipboard\(/.test(code));
 }
 

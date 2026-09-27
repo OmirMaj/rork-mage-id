@@ -65,6 +65,7 @@ import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
 import { movePaletteSelection } from '@/utils/paletteRows';
 import { pickDefaultProjectId } from '@/utils/defaultProjectId';
+import { statusLabel } from '@/utils/projectStage';
 import { alwaysPicksJob, fieldGroupFirst, moneyRowsHidden, newJobThenFor, pickerRank, sortJobsForPicker, type NewJobThen } from '@/utils/uxDoors';
 import { SOURCE_PROJECT, UX_PARAM, subPortalSetupHref } from '@/utils/uxRoutes';
 
@@ -136,9 +137,9 @@ const OPTIONS: CreateOption[] = [
   // action, not on a list.
   { label: 'Daily Report', subtitle: 'What got done today on site', Icon: MageDailyReport, href: '/daily-report', feature: 'daily-report', category: 'field', keywords: ['dfr', 'log'], scoped: true },
   { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: MagePunch, href: '/punch-list', feature: 'punch-list', category: 'field', keywords: ['punch list'], scoped: true },
-  { label: 'Clock in', subtitle: 'Clock the crew in on this job', Icon: Clock, href: '/time-tracking', feature: 'time-tracking', category: 'field', keywords: ['time', 'crew', 'hours', 'timesheet', 'payroll'], scoped: true, extraParams: { [UX_PARAM.clockIn]: '1' } },
+  { label: 'Clock in', subtitle: 'Clock the crew in on this project', Icon: Clock, href: '/time-tracking', feature: 'time-tracking', category: 'field', keywords: ['time', 'crew', 'hours', 'timesheet', 'payroll'], scoped: true, extraParams: { [UX_PARAM.clockIn]: '1' } },
   { label: 'Delivery arrived', subtitle: 'A truck showed up — log it with the ticket', Icon: Truck, href: '/deliveries', feature: 'deliveries', category: 'field', keywords: ['delivery', 'material', 'truck', 'ticket', 'received', 'supplier'], scoped: true, extraParams: { [UX_PARAM.arrived]: '1' } },
-  { label: 'Code check', subtitle: 'Check the work against code for this job', Icon: ShieldCheck, href: '/(tabs)/construction-ai', feature: 'construction-ai', category: 'field', keywords: ['code', 'inspection', 'inspector', 'building code'], scoped: true, extraParams: { [UX_PARAM.source]: SOURCE_PROJECT } },
+  { label: 'Code check', subtitle: 'Check the work against code for this project', Icon: ShieldCheck, href: '/(tabs)/construction-ai', feature: 'construction-ai', category: 'field', keywords: ['code', 'inspection', 'inspector', 'building code'], scoped: true, extraParams: { [UX_PARAM.source]: SOURCE_PROJECT } },
   { label: 'Send lineup', subtitle: 'Text tomorrow\'s lineup to the crew and subs', Icon: CalendarCheck, href: '/tomorrow-lineup', feature: 'tomorrow-lineup', category: 'field', keywords: ['lineup', 'tomorrow', 'crew text', 'dispatch'], scoped: true },
 
   // Documentation
@@ -601,7 +602,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>{sb.companyName}</Text>
                       <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
-                        {[onJob.has(sb.id) ? 'On this job' : null, sb.trade, sb.contactName].filter(Boolean).join(' · ') || 'Sub'}
+                        {[onJob.has(sb.id) ? 'On this project' : null, sb.trade, sb.contactName].filter(Boolean).join(' · ') || 'Sub'}
                       </Text>
                     </View>
                     <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -640,10 +641,10 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[Type.headline, { color: themeColors.accent }]} numberOfLines={1}>
-                      {defaultJob ? 'New job instead' : 'New job'}
+                      {defaultJob ? 'New project instead' : 'New project'}
                     </Text>
                     <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
-                      {newJobThenFor(pickFor.label) ? `Set up the job, then its ${pickFor.label.toLowerCase()}` : 'Set up the job first'}
+                      {newJobThenFor(pickFor.label) ? `Set up the project, then its ${pickFor.label.toLowerCase()}` : 'Set up the project first'}
                     </Text>
                   </View>
                   <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -670,7 +671,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                         {lead && p.id === lead.id ? `${pickFor.label} for ${p.name}` : p.name}
                       </Text>
                       <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
-                        {lead && p.id === lead.id ? `Current job · ${p.status.replace(/_/g, ' ')}` : p.status.replace(/_/g, ' ')}
+                        {lead && p.id === lead.id ? `Current project · ${statusLabel(p.status)}` : statusLabel(p.status)}
                       </Text>
                     </View>
                     <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />

@@ -3,27 +3,27 @@
 exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (a) discover/bids 1`] = `
 {
   "lines": 596,
-  "sha256": "5b91f2e685573921bb95acdba3559118eba1562feda2e32fbadb76a44b9fa4ae",
+  "sha256": "5d78c6bc7aa114460d805ad201dbef11d86170f725014c5c9cef6c3abdcac9ab",
 }
 `;
 
 exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (b) discover/companies 1`] = `
 {
   "lines": 519,
-  "sha256": "79362adab671f8a57710ec3efe9e6d40702d1b0c8a5f98b55900abd1230e878c",
+  "sha256": "9f22e9c03e0a2960e3a18f2516303be52d02345ebfafd2b9c6139d40cdf5ba83",
 }
 `;
 
 exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (c) discover/hire 1`] = `
 {
   "lines": 453,
-  "sha256": "23832cfc69d03b2b16ccfc109a6153df087b704e4482e8f6d98ff694d7e22d5e",
+  "sha256": "c39e83e7254a34868261acf38eefbf989a96aac93e0c52d04f966a5986a7312f",
 }
 `;
 
 exports[`slick3 landing golden — at rest nothing changes (390 × 844 iOS) (d) mage-id-bids 1`] = `
 {
   "lines": 492,
-  "sha256": "e5ec156fae50c1795158a9a156e00d6af16a274866b9977015be08bc2b7401ca",
+  "sha256": "4623deee8c2656c211ed55b2134b4593134fab888dc01c192217dfa59f75f96f",
 }
 `;

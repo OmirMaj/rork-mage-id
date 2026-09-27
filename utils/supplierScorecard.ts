@@ -35,6 +35,7 @@
 
 import type { Delivery } from '@/utils/deliverySchedule';
 import { parseLocalDate } from '@/utils/deliverySchedule';
+import { isUnplannedArrival } from '@/utils/deliveryArrival';
 
 export type SupplierGrade = 'A' | 'B' | 'C' | 'D' | 'F';
 export type SupplierConfidence = 'low' | 'medium' | 'high';
@@ -163,7 +164,12 @@ export function computeSupplierScorecards(input: SupplierScorecardInput): Suppli
   const cards: SupplierScorecard[] = [];
 
   for (const [supplierKey, acc] of byKey) {
-    const settled = acc.deliveries.filter(d => d.status === 'delivered');
+    // A load logged when it arrived ("It's here now") was never promised a day:
+    // its expectedDate is only the arrival day, because the column is NOT NULL.
+    // It gives no slip, no confirmation and no on-time credit. Its receipt still
+    // counts toward damage below, since that load really was inspected.
+    const settled = acc.deliveries.filter(d => d.status === 'delivered' && !isUnplannedArrival(d));
+    const unplanned = acc.deliveries.filter(d => isUnplannedArrival(d)).length;
     const slips = settled.map(slipDays).filter((n): n is number => n !== null);
     const late = slips.filter(n => n > 0);
     const damaged = acc.receipts.filter(r => r.hasDamage).length;
@@ -191,7 +197,9 @@ export function computeSupplierScorecards(input: SupplierScorecardInput): Suppli
               ? `Every one of ${slips.length} deliveries landed on or before its date`
               : `${late.length} of ${slips.length} deliveries late, averaging ${
                   Math.round((late.reduce((s, n) => s + n, 0) / late.length) * 10) / 10} days`)
-          : `Only ${slips.length} settled ${slips.length === 1 ? 'delivery' : 'deliveries'} — need ${MIN_DELIVERIES_TO_SCORE} to judge`,
+          : settled.length === 0 && unplanned > 0
+            ? `${unplanned} ${unplanned === 1 ? 'load was logged when it arrived' : 'loads were logged when they arrived'}, with no date set ahead`
+            : `Only ${slips.length} settled ${slips.length === 1 ? 'delivery' : 'deliveries'} — need ${MIN_DELIVERIES_TO_SCORE} to judge`,
       });
     }
 

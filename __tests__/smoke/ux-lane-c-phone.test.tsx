@@ -319,7 +319,7 @@ describe('Lane C golden — the phone (390 × 844 iOS)', () => {
     expect(mockAlerts.length).toBe(1);
     // No bill-to and no portal invitee on the fixture job: nobody is invented.
     expect(mockAlerts[0].title).toBe('Send 2 reminders?');
-    expect(mockAlerts[0].message).toContain('No client email on file for invoice #21, #22');
+    expect(mockAlerts[0].message).toContain('No client email on file for invoices #21, #22');
   });
 
   it('(o) behaviour: an overdue invoice opens on the late card; a paid one does not', async () => {

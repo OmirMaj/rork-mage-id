@@ -94,4 +94,4 @@ export function pickDefaultProjectId(input: DefaultProjectInput): string | null 
 /** The line a blocked primary button shows when there is no default and the
  *  user has not picked yet (B1 "Clock in", A3 "Create note"). One string so
  *  every lane says the same thing. */
-export const PICK_JOB_FIRST = 'Pick the job first';
+export const PICK_JOB_FIRST = 'Pick the project first';

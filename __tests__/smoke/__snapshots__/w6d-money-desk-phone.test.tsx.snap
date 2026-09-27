@@ -2,22 +2,22 @@
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (f) /payments, populated 1`] = `
 {
-  "lines": 518,
-  "sha256": "18a4c258624e6c85ddbfacb204d7001578c37294d815362289a69d811f36a481",
+  "lines": 539,
+  "sha256": "c7459e341624627904212e329a3531929dc607f97714741c1ac155353e588696",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (g) /payments, Pending then Completed 1`] = `
 {
-  "lines": 425,
-  "sha256": "9074f4f7e993768c314e0039de8a07810cb9cb76b29cca7f9ac14c430c6e1800",
+  "lines": 446,
+  "sha256": "7c40ddff3e48214be49299cafc63a1da48f33f3d412803de24582ac87bc34a42",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (g) /payments, Pending then Completed 2`] = `
 {
-  "lines": 454,
-  "sha256": "e8c0b814e155555830bf0a2f0b28dc86b9d76b74820b5e4c5a9e0cdbfdb1fec1",
+  "lines": 475,
+  "sha256": "38de541eecb71bbd24469ae5d2a80b03ae3ac4c5f1fde7e6244b54e2efaa7e56",
 }
 `;
 
@@ -30,36 +30,36 @@ exports[`lane M2 golden — the phone (390 × 844 iOS) (h) /payments, empty 1`] 
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (i) /lien-waivers, four waivers 1`] = `
 {
-  "lines": 713,
-  "sha256": "62b17fcec1ba565c6ca3edaff25eaccd0054330500288f332f2df5c2cd9503e9",
+  "lines": 724,
+  "sha256": "64c0a5fc0d70fcf81e19168f78f48a36fed2e3d0083f718d2bbfbfe02793c7e1",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (j) /lien-waivers, a failed read with a cache (the stale banner) 1`] = `
 {
-  "lines": 600,
-  "sha256": "ff72ad8920ea7985b55a4e538fb3a4df87aadffe6f064c016fe762513edca849",
+  "lines": 611,
+  "sha256": "3c326e2127337c424923e996e1a2201c79237e9e96eea00f6e283dd597cd79ea",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (k) /lien-waivers, a failed read without a cache 1`] = `
 {
-  "lines": 449,
-  "sha256": "65d5ec4eee7884685f6fea7e963302fd16cda190cd5debeaab4f067889e29d1c",
+  "lines": 460,
+  "sha256": "8e3e7fa1213d76f1fe14a014b217ce13c51fbf5aa6db8b6012480f4ec2392052",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (l) /invoice, a draft with 3 lines 1`] = `
 {
   "lines": 1012,
-  "sha256": "211151a02c62a49439cea59f795321321eb0e7dbf4aab5ca703af092ab932209",
+  "sha256": "a6ab933455a00398af4704844ac69a4fab80f79fa53e0d3c1a9160ce0f46c307",
 }
 `;
 
 exports[`lane M2 golden — the phone (390 × 844 iOS) (m) /invoice, sent with a pay link and a balance (the ONE intended delta) 1`] = `
 {
   "lines": 1025,
-  "sha256": "8922758fc0362f67d0560f7ccf9c9711a2350a9d3236c4455d3adfdd2c5cd867",
+  "sha256": "c25653ed69b1043a3011e8bee8ed46c42bfc2113acb589ad1eaa46ff5b858843",
 }
 `;
 

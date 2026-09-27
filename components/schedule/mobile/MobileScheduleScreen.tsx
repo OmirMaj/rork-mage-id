@@ -41,6 +41,7 @@ import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskM
 import { WeekStrip } from './WeekStrip';
 import { MobileGantt } from './MobileGantt';
 import { MobileScheduleList } from './MobileScheduleList';
+import { MobileTomorrowCard } from './MobileTomorrowCard';
 import { TaskDetailSheet } from './TaskDetailSheet';
 import { MonthCalendarSheet } from './MonthCalendarSheet';
 import { ExportCenterSheet } from './ExportCenterSheet';
@@ -1567,6 +1568,13 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
                 <Text style={styles.copilotBarText} numberOfLines={1}>Tell me what to change</Text>
               </TouchableOpacity>
             )}
+            {/* UX wave B5 on the phone: what is on the next working day, with
+                the lineup one tap away. An undated schedule has no calendar
+                day to name, so the card waits for a start date (the banner
+                above already asks for one). */}
+            {!isUndated && activeSchedule ? (
+              <MobileTomorrowCard projectId={selectedProject.id} schedule={activeSchedule} tasks={tasks} />
+            ) : null}
             {/* The timeline is a CALENDAR drawing — its columns are dates and
                 its today-line is a date. With no anchor every column would be
                 counted off from today, so the toggle is withheld and the list

@@ -851,8 +851,8 @@ function ContractScreenInner() {
       const state = portalDeliveryState(p, userIdRef.current);
       if (state === 'collaborator') {
         showAlert(
-          'Only the job\'s owner can send this',
-          'The client portal\'s signing link belongs to the account that owns this job, so the contract can\'t be emailed from yours. Ask the owner to sign and send it, or use Sign together now if the homeowner is with you.',
+          'Only the project owner can send this',
+          'The client portal\'s signing link belongs to the account that owns this project, so the contract can\'t be emailed from yours. Ask the project owner to sign and send it, or use Sign together now if the client is with you.',
         );
         return;
       }
@@ -1094,7 +1094,7 @@ function ContractScreenInner() {
           // that did not go out.
           switch (portalDeliveryState(project, user?.id ?? null)) {
             case 'collaborator':
-              emailNote = ' Note: only the job\'s owner holds this portal\'s signing link, so nothing was emailed — ask the owner to share it from Client Portal.';
+              emailNote = ' Only the project owner holds this portal\'s signing link, so nothing was emailed. Ask them to share it from the client portal.';
               break;
             case 'no_email':
               emailNote = ' Note: no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.';
@@ -1165,7 +1165,7 @@ function ContractScreenInner() {
     if (!c?.id || !p || c.status !== 'sent') return;
     const state = portalDeliveryState(p, user?.id ?? null);
     if (state === 'collaborator') {
-      showAlert('Only the job\'s owner can send this', 'The client portal\'s signing link belongs to the account that owns this job.');
+      showAlert('Only the project owner can send this', 'The client portal\'s signing link belongs to the account that owns this project.');
       return;
     }
     if (state !== 'ready') {
@@ -1193,17 +1193,17 @@ function ContractScreenInner() {
     setDelivery({ contractId: c.id, d: marker });
     if (user?.id) void AsyncStorage.setItem(contractDeliveryKey(c.id), stampContractDelivery(user.id, marker)).catch(() => undefined);
     if (sent > 0) nailIt(`Emailed the portal link to ${sent} recipient${sent === 1 ? '' : 's'}`);
-    else showAlert('Still not delivered', 'The email service did not accept it. Copy the link and text it to the homeowner, or try again in a minute.');
+    else showAlert('Still not delivered', 'The email service did not accept it. Copy the link and text it to the client, or try again in a minute.');
   }, [emailContractLink, user?.id]);
 
   const copyContractLink = useCallback(async () => {
     const url = portalShareUrl(projectRef.current?.clientPortal);
     if (!url) {
-      showAlert('No signing link yet', 'This job\'s client portal has no signing link yet. Open Client Portal once to finish it, then copy the link here.');
+      showAlert('No signing link yet', 'This project\'s client portal has no signing link yet. Open the client portal once to finish it, then copy the link here.');
       return;
     }
     const ok = await copyToClipboard(url);
-    showAlert(ok ? 'Copied' : 'Copy failed', ok ? 'The homeowner\'s signing link is on your clipboard — text or email it to them.' : 'Could not copy the link. Open Client Portal to share it from there.');
+    showAlert(ok ? 'Copied' : 'Copy failed', ok ? 'The client\'s signing link is on your clipboard — text or email it to them.' : 'Couldn\'t copy the link. Open the client portal to share it from there.');
   }, []);
 
   // What the ask does after it unblocks delivery: open the pad (Sign & send)
@@ -1231,11 +1231,11 @@ function ContractScreenInner() {
       const now = portalDeliveryState(p, user?.id ?? null);
       if (now === 'ready') continueAfterAsk(ask.then, p);
       else if (now !== 'no_signing_key') setDeliveryAsk({ ...ask, state: now });
-      else showAlert('Still getting it ready', 'The signing link has not come back from the server yet. Open Client Portal once — it finishes the link — then tap Sign & send again.');
+      else showAlert('Still getting it ready', 'The signing link isn\'t ready yet. Open the client portal once to finish it, then tap Sign & send again.');
       return;
     }
     if (!isUsableEmail(ask.email)) {
-      showAlert('Check the email', 'Type the address the homeowner reads, like name@example.com.');
+      showAlert('Check the email', 'Type the address the client reads, like name@example.com.');
       return;
     }
     const portal = p.clientPortal;
@@ -1261,7 +1261,7 @@ function ContractScreenInner() {
         setDeliveryAsk(null);
         showAlert(
           'Set up the client portal once',
-          `${ask.email} is saved on this job. The homeowner signs through the client portal, which isn't set up for this job yet — set it up (it shows them the schedule, invoices, change orders and photos), then come back and tap Sign & send.`,
+          `${ask.email} is saved on this project. The client signs through the client portal, which isn't set up for this project yet. Set it up (it shows them the schedule, invoices, change orders and photos), then come back and tap Sign & send.`,
           [
             { text: 'Not now', style: 'cancel' },
             { text: 'Set up the portal', onPress: () => router.push({ pathname: '/client-portal-setup', params: { id: p.id } }) },
@@ -1331,7 +1331,7 @@ function ContractScreenInner() {
       togetherRecordRef.current = false;
       nailIt(together && draft.method === 'in_person'
         ? 'Signed by both of you'
-        : draft.method === 'paper' ? 'Paper signature recorded' : 'Homeowner signature recorded');
+        : draft.method === 'paper' ? 'Paper signature recorded' : 'Client signature recorded');
     } finally {
       setRecording(false);
     }
@@ -2123,8 +2123,8 @@ function ContractScreenInner() {
               <Text style={[styles.statusBannerTitle, { color: themeColors.warningLabel }]}>Signed by you, not delivered</Text>
               <Text style={styles.statusBannerBody}>
                 {contractDelivery.reason === 'send_failed'
-                  ? 'The email to the homeowner did not go out. Nothing reached them yet. Try again, or copy the signing link and text it.'
-                  : 'Nothing was emailed to the homeowner. Fix what is missing and try again, or copy the signing link and text it.'}
+                  ? 'The email to the client did not go out. Nothing reached them yet. Try again, or copy the signing link and text it.'
+                  : 'Nothing was emailed to the client. Fix what is missing and try again, or copy the signing link and text it.'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Button
@@ -2150,11 +2150,11 @@ function ContractScreenInner() {
           <View style={styles.statusBanner} testID="contract-signed-by-you">
             <FileSignature size={16} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusBannerTitle}>Signed by you — waiting on the homeowner</Text>
+              <Text style={styles.statusBannerTitle}>Signed by you — waiting on the client</Text>
               <Text style={styles.statusBannerBody}>
                 {portalDeliveryState(project, user?.id ?? null) === 'ready'
                   ? 'They can review and counter-sign from their client portal link. Until then this contract is read-only. If they signed in person or on paper, record it here so the deposit can be billed.'
-                  : 'This device has no record of the portal link reaching them. Share it from Client Portal, or if they signed in person or on paper, record it here so the deposit can be billed.'}
+                  : 'This device has no record of the portal link reaching them. Share it from the client portal, or if they signed in person or on paper, record it here so the deposit can be billed.'}
               </Text>
             </View>
           </View>
@@ -2244,20 +2244,20 @@ function ContractScreenInner() {
         <Sheet
           visible
           onClose={() => setDeliveryAsk(null)}
-          title={deliveryAsk.state === 'no_signing_key' ? 'Getting the signing link ready…' : 'Where should we send it?'}
+          title={deliveryAsk.state === 'no_signing_key' ? 'Getting the signing link ready…' : 'Who gets the contract?'}
           subtitle={deliveryAsk.state === 'no_signing_key'
             ? undefined
-            : 'The homeowner gets a link to review and counter-sign. Nothing is signed or sent until you do.'}
+            : 'The client gets a link to review and counter-sign. Nothing is signed or sent until you do.'}
           primaryAction={{
             label: deliveryAsk.state === 'no_signing_key'
               ? 'Retry'
               : project?.clientPortal?.portalId && !project.clientPortal.enabled
-                ? 'Turn on the portal & continue'
-                : project?.clientPortal?.portalId ? 'Save & continue' : 'Save the email',
+                ? 'Turn on the portal and continue'
+                : project?.clientPortal?.portalId ? 'Save and continue' : 'Save the email',
             onPress: saveDeliveryAsk,
             loading: savingDeliveryAsk,
             disabled: deliveryAsk.state !== 'no_signing_key' && !isUsableEmail(deliveryAsk.email),
-            disabledReason: deliveryAsk.state !== 'no_signing_key' && !isUsableEmail(deliveryAsk.email) ? 'Type the homeowner\'s email first' : undefined,
+            disabledReason: deliveryAsk.state !== 'no_signing_key' && !isUsableEmail(deliveryAsk.email) ? 'Type the client\'s email first' : undefined,
           }}
           secondaryAction={{ label: 'Sign together now instead', onPress: signTogetherFromAsk }}
           testID="contract-delivery-ask"
@@ -2265,10 +2265,10 @@ function ContractScreenInner() {
           {deliveryAsk.state === 'no_signing_key' ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.statusBannerBody}>
-                This job&apos;s portal is on, but its secure signing link hasn&apos;t come back from the server yet. Open Client Portal once — it finishes the link — then come back and tap Retry.
+                This project&apos;s portal is on, but its secure signing link isn&apos;t ready yet. Open the client portal once to finish it, then come back and tap Retry.
               </Text>
               <Button
-                label="Open Client Portal"
+                label="Open client portal"
                 variant="secondary"
                 onPress={() => { const id = project?.id; setDeliveryAsk(null); if (id) router.push({ pathname: '/client-portal-setup', params: { id } }); }}
                 testID="contract-delivery-open-portal"
@@ -2291,8 +2291,8 @@ function ContractScreenInner() {
               {!portalDeliveryFacts(project, user?.id ?? null).portalOn && (
                 <Text style={styles.statusBannerBody} testID="contract-delivery-portal-line">
                   {project?.clientPortal?.portalId
-                    ? 'Sending turns on this job\'s client portal. Your client will see the schedule, invoices, change orders and photos there.'
-                    : 'This job has no client portal yet. The homeowner signs through it, and it shows them the schedule, invoices, change orders and photos. We\'ll save the email and take you to set it up.'}
+                    ? 'Sending turns on this project\'s client portal. Your client will see the schedule, invoices, change orders and photos there.'
+                    : 'This project has no client portal yet. The client signs through it, and it shows them the schedule, invoices, change orders and photos. Saving keeps the email and takes you to set it up.'}
                 </Text>
               )}
             </View>
@@ -2581,8 +2581,8 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName, inPers
           <Text style={styles.modalTitle}>{inPerson ? 'Your signature first' : 'Sign & send'}</Text>
           <Text style={styles.modalBody}>
             {inPerson
-              ? 'Sign below + type your full legal name. Nothing is emailed. Next, hand the phone to the homeowner to sign.'
-              : 'Sign below + type your full legal name. The contract becomes binding when the homeowner counter-signs in their portal.'}
+              ? 'Sign below and type your full legal name. Nothing is emailed. Next, hand the phone to the client to sign.'
+              : 'Sign below and type your full legal name. The contract becomes binding when the client counter-signs in their portal.'}
           </Text>
           <SignaturePad
             initialPaths={paths}

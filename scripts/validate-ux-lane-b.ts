@@ -71,7 +71,7 @@ eq('a pick that went on the clock drops out', livePicks(['a', 'z'], crew), ['a']
 eq('no job → disabled with PICK_JOB_FIRST', clockInButton(3, false), { label: 'Clock in', disabled: true, reason: PICK_JOB_FIRST });
 eq('job, nobody ticked → disabled', clockInButton(0, true).disabled, true);
 eq('job + 6 ticked → "Clock in 6"', clockInButton(6, true), { label: 'Clock in 6', disabled: false, reason: null });
-eq('chip label', allCrewChipLabel(6, false), 'All 6 on this job');
+eq('chip label', allCrewChipLabel(6, false), 'All 6 on this project');
 eq('chip label when all picked', allCrewChipLabel(6, true), 'Clear all 6');
 const split = splitAlreadyOnClock(crew, new Map([['b', { projectName: 'Other job' }]]));
 eq('already-on-clock worker is left out', split.go.map(m => m.id), ['a', 'c']);
@@ -81,7 +81,7 @@ const flag = (status: 'expired' | 'expiring', type: string): CertFlag => ({ cert
 const lapsed = batchLapsedText(crew, { a: [flag('expired', 'SST')], b: [flag('expiring', 'OSHA 30')], c: [flag('expired', 'OSHA 10'), flag('expired', 'SST')] });
 ok('ONE confirm lists every expired card in the batch', !!lapsed && lapsed.names.join(',') === 'Ava,Carl' && /Ava: SST/.test(lapsed.message) && /Carl: OSHA 10 .*, SST/.test(lapsed.message), lapsed?.message);
 ok('an expiring (not expired) card is not asked about', !!lapsed && !/Ben/.test(lapsed.message));
-ok('the confirm counts them', !!lapsed && /^2 workers in this batch have a lapsed card/.test(lapsed.message));
+ok('the confirm counts them', !!lapsed && /^2 crew members you picked have a lapsed card/.test(lapsed.message));
 eq('nobody lapsed → no confirm', batchLapsedText(crew, {}), null);
 eq('names', listNames(['A', 'B', 'C']), 'A, B and C');
 
@@ -109,7 +109,7 @@ eq('"3:30 pm" is today at 15:30', new Date(outMs).getHours() * 60 + new Date(out
 ok('garbage time is NaN', Number.isNaN(batchOutMs('lunch', NOW)));
 const okPlan = planBatchClockOut({ ownEntries: own, projectId: 'P', jobName: 'Henderson', outMs, nowMs: NOW, alertHours: 8 });
 ok('a valid time: no problem, the count and time in the title', okPlan.problem === null && okPlan.title === 'Clock out 2 at 3:30 pm?', `${okPlan.title} / ${okPlan.problem}`);
-ok('…the confirm says other jobs are not touched', /other jobs/.test(okPlan.message));
+ok('…the confirm says other projects are not touched', /other projects/.test(okPlan.message));
 ok('…and says a running break is taken off (not "break off")', /a running break is taken off/.test(okPlan.message) && !/break off/.test(okPlan.message));
 const future = planBatchClockOut({ ownEntries: own, projectId: 'P', jobName: 'Henderson', outMs: NOW + 2 * 3_600_000, nowMs: NOW, alertHours: 8 });
 ok('a future time is refused', !!future.problem && /later than now/.test(future.problem), future.problem ?? '');
@@ -289,6 +289,22 @@ ok('code check: Back names the job', /HiddenTabBackLink[\s\S]{0,300}backLabel/.t
 ok('code check: "Check a photo" opens CodeLookSheet', /code-check-photo/.test(CA) && /<CodeLookSheet/.test(CA));
 const PC = read('components/codeThread/ProjectCodeChecksCard.tsx');
 ok('job card: "Check a photo" beside "Code check this job"', /codethread-check-photo/.test(PC) && /<CodeLookSheet/.test(PC));
+
+// ── B5 on the phone ─────────────────────────────────────────────────────────
+// The iPhone's schedule tab is MobileScheduleScreen, which never mounts
+// TodayView, so the Tomorrow answer lives in MobileTomorrowCard there: the
+// same pure rule, the same schedule_gantt_pdf-gated door, locked with a reason.
+console.log('\nB5 Tomorrow on the phone:');
+{
+  const card = read('components/schedule/mobile/MobileTomorrowCard.tsx');
+  const screen = read('components/schedule/mobile/MobileScheduleScreen.tsx');
+  ok('phone: the schedule tab mounts MobileTomorrowCard with the tasks it shows', /<MobileTomorrowCard projectId=\{selectedProject\.id\} schedule=\{activeSchedule\} tasks=\{tasks\} \/>/.test(screen));
+  ok('phone: only on a dated schedule (an undated one has no day to name)', /\{!isUndated && activeSchedule \? \(\s*<MobileTomorrowCard/.test(screen));
+  ok('phone: the card reads tomorrowBlock (the same rule as TodayView)', /tomorrowBlock\(\{ \.\.\.schedule, tasks \}, new Date\(\)\)/.test(card));
+  ok('phone: the lineup door checks schedule_gantt_pdf through useProjectAccess', /useProjectAccess\(projectId\)/.test(card) && /access\.canAccess\('schedule_gantt_pdf'\)/.test(card));
+  ok('phone: the door goes to /tomorrow-lineup and shows only when there is something to send', /router\.push\(tomorrowLineupHref\(projectId\)\)/.test(card) && /\{block\.canSend \? \(/.test(card));
+  ok('phone: locked, it names the plan instead of disappearing', /testID="schedule-tomorrow-locked"/.test(card) && /is on the \$\{plan\} plan/.test(card));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

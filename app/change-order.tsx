@@ -3400,7 +3400,7 @@ function ChangeOrderInner({ projectIdOverride }: { projectIdOverride?: string })
                 <>
                   {!coClientOnFile && !sendRecipientName.trim() && !sendRecipientEmail.trim() ? (
                     <Text style={styles.numberNoteText} testID="co-no-client-on-file">
-                      {`${NO_CLIENT_ON_FILE} — add the client on the job once and every change order fills it in.`}
+                      {`${NO_CLIENT_ON_FILE}. Add the client on the project once and every change order fills it in.`}
                     </Text>
                   ) : null}
                   <Text style={styles.modalFieldLabel}>Approver Name</Text>

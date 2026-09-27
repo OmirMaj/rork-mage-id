@@ -473,7 +473,7 @@ function Header({
         {subtitle ? <Text style={styles.headerSub} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {onArrived ? (
-        <TouchableOpacity onPress={onArrived} style={styles.arrivedBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="It's here now — log a delivery that just arrived" testID="deliveries-arrived">
+        <TouchableOpacity onPress={onArrived} style={styles.arrivedBtn} hitSlop={6} accessibilityRole="button" accessibilityLabel="It's here now. Log a delivery that just arrived" testID="deliveries-arrived">
           <PackageCheck size={16} color={t.accentLabel} strokeWidth={1.9} />
           <Text style={styles.arrivedBtnText}>Here now</Text>
         </TouchableOpacity>
@@ -820,7 +820,7 @@ function ArrivedSheet({
       const uri = res.assets[0].uri;
       setForm(p => ({ ...p, ticketUri: uri }));
     } catch (e) {
-      showAlert('Couldn\u2019t open the camera', String((e as Error)?.message ?? e));
+      showAlert('Couldn\u2019t open the camera', 'Try again.');
     }
   }, []);
 
@@ -888,7 +888,7 @@ function ArrivedSheet({
                   style={styles.input}
                   value={form.what}
                   onChangeText={(x) => setForm(p => ({ ...p, what: x }))}
-                  placeholder="40 sheets 5/8 board, 2 pallets block…"
+                  placeholder="40 sheets 5/8 board, 2 pallets block"
                   placeholderTextColor={t.textMuted}
                   testID="arrived-what"
                 />

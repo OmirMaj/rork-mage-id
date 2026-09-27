@@ -780,10 +780,10 @@ function SubPortalSetupEditor() {
       <View style={styles.loadingContainer}>
         <Stack.Screen options={{ title: 'Sub Portal' }} />
         {!project ? (
-          <Text style={styles.loadingText}>This job isn&apos;t on this device — it may have been deleted or not synced yet.</Text>
+          <Text style={styles.loadingText}>This project isn&apos;t on this device. It may have been deleted, or it hasn&apos;t loaded yet.</Text>
         ) : jobSubs.length === 0 ? (
           <Text style={styles.loadingText} testID="sub-portal-no-subs">
-            {`No subs on ${project.name} yet. Add one from Subs (or sign a subcontract on the job), then invite them here.`}
+            {`No subs on ${project.name} yet. Add one from Subs (or sign a subcontract on the project), then invite them here.`}
           </Text>
         ) : (
           <View style={{ alignSelf: 'stretch', gap: 10 }} testID="sub-portal-pick-sub">

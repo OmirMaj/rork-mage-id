@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
+  proposalLockedCopy,
   nextBillableMilestone, estimateNotSent, approvedUnbilledChangeOrders, subPaymentsMissingWaiver,
   overdueRemindRows, remindAllConfirm, overdueCardLine, waiverSubOptions, waiverAmountSeed,
   remindGate, remindAllRows, remindLockedCopy,
@@ -220,12 +221,12 @@ console.log('\n4. waiver sub picker');
   }
   const s1 = waiverAmountSeed(opts[0], 'unconditional_final');
   ok('the final note names the recorded total as a total across every payment, and asks for the check',
-    s1.note.includes('$8,250.50') && s1.note.includes('recorded as paid') && s1.note.includes('across every payment') && s1.note.includes('final check this release is for'));
+    s1.note.includes('$8,250.50') && s1.note.includes('recorded as paid') && s1.note.includes('across every payment') && s1.note.includes('final check this lien waiver is for'));
   const sp = waiverAmountSeed(opts[0], 'conditional_partial');
-  ok('the progress note names the recorded total and asks for the check', sp.note.includes('$8,250.50') && sp.note.endsWith('Enter the amount of the check this release is for.'));
+  ok('the progress note names the recorded total and asks for the check', sp.note.includes('$8,250.50') && sp.note.endsWith('Enter the amount of the check this lien waiver is for.'));
   const s2 = waiverAmountSeed(opts[1], 'conditional_final');
   ok('no recorded payment → says so, and asks for the final check (never "the total paid through this date")',
-    s2.note.startsWith('No payment is recorded') && s2.note.includes('final check this release is for') && !/total paid/i.test(s2.note));
+    s2.note.startsWith('No payment is recorded') && s2.note.includes('final check this lien waiver is for') && !/total paid/i.test(s2.note));
   ok('no note ever asks for a total', TYPES.every(t => ![opts[0], opts[1]].some(o => /total paid through|enter the total/i.test(waiverAmountSeed(o, t).note))));
   const lw = read('app/lien-waivers.tsx');
   const pickBody = (lw.match(/const pickSub = \(o: WaiverSubOption\) => \{([\s\S]*?)\n  \};/) ?? [])[1] ?? '';
@@ -299,7 +300,7 @@ console.log('\n6. the screens');
     /if \(scopedProject\) \{\s*if \(contract !== undefined\) \{/.test(hero) && /nextBillableMilestone\(\{ contract, invoices: invScope/.test(hero));
 
   const wiz = read('app/estimate-wizard.tsx');
-  ok('C4: generating over an existing estimate asks first', /Replace this job\\'s estimate\?|Replace this job's estimate\?/.test(wiz) && /the current one is kept in Revisions/.test(wiz));
+  ok('C4: generating over an existing estimate asks first', /Replace this project\\'s estimate\?|Replace this project's estimate\?/.test(wiz) && /the current one is kept in Revisions/.test(wiz));
   ok('C4: the result offers Send proposal', /testID="wizard-send-proposal"/.test(wiz) && /proposalFromCurrentEstimate\(p\)/.test(wiz));
   const tko = read('app/takeoff-estimate.tsx');
   ok('C4: the takeoff save alert offers Open estimate / Send proposal / Stay here', /'Stay here'/.test(tko) && /'Open estimate'/.test(tko) && /'Send proposal'/.test(tko) && !/'Estimate saved',[\s\S]{0,200}text: 'OK'/.test(tko));
@@ -333,6 +334,26 @@ console.log('\n6. the screens');
   ok('C9: both point to the contract', /To lock it in, send the contract/.test(read('app/smart-proposal.tsx')) && /To lock it in, send the contract/.test(read('app/quick-quote.tsx')));
   const helper = read('utils/nextBillableMilestone.ts').replace(/\/\/.*$/gm, '');
   ok('the helper is pure', !/from 'react(-native)?'|AsyncStorage|supabase/.test(helper));
+}
+
+// C4 door lock: "Send proposal" opens the contract, a client-portal feature.
+// Locked, both doors say why BEFORE the revision snapshot, so a tap that goes
+// nowhere writes nothing (the plan's rule: a door checks its destination's gate).
+{
+  console.log('\nC4 — the Send proposal door checks client_portal first:');
+  const lock = proposalLockedCopy('pro');
+  ok('the lock names the plan', lock.title === 'Sending proposals is on the Pro plan' && /See plans/.test(lock.message));
+  const wiz = read('app/estimate-wizard.tsx');
+  const sp = wiz.slice(wiz.indexOf('const sendProposal = useCallback('), wiz.indexOf('}, [proposalOpen, requiredTierFor, getProject, updateProject, router]);'));
+  ok('wizard: proposalOpen reads canAccess(\'client_portal\')', /const proposalOpen = canAccess\('client_portal'\);/.test(wiz));
+  ok('wizard: a locked tap returns before the snapshot', sp.length > 0 && sp.indexOf('if (!proposalOpen)') > -1
+    && sp.indexOf('if (!proposalOpen)') < sp.indexOf('proposalFromCurrentEstimate(') && /router\.push\('\/paywall'\)/.test(sp));
+  ok('wizard: the locked button shows the Lock icon', /proposalOpen\s*\?\s*<Send size=\{18\}[\s\S]{0,120}:\s*<Lock size=\{18\}/.test(wiz));
+  const tk = read('app/takeoff-estimate.tsx');
+  const after = tk.slice(tk.indexOf('const afterSaveButtons = useCallback('), tk.indexOf('], [router, updateProject, canAccess, requiredTierFor]);'));
+  ok('takeoff: the after-save Send proposal checks client_portal before the snapshot', after.length > 0
+    && after.indexOf("if (!canAccess('client_portal'))") > -1
+    && after.indexOf("if (!canAccess('client_portal'))") < after.indexOf('proposalFromCurrentEstimate('));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

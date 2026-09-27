@@ -185,7 +185,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
   const explainLocked = useCallback((what: string) => {
     showAlert(
       `${what} is on the Pro plan`,
-      `Upgrade to ${what.toLowerCase()} from here. The row still opens the record.`,
+      `Upgrade to send invoice reminders from here. The row still opens the record.`,
       [
         { text: 'Not now', style: 'cancel' },
         { text: 'See plans', onPress: () => router.push('/paywall') },
@@ -251,7 +251,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
             const chase = buildChaseList({ rfis: [rfi], submittals: [], changeOrders: [], projects: project ? [project] : [], nowMs: Date.now() })
               .find(c => c.id === rfi.id);
             const message = chase?.nudge
-              ?? `Following up on RFI #${rfi.number} (${rfi.subject}) for ${project?.name ?? 'the job'} — we still need your answer to keep work moving.`;
+              ?? `Following up on RFI #${rfi.number} (${rfi.subject}) for ${project?.name ?? 'the project'} — we still need your answer to keep work moving.`;
             const via = await sendNudge(
               {
                 message,
@@ -263,7 +263,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
             );
             if (!via) return;
             await recordChaseToLog({ id: chaseLogId('rfi', rfi.id), projectId: rfi.projectId, via, message, at: new Date().toISOString() }, AsyncStorage);
-            nailIt(`Chase logged on Waiting On · RFI #${rfi.number}`);
+            nailIt(`Chase logged on Waiting on others · RFI #${rfi.number}`);
           },
         };
       }
@@ -278,7 +278,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
           const chase = buildChaseList({ rfis: [], submittals: [sub], changeOrders: [], projects: project ? [project] : [], nowMs: Date.now() })
             .find(c => c.id === sub.id);
           const message = chase?.nudge
-            ?? `Following up on submittal #${sub.number} (${sub.title}) for ${project?.name ?? 'the job'} — can you send back your review?`;
+            ?? `Following up on submittal #${sub.number} (${sub.title}) for ${project?.name ?? 'the project'} — can you send back your review?`;
           const via = await sendNudge(
             {
               message,
@@ -290,7 +290,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
           );
           if (!via) return;
           await recordChaseToLog({ id: chaseLogId('submittal', sub.id), projectId: sub.projectId, via, message, at: new Date().toISOString() }, AsyncStorage);
-          nailIt(`Chase logged on Waiting On · submittal #${sub.number}`);
+          nailIt(`Chase logged on Waiting on others · Submittal #${sub.number}`);
         },
       };
     }
@@ -517,7 +517,7 @@ function RailAttentionRow({ item, styles, colors, busy, onRowPress, actionFor }:
         disabled={busy}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={act.locked ? `${act.label} — not on your plan; tap to see why` : `${act.label}: ${item.message}`}
+        accessibilityLabel={act.locked ? `${act.label}. Not on your plan, tap to see why` : `${act.label}: ${item.message}`}
         testID={`rail-action-${item.id}`}
       >
         {act.locked ? <Lock size={11} color={colors.textMuted} strokeWidth={2} /> : null}

@@ -660,7 +660,7 @@ function TodayView({
           <View key={task.id} style={s.compactCard}>
             <View style={[s.compactDot, { backgroundColor: getPhaseColor(task.phase) }]} />
             <View style={s.compactInfo}>
-              <Text style={s.compactTitle} numberOfLines={1}>{task.title}{task.isMilestone ? ' — milestone' : ''}</Text>
+              <Text style={s.compactTitle} numberOfLines={1}>{task.title}{task.isMilestone ? ' · Milestone' : ''}</Text>
               {task.crew ? <Text style={s.compactMeta}>{task.crew}</Text> : null}
             </View>
           </View>

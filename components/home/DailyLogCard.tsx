@@ -89,10 +89,10 @@ export default function DailyLogCard() {
   const headline = owedToday > 0
     ? `${owedToday} ${owedToday === 1 ? 'job has' : 'jobs have'} no log for today.`
     : voiceToday > 0
-      ? `${voiceToday} ${voiceToday === 1 ? 'job has' : 'jobs have'} only a voice note for today. Finish it to file the day.`
+      ? `${voiceToday} ${voiceToday === 1 ? 'project has' : 'projects have'} only a voice note for today. Finish it to file the day.`
       : jobsWithGaps > 0
         ? gapHeadline
-        : `${voiceJobs} ${voiceJobs === 1 ? 'job has' : 'jobs have'} a voice note to finish.`;
+        : `${voiceJobs} ${voiceJobs === 1 ? 'project has' : 'projects have'} a voice note to finish.`;
 
   const visible = rows.slice(0, MAX_VISIBLE);
   const overflow = rows.length - visible.length;

@@ -90,7 +90,7 @@ console.log('\n5. source pins');
   ok('builds on isEligibleJob from utils/activeProject (no second eligibility rule)', /import \{ isEligibleJob \} from '@\/utils\/activeProject';/.test(src));
   ok('has no updatedAt ordering (the in-progress guess cannot creep back)', !/updatedAt\)|Date\.parse|updatedMs/.test(src.replace(/\/\/.*$/gm, '')));
   ok('never indexes projects[0]', !/projects\[0\]/.test(src.replace(/\/\/.*$/gm, '')));
-  ok('the blocked-button line is the plan\'s wording', PICK_JOB_FIRST === 'Pick the job first');
+  ok('the blocked-button line is the plan\'s wording', PICK_JOB_FIRST === 'Pick the project first');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

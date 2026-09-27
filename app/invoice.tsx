@@ -2876,9 +2876,9 @@ function InvoiceInner() {
                   saved invoice (reopened from any list) reads "Full Invoice"
                   rather than guess its kind. */}
               {isProgressType ? 'Progress draw'
-                : !existingInvoice && milestoneTrigger === 'on_final' ? 'Final bill'
-                  : !existingInvoice && milestoneTrigger === 'on_signing' ? 'Deposit bill'
-                    : 'Full Invoice'} #{nextInvoiceNumber}
+                : !existingInvoice && milestoneTrigger === 'on_final' ? 'Final invoice'
+                  : !existingInvoice && milestoneTrigger === 'on_signing' ? 'Deposit invoice'
+                    : 'Full invoice'} #{nextInvoiceNumber}
             </Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             {existingInvoice && statusColor && (

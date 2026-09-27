@@ -96,7 +96,9 @@ async function main() {
     out = await remindInvoice(base, harness({ success: false }).deps);
     eq('…or the fallback', out.message, REMIND_FAILED_FALLBACK);
     out = await remindInvoice(base, harness(new Error('network down')).deps);
-    eq('a send that throws is a failed outcome, never a crash', [out.kind, out.message], ['failed', 'network down']);
+    eq('a send that throws is a failed outcome, never a crash, and raw error text never reaches the alert', [out.kind, out.message], ['failed', REMIND_FAILED_FALLBACK]);
+    out = await remindInvoice(base, harness(new Error('This invoice was voided by the client portal owner.')).deps);
+    eq('…a thrown sentence written for a person is shown as it is', [out.kind, out.message], ['failed', 'This invoice was voided by the client portal owner.']);
     out = await remindInvoice(base, harness({ success: true, outcome: 'skipped', reason: 'no_recipient' }).deps);
     eq('no_recipient has its own kind and sentence', [out.kind, out.title, out.message], ['no_recipient', 'No reminder sent', REMIND_NO_RECIPIENT]);
     const last = 1_000_000_000_000 - 5 * 3_600_000;

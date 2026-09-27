@@ -1129,7 +1129,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           trade: m.trade,
         });
         if (!entry) {
-          showAlert('Couldn\u2019t clock in', `${project.name} hasn\u2019t synced to your account yet, so hours can\u2019t be filed against it. Try again once it has.`);
+          showAlert('Couldn\u2019t clock in', `${project.name} hasn\u2019t finished saving to your account yet, so hours can\u2019t be filed against it. Try again once it has.`);
           break;
         }
         made++;
@@ -1165,12 +1165,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // per job where he has 2+ open shifts — each names its job, none is guessed.
   const batchOutJobs = useMemo(
     () => batchClockOutJobs(entries, viewProjectId ?? selectedProjectId, nowMs, shiftAlertHours)
-      .map(j => ({ ...j, name: allProjects.find(p => p.id === j.projectId)?.name ?? 'this job' })),
+      .map(j => ({ ...j, name: allProjects.find(p => p.id === j.projectId)?.name ?? 'this project' })),
     [entries, viewProjectId, selectedProjectId, nowMs, shiftAlertHours, allProjects],
   );
   const [batchOutJobId, setBatchOutJobId] = useState<string | null>(null);
   const batchOutJobName = useMemo(
-    () => (batchOutJobId ? allProjects.find(p => p.id === batchOutJobId)?.name ?? 'this job' : 'this job'),
+    () => (batchOutJobId ? allProjects.find(p => p.id === batchOutJobId)?.name ?? 'this project' : 'this project'),
     [batchOutJobId, allProjects],
   );
   const [batchOutOpen, setBatchOutOpen] = useState(false);
@@ -1596,7 +1596,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             onPress={() => openBatchOut(job.projectId)}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={`Clock out everyone on ${job.name}, ${job.count} workers`}
+            accessibilityLabel={`Clock out everyone on ${job.name}, ${job.count} crew members`}
             testID={i === 0 ? 'time-tracking-clock-out-all' : `time-tracking-clock-out-all-${job.projectId}`}
           >
             <Square size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
@@ -2300,7 +2300,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>{batchOutPlan?.message ?? ''}</Text>
+            <Text style={styles.modalSubtitle}>{batchOutPlan ? batchOutPlan.message : ''}</Text>
             <View style={styles.rateRow}>
               <Text style={styles.rateTradeLabel}>Out at</Text>
               <View style={styles.rateInputWrap}>

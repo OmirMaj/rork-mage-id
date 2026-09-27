@@ -2677,7 +2677,7 @@ export default function ProjectDetailScreen() {
                 // The snapshot is a project write: a seat whose writes would
                 // not land (#92) is told why instead of losing it silently.
                 if (hubPerms.editBlockedReason) {
-                  showAlert("You can't start a proposal on this job", hubPerms.editBlockedReason);
+                  showAlert("You can't start a proposal on this project", hubPerms.editBlockedReason);
                   return;
                 }
                 const patch = snapshotPatch(project, 'manual');
@@ -2718,7 +2718,7 @@ export default function ProjectDetailScreen() {
                     testID="create-proposal-btn"
                   >
                     <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.revSaveBtnText}>Create Proposal</Text>
+                    <Text style={styles.revSaveBtnText}>Create proposal</Text>
                   </TouchableOpacity>
                   {older.length > 0 ? (
                     <TouchableOpacity
@@ -2729,7 +2729,7 @@ export default function ProjectDetailScreen() {
                       testID="create-proposal-older-btn"
                     >
                       <Layers size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
-                      <Text style={styles.crossLinkText}>From an older revision…</Text>
+                      <Text style={styles.crossLinkText}>From an older revision</Text>
                       <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ) : null}
@@ -4887,7 +4887,7 @@ export default function ProjectDetailScreen() {
           const actions: { key: string; label: string; Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; lock: string | null; onPress: () => void }[] = [
             { key: 'daily-report', label: 'Daily report', Icon: ClipboardList, lock: null, onPress: () => router.push(routeHref('/daily-report', { projectId: project.id })) },
             { key: 'photo', label: 'Photo', Icon: Camera, lock: photoLock, onPress: () => router.push(photoTriageHref(project.id)) },
-            { key: 'punch', label: 'Punch', Icon: CheckSquare, lock: punchLock, onPress: () => router.push(punchListNewHref(project.id)) },
+            { key: 'punch', label: 'Punch item', Icon: CheckSquare, lock: punchLock, onPress: () => router.push(punchListNewHref(project.id)) },
             { key: 'clock-in', label: 'Clock in', Icon: Clock, lock: clockLock, onPress: () => router.push(clockInHref(project.id)) },
           ];
           return (
@@ -4899,7 +4899,7 @@ export default function ProjectDetailScreen() {
                   onPress={a.onPress}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={a.lock ? `${a.label}, locked, ${a.lock}` : a.label}
+                  accessibilityLabel={a.lock ? `${a.label}. ${a.lock}` : a.label}
                   testID={`project-field-${a.key}-btn`}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
@@ -5342,7 +5342,7 @@ export default function ProjectDetailScreen() {
             // schedule or no estimate can still start one (same testIDs).
             field: [
               ...(!project.schedule ? [{ key: 'build-schedule', label: 'Build schedule', Icon: CalendarDays, testID: 'project-create-schedule-btn', onPress: buildSchedule }] : []),
-              { key: 'this-week', label: 'This Week', Icon: CalendarDays, testID: 'project-weekly-snapshot-btn', onPress: () => router.push(routeHref('/weekly-snapshot', { projectId: project.id })) },
+              { key: 'this-week', label: 'This week', Icon: CalendarDays, testID: 'project-weekly-snapshot-btn', onPress: () => router.push(routeHref('/weekly-snapshot', { projectId: project.id })) },
               { key: 'lineup', label: "Tomorrow's lineup", Icon: CalendarClock, testID: 'project-lineup-btn', lock: lineupLock, onPress: () => router.push(tomorrowLineupHref(project.id)) },
             ],
             money: hubPerms.showMoney ? [
@@ -5351,8 +5351,8 @@ export default function ProjectDetailScreen() {
               ...(hasAnyEstimate
                 ? [{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: () => router.replace(routeHref('/(tabs)/estimate/full', { projectId: project.id })) }]
                 : [{ key: 'create-estimate', label: 'Create estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: () => router.push(routeHref('/estimate-wizard', { projectId: project.id })) }]),
-              { key: 'cash-flow', label: 'Cash Flow', Icon: Wallet, testID: 'project-cash-flow-btn', onPress: () => router.push(routeHref('/cash-flow', { projectId: project.id })) },
-              { key: 'forecast', label: 'Payment Forecast', Icon: TrendingDown, testID: 'project-payment-forecast-btn', onPress: () => router.push(routeHref('/payment-predictions', { projectId: project.id })) },
+              { key: 'cash-flow', label: 'Cash flow', Icon: Wallet, testID: 'project-cash-flow-btn', onPress: () => router.push(routeHref('/cash-flow', { projectId: project.id })) },
+              { key: 'forecast', label: 'Payment forecast', Icon: TrendingDown, testID: 'project-payment-forecast-btn', onPress: () => router.push(routeHref('/payment-predictions', { projectId: project.id })) },
             ] : [],
           } : {};
 
@@ -5403,7 +5403,7 @@ export default function ProjectDetailScreen() {
                             onPress={r.onPress}
                             activeOpacity={0.7}
                             accessibilityRole="button"
-                            accessibilityLabel={r.lock ? `${r.label}, locked, ${r.lock}` : r.label}
+                            accessibilityLabel={r.lock ? `${r.label}. ${r.lock}` : r.label}
                             testID={r.testID}
                           >
                             <View style={[styles.sectionTileIcon, { backgroundColor: group.color + '15' }]}>

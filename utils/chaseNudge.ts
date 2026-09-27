@@ -236,7 +236,7 @@ export interface SendNudgeInput {
 }
 
 export const DID_YOU_SEND_TITLE = 'Did you send it?';
-export const DID_YOU_SEND_YES = 'Sent — log the chase';
+export const DID_YOU_SEND_YES = 'Log as sent';
 export const DID_YOU_SEND_NO = 'Not sent';
 
 /**

@@ -245,7 +245,7 @@ function TomorrowLineupInner() {
                     testID={`lineup-draft-${s.sub.id}`}
                   />
                   <Button
-                    label={route.kind === 'sms' ? `Text ${s.sub.name}` : 'Send…'}
+                    label={route.kind === 'sms' ? `Text ${s.sub.name}` : 'Send'}
                     onPress={() => { void send(s, text, key); }}
                     iconLeft={<Send size={15} color={Colors.textOnAccent} strokeWidth={1.75} />}
                     testID={`lineup-send-${s.sub.id}`}

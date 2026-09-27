@@ -616,7 +616,7 @@ function ConstructionAIScreenInner() {
       if (res.canceled || !res.assets[0]?.uri) return;
       setPhotoLookUri(res.assets[0].uri);
     } catch (e) {
-      showAlert('Couldn\u2019t open the camera', String((e as Error)?.message ?? e));
+      showAlert('Couldn\u2019t open the camera', 'Try again.');
     }
   }, [codeCheckProject]);
   // The NYC building record for the LINKED job (null project → unsupported, no
@@ -1928,11 +1928,11 @@ Never invent a section number you are unsure of — leave section empty and desc
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityState={{ disabled: !codeCheckProject }}
-              accessibilityHint={codeCheckProject ? undefined : 'Link a job above to check a photo'}
+              accessibilityHint={codeCheckProject ? undefined : 'Link a project above to check a photo'}
               testID="code-check-photo"
             >
               <Camera size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
-              <Text style={styles.photoCheckText}>{codeCheckProject ? 'Check a photo' : 'Check a photo · link a job above first'}</Text>
+              <Text style={styles.photoCheckText}>{codeCheckProject ? 'Check a photo' : 'Check a photo · Link a project above first'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

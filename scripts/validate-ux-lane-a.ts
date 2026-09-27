@@ -2,7 +2,7 @@
 // what the app reminds you about.
 //
 // Pins the pure rules this lane added and the screen wiring it cannot import:
-//   A1  "Add today's N job photos" (todaysPhotosToAttach) + Photos under Work
+//   A1  "Add today's N photos" (todaysPhotosToAttach) + Photos under Work
 //       Performed + ONE "Fill it for me" door above the first field;
 //   A2  the remembered recipient (dfrRecipientPrefill, the mageid_ key, saved
 //       only after a real send, never over the sample lock);
@@ -129,21 +129,21 @@ console.log('\nA1 — today\'s photos in one tap:');
 {
   const ph = (id: string, extra: Record<string, unknown> = {}) => ({ id, uri: `file:///${id}.jpg`, timestamp: `${WED}T15:00:00.000Z`, ...extra });
   const three = todaysPhotosToAttach([ph('a'), ph('b'), ph('c')], [], 10);
-  ok('3 photos today → "Add today\'s 3 job photos", one tap attaches 3', three.label === "Add today's 3 job photos" && three.add.length === 3, String(three.label));
+  ok('3 photos today → "Add today\'s 3 photos", one tap attaches 3', three.label === "Add today's 3 photos" && three.add.length === 3, String(three.label));
   ok('0 photos → no chip', todaysPhotosToAttach([], [], 10).label === null);
   const nineOn = Array.from({ length: 9 }, (_, i) => ({ id: `x${i}` }));
   const oneFits = todaysPhotosToAttach([ph('a'), ph('b'), ph('c')], nineOn, 10);
   ok('9 already attached → adds 1 and says "1 more fits"', oneFits.add.length === 1 && /1 more fits$/.test(oneFits.label ?? ''), String(oneFits.label));
   const dedupe = todaysPhotosToAttach([ph('a'), ph('b'), ph('a')], [{ id: 'a' }], 10);
-  ok('photos already on the report (same id) are skipped', dedupe.add.map(p => p.id).join(',') === 'b' && dedupe.label === "Add today's 1 job photo", String(dedupe.label));
+  ok('photos already on the report (same id) are skipped', dedupe.add.map(p => p.id).join(',') === 'b' && dedupe.label === "Add today's 1 photo", String(dedupe.label));
   ok('a full report shows no chip', todaysPhotosToAttach([ph('z')], Array.from({ length: 10 }, (_, i) => ({ id: `y${i}` })), 10).label === null);
-  ok('a backdated report says "that day\'s"', todaysPhotosToAttach([ph('a')], [], 10, "that day's").label === "Add that day's 1 job photo");
+  ok('a backdated report says "that day\'s"', todaysPhotosToAttach([ph('a')], [], 10, "that day's").label === "Add that day's 1 photo");
   // Integration fix: a delivery ticket ("It's here now" files it tagged
   // 'Delivery ticket') can carry supplier pricing; the one tap never sends it.
   const withTicket = oneTapDayPhotos([ph('a'), ph('t', { tag: 'Delivery ticket' }), ph('b', { tag: 'Framing' })]);
   const tPlan = todaysPhotosToAttach(withTicket, [], 10);
   ok('a delivery-ticket photo is not in the one tap, and the chip count leaves it out',
-    tPlan.add.map(p => p.id).join(',') === 'a,b' && tPlan.label === "Add today's 2 job photos", String(tPlan.label));
+    tPlan.add.map(p => p.id).join(',') === 'a,b' && tPlan.label === "Add today's 2 photos", String(tPlan.label));
   ok('…a day of only tickets shows no chip', todaysPhotosToAttach(oneTapDayPhotos([ph('t', { tag: 'Delivery ticket' })]), [], 10).label === null);
   const conv = dayPhotoAsReportPhoto({ ...ph('g'), storagePath: 'u/p/g.jpg', latitude: 40.7, longitude: -74, locationLabel: 'Site' } as never);
   ok('a gallery photo keeps its id, storage path and capture GPS', conv.id === 'g' && conv.storagePath === 'u/p/g.jpg' && conv.latitude === 40.7 && conv.locationLabel === 'Site');
@@ -166,7 +166,7 @@ console.log('\nA1 — today\'s photos in one tap:');
   ok('the door is above the first field and holds Say it + From today\'s photos', iDoor > 0 && iVoice > iDoor && iPhotoChoice > iVoice && iFirstField > iPhotoChoice);
   ok('the photo draft keeps its own gate and metering (not the dictation parser)',
     /<AIDFRFromPhotos[\s\S]{0,400}isLocked=\{voiceBlocked\}/.test(dr) && /recordAIUsage\('fast', 'voiceCapture'\)/.test(dr));
-  ok('each choice shows its own lock', /voiceBlocked\s*\n?\s*\? <Lock/.test(dr) && /label="Say it — dictate the day"/.test(dr));
+  ok('each choice shows its own lock', /voiceBlocked\s*\n?\s*\? <Lock/.test(dr) && /label="Dictate the day"/.test(dr));
   ok('the save does not mirror a gallery photo back as a duplicate', (dr.match(/inGallery\.has\(p\.id\)/g) ?? []).length === 2);
   ok('A5: the form save clears the voice marker', /updateDailyReport\(savedRecord\.id, withVoiceOriginCleared\(\{/.test(dr));
 }
@@ -376,6 +376,23 @@ console.log('\nutils/chaseNudge — one way to chase:');
   ok('the phone keeps the share sheet (no email path) → share', (await sendNudge({ message: 'm', to: 'tom@kestrel.com' }, phone.deps)) === 'share' && phone.opened.length === 0 && phone.alerts.length === 0);
   ok('a cancelled share records nothing', (await sendNudge({ message: 'm' }, mk({ platform: 'ios', share: 'cancelled' }).deps)) === null);
   ok('a failed share records nothing', (await sendNudge({ message: 'm' }, mk({ platform: 'ios', share: 'failed' }).deps)) === null);
+}
+
+// A5 marker persistence: DailyFieldReport.origin is typed, local only (never
+// in the write payload), and a daily_reports refetch merges it forward the
+// way it merges leakScan, so a refetch cannot turn a voice-only day filed.
+{
+  console.log('\nA5 — the voice marker survives a refetch:');
+  const types = code('types/index.ts');
+  const dfr = types.slice(types.indexOf('export interface DailyFieldReport {'), types.indexOf('\n}', types.indexOf('export interface DailyFieldReport {')));
+  ok("DailyFieldReport carries origin?: 'voice'", /\borigin\?: 'voice';/.test(dfr));
+  const pc = code('contexts/ProjectContext.tsx');
+  ok('the daily_reports refetch merges origin forward from the local copy',
+    /const localOrigin = local\?\.origin;/.test(pc) && /\.\.\.\(localOrigin !== undefined \? \{ origin: localOrigin \} : \{\}\)/.test(pc)
+    && /const localLeakScan = local\?\.leakScan;/.test(pc));
+  const pure = code('utils/projectContextPure.ts');
+  const cols = pure.slice(pure.indexOf('export function dailyReportColumns('), pure.indexOf('\n}', pure.indexOf('export function dailyReportColumns(')));
+  ok('origin never reaches the write payload (dailyReportColumns does not name it)', cols.length > 0 && !/\borigin\b/.test(cols));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -9,42 +9,42 @@ exports[`lane F — /attention on the phone (390 iOS) /attention, empty world �
 
 exports[`lane F — /attention on the phone (390 iOS) /attention, populated world 1`] = `
 {
-  "lines": 483,
-  "sha256": "85201f409b8c92417f04a14aa940e9157e435a66c26b97725bced05ddd4f1bc7",
+  "lines": 498,
+  "sha256": "6cb61e639dae9e6a220c6f0341fba6aeaab0c457cc6066ed24abdb1f6c0712d4",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs (the stage chips render) 1`] = `
 {
-  "lines": 1997,
-  "sha256": "0bc8901834150213d2b6530ff0bbe355364da0b20d3cd0871cd6da66790c6ae4",
+  "lines": 2082,
+  "sha256": "5cd95504dd970143be3e4b9f307d89170cead639c9d459ae0864bb3032771c9e",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs on site today (Today on site: four rows and "+2 more") 1`] = `
 {
-  "lines": 2422,
-  "sha256": "3ee002bee40c208926fd383405fac3d18ba063ab468a77203e32d3ab0d8b4130",
+  "lines": 2496,
+  "sha256": "05a3fd68db7808e1c252305e8256dbe0405aaf2ff84ec16a730b11d8b582891b",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs, a chip tapped (Closed / Closeout bucket) 1`] = `
 {
-  "lines": 1942,
-  "sha256": "53f64dfdf3a37f145f4b70f6ba1eba01ec480434dbf5b4c7fa475d82bff1351d",
+  "lines": 2026,
+  "sha256": "3cffd58b9997da3154cc36f90010a517aee63978c323d1cd5c3834a7c9400eea",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, the fixture world (one job on site) 1`] = `
 {
-  "lines": 1908,
-  "sha256": "b399090740d6bf22b57628cfe63c5c9ff9db0ddaeddc4225e8f22635d3111bbb",
+  "lines": 1993,
+  "sha256": "03610876c7b98a70bf8dcec857d16ebfcb0591fb66873f3319b513dbc2ec717e",
 }
 `;
 
 exports[`lane F — the tablet Home keeps the ProjectRow table (golden, 820 iOS) Home, six jobs, tablet 1`] = `
 {
-  "lines": 1992,
-  "sha256": "bce4aa0c55f8ace15a9b6aca055cee2882717aec760a8fbd53ad3aa8225c36e5",
+  "lines": 2076,
+  "sha256": "d1b03e44ea8e5dadc786c5edbdc2586d6c489380bfa3e73912a5975d07eefccb",
 }
 `;

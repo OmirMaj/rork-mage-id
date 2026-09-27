@@ -391,21 +391,22 @@ describe('/(tabs)/(home)', () => {
     expect(text).toContain('RFI #7 past due');
     expect(text.toLowerCase()).not.toContain('your jobs are on track');
     expect(text).not.toContain('All clear —');
-    // ...and it names the thing it cannot count, rather than going mute.
-    expect(text).toContain('waiting on a reply');
+    // ...and the RFI is IN the count now (UX wave A7), not a side sentence
+    // beside it: the header names it as the one thing open.
+    expect(text).toContain('1 thing needs your attention');
   });
 
-  it('counts only the canonical set in the header, even with an RFI open', async () => {
-    // The seeded account has BOTH a lapsed permit (canonical) and an RFI 23
-    // days past due (not canonical yet). The header may report one, and only
-    // one: hooks/useBrainWatch.ts owns that number and the Your-Projects tab
-    // badge renders it beside this card. sim-audit #15 was this card showing 5
-    // while the badge showed 11, and the extra categories gate the SENTENCE
-    // here precisely so they can never reach the count.
+  it('counts the RFI in the one canonical number, beside the lapsed permit', async () => {
+    // The seeded account has BOTH a lapsed permit and an RFI 23 days past due.
+    // UX wave A7 made RFIs and submittals canonical (hooks/useBrainWatch.ts),
+    // so the header reports both, and it is still the ONE number the
+    // Your-Projects tab badge renders beside this card (sim-audit #15 was this
+    // card showing 5 while the badge showed 11).
     await primeWorld('populated');
     const text = collectText((await mountRouteChecked('/(tabs)/(home)')).toJSON()).join(' | ');
-    expect(text).toContain('1 thing needs your attention');
-    expect(text).not.toContain('2 things need your attention');
+    expect(text).toContain('2 things need your attention');
+    expect(text).toContain('RFI #');
+    expect(text).not.toContain('1 thing needs your attention');
   });
 
   it('still gives a green all-clear when there IS nothing open — scoped', async () => {
@@ -465,10 +466,19 @@ describe('components/DesktopActionRail', () => {
   const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
   it('checks RFIs and submittals before it is allowed to say "All caught up"', () => {
-    expect(src).toMatch(/rfiAttention\(/);
-    expect(src).toMatch(/submittalAttention\(/);
-    expect(src.indexOf('outsideTheScan > 0 ?')).toBeGreaterThan(-1);
-    expect(src.indexOf('outsideTheScan > 0 ?')).toBeLessThan(src.indexOf('All caught up'));
+    // UX wave A7: RFIs and submittals are IN the canonical set, so the rail's
+    // "All caught up" is gated on that set (and on sourceFailed), and the
+    // side-count it used to keep beside the list is gone.
+    const hook = readFileSync(join(__dirname, '..', '..', 'hooks', 'useBrainWatch.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(hook).toMatch(/all\.push\(\.\.\.rfiAttention\(project, rfis, nowMs\)\);/);
+    expect(hook).toMatch(/all\.push\(\.\.\.submittalAttention\(project, submittals, nowMs\)\);/);
+    expect(src).toMatch(/const \{ items, sourceFailed \} = useBrainWatch\(\);/);
+    expect(src).not.toMatch(/outsideTheScan/);
+    const gate = src.indexOf('{items.length === 0 ? (');
+    expect(gate).toBeGreaterThan(-1);
+    expect(src.indexOf('sourceFailed ? (', gate)).toBeGreaterThan(gate);
+    expect(src.indexOf('sourceFailed ? (', gate)).toBeLessThan(src.indexOf('All caught up'));
   });
 
   it('keeps its own claim scoped, and keeps the count canonical', () => {
@@ -481,6 +491,6 @@ describe('components/DesktopActionRail', () => {
     // second number the incident was about (verified: that mutation escaped).
     // Pin the expression, not the vocabulary.
     expect(src).toMatch(/<Text style=\{styles\.countPillText\}>\{items\.length\}<\/Text>/);
-    expect(src).not.toMatch(/countPillText[^\n]*outsideTheScan/);
+    expect(src).not.toMatch(/countPillText[^\n]*\+/);
   });
 });

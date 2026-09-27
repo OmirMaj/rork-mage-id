@@ -79,7 +79,7 @@ export function ProjectCodeChecksCard({ project }: { project: Project }): React.
       if (res.canceled || !res.assets[0]?.uri) return;
       setPhotoUri(res.assets[0].uri);
     } catch (e) {
-      showAlert('Couldn\u2019t open the camera', String((e as Error)?.message ?? e));
+      showAlert('Couldn\u2019t open the camera', 'Try again.');
     }
   }, []);
 

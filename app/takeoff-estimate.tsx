@@ -83,7 +83,7 @@ import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { showAlert } from '@/utils/alert';
-import { proposalFromCurrentEstimate, sendProposalHref } from '@/utils/nextBillableMilestone';
+import { proposalFromCurrentEstimate, proposalLockedCopy, sendProposalHref } from '@/utils/nextBillableMilestone';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8). This screen holds
@@ -327,6 +327,8 @@ function TakeoffEstimateInner() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, updateProject, settings, commitments } = useProjects();
+  // C4: "Send proposal" after a save opens the contract (client_portal).
+  const { canAccess, requiredTierFor } = useTierAccess();
   // The contractor's own learned rates. Same engine, and now the same five
   // streams, as the Cost Database screen — so the two screens answer a given
   // trade+unit key with the SAME number rather than with two different ones.
@@ -754,13 +756,23 @@ function TakeoffEstimateInner() {
     {
       text: 'Send proposal',
       onPress: () => {
+        // C4: the contract is a client-portal feature. Locked, say why before
+        // anything is written (no revision snapshot on a tap that goes nowhere).
+        if (!canAccess('client_portal')) {
+          const lock = proposalLockedCopy(requiredTierFor('client_portal'));
+          showAlert(lock.title, lock.message, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/paywall') },
+          ]);
+          return;
+        }
         const p = projectsRef.current.find(x => x.id === id);
         const { patch, fromRevision } = proposalFromCurrentEstimate(p);
         if (Object.keys(patch).length > 0) updateProject(id, patch);
         router.push(sendProposalHref(id, fromRevision));
       },
     },
-  ], [router, updateProject]);
+  ], [router, updateProject, canAccess, requiredTierFor]);
 
   // Replace: wholesale-swap the project estimate with the takeoff lines.
   // commitEstimatePatch snapshots the outgoing estimate as a revision, so

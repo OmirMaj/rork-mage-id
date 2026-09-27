@@ -186,4 +186,4 @@ export function lateMatchForSupplier(
  *  he can still attach it by hand. */
 export const DELIVERY_TICKET_TAG = 'Delivery ticket';
 
-export const FROM_SCAN_LABEL = 'from scan, check it';
+export const FROM_SCAN_LABEL = 'From scan, check it';

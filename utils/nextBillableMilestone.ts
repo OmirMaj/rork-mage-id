@@ -326,7 +326,7 @@ export function remindAllConfirm(rows: readonly OverdueRemindRow[]): { title: st
   const lines: string[] = [];
   if (c > 0) lines.push([...clients.values()].join(', '));
   if (noEmail.length > 0) {
-    lines.push(`No client email on file for invoice ${noEmail.join(', ')} — ${noEmail.length === 1 ? 'that one' : 'those'} will not go out.`);
+    lines.push(`No client email on file for invoice${noEmail.length === 1 ? '' : 's'} ${noEmail.join(', ')} — ${noEmail.length === 1 ? 'that one' : 'those'} will not go out.`);
   }
   lines.push('Each one follows the same rules as the invoice screen: nothing goes to a sample job, and anything sent in the last 24 hours waits.');
   return { title, message: lines.join('\n\n'), confirmLabel: `Send ${n}` };
@@ -398,8 +398,8 @@ export function waiverAmountSeed(
 ): { amount: null; note: string } {
   const isFinal = waiverType === 'conditional_final' || waiverType === 'unconditional_final';
   const ask = isFinal
-    ? 'Enter the amount of the final check this release is for.'
-    : 'Enter the amount of the check this release is for.';
+    ? 'Enter the amount of the final check this lien waiver is for.'
+    : 'Enter the amount of the check this lien waiver is for.';
   if (o.recordedPaid == null) {
     return { amount: null, note: `No payment is recorded against ${o.detail || o.name}. ${ask}` };
   }
@@ -426,6 +426,18 @@ export function proposalFromCurrentEstimate(
   const versions = patch.estimateVersions ?? project.estimateVersions ?? [];
   const latest = versions[versions.length - 1];
   return { patch, fromRevision: latest?.id ?? null };
+}
+
+/** Why "Send proposal" is locked, when the plan has no client portal: the
+ *  contract it opens is a client-portal feature (app/contract.tsx shows its
+ *  Paywall). Said BEFORE anything is written, so a locked tap snapshots no
+ *  revision. */
+export function proposalLockedCopy(requiredTier: string): { title: string; message: string } {
+  const plan = requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1);
+  return {
+    title: `Sending proposals is on the ${plan} plan`,
+    message: 'Your estimate is saved. See plans to send it as a proposal your client can sign.',
+  };
 }
 
 /** The contract route "Send proposal" opens. */

@@ -112,7 +112,7 @@ console.log('\n5. contract.tsx asks the helper');
     'this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.',
     'the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.',
   ]) ok(`the old note survives verbatim: "${note.slice(0, 40)}…"`, c.includes(note));
-  ok('a collaborator is told the truth (only the owner can send), not "tap Save"', /case 'collaborator':\s*\n\s*emailNote = ' Note: only the job\\'s owner/.test(c));
+  ok('a collaborator is told the truth (only the owner can send), not "tap Save"', /case 'collaborator':\s*\n\s*emailNote = ' Only the project owner holds this portal\\'s signing link/.test(c));
   const helper = read('utils/portalReady.ts').replace(/\/\/.*$/gm, '');
   ok('the helper is pure', !/from 'react(-native)?'|AsyncStorage|supabase/.test(helper));
 }

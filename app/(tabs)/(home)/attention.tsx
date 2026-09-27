@@ -320,11 +320,11 @@ export default function AttentionScreen() {
             onPress={() => router.push('/waiting-on')}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`Chase ${chaseable === 1 ? 'it' : `all ${chaseable}`} on Waiting On`}
+            accessibilityLabel={`Chase ${chaseable === 1 ? 'it' : `all ${chaseable}`} on Waiting on others`}
             testID="attention-open-waiting-on"
           >
             <Text style={styles.chaseLinkText}>
-              {chaseable === 1 ? 'Chase it on Waiting On' : `Chase these ${chaseable} on Waiting On`}
+              {chaseable === 1 ? 'Chase it on Waiting on others' : `Chase these ${chaseable} on Waiting on others`}
             </Text>
             <ChevronRight size={14} color={t.accent} strokeWidth={2} />
           </TouchableOpacity>

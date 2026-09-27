@@ -457,14 +457,14 @@ function OverdueRemindLine({ row, line, busy, disabled, onRemind, styles, lockCo
         style={{ flex: 1 }}
         onPress={() => router.push({ pathname: '/invoice', params: { projectId: row.projectId, invoiceId: row.invoiceId } })}
         accessibilityRole="button"
-        accessibilityLabel={`Invoice ${row.number}, ${row.projectName}, ${row.daysLate} days late. Open`}
+        accessibilityLabel={`Invoice ${row.number}, ${row.projectName}, ${row.daysLate} day${row.daysLate === 1 ? '' : 's'} late. Open`}
       >
         <Text style={styles.overdueRowTitle} numberOfLines={1}>
           {`#${row.number} · ${row.projectName}`}
         </Text>
         <Text style={styles.overdueRowSub} numberOfLines={2}>
           {gate === 'hidden'
-            ? `${row.daysLate} day${row.daysLate === 1 ? '' : 's'} late · shared job, the owner sends reminders`
+            ? `${row.daysLate} day${row.daysLate === 1 ? '' : 's'} late · shared project, the project owner sends reminders`
             : `${row.daysLate} day${row.daysLate === 1 ? '' : 's'} late · ${line}`}
         </Text>
       </TouchableOpacity>

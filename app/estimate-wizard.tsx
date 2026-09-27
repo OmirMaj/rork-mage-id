@@ -29,7 +29,7 @@ import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, FileDown,
-  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp, AlertTriangle, Percent, Send,
+  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp, AlertTriangle, Percent, Send, Lock,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrainCard } from '@/components/brain/BrainCard';
@@ -86,7 +86,7 @@ import {
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { Button, cardSurface, Card } from '@/components/ui';
-import { proposalFromCurrentEstimate, sendProposalHref, wizardLandingStep, moneyLabel } from '@/utils/nextBillableMilestone';
+import { proposalFromCurrentEstimate, proposalLockedCopy, sendProposalHref, wizardLandingStep, moneyLabel } from '@/utils/nextBillableMilestone';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -249,8 +249,11 @@ function EstimateWizardScreenInner() {
   // /cost-seed is gated on job_costing (Pro) — app/cost-seed.tsx:67 renders a
   // paywall before its own body. Read it HERE so the card can say so before
   // he taps, rather than after.
-  const { canAccess } = useTierAccess();
+  const { canAccess, requiredTierFor } = useTierAccess();
   const seedNeedsUpgrade = !canAccess('job_costing');
+  // C4: "Send proposal" opens the contract, a client-portal feature. Locked,
+  // the door says why BEFORE it snapshots a revision (the plan's door rule).
+  const proposalOpen = canAccess('client_portal');
   const scopedProject = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId, getProject]);
 
   const [step, setStep] = useState<number>(0);
@@ -797,8 +800,8 @@ function EstimateWizardScreenInner() {
   const generateOrConfirm = useCallback((answersOverride?: WizardAnswers) => {
     if (existingEstimateTotal == null || costResult) { void generate(answersOverride); return; }
     showAlert(
-      'Replace this job\'s estimate?',
-      `${scopedProject?.name ?? 'This job'} already has a ${moneyLabel(existingEstimateTotal)} estimate. The new one replaces it on the job; the current one is kept in Revisions.`,
+      'Replace this project\'s estimate?',
+      `${scopedProject?.name ?? 'This project'} already has a ${moneyLabel(existingEstimateTotal)} estimate. The new one replaces it on the project; the current one is kept in Revisions.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Replace it', style: 'destructive', onPress: () => { void generate(answersOverride); } },
@@ -809,13 +812,21 @@ function EstimateWizardScreenInner() {
   // C4: the estimate is on the job — hand him the next document. Snapshot
   // this estimate as a revision, then open the contract seeded from it.
   const sendProposal = useCallback((id: string) => {
+    if (!proposalOpen) {
+      const lock = proposalLockedCopy(requiredTierFor('client_portal'));
+      showAlert(lock.title, lock.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'See plans', onPress: () => router.push('/paywall') },
+      ]);
+      return;
+    }
     const p = getProject(id);
     if (!p) return;
     const { patch, fromRevision } = proposalFromCurrentEstimate(p);
     if (Object.keys(patch).length > 0) updateProject(id, patch);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(sendProposalHref(id, fromRevision));
-  }, [getProject, updateProject, router]);
+  }, [proposalOpen, requiredTierFor, getProject, updateProject, router]);
 
   // Escape hatch for the loading screen. The in-flight fetch is not aborted
   // (the AbortController is internal to mageAI); bumping runRef orphans it,
@@ -1803,8 +1814,12 @@ function EstimateWizardScreenInner() {
                   activeOpacity={0.85}
                   disabled={sharingPdf}
                   testID="wizard-send-proposal"
+                  accessibilityRole="button"
+                  accessibilityHint={proposalOpen ? undefined : proposalLockedCopy(requiredTierFor('client_portal')).title}
                 >
-                  <Send size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
+                  {proposalOpen
+                    ? <Send size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
+                    : <Lock size={18} color={Colors.textOnAccent} strokeWidth={1.75} />}
                   <Text style={styles.resultPrimaryText} numberOfLines={1}>Send proposal</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1813,7 +1828,7 @@ function EstimateWizardScreenInner() {
                   disabled={sharingPdf}
                   testID="wizard-view-project"
                 >
-                  <Text style={styles.knownMore} numberOfLines={1}>Saved to {attachedProject.name} — open project</Text>
+                  <Text style={styles.knownMore} numberOfLines={1}>Saved to {attachedProject.name} · Open project</Text>
                 </TouchableOpacity>
               </>
             ) : hasProject ? (
@@ -2216,8 +2231,8 @@ function EstimateWizardScreenInner() {
             testID="wizard-summary"
           >
             {!!projectId && voiceBanner}
-            <Text style={styles.knownTitle}>Here&apos;s what I know</Text>
-            <Text style={styles.knownSub}>From {scopedProject?.name ?? 'this job'}. Tap anything to change it.</Text>
+            <Text style={styles.knownTitle}>Already answered</Text>
+            <Text style={styles.knownSub}>From {scopedProject?.name ?? 'this project'}. Tap anything to change it.</Text>
             <Card pad="none">
               {SCOPE_STEPS.slice(0, 5).map((st, i) => {
                 const raw = String(answers[st.key] ?? '').trim();
@@ -2341,7 +2356,7 @@ function EstimateWizardScreenInner() {
                 <>
                   <MageAIMark size={18} color="#FFF" />
                   <Text style={styles.primaryText} numberOfLines={1}>
-                    {replaceLabel ?? 'Generate Estimate'}{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+                    {replaceLabel ?? 'Generate estimate'}{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
                   </Text>
                 </>
               )}

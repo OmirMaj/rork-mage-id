@@ -33,6 +33,7 @@ import type { AlertButton } from '@/utils/alertCore';
 import { dunningStageLabel, reminderBlockMessage } from '@/utils/billingFlowCore';
 import { isSampleProject, SAMPLE_NOTHING_SENT } from '@/utils/sampleGuard';
 import { qboClosedFlagOf, qboClosedFlagAlertReason } from '@/utils/qboClosedFlag';
+import { ownSentence } from '@/utils/errorCopy';
 
 export type RemindKind = 'sent' | 'skipped' | 'no_recipient' | 'failed' | 'sample' | 'cancelled';
 
@@ -132,7 +133,10 @@ export async function remindInvoice(input: RemindInvoiceInput, deps: RemindInvoi
   try {
     res = await deps.send(input.invoiceId);
   } catch (err) {
-    const msg = err instanceof Error && err.message ? err.message : REMIND_FAILED_FALLBACK;
+    // A thrown send shows its own sentence only when one was written for a
+    // person (utils/errorCopy ownSentence); raw transport text never reaches
+    // the alert (docs/VOICE.md: no err.message).
+    const msg = ownSentence(err) ?? REMIND_FAILED_FALLBACK;
     return { kind: 'failed', title: REMIND_FAILED_TITLE, message: msg };
   }
   if (!res || !res.success) {

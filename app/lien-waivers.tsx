@@ -1298,7 +1298,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
 
           {subOptions.length > 0 && (
             <>
-              <Text style={styles.modalLabel}>From this job&apos;s subs</Text>
+              <Text style={styles.modalLabel}>From this project&apos;s subs</Text>
               <View style={styles.typeRow} testID="waiver-sub-picker">
                 {subOptions.map(o => (
                   <TouchableOpacity

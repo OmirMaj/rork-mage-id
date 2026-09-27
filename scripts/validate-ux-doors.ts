@@ -23,6 +23,7 @@ import {
   editedPrimaryContact, combineRowCounts, FIELD_MORNING_END_HOUR,
 } from '../utils/uxDoors';
 import type { RowCount } from '../utils/sidebarCounts';
+import { buildPaletteRows } from '../utils/paletteRows';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), 'utf8');
@@ -158,7 +159,7 @@ console.log('\nux-doors validation (Lane D):');
   ok('D2 a live job WITH an estimate keeps its one-tap door into the estimate editor (Money: Estimate, same testID)',
     /money: hubPerms\.showMoney \? \[[\s\S]{0,200}\.\.\.\(hasAnyEstimate\s*\? \[\{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: \(\) => router\.replace\(routeHref\('\/\(tabs\)\/estimate\/full', \{ projectId: project\.id \}\)\) \}\]\s*: \[\{ key: 'create-estimate'/.test(pd));
   ok('D2 a locked field door says why (tileLockReason) and names it in the a11y label',
-    /accessibilityLabel=\{a\.lock \? `\$\{a\.label\}, locked, \$\{a\.lock\}` : a\.label\}/.test(pd)
+    /accessibilityLabel=\{a\.lock \? `\$\{a\.label\}\. \$\{a\.lock\}` : a\.label\}/.test(pd)
     && /tileLockReason\('punchList', hubRole,/.test(pd) && /tileLockReason\('timeTracking', hubRole,/.test(pd));
   ok('D2 the office row is kept for jobs that are not live ({!fieldRow && …}) and its buttons move into the groups for live ones',
     /\{!fieldRow && \(\s*<>/.test(pd)
@@ -178,7 +179,7 @@ console.log('\nux-doors validation (Lane D):');
     !/save a revision first/.test(pd) && !/create-proposal-disabled/.test(pd)
     && /const patch = snapshotPatch\(project, 'manual'\);/.test(pd)
     && /navigateFromTile\(\{ pathname: '\/contract', params: \{ projectId: id, fromRevision: revisionId \} \}\)/.test(pd)
-    && /From an older revision…/.test(pd));
+    && /From an older revision<\/Text>/.test(pd));
   ok('D4 the edit sheet carries the client (validated, then editedPrimaryContact)',
     /testID="edit-client-email-input"/.test(pd) && /const clientProblem = clientFieldsProblem\(clientTyped\);/.test(pd)
     && /\.\.\.\(client\.changed \? \{ primaryContact: client\.next \} : \{\}\),/.test(pd));
@@ -202,6 +203,41 @@ console.log('\nux-doors validation (Lane D):');
   ok('D1 the chain is armed only when the create modal will open (the project-cap paywall leaves it null, so a later New Project is not thrown into a wizard)',
     /setCreateThen\(canCreateProject\(realProjectCount\) \? then : null\);\s*handleCreatePress\(\);/.test(home)
     && (home.match(/setCreateThen\(/g) ?? []).length === 3);
+}
+
+// D1 in Cmd+K (utils/paletteRows): Estimate, Schedule and Scope Sheet never
+// go silently to the active job. "For a new project" leads (chained to its
+// wizard), then named jobs, the active one first; other scoped rows keep the
+// active job, unchanged.
+{
+  const opts = [
+    { label: 'Estimate', subtitle: 'Price a job', href: '/estimate-wizard', scoped: true },
+    { label: 'Schedule', subtitle: 'Plan the work', href: '/schedule-wizard', scoped: true },
+    { label: 'RFI', subtitle: 'Ask the architect', href: '/rfi', scoped: true },
+  ];
+  const active = { id: 'live', name: 'Henderson' };
+  const mru = [{ id: 'lead', name: 'Birch ADU' }, { id: 'live', name: 'Henderson' }, { id: 'old', name: 'Cedar roof' }];
+  const build = (query: string, activeJob: typeof active | null) => buildPaletteRows({
+    query, minimal: false, activeJob, recentJobs: mru, projectHits: [], createOptions: opts,
+    featureHits: [], records: [], recentSearches: [],
+  }).filter(r => r.lane === 'actions');
+  const est = build('estimate', active);
+  ok('D1 palette: "Estimate" leads with a for-a-new-project row chained to the estimate wizard',
+    est[0]?.ref.kind === 'needs-project' && (est[0].ref as { then?: string }).then === 'estimate' && est[0].sublabel === 'For a new project',
+    JSON.stringify(est[0]));
+  const estJobs = est.filter(r => r.ref.kind === 'create').map(r => (r.ref as { projectId: string }).projectId);
+  ok('D1 palette: then named jobs, the active job first, each one named (never one silent active-job row)',
+    eq(estJobs, ['live', 'lead', 'old']) && est.filter(r => r.ref.kind === 'create').every(r => !!r.sublabel), JSON.stringify(estJobs));
+  const sch = build('schedule', null);
+  ok('D1 palette: "Schedule" with no active job: new-project row (schedule chain), then the recent jobs',
+    sch[0]?.ref.kind === 'needs-project' && (sch[0].ref as { then?: string }).then === 'schedule'
+    && eq(sch.filter(r => r.ref.kind === 'create').map(r => (r.ref as { projectId: string }).projectId), ['lead', 'live', 'old']));
+  const rfi = build('rfi', active);
+  ok('D1 palette: other scoped rows (RFI) still go to the active job, one row',
+    rfi.length === 1 && rfi[0].ref.kind === 'create' && (rfi[0].ref as { projectId: string }).projectId === 'live');
+  const cp = read('components', 'search', 'CommandPalette.tsx');
+  ok('D1 palette: the new-project row passes its chain to Home (?openCreate=1&then=)',
+    /router\.push\(routeHref\('\/', ref\.then \? \{ openCreate: '1', then: ref\.then \} : \{ openCreate: '1' \}\)\);/.test(cp));
 }
 
 if (failures > 0) {

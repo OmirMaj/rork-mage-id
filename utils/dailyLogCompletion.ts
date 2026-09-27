@@ -65,8 +65,8 @@ export type DailyLogReport = Pick<DailyFieldReport, 'date'> &
   Partial<Pick<DailyFieldReport,
     'id' | 'manpower' | 'workProgress' | 'materialsDelivered' | 'photos' | 'workPerformed' | 'issuesAndDelays'>> & {
     /** UX A5 — 'voice' on a draft the app created from a voice note on his
-     *  behalf (see VOICE_ORIGIN below). Read structurally: the field is local
-     *  only and is not (yet) on DailyFieldReport in types/index.ts. */
+     *  behalf (see VOICE_ORIGIN below). Local only (DailyFieldReport.origin);
+     *  read structurally so the validator can pass plain rows. */
     origin?: unknown;
   };
 
@@ -86,9 +86,8 @@ export type DailyLogReport = Pick<DailyFieldReport, 'date'> &
 // (dailyReportColumns does not name it). Consequences, both accepted:
 //   • on a second device the marker is absent, so that device counts the day
 //     as filed — the old behaviour, never a false "missing";
-//   • until ProjectContext merges `origin` forward on a server refetch (as it
-//     does leakScan — an orchestrator item), a refetch on THIS device drops it
-//     and the day reads filed again. Fail-safe in the same direction.
+//   • ProjectContext merges `origin` forward on a server refetch, as it does
+//     leakScan, so a refetch on THIS device keeps the marker.
 
 /** The one origin value that does not file a day. */
 export const VOICE_ORIGIN = 'voice' as const;
@@ -100,7 +99,7 @@ export function isVoiceOnlyReport(r: { origin?: unknown } | null | undefined): b
 
 /** A save patch that also clears the voice marker: the form save IS him
  *  finishing the report. Typed as the input so a caller's Partial<Report>
- *  stays one (the field is not on DailyFieldReport yet). */
+ *  stays one. */
 export function withVoiceOriginCleared<T extends object>(patch: T): T {
   return { ...patch, origin: undefined } as T;
 }
@@ -468,8 +467,8 @@ export function todaysPhotosToAttach<P extends DayPhotoLike>(
   let label: string | null = null;
   if (add.length > 0) {
     label = add.length === fresh.length
-      ? `Add ${dayWord} ${add.length} job ${add.length === 1 ? 'photo' : 'photos'}`
-      : `Add ${dayWord} job photos · ${room} more ${room === 1 ? 'fits' : 'fit'}`;
+      ? `Add ${dayWord} ${add.length} ${add.length === 1 ? 'photo' : 'photos'}`
+      : `Add ${dayWord} photos · ${room} more ${room === 1 ? 'fits' : 'fit'}`;
   }
   return { add, available: fresh.length, room, label };
 }

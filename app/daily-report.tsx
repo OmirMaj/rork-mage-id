@@ -4130,7 +4130,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 isLoading={voiceLoading}
                 isLocked={voiceBlocked}
                 onLockedPress={openVoiceUpgrade}
-                label="Say it — dictate the day"
+                label="Dictate the day"
                 bare
                 title="Dictate today's report"
                 contextLine={project?.name ? `for ${project.name}` : undefined}
@@ -4191,7 +4191,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                   </View>
                   <Text style={voiceBlocked ? styles.fillChoiceLocked : styles.fillChoiceText}>
                     {voiceBlocked
-                      ? 'From today\'s photos · Pro feature — tap to upgrade'
+                      ? 'From today\'s photos · Pro feature, tap to upgrade'
                       : `From today's photos · ${todaysProjectPhotos.length}`}
                   </Text>
                 </TouchableOpacity>
@@ -4734,7 +4734,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
                 onPress={handleAddTodaysPhotos}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel={`${todaysPhotosPlan.label}. Attaches ${todaysPhotosPlan.add.length} of the photos you took on this job ${reportCalendarDay === todayCalendarDay() ? 'today' : 'that day'}.`}
+                accessibilityLabel={`${todaysPhotosPlan.label}. Attaches ${todaysPhotosPlan.add.length} of the photos you took on this project ${reportCalendarDay === todayCalendarDay() ? 'today' : 'that day'}.`}
                 testID="dfr-add-todays-photos"
               >
                 <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />

@@ -190,6 +190,10 @@ describe('CreateMenu: no dead beat', () => {
     mockProjects = [{ id: 'p1', name: 'Henderson', status: 'active' }];
     const r = menu();
     press(r, 'create-estimate');
+    // UX wave D1: Estimate ALWAYS asks which project, even with one, so a new
+    // lead never lands on the live project. Picking it is the one tap here.
+    expect(mockPush).not.toHaveBeenCalled();
+    press(r, 'createmenu-pick-project-p1');
     expect(mockPush).not.toHaveBeenCalled();
     act(() => { (modal(r).props.onDismiss as () => void)(); });
     expect(mockPush).toHaveBeenCalledTimes(1);

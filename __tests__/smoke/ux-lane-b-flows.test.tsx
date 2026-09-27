@@ -3,7 +3,7 @@
  *
  * Behaviour, not pixels (the pixels are ux-lane-b-phone's golden):
  *  B1  the crew sheet: "All N" + "Clock in N" writes one clock-in per worker on
- *      the default job; with no job the button says "Pick the job first";
+ *      the default job; with no job the button says "Pick the project first";
  *      clockIn=1 opens the sheet.
  *  B2  punch new=1 opens the Add form; the Add bar is on screen.
  *  B3  an open RFI shows "Record the answer" at once; typing marks it Answered
@@ -102,7 +102,7 @@ describe('UX lane B — flows', () => {
     expect(mine.map(e => e.workerId).sort()).toEqual(['crew-b-1', 'crew-b-2', 'crew-b-3']);
   });
 
-  it('B1: with no job resolved the button says "Pick the job first"', async () => {
+  it('B1: with no job resolved the button says "Pick the project first"', async () => {
     await primeWorld('populated');
     serveCrew();
     await mountRouteChecked('/time-tracking');
@@ -112,8 +112,8 @@ describe('UX lane B — flows', () => {
     // No route, no real pick, no recent job: nothing preselected.
     const reason = screen.queryByTestId('clock-in-batch-reason');
     const name = screen.getByTestId('clock-in-job-name').props.children;
-    if (name === 'Pick the job first') {
-      expect(reason?.props.children).toBe('Pick the job first');
+    if (name === 'Pick the project first') {
+      expect(reason?.props.children).toBe('Pick the project first');
       expect(screen.getByTestId('clock-in-batch').props.accessibilityState?.disabled).toBe(true);
     } else {
       // A recent job exists in this world: it must be a real, eligible job.

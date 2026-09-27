@@ -173,7 +173,7 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
           title: next.label,
           body: next.kind === 'deposit'
             ? 'The signed contract says the deposit is due on signing. This opens the invoice with the contract\'s amount and terms.'
-            : 'The job reads done and the signed contract\'s final payment has not been billed.',
+            : 'The project reads done and the signed contract\'s final payment has not been billed.',
           cta: next.label,
           href: next.href,
         };
@@ -203,9 +203,9 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
         kind: 'sub_paid_no_waiver',
         icon: ShieldCheck,
         tone: 'warn',
-        title: `${first.subName} was paid — no lien release on file`,
-        body: `${moneyLabel(first.amount)} went out with no waiver back. Collect the release before the next draw.`,
-        cta: 'Get the waiver',
+        title: `${first.subName} was paid — no lien waiver on file`,
+        body: `${moneyLabel(first.amount)} went out with no lien waiver back. Collect it before the next draw.`,
+        cta: 'Get lien waiver',
         href: { pathname: '/lien-waivers', params: { projectId: scopedProject.id } },
       };
     }
