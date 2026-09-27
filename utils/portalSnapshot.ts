@@ -21,7 +21,7 @@ import { contractTimeline } from '@/utils/contractTimelineCore';
 import { runCpm, calendarIndexToWorkingOrdinal } from '@/utils/cpm';
 import { getUIStrings } from './portalLanguages';
 import { invoiceOutstanding, effectiveRetentionHeld, pendingRetentionHeld } from '@/utils/invoiceBilling';
-import { roundCents } from '@/utils/aiaBilling';
+import { roundCents, aiaPayableNow } from '@/utils/aiaBilling';
 import { paymentReceivedDay, type RecordedPaymentFields } from '@/utils/billingFlowCore';
 import {
   getEffectiveInvoiceStatus, getOutstandingBalance, getInvoicedToDate,
@@ -1867,8 +1867,14 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         // rather than leaving an unpayable card unexplained; hiding the button
         // stays correct either way, because a Payment Link charges the one
         // amount it was minted for and this row cannot say what that was.
+        //
+        // MONEY-AIA-CERTIFIED-LINK (health 2026-09-26): "what is owed" is the
+        // CERTIFIED figure once the architect's certificate is recorded — the
+        // owner pays that (aiaPayableNow). Compared against line 8 as applied
+        // for, a link minted before a lower certificate kept its Pay button
+        // and the owner could overpay by exactly the cut.
         const amountStillMatches = app.payLinkAmount != null
-          && Math.abs(app.payLinkAmount - due) <= 0.01;
+          && Math.abs(app.payLinkAmount - aiaPayableNow(app)) <= 0.01;
         // THE SECOND PAY BUTTON. Paying the INVOICE credits it and nulls the
         // invoice's own pay link, but nothing on the server clears the AIA
         // side (stripe-webhook creditInvoice touches only `invoices`), so a

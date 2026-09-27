@@ -55,11 +55,29 @@
 //       sample job ('Sample — …'); a sample never takes real money.
 //   409 { success: false, code: 'not_connected', error: <sentence> } — the
 //       caller has no Stripe Connect account; no link is minted (Q4).
+//   409 { success: false, error: 'nothing_due', code, serverBalanceCents, message }
+//       — the SERVER row shows nothing owed (paid, or settled elsewhere); no
+//       link is minted (health MONEY-PAYLINK-AMOUNT-TRUST).
+//   409 { success: false, error: 'balance_changed', code, serverBalanceCents, message }
+//       — amountCents is ABOVE what the server row says is owed (a stale
+//       device balance); no link is minted. A request at or below the server
+//       balance is minted as asked. See _shared/payLinkBalance.ts.
+//   Order of the refusals: sample_project, then payment_pending, then the
+//   balance check, then not_connected.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 // EDGE-F8 / MONEY-F8: identity + tier are server-resolved (GoTrue-verified JWT,
 // `subscriptions` lookup, master override) — never taken from the request body.
 import { requireTier, type Tier } from "../_shared/auth.ts";
+// MONEY-PAYLINK-AMOUNT-TRUST: the amount is checked against the SERVER row's
+// balance before any Stripe call (pure; the validator runs it under bun).
+import {
+  AIA_BALANCE_COLUMNS,
+  INVOICE_BALANCE_COLUMNS,
+  payLinkAmountVerdict,
+  payLinkRefusalMessage,
+  serverPayableCents,
+} from "../_shared/payLinkBalance.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_API_VERSION = "2024-06-20";
@@ -376,7 +394,18 @@ serve(async (req) => {
       `${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(body.invoiceId)}&select=${cols}&limit=1`,
       { headers },
     );
-    let ownRes = await lookup("id,user_id,project_id,pay_link_id,pay_pending_at");
+    // MONEY-PAYLINK-AMOUNT-TRUST: the balance columns ride on the same
+    // lookup. If PostgREST refuses one (an older schema), fall back to the
+    // previous column list and skip the balance check with a warning — the
+    // mint then behaves exactly as it did before the check existed.
+    const balanceCols = recordType === "aia_pay_app" ? AIA_BALANCE_COLUMNS : INVOICE_BALANCE_COLUMNS;
+    let balanceReadable = true;
+    let ownRes = await lookup(`id,user_id,project_id,pay_link_id,pay_pending_at,${balanceCols}`);
+    if (!ownRes.ok && ownRes.status === 400) {
+      balanceReadable = false;
+      console.warn("[create-payment-link] balance columns not readable on", recordType, "— checking without them (no balance check)");
+      ownRes = await lookup("id,user_id,project_id,pay_link_id,pay_pending_at");
+    }
     if (!ownRes.ok && ownRes.status === 400) {
       console.warn("[create-payment-link] pay_pending_at not readable (migration 20260920020000 not applied?) — checking without it");
       ownRes = await lookup("id,user_id,project_id,pay_link_id");
@@ -385,9 +414,9 @@ serve(async (req) => {
       console.error("[create-payment-link]", recordType, "lookup failed:", ownRes.status);
       return jsonResponse({ success: false, error: "Could not verify invoice ownership" }, 500);
     }
-    const ownRows = await ownRes.json() as {
+    const ownRows = await ownRes.json() as ({
       id: string; user_id: string; project_id?: string | null; pay_link_id?: string | null; pay_pending_at?: string | null;
-    }[];
+    } & Record<string, unknown>)[];
     if (ownRows.length === 0) {
       return jsonResponse({ success: false, error: "Invoice not found" }, 404);
     }
@@ -426,6 +455,26 @@ serve(async (req) => {
     // cannot block minting for good.
     if (paymentPendingHolds(ownRows[0].pay_pending_at ?? null, Date.now())) {
       return jsonResponse({ success: false, error: "payment_pending" }, 409);
+    }
+    // MONEY-PAYLINK-AMOUNT-TRUST: never mint above what the SERVER says is
+    // owed. After the sample and pending refusals (their order is pinned), and
+    // before any Stripe call. A row that cannot vouch for a balance (a draft
+    // still being edited, an older schema) mints as before, with a warning.
+    const serverCents = balanceReadable ? serverPayableCents(recordType, ownRows[0]) : null;
+    if (serverCents == null) {
+      console.warn("[create-payment-link] no server balance for", recordType, body.invoiceId, "— amount not checked");
+    } else {
+      const verdict = payLinkAmountVerdict(Math.round(body.amountCents), serverCents);
+      if (verdict !== "ok") {
+        console.warn("[create-payment-link] refused", verdict, "for", recordType, body.invoiceId, "requested", Math.round(body.amountCents), "server", serverCents);
+        return jsonResponse({
+          success: false,
+          error: verdict,
+          code: verdict,
+          serverBalanceCents: serverCents,
+          message: payLinkRefusalMessage(verdict, serverCents, recordType),
+        }, 409);
+      }
     }
     previousLinkId = ownRows[0].pay_link_id ?? null;
   } catch (e) {

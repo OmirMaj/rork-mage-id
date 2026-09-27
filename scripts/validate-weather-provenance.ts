@@ -590,5 +590,26 @@ ok('hook order is stable — no early return from the context hook',
   !/createContextHook\(\(\) => \{[\s\S]{0,400}if \(!HIRE_ENABLED\) return/.test(hireSrc),
   'react-query `enabled` is used instead, so hook count never changes');
 
+// ── Delay-log days are WORKING days of the task (health lane SCHEDDAYS, LS-1)
+// computeWeatherReschedule read startDay (a working ordinal) as a calendar
+// offset, so on a dated schedule it logged rain on days nobody works as live
+// delay evidence. With the schedule calendar, a Saturday is never a delay day.
+{
+  const mk = (date: string, ok2: boolean): DayForecast => ({
+    date, condition: ok2 ? 'clear' : 'rain', tempHigh: 60, tempLow: 40, precipChance: ok2 ? 0 : 80,
+    windSpeed: 5, isWorkable: ok2, icon: '', source: 'live',
+  });
+  const days = ['2026-03-12', '2026-03-13', '2026-03-14', '2026-03-15', '2026-03-16', '2026-03-17', '2026-03-18'];
+  const slab = [{ id: 'a', title: 'Pour slab', phase: 'Concrete', startDay: 11, durationDays: 3, isWeatherSensitive: true,
+    status: 'not_started', progress: 0, crew: '', dependencies: [], notes: '' } as ScheduleTask];
+  const cal = { startDate: '2026-03-02', workingDaysPerWeek: 5, nonWorkingDates: [] };
+  const satOnly = computeWeatherReschedule(slab, new Date(2026, 2, 2), days.map(d => mk(d, d !== '2026-03-14')), { now: new Date(2026, 2, 10), calendar: cal });
+  ok('Saturday rain on a Mon-Fri job writes no live delay record', buildWeatherDelayLog(satOnly, () => 'x') === null);
+  const tue = computeWeatherReschedule(slab, new Date(2026, 2, 2), days.map(d => mk(d, d !== '2026-03-17')), { now: new Date(2026, 2, 10), calendar: cal });
+  const tueLog = buildWeatherDelayLog(tue, () => 'x');
+  ok('rain on a pour day (Tue Mar 17) is logged, live, 1 working day of slip',
+    !!tueLog && tueLog.source === 'live' && JSON.stringify(tueLog.dates) === '["2026-03-17"]' && tueLog.projectSlipDays === 1);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

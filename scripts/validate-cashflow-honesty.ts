@@ -672,7 +672,8 @@ console.log('\n  8. the surfaces are wired to it');
   // handed in. (validate-cashflow-home-tile.ts executes the path end to end.)
   const engineSrc = read('utils/cashFlowEngine.ts');
   check('the Cash Flow screen forecasts the committed rows alongside the typed ones',
-    /expenses: \[\.\.\.typed, \.\.\.committed\.scheduled\]/.test(engineSrc) &&
+    // health 2026-09-26: plus the approved-but-unpaid sub bills (MONEY-CASH-SUB-APPROVED).
+    /expenses: \[\.\.\.typed, \.\.\.committed\.scheduled, \.\.\.subBills\.rows\]/.test(engineSrc) &&
     /export function forecastFromInputs[\s\S]{0,300}inputs\.expenses,/.test(engineSrc) &&
     /buildForecastInputs\(\{[\s\S]{0,200}commitments: relevantCommitments,/.test(screen) &&
     /const forecast = useMemo<CashFlowWeek\[\]>\(\(\) => \{[\s\S]{0,120}return forecastFromInputs\(forecastInputs, forecastWeeks\)/.test(screen),

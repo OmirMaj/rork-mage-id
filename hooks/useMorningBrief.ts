@@ -102,8 +102,18 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
         ]);
         const settings = await loadCashFlowSettings(userId);
         if (settings.setupComplete) {
+          // Approved-but-unpaid sub bills (MONEY-CASH-SUB-APPROVED) — the same
+          // company-wide read the tile and /cash-flow make. A failed read
+          // passes undefined, which the engine flags as not checked rather
+          // than as no sub bills.
+          let subInvoices: Awaited<ReturnType<typeof import('@/hooks/useSubSubmittedInvoices').fetchCompanySubInvoices>> | undefined;
+          try {
+            const { fetchCompanySubInvoices } = await import('@/hooks/useSubSubmittedInvoices');
+            subInvoices = (await fetchCompanySubInvoices()) ?? undefined;
+          } catch { subInvoices = undefined; }
           const inputs = engine.buildForecastInputs({
             cashData: settings.data, invoices, commitments, projects, changeOrders,
+            subInvoices,
           });
           next.cashSummary = engine.calculateSummary(engine.forecastFromInputs(inputs, 12));
         }

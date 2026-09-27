@@ -39,6 +39,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
 import { groupReadyPunchItems, permitExpiryState } from '@/utils/brainWatch';
 import { daysUntilCalendarDay } from '@/utils/calendarDate';
+import { tasksStartingOn, scheduleCalendarOf } from '@/utils/scheduleCalendarDate';
 import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { buildNoticeStatus } from '@/utils/noticeClock';
 import type {
@@ -375,10 +376,13 @@ export function useSmartInbox(): SmartInboxResult {
       const scheduleStart = parseISODate(startIso);
       if (scheduleStart === null) continue;
 
-      for (const task of (schedule.tasks as ScheduleTask[]) ?? []) {
-        if (task.status !== 'not_started') continue;
-        const taskStart = scheduleStart + (task.startDay - 1) * MS_PER_DAY;
-        if (taskStart !== today) continue;
+      // startDay is a WORKING ordinal: walk it on this schedule's own week and
+      // closures (the Gantt's walk), not as (startDay − 1) calendar days — that
+      // put working day 16 of a Mon-Fri job from Mon Mar 2 on Tue Mar 17
+      // instead of Mon Mar 23, and could say "Starts today" on a Saturday.
+      // The PINNED start: this hook runs no CPM.
+      for (const { task, startsOn } of tasksStartingOn(scheduleCalendarOf(schedule), (schedule.tasks as ScheduleTask[]) ?? [], new Date(today))) {
+        const taskStart = startsOn.getTime();
         out.push({
           id: `task_starting_today:task:${task.id}`,
           rule: 'task_starting_today',

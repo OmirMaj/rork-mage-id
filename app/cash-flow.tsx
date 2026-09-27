@@ -36,6 +36,7 @@ import {
   getCachedAIAnalysis, setCachedAIAnalysis,
 } from '@/utils/cashFlowStorage';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
@@ -322,6 +323,23 @@ function CashFlowScreenInner() {
   // Balance", so every payment recorded since the balance was set moves it,
   // whichever job it came from — allInvoices in both modes. Income stays
   // scoped to the job through `invoices` and `expectedPayments`.
+  // Approved-but-unpaid sub bills and the retainage withheld from subs
+  // (health 2026-09-26, MONEY-CASH-SUB-APPROVED): commitments.paid_to_date
+  // counts an APPROVED bill as paid and is gross of retainage, so without the
+  // sub invoices themselves the check due now and the closeout retainage
+  // vanish from the runway. Company-wide read (RLS-scoped to the GC's own
+  // portals), narrowed to the job in a job's view. `undefined` until the read
+  // has answered — the forecast then says sub bills were not checked instead
+  // of treating them as $0.
+  const subBillRead = useSubSubmittedInvoices({ companyWide: true });
+  const relevantSubInvoices = useMemo(() => {
+    if (!subBillRead.subBillsChecked) return undefined;
+    if (!projectId) return subBillRead.invoices;
+    const jobCommitmentIds = new Set(relevantCommitments.map(c => c.id));
+    return subBillRead.invoices.filter(i =>
+      i.projectId === projectId || (!!i.commitmentId && jobCommitmentIds.has(i.commitmentId)));
+  }, [subBillRead.subBillsChecked, subBillRead.invoices, projectId, relevantCommitments]);
+
   const forecastInputs = useMemo(() => buildForecastInputs({
     cashData: cashFlowData,
     invoices: relevantInvoices,
@@ -330,9 +348,14 @@ function CashFlowScreenInner() {
     changeOrders: relevantChangeOrders,
     balanceInvoices: allInvoices,
     expectedPayments: relevantExpectedPayments,
-  }), [cashFlowData, relevantInvoices, relevantCommitments, projects, relevantChangeOrders, allInvoices, relevantExpectedPayments]);
+    subInvoices: relevantSubInvoices,
+  }), [cashFlowData, relevantInvoices, relevantCommitments, projects, relevantChangeOrders, allInvoices, relevantExpectedPayments, relevantSubInvoices]);
   const effectiveStartingBalance = forecastInputs.startingBalance;
   const committed = forecastInputs.committed;
+  const subBillRows = useMemo(() => forecastInputs.subBills?.rows ?? [], [forecastInputs.subBills]);
+  const subBillsChecked = forecastInputs.subBillsChecked === true;
+  const subRetainagePayable = forecastInputs.subRetainagePayable ?? 0;
+  const subBillsOnFinishedJobs = forecastInputs.subBills?.approvedOnFinishedJobs ?? 0;
 
   // A Set, because the expense list looks every row up as it renders it.
   const ambiguousIds = useMemo(() => new Set(committed.ambiguousManualIds), [committed.ambiguousManualIds]);
@@ -612,6 +635,9 @@ ${cashFlowData.expenses.map(e => `${e.name}: ${e.amount}/${e.frequency}`).join('
 COMMITTED OUTFLOW (signed subcontracts and POs, remaining balance spread across each job's schedule — already inside the weekly numbers above):
 ${committed.scheduled.map(e => `${e.name}: ${Math.round(e.amount)}/${e.frequency}`).join('\n') || 'None'}
 ${committed.undated > 0 ? `\nNOT in the weekly numbers above: ${Math.round(committed.undated)} of committed subcontract/PO balance that could not be dated — the job has no schedule, or it is finished and nothing recorded the payment. Say so rather than treating the runway as complete, and do not call it overdue: the app cannot tell an unpaid balance from an unrecorded payment.` : ''}
+APPROVED SUB BILLS NOT YET PAID (due now — already inside week 1 above):
+${!subBillsChecked ? 'NOT CHECKED — the sub invoices could not be read, so approved bills may be missing from the weeks above. Say so; never assume there are none.' : (subBillRows.map(e => `${e.name}: ${Math.round(e.amount)}`).join('\n') || 'None')}
+${subBillsChecked && subRetainagePayable > 0 ? `\nNOT in the weekly numbers above: ${Math.round(subRetainagePayable)} of retainage withheld from subs, owed to them at closeout (no date is known).` : ''}${subBillsChecked && subBillsOnFinishedJobs > 0 ? `\nNOT in the weekly numbers above: ${Math.round(subBillsOnFinishedJobs)} of approved sub bills on finished jobs that were never marked paid — they may have been paid outside the app; do not call them overdue.` : ''}
 
 ${(summary.pendingCoUpside ?? 0) > 0 ? `NOT in the weekly numbers above: ${Math.round(summary.pendingCoUpside ?? 0)} of submitted change orders the owner has not approved. It is upside, not income — never count it toward the balance.\n\n` : ''}PENDING INVOICES:
 ${relevantInvoices.filter(i => i.status !== 'paid').map(i => `#${i.number}: ${i.totalDue} | Sent: ${i.issueDate} | Terms: ${i.paymentTerms} | Due: ${i.dueDate}`).join('\n') || 'None pending'}
@@ -635,7 +661,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
     } finally {
       setAiLoading(false);
     }
-  }, [forecast, hasCashMovement, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId, summary.pendingCoUpside]);
+  }, [forecast, hasCashMovement, cashFlowData, committed, forecastWeeks, relevantInvoices, projectId, summary.pendingCoUpside, subBillRows, subBillsChecked, subRetainagePayable, subBillsOnFinishedJobs]);
 
   const toggleSection = useCallback((key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1083,6 +1109,25 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   + {formatCurrencyShort(committed.undated)} committed on jobs with no schedule or already finished — not in the weeks above
                 </Text>
               )}
+              {/* Sub bills (MONEY-CASH-SUB-APPROVED): an unread list is said
+                  out loud, never shown as nothing owed; retainage withheld
+                  from subs is reported beside the runway, like receivable
+                  retention, because no closeout date is known. */}
+              {!subBillsChecked && (
+                <Text style={styles.summaryItemSub} testID="cash-flow-sub-bills-unchecked">
+                  Approved sub bills not checked yet — a check you owe a sub may be missing from the weeks above
+                </Text>
+              )}
+              {subBillsChecked && subBillsOnFinishedJobs > 0 && (
+                <Text style={styles.summaryItemSub} testID="cash-flow-sub-bills-finished-jobs">
+                  + {formatCurrencyShort(subBillsOnFinishedJobs)} of approved sub bills on finished jobs, not marked paid — not in the weeks above
+                </Text>
+              )}
+              {subBillsChecked && subRetainagePayable > 0 && (
+                <Text style={styles.summaryItemSub} testID="cash-flow-sub-retainage">
+                  + {formatCurrencyShort(subRetainagePayable)} retainage withheld from subs — owed at closeout, not in the weeks above
+                </Text>
+              )}
             </View>
             <View style={[styles.summaryItem, { borderLeftColor: summary.netCashChange >= 0 ? themeColors.success : themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
@@ -1184,6 +1229,26 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                         </Text>
                       </View>
                       <Text style={styles.expenseListAmount}>{formatCurrency(row.amount)}{freqLabel(row.frequency)}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* Approved sub bills — week-0 checks the rollup had counted as
+                  paid. Listed so a week's outflow can be traced; they leave
+                  this list when the GC marks the bill paid. */}
+              {subBillRows.length > 0 && (
+                <>
+                  <Text style={styles.listNoteStrong}>Approved sub bills, not yet paid</Text>
+                  {subBillRows.map(row => (
+                    <View key={row.id} style={styles.expenseListRow}>
+                      <View style={styles.expenseListInfo}>
+                        <Text style={styles.expenseListName}>{row.name}</Text>
+                        <Text style={styles.expenseListMeta}>
+                          {EXPENSE_CATEGORIES.find(c => c.value === row.category)?.label} · due now, net of retainage withheld
+                        </Text>
+                      </View>
+                      <Text style={styles.expenseListAmount}>{formatCurrency(row.amount)}</Text>
                     </View>
                   ))}
                 </>

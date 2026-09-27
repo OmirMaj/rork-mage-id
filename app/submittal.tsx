@@ -22,6 +22,8 @@ import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
+// LS-5: a viewer seat reads submittals but cannot file one (RLS needs 'field').
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
 import {
   useCollectionSettled, useRefetchCollectionOnOpen, useServerRecordNumber,
   recordGate, changedFields, manualCycleProblem, recordNumberLabel, numberHoldReason, sendBlockReason,
@@ -374,6 +376,11 @@ function SubmittalForm() {
   const staleProjectId = !project && paramProjectId ? paramProjectId : undefined;
   const existingSubmittals = useMemo(() => getSubmittalsForProject(projectId ?? ''), [projectId, getSubmittalsForProject]);
   const existingSubmittal = useMemo(() => submittalId ? existingSubmittals.find(s => s.id === submittalId) : null, [submittalId, existingSubmittals]);
+  // LS-5: the seat on the job this form writes to. A viewer's create / update
+  // / review cycle would be refused by RLS after landing optimistically, so
+  // those controls are off for him and say why. Shares the role query cache.
+  const writeSeat = useProjectRoleState(existingSubmittal?.projectId ?? (projectId || undefined));
+  const writeBlock = projectRecordWriteBlock(writeSeat.role);
 
   const [title, setTitle] = useState(existingSubmittal?.title ?? prefillTitle ?? '');
   const [specSection, setSpecSection] = useState(existingSubmittal?.specSection ?? prefillSpecSection ?? '');
@@ -421,7 +428,8 @@ function SubmittalForm() {
   const numberHold = existingSubmittal ? numberHoldReason('submittal', numberInfo.state) : null;
   // #58: every send (reviewer email, client portal) is off while there are
   // unsaved edits — Send never saves; see sendBlockReason.
-  const sendBlock = existingSubmittal ? sendBlockReason({ isDirty, numberHold }) : null;
+  // LS-5: a send logs a review cycle on the row, which RLS refuses a viewer.
+  const sendBlock = existingSubmittal ? (writeBlock ?? sendBlockReason({ isDirty, numberHold })) : null;
   // #147 / #55: while a cycle is still out for review, the manual form CLOSES
   // that cycle in place (submittal_append_review_cycle closesOpenCycle) —
   // logging a second cycle would count the same round twice. Its number,
@@ -451,6 +459,12 @@ function SubmittalForm() {
    *  a send is built from what is saved, and the reply page reads the row. */
   const persistForm = useCallback((): Submittal | null => {
     if (!existingSubmittal) return null;
+    // LS-5: every update path (Save changes, Cmd+S, Update) comes through
+    // here; a viewer seat's update would be refused by RLS.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return null;
+    }
     if (!title.trim()) {
       showAlert('Missing Title', 'Please enter a title.');
       return null;
@@ -478,7 +492,7 @@ function SubmittalForm() {
     applyFormValues(submittalFormValuesOf(saved));
     setOpened(saved);
     return saved;
-  }, [existingSubmittal, opened, title, specSection, submittedBy, requiredDate, linkedTaskId, formValues, updateSubmittal, applyFormValues]);
+  }, [existingSubmittal, opened, title, specSection, submittedBy, requiredDate, linkedTaskId, formValues, updateSubmittal, applyFormValues, writeBlock]);
 
   // Unsaved edits ask before leaving.
   const navigation = useNavigation();
@@ -775,12 +789,22 @@ function SubmittalForm() {
   // offline queue); the stored date never moves behind his back — the chase
   // list reads it.
   const takeScheduleDate = useCallback(() => {
+    // LS-5: taking the date is a submittals UPDATE, which RLS refuses a viewer.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (!existingSubmittal || !scheduleSource?.live.requiredDate) return;
     updateSubmittal(existingSubmittal.id, { requiredDate: scheduleSource.live.requiredDate, requiredDateSource: 'schedule' });
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [existingSubmittal, scheduleSource, updateSubmittal]);
+  }, [existingSubmittal, scheduleSource, updateSubmittal, writeBlock]);
 
   const handleSave = useCallback(() => {
+    // LS-5: belt and braces — the button is off for a viewer, and so is this.
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (!title.trim()) {
       showAlert('Missing Title', 'Please enter a title.');
       return;
@@ -817,7 +841,7 @@ function SubmittalForm() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     allowLeave.current = true;
     router.back();
-  }, [title, specSection, submittedBy, requiredDate, linkedTaskId, existingSubmittal, projectId, addSubmittal, router, persistForm]);
+  }, [title, specSection, submittedBy, requiredDate, linkedTaskId, existingSubmittal, projectId, addSubmittal, router, persistForm, writeBlock]);
 
   // #58: save and stay, so the sends can go in a later render.
   const handleSaveInPlace = useCallback(() => {
@@ -827,6 +851,10 @@ function SubmittalForm() {
 
   const handleAddCycle = useCallback(() => {
     if (!existingSubmittal) return;
+    if (writeBlock) {
+      showAlert("Can't save", writeBlock);
+      return;
+    }
     if (openCycle) {
       if (newCycleStatus === 'in_review') {
         showAlert('Pick the stamp', `Cycle ${openCycleNo} is still in review. Pick the stamp the reviewer returned it with.`);
@@ -882,7 +910,7 @@ function SubmittalForm() {
     setNewCycleStatus('in_review');
     setShowAddCycle(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [existingSubmittal, openCycle, openCycleNo, newReviewer, newCycleStatus, newCycleComments, newCycleSent, newCycleReturned, addReviewCycle]);
+  }, [existingSubmittal, openCycle, openCycleNo, newReviewer, newCycleStatus, newCycleComments, newCycleSent, newCycleReturned, addReviewCycle, writeBlock]);
 
   // Desktop: the sheets centre in the content column; Cmd+Enter sends (never
   // Cmd+S — a send leaves the app); Cmd+S / Cmd+Enter on the form saves.
@@ -1047,9 +1075,10 @@ function SubmittalForm() {
                   </Text>
                   <Button
                     label={`Update to ${formatCalendarDay(scheduleSource.live.requiredDate)}`}
-                    variant="secondary" size="sm" onPress={takeScheduleDate}
+                    variant="secondary" size="sm" onPress={takeScheduleDate} disabled={writeBlock ? true : undefined}
                     testID="submittal-required-take-schedule"
                   />
+                  {writeBlock ? <Text style={styles.cycleHint} testID="submittal-take-schedule-viewer">{writeBlock}</Text> : null}
                 </View>
               )
             ) : <View style={{ flex: 1 }} />}
@@ -1291,13 +1320,15 @@ function SubmittalForm() {
 
         {/* #58: save and stay, so the sends can go. */}
         {existingSubmittal && isDirty && (
-          <TouchableOpacity style={styles.addCycleBtn} onPress={handleSaveInPlace} activeOpacity={0.85} testID="submittal-save-in-place">
+          <TouchableOpacity style={[styles.addCycleBtn, !!writeBlock && { opacity: 0.5 }]} onPress={handleSaveInPlace} disabled={writeBlock ? true : undefined} accessibilityState={writeBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="submittal-save-in-place">
             <Save size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.addCycleBtnText}>Save changes</Text>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={[styles.saveBtn, isDesktop && desktopCta]} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">
+        {/* LS-5: a viewer seat cannot file — the control says why. */}
+        {writeBlock ? <Text style={styles.cycleHint} testID="submittal-save-viewer">{writeBlock}</Text> : null}
+        <TouchableOpacity style={[styles.saveBtn, isDesktop && desktopCta, !!writeBlock && { opacity: 0.5 }]} onPress={handleSave} disabled={writeBlock ? true : undefined} accessibilityState={writeBlock ? { disabled: true } : undefined} activeOpacity={0.85} testID="submittal-save">
           <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
         </TouchableOpacity>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter, useRootNavigationState, type Href } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import * as Notifications from 'expo-notifications';
@@ -21,9 +21,14 @@ import {
   type PushAskMoment, type PushPermission,
 } from '@/utils/pushPermissionAsk';
 import { usePortalApprovalReconciler } from '@/hooks/usePortalApprovalReconciler';
-// The one event -> screen table, shared with the notify edge function's email
-// buttons and the in-app inbox (audit round 2, #12). Pure TS, no Deno globals.
-import { notificationRoute, routeHref } from '@/supabase/functions/notify/routes';
+// The one push-tap handler (LS-4): the live listener AND the cold-start read
+// both route through it, with one handled-id set so a tap never navigates
+// twice. It reads the one event -> screen table shared with the notify edge
+// function's email buttons and the in-app inbox (audit round 2, #12).
+import {
+  handleNotificationResponse, createHandledResponses, type TapResponseLike,
+} from '@/utils/notificationTap';
+import { routeHref, type NotificationRoute } from '@/supabase/functions/notify/routes';
 import { coRealtimeShouldRefetch } from '@/utils/projectContextPure';
 
 /** Records that this device has had its one contextual push ask. `mageid_` so
@@ -39,6 +44,27 @@ import { coRealtimeShouldRefetch } from '@/utils/projectContextPure';
  *  with this person. */
 const PUSH_ASK_KEY = 'mageid_push_ask_v1';
 
+/** The SDK's last notification response, or null where it cannot be read (web,
+ *  a build without the native module, a test mock without it, or a throw). */
+function readLastResponse(): TapResponseLike | null {
+  if (Platform.OS === 'web') return null;
+  try {
+    const get = (Notifications as { getLastNotificationResponse?: () => TapResponseLike | null }).getLastNotificationResponse;
+    return typeof get === 'function' ? get() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Forget the SDK's last response once it has been acted on. Best-effort. */
+function clearLastResponse(): void {
+  if (Platform.OS === 'web') return;
+  try {
+    const clear = (Notifications as { clearLastNotificationResponse?: () => void }).clearLastNotificationResponse;
+    if (typeof clear === 'function') clear();
+  } catch { /* nothing to clear on this build */ }
+}
+
 export const [NotificationProvider, useNotifications] = createContextHook(() => {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -48,13 +74,22 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   // ask from firing inside first-run. useCoreData rather than useProjects: this
   // provider only needs that one flag, and subscribing to all seven domain
   // contexts would re-run it on every unrelated invoice or punch-item change.
-  const { hasSeenOnboarding } = useCoreData();
+  const { hasSeenOnboarding, userRole, isLoading: coreLoading } = useCoreData();
   // #82: the guarded invoices re-read. From the stable-actions bucket, so it
   // costs this provider no re-renders.
   const { refetchInvoicesNow } = useProjectActions();
   const [pushToken, setPushToken] = useState<string | null>(null);
   const responseListenerRef = useRef<Notifications.EventSubscription | null>(null);
   const receivedListenerRef = useRef<Notifications.EventSubscription | null>(null);
+  // LS-4: ids of the push responses already acted on this session — shared by
+  // the live listener and the cold-start read so a tap never navigates twice.
+  const handledResponsesRef = useRef(createHandledResponses());
+  // The root navigator has mounted (expo-router's readiness signal); pushing
+  // before it is a no-op or a crash on a cold start. This subscribes the
+  // provider to navigation state, so its body re-runs on each navigation; the
+  // context value is memoised, so consumers do not re-render with it.
+  const rootNavState = useRootNavigationState();
+  const navReady = !!rootNavState?.key;
 
   // The deps utils/notificationTapRefresh drives: prefix invalidation for the
   // plain lists, the guarded money re-read for the invoice kinds.
@@ -62,6 +97,26 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     invalidate: (queryKey: string[]) => queryClient.invalidateQueries({ queryKey }),
     refetchInvoicesNow,
   }), [queryClient, refetchInvoicesNow]);
+
+  // The one tap handler's deps: the same router.push the live listener has
+  // always used, the refresh table, and the handled-id set. A kinded route
+  // re-reads through the shared refresh table BEFORE it opens (#82).
+  const actOnResponse = useCallback((response: TapResponseLike | null | undefined): boolean => {
+    const acted = handleNotificationResponse(response, handledResponsesRef.current, {
+      push: (href) => router.push(href as Href),
+      refreshDeps,
+      openRoute: (kind: string, data: Record<string, unknown>, route: NotificationRoute) => {
+        void refreshThenOpen(kind, data as Record<string, unknown>, refreshDeps, () => {
+          router.push(routeHref(route) as Href);
+        });
+      },
+      refreshForNotification,
+    });
+    // Once acted on, the SDK's "last response" must not replay it (a later
+    // effect re-run, or the next account signing in on a shared phone).
+    if (acted) clearLastResponse();
+    return acted;
+  }, [router, refreshDeps]);
 
   // Watch for portal CO approvals and fold them onto the underlying
   // ChangeOrder records. Runs on a 90s poll while the GC is signed in.
@@ -92,59 +147,10 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
     responseListenerRef.current = addNotificationResponseListener((response) => {
       console.log('[NotificationContext] Notification tapped:', response.notification.request.content);
-      const data = response.notification.request.content.data;
-
-      const conversationId = data?.conversationId as string | undefined;
-      const bidId = data?.bidId as string | undefined;
-      const changeOrderId = data?.changeOrderId as string | undefined;
       // Server and local pushes carry `kind`; its screen comes from the shared
-      // table (supabase/functions/notify/routes.ts), the same one the email
-      // buttons and the inbox read. This handler used to keep its own copy,
-      // which sent a signed-CO tap to the portal setup screen instead of the
-      // change order (audit round 2, #12).
-      const kind = data?.kind as string | undefined;
-
-      if (kind === 'ask_seed') {
-        // A margin/brief push can open MAGE already answering the question the
-        // alert raised, instead of dropping the user on a raw table. The backend
-        // payload (seed/screen) is additive — until it ships, a bare ask_seed
-        // simply opens Ask, and older pushes fall through unchanged.
-        const seed = data?.seed as string | undefined;
-        const screen = data?.screen as string | undefined;
-        router.push(seed
-          ? { pathname: '/ask', params: { seed, ...(screen ? { screen } : {}) } }
-          : '/ask');
-        return;
-      }
-      // The notice was written by the server seconds ago; the list it is
-      // about was read at launch / on a foreground return, and a tap with the
-      // app open is neither (#82: "Client paid" opened an invoice still
-      // showing the full balance with Record Payment on offer). Re-read what
-      // the notice makes stale BEFORE the screen opens — utils/
-      // notificationTapRefresh is the one table (leads, punch, reports,
-      // RFIs/submittals, and the money kinds through the guarded
-      // refetchInvoicesNow, never a raw invalidate). A money notice waits for
-      // its read, bounded, so the stale balance is not shown as fact.
-      const route = kind ? notificationRoute(kind, data as Record<string, unknown>) : null;
-      if (route) {
-        // Every pathname in the table is checked against app/ by
-        // scripts/validate-notification-routes.ts — typed routes cannot see
-        // through a runtime table, the validator does.
-        void refreshThenOpen(kind, data as Record<string, unknown>, refreshDeps, () => {
-          router.push(routeHref(route) as Href);
-        });
-        return;
-      }
-      if (kind) void refreshForNotification(kind, data as Record<string, unknown>, refreshDeps);
-
-      // Pre-`kind` pushes (marketplace chat, bid responses, legacy CO pings).
-      if (conversationId) {
-        router.push(`/messages?id=${conversationId}`);
-      } else if (bidId) {
-        router.push(`/bid-detail?id=${bidId}`);
-      } else if (changeOrderId) {
-        router.push(`/change-order?coId=${changeOrderId}`);
-      }
+      // table (supabase/functions/notify/routes.ts) via utils/notificationTap —
+      // the same handler the cold-start read below uses.
+      actOnResponse(response);
     });
 
     // #82 (c): a notice that lands while the app is OPEN re-reads its list
@@ -166,7 +172,30 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         receivedListenerRef.current = null;
       }
     };
-  }, [isAuthenticated, user, router, refreshDeps]);
+  }, [isAuthenticated, user, refreshDeps, actOnResponse]);
+
+  // ── LS-4: the tap that LAUNCHED the app ──────────────────────────────────
+  // expo-notifications delivers a cold-start tap to JS once, when its module
+  // is created — before the session restore, so the listener above (added
+  // only once auth resolves) never hears it, and the push opened Home. The SDK
+  // keeps that response as its "last response"; read it once the app can
+  // actually open the screen: signed in, the first-run gates in app/_layout
+  // settled (persona chosen, onboarding seen — otherwise its redirect would
+  // replace the screen), and the root navigator mounted. Same handler, same
+  // handled-id set: a tap the listener already acted on is a no-op here.
+  // Deliberately excluded: a claimed crew worker with no persona yet
+  // (userRole === null). app/_layout lets him stay ONLY on /crew and sends
+  // any other route to persona-select, so opening the push's screen would
+  // just bounce him there; the SDK keeps the response (it is only cleared
+  // once acted on), so it opens after he picks a persona. Mirrors app/_layout's
+  // own replay gate, which also waits for userRole !== null.
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    if (coreLoading || userRole === null || hasSeenOnboarding !== true) return;
+    if (!navReady) return;
+    const launch = readLastResponse();
+    if (launch) actOnResponse(launch);
+  }, [isAuthenticated, user, coreLoading, userRole, hasSeenOnboarding, navReady, actOnResponse]);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
