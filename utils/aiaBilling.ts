@@ -991,7 +991,7 @@ export function g703DraftBlocker(
       if (text === undefined) continue;
       const plan = planG703CellEdit(line, col, text, { sovEditing: true });
       if (plan.kind === 'invalid') {
-        return { title: `Line ${line.itemNo} — ${G703_COL_LABEL[col]}`, message: plan.reason };
+        return { title: `Line ${line.itemNo} · ${G703_COL_LABEL[col]}`, message: plan.reason };
       }
     }
   }
@@ -1631,7 +1631,7 @@ export function payAppReviewNotice(state: {
   if (state.isLocked) {
     return {
       title: 'Certified record',
-      body: 'These are the figures on the application that went out. They cannot be changed — bill the next period instead.',
+      body: 'These are the figures on the pay app that went out. They can’t be changed. Bill the next period instead.',
       editLabel: 'Edit draft',
     };
   }
@@ -1640,7 +1640,7 @@ export function payAppReviewNotice(state: {
     return {
       title: 'Sent to the client',
       body: `Your client has had this certificate${when ? ` since ${when}` : ''}, and the portal shows the copy that was sent. `
-        + 'Editing changes YOUR record only — the client keeps seeing the sent version until you send it again.',
+        + 'Editing changes your record only. The client keeps seeing the sent version until you send it again.',
       editLabel: 'Edit and re-send',
     };
   }
@@ -1672,15 +1672,15 @@ export function coFiguresAdvice(state: {
   isReadOnly: boolean; isLocked: boolean; editLabel: string;
 }): string {
   if (state.isLocked) {
-    return 'This certificate is locked against a live payment, so PERIOD TO and the refresh button '
-      + 'are both off the screen — it cannot be corrected here. Print it only if the owner already '
-      + 'holds this copy, and restate the change orders on the next application.';
+    return 'This certificate is locked against a live payment, so Period to and the refresh button '
+      + 'are off the screen and it can’t be corrected here. Print it only if the client already '
+      + 'holds this copy, and restate the change orders on the next pay app.';
   }
   if (state.isReadOnly) {
-    return `Tap ${state.editLabel} above first — a saved certificate is read-only, so PERIOD TO and `
-      + 'the refresh button are not reachable until you do. Then re-enter PERIOD TO before printing.';
+    return `Tap ${state.editLabel} above first. A saved certificate is read-only, so Period to and `
+      + 'the refresh button aren’t reachable until you do. Then re-enter Period to before printing.';
   }
-  return 'Re-enter PERIOD TO, or tap the refresh button above, before printing — the two figures are '
+  return 'Re-enter Period to, or tap the refresh button above, before printing. The two figures are '
     + 'on the same page.';
 }
 

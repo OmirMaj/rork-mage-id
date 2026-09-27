@@ -310,7 +310,7 @@ export function restoreOutcome(
     };
   }
   return {
-    title: 'Restore failed',
+    title: 'Couldn’t restore purchases',
     body: `Could not reach the ${storeName} to restore your purchases. Check your connection and try again.`,
     leave: false,
   };
@@ -683,7 +683,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     if (pkg) {
       await purchaseMutation.mutateAsync(pkg);
     } else {
-      throw new Error('Subscription packages not available. Please try again later.');
+      throw new Error('Plans couldn’t load from the store. Try again later.');
     }
   }, [proPackage, proAnnualPackage, purchaseMutation]);
 
@@ -692,7 +692,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     if (pkg) {
       await purchaseMutation.mutateAsync(pkg);
     } else {
-      throw new Error('Subscription packages not available. Please try again later.');
+      throw new Error('Plans couldn’t load from the store. Try again later.');
     }
   }, [businessPackage, businessAnnualPackage, purchaseMutation]);
 

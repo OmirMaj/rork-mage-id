@@ -168,6 +168,7 @@ import type { Project, ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 import { copyToClipboard } from '@/utils/clipboard';
 /** A server copy as Schedule Pro adopts it: ScheduleCopy plus the active
  *  baseline when the copy says (#86 — undefined = does not say, null = cleared). */
@@ -209,7 +210,7 @@ function scheduleProPresenceName(...candidates: unknown[]): string {
     const t = typeof c === 'string' ? c.trim() : '';
     if (t && !t.includes('@')) return t;
   }
-  return 'Collaborator';
+  return 'Team member';
 }
 
 export default function ScheduleProScreen() {
@@ -243,7 +244,7 @@ export default function ScheduleProScreen() {
         <Text style={styles.gateTitle}>{gate === 'error' ? 'Couldn’t check your access' : 'You don’t have access to this schedule'}</Text>
         <Text style={styles.gateBody}>
           {gate === 'error'
-            ? 'Your access to this project could not be read, so Schedule Pro stays closed rather than guessing. Check your connection and try again.'
+            ? 'Your access to this project couldn’t be read, so Schedule Pro stays closed. Check your connection and try again.'
             : 'You are not on this project’s team, so its schedule does not open for you. Ask the project owner to invite you.'}
         </Text>
         <View style={styles.gateActions}>
@@ -616,7 +617,7 @@ function ScheduleProScreenInner() {
       // someone else's — the foreman's RPC, but equally the GC's own phone or
       // a PM on editor access. Naming the field would be a guess shown as fact.
       const more = reported.length > 1 ? ` ${reported.length - 1} other change${reported.length > 2 ? 's were' : ' was'} kept the same way.` : '';
-      setFieldConflictNotice(`${title}'s ${what} was updated elsewhere — in the field or on another device — at ${when}, after this screen loaded, so your change was not saved. It now shows that value — change it again if yours is right.${more}`);
+      setFieldConflictNotice(`${title}'s ${what} was changed on another device at ${when}, so your change wasn't saved. It now shows the newer value. Change it again if yours is right.${more}`);
     };
   }, []);
 
@@ -1074,7 +1075,7 @@ function ScheduleProScreenInner() {
     if (!project?.linkedEstimate || staleEstimateRefCount === 0) return;
     showAlert(
       'Clean up stale estimate references?',
-      `${staleEstimateRefCount} reference${staleEstimateRefCount === 1 ? '' : 's'} on schedule tasks point to estimate items that no longer exist. Cleaning up will remove the dead IDs from each task's linkedEstimateItems. The tasks themselves keep working — they just won't carry budget from those missing items.`,
+      `${staleEstimateRefCount} reference${staleEstimateRefCount === 1 ? '' : 's'} on schedule tasks point to estimate items that no longer exist. Cleaning up will remove links to deleted estimate items from each task. The tasks keep working, but they won't carry budget from those missing items.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1638,8 +1639,8 @@ function ScheduleProScreenInner() {
       user: user?.email ?? user?.name ?? 'anonymous',
       kind: 'reflow',
       summary: patch.tasks
-        ? `Re-anchored ${startDayBasisPreview.report.wouldRemapTaskCount} task(s) off the legacy calendar-index scale — finish ${startDayBasisPreview.storedFinishDay} → ${startDayBasisPreview.remappedFinishDay}`
-        : 'Kept the stored start days as authored (legacy day-scale notice declined)',
+        ? `Moved ${startDayBasisPreview.report.wouldRemapTaskCount} ${startDayBasisPreview.report.wouldRemapTaskCount === 1 ? 'task' : 'tasks'} onto the calendar · finish ${startDayBasisPreview.storedFinishDay} → ${startDayBasisPreview.remappedFinishDay}`
+        : 'Kept the start days as entered',
     });
   }, [project, updateProject, startDayBasisPreview, writeAudit, user?.email, user?.name]);
 
@@ -2182,7 +2183,7 @@ function ScheduleProScreenInner() {
       // honest instead of claiming "every crew is within capacity" — a Workload
       // heatmap can still show resource-capacity overloads the leveler doesn't
       // act on (those are resolved by reassigning or rescheduling manually).
-      const msg = 'Nothing to auto-level — leveling shifts overlapping crew and subcontractor work, and none was found to move.';
+      const msg = 'Nothing to level. Leveling shifts overlapping crew and sub work, and none was found to move.';
       if (Platform.OS === 'web') window.alert?.(msg); else showAlert('Fix overloads', msg);
       return;
     }
@@ -2208,7 +2209,7 @@ function ScheduleProScreenInner() {
       void appendAuditToAsyncStorage(project.id, buildAuditEntry({
         user: user?.email ?? user?.name ?? 'anonymous',
         kind: 'reflow',
-        summary: `Resource leveling: ${p.summary.shiftedCount} task(s) shifted`,
+        summary: `Leveling moved ${p.summary.shiftedCount} ${p.summary.shiftedCount === 1 ? 'task' : 'tasks'}`,
       }));
     }
     setLevelingPreview(null);
@@ -2240,7 +2241,7 @@ function ScheduleProScreenInner() {
     const filename = `${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
     if (Platform.OS === 'web') {
       const ok = downloadCsvInBrowser(csv, filename);
-      if (!ok) window.alert?.('Could not trigger download. Try a different browser.');
+      if (!ok) window.alert?.('Couldn’t start the download. Try a different browser.');
     } else {
       // Native: pop the CSV into an alert so the user can at least grab it
       // via long-press. A real share-sheet flow comes later.
@@ -2289,11 +2290,12 @@ function ScheduleProScreenInner() {
         return;
       }
       if (Platform.OS === 'web') {
-        showAlert('Calendar ready', `Downloaded a .ics file with ${result.eventCount} event(s). Open it to import into Apple/Google/Outlook Calendar.`);
+        showAlert('Calendar ready', `${result.eventCount} ${result.eventCount === 1 ? 'event' : 'events'} downloaded. Open the file to add them to your calendar.`);
       }
       // Native already opens the share sheet from inside exportProjectIcs.
     } catch (err) {
-      showAlert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+      const copy = describeError(err, { action: 'export the schedule' });
+      showAlert(copy.title, copy.body);
     }
   }, [project, workingTasks]);
 
@@ -2324,9 +2326,9 @@ function ScheduleProScreenInner() {
         nonWorkingDates: project?.schedule?.nonWorkingDates,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (Platform.OS === 'web') window.alert?.(`PDF export failed: ${msg}`);
-      else showAlert('PDF export failed', msg);
+      const copy = describeError(err, { action: 'export the schedule PDF' });
+      if (Platform.OS === 'web') window.alert?.(`${copy.title}. ${copy.body}`);
+      else showAlert(copy.title, copy.body);
     }
   }, [project?.name, project?.schedule?.startDate, project?.schedule?.workingDaysPerWeek,
       project?.schedule?.nonWorkingDates, rolledTasks, cpm]);
@@ -2347,8 +2349,8 @@ function ScheduleProScreenInner() {
       [
         { text: 'A3 (default)', onPress: () => { void then('a3'); } },
         { text: 'Letter', onPress: () => { void then('letter'); } },
-        { text: 'Arch D — 24×36', onPress: () => { void then('arch_d'); } },
-        { text: 'Arch E — 36×48', onPress: () => { void then('arch_e'); } },
+        { text: 'Arch D (24×36)', onPress: () => { void then('arch_d'); } },
+        { text: 'Arch E (36×48)', onPress: () => { void then('arch_e'); } },
         { text: 'Cancel', style: 'cancel' as const },
       ],
       { cancelable: true },
@@ -2357,7 +2359,7 @@ function ScheduleProScreenInner() {
 
   const handleExportPdf = useCallback(async () => {
     if (!canAccess('schedule_gantt_pdf')) {
-      showAlert('Pro feature', 'PDF export is available on the Pro plan. Upgrade to unlock it.');
+      showAlert('PDF export is on the Pro plan', 'See plans to add it.');
       return;
     }
     if (namedBaselines.length === 0) {
@@ -2441,10 +2443,8 @@ function ScheduleProScreenInner() {
         .select('id')
         .single();
       if (error || !data) {
-        showAlert(
-          'Could not save snapshot',
-          `Schedule has ${workingTasks.length} tasks (URL fallback). ${error?.message ?? 'Network error — try again in a moment.'}`,
-        );
+        const copy = describeError(error, { action: 'create the share link' });
+        showAlert(copy.title, copy.body);
         return;
       }
       // The snapshot variant keys on `?s=<row id>` rather than `?t=<token>`.
@@ -2749,8 +2749,8 @@ function ScheduleProScreenInner() {
           app.mageid.app.
         </Text>
         <Text style={styles.emptyBody}>
-          On this phone the classic schedule runs the same project — tasks,
-          dates, drag to reschedule, weather days — in a layout built for it.
+          On this phone, the classic schedule runs the same project in a layout
+          built for it: tasks, dates, drag to reschedule and weather days.
         </Text>
         <TouchableOpacity
           style={styles.primaryBtn}
@@ -2784,7 +2784,7 @@ function ScheduleProScreenInner() {
         <Stack.Screen options={{ headerShown: false }} />
         {/* Desktop: the picker sits in the form column, not across 1448 px. */}
         <DesktopFormColumn isDesktop={isDesktop}>
-        <ToolHeader eyebrow="SCHEDULE PRO · MAGE ID" title="Schedule Pro" />
+        <ToolHeader eyebrow="Schedule Pro · MAGE ID" title="Schedule Pro" />
         <ToolProjectPicker
           toolName="Schedule Pro"
           message="Schedule Pro drives the CPM grid, float and baselines for one project at a time."
@@ -3412,7 +3412,7 @@ function ScheduleProScreenInner() {
             testID="cleanup-stale-estimate-refs"
           >
             <Text style={styles.cleanupBannerText}>
-              {staleEstimateRefCount} stale estimate reference{staleEstimateRefCount === 1 ? '' : 's'} found · tap to clean up
+              {staleEstimateRefCount} stale estimate reference{staleEstimateRefCount === 1 ? '' : 's'} found · Tap to clean up
             </Text>
           </TouchableOpacity>
         </View>

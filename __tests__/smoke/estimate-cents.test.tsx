@@ -99,7 +99,7 @@ describe('estimator — one cent rule and the market-change question', () => {
     const cost = centsOf(tree, 'labor-popup-cost');
     expect(collectText(tree.getByTestId('labor-popup-cost')).join('')).toMatch(/\+15% O&P/);
     expect(preview).toBe(Math.round(cost * 1.15));
-    fireEvent.press(tree.getByText('Add Labor'));
+    fireEvent.press(tree.getByText('Add labor'));
     await settle();
     fireEvent.press(tree.getByTestId('cart-btn'));
     await settle();

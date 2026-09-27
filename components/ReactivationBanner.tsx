@@ -69,7 +69,7 @@ export default function ReactivationBanner() {
         </TouchableOpacity>
       </View>
       <Text style={styles.sub}>
-        Repeat clients are your cheapest jobs. A quick check-in keeps them warm.
+        Repeat clients are the cheapest work to win. A quick check-in keeps them warm.
       </Text>
       <View style={styles.list}>
         {top.map(l => {

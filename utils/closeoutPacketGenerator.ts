@@ -13,6 +13,22 @@ import { calendarDayOf, formatCalendarDay, todayCalendarDay } from '@/utils/cale
 import { openPrintWindowOrThrow } from '@/utils/platformFile';
 import { PDF_PALETTE as P, PDF_FONT_DISPLAY } from '@/utils/pdfDesign';
 
+// Labels printed on the packet come from maps, never from the raw enum.
+const PROJECT_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft', estimated: 'Estimated', in_progress: 'In progress', completed: 'Completed', closed: 'Closed',
+};
+const INVOICE_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft', sent: 'Sent', partially_paid: 'Partially paid', paid: 'Paid', overdue: 'Overdue',
+};
+const INVOICE_TYPE_LABEL: Record<string, string> = { full: 'Full', progress: 'Progress' };
+const PUNCH_STATUS_LABEL: Record<string, string> = {
+  open: 'Open', in_progress: 'In progress', ready_for_review: 'Ready for review', closed: 'Closed',
+};
+const QUALITY_LABEL: Record<string, string> = {
+  economy: 'Economy', standard: 'Standard', premium: 'Premium', luxury: 'Luxury',
+};
+const labelOf = (map: Record<string, string>, v: unknown): string => map[String(v)] ?? '—';
+
 // Wave 5, #140. This packet is HANDED to the client at closeout, so every figure
 // in it is read as a statement of account. It used to:
 //   - round every amount to whole dollars ($12,480.37 printed as $12,480);
@@ -171,32 +187,32 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
   const coveragePageHtml = `
     <section class="cover">
       ${logoHtml}
-      <h1>Project Closeout Packet</h1>
+      <h1>Project closeout packet</h1>
       <h2>${escapeHtml(project.name)}</h2>
       <p class="sub">${escapeHtml(project.location)}</p>
       <div class="cover-meta">
-        <div><span class="label">Prepared By</span><span class="value">${escapeHtml(company)}</span></div>
+        <div><span class="label">Prepared by</span><span class="value">${escapeHtml(company)}</span></div>
         <div><span class="label">License #</span><span class="value">${escapeHtml(branding.licenseNumber) || '—'}</span></div>
         <div><span class="label">Generated</span><span class="value">${formatDate(new Date().toISOString())}</span></div>
         ${project.closedAt ? `<div><span class="label">Closed</span><span class="value">${formatDate(project.closedAt)}</span></div>` : ''}
-        <div><span class="label">Status</span><span class="value status-${project.status}">${escapeHtml(project.status.replace(/_/g, ' '))}</span></div>
+        <div><span class="label">Status</span><span class="value status-${project.status}">${escapeHtml(labelOf(PROJECT_STATUS_LABEL, project.status))}</span></div>
       </div>
     </section>
   `;
 
   const financialsHtml = `
     <section>
-      <h3>Financial Summary</h3>
+      <h3>Financial summary</h3>
       <table class="summary">
-        <tr><td>Original Contract</td><td class="num">${formatMoney(baseEstimate)}</td></tr>
-        <tr><td>Approved Change Orders (${approvedCOs.length})</td><td class="num">${totalCOValue > 0 ? '+' : ''}${formatMoney(totalCOValue)}</td></tr>
-        <tr class="total"><td>Final Contract Value</td><td class="num">${formatMoney(finalContractValue)}</td></tr>
-        <tr><td>Total Invoiced (${billed.length})</td><td class="num">${formatMoney(totalInvoiced)}</td></tr>
-        <tr><td>Total Paid</td><td class="num">${formatMoney(totalPaid)}</td></tr>
+        <tr><td>Original contract</td><td class="num">${formatMoney(baseEstimate)}</td></tr>
+        <tr><td>Approved change orders (${approvedCOs.length})</td><td class="num">${totalCOValue > 0 ? '+' : ''}${formatMoney(totalCOValue)}</td></tr>
+        <tr class="total"><td>Final contract value</td><td class="num">${formatMoney(finalContractValue)}</td></tr>
+        <tr><td>Total invoiced (${billed.length})</td><td class="num">${formatMoney(totalInvoiced)}</td></tr>
+        <tr><td>Total paid</td><td class="num">${formatMoney(totalPaid)}</td></tr>
         ${totalRetentionHeld > 0 ? `
-          <tr><td>Retention Held</td><td class="num warn">${formatMoney(totalRetentionHeld)}</td></tr>
-          <tr><td>Retention Released</td><td class="num ok">${formatMoney(totalRetentionReleased)}</td></tr>
-          <tr><td>Retention Pending Release</td><td class="num ${retentionPending > 0 ? 'warn' : 'ok'}">${formatMoney(retentionPending)}</td></tr>
+          <tr><td>Retainage held</td><td class="num warn">${formatMoney(totalRetentionHeld)}</td></tr>
+          <tr><td>Retainage released</td><td class="num ok">${formatMoney(totalRetentionReleased)}</td></tr>
+          <tr><td>Retainage pending release</td><td class="num ${retentionPending > 0 ? 'warn' : 'ok'}">${formatMoney(retentionPending)}</td></tr>
         ` : ''}
       </table>
     </section>
@@ -204,7 +220,7 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
 
   const coSectionHtml = approvedCOs.length > 0 ? `
     <section>
-      <h3>Approved Change Orders</h3>
+      <h3>Approved change orders</h3>
       <table class="list">
         <thead><tr><th>CO #</th><th>Date</th><th>Description</th><th class="num">Amount</th></tr></thead>
         <tbody>
@@ -223,16 +239,16 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
 
   const invoicesSectionHtml = billed.length > 0 ? `
     <section>
-      <h3>Invoice Register</h3>
+      <h3>Invoice register</h3>
       <table class="list">
-        <thead><tr><th>#</th><th>Issued</th><th>Type</th><th>Status</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Retention</th></tr></thead>
+        <thead><tr><th>#</th><th>Issued</th><th>Type</th><th>Status</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Retainage</th></tr></thead>
         <tbody>
           ${billed.map(inv => `
             <tr>
               <td>${inv.number}</td>
               <td>${formatDate(inv.issueDate)}</td>
-              <td>${escapeHtml(inv.type)}${inv.progressPercent ? ` (${inv.progressPercent}%)` : ''}</td>
-              <td><span class="pill pill-${inv.status}">${escapeHtml(inv.status.replace(/_/g, ' '))}</span></td>
+              <td>${escapeHtml(labelOf(INVOICE_TYPE_LABEL, inv.type))}${inv.progressPercent ? ` (${inv.progressPercent}%)` : ''}</td>
+              <td><span class="pill pill-${inv.status}">${escapeHtml(labelOf(INVOICE_STATUS_LABEL, inv.status))}</span></td>
               <td class="num">${formatMoney(inv.totalDue)}</td>
               <td class="num">${formatMoney(inv.amountPaid ?? 0)}</td>
               <td class="num">${effectiveRetentionHeld(inv) > 0 ? formatMoney(effectiveRetentionHeld(inv)) : '—'}</td>
@@ -245,19 +261,19 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
 
   const punchSectionHtml = punchItems.length > 0 ? `
     <section>
-      <h3>Punch List — ${punchCompletion}% Complete</h3>
+      <h3>Punch list · ${punchCompletion}% complete</h3>
       <p class="note">${closedPunch.length} of ${punchItems.length} items verified closed.</p>
       ${openPunch.length > 0 ? `
-        <h4>Outstanding Items (${openPunch.length})</h4>
+        <h4>Outstanding items (${openPunch.length})</h4>
         <table class="list">
-          <thead><tr><th>Item</th><th>Location</th><th>Assigned To</th><th>Status</th></tr></thead>
+          <thead><tr><th>Item</th><th>Location</th><th>Assigned to</th><th>Status</th></tr></thead>
           <tbody>
             ${openPunch.map(p => `
               <tr>
                 <td>${escapeHtml(p.description)}</td>
                 <td>${escapeHtml(p.location || '—')}</td>
                 <td>${escapeHtml(p.assignedSub || '—')}</td>
-                <td>${escapeHtml(String(p.status).replace(/_/g, ' '))}</td>
+                <td>${escapeHtml(labelOf(PUNCH_STATUS_LABEL, p.status))}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -268,7 +284,7 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
 
   const warrantySectionHtml = activeWarranties.length > 0 ? `
     <section>
-      <h3>Active Warranties</h3>
+      <h3>Active warranties</h3>
       <table class="list">
         <thead><tr><th>Item</th><th>Provider</th><th>Start</th><th>End</th><th>Coverage</th></tr></thead>
         <tbody>
@@ -307,7 +323,7 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
 
   const photosSectionHtml = (beforeAfter.before.length > 0 || beforeAfter.after.length > 0) ? `
     <section class="photos-section">
-      <h3>Project Documentation Photos</h3>
+      <h3>Project documentation photos</h3>
       <p class="note">Before / after pairs from ${totalPhotoCount} total project photo${totalPhotoCount === 1 ? '' : 's'} on file. Photos selected ${data.photos?.some(p => p.tag?.toLowerCase() === 'before' || p.tag?.toLowerCase() === 'after') ? 'by tag' : 'chronologically'}.</p>
       ${beforeAfter.before.length > 0 ? `
         <div class="photo-row">
@@ -325,32 +341,32 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
   const dfrCount = dailyReports.length;
   const projectInfoHtml = `
     <section>
-      <h3>Project Information</h3>
+      <h3>Project information</h3>
       <table class="info">
-        <tr><td>Project Name</td><td>${escapeHtml(project.name)}</td></tr>
+        <tr><td>Project name</td><td>${escapeHtml(project.name)}</td></tr>
         <tr><td>Type</td><td>${escapeHtml(projectTypeLabel(project))}</td></tr>
         <tr><td>Location</td><td>${escapeHtml(project.location)}</td></tr>
-        <tr><td>Square Footage</td><td>${project.squareFootage ? project.squareFootage.toLocaleString() + ' sq ft' : '—'}</td></tr>
-        <tr><td>Quality</td><td>${escapeHtml(project.quality)}</td></tr>
+        <tr><td>Square footage</td><td>${project.squareFootage ? project.squareFootage.toLocaleString() + ' sq ft' : '—'}</td></tr>
+        <tr><td>Quality</td><td>${escapeHtml(labelOf(QUALITY_LABEL, project.quality))}</td></tr>
         <tr><td>Started</td><td>${formatDate(project.createdAt)}</td></tr>
         ${project.closedAt ? `<tr><td>Closed</td><td>${formatDate(project.closedAt)}</td></tr>` : ''}
-        <tr><td>Daily Reports on File</td><td>${dfrCount}</td></tr>
-        ${totalPhotoCount > 0 ? `<tr><td>Photos Captured</td><td>${totalPhotoCount}</td></tr>` : ''}
+        <tr><td>Daily reports on file</td><td>${dfrCount}</td></tr>
+        ${totalPhotoCount > 0 ? `<tr><td>Photos captured</td><td>${totalPhotoCount}</td></tr>` : ''}
       </table>
     </section>
   `;
 
   const signoffHtml = `
     <section class="signoff">
-      <h3>Acceptance & Sign-Off</h3>
+      <h3>Acceptance and sign-off</h3>
       <div class="sign-grid">
         <div class="sign-box">
           <div class="sign-line"></div>
-          <div class="sign-label">Owner / Client — Date</div>
+          <div class="sign-label">Owner · Date</div>
         </div>
         <div class="sign-box">
           <div class="sign-line"></div>
-          <div class="sign-label">${escapeHtml(company)} — Date</div>
+          <div class="sign-label">${escapeHtml(company)} · Date</div>
         </div>
       </div>
       <p class="note">By signing above, parties acknowledge the project has reached substantial completion and all closeout deliverables (warranties, O&M manuals, as-built documentation, punch list clearance) have been furnished.</p>
@@ -369,7 +385,7 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Closeout Packet — ${escapeHtml(project.name)}</title>
+  <title>Closeout packet · ${escapeHtml(project.name)}</title>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     @page { size: letter; margin: 0.75in; }
@@ -432,7 +448,7 @@ export function buildCloseoutHtml(data: CloseoutPacketData): string {
   ${photosSectionHtml}
   ${signoffHtml}
   <div class="disclaimer">
-    <div class="disclaimer-title">Important — please read</div>
+    <div class="disclaimer-title">Important</div>
     This handoff packet is provided for the owner&apos;s reference. Warranty terms, product specifications, and maintenance schedules originate with the manufacturer or installer named for each item. The contractor disclaims any warranty beyond what is stated in the original construction contract or in the items themselves. Verify all amounts and dates against your own records before relying on them.
   </div>
   <div class="footer">${escapeHtml(company)} &middot; Built with <span style="color:#0B0D10;font-weight:700">MAGE ID</span> &middot; mageid.app &middot; ${formatDate(new Date().toISOString())}</div>
@@ -470,7 +486,7 @@ export async function generateAndShareCloseoutPacket(data: CloseoutPacketData): 
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
-        dialogTitle: `Closeout Packet — ${data.project.name}`,
+        dialogTitle: `Closeout packet · ${data.project.name}`,
         UTI: 'com.adobe.pdf',
       });
     }

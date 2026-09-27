@@ -190,7 +190,7 @@ const CATEGORIES: CategoryDef[] = [
     // The fan-out only alerts a company whose SERVICE AREA covers the RFP
     // (notify-nearby-contractors/reach.ts), and no screen sets one yet — so
     // the toggle says it cannot fire today instead of implying it will.
-    description: 'A homeowner posts a project in your service area. You\'ll get these once your service area is set up — that setup isn\'t available yet.',
+    description: 'A client posts a project in your service area. These start once service-area setup is available, which it isn\'t yet.',
     icon: <Hammer size={18} color={Colors.purple} strokeWidth={1.75} />,
     group: 'marketplace',
   },
@@ -204,17 +204,17 @@ const CATEGORIES: CategoryDef[] = [
   {
     key: 'rfp_awarded',
     label: 'RFP awarded to you',
-    description: 'A homeowner picks your bid for their project.',
+    description: 'A client picks your bid for their project.',
     icon: <CheckCircle2 size={18} color={Colors.successDark} strokeWidth={1.75} />,
     group: 'marketplace',
   },
 ];
 
 const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: string }> = {
-  leads:       { title: 'Website → You',        subtitle: 'When a homeowner asks for a price on your website.' },
-  client:      { title: 'Client → You',         subtitle: 'When the homeowner does something on the portal.' },
-  team:        { title: 'Your team → You',      subtitle: 'When your field crew or a design pro sends something back.' },
-  sub:         { title: 'Subcontractor → You',  subtitle: 'When a sub does something through a link you sent them.' },
+  leads:       { title: 'Website → you',        subtitle: 'When someone asks for a price on your website.' },
+  client:      { title: 'Client → you',         subtitle: 'When the client does something on the portal.' },
+  team:        { title: 'Your team → you',      subtitle: 'When your field crew or a design pro sends something back.' },
+  sub:         { title: 'Subs → you',  subtitle: 'When a sub does something through a link you sent them.' },
   marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
 };
 
@@ -344,6 +344,9 @@ export default function NotificationsSettingsScreen() {
         const raw = await AsyncStorage.getItem(DID_FOR_YOU_KEY);
         if (cancelled) return;
         const entries = parseDidForYouEntries(raw).filter(e =>
+          // Current wording first; the older phrasings stay so receipts
+          // stored before the copy pass still show.
+          e.text.includes('qualifies for your pace') ||
           e.text.includes('pace unlocked') ||
           e.text.includes('pace calls for') ||
           e.text.includes('Leak precision'),
@@ -513,7 +516,7 @@ export default function NotificationsSettingsScreen() {
       console.log('[NotificationsSettings] preview failed', err);
       showAlert(
         'Preview failed',
-        'We could not send your preview digest. Check your connection and try again.',
+        'Couldn’t send your preview digest. Check your connection and try again.',
       );
     } finally {
       setPreviewing(false);
@@ -640,7 +643,7 @@ export default function NotificationsSettingsScreen() {
           </View>
           <Text style={styles.heroTitle}>Stay in the loop</Text>
           <Text style={styles.heroBody}>
-            Push notifications land instantly on your phone; emails are the durable receipt and the catch-all when push isn&apos;t reliable. Toggle either off per category — defaults send both.
+            Push lands on your phone right away; email is the lasting record when push misses. Turn either off per category. Both are on by default.
           </Text>
           {!allOn && (
             <Text style={styles.heroNote}>
@@ -708,8 +711,8 @@ export default function NotificationsSettingsScreen() {
                   {!settingsLoaded
                     ? (profileFailed ? `${PROFILE_FAILED_TITLE} — tap the switch to retry` : 'Loading your digest setting…')
                     : digestEnabled
-                      ? `On — fires at ${formatHour(digestHour)} ${digestTimezone.split('/').pop()?.replace(/_/g, ' ')}`
-                      : 'Off — opt in to start receiving briefs'}
+                      ? `On · sends at ${formatHour(digestHour)} ${digestTimezone.split('/').pop()?.replace(/_/g, ' ')}`
+                      : 'Off. Turn it on to get a brief each morning.'}
                 </Text>
               </View>
               <Switch
@@ -817,10 +820,10 @@ export default function NotificationsSettingsScreen() {
                   </View>
                   <Text style={styles.locationBody}>
                     {locationCoverage.total === 0
-                      ? 'Add a project with a real address (e.g. 1234 Main St, Austin, TX) and we\'ll geocode it for hyperlocal weather.'
+                      ? 'Add a project with a street address (e.g. 1234 Main St, Austin, TX) to get jobsite weather.'
                       : locationCoverage.geocoded === locationCoverage.total
-                        ? "Each project has lat/lng. Today's digest will include 24-hour wind, rain, and temperature for every site."
-                        : `${locationCoverage.textOnly + locationCoverage.blank} project${locationCoverage.textOnly + locationCoverage.blank === 1 ? '' : 's'} ${locationCoverage.textOnly + locationCoverage.blank === 1 ? "doesn't" : "don't"} have a precise location yet. Edit the project, type the address, and save — we'll geocode it.`}
+                        ? "Every project has a map location. Today's digest includes 24-hour wind, rain and temperature for each jobsite."
+                        : `${locationCoverage.textOnly + locationCoverage.blank} project${locationCoverage.textOnly + locationCoverage.blank === 1 ? '' : 's'} ${locationCoverage.textOnly + locationCoverage.blank === 1 ? "doesn't" : "don't"} have a precise location yet. Edit the project, type the address and save.`}
                   </Text>
                   {locationCoverage.total > 0 && locationCoverage.geocoded < locationCoverage.total && (
                     <TouchableOpacity
@@ -874,7 +877,7 @@ export default function NotificationsSettingsScreen() {
         {Platform.OS !== 'web' && canAccess('brain_accuracy') && (
           <View style={styles.section}>
             <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>Friday Close nudge</Text>
+              <Text style={styles.groupTitle}>Friday close nudge</Text>
               <Text style={styles.groupSubtitle}>
                 A Friday 3 PM reminder to bill, chase, and close the week.
               </Text>
@@ -888,8 +891,8 @@ export default function NotificationsSettingsScreen() {
                   <Text style={styles.digestTitle}>Friday 3 PM close nudge</Text>
                   <Text style={styles.digestSubtitle}>
                     {weekCloseNudgeOn
-                      ? 'On — fires Friday at 3:00 PM local'
-                      : 'Off — no nudge'}
+                      ? 'On · Fridays at 3:00 PM local time'
+                      : 'Off'}
                   </Text>
                 </View>
                 <Switch
@@ -912,9 +915,9 @@ export default function NotificationsSettingsScreen() {
         {canAccess('brain_accuracy') && (
           <View style={styles.section}>
             <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>Brain autonomy</Text>
+              <Text style={styles.groupTitle}>What MAGE does on its own</Text>
               <Text style={styles.groupSubtitle}>
-                What MAGE may do on its own. Every ability is earned from your graded record — and revoked automatically when the record slips. Nothing is ever sent without you.
+                Each ability is earned from your graded record and turns off when the record slips. Nothing is sent without you.
               </Text>
             </View>
 
@@ -928,8 +931,8 @@ export default function NotificationsSettingsScreen() {
                   <Text style={styles.digestTitle}>Pre-set durations from your pace</Text>
                   <Text style={styles.digestSubtitle}>
                     {pacePreApplyOn
-                      ? 'On — draft schedules arrive with unlocked trades already set to your measured pace (tap any badge to revert)'
-                      : 'Off — MAGE only suggests, never pre-sets'}
+                      ? 'On. Draft schedules arrive with qualified trades already set to your measured pace (tap any badge to revert).'
+                      : 'Off. MAGE only suggests, never pre-sets.'}
                   </Text>
                 </View>
                 <Switch
@@ -942,7 +945,7 @@ export default function NotificationsSettingsScreen() {
               <View style={styles.digestDivider} />
               {paceGateRows.length === 0 ? (
                 <Text style={styles.autonomyEmpty}>
-                  No graded pace calls yet. Apply &quot;Your pace&quot; suggestions on draft schedules and finish those tasks — each graded call builds the record. A trade unlocks at 60% beat-or-tie over 5 calls.
+                  No graded pace calls yet. Apply &quot;Your pace&quot; suggestions on draft schedules and finish those tasks — each graded call builds the record. A trade qualifies at 60% beat-or-tie over 5 calls.
                 </Text>
               ) : (
                 paceGateRows.map(g => (
@@ -954,7 +957,7 @@ export default function NotificationsSettingsScreen() {
                       {g.trade} · {Math.round(g.rate * g.n)}/{g.n} at {Math.round(g.rate * 100)}%
                     </Text>
                     <Text style={[styles.autonomyRowStatus, g.passed && { color: themeColors.success }]}>
-                      {g.passed ? 'unlocked' : 'unlocks at 60% over 5 jobs'}
+                      {g.passed ? 'Qualified' : 'Qualifies at 60% over 5 calls'}
                     </Text>
                   </View>
                 ))
@@ -971,8 +974,8 @@ export default function NotificationsSettingsScreen() {
                   <Text style={styles.digestTitle}>Draft change orders from leak scans</Text>
                   <Text style={styles.digestSubtitle}>
                     {leakDraftOn
-                      ? 'On — priced leaks in daily reports become draft COs for your review (drafts only, never sent)'
-                      : 'Off — leak drafting stays one-tap manual'}
+                      ? 'On. Priced leaks in daily reports become draft COs for your review (drafts only, never sent).'
+                      : 'Off. Leak drafting stays a one-tap manual step.'}
                   </Text>
                 </View>
                 <Switch
@@ -985,7 +988,7 @@ export default function NotificationsSettingsScreen() {
               <View style={styles.digestDivider} />
               {leakGate.n === 0 ? (
                 <Text style={styles.autonomyEmpty}>
-                  No graded leak scans yet. Scan daily reports for leaks, then bill (or dismiss) the flagged items — drafting unlocks at 50% billed over 5 scans.
+                  No graded leak scans yet. Scan daily reports for leaks, then bill (or dismiss) the flagged items — drafting qualifies at 50% billed over 5 scans.
                 </Text>
               ) : (
                 <View style={styles.autonomyRow}>
@@ -996,7 +999,7 @@ export default function NotificationsSettingsScreen() {
                     {leakGate.n} scan{leakGate.n === 1 ? '' : 's'} graded · {Math.round(leakGate.billedRate * 100)}% billed
                   </Text>
                   <Text style={[styles.autonomyRowStatus, leakGate.passed && { color: themeColors.success }]}>
-                    {leakGate.passed ? 'unlocked' : 'unlocks at 50% over 5 scans'}
+                    {leakGate.passed ? 'Qualified' : 'Qualifies at 50% over 5 scans'}
                   </Text>
                 </View>
               )}
@@ -1084,7 +1087,7 @@ export default function NotificationsSettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.tableHeadLabel}>How push works</Text>
           <Text style={styles.helperBody}>
-            We register your iPhone or Android device when you log in. If you ever miss notifications, sign out and back in — that re-registers the device with our server. Push isn&apos;t supported on the web app, but every category still sends emails there.
+            Your iPhone or Android device registers when you sign in. If you miss notifications, sign out and back in to register it again. Push isn&apos;t supported on the web app, but every category still sends emails there.
           </Text>
         </View>
       </ScrollView>

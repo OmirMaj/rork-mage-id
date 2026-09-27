@@ -103,8 +103,8 @@ function EstimateCalibrationInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate Calibration · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Cross-job bias</Text>
+          <Text style={styles.headerEyebrow}>Estimate calibration · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Bias across projects</Text>
         </View>
         <View style={styles.headerBtn} />
       </View>
@@ -112,14 +112,14 @@ function EstimateCalibrationInner() {
       {!report.hasData ? (
         <EmptyState
           icon={<SlidersHorizontal size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No measured jobs yet"
-          message="Calibration compounds bid-vs-actual truth across FINISHED jobs into a per-category correction. A job still running only tells you how far through it you are, so it is deliberately left out. To light it up:"
+          title="No measured projects yet"
+          message="Calibration turns bid vs. actual on finished projects into a correction per category. A project still running only shows how far through it you are, so it is left out. To start:"
           steps={[
             'Build estimates with cost and markup on your projects.',
             'Award buyout so commitments link back to estimate lines.',
-            'Close the job, and settle the subs — a deposit is not a cost.',
+            'Close the project and settle the subs. A deposit is not a cost.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
@@ -137,7 +137,7 @@ function EstimateCalibrationInner() {
           </View>
 
           {/* Per-category corrections */}
-          <Text style={styles.sectionTitle}>By category — worst calibration first</Text>
+          <Text style={styles.sectionTitle}>By category, worst first</Text>
           {report.categories.map(c => (
             <CategoryCard
               key={c.category}
@@ -153,11 +153,11 @@ function EstimateCalibrationInner() {
           <Text style={styles.note}>
             Applied factors are saved on this device. They record your decision so
             you can revisit it here, but they don't yet sync across devices or feed
-            new estimates automatically — reapply them after a reinstall or on a new
+            new estimates automatically. Reapply them after a reinstall or on a new
             phone. Suggestions are clamped to a 0.8–1.5 band; bias beyond that usually
             means a scope bust or an unlinked commitment, not a pricing habit.
             When you apply them on an estimate, a line already priced at the rate
-            your jobs measured is left alone, and a line below it moves only up to
+            your projects measured is left alone, and a line below it moves only up to
             that rate — the factor is measured against your old bids, and your cost
             book has already moved toward the same actuals.
           </Text>
@@ -168,7 +168,7 @@ function EstimateCalibrationInner() {
             activeOpacity={0.8}
           >
             <Scale size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.linkRowText}>Open your Cost Database</Text>
+            <Text style={styles.linkRowText}>Open your cost history</Text>
             <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         </ScrollView>
@@ -207,7 +207,7 @@ function CategoryCard({
       <View style={styles.cardMetaRow}>
         <Text style={styles.cardMeta}>{formatMoney(c.estimatedTotal)} bid → {formatMoney(c.actualTotal)} actual</Text>
         <View style={[styles.confChip, { backgroundColor: t.line }]}>
-          <Text style={styles.confChipText}>{confidenceLabel(c.confidence)} · {c.jobs} {c.jobs === 1 ? 'job' : 'jobs'}</Text>
+          <Text style={styles.confChipText}>{confidenceLabel(c.confidence)} · {c.jobs} {c.jobs === 1 ? 'project' : 'projects'}</Text>
         </View>
       </View>
 

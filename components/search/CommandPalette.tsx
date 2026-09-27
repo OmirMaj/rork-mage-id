@@ -296,7 +296,7 @@ export default function CommandPalette({
               style={styles.input}
               value={query}
               onChangeText={setQuery}
-              placeholder="Jump to a job, create something, ask MAGE"
+              placeholder="Jump to a project, create something, ask MAGE"
               placeholderTextColor={t.textMuted}
               autoCorrect={false}
               autoCapitalize="none"
@@ -321,7 +321,7 @@ export default function CommandPalette({
           >
             {showNothing ? (
               <Text style={styles.nothing}>
-                Nothing by that name. Try a job, “rfi”, “gantt”, “g702” — or ask MAGE.
+                Nothing by that name. Try a project, “rfi”, “gantt” or “g702”, or ask MAGE.
               </Text>
             ) : null}
             {rows.map((row, i) => {

@@ -55,6 +55,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 
 interface PickItem extends AiSubmittalCandidate {
   // Local key for the review list.
@@ -161,7 +162,7 @@ export default function ExtractSubmittalsScreen() {
       // offers See plans), not "Spec book submittals call failed: Edge
       // Function returned a non-2xx status code".
       const refusal = showAiRefusal(e, router);
-      setError(refusal ?? String((e as Error).message ?? e));
+      setError(refusal ?? ownSentence(e) ?? describeError(e, { action: 'read the spec book' }).body);
       // A later pass that fails keeps what the earlier passes found; the
       // review screen shows the error above its list.
       setStep(startPage > 1 ? 'review' : 'idle');
@@ -223,7 +224,7 @@ export default function ExtractSubmittalsScreen() {
     } catch (e) {
       console.warn('[extract-submittals] failed', e);
       const refusal = showAiRefusal(e, router);
-      setError(refusal ?? String((e as Error).message ?? e));
+      setError(refusal ?? describeError(e, { action: 'open the spec book' }).body);
       setStep('idle');
     }
   }, [project, tier, router, runPass]);
@@ -291,7 +292,7 @@ export default function ExtractSubmittalsScreen() {
       showAlert(
         'Submittals added',
         [
-          `${added} submittal${added === 1 ? '' : 's'} logged — none sent yet.`,
+          `${added} submittal${added === 1 ? '' : 's'} logged, none sent yet.`,
           skipped > 0 ? `${skipped} already in the log ${skipped === 1 ? 'was' : 'were'} left out.` : '',
           dated < added
             ? `${added - dated} ${added - dated === 1 ? 'has' : 'have'} no required date — no schedule task matched the trade. Set it on each submittal, or link a task.`
@@ -302,7 +303,8 @@ export default function ExtractSubmittalsScreen() {
       );
     } catch (e) {
       console.warn('[extract-submittals] save failed', e);
-      showAlert('Save failed', String((e as Error).message ?? e));
+      const copy = describeError(e, { action: 'add these submittals', keptLocally: true });
+      showAlert(copy.title, copy.body);
     } finally {
       setSaving(false);
     }
@@ -312,10 +314,10 @@ export default function ExtractSubmittalsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="SPEC BOOK · MAGE ID" title="Extract Submittals" />
+        <ToolHeader eyebrow="Spec book · MAGE ID" title="Extract submittals" />
         <ToolProjectPicker
-          toolName="Extract Submittals"
-          message="Spec Book reads a specification PDF and drafts the submittal log — every product data, shop drawing, and sample the spec calls for, filed into the project."
+          toolName="Extract submittals"
+          message="MAGE reads a spec book PDF and drafts the submittal log — every product data sheet, shop drawing and sample the spec calls for, filed into the project."
           projects={projects}
           onPick={setPickedProjectId}
         />
@@ -331,7 +333,7 @@ export default function ExtractSubmittalsScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="SPEC BOOK · MAGE ID" title={project.name} />
+        <ToolHeader eyebrow="Spec book · MAGE ID" title={project.name} />
         <WorkProgress
           title={step === 'uploading' ? 'Rendering pages' : 'Reading the spec book'}
           typical="usually 60–90 s"
@@ -344,7 +346,7 @@ export default function ExtractSubmittalsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ToolHeader eyebrow="SPEC BOOK · MAGE ID" title={project.name} />
+      <ToolHeader eyebrow="Spec book · MAGE ID" title={project.name} />
       <ScrollView {...fabScroll} style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {step === 'idle' && (
           <>
@@ -354,7 +356,7 @@ export default function ExtractSubmittalsScreen() {
               </View>
               <Text style={styles.heroTitle}>Spec book → submittal log</Text>
               <Text style={styles.heroBody}>
-                Upload the architect&apos;s spec book PDF. AI reads every page and pulls out each item that requires a submittal — cut sheets, mix designs, shop drawings, samples, certifications. You review the list, uncheck the ones you don&apos;t need, and we add the keepers to {project.name}&apos;s submittal log.
+                Upload the architect&apos;s spec book PDF and MAGE pulls out every item that needs a submittal: cut sheets, mix designs, shop drawings, samples, certifications. Uncheck the ones you don&apos;t need and the rest go into {project.name}&apos;s submittal log.
               </Text>
             </View>
 
@@ -437,15 +439,15 @@ export default function ExtractSubmittalsScreen() {
                       </View>
                       <View style={styles.metaChip}>
                         <Calendar size={11} color={themeColors.textMuted} strokeWidth={1.75} />
-                        <Text style={styles.metaChipText}>{row.dueRelativeDays}d estimated lead (AI)</Text>
+                        <Text style={styles.metaChipText}>{row.dueRelativeDays}-day lead (AI estimate)</Text>
                       </View>
                       {row.duplicate ? (
                         <View style={[styles.metaChip, { backgroundColor: themeColors.warningSoft }]}>
-                          <Text style={styles.metaChipText}>{row.duplicate === 'log' ? 'already in log' : 'already on this list'}</Text>
+                          <Text style={styles.metaChipText}>{row.duplicate === 'log' ? 'Already in log' : 'Already on this list'}</Text>
                         </View>
                       ) : null}
                       <View style={[styles.confChip, confColor(row.confidence, themeColors)]}>
-                        <Text style={styles.confText}>{row.confidence}</Text>
+                        <Text style={styles.confText}>{CONFIDENCE_LABEL[row.confidence] ?? 'Confidence not rated'}</Text>
                       </View>
                     </View>
                     <Text style={styles.itemType}>{row.submittalType}</Text>
@@ -491,6 +493,10 @@ export default function ExtractSubmittalsScreen() {
     </View>
   );
 }
+
+const CONFIDENCE_LABEL: Record<'high' | 'medium' | 'low', string> = {
+  high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence',
+};
 
 // `low` was the DARK theme's textSecondary (#9AA3AD) suffixed as a fill, so in
 // dark mode the "low confidence" chip washed toward the surface it sits on

@@ -263,7 +263,7 @@ function SafetyHazardsInner() {
     const localUri = pickedUri?.trim();
     const url = photoUrl.trim();
     if (!localUri && !url) {
-      showAlert('Add a photo', 'Take or pick a site photo (or paste a URL) to scan for hazards.');
+      showAlert('Add a photo', 'Take or pick a jobsite photo, or paste a URL, to scan for hazards.');
       return;
     }
     // Hazard scan is a vision call — meter it under the shared 'photoAnalysis'
@@ -271,7 +271,7 @@ function SafetyHazardsInner() {
     // Photo Triage rather than the generic text bucket.
     if (scanBlocked) { showAlert('Business feature', scanBlocked); return; }
     const check = await checkAILimit(tier, 'smart', 'photoAnalysis');
-    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Monthly photo analysis limit reached.'); return; }
+    if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Monthly photo limit reached.'); return; }
     setDetecting(true);
     setScanNote(null);
     try {
@@ -387,19 +387,19 @@ function SafetyHazardsInner() {
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Hazard Log' }} />
+        <Stack.Screen options={{ title: 'Hazard log' }} />
         <EmptyState
           icon={<TriangleAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="Open a project first"
-          message="Hazards are tied to a project so each one carries its risk score, owner, and corrective action. To log one:"
+          message="Hazards are tied to a project so each one carries its risk score, owner and corrective action. To log one:"
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
-            'Open Hazard Log and hit + to log one, or scan a site photo.',
+            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
+            'Open Hazard log and tap + to log one, or scan a jobsite photo.',
           ]}
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel="Pick a job"
+          actionLabel="Pick a project"
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -408,7 +408,7 @@ function SafetyHazardsInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: `Hazard Log — ${project.name}` }} />
+      <Stack.Screen options={{ title: `Hazard log — ${project.name}` }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {/* Audit #121: an invited crew seat reads only the hazards he filed
             (20260919130000), so the list says so instead of looking empty. */}
@@ -456,7 +456,7 @@ function SafetyHazardsInner() {
             <EmptyState
               icon={<TriangleAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title={seat === 'crew' ? crewEmptyTitle('hazard') : 'No hazards logged'}
-              message="Log site hazards and rank them by risk (severity × likelihood). Highest-risk hazards surface first, and AI can scan a site photo to spot hazards for you to confirm."
+              message="Log jobsite hazards ranked by risk (severity × likelihood). Scan a photo and MAGE suggests hazards for you to confirm."
               actionLabel="Log hazard"
               onAction={() => { resetForm(); setShowForm(true); }}
             />
@@ -475,7 +475,7 @@ function SafetyHazardsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-hazard">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Log Hazard</Text>
+          <Text style={styles.addItemBtnText}>Log hazard</Text>
         </TouchableOpacity>
 
         {/* AI photo scan — capture/library first (field), URL as secondary. */}
@@ -535,7 +535,7 @@ function SafetyHazardsInner() {
               the only signal near the button was a haptic, none on web. */}
           {suggestions.length > 0 && (
             <View style={styles.suggestionBox}>
-              <Text style={styles.suggestionTitle}>AI-detected hazards — tap to review</Text>
+              <Text style={styles.suggestionTitle}>Suggested hazards. Tap one to review.</Text>
               <View style={styles.chipWrap}>
                 {suggestions.map((s, idx) => {
                   const band = riskBand(computeRiskScore(s.severity, s.likelihood));
@@ -558,7 +558,7 @@ function SafetyHazardsInner() {
             style={styles.photoInput}
             value={photoUrl}
             onChangeText={t => { setPhotoUrl(t); if (t.trim()) setPickedUri(null); setSuggestions([]); setScanNote(null); }}
-            placeholder="Or paste a site photo URL to scan…"
+            placeholder="Or paste a photo URL to scan"
             placeholderTextColor={themeColors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
@@ -577,7 +577,7 @@ function SafetyHazardsInner() {
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingHazard ? 'Edit Hazard' : 'Log Hazard'}</Text>
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingHazard ? 'Edit hazard' : 'Log hazard'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>

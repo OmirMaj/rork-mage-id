@@ -250,7 +250,7 @@ export default function LeadsScreen() {
                   <Card testID="leads-register-empty">
                     <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
                     <Text style={[styles.emptyBannerBody, isDesktopWeb && styles.emptyBannerBodyDesktop]}>
-                      Capture every inbound — homeowner calls, web inquiries, referrals — so they don&apos;t slip past the first 24 hours. Use New lead by voice to dictate one, or Add by hand to type one in. Leads land in New and move through Qualified → Proposal → Won as you work them.
+                      Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Use New lead by voice to dictate one, or Add by hand to type one in. Leads land in New and move through Qualified → Proposal → Won as you work them.
                     </Text>
                   </Card>
                 ) : null}
@@ -263,7 +263,7 @@ export default function LeadsScreen() {
               ) : !leadsLoaded ? (
                 <EmptyState
                   icon={<Clock size={28} color={themeColors.accent} strokeWidth={1.75} />}
-                  title="Loading…"
+                  title="Loading leads…"
                   message="Your pipeline appears here once it loads."
                 />
               ) : (
@@ -328,7 +328,7 @@ export default function LeadsScreen() {
                 <MageAIMark size={20} color={themeColors.accent} />
                 <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
                 <Text style={styles.emptyBannerBody}>
-                  Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
+                  Capture every inquiry (client calls, web forms, referrals) so none slips past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyImportBtn}
@@ -445,7 +445,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
         <View style={[styles.waitingPill, overdue && styles.waitingPillOverdue]}>
           <Clock size={11} color={overdue ? '#FFF' : Colors.warningLabel} strokeWidth={1.75} />
           <Text style={[styles.waitingText, overdue && styles.waitingTextOverdue]}>
-            {ageHours < 1 ? 'just now' : `waiting ${ageHours}h`}
+            {ageHours < 1 ? 'Just now' : `Waiting ${ageHours}h`}
           </Text>
         </View>
       )}

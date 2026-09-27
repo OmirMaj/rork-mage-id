@@ -37,6 +37,7 @@ import {
 import type { ScheduleAuditEntry } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
@@ -111,7 +112,7 @@ export function ScheduleAuditModal(props: {
               <Text style={styles.loadingText}>Loading…</Text>
             ) : entries.length === 0 ? (
               <Text style={styles.emptyText}>
-                No schedule history yet — edits you make will show up here.
+                No schedule history yet. Edits you make show up here.
               </Text>
             ) : (
               days.map(({ day, entries: dayEntries }) => (
@@ -123,7 +124,7 @@ export function ScheduleAuditModal(props: {
                         <Text style={styles.entryTime}>{formatTime(entry.at)}</Text>
                         <Text style={styles.entryUser} numberOfLines={1}>{entry.user}</Text>
                         <View style={styles.kindChip}>
-                          <Text style={styles.kindChipText}>{entry.kind.replace(/_/g, ' ')}</Text>
+                          <Text style={styles.kindChipText}>{humanizeEnum(entry.kind)}</Text>
                         </View>
                       </View>
                       <Text style={styles.entrySummary}>{entry.summary}</Text>

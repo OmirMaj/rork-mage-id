@@ -157,9 +157,9 @@ ok('loading → spinner state', g({ isLoading: true }) === 'loading');
 ok('error → retry state', g({ isError: true }) === 'error');
 ok('paused → says its reason', g({ isPaused: true }) === 'paused' && core.invoiceRoleBlockedCopy('paused', "You're offline.").body.startsWith("You're offline."));
 ok('settled null → no_access, said', g({}) === 'no_access' && /not shared with you/.test(core.invoiceRoleBlockedCopy('no_access').body));
-ok('the collaborator copy says why (their bank)', /Only the job's owner bills the client/.test(core.invoiceRoleBlockedCopy('collaborator').body) && /bank/.test(core.INVOICE_OWNER_ONLY_REASON));
+ok('the collaborator copy says why (their bank)', /Only the project's owner bills the client/.test(core.invoiceRoleBlockedCopy('collaborator').body) && /bank/.test(core.INVOICE_OWNER_ONLY_REASON));
 ok('never a paywall word in any blocked copy', (['loading', 'error', 'paused', 'collaborator', 'no_access'] as const).every(k => !/upgrade|Pro plan|paywall/i.test(core.invoiceRoleBlockedCopy(k).body)));
-ok('the not_project_owner skip reads in words', /job owner/.test(core.reminderBlockMessage('not_project_owner')));
+ok('the not_project_owner skip reads in words', /project owner/.test(core.reminderBlockMessage('not_project_owner')));
 
 // ── #66 tax seed ───────────────────────────────────────────────────────
 console.log('\n#66 the tax on a new invoice');

@@ -185,7 +185,7 @@ console.log('\nScreen wiring (source):');
   ok('#63 team rows are the OWNED-project ones (costingTeamRows), never all teamEntries', /costingTeamRows\(teamEntries\)/.test(tt));
   ok('#63 team rows close through closeTeamShift, never clockOut / updateEntry',
     /closeTeamShift\(entry\.id, \{ clockOut: outIso/.test(tt) && /if \(teamRow\) return;/.test(tt));
-  ok('#63 the job-costing drill tags team rows the same way', /teamLoggedByLabel\(e as TeamTimeEntry\)/.test(jc) && /Time Tracking lists all/.test(jc));
+  ok('#63 the job-costing drill tags team rows the same way', /teamLoggedByLabel\(e as TeamTimeEntry\)/.test(jc) && /Time tracking lists all/.test(jc));
   ok('#66 missed shifts leave On Site and stop blocking a clock-in',
     // wave 4 #99: the block is now the open-shift-by-worker map availableRoster filters on.
     /liveCount: activeLiveRows\.length/.test(tt) && /!isMissed\(e\) && !out\.has\(e\.workerId\)/.test(tt) && /roster\.filter\(m => !openShiftByWorker\.has\(m\.id\)\)/.test(tt));

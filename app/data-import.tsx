@@ -34,6 +34,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { capProjectCount, partitionImportForCap } from '@/utils/projectCap';
 import type { Project } from '@/types';
+import { describeError } from '@/utils/errorCopy';
 
 interface PlanRow { key: ImportableKey; label: string; incoming: number; toAdd: number; duplicates: number }
 interface DeferredRow { label: string; count: number }
@@ -126,7 +127,8 @@ export default function DataImportScreen() {
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
     } catch (err) {
       console.error('[DataImport] pick failed', err);
-      showAlert('Import error', err instanceof Error ? err.message : 'Could not open that file.');
+      const copy = describeError(err, { action: 'open that file' });
+      showAlert(copy.title, copy.body);
     } finally {
       setBusy(false);
     }
@@ -136,7 +138,7 @@ export default function DataImportScreen() {
     if (!parsed || totalToAdd === 0) return;
     showAlert(
       'Import these records?',
-      `${totalToAdd} new record(s) will be added. Nothing already in your account is changed or removed.`
+      `${totalToAdd} new ${totalToAdd === 1 ? 'record' : 'records'} will be added. Nothing already in your account is changed or removed.`
         + (heldProjects > 0
           ? ` ${heldProjects} project${heldProjects === 1 ? '' : 's'} in the file will be left out — the free plan covers one project of your own.`
           : ''),
@@ -159,7 +161,8 @@ export default function DataImportScreen() {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (err) {
               console.error('[DataImport] import failed', err);
-              showAlert('Import failed', err instanceof Error ? err.message : 'Please try again.');
+              const copy = describeError(err, { action: 'import these records' });
+              showAlert(copy.title, copy.body);
             } finally {
               setImporting(false);
             }
@@ -201,13 +204,13 @@ export default function DataImportScreen() {
               {parsed.exportedAt && <Text style={styles.fileMeta}>{parsed.exportedAt.slice(0, 10)}</Text>}
             </View>
 
-            <Text style={styles.sectionLabel}>WILL IMPORT</Text>
+            <Text style={styles.sectionLabel}>Will import</Text>
             <View style={styles.card}>
               {plan.map((row, i) => (
                 <View key={row.key} style={[styles.planRow, i === plan.length - 1 && { borderBottomWidth: 0 }]}>
                   <Text style={styles.planLabel}>{row.label}</Text>
                   <Text style={styles.planCount}>
-                    {row.toAdd > 0 ? <Text style={styles.planAdd}>+{row.toAdd} new</Text> : <Text style={styles.planNone}>nothing new</Text>}
+                    {row.toAdd > 0 ? <Text style={styles.planAdd}>+{row.toAdd} new</Text> : <Text style={styles.planNone}>Nothing new</Text>}
                     {row.duplicates > 0 ? <Text style={styles.planDup}>  ·  {row.duplicates} already have</Text> : null}
                   </Text>
                 </View>
@@ -216,12 +219,12 @@ export default function DataImportScreen() {
 
             {heldProjects > 0 && (
               <>
-                <Text style={styles.sectionLabel}>HELD BACK BY YOUR PLAN</Text>
+                <Text style={styles.sectionLabel}>Held back by your plan</Text>
                 <View style={styles.hintCard}>
                   <AlertTriangle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.hintText}>
-                    {heldProjects} project{heldProjects === 1 ? '' : 's'} in this file won{'\u2019'}t be imported: the free plan covers one project of your own, and a finished job still counts.
-                    {' '}Pro takes the cap off — import the file again after upgrading and they come in (nothing is imported twice).
+                    {heldProjects} project{heldProjects === 1 ? '' : 's'} in this file won{'\u2019'}t be imported: the Free plan covers one project of your own, and a finished project still counts.
+                    {' '}Pro removes the cap. Import the file again after upgrading (nothing is imported twice).
                     <Text style={styles.hintLink} onPress={() => router.push('/paywall' as never)} testID="import-see-plans">{'  '}See plans</Text>
                   </Text>
                 </View>
@@ -230,12 +233,12 @@ export default function DataImportScreen() {
 
             {deferredFound.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>IN THE FILE, NOT IMPORTED YET</Text>
+                <Text style={styles.sectionLabel}>In the file, not imported yet</Text>
                 <View style={styles.hintCard}>
                   <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.hintText}>
                     {deferredFound.map(d => `${d.label} (${d.count})`).join(', ')}.{'\n'}
-                    These stay safely in your file. Importing them losslessly is a follow-up — projects, contacts and subs come in now.
+                    These stay in your file. Projects, contacts and subs import now; the rest will follow.
                   </Text>
                 </View>
               </>
@@ -244,13 +247,13 @@ export default function DataImportScreen() {
             {result ? (
               <View style={styles.resultCard}>
                 <CheckCircle2 size={22} color={themeColors.success} strokeWidth={1.75} />
-                <Text style={styles.resultTitle}>Imported {importedTotal} record(s)</Text>
+                <Text style={styles.resultTitle}>Imported {importedTotal} {importedTotal === 1 ? 'record' : 'records'}</Text>
                 <Text style={styles.resultDetail}>
-                  {result.projects} project(s) · {result.contacts} contact(s) · {result.subcontractors} sub(s)
+                  {result.projects} {result.projects === 1 ? 'project' : 'projects'} · {result.contacts} {result.contacts === 1 ? 'contact' : 'contacts'} · {result.subcontractors} {result.subcontractors === 1 ? 'sub' : 'subs'}
                 </Text>
                 {result.projectsHeld > 0 && (
                   <Text style={styles.resultDetail}>
-                    {result.projectsHeld} project{result.projectsHeld === 1 ? ' was' : 's were'} held back — the free plan covers one project of your own.
+                    {result.projectsHeld} project{result.projectsHeld === 1 ? ' was' : 's were'} held back. The Free plan covers one project of your own.
                   </Text>
                 )}
                 <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()} activeOpacity={0.85}>
@@ -267,7 +270,7 @@ export default function DataImportScreen() {
                 testID="run-import"
               >
                 {importing ? <ActivityIndicator color={Colors.textOnAccent} /> : (
-                  <><FolderInput size={18} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.importBtnText}>{totalToAdd > 0 ? `Import ${totalToAdd} record(s)` : 'Nothing new to import'}</Text></>
+                  <><FolderInput size={18} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.importBtnText}>{totalToAdd > 0 ? `Import ${totalToAdd} ${totalToAdd === 1 ? 'record' : 'records'}` : 'Nothing new to import'}</Text></>
                 )}
               </TouchableOpacity>
             )}
@@ -324,7 +327,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   sectionLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
-    letterSpacing: 0.8, marginBottom: 8, marginTop: 4,
+    letterSpacing: 0.8, marginBottom: 8, marginTop: 4, textTransform: 'uppercase',
   },
   card: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line,

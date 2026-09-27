@@ -34,7 +34,7 @@ export function NeedsYou({ items, onPressItem, max, onSeeAll, style }: NeedsYouP
         <View style={[styles.iconSq, { backgroundColor: colors.danger + '18' }]}>
           <Bell size={15} color={colors.danger} strokeWidth={2.2} />
         </View>
-        <Text style={styles.headerLabel}>NEEDS YOU</Text>
+        <Text style={styles.headerLabel}>Needs you</Text>
         <Text style={[styles.headerMeta, { color: colors.danger }]}>
           {items.length} item{items.length === 1 ? '' : 's'}
         </Text>
@@ -73,7 +73,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { ...cardSurface(t, { radius: 'xl', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, marginBottom: 6 },
   iconSq: { width: 26, height: 26, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2 },
+  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2, textTransform: 'uppercase' as const },
   headerMeta: { marginLeft: 'auto' as const, fontSize: 11, fontWeight: '700' as const },
   row: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 9 },
   rowDivider: { borderTopWidth: 1, borderTopColor: t.line },

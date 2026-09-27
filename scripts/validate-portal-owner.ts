@@ -776,7 +776,7 @@ ok('portal still calls the legacy CO RPC as a pre-migration fallback',
   ok('client-view still writes an auditTrail entry', /auditTrail: \[\.\.\.existingAudit, auditEntry\]/.test(cv));
   ok('client-view builds the shared consent record', /buildCOConsentRecord\(/.test(cv));
   ok('client-view requires the signing-consent checkbox before approving',
-    /!esignConsent/.test(cv) && /Consent Required/.test(cv));
+    /!esignConsent/.test(cv) && /Consent required/.test(cv));
   ok('client-view persists the sealed record columns',
     /consent_record:/.test(cv) && /document_hash:/.test(cv));
 }
@@ -1751,7 +1751,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
 {
   const cv = read('app/client-view.tsx');
   ok('client-view renders the proposal the homeowner will see',
-    /title="Your Proposal"/.test(cv) && /proposalBlock\.scope\.map/.test(cv));
+    /title="Your proposal"/.test(cv) && /proposalBlock\.scope\.map/.test(cv));
   // It builds it with the SAME function the snapshot does. A hand-rolled
   // preview is a preview of something else.
   ok('…built with the shared buildPortalProposal, not re-derived',
@@ -1771,7 +1771,7 @@ const PROPOSAL_DOC_HASH = 'c'.repeat(64);
   ok('a pending proposal preview says the terms are not confirmed instead of drawing rows',
     /proposalBlock\.paymentTermsPending \? \(/.test(cv)
     && /testID="proposal-terms-pending"/.test(cv)
-    && /Payment terms not confirmed — your client can\\u2019t accept until you confirm them in Client Portal\./.test(cv));
+    && /Payment terms not confirmed\. Your client can\\u2019t accept until you confirm them in client portal settings\./.test(cv));
   // In SNAPSHOT mode the reader is the homeowner: the two notes must speak the
   // portal page's sentences, never the GC's instructions, and the "To accept,
   // open the portal link" line must not sit under a proposal that cannot be

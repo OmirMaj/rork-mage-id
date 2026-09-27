@@ -360,7 +360,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendLine, { backgroundColor: themeColors.info }]} />
-          <Text style={styles.legendText}>Running Balance</Text>
+          <Text style={styles.legendText}>Running balance</Text>
         </View>
       </View>
     </View>

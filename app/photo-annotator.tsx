@@ -111,7 +111,7 @@ function AnnotatorAccessWall({ state, requiredTier, onRetry }: {
         {state === 'loading'
           ? 'Checking your access to this photo…'
           : state === 'error'
-            ? "Couldn't check your access to this job. Check your connection and try again."
+            ? "Couldn't check your access to this project. Check your connection and try again."
             : "You don't have access to this project's photos. Ask the project owner to invite you."}
       </Text>
       {state === 'error' && (
@@ -325,7 +325,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
   }, []);
 
   const handleClear = useCallback(() => {
-    showAlert('Clear all markup?', 'This will remove every annotation on this photo. This cannot be undone.', [
+    showAlert('Clear all markup?', 'Every annotation on this photo is removed. This can’t be undone.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: () => setMarkups([]) },
     ]);
@@ -344,10 +344,10 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
     // into a "thing I escalated." If the user just wants to save and
     // go, the Done option preserves the old behavior.
     showAlert(
-      'Saved',
-      'Your markup is saved. Want to use this photo for something?',
+      'Markup saved',
+      'Use this photo for an RFI or a punch item?',
       [
-        { text: 'Done', style: 'cancel', onPress: goBack },
+        { text: 'Close', style: 'cancel', onPress: goBack },
         {
           text: 'Create RFI',
           onPress: () => {
@@ -358,7 +358,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
           },
         },
         {
-          text: 'Add to Punch List',
+          text: 'Add to punch list',
           onPress: () => {
             router.replace({
               pathname: '/punch-list' as any,
@@ -478,7 +478,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
               value={textValue}
               onChangeText={setTextValue}
               onSubmitEditing={commitText}
-              placeholder="Label this point…"
+              placeholder="Label this point"
               placeholderTextColor={themeColors.textMuted}
               style={styles.textInput}
               maxLength={28}
@@ -541,7 +541,7 @@ function PhotoAnnotatorInner({ photo }: { photo: ProjectPhoto }) {
         </View>
 
         <Text style={styles.helper}>
-          {markups.length ? `${markups.length} annotation${markups.length === 1 ? '' : 's'}` : 'Tap & drag to draw on the photo. Tap "Save" when done.'}
+          {markups.length ? `${markups.length} annotation${markups.length === 1 ? '' : 's'}` : 'Tap and drag to draw on the photo, then tap Save.'}
         </Text>
       </ScrollView>
     </View>

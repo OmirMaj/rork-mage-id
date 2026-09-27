@@ -161,7 +161,7 @@ function SafetyInspectionsInner() {
     );
     addHazard(hz);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Hazard logged', `"${item.prompt || 'Failed item'}" was added to the Hazard Log for follow-up.`);
+    showAlert('Hazard logged', `"${item.prompt || 'Failed item'}" was added to the hazard log for follow-up.`);
   }, [editing, loggedItemIds, addHazard, userId]);
 
   const handleSave = useCallback(() => {
@@ -210,12 +210,12 @@ function SafetyInspectionsInner() {
         <EmptyState
           icon={<ClipboardCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="Open a project first"
-          message="Inspections are tied to a project so each failed line can become a tracked hazard on that job. To run one:"
+          message="Inspections are tied to a project so each failed line can become a tracked hazard on it. To run one:"
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
-            'Open Inspections and hit + to start one.',
+            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
+            'Open Inspections and tap + to start one.',
           ]}
-          actionLabel="Pick a job"
+          actionLabel="Pick a project"
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -257,7 +257,7 @@ function SafetyInspectionsInner() {
             <EmptyState
               icon={<ClipboardCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title="No inspections yet"
-              message="Run a safety inspection or audit against this project. Pull a checklist from your Forms Library, score each line pass / fail / N/A, and turn any failed item into a tracked hazard."
+              message="Run a safety inspection on this project. Pull a checklist from your forms library, mark each line pass, fail or N/A, and turn failed items into tracked hazards."
               actionLabel="New inspection"
               onAction={openNew}
             />
@@ -266,7 +266,7 @@ function SafetyInspectionsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-inspection">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>New Inspection</Text>
+          <Text style={styles.addItemBtnText}>New inspection</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -276,7 +276,7 @@ function SafetyInspectionsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editing ? 'Edit Inspection' : 'New Inspection'}</Text>
+                  <Text style={styles.formTitle}>{editing ? 'Edit inspection' : 'New inspection'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -284,7 +284,7 @@ function SafetyInspectionsInner() {
 
                 <ScrollView style={{ maxHeight: 520 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                   <Text style={styles.fieldLabel}>Title *</Text>
-                  <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Weekly site safety walk" placeholderTextColor={themeColors.textMuted} testID="inspection-title-input" />
+                  <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Weekly jobsite safety walk" placeholderTextColor={themeColors.textMuted} testID="inspection-title-input" />
 
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>

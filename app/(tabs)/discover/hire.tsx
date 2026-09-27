@@ -29,6 +29,7 @@ import {
 } from '@/utils/location';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError } from '@/utils/errorCopy';
 
 interface CachedJob {
   id: string;
@@ -54,7 +55,7 @@ const RADIUS_OPTIONS = [10, 25, 50, 100] as const;
 
 const TRADE_FILTERS = [
   'Electrical', 'Plumbing', 'Carpentry', 'HVAC', 'Welding',
-  'Masonry', 'Roofing', 'Management', 'Labor', 'General Construction',
+  'Masonry', 'Roofing', 'Management', 'Labor', 'General construction',
 ] as const;
 
 const TRADE_BADGE_COLORS: Record<string, string> = {
@@ -119,7 +120,7 @@ function JobCard({ job, onPress }: { job: JobWithDistance; onPress: () => void }
           ) : null}
         </View>
 
-        <Text style={styles.cardTitle} numberOfLines={2}>{job.title ?? 'Untitled Job'}</Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>{job.title ?? 'Untitled job'}</Text>
         <Text style={styles.cardCompany}>{job.company_name ?? 'Company not listed'}</Text>
 
         <View style={styles.cardMeta}>
@@ -145,7 +146,7 @@ function JobCard({ job, onPress }: { job: JobWithDistance; onPress: () => void }
           <View style={{ flex: 1 }} />
           <View style={styles.applyHint}>
             <Briefcase size={12} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.applyHintText}>Tap to Apply</Text>
+            <Text style={styles.applyHintText}>Tap to apply</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -273,14 +274,14 @@ export default function CachedHireScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
               <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle} numberOfLines={1}>Direct Hire</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Direct hire</Text>
           </View>
         </View>
         <View style={styles.emptyContainer}>
           <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>Direct Hire is coming soon</Text>
+          <Text style={styles.emptyTitle}>Direct hire isn&apos;t open yet</Text>
           <Text style={styles.emptySubtitle}>
-            The in-app hiring marketplace isn&apos;t available yet. We&apos;ll let you know when you can browse jobs and connect with workers.
+            The hiring marketplace isn&apos;t available in MAGE ID yet, so there are no job posts to browse.
           </Text>
         </View>
       </View>
@@ -294,14 +295,14 @@ export default function CachedHireScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Direct Hire</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Direct hire</Text>
           <View style={styles.countPill}>
             <Text style={styles.countPillText}>{filteredJobs.length}</Text>
           </View>
         </View>
 
         <View style={styles.radiusHeaderRow}>
-          <Text style={styles.filterSectionLabel}>RADIUS</Text>
+          <Text style={styles.filterSectionLabel}>Radius</Text>
           <TouchableOpacity
             style={styles.locBtn}
             onPress={() => {
@@ -333,7 +334,7 @@ export default function CachedHireScreen() {
           </Text>
         )}
 
-        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>TRADE</Text>
+        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>Trade</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
           <TouchableOpacity
             style={[styles.chip, !selectedTrade && styles.chipActive]}
@@ -358,12 +359,10 @@ export default function CachedHireScreen() {
           <AlertCircle size={40} color={themeColors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>Couldn&apos;t load jobs</Text>
           <Text style={styles.emptySubtitle}>
-            {jobsQueryError instanceof Error && jobsQueryError.message
-              ? jobsQueryError.message
-              : 'The request did not come back.'}
+            {describeError(jobsQueryError, { action: 'load job posts' }).body}
           </Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>Try again</Text>
           </TouchableOpacity>
         </View>
       ) : loading ? (
@@ -384,9 +383,9 @@ export default function CachedHireScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.emptyTitle}>No jobs posted yet</Text>
+              <Text style={styles.emptyTitle}>No job posts to show</Text>
               <Text style={styles.emptySubtitle}>
-                Hire shows open construction jobs near you posted by other GCs. Widen the radius, clear the trade filter, or post your own job from this screen to attract subs.
+                Direct hire lists open construction job posts from other GCs. Widen the radius or clear the trade filter to see more.
               </Text>
             </View>
           }
@@ -404,7 +403,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerTitle: { ...Type.serifHeadline, flex: 1, color: t.text },
   countPill: { backgroundColor: t.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card },
   countPillText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accent },
-  filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' as const },
   radiusHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   locBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

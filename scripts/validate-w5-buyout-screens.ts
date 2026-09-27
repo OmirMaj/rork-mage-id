@@ -84,7 +84,7 @@ console.info('\n#95 the screen');
 const voice = handlerBody(screen, 'handleVoiceBid');
 ok('a voice bid with no amount is NOT saved at $0', !/amount:\s*partial\.amount\s*\|\|\s*0/.test(screen));
 ok('…it opens the Add-bid sheet prefilled, with the note', /if \(amount == null\)[\s\S]*setShowAddBid\(true\)/.test(voice)
-  && /We didn't catch a dollar amount — type it in\./.test(voice));
+  && /No dollar amount heard\. Type it in\./.test(voice));
 ok('…and a parse that caught nothing keeps the raw dictation in Includes', /setNewIncludes\(caughtNothing \? transcript\.trim\(\)/.test(voice));
 const addBid = handlerBody(screen, 'handleAddBid');
 ok('the hand-entry form parses through parseBidAmountInput, not Number(newAmount)',

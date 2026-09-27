@@ -36,6 +36,7 @@ import { TRADE_KEYS, tradeKeyForTask, tradeLabel, type TradeKey } from '@/utils/
 import { showAlert } from '@/utils/alert';
 import { taskStatusInk, CHIP_TINT_SUFFIX } from '@/components/ui/ink';
 import { useSheetFrame } from '@/components/ui/Sheet';
+import { TASK_STATUS_LABEL } from '@/utils/statusLabels';
 
 interface TaskInspectorProps {
   task: ScheduleTask | null;
@@ -69,10 +70,10 @@ function dayToDate(startDate: Date, day: number): string {
 // routes text through accentLabel), and `Colors.warningLabel` is a getter, so
 // it froze to whichever theme was active at import.
 const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: string }[] = [
-  { value: 'not_started', label: 'Not started' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'on_hold', label: 'On hold' },
-  { value: 'done', label: 'Done' },
+  { value: 'not_started', label: TASK_STATUS_LABEL.not_started },
+  { value: 'in_progress', label: TASK_STATUS_LABEL.in_progress },
+  { value: 'on_hold', label: TASK_STATUS_LABEL.on_hold },
+  { value: 'done', label: TASK_STATUS_LABEL.done },
 ];
 
 export default function TaskInspector({
@@ -387,7 +388,7 @@ export default function TaskInspector({
             <Text style={styles.sectionTitle}>Notification list {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
           </View>
           <Text style={styles.notesText}>
-            Only people on this list get pinged when this task shifts. Add a sub by name, email, or phone — login not required.
+            Only people on this list get pinged when this task shifts. Add a sub by name, email or phone. No sign-in needed.
           </Text>
           <View style={styles.subRow}>
             <TextInput

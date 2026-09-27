@@ -443,7 +443,7 @@ for (const f of LOADER_FILES) {
     && !/import (BootShell|ScreenLoader)\b/.test(crane) && /label = 'Loading'/.test(crane));
   check('E CraneLoader keeps testID crane-loader; the label is a Type.headline status line', /testID="crane-loader"/.test(crane) && /Type\.headline/.test(crane)
     && !/serifLargeTitle/.test(crane));
-  check('E CraneLoader facts eyebrow is textMuted (was accent)', /WHILE WE WORK/.test(crane) && /Type\.monoCaption, styles\.factEyebrow, \{ color: colors\.textMuted \}/.test(crane));
+  check('E CraneLoader facts eyebrow is textMuted (was accent)', />While you wait</.test(crane) &&/Type\.monoCaption, styles\.factEyebrow, \{ color: colors\.textMuted \}/.test(crane));
 
   const cl = code(read('components/ConstructionLoader.tsx'));
   check('E ConstructionLoader.tsx imports no react-native-svg, no Easing.back', !/react-native-svg/.test(cl) && !/Easing\.back/.test(cl));

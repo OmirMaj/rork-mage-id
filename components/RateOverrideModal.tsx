@@ -144,8 +144,8 @@ function RateOverrideModalImpl({
   // ── Delete with confirm ───────────────────────────────────────────────────
   const handleDelete = useCallback((id: string, displayLabel: string) => {
     showAlert(
-      'Delete Override',
-      `Remove the override for "${displayLabel}"?`,
+      'Delete this override?',
+      `"${displayLabel}" goes back to the default.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -256,9 +256,9 @@ function RateOverrideModalImpl({
             <Text style={styles.title}>
               {subForm
                 ? subForm.editingId
-                  ? `Edit ${subForm.kind === 'labor' ? 'Labor' : 'Material'} Rate`
-                  : `Add ${subForm.kind === 'labor' ? 'Labor' : 'Material'} Rate`
-                : 'Cost-Book Overrides'}
+                  ? `Edit ${subForm.kind === 'labor' ? 'labor' : 'material'} rate`
+                  : `Add ${subForm.kind === 'labor' ? 'labor' : 'material'} rate`
+                : 'Rate overrides'}
             </Text>
             <TouchableOpacity
               onPress={onClose}
@@ -376,7 +376,7 @@ function RateOverrideModalImpl({
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddLabor} activeOpacity={0.8}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>＋ Labor rate</Text>
+                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add labor rate</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -422,7 +422,7 @@ function RateOverrideModalImpl({
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddMaterial} activeOpacity={0.8}>
                     <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>＋ Material price</Text>
+                    <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add material price</Text>
                   </TouchableOpacity>
                 </View>
 

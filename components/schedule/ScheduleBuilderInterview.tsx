@@ -25,6 +25,7 @@ import { generateScheduleFromAnswers } from '@/utils/copilot/scheduleBuilder/gen
 import { generateFollowups } from '@/utils/copilot/scheduleBuilder/followups';
 import { coerceFollowupAnswer } from '@/utils/copilot/scheduleBuilder/followupsValidator';
 import { pickableProjects } from '@/utils/copilot/projectScope';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 const SKIP = Symbol('skip');
 
@@ -188,7 +189,8 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
 
       router.replace({ pathname: '/schedule-review', params: { projectId } } as never);
     } catch (e) {
-      setErrMsg((e as Error).message ?? 'Could not build the schedule.');
+      console.warn('[ScheduleBuilderInterview] build failed', rawErrorMessage(e));
+      setErrMsg(describeError(e, { action: 'build the schedule', keptLocally: true }).body);
       setPhase('error');
     }
   }, [q, answers, idx, questions.length, staticQuestions, dynamicFollowups.length, project, projectId, router, projects, updateProject, getRFIsForProject, getDailyReportsForProject]);
@@ -207,7 +209,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
       <View style={[styles.root, { paddingTop: insets.top }]} testID="sb-job-picker">
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.topbar}>
-          <Text style={styles.brand}>AI&nbsp;SCHEDULE&nbsp;BUILDER</Text>
+          <Text style={styles.brand}>Schedule&nbsp;builder</Text>
           <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Close" hitSlop={10} testID="sb-close">
             <X size={20} color={colors.textMuted} strokeWidth={2} />
           </TouchableOpacity>
@@ -216,12 +218,12 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
             row across a 1400px screen (the founder's "boxes so stretched
             out"). A picker reads as a column. */}
         <ScrollView contentContainerStyle={[styles.card, styles.pickerColumn, { paddingBottom: insets.bottom + Tokens.spacing.xl }]}>
-          <Text style={styles.eyebrow}>FIRST, WHICH JOB?</Text>
-          <Text style={styles.question}>Which job is this schedule for?</Text>
+          <Text style={styles.eyebrow}>First, which project?</Text>
+          <Text style={styles.question}>Which project is this schedule for?</Text>
           <Text style={styles.subtext}>
             {stale
-              ? 'That job isn’t on this device any more. Pick the job to schedule — the questions come next.'
-              : 'The questions are about this job, and the schedule is saved onto it.'}
+              ? 'That project isn’t on this device any more. Pick the project to schedule. The questions come next.'
+              : 'The questions are about this project, and the schedule is saved onto it.'}
           </Text>
           {!projectsLoaded && (jobChoices.length === 0 || !!routeProjectId) ? (
             <ActivityIndicator color={colors.accent} />
@@ -258,7 +260,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
                     testID={`sb-job-${p.id}`}
                   >
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.choiceText} numberOfLines={1}>{p.name || 'Untitled job'}</Text>
+                      <Text style={styles.choiceText} numberOfLines={1}>{p.name || 'Untitled project'}</Text>
                       {/* A job with a running schedule is replaced only at
                           review, which says what a replace loses — but he
                           should know that before ten questions, not after. */}
@@ -281,8 +283,8 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
       <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator color={colors.accent} size="large" />
-        <Text style={styles.buildingTitle}>One moment…</Text>
-        <Text style={styles.buildingSub}>Mining your scope for a sharper schedule.</Text>
+        <Text style={styles.buildingTitle}>Reading your scope…</Text>
+        <Text style={styles.buildingSub}>Checking your scope for details the schedule needs.</Text>
       </View>
     );
   }
@@ -292,7 +294,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator color={colors.accent} size="large" />
         <Text style={styles.buildingTitle}>Building your schedule…</Text>
-        <Text style={styles.buildingSub}>Sequencing tasks, sizing durations, wiring dependencies.</Text>
+        <Text style={styles.buildingSub}>Sequencing tasks, sizing durations and linking dependencies.</Text>
       </View>
     );
   }
@@ -300,7 +302,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
     return (
       <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.eyebrow}>SOMETHING WENT WRONG</Text>
+        <Text style={styles.eyebrow}>Couldn&apos;t build the schedule</Text>
         <Text style={styles.question}>{errMsg}</Text>
         <TouchableOpacity style={[styles.primaryBtn, isDesktop && desktopCta]} onPress={() => setPhase('ask')} activeOpacity={0.9}>
           <Text style={styles.primaryBtnText}>Try again</Text>
@@ -326,7 +328,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
 
       {/* top bar: brand + progress + close */}
       <View style={styles.topbar}>
-        <Text style={styles.brand}>AI&nbsp;SCHEDULE&nbsp;BUILDER</Text>
+        <Text style={styles.brand}>Schedule&nbsp;builder</Text>
         <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Close" hitSlop={10} testID="sb-close">
           <X size={20} color={colors.textMuted} strokeWidth={2} />
         </TouchableOpacity>
@@ -367,7 +369,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
               <TouchableOpacity key={i} style={[styles.choice, c.recommended && styles.choiceRec]} onPress={() => advance(c.value)} activeOpacity={0.85} testID={`sb-choice-${i}`}>
                 <View style={[styles.radio, c.recommended && styles.radioRec]} />
                 <Text style={styles.choiceText}>{c.label}</Text>
-                {c.recommended && <Text style={styles.suggested}>SUGGESTED</Text>}
+                {c.recommended && <Text style={styles.suggested}>Suggested</Text>}
               </TouchableOpacity>
             ))}
           </View>
@@ -383,7 +385,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
               style={styles.input}
               value={entry}
               onChangeText={setEntry}
-              placeholder={q.placeholder ?? 'Type your answer…'}
+              placeholder={q.placeholder ?? 'Type your answer'}
               placeholderTextColor={colors.textMuted}
               keyboardType={q.kind === 'number' ? 'numeric' : 'default'}
               returnKeyType="next"
@@ -394,7 +396,7 @@ export default function ScheduleBuilderInterview({ projectId: routeProjectId }: 
             />
             <TouchableOpacity style={[styles.primaryBtn, isDesktop && desktopCta]} onPress={submitEntry} activeOpacity={0.9} testID="sb-continue">
               {idx === questions.length - 1
-                ? <><Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} /><Text style={styles.primaryBtnText}>Build my schedule</Text></>
+                ? <><Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} /><Text style={styles.primaryBtnText}>Build schedule</Text></>
                 : <><Text style={styles.primaryBtnText}>Continue</Text><ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2} /></>}
             </TouchableOpacity>
           </View>

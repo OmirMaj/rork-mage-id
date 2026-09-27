@@ -52,6 +52,7 @@ import { loginHrefForInvite } from '@/utils/deepLinksInvite';
 import { useProjects } from '@/contexts/ProjectContext';
 import { setPendingDeepLink, takePendingDeepLink } from '@/utils/pendingDeepLink';
 import { settleWithin } from '@/utils/projectRole';
+import { describeError } from '@/utils/errorCopy';
 
 const PENDING_KEY = 'mageid_pending_invite';
 type Status = 'idle' | 'accepting' | 'done' | 'error' | 'signin';
@@ -107,7 +108,7 @@ export default function AcceptInvite() {
     setError('');
     setErrCode(null);
     const token = String(params.token || (await AsyncStorage.getItem(PENDING_KEY)) || '');
-    if (!token) { setStatus('error'); setErrCode('missing_token'); setError('This invite link is missing its token.'); return; }
+    if (!token) { setStatus('error'); setErrCode('missing_token'); setError('This invite link is incomplete. Ask for a new invite.'); return; }
     const { data, error: fnErr } = await supabase.functions.invoke('project-invite', {
       body: { action: 'accept', token },
     });
@@ -118,8 +119,8 @@ export default function AcceptInvite() {
       setErrCode(code);
       setError(code === 'invalid_or_used'
         // Local line: says what to do instead of how it failed.
-        ? "This link was replaced or already used. If you accepted it before, the project is in your list; if the owner sent you a newer invite, it's waiting on your Home screen."
-        : body?.error || (fnErr instanceof Error ? fnErr.message : 'Could not accept the invite.'));
+        ? "This link was replaced or already used. If you accepted it before, the project is in your list. If you were sent a newer invite, it's waiting on your Home screen."
+        : body?.error || describeError(fnErr ?? body, { action: 'accept the invite' }).body);
       setSignedInAs(code === 'email_mismatch' && body?.signedInAs ? body.signedInAs : null);
       // A dead token must not be replayed by a later tokenless visit.
       if (code === 'invalid_or_used' || code === 'is_client') await AsyncStorage.removeItem(PENDING_KEY);
@@ -226,11 +227,11 @@ export default function AcceptInvite() {
           </>
         ) : status === 'done' ? (
           <>
-            <Text style={[styles.title, { color: t.text }]}>You're in!</Text>
+            <Text style={[styles.title, { color: t.text }]}>You're in</Text>
             <Text style={[styles.sub, { color: t.textSecondary }]}>
               {userRole === null
-                ? "You can now collaborate on this project. One quick question about you first, then we'll open it."
-                : 'You can now collaborate on this project.'}
+                ? "You now have access to this project. One quick question about you first, then we'll open it."
+                : 'You now have access to this project.'}
             </Text>
             <TouchableOpacity
               style={[styles.btn, { backgroundColor: t.accentFill }, (opening || !firstRunKnown) && { opacity: 0.7 }]}
@@ -252,8 +253,8 @@ export default function AcceptInvite() {
           </>
         ) : status === 'signin' ? (
           <>
-            <Text style={[styles.title, { color: t.text }]}>You've been invited to collaborate</Text>
-            <Text style={[styles.sub, { color: t.textSecondary }]}>Sign in or create a free account with the address this invite was sent to. You'll come straight back here to accept — and if you lose this page, the invite also waits on your Home screen.</Text>
+            <Text style={[styles.title, { color: t.text }]}>You're invited to a project</Text>
+            <Text style={[styles.sub, { color: t.textSecondary }]}>Sign in or create a free account with the address this invite was sent to. You'll come straight back here to accept. If you lose this page, the invite also waits on your Home screen.</Text>
             <TouchableOpacity style={[styles.btn, { backgroundColor: t.accentFill }]} onPress={() => router.push(loginHrefForInvite(params.token) as never)} accessibilityRole="button">
               <Text style={styles.btnText}>Sign in to accept</Text>
             </TouchableOpacity>
@@ -267,7 +268,7 @@ export default function AcceptInvite() {
                 style={[styles.btn, { backgroundColor: t.accentFill }]}
                 onPress={copySignedInAs}
                 accessibilityRole="button"
-                accessibilityHint="Copies the address to send to the project owner"
+                accessibilityHint="Copies the address to send to the person who invited you"
               >
                 <Text style={styles.btnText}>{copied ? 'Copied' : 'Copy my sign-in email'}</Text>
               </TouchableOpacity>
@@ -286,7 +287,7 @@ export default function AcceptInvite() {
               <Text style={[styles.btnText, { color: t.text }]}>{isAuthenticated ? 'Go to Home' : 'Go to sign in'}</Text>
             </TouchableOpacity>
             {isAuthenticated && errCode !== 'invalid_or_used' && errCode !== 'is_client' ? (
-              <Text style={[styles.sub, { color: t.textSecondary }]}>If the project owner sent you a newer invite, it's waiting on your Home screen.</Text>
+              <Text style={[styles.sub, { color: t.textSecondary }]}>If you were sent a newer invite, it's waiting on your Home screen.</Text>
             ) : null}
           </>
         ) : (

@@ -372,24 +372,24 @@ function buildDunningHtml(opts: {
   })();
 
   const stageLabel =
-    opts.stage === 3 ? 'FINAL NOTICE' :
-    opts.stage === 2 ? 'SECOND NOTICE' :
-    'PAYMENT REMINDER';
+    opts.stage === 3 ? 'Final notice' :
+    opts.stage === 2 ? 'Second notice' :
+    'Payment reminder';
 
   const subject = opts.stage === 3
-    ? `Final notice — Invoice #${opts.invoiceNumber} is ${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'} overdue`
+    ? `Final notice: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
     : opts.stage === 2
-    ? `Second notice — Invoice #${opts.invoiceNumber} is ${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'} overdue`
-    : `Friendly reminder — Invoice #${opts.invoiceNumber} is past due`;
+    ? `Second notice: invoice #${opts.invoiceNumber} is ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} overdue`
+    : `Reminder: invoice #${opts.invoiceNumber} is past due`;
 
   // Stage-appropriate intro tone:
   // 1 = friendly, 2 = firmer, 3 = urgent
   const introLine =
     opts.stage === 3
-      ? `This is a final notice regarding an outstanding balance on your project. Please arrange payment immediately to avoid further action.`
+      ? `This is a final notice about an outstanding balance on your project. Arrange payment now to avoid further action.`
       : opts.stage === 2
-      ? `We haven't received payment yet for the invoice below. Please take a moment to review and arrange payment at your earliest convenience.`
-      : `Just a friendly reminder that the invoice below is now past due. If you've already sent payment, please disregard this notice.`;
+      ? `Payment for the invoice below hasn't been received yet. Review it and arrange payment as soon as you can.`
+      : `The invoice below is now past due. If you've already sent payment, you can ignore this notice.`;
 
   // Exact to the cent (#135 family): the shared fmtMoney rounds to whole
   // dollars, so the notice demanded "$77,485" while the Pay button beside it
@@ -431,7 +431,7 @@ function buildDunningHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `Invoice #${opts.invoiceNumber} — ${amountFormatted} overdue by ${opts.daysOverdue} day${opts.daysOverdue === 1 ? '' : 's'} on ${opts.projectName}.`,
+    preheader: `Invoice #${opts.invoiceNumber} · ${amountFormatted} overdue by ${opts.daysOverdue} ${opts.daysOverdue === 1 ? 'day' : 'days'} on ${opts.projectName}.`,
     eyebrow: stageLabel,
     title: subject,
     subtitle: `${opts.projectName}`,
@@ -634,10 +634,10 @@ async function processInvoice(
   // ── Compose email ──
   const subject =
     target === 3
-      ? `Final notice — Invoice #${invoice.number} is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue`
+      ? `Final notice: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
       : target === 2
-      ? `Second notice — Invoice #${invoice.number} is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue`
-      : `Friendly reminder — Invoice #${invoice.number} is past due`;
+      ? `Second notice: invoice #${invoice.number} is ${daysOverdue} ${daysOverdue === 1 ? 'day' : 'days'} overdue`
+      : `Reminder: invoice #${invoice.number} is past due`;
 
   // #81: the portal link only to a portal invitee — a bill-to address the
   // homeowner never invited gets the Pay button, not his whole portal.

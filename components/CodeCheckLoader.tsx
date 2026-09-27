@@ -64,10 +64,10 @@ interface Props {
 }
 
 export default function CodeCheckLoader({
-  eyebrow = 'CODE CHECK',
+  eyebrow = 'Code check',
   // AI-F3: the default headline must not imply a code lookup — the Code
   // Check recalls; nothing is read. (The permit roadmap passes its own.)
-  headline = 'Recalling the code that likely governs this job',
+  headline = 'Recalling the code that likely governs this project',
   steps, stepIndex, typical = 'usually 5–20 s', subject, facts, factIntervalMs = 4200, style,
 }: Props) {
   const { colors: t } = useTheme();
@@ -204,7 +204,7 @@ export default function CodeCheckLoader({
       <View style={styles.steps}>
         {real ? null : (
           <Text style={[Type.footnoteEmphasized, styles.stepsHeader, { color: t.textSecondary }]} testID="code-check-steps-header">
-            What we check
+            What MAGE checks
           </Text>
         )}
         {steps.map((s, i) => (
@@ -214,7 +214,7 @@ export default function CodeCheckLoader({
 
       {rotating ? (
         <View style={styles.factWrap}>
-          <Text style={[styles.factLabel, { color: t.textMuted }]}>WHILE YOU WAIT</Text>
+          <Text style={[styles.factLabel, { color: t.textMuted }]}>While you wait</Text>
           <Text style={[styles.factText, { color: t.textSecondary }]}>{facts![factIdx]}</Text>
         </View>
       ) : null}
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
 
   head: { alignItems: 'center', marginBottom: 26 },
-  eyebrow: { ...Type.monoCaption, letterSpacing: 1.6 },
+  eyebrow: { ...Type.monoCaption, letterSpacing: 1.6, textTransform: 'uppercase' },
   title: {
     ...Type.serifTitle,
     textAlign: 'center',
@@ -332,6 +332,6 @@ const styles = StyleSheet.create({
   stepsHeader: { marginBottom: 2 },
 
   factWrap: { marginTop: 30, alignItems: 'center', maxWidth: 320 },
-  factLabel: { ...Type.monoCaption, letterSpacing: 1.2, marginBottom: 6 },
+  factLabel: { ...Type.monoCaption, letterSpacing: 1.2, marginBottom: 6, textTransform: 'uppercase' },
   factText: { fontSize: Type.footnote.fontSize, lineHeight: 19, textAlign: 'center' },
 });

@@ -186,7 +186,7 @@ export default function ConstructionNewsScreen() {
     <EmptyState
       icon={<Newspaper size={32} color={colors.textSecondary} strokeWidth={1.75} />}
       title="No stories right now"
-      message="None of the publishers had a story from the last 30 days that the app could read. Pull down or tap Retry to check again."
+      message="None of the publishers had a story from the last 30 days that MAGE ID could read. Pull down or tap Retry to check again."
       actionLabel="Retry"
       onAction={onRefresh}
     />

@@ -33,7 +33,7 @@ interface WeekStripProps {
   weekStart?: Date;
 }
 
-const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -259,6 +259,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.textMuted,
     letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
   },
   numWrap: {
     width: 38, height: 38, borderRadius: 14,

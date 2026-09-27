@@ -514,7 +514,7 @@ ok('AISubEvaluator renders no model-supplied rate grid', !subEvalBlank.includes(
 ok('it reads the GC\'s own configured rate for the trade',
   subEvalBlank.includes('useLaborRates(') && subEvalBlank.includes('normalizeTradeKey('));
 ok('with no rate set it says so rather than showing a number',
-  /MAGE won&apos;t invent one|MAGE won't invent one/.test(subEvalReal));
+  /No loaded rate set for \{sub\.trade\}\. Set yours under/.test(subEvalReal) && !/won&apos;t invent|won't invent/.test(subEvalReal));
 
 // ─── 5) No AI panel bakes a light-theme colour into its stylesheet ──────────
 // `Colors.surface` / `Colors.text` and friends are theme-aware GETTERS, but a
@@ -730,7 +730,7 @@ const owned = (log: UtilFixture[], dailyRate = 350): EquipFixture => ({ type: 'o
 const empty = measuredUsage?.(rented([]));
 ok('an empty log refuses instead of answering', empty?.ok === false);
 ok('… and the refusal says what is missing and what it turns on',
-  empty?.ok === false && /Log some usage/.test(empty.reason) && /won't guess them/.test(empty.reason));
+  empty?.ok === false && /Log usage on this machine/.test(empty.reason) && /depends on the days it actually works/.test(empty.reason));
 // An owner told to "keep renting" a machine they own is the same class of
 // defect as copy pointing at a control that does not exist. 'owned' is the
 // default the add form starts on (app/(tabs)/equipment/index.tsx:70).
@@ -745,7 +745,7 @@ ok('the refusal is written for THIS machine — an owner is not told to keep ren
 const noRate = measuredUsage?.(rented([entry('p1', '2026-08-01', 96)], 0));
 ok('a $0 day rate refuses rather than pricing the log at zero', noRate?.ok === false);
 ok('… and it names the field that fixes it',
-  noRate?.ok === false && /Daily Rate/.test(noRate.reason));
+  noRate?.ok === false && /daily rate/i.test(noRate.reason));
 
 const twoJobs = measuredUsage?.(rented([
   entry('p1', '2026-08-01', 8),

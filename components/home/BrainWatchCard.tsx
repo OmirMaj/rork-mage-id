@@ -158,7 +158,7 @@ export default function BrainWatchCard() {
           onPress={() => router.push('/waiting-on' as never)}
           activeOpacity={0.75}
           accessibilityRole="button"
-          accessibilityLabel="Open Waiting On"
+          accessibilityLabel="Open waiting on others"
           testID="brain-watch-partial-clear"
         >
           <View style={styles.allClearRow}>
@@ -276,7 +276,7 @@ export default function BrainWatchCard() {
           onPress={() => router.push('/track-record' as any)}
           activeOpacity={0.75}
           accessibilityRole="button"
-          accessibilityLabel="View the Brain's track record"
+          accessibilityLabel="View MAGE's track record"
         >
           <MageAIMark size={12} color={colors.accent} />
           <Text style={styles.accuracyChipText}>

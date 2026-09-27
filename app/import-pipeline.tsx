@@ -83,7 +83,7 @@ export default function ImportPipelineScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
         'Pipeline imported',
-        `${drafts.length} client${drafts.length === 1 ? '' : 's'} added to your pipeline as Qualified leads. Open any one to draft an Instant Bid.`,
+        `${drafts.length} client${drafts.length === 1 ? '' : 's'} added to your pipeline as qualified leads. Open any one to draft an Instant Bid.`,
         [{ text: 'View pipeline', onPress: () => router.replace('/leads' as never) }],
       );
     } finally {
@@ -239,7 +239,7 @@ export default function ImportPipelineScreen() {
             </View>
           ) : (
             <>
-              <Text style={styles.reviewHead}>Tap a contact to add them to your pipeline as a Qualified lead.</Text>
+              <Text style={styles.reviewHead}>Tap a contact to add them to your pipeline as a qualified lead.</Text>
               {importableContacts.map(c => (
                 <TouchableOpacity
                   key={c.id}

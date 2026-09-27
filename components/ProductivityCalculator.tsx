@@ -88,8 +88,8 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
       <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
-            <Text style={s.headerTitle}>Productivity Calc</Text>
-            <Text style={s.headerSub}>Crew output & cost estimator</Text>
+            <Text style={s.headerTitle}>Productivity calculator</Text>
+            <Text style={s.headerSub}>Crew output and cost</Text>
           </View>
           <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
@@ -97,7 +97,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
         {selectedRate ? (
           <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
             <TouchableOpacity style={s.backBtn} onPress={() => setSelectedRate(null)}>
-              <Text style={s.backBtnText}>← Select different task</Text>
+              <Text style={s.backBtnText}>← Choose another task</Text>
             </TouchableOpacity>
 
             <Text style={s.taskTitle}>{selectedRate.task}</Text>
@@ -110,7 +110,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
               </View>
               <View style={s.crewRow}>
                 <Clock size={14} color={Colors.accent} strokeWidth={1.75} />
-                <Text style={s.crewLabel}>Daily Output:</Text>
+                <Text style={s.crewLabel}>Daily output:</Text>
                 <Text style={s.crewValue}>{selectedRate.dailyOutput} {selectedRate.unit}/day</Text>
               </View>
             </View>
@@ -128,7 +128,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
             {calculation && (
               <View style={s.resultCard}>
-                <Text style={s.resultTitle}>Cost Breakdown</Text>
+                <Text style={s.resultTitle}>Cost breakdown</Text>
 
                 <View style={s.costRow}>
                   <Text style={s.costLabel}>Materials</Text>
@@ -149,14 +149,14 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                 <View style={s.divider} />
 
                 <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>Total Cost</Text>
+                  <Text style={s.totalLabel}>Total cost</Text>
                   <Text style={s.totalValue}>${calculation.totalCost.toFixed(2)}</Text>
                 </View>
 
                 <View style={s.scheduleCard}>
                   <View style={s.scheduleRow}>
                     <Clock size={14} color={t.info} strokeWidth={1.75} />
-                    <Text style={s.scheduleLabel}>Estimated Duration:</Text>
+                    <Text style={s.scheduleLabel}>Estimated duration:</Text>
                     <Text style={s.scheduleValue}>
                       {calculation.daysToComplete < 1
                         ? `${(calculation.daysToComplete * 8).toFixed(1)} hours`
@@ -177,7 +177,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                 {onAddToEstimate && (
                   <TouchableOpacity style={s.addBtn} onPress={handleAddToEstimate} activeOpacity={0.85}>
                     <DollarSign size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-                    <Text style={s.addBtnText}>Add to Estimate</Text>
+                    <Text style={s.addBtnText}>Add to estimate</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -192,11 +192,11 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                 style={s.searchInput}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search tasks..."
+                placeholder="Search tasks"
                 placeholderTextColor={t.textMuted}
               />
               {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
+                <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Clear search">
                   <X size={14} color={t.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
@@ -238,7 +238,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                     </TouchableOpacity>
                     {isExpanded && (
                       <View style={s.expandedContent}>
-                        <Text style={s.expandedRow}>Mat: ${rate.materialCostPerUnit.toFixed(2)} · Lab: ${rate.laborCostPerUnit.toFixed(2)} · Equip: ${rate.equipmentCostPerUnit.toFixed(2)}</Text>
+                        <Text style={s.expandedRow}>Materials ${rate.materialCostPerUnit.toFixed(2)} · Labor ${rate.laborCostPerUnit.toFixed(2)} · Equipment ${rate.equipmentCostPerUnit.toFixed(2)}</Text>
                         {rate.notes ? <Text style={s.expandedNotes}>{rate.notes}</Text> : null}
                       </View>
                     )}

@@ -154,7 +154,7 @@ function PlanViewerGate({ gate, role, onRetry }: { gate: PlanGate; role: PlanRol
           <ActivityIndicator size="small" color={themeColors.accent} />
         ) : gate === 'error' ? (
           <>
-            <Text style={styles.gateText}>Couldn&apos;t check your access to this job. Check your connection and try again.</Text>
+            <Text style={styles.gateText}>Couldn&apos;t check your access to this project. Check your connection and try again.</Text>
             <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="plan-viewer-role-retry" />
           </>
         ) : (
@@ -994,7 +994,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
             } else {
               showAlert(
                 'Set sheet scale first',
-                'Tap two points a known distance apart (e.g. a door = 3 ft). Measure unlocks once the scale is set.',
+                'Tap two points a known distance apart (e.g. a door = 3 ft). Measuring turns on once the scale is set.',
                 [{ text: 'OK' }],
               );
             }
@@ -1296,7 +1296,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
               </TouchableOpacity>
             </View>
             <Text style={styles.emptyHint}>
-              What{"\u2019"}s the real distance between those two points? Pick something dimensioned on the sheet \u2014 a known wall length or grid line.
+              What{"\u2019"}s the real distance between those two points? Pick something dimensioned on the sheet, like a known wall length or grid line.
             </Text>
             <View style={styles.distanceRow}>
               <TextInput

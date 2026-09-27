@@ -190,7 +190,7 @@ export default function PropertyManagerHome() {
               <Text style={styles.emptyTitle}>Your portfolio starts here</Text>
               <Text style={styles.emptyBody}>
                 Add the buildings and units you manage. Every leak, turnover, and service call
-                becomes a work order you can track and hand to a contractor in seconds.
+                becomes a work order you can track and hand to a contractor.
               </Text>
             </View>
           </FadeRise>
@@ -229,7 +229,7 @@ export default function PropertyManagerHome() {
                       )}
                       <Text style={styles.propSub} numberOfLines={1}>
                         {p.propertyType || 'Property'}
-                        {openCount > 0 ? `  ·  ${openCount} open work order${openCount === 1 ? '' : 's'}` : '  ·  no open work'}
+                        {openCount > 0 ? `  ·  ${openCount} open work order${openCount === 1 ? '' : 's'}` : '  ·  No open work orders'}
                       </Text>
                     </View>
                     {openCount > 0 && (

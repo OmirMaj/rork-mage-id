@@ -30,6 +30,7 @@ import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { humanizeEnum } from '@/utils/statusLabels';
 import { daysUntilCalendarDay, dayOrInstantDate } from '@/utils/calendarDate';
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8) — a bad row here
@@ -93,7 +94,7 @@ export default function ReportInboxScreen() {
         projectId: dr.projectId,
         projectName: proj.name,
         primary: dayOrInstantDate(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-        secondary: `${dr.weather?.conditions || 'No weather'} · ${dr.manpower.reduce((s: number, m: { headcount: number }) => s + m.headcount, 0)} workers`,
+        secondary: `${dr.weather?.conditions || 'No weather'} · ${dr.manpower.reduce((s: number, m: { headcount: number }) => s + m.headcount, 0)} crew`,
         badgeText: dr.status === 'sent' ? 'Sent' : 'Saved',
         // UX-F7: every badge pairs a themed SOFT fill with its LABEL ink. The
         // static Colors.*Light pastels under theme-flipping text computed
@@ -124,7 +125,7 @@ export default function ReportInboxScreen() {
         projectName: proj.name,
         primary: `RFI #${r.number}: ${r.subject}`,
         secondary: `${r.assignedTo || 'Unassigned'} · ${r.priority}`,
-        badgeText: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+        badgeText: humanizeEnum(r.status),
         badgeColor:
           r.status === 'open' ? themeColors.warningLabel :
           r.status === 'answered' ? themeColors.info :
@@ -150,7 +151,7 @@ export default function ReportInboxScreen() {
         projectName: proj.name,
         primary: `Submittal #${s.number}: ${s.title}`,
         secondary: `${s.specSection || 'No spec'} · ${s.reviewCycles.length} cycle${s.reviewCycles.length === 1 ? '' : 's'}`,
-        badgeText: s.currentStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        badgeText: humanizeEnum(s.currentStatus),
         badgeColor:
           s.currentStatus === 'approved' ? themeColors.successLabel :
           s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? themeColors.dangerLabel :
@@ -183,9 +184,9 @@ export default function ReportInboxScreen() {
         kind: 'invoice',
         projectId: inv.projectId,
         projectName: proj.name,
-        primary: `${inv.type === 'progress' ? 'Progress Bill' : 'Invoice'} #${inv.number}`,
+        primary: `${inv.type === 'progress' ? 'Progress bill' : 'Invoice'} #${inv.number}`,
         secondary: `${formatMoney(inv.totalDue)} · Due ${new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
-        badgeText: status.charAt(0).toUpperCase() + status.slice(1),
+        badgeText: humanizeEnum(status),
         badgeColor: status === 'paid' ? themeColors.successLabel : status === 'overdue' ? themeColors.dangerLabel : themeColors.warningLabel,
         badgeBg: status === 'paid' ? themeColors.successSoft : status === 'overdue' ? themeColors.dangerSoft : themeColors.warningSoft,
         timestamp: new Date(inv.issueDate ?? inv.createdAt).getTime(),
@@ -205,7 +206,7 @@ export default function ReportInboxScreen() {
         projectName: proj.name,
         primary: `CO #${co.number}: ${co.description.slice(0, 40)}${co.description.length > 40 ? '…' : ''}`,
         secondary: `${formatMoney(co.changeAmount)} · ${(co.scheduleImpactDays ?? 0) > 0 ? `+${co.scheduleImpactDays}d` : 'no schedule impact'}`,
-        badgeText: co.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        badgeText: humanizeEnum(co.status),
         badgeColor:
           co.status === 'approved' ? themeColors.successLabel :
           co.status === 'rejected' || co.status === 'void' ? themeColors.dangerLabel :
@@ -252,7 +253,7 @@ export default function ReportInboxScreen() {
 
   const kindChips: FilterChip<ReportKind>[] = [
     { value: 'all', label: 'All', count: counts.all },
-    { value: 'dfr', label: 'DFRs', count: counts.dfr },
+    { value: 'dfr', label: 'Daily reports', count: counts.dfr },
     { value: 'rfi', label: 'RFIs', count: counts.rfi },
     { value: 'submittal', label: 'Submittals', count: counts.submittal },
     { value: 'invoice', label: 'Invoices', count: counts.invoice },
@@ -261,9 +262,9 @@ export default function ReportInboxScreen() {
 
   const statusChips: FilterChip<StatusFilter>[] = [
     { value: 'all', label: 'Any status' },
-    { value: 'open', label: 'Open / Unpaid', color: themeColors.warningLabel },
+    { value: 'open', label: 'Open or unpaid', color: themeColors.warningLabel },
     { value: 'overdue', label: 'Overdue', color: themeColors.danger },
-    { value: 'closed', label: 'Closed / Paid', color: themeColors.success },
+    { value: 'closed', label: 'Closed or paid', color: themeColors.success },
   ];
 
   const projectChips: FilterChip<string>[] = [
@@ -299,7 +300,7 @@ export default function ReportInboxScreen() {
           {item.overdue && (
             <View style={styles.overduePill}>
               <AlertTriangle size={10} color={themeColors.danger} strokeWidth={1.75} />
-              <Text style={styles.overduePillText}>OVERDUE</Text>
+              <Text style={styles.overduePillText}>Overdue</Text>
             </View>
           )}
           <View style={[styles.badge, { backgroundColor: item.badgeBg }]}>
@@ -314,7 +315,7 @@ export default function ReportInboxScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Report Inbox',
+        title: 'Report inbox',
         headerLeft: () => (
           <TouchableOpacity onPress={goBack} style={styles.headerBack}>
             <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
@@ -356,13 +357,13 @@ export default function ReportInboxScreen() {
         <EmptyState
           icon={<ArrowDownRight size={32} color={themeColors.accent} strokeWidth={1.75} />}
           title="Nothing in this slice"
-          message="Report Inbox shows DFRs, RFIs, submittals, invoices, and change orders across every project. To populate it:"
+          message="The report inbox shows daily reports, RFIs, submittals, invoices and change orders across every project. To fill it:"
           steps={[
             'Open a project from the Projects tab.',
-            'Create a daily report, RFI, submittal, invoice, or change order from its tile grid.',
-            'It lands here automatically — switch the chips above to filter by type or project.',
+            'Create a daily report, RFI, submittal, invoice or change order from its tile grid.',
+            'It lands here on its own. Use the chips above to filter by type or project.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.replace('/(tabs)/(home)' as never)}
         />
       ) : (
@@ -395,7 +396,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
   badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' },
   overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.dangerSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs }, // UX-F7
-  overduePillText: { fontSize: 9, fontWeight: '800', color: t.dangerLabel, letterSpacing: 0.5 },
+  overduePillText: { fontSize: 9, fontWeight: '800', color: t.dangerLabel, letterSpacing: 0.5, textTransform: 'uppercase' as const },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 8 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
   emptySub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', maxWidth: 280 },

@@ -221,7 +221,7 @@ export function isUndatedSchedule(schedule: ScheduleAnchorSource | null | undefi
 // and the briefing say the same true thing rather than three near-misses.
 export const UNDATED_SCHEDULE_TITLE = 'This schedule has no start date';
 export const UNDATED_SCHEDULE_BODY =
-  'Its day numbers are real — the calendar dates are not. Set the start date and every task lands on a real day.';
+  'Its day numbers are right, but its calendar dates aren\'t. Set the start date and every task lands on a real day.';
 export const UNDATED_SCHEDULE_CTA = 'Set start date';
 /**
  * What the "Starts" field says on a surface that fell back to
@@ -1910,11 +1910,11 @@ export interface ComposeReplyArgs {
 export function composeSubReply(args: ComposeReplyArgs): { subject: string; body: string } {
   const { action, projectName, taskTitle, taskDateRange, subName, gcName, reason } = args;
   const verb = action === 'confirm'
-    ? 'CONFIRMED'
+    ? 'Confirmed'
     : action === 'reschedule'
-      ? 'NEED TO RESCHEDULE'
-      : 'DECLINED';
-  const subject = `[${verb}] ${projectName} — ${taskTitle} (${taskDateRange})`;
+      ? 'Need to reschedule'
+      : 'Declined';
+  const subject = `${verb} · ${projectName} — ${taskTitle} (${taskDateRange})`;
   const lines: string[] = [];
   lines.push(`Hi${gcName ? ' ' + gcName : ''},`);
   lines.push('');

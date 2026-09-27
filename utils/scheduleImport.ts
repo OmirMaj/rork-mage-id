@@ -53,7 +53,7 @@ export function mapRowsToScheduleTasks(
   // 1. First pass: create tasks + a sourceId → newId map (drop empty-title rows).
   const idBySource = new Map<string, string>();
   const kept = rows.filter(r => (r.title ?? '').trim().length > 0);
-  if (kept.length < rows.length) warnings.push({ code: 'empty_title', message: `${rows.length - kept.length} row(s) had no task name and were skipped.` });
+  if (kept.length < rows.length) warnings.push({ code: 'empty_title', message: `${rows.length - kept.length} ${rows.length - kept.length === 1 ? 'row had' : 'rows had'} no task name and ${rows.length - kept.length === 1 ? 'was' : 'were'} skipped.` });
   for (const r of kept) idBySource.set(r.sourceId, createId('task'));
 
   // 2. Second pass: build ScheduleTask, remapping predecessor sourceIds → newIds.
@@ -70,7 +70,7 @@ export function mapRowsToScheduleTasks(
     if (rawTokenCount > preds.length) {
       warnings.push({
         code: 'bad_predecessor',
-        message: `${rawTokenCount - preds.length} predecessor reference(s) on "${r.title.trim()}" could not be read and were dropped.`,
+        message: `${rawTokenCount - preds.length} predecessor ${rawTokenCount - preds.length === 1 ? 'reference' : 'references'} on "${r.title.trim()}" couldn't be read and ${rawTokenCount - preds.length === 1 ? 'was' : 'were'} dropped.`,
         sourceId: r.sourceId,
       });
     }

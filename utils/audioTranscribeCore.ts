@@ -621,13 +621,13 @@ export function giveUpMessage(reason: GiveUpReason, task: AudioTranscribeTask): 
   const what = `${formatClipLength(task.durationMs)} of dictation${task.contextLabel ? ` for ${task.contextLabel}` : ''}`;
   switch (reason) {
     case 'no-speech':
-      return `No speech was found in ${what}. It has been discarded — please re-record closer to the mic.`;
+      return `No speech was found in ${what}. It has been discarded. Record it again closer to the mic.`;
     case 'terminal':
-      return `${what} can no longer be transcribed (the recording is unreadable). Please re-record it.`;
+      return `${what} can no longer be transcribed (the recording is unreadable). Record it again.`;
     case 'retries-exhausted':
-      return `${what} failed to transcribe ${AUDIO_MAX_RETRIES} times and has been discarded. Please re-record it.`;
+      return `${what} failed to transcribe ${AUDIO_MAX_RETRIES} times and was removed. Record it again.`;
     case 'queue-cap':
-      return `${what} was discarded — more than ${AUDIO_MAX_QUEUE} dictations were waiting for signal. Please re-record it.`;
+      return `${what} was removed. More than ${AUDIO_MAX_QUEUE} dictations were waiting for signal. Record it again.`;
     case 'expired':
       return `A transcript of ${what} was never used and has expired.`;
   }

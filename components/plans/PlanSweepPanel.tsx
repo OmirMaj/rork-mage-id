@@ -38,6 +38,7 @@ import {
 } from '@/utils/plans/planSweep';
 import { findSweepSheets, reviewSweepSheets, type FindSweepResult, type ReviewSweepResult } from '@/utils/plans/planSweepRun';
 import type { PlanSheet, Project } from '@/types';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   project: Project;
@@ -100,7 +101,8 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
       setPhase(out.state === 'ready' ? 'found' : 'idle');
     } catch (e) {
       if (!mounted.current) return;
-      setError(`The plan search could not be reached — ${e instanceof Error ? e.message : 'try again'}`);
+      console.warn('[plan-sweep] search failed:', e instanceof Error ? e.message : e);
+      setError(describeError(e, { action: 'search the plans' }).body);
       setPhase('idle');
     }
   }, [project.id, sheets, scope.targets, user?.id, monthlyCap]);
@@ -124,7 +126,8 @@ export default function PlanSweepPanel({ project, sheets, onUpgrade, onClose }: 
       setPhase('done');
     } catch (e) {
       if (!mounted.current) return;
-      setError(e instanceof Error ? e.message : 'The plan review did not answer — try again.');
+      console.warn('[plan-sweep] review failed:', e instanceof Error ? e.message : e);
+      setError(describeError(e, { action: 'review the plan sheets' }).body);
       setPhase('found');
     } finally {
       if (mounted.current) setProgress(null);

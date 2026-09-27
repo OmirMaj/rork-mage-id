@@ -550,7 +550,7 @@ export default function BillFromEstimateScreen() {
     if (!project || !projectId) return;
     if (creatingDraftRef.current) return;
     if (roleGate !== 'open') {
-      showAlert('Only the job owner bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     if (subtotal <= 0) {
@@ -574,7 +574,7 @@ export default function BillFromEstimateScreen() {
       return true;
     });
     if (activeRows.length === 0) {
-      showAlert('Nothing to Bill', 'Select at least one line item and enter a billing percent greater than zero.');
+      showAlert('Nothing to bill', 'Select at least one line item and enter a billing percent above zero.');
       return;
     }
 
@@ -690,14 +690,14 @@ export default function BillFromEstimateScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{
-          title: 'Bill from Estimate',
+          title: 'Bill from estimate',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }} />
         <ToolProjectPicker
-          toolName="Bill from Estimate"
-          message="Billing draws down against one project's estimate, so pick the job you're invoicing."
+          toolName="Bill from estimate"
+          message="Billing draws down against one project's estimate, so pick the project you're invoicing."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={paramProjectId || undefined}
@@ -720,7 +720,7 @@ export default function BillFromEstimateScreen() {
     return (
       <View style={styles.container} testID="bill-role-blocked">
         <Stack.Screen options={{
-          title: 'Bill from Estimate',
+          title: 'Bill from estimate',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -818,7 +818,7 @@ export default function BillFromEstimateScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{
-          title: 'Bill from Estimate',
+          title: 'Bill from estimate',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -838,7 +838,7 @@ export default function BillFromEstimateScreen() {
               activeOpacity={0.85}
               testID="bill-from-estimate-blank-invoice"
             >
-              <Text style={styles.primaryBtnText}>Create Blank Invoice</Text>
+              <Text style={styles.primaryBtnText}>Create blank invoice</Text>
               <ArrowRight size={16} color={'#FFFFFF'} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -850,7 +850,7 @@ export default function BillFromEstimateScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Bill from Estimate',
+        title: 'Bill from estimate',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -866,7 +866,7 @@ export default function BillFromEstimateScreen() {
           <View style={styles.hero}>
             <Text style={styles.heroLabel}>{project.name}</Text>
             <Text style={styles.heroTitle}>
-              {isProgressDefault ? 'Progress Bill' : 'Invoice'} #{nextInvoiceNumber}
+              {isProgressDefault ? 'Progress invoice' : 'Invoice'} #{nextInvoiceNumber}
             </Text>
             <View style={styles.heroRow}>
               <View style={styles.heroMetric}>
@@ -1128,7 +1128,7 @@ export default function BillFromEstimateScreen() {
             activeOpacity={0.85}
             testID="bill-from-estimate-create"
           >
-            <Text style={styles.primaryBtnText}>Continue to Invoice</Text>
+            <Text style={styles.primaryBtnText}>Continue to invoice</Text>
             <ArrowRight size={16} color={'#FFFFFF'} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>

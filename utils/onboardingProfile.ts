@@ -20,16 +20,16 @@ export type UserRole = 'contractor' | 'client' | 'both' | 'property_manager';
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   contractor: 'Contractor',
-  client: 'Property Owner',
+  client: 'Property owner',
   both: 'Both',
-  property_manager: 'Property Manager',
+  property_manager: 'Property manager',
 };
 
 export const USER_ROLE_BLURB: Record<UserRole, string> = {
-  contractor: 'Estimates, schedules, daily reports, AIA pay apps, AI takeoffs — the operating system for builders.',
+  contractor: 'Estimates, schedules, daily reports, AIA pay apps and AI takeoffs.',
   client: 'Post a project, get bids from vetted contractors, pick one, and track the work without managing the site.',
-  both: 'Switch between contractor mode and property-owner mode any time. We default you to contractor.',
-  property_manager: 'Track every property you manage, log maintenance work orders, and dispatch them to contractors — your whole portfolio in one place.',
+  both: 'Switch between contractor mode and property-owner mode any time. You start in contractor mode.',
+  property_manager: 'Track every property you manage, log maintenance work orders and dispatch them to contractors.',
 };
 
 /** Project-size band the user told us they typically run. Drives:

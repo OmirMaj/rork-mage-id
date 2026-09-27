@@ -59,10 +59,10 @@ function getDocTypeString(type: PDFDocumentType): string {
   switch (type) {
     case 'estimate': return 'Estimate';
     case 'invoice': return 'Invoice';
-    case 'change_order': return 'Change Order';
+    case 'change_order': return 'Change order';
     case 'schedule': return 'Schedule';
-    case 'daily_report': return 'Daily Report';
-    case 'status_report': return 'Status Report';
+    case 'daily_report': return 'Daily report';
+    case 'status_report': return 'Status report';
     case 'closeout': return 'Closeout';
     default: return 'Document';
   }
@@ -97,9 +97,9 @@ function getDefaultFileName(type: PDFDocumentType, projectName: string, docNumbe
     case 'schedule':
       return `${projectName} - Schedule - ${monthYear}`;
     case 'daily_report':
-      return `${projectName} - Daily Report - ${dateStr}`;
+      return `${projectName} - Daily report - ${dateStr}`;
     case 'status_report':
-      return `${projectName} - Status Report - ${dateStr}`;
+      return `${projectName} - Status report - ${dateStr}`;
     case 'closeout':
       return `${projectName} - Closeout - ${monthYear}`;
     default:
@@ -122,49 +122,49 @@ function getDefaultSections(type: PDFDocumentType, hasBulkSavings = false): PDFS
       // budget minus his awarded buyout, his savings rather than a discount in
       // the client's price, so it reaches a client document only if he opts in.
       return hasBulkSavings
-        ? [{ id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: false }]
+        ? [{ id: 'bulk_savings', label: 'Bulk savings breakdown', enabled: false }]
         : [];
     }
     case 'invoice':
       return [
-        { id: 'line_items', label: 'Line Items', enabled: true },
-        { id: 'payment_terms', label: 'Payment Terms', enabled: true },
-        { id: 'tax_breakdown', label: 'Tax Breakdown', enabled: true },
-        { id: 'branding', label: 'Company Branding', enabled: true },
+        { id: 'line_items', label: 'Line items', enabled: true },
+        { id: 'payment_terms', label: 'Payment terms', enabled: true },
+        { id: 'tax_breakdown', label: 'Tax breakdown', enabled: true },
+        { id: 'branding', label: 'Company branding', enabled: true },
       ];
     case 'change_order':
       return [
-        { id: 'original_scope', label: 'Original Scope', enabled: true },
-        { id: 'changes', label: 'Changes & Line Items', enabled: true },
-        { id: 'new_total', label: 'New Contract Total', enabled: true },
-        { id: 'approval_status', label: 'Approval Status', enabled: true },
+        { id: 'original_scope', label: 'Original scope', enabled: true },
+        { id: 'changes', label: 'Changes and line items', enabled: true },
+        { id: 'new_total', label: 'New contract total', enabled: true },
+        { id: 'approval_status', label: 'Approval status', enabled: true },
       ];
     case 'daily_report':
       return [
-        { id: 'weather', label: 'Weather Conditions', enabled: true },
-        { id: 'manpower', label: 'Manpower Log', enabled: true },
-        { id: 'work_performed', label: 'Work Performed', enabled: true },
-        { id: 'issues', label: 'Issues & Delays', enabled: true },
+        { id: 'weather', label: 'Weather conditions', enabled: true },
+        { id: 'manpower', label: 'Manpower log', enabled: true },
+        { id: 'work_performed', label: 'Work performed', enabled: true },
+        { id: 'issues', label: 'Issues and delays', enabled: true },
         { id: 'photos', label: 'Photos', enabled: true },
       ];
     default:
       return [
-        { id: 'full_content', label: 'Full Content', enabled: true },
-        { id: 'branding', label: 'Company Branding', enabled: true },
+        { id: 'full_content', label: 'Full content', enabled: true },
+        { id: 'branding', label: 'Company branding', enabled: true },
       ];
   }
 }
 
 function getDocTypeLabel(type: PDFDocumentType): string {
   switch (type) {
-    case 'estimate': return 'Estimate';
-    case 'invoice': return 'Invoice';
-    case 'change_order': return 'Change Order';
-    case 'schedule': return 'Schedule';
-    case 'daily_report': return 'Daily Report';
-    case 'status_report': return 'Status Report';
-    case 'closeout': return 'Closeout Package';
-    default: return 'Document';
+    case 'estimate': return 'estimate';
+    case 'invoice': return 'invoice';
+    case 'change_order': return 'change order';
+    case 'schedule': return 'schedule';
+    case 'daily_report': return 'daily report';
+    case 'status_report': return 'status report';
+    case 'closeout': return 'closeout package';
+    default: return 'document';
   }
 }
 
@@ -213,7 +213,7 @@ export default function PDFPreSendSheet({
 
   const handleSend = useCallback((method: 'share' | 'email') => {
     if (!fileName.trim()) {
-      showAlert('Missing Name', 'Please enter a file name.');
+      showAlert('Add a file name', 'Enter a file name.');
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -262,7 +262,7 @@ export default function PDFPreSendSheet({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <Text style={styles.fieldLabel}>FILE NAME</Text>
+              <Text style={styles.fieldLabel}>File name</Text>
               <View style={styles.fileNameRow}>
                 <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <TextInput
@@ -278,7 +278,7 @@ export default function PDFPreSendSheet({
 
               {sections.length > 0 && (
                 <>
-                <Text style={styles.fieldLabel}>INCLUDE IN PDF</Text>
+                <Text style={styles.fieldLabel}>Include in PDF</Text>
                 <TouchableOpacity
                   style={styles.sectionsToggle}
                   onPress={() => setShowSections(!showSections)}
@@ -315,7 +315,7 @@ export default function PDFPreSendSheet({
                 </>
               )}
 
-              <Text style={styles.fieldLabel}>RECIPIENT</Text>
+              <Text style={styles.fieldLabel}>Recipient</Text>
               {recipientName ? (
                 <View style={styles.selectedRecipient}>
                   <User size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -325,7 +325,7 @@ export default function PDFPreSendSheet({
                   </View>
                   <TouchableOpacity
                     onPress={() => { setRecipient(''); setRecipientName(''); }}
-                    style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
+                    style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Clear recipient">
                     <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
@@ -352,16 +352,16 @@ export default function PDFPreSendSheet({
                   testID="pdf-pick-contact-btn"
                 >
                   <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                  <Text style={styles.pickContactText}>Pick from contacts</Text>
                 </TouchableOpacity>
               ) : null}
 
-              <Text style={styles.fieldLabel}>MESSAGE (OPTIONAL)</Text>
+              <Text style={styles.fieldLabel}>Message (optional)</Text>
               <TextInput
                 style={styles.messageInput}
                 value={message}
                 onChangeText={setMessage}
-                placeholder="Add a note to the recipient..."
+                placeholder="Add a note to the recipient"
                 placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
@@ -380,7 +380,7 @@ export default function PDFPreSendSheet({
                   testID="pdf-send-email-btn"
                 >
                   <Mail size={16} color={'#FFFFFF'} strokeWidth={1.75} />
-                  <Text style={styles.emailBtnText}>Send via Email</Text>
+                  <Text style={styles.emailBtnText}>Email PDF</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -391,7 +391,7 @@ export default function PDFPreSendSheet({
               >
                 <Send size={16} color={recipient.trim() ? themeColors.accent : '#FFFFFF'} strokeWidth={1.75} />
                 <Text style={[styles.shareBtnText, !recipient.trim() && styles.shareBtnTextFull]}>
-                  {recipient.trim() ? 'Share Sheet' : 'Generate & Share'}
+                  Share PDF
                 </Text>
               </TouchableOpacity>
             </View>
@@ -404,7 +404,7 @@ export default function PDFPreSendSheet({
           visible={showContactPicker}
           onClose={() => setShowContactPicker(false)}
           contacts={contacts}
-          title="Select Recipient"
+          title="Pick a recipient"
           onSelect={(contact) => {
             const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
             setRecipient(contact.email);
@@ -476,6 +476,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: t.textMuted,
+    textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 6,
     marginTop: 14,

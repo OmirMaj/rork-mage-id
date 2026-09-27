@@ -47,7 +47,7 @@ export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabCo
   return (
     <View style={styles.root}>
       <View style={styles.preview}>{previewMock}</View>
-      <Text style={styles.title}>{tabName} · coming soon</Text>
+      <Text style={styles.title}>{tabName}</Text>
       <Text style={styles.tagline}>{tagline}</Text>
       <Pressable
         onPress={notify}
@@ -62,8 +62,8 @@ export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabCo
         ) : (
           <Text style={styles.btnText}>
             {state === 'loading' ? 'Saving…'
-             : state === 'error' ? 'Try again →'
-             : 'Notify me when this ships →'}
+             : state === 'error' ? 'Try again'
+             : 'Notify me when it’s ready'}
           </Text>
         )}
       </Pressable>

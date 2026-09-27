@@ -82,7 +82,7 @@ export function ProgressTab({
           testID="progress-verdict"
         >
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.verdictEyebrow}>PROJECTED FINISH</Text>
+            <Text style={styles.verdictEyebrow}>Projected finish</Text>
             <Text style={[styles.verdictDate, { color: colors[verdictToneTokens(verdict.tone).ink] }]}>
               {!finishDateLabel || finishDateLabel === '—' ? 'No finish date yet' : finishDateLabel}
             </Text>
@@ -95,11 +95,11 @@ export function ProgressTab({
 
       <View style={styles.hero}>
         <Text style={styles.heroPct}>{shownOverall}%</Text>
-        <Text style={styles.heroLbl}>OVERALL COMPLETE</Text>
+        <Text style={styles.heroLbl}>Complete</Text>
         <View style={styles.heroTrack}><AnimatedFill value={Math.min(100, overall)} style={[styles.heroFill, { width: `${Math.min(100, overall)}%` }]} /></View>
       </View>
 
-      <Text style={styles.section}>BY PHASE</Text>
+      <Text style={styles.section}>By phase</Text>
       <View style={styles.card}>
         {/* Honest empty state — with zero tasks this card rendered as a bare
             white pill (sim-audit #12). Mirrors the milestones card below. */}
@@ -116,7 +116,7 @@ export function ProgressTab({
         ))}
       </View>
 
-      <Text style={styles.section}>MILESTONES</Text>
+      <Text style={styles.section}>Milestones</Text>
       <View style={styles.card}>
         {milestones.length === 0 ? (
           <Text style={styles.empty}>No milestones set.</Text>
@@ -141,16 +141,16 @@ export function ProgressTab({
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   verdictCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, borderRadius: Tokens.radius.xl, padding: 16, marginBottom: 12 },
-  verdictEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8 },
+  verdictEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const },
   verdictDate: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, letterSpacing: -0.6, marginTop: 3 },
   verdictHeadline: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 4 },
   verdictDetail: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 3 },
   hero: { backgroundColor: t.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: t.line, padding: 18, alignItems: 'center' as const, marginBottom: 16 },
   heroPct: { fontSize: 40, fontWeight: '800' as const, color: t.text, letterSpacing: -1 },
-  heroLbl: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.8, marginTop: 2, marginBottom: 12 },
+  heroLbl: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.8, marginTop: 2, marginBottom: 12, textTransform: 'uppercase' as const },
   heroTrack: { width: '100%' as const, height: 8, backgroundColor: t.line, borderRadius: 4, overflow: 'hidden' as const },
   heroFill: { height: '100%' as const, backgroundColor: t.accent, borderRadius: 4 },
-  section: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.8, marginBottom: 8, marginLeft: 4 },
+  section: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.8, marginBottom: 8, marginLeft: 4, textTransform: 'uppercase' as const },
   card: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, padding: 14, marginBottom: 16 },
   prow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, paddingVertical: 9 },
   rowDivider: { borderTopWidth: 1, borderTopColor: t.line },

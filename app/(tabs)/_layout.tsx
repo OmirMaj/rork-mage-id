@@ -229,7 +229,7 @@ export default function TabLayout() {
                 Tabs router keeps a stable screen registry across persona
                 switches (avoids "tab not found" routing flicker). */}
             <Tabs.Screen name="summary" options={isMinimalPersona ? { href: null } : { title: 'Summary' }} />
-            <Tabs.Screen name="(home)" options={{ title: isMinimalPersona ? 'Home' : 'Your Projects' }} />
+            <Tabs.Screen name="(home)" options={{ title: isMinimalPersona ? 'Home' : 'Projects' }} />
             <Tabs.Screen name="discover" options={isMinimalPersona ? { href: null } : { title: 'Discover' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
             <Tabs.Screen name="mage-id-bids" options={isMinimalPersona ? { href: null } : { title: 'MAGE ID Bids' }} />
@@ -317,12 +317,12 @@ export default function TabLayout() {
           // Clients see this tab labeled "Home" because it renders the
           // property-owner hub (post a project, active RFPs, in-progress).
           // Contractors keep the original "Your Projects" label.
-          title: isMinimalPersona ? 'Home' : 'Your Projects',
+          title: isMinimalPersona ? 'Home' : 'Projects',
           // A '!' badge reads as an exclamation mark and nothing else to
           // VoiceOver, so the reason is stated in the label.
           tabBarAccessibilityLabel: (isMinimalPersona
             ? tabA11yLabel('Home', 1)
-            : tabA11yLabel('Your Projects', 2)
+            : tabA11yLabel('Projects', 2)
           ) + (sourceFailed && !isPropertyManager ? ", couldn't reach MAGE" : ''),
           tabBarBadge: attentionBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },

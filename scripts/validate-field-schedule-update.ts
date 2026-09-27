@@ -141,7 +141,7 @@ console.log('\nsending:');
   for (const [label, res, re] of [
     ['RLS/role refusal', { error: { message: 'field access required', code: '42501' } }, /^Not saved — your access/],
     ['function not deployed yet', { error: { message: 'Could not find the function', code: 'PGRST202' } }, /^Not saved — progress updates on field access are not switched on/],
-    ['disallowed key', { error: { message: 'field_update_schedule_tasks: "startDay" is not a field-access schedule field', code: '22023' } }, /^Not saved — "startDay" is not/],
+    ['disallowed key', { error: { message: 'field_update_schedule_tasks: "startDay" is not a field-access schedule field', code: '22023' } }, /^Not saved — that change isn't a progress update/],
     ['offline', { throws: true }, /^Not saved — no connection/],
   ] as const) {
     const r = await sendFieldTaskPatches(client(res), 'p1', patches);
@@ -209,7 +209,7 @@ console.log('\nthe phone schedule:');
   ok('...the row save checks which sheet values will be refused, puts them back and says so for a change made in the sheet',
     /const refused = sent \? staleFieldEdits\(kept, sent\) : \[\];/.test(mssRowSave)
     && /touched\?\.taskId === r\.taskId && touched\.keys\.includes\(r\.key\)/.test(mssRowSave)
-    && /setRowConflictNotice\(`\$\{title\}'s \$\{what\} was updated elsewhere — in the field or on another device —/.test(mssRowSave));
+    && /setRowConflictNotice\(`\$\{title\}'s \$\{what\} was changed on another device at \$\{when\}, so your change wasn't saved\./.test(mssRowSave));
   ok('...onUpdateTask sets the sheet BEFORE the save, so a put-back value is not overwritten',
     /setDetailTask\(stamped\);[\s\S]{0,600}saveTasks\(tasks\.map\(\(t\) => \(t\.id === stamped\.id \? stamped : t\)\)\);/.test(MSS)
     && !/saveTasks\(tasks\.map\(\(t\) => \(t\.id === stamped\.id \? stamped : t\)\)\);\s*setDetailTask\(stamped\);/.test(MSS));

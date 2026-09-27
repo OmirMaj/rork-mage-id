@@ -181,7 +181,7 @@ console.log('\ncontacts and empty states:');
   ok('a sub with a phone is not flagged', L.perSub.find(s => s.sub.id === 'A')!.noContact === false);
 
   const empty = buildLineup(input({ schedule: { ...SCHED, tasks: [T('x', 60, 1, { assignedSubId: 'A' })] } }));
-  eq('nothing on the day → "Nothing scheduled for <date> on this job"', empty.emptyNote, 'Nothing scheduled for Tue, Sep 29 on this job');
+  eq('nothing on the day → "Nothing scheduled for <date> on this project"', empty.emptyNote, 'Nothing scheduled for Tue, Sep 29 on this project');
   eq('no schedule → the no-schedule sentence', buildLineup(input({ schedule: null })).emptyNote, NO_SCHEDULE_NOTE);
   eq('a schedule with no tasks → the no-schedule sentence', buildLineup(input({ schedule: { ...SCHED, tasks: [] } })).emptyNote, NO_SCHEDULE_NOTE);
   const undated = buildLineup(input({ schedule: { ...SCHED, startDate: undefined } }));

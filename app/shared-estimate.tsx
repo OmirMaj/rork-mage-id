@@ -60,7 +60,7 @@ export default function SharedEstimateScreen() {
       {/* Client-facing proposal: a document, so it keeps a readable cap —
           but 620 left a desktop browser mostly empty. */}
       <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40, maxWidth: 900, alignSelf: 'center', width: '100%' }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.eyebrow}>PROPOSAL</Text>
+        <Text style={styles.eyebrow}>Proposal</Text>
         <Text style={styles.project}>{payload.n}</Text>
         {(payload.cl || payload.gc) && (
           <Text style={styles.prep}>
@@ -68,11 +68,11 @@ export default function SharedEstimateScreen() {
           </Text>
         )}
 
-        <Text style={styles.totalLabel}>PROJECT TOTAL</Text>
+        <Text style={styles.totalLabel}>Project total</Text>
         <Text style={styles.total}>{money(payload.total)}</Text>
         {!!payload.valid && <Text style={styles.valid}>Proposal · valid through {formatCalendarDay(payload.valid)}</Text>}
 
-        <Text style={styles.section}>SCOPE OF WORK</Text>
+        <Text style={styles.section}>Scope of work</Text>
         <View style={styles.card}>
           {payload.scope.map((g, i) => (
             <View key={g.k} style={[styles.row, i < payload.scope.length - 1 && styles.rowBorder]}>
@@ -84,7 +84,7 @@ export default function SharedEstimateScreen() {
 
         {!!payload.allow?.length && (
           <>
-            <Text style={styles.section}>ALLOWANCES INCLUDED</Text>
+            <Text style={styles.section}>Allowances included</Text>
             <View style={styles.card}>
               {payload.allow.map((a, i) => (
                 <View key={`${a.n}-${i}`} style={[styles.row, i < payload.allow!.length - 1 && styles.rowBorder]}>
@@ -98,7 +98,7 @@ export default function SharedEstimateScreen() {
 
         {!!payload.pay?.length && (
           <>
-            <Text style={styles.section}>PAYMENT SCHEDULE</Text>
+            <Text style={styles.section}>Payment schedule</Text>
             <View style={styles.card}>
               {payload.pay.map((m, i) => (
                 <View key={`${m.l}-${i}`} style={[styles.payRow, i < payload.pay!.length - 1 && styles.rowBorder]}>
@@ -117,7 +117,7 @@ export default function SharedEstimateScreen() {
           <View style={styles.inclGrid}>
             {!!payload.inc?.length && (
               <View style={styles.inclCol}>
-                <Text style={styles.inclHeadIn}>INCLUDED</Text>
+                <Text style={styles.inclHeadIn}>Included</Text>
                 {payload.inc.map((s, i) => (
                   <View key={i} style={styles.inclRow}><Check size={12} color="#5FBF6B" strokeWidth={2.5} /><Text style={styles.inclText}>{s}</Text></View>
                 ))}
@@ -125,7 +125,7 @@ export default function SharedEstimateScreen() {
             )}
             {!!payload.exc?.length && (
               <View style={styles.inclCol}>
-                <Text style={styles.inclHeadEx}>NOT INCLUDED</Text>
+                <Text style={styles.inclHeadEx}>Not included</Text>
                 {payload.exc.map((s, i) => (
                   <View key={i} style={styles.inclRow}><XIcon size={12} color="#6C7480" strokeWidth={2.5} /><Text style={styles.inclText}>{s}</Text></View>
                 ))}
@@ -140,7 +140,7 @@ export default function SharedEstimateScreen() {
             only the contact details the contractor actually saved. */}
         {proceed ? (
           <View style={styles.proceed} testID="shared-estimate-proceed">
-            <Text style={styles.proceedTitle}>TO PROCEED</Text>
+            <Text style={styles.proceedTitle}>To proceed</Text>
             <Text style={styles.proceedText}>{proceed.sentence}</Text>
             {proceed.phone ? (
               <TouchableOpacity
@@ -181,14 +181,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   errTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text },
   errDesc: { fontSize: Type.subhead.fontSize, color: t.textSecondary, textAlign: 'center', maxWidth: 300, lineHeight: 21 },
 
-  eyebrow: { fontSize: 10.5, letterSpacing: 2, color: t.textMuted, fontWeight: '700', marginBottom: 8 },
+  eyebrow: { fontSize: 10.5, letterSpacing: 2, color: t.textMuted, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' },
   project: { fontSize: 22, fontWeight: '800', color: t.text, letterSpacing: -0.4 },
   prep: { fontSize: 12.5, color: t.textSecondary, marginTop: 6 },
-  totalLabel: { fontSize: 10.5, letterSpacing: 1, color: t.textMuted, fontWeight: '700', marginTop: 28, marginBottom: 5 },
+  totalLabel: { fontSize: 10.5, letterSpacing: 1, color: t.textMuted, fontWeight: '700', marginTop: 28, marginBottom: 5, textTransform: 'uppercase' },
   total: { fontSize: 46, fontWeight: '800', color: t.text, letterSpacing: -1.2 },
   valid: { fontSize: 12, color: t.textSecondary, marginTop: 9 },
 
-  section: { fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800', marginTop: 26, marginBottom: 9 },
+  section: { fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800', marginTop: 26, marginBottom: 9, textTransform: 'uppercase' },
   card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 15, paddingVertical: 15 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: t.line },
@@ -204,13 +204,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   inclGrid: { flexDirection: 'row', gap: 10, marginTop: 8 },
   inclCol: { flex: 1, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, padding: 14 },
-  inclHeadIn: { fontSize: 10.5, letterSpacing: 0.5, color: '#5FBF6B', fontWeight: '800', marginBottom: 10 },
-  inclHeadEx: { fontSize: 10.5, letterSpacing: 0.5, color: t.textSecondary, fontWeight: '800', marginBottom: 10 },
+  inclHeadIn: { fontSize: 10.5, letterSpacing: 0.5, color: '#5FBF6B', fontWeight: '800', marginBottom: 10, textTransform: 'uppercase' },
+  inclHeadEx: { fontSize: 10.5, letterSpacing: 0.5, color: t.textSecondary, fontWeight: '800', marginBottom: 10, textTransform: 'uppercase' },
   inclRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, paddingVertical: 4 },
   inclText: { fontSize: 12, color: t.textSecondary, flex: 1, lineHeight: 17 },
 
   proceed: { ...cardSurface(t, { radius: 'card', pad: 15 }), marginTop: 26, gap: 8 },
-  proceedTitle: { fontSize: Type.caption2.fontSize, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800' },
+  proceedTitle: { fontSize: Type.caption2.fontSize, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800', textTransform: 'uppercase' },
   proceedText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 20 },
   proceedLink: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, alignSelf: 'flex-start' },
   proceedLinkText: { fontSize: Type.subhead.fontSize, color: t.accent, fontWeight: '700' },

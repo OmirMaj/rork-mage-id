@@ -300,7 +300,7 @@ const estProject = mkProject({
     && scope.some((s) => s.text.startsWith('200A panel upgrade')));
   ok('no plumbing / tile / framing line on an electrical inspection', !scope.some((s) => /Plumbing|Tile|Framing/.test(s.text)));
   ok('scope text carries quantity and unit', scope.every((s) => / \(1 LS\)$/.test(s.text)));
-  ok('each scope why names its line', scope.every((s) => s.why === `From this job's estimate: ${s.text.replace(/ \(1 LS\)$/, '')}`));
+  ok('each scope why names its line', scope.every((s) => s.why === `From this project's estimate: ${s.text.replace(/ \(1 LS\)$/, '')}`));
   const plumb: UpcomingInspection = { ...insp, name: 'Rough plumbing', category: 'plumbing' };
   const ps = buildChecklist({ inspection: plumb, project: estProject, permits: [] }).items.filter((i) => i.group === 'scope');
   ok('plumbing scope = only the plumbing line', ps.length === 1 && ps[0].text.startsWith('Plumbing rough-in'));

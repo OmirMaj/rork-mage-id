@@ -56,7 +56,7 @@ describe('StatusPipeline — the labels are not the thing that gives way', () =>
     const stages = stagesFor('oac');
     expect(stages).toHaveLength(5);
     expect(stages.map(s => s.label)).toEqual(
-      ['Draft', 'Scheduled', 'In Progress', 'Concluded', 'Distributed'],
+      ['Draft', 'Scheduled', 'In progress', 'Concluded', 'Distributed'],
     );
   });
 
@@ -144,7 +144,7 @@ describe('groupAgendaBySection — no agenda item is silently dropped', () => {
       item('y', 'next_meeting'),
       item('z', 'safety'),
     ]);
-    expect(buckets.map(b => b.label)).toEqual(['Safety', 'Next Meeting', 'Other']);
+    expect(buckets.map(b => b.label)).toEqual(['Safety', 'Next meeting', 'Other']);
   });
 
   it('is total: every input item lands in exactly one bucket', () => {

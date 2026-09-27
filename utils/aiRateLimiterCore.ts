@@ -63,11 +63,11 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   invoicePrediction:  { tier: 'fast', displayName: 'Invoice prediction' },
   subEvaluation:      { tier: 'fast', displayName: 'Sub evaluation' },
   equipmentAdvice:    { tier: 'fast', displayName: 'Equipment advice' },
-  homeownerSummary:   { tier: 'fast', displayName: 'Homeowner digest' },
+  homeownerSummary:   { tier: 'fast', displayName: 'Client weekly digest' },
   changeOrderImpact:  { tier: 'fast', displayName: 'Change order impact' },
   dailyReport:        { tier: 'fast', displayName: 'Daily report' },
   projectReport:      { tier: 'fast', displayName: 'Project report' },
-  profitLeak:         { tier: 'fast', displayName: 'Profit Leak scan' },
+  profitLeak:         { tier: 'fast', displayName: 'Profit leak scan' },
   delayScan:          { tier: 'fast', displayName: 'Delay scan' },
 
   // Smart features — free gets a few trials, then paywall
@@ -83,26 +83,26 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   // gate"). Server-side the relay applies only the baseline gate — 'askMage'
   // is deliberately NOT in FEATURE_MIN_RANK (G9: OTA-safe, no server change).
   askMage:            { tier: 'smart', freeLifetimeCap: 3, displayName: 'Ask MAGE' },
-  projectMemory:      { tier: 'smart', displayName: 'Project Memory' },
-  quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick Estimate' },
-  scheduleBuilder:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'AI Schedule Builder' },
-  scheduleCopilot:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'Schedule Copilot' },
-  estimateValidation: { tier: 'smart', freeLifetimeCap: 3, displayName: 'Estimate Validation' },
-  voiceCapture:       { tier: 'fast',  freeLifetimeCap: 3, displayName: 'Voice Capture' },
-  aiEstimateWizard:   { tier: 'smart', freeLifetimeCap: 2, displayName: 'AI Estimate' },
+  projectMemory:      { tier: 'smart', displayName: 'Project memory' },
+  quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick estimate' },
+  scheduleBuilder:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'AI schedule builder' },
+  scheduleCopilot:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'Schedule copilot' },
+  estimateValidation: { tier: 'smart', freeLifetimeCap: 3, displayName: 'Estimate check' },
+  voiceCapture:       { tier: 'fast',  freeLifetimeCap: 3, displayName: 'Voice capture' },
+  aiEstimateWizard:   { tier: 'smart', freeLifetimeCap: 2, displayName: 'AI estimate' },
 
   // Pro+ only — high-value features that require subscription
   // aiTakeoff is Pro-only: every server step (convert-pdf-to-images,
   // analyze-takeoff) hard-gates on requireTier(['pro','business']), and the
   // paywall FEATURES table lists it as free:false. A freeLifetimeCap here
   // would have the client promise a trial the server rejects.
-  aiTakeoff:          { tier: 'smart', proOnly: true, displayName: 'AI Takeoff' },
-  weeklyAnalysis:     { tier: 'smart', proOnly: true, displayName: 'Weekly Full Analysis' },
-  bidLeveling:        { tier: 'smart', proOnly: true, displayName: 'AI Bid Leveling' },
-  photoAnalysis:      { tier: 'smart', proOnly: true, displayName: 'Photo Analysis' },
-  drawingAnalysis:    { tier: 'smart', proOnly: true, displayName: 'Drawing Analysis' },
-  specBookExtract:    { tier: 'smart', proOnly: true, displayName: 'Spec Book Extract' },
-  scanCredential:     { tier: 'smart', proOnly: true, displayName: 'ID / Credential Scan' },
+  aiTakeoff:          { tier: 'smart', proOnly: true, displayName: 'AI takeoff' },
+  weeklyAnalysis:     { tier: 'smart', proOnly: true, displayName: 'Weekly full analysis' },
+  bidLeveling:        { tier: 'smart', proOnly: true, displayName: 'Bid leveling' },
+  photoAnalysis:      { tier: 'smart', proOnly: true, displayName: 'Photo analysis' },
+  drawingAnalysis:    { tier: 'smart', proOnly: true, displayName: 'Plan analysis' },
+  specBookExtract:    { tier: 'smart', proOnly: true, displayName: 'Spec book import' },
+  scanCredential:     { tier: 'smart', proOnly: true, displayName: 'ID and credential scan' },
 };
 
 export const LIMITS = {
@@ -199,7 +199,7 @@ export function evaluateLimit(
         // and app/paywall.tsx renders that table two taps from this message.
         // Promising unlimited here is retracted by our own pricing screen at
         // the moment the contractor is deciding to spend $29.
-        message: `${cfg.displayName ?? feature} is a Pro feature. ${proAllowanceSentence(cfg.tier)}`,
+        message: `${cfg.displayName ?? 'This feature'} is on the Pro plan. ${proAllowanceSentence(cfg.tier)}`,
       };
     }
   }
@@ -218,7 +218,7 @@ export function evaluateLimit(
           remaining: 0,
           reason: 'lifetime_cap',
           upgradeTo: 'pro',
-          message: `You've used your ${cfg.freeLifetimeCap} free ${cfg.displayName ?? 'AI'} trials. ${proAllowanceSentence(cfg.tier)}`,
+          message: `You've used your ${cfg.freeLifetimeCap} free tries of ${cfg.displayName ?? 'this feature'}. ${proAllowanceSentence(cfg.tier)}`,
         };
       }
       return { allowed: true, remaining: cfg.freeLifetimeCap - lifetimeUsed - 1 };
@@ -258,9 +258,9 @@ export function evaluateLimit(
       : nextTier === 'enterprise' ? 40
       : null;
     const message = subscriptionTier === 'free'
-      ? `Advanced AI requires Pro. Upgrade to unlock Quick Estimate, Schedule Builder, and more.`
+      ? `Advanced AI is on the Pro plan, with quick estimates, the schedule builder and more.`
       : subscriptionTier === 'enterprise'
-        ? `You've used today's advanced AI. ${resetSentence} — quick AI features still work until then.`
+        ? `You've used today's advanced AI. ${resetSentence}. Quick AI features still work until then.`
         : `You've used today's ${limits.smart} advanced AI calls. Upgrade to ${nextTier?.[0].toUpperCase()}${nextTier?.slice(1)} for ${nextSmartCap}/day.`;
     return {
       allowed: false,

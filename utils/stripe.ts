@@ -109,11 +109,11 @@ export function payLinkRemintRefusalNotice(
 ): string | null {
   if (code !== 'balance_changed') return null;
   if (context === 'retention_release') {
-    return 'The release is saved on this device but has not reached the server yet, so the Pay link was not replaced. '
-      + 'The client portal hides the old link. Tap Regenerate pay link, or send the invoice, once the release has synced.';
+    return 'The release is saved on this device but has not reached the server yet, so the pay link was not replaced. '
+      + 'The client portal hides the old link. Once the release has synced, tap Regenerate pay link or send the invoice.';
   }
-  return 'The server has not received the architect’s certificate yet, so it still checks the Pay link against the amount applied for. '
-    + 'Try replacing the Pay link again in a moment.';
+  return 'The server has not received the architect’s certificate yet, so it still checks the pay link against the amount applied for. '
+    + 'Try replacing the pay link again in a moment.';
 }
 
 /**
@@ -126,7 +126,7 @@ export async function paymentLinkErrorResult(
   recordType: 'invoice' | 'aia_pay_app' = 'invoice',
 ): Promise<CreatePaymentLinkResult> {
   const err = error as { message?: unknown; context?: { json?: () => Promise<unknown> } } | null;
-  const fallback = typeof err?.message === 'string' && err.message ? err.message : 'Failed to create payment link';
+  const fallback = typeof err?.message === 'string' && err.message ? err.message : 'Couldn’t create the pay link';
   const ctx = err?.context;
   if (ctx && typeof ctx.json === 'function') {
     try {
@@ -160,7 +160,7 @@ export async function createPaymentLink(
   if (!isSupabaseConfigured) {
     return {
       success: false,
-      error: 'Payment service not configured (Supabase not initialized).',
+      error: 'Payments aren’t set up in this version of the app.',
     };
   }
 
@@ -210,7 +210,7 @@ export async function createPaymentLink(
     if (!result?.success || !result.url || !result.id) {
       return {
         success: false,
-        error: result?.error || 'Stripe did not return a payment link',
+        error: result?.error || 'Stripe didn’t return a pay link',
       };
     }
 

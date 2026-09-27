@@ -421,12 +421,12 @@ console.log('\n── wiring ──');
   const webAsk = sendFn.indexOf("if (Platform.OS === 'web') {");
   ok('web: after the composer opens, he confirms it was sent before it is marked assigned',
     webAsk > sendFn.indexOf('await Linking.openURL(url);') && /'Did you send it\?'/.test(sendFn)
-    && /\{ text: 'Sent — mark assigned', onPress: \(\) => markAssigned\(c\) \}/.test(sendFn)
+    && /\{ text: 'Mark assigned', onPress: \(\) => markAssigned\(c\) \}/.test(sendFn)
     && /return;\s*\}\s*markAssigned\(c\);/.test(sendFn));
   // (b) Android's Alert (and the web AlertHost) show at most 3 buttons.
   const chooseFn = code.slice(code.indexOf('const chooseContact'), code.indexOf('const postForBids'));
-  ok('a contact with phone AND email gets "Send it…" (≤3 buttons), never Text+Email+Mark+Cancel together',
-    /text: 'Send it…'/.test(chooseFn) && /hasPhone && hasEmail/.test(chooseFn)
+  ok('a contact with phone AND email gets "Text or email" (≤3 buttons), never Text+Email+Mark+Cancel together',
+    /text: 'Text or email'/.test(chooseFn) && /hasPhone && hasEmail/.test(chooseFn)
     && !/\.\.\.\(hasPhone \? \[\{ text: `Text \$\{c\.phone\}`[^\n]*\n\s*\.\.\.\(hasEmail \?/.test(chooseFn));
   ok('Post for bids does not mark the order out-for-bids before anything is posted',
     postFn.length > 0 && !/posted_for_bids/.test(postFn));

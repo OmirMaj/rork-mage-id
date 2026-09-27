@@ -231,7 +231,7 @@ export function emailProductCard(opts: {
     ? `<td width="120" valign="top" style="padding:0 16px 0 0;"><img src="${escapeHtml(opts.imageUrl)}" alt="${escapeHtml(opts.productName)}" width="120" height="120" style="display:block;width:120px;height:120px;border-radius:10px;border:1px solid ${HAIRLINE};object-fit:cover;" /></td>`
     : '';
   const priceLine = opts.price
-    ? `<p style="margin:8px 0 0;font-family:${FONT_STACK};font-size:16px;font-weight:800;color:${INK};letter-spacing:-0.2px;">${escapeHtml(opts.price)}${opts.overBudget ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;background:#FFE4D5;color:#C2410C;font-size:11px;font-weight:700;border-radius:999px;letter-spacing:0.4px;text-transform:uppercase;">over allowance</span>` : ''}</p>`
+    ? `<p style="margin:8px 0 0;font-family:${FONT_STACK};font-size:16px;font-weight:800;color:${INK};letter-spacing:-0.2px;">${escapeHtml(opts.price)}${opts.overBudget ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;background:#FFE4D5;color:#C2410C;font-size:11px;font-weight:700;border-radius:999px;letter-spacing:0.4px;text-transform:uppercase;">Over allowance</span>` : ''}</p>`
     : '';
   const categoryLine = opts.category
     ? `<p style="margin:0 0 4px;font-family:${FONT_STACK};font-size:11px;font-weight:800;color:${BRAND};letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(opts.category)}</p>`
@@ -571,7 +571,7 @@ function footerHtml(opts: {
     ? buildPreferencesUrl(opts.unsubscribe.recipientEmail)
     : null;
   const unsubLine = unsubUrl
-    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="color:${FOG};text-decoration:underline;">manage email preferences</a>` : ''}</p>`
+    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="color:${FOG};text-decoration:underline;">Manage email preferences</a>` : ''}</p>`
     : '';
 
   return `
@@ -946,15 +946,5 @@ export function fmtMoney(n: number | string | null | undefined): string {
   return '$' + Math.round(v).toLocaleString('en-US');
 }
 
-// ─── Subject-line emoji helpers ──────────────────────────────────────
-// Email clients render emoji inconsistently. Use sparingly: milestones
-// only, and never as the FIRST char (some inbox previews crop it).
-export const EMOJI = {
-  approved: '✓',
-  declined: '✗',
-  paid: '✓',
-  signed: '✓',
-  awarded: '🏆',
-  celebrate: '🎉',
-  binder: '📦',
-} as const;
+// Subject lines carry no emoji (docs/VOICE.md): the fact plus the project,
+// e.g. 'Closeout binder ready · Maple St remodel'. The old EMOJI map is gone.

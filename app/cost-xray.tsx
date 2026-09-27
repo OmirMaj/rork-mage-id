@@ -66,6 +66,7 @@ import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
 import { projectTypeLabel } from '@/utils/projectTypes';
 import { ActionBar, ActionBarReadout, ChipRail, TileGrid, desktopCta, desktopProse, useIsDesktop } from '@/components/ui';
+import { describeError } from '@/utils/errorCopy';
 
 // A captured photo (id === the saved ProjectPhoto.id so tell provenance lines up).
 interface CapturedPhoto { id: string; uri: string; timestamp: string }
@@ -238,7 +239,8 @@ export default function CostXrayScreen() {
         addCaptured(res.assets[0].uri);
       }
     } catch (e) {
-      setError(`Couldn't open the ${source}: ${String((e as Error).message ?? e)}`);
+      console.warn('[cost-xray] picker failed:', (e as Error)?.message);
+      setError(describeError(e, { action: `open the ${source}` }).body);
     }
   }, [project, photos.length, addCaptured]);
 
@@ -276,7 +278,7 @@ export default function CostXrayScreen() {
         if (r.status === 'fulfilled') { inline.push(r.value); originalIndex.push(i); }
       });
       if (inline.length === 0) {
-        setError('Could not read the captured photos — they may have been moved. Retake and try again.');
+        setError('Couldn’t read the captured photos. They may have been moved. Retake them and try again.');
         return;
       }
 
@@ -359,7 +361,7 @@ export default function CostXrayScreen() {
       } else {
         // Photos are already saved to the project — surface a retryable pending state.
         setPending(true);
-        setError("Scan couldn't finish — you may be offline. Your photos are saved; run the scan again when you're back online.");
+        setError("Scan couldn't finish. You may be offline. Your photos are saved; run the scan again when you're back online.");
       }
     } finally {
       setBusy(false);
@@ -512,7 +514,7 @@ export default function CostXrayScreen() {
             <ScanSearch size={20} color={t.accent} strokeWidth={1.75} />
             <View style={{ flex: 1, gap: 10 }}>
               <Text style={styles.introText}>
-                Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> learned costs — before you commit a number.
+                Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> cost history, before you commit a number.
               </Text>
               <Text style={styles.introText}>
                 Cost X-Ray is part of the Business plan.
@@ -580,7 +582,7 @@ export default function CostXrayScreen() {
             <ScanSearch size={20} color={t.accent} strokeWidth={1.75} />
             <View style={{ flex: 1, gap: 10 }}>
               <Text style={[styles.introText, isDesktop && desktopProse]}>
-                Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> learned costs — before you commit a number.
+                Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> cost history, before you commit a number.
               </Text>
               <View style={styles.tipsBox}>
                 <Text style={styles.tipsLabel}>For best results</Text>
@@ -654,7 +656,7 @@ export default function CostXrayScreen() {
         {photos.length > 0 && !hasReviews && (
           <TouchableOpacity style={[styles.aiBtn, isDesktop && desktopCta, busy && { opacity: 0.7 }]} onPress={detect} disabled={busy} activeOpacity={0.85} testID="xray-scan">
             {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <ScanSearch size={16} color={Colors.textOnAccent} strokeWidth={2} />}
-            <Text style={styles.aiBtnText}>{busy ? 'Analyzing — this can take ~20 seconds…' : pending ? 'Retry scan' : 'Scan for hidden costs'}</Text>
+            <Text style={styles.aiBtnText}>{busy ? 'Scanning photos. This takes about 20 seconds.' : pending ? 'Retry scan' : 'Scan for hidden costs'}</Text>
           </TouchableOpacity>
         )}
 

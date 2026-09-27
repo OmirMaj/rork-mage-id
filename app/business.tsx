@@ -128,7 +128,7 @@ function ColdStartNote({ text, styles }: { text: string; styles: ReturnType<type
  */
 export function typeComparisonColdStart(closedWithBasis: number): string {
   return closedWithBasis < 2
-    ? `Margin by job type needs 2 closed jobs of the same type. You have ${closedWithBasis} closed with both a contract and costs on it.`
+    ? `Margin by project type needs 2 closed projects of the same type. You have ${closedWithBasis} closed with both a contract and costs on it.`
     : `Your ${closedWithBasis} closed jobs are each a different type — a type needs 2 before MAGE compares its margin.`;
 }
 
@@ -208,7 +208,7 @@ function BusinessInner() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Your Business',
+          title: 'Your business',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
               <ChevronLeft size={22} color={t.text} />
@@ -228,14 +228,14 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={Target}
-              label="Track Record"
+              label="Track record"
               onPress={() => router.push('/track-record')}
               styles={styles}
               t={t}
             />
             <Text style={styles.definitionNote}>
-              Every call the Brain made — pace, estimates, margin verdicts, leak flags, bids —
-              graded against what actually happened once the job closed.
+              Every call MAGE made on pace, estimates, margin, leaks and bids, graded against
+              what happened once the project closed.
             </Text>
             <TouchableOpacity style={styles.seeAllRow} onPress={() => router.push('/track-record')}>
               <Text style={styles.seeAllText}>Open track record</Text>
@@ -247,7 +247,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={TrendingUp}
-              label="Margin by Job Type"
+              label="Margin by project type"
               onPress={() => router.push('/portfolio-margin')}
               styles={styles}
               t={t}
@@ -272,7 +272,7 @@ function BusinessInner() {
                       ]}>
                         {fmtPct(row.revenueWeightedMarginPct ?? row.avgMarginPct ?? 0)}
                       </Text>
-                      <Text style={styles.metricSub}>{row.jobCount} job{row.jobCount === 1 ? '' : 's'}</Text>
+                      <Text style={styles.metricSub}>{row.jobCount} project{row.jobCount === 1 ? '' : 's'}</Text>
                     </View>
                   </View>
                 ))}
@@ -295,7 +295,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={BarChart3}
-              label="Pipeline vs Capacity"
+              label="Pipeline vs capacity"
               styles={styles}
               t={t}
             />
@@ -303,7 +303,7 @@ function BusinessInner() {
             {/* Win rates */}
             <View style={styles.twoColumn}>
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>CRM Win Rate</Text>
+                <Text style={styles.kpiLabel}>CRM win rate</Text>
                 {pipeline.winRates.crm !== null ? (
                   <Text style={styles.kpiValue}>{fmtPct(pipeline.winRates.crm)}</Text>
                 ) : (
@@ -317,7 +317,7 @@ function BusinessInner() {
                 )}
               </View>
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>Bid Win Rate</Text>
+                <Text style={styles.kpiLabel}>Bid win rate</Text>
                 {pipeline.winRates.outbound !== null ? (
                   <Text style={styles.kpiValue}>{fmtPct(pipeline.winRates.outbound)}</Text>
                 ) : (
@@ -353,7 +353,7 @@ function BusinessInner() {
                 <Text style={styles.metricLabel}>Expected inflow</Text>
                 <View style={styles.metricRight}>
                   <Text style={[styles.metricValue, { color: t.success }]}>{fmtMoney(pipeline.expectedInflow$)}</Text>
-                  <Text style={styles.metricSub}>pipeline × win rate</Text>
+                  <Text style={styles.metricSub}>Pipeline × win rate</Text>
                 </View>
               </View>
             )}
@@ -380,11 +380,11 @@ function BusinessInner() {
                 the three windows, so there was nothing to divide by. The
                 windows are 28 CALENDAR-day blocks counted forward from now
                 (utils/portfolio/pipelineHorizon.ts), not working days. */}
-            <Text style={styles.subSectionLabel}>Crew Load</Text>
+            <Text style={styles.subSectionLabel}>Crew load</Text>
             {!loadMeasurable ? (
               <ColdStartNote
                 text={pipeline.backlog.horizonDate === null
-                  ? 'No project schedule to measure yet — build one and crew load fills in.'
+                  ? 'No project schedule to measure yet. Build one and crew load fills in.'
                   : 'No scheduled work in the next 12 weeks.'}
                 styles={styles}
               />
@@ -414,7 +414,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={Users}
-              label="Client Book"
+              label="Client book"
               styles={styles}
               t={t}
             />
@@ -468,7 +468,7 @@ function BusinessInner() {
           <View style={sectionStyle}>
             <SectionHeader
               icon={CloudRain}
-              label="Weather Impact"
+              label="Weather impact"
               styles={styles}
               t={t}
             />
@@ -484,7 +484,7 @@ function BusinessInner() {
                     <Text style={styles.metricLabel}>{m.label}</Text>
                     <View style={styles.metricRight}>
                       <Text style={styles.metricValue}>{m.avgLostDays.toFixed(1)}d</Text>
-                      <Text style={styles.metricSub}>avg weather-lost</Text>
+                      <Text style={styles.metricSub}>avg lost to weather</Text>
                     </View>
                   </View>
                 ))}

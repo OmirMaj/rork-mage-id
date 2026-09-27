@@ -178,13 +178,13 @@ export const [AutonomyProvider, useAutonomy] = createContextHook<UseAutonomyResu
               // Demotion — loud receipt, G13.
               const pct = Math.round(result.rate * 100);
               recordDidForYou(
-                `My pace calls for ${trade} slipped to ${pct}% — I've gone back to asking first`,
+                `Your pace calls for ${trade} slipped to ${pct}%. MAGE asks first again.`,
               );
             } else if (!wasPassing && result.passed) {
               // Promotion — receipt.
               const pct = Math.round(result.rate * 100);
               recordDidForYou(
-                `${trade} pace unlocked — ${result.n} jobs, ${pct}%+`,
+                `${trade} qualifies for your pace · ${result.n} calls, ${pct}%+`,
               );
             }
           }
@@ -196,12 +196,12 @@ export const [AutonomyProvider, useAutonomy] = createContextHook<UseAutonomyResu
           if (prev.leakPassed && !leakPassed) {
             const pct = Math.round(gates.leakGate.billedRate * 100);
             recordDidForYou(
-              `Leak precision dropped to ${pct}% — CO drafting is back to one-tap`,
+              `Leak precision dropped to ${pct}%. Change order drafting is back to one tap.`,
             );
           } else if (!prev.leakPassed && leakPassed) {
             const pct = Math.round(gates.leakGate.billedRate * 100);
             recordDidForYou(
-              `Leak precision reached ${pct}% (${gates.leakGate.n} scans) — CO drafting unlocked`,
+              `Leak precision reached ${pct}% (${gates.leakGate.n} scans). MAGE now drafts change orders on its own.`,
             );
           }
         }

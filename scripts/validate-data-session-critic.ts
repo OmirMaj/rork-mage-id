@@ -234,7 +234,7 @@ console.log('\n8 · the revocation alert does not guess who ended it');
 {
   const cleanup = slice(CTX, 'if (!revokedCleanup || revokedCleanup.size === 0) return;', '}, [revokedCleanup]);');
   ok('names every possibility: he left, the owner removed him, or it was deleted',
-    /you left it, its owner removed you, or it was deleted/.test(cleanup));
+    /You left it, its owner removed you, or it was deleted/.test(cleanup));
   ok('the old guess ("Its owner removed you from the job or deleted it") is gone',
     !/Its owner removed you from the job or deleted it/.test(CTX) && !/'Removed from a job'/.test(CTX));
 }

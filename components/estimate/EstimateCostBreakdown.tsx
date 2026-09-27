@@ -43,7 +43,7 @@ export function EstimateCostBreakdown({ divisions }: { divisions: DivisionRow[] 
 
   return (
     <View style={styles.card}>
-      <Text style={styles.head}>COST BREAKDOWN</Text>
+      <Text style={styles.head}>Cost breakdown</Text>
       {bars.map(b => (
         <View key={b.key} style={styles.bar}>
           <View style={styles.barTop}>
@@ -61,7 +61,7 @@ export function EstimateCostBreakdown({ divisions }: { divisions: DivisionRow[] 
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, padding: 15 },
-  head: { fontSize: 11, letterSpacing: 1, color: t.textMuted, fontWeight: '800', marginBottom: 13 },
+  head: { textTransform: 'uppercase', fontSize: 11, letterSpacing: 1, color: t.textMuted, fontWeight: '800', marginBottom: 13 },
   bar: { marginBottom: 10 },
   barTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   barName: { fontSize: 11.5, color: t.textSecondary, flex: 1, marginRight: 8 },

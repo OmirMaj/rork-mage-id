@@ -166,6 +166,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: t.warningLabel,
     letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   simBannerText: {
     fontSize: Type.caption2.fontSize,

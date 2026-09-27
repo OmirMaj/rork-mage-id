@@ -306,7 +306,7 @@ export default function MaterialsScreen() {
               behind this screen, so it says what it is. */}
           <View style={styles.provenanceRow}>
             <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.provenanceLabel}>REFERENCE PRICE BOOK</Text>
+            <Text style={styles.provenanceLabel}>Reference price book</Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -362,7 +362,7 @@ export default function MaterialsScreen() {
           </Text>
         ) : (
           <Text style={styles.locationText}>
-            <Text style={styles.locationBold}>US average</Text> — pick your market
+            <Text style={styles.locationBold}>US average</Text>. Pick your market.
           </Text>
         )}
         {market.resolved && (
@@ -375,7 +375,7 @@ export default function MaterialsScreen() {
 
       {showLocationPicker && (
         <View style={styles.locationPicker}>
-          <Text style={styles.pickerLabel}>REGION</Text>
+          <Text style={styles.pickerLabel}>Region</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
             {/* An explicit way back to the un-adjusted national list price.
                 Without it every selection was an uplift the user could not undo. */}
@@ -385,7 +385,7 @@ export default function MaterialsScreen() {
               testID="market-us-average"
             >
               <Text style={[styles.pickerChipText, !market.resolved && styles.pickerChipTextActive]}>US average</Text>
-              <Text style={[styles.pickerChipSub, !market.resolved && styles.pickerChipTextActive]}>no adjustment</Text>
+              <Text style={[styles.pickerChipSub, !market.resolved && styles.pickerChipTextActive]}>No adjustment</Text>
             </TouchableOpacity>
             {REGIONS.map(region => {
               const active = market.regionId === region.id && !market.city;
@@ -405,7 +405,7 @@ export default function MaterialsScreen() {
               );
             })}
           </ScrollView>
-          <Text style={[styles.pickerLabel, { marginTop: 8 }]}>METRO AREA</Text>
+          <Text style={[styles.pickerLabel, { marginTop: 8 }]}>Metro area</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
             {Object.entries(CITY_ADJUSTMENTS).map(([city, adj]) => {
               const active = market.city === city;
@@ -435,7 +435,7 @@ export default function MaterialsScreen() {
       {showLocationPicker && (
         <Text style={styles.marketSavedNote} testID="materials-market-saved">
           {override
-            ? `Showing ${market.label} on this screen only — not saved as your market. Pick a metro, or set Location in Settings to a city and state, to price estimates and change orders there.`
+            ? `Showing ${market.label} on this screen only. It isn't saved as your market. Pick a metro, or set Location in Settings to a city and state, to price estimates and change orders there.`
             : market.resolved
               ? `${market.label} is saved as your market — estimates and change orders price here too.`
               : 'No market saved — everything prices at the US average. Pick a metro or your region.'}
@@ -477,7 +477,7 @@ export default function MaterialsScreen() {
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search categories..."
+            placeholder="Search categories"
             placeholderTextColor={themeColors.textMuted}
             autoCorrect={false}
             selectionColor={themeColors.accent}
@@ -496,7 +496,7 @@ export default function MaterialsScreen() {
 
       {showTargets && priceAlerts.length > 0 && (
         <View style={styles.alertsSection}>
-          <Text style={styles.alertsSectionTitle}>PRICE TARGETS ({priceAlerts.length})</Text>
+          <Text style={styles.alertsSectionTitle}>Price targets ({priceAlerts.length})</Text>
           {/* The old panel promised a watch it could not keep: the "Triggered"
               badge came from a sine wave, not from a supplier. */}
           <Text style={styles.alertsSectionNote}>
@@ -591,7 +591,7 @@ export default function MaterialsScreen() {
         </View>
       ) : (
         <Text style={styles.sectionHeader}>
-          {totalCount} MATERIALS · {filteredCategories.length} CATEGORIES
+          {totalCount} materials · {filteredCategories.length} categories
         </Text>
       )}
     </View>
@@ -611,7 +611,7 @@ export default function MaterialsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
                 <BookOpen size={13} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={[styles.sourceText, { flex: 1 }]} testID="materials-source-note">
-                  {CATALOG_SOURCE_LABEL} compiled {catalogCompiledLabel()}, adjusted by MAGE&apos;s regional cost index. They are list prices, not quotes on your account, and MAGE does not receive supplier feeds — the numbers move only when a new build ships a new book or you change the market above. The supplier on a row is the retail channel the list price was taken from, not a vendor MAGE has priced with for you.
+                  {CATALOG_SOURCE_LABEL} compiled {catalogCompiledLabel()}, adjusted by MAGE&apos;s regional cost index. These are retail list prices, not quotes on your account. MAGE does not receive supplier feeds, so these prices change only with a new price book or the market you pick above. The supplier on a row is the store the list price came from, not a supplier MAGE priced with for you.
                 </Text>
               </View>
             </View>
@@ -634,7 +634,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Was a pulsing green `liveDot` + "LIVE PRICING" in success green. Muted and
   // static: this is a book, not a feed, and the colour said otherwise.
   provenanceRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  provenanceLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8 },
+  provenanceLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const },
   refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.accent + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   // Cart pill — solid-accent button shown only when the cart has items, so
   // it carries weight when present. Taps to the Estimate tab.
@@ -727,7 +727,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   locationMultiplier: { backgroundColor: t.accent + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   multiplierText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent },
   locationPicker: { marginHorizontal: 16, marginBottom: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: t.line },
-  pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' as const },
   pickerScroll: { flexDirection: 'row', marginBottom: 4 },
   pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.bg, marginRight: 6, alignItems: 'center' },
   pickerChipActive: { backgroundColor: t.accentFill },

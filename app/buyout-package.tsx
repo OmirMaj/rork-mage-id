@@ -69,6 +69,7 @@ import {
 } from '@/utils/bidInvitePending';
 import { onQueueFlushed } from '@/utils/offlineQueue';
 import { pdfFailureMessage } from '@/utils/platformFile';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { resolveRetainagePercent } from '@/utils/retainageSource';
 import {
   bidAmountOf, compareBidsForMatrix, isSellBasisBudget, packageCostBudget, parseBidAmountInput,
@@ -385,7 +386,7 @@ export default function BuyoutPackageScreen() {
     if (!scopeText) {
       showAlert(
         'No scope to send',
-        'This package has no scope of work written, so the invitation would ask the sub to price a name and an address — and the bid page would tell him to phone you for the details. Write the scope first; if the package has estimate items linked, one tap fills it in.',
+        'This package has no scope of work written, so the invitation would ask the sub to price a name and an address, and the bid page would tell them to call you for the details. Write the scope first. If the package has estimate items linked, one tap fills it in.',
       );
       return;
     }
@@ -482,7 +483,7 @@ export default function BuyoutPackageScreen() {
       }
       const unmailed = synced.filter(r => !r.emailed);
       if (synced.length > 0 && mailed.length === 0) {
-        lines.push('We could not hand the email off, so nothing has reached them yet — copy each link from the list below and text or email it over.');
+        lines.push('The email didn’t go out, so nothing has reached them yet. Copy each link from the list below and text or email it over.');
       } else if (synced.length > mailed.length) {
         lines.push(`${synced.length - mailed.length} of those emails did not hand off — copy those links from the list below and send them yourself.`);
       }
@@ -511,7 +512,7 @@ export default function BuyoutPackageScreen() {
       // would leave the sheet open with no spinner and no message — the GC taps
       // Send again and files a second token for every sub.
       console.warn('[buyout] invite send failed', e);
-      showAlert('Invites did not go', 'Something went wrong sending those invitations. Check the list below before you try again — some may already be filed.');
+      showAlert('Couldn’t send invitations', 'Couldn’t send some invitations. Check the list below before you try again.');
       await loadInvites();
     } finally {
       invitingRef.current = false;
@@ -590,7 +591,7 @@ export default function BuyoutPackageScreen() {
   const handleCopyInviteLink = useCallback(async (invite: BidInviteRecord) => {
     const ok = await copyToClipboard(bidInviteUrl(invite.inviteToken));
     showAlert(
-      ok ? 'Link copied' : 'Could not copy',
+      ok ? 'Link copied' : 'Couldn’t copy the link',
       ok
         ? `Text or email this to ${invite.subEmail}. It opens the scope for this package and takes their bid.`
         : 'Your browser blocked the clipboard. Long-press to select the link instead.',
@@ -616,8 +617,8 @@ export default function BuyoutPackageScreen() {
       setNewExcludes(partial.excludes || '');
       setNewTerms(partial.terms || '');
       setAddBidNote(caughtNothing
-        ? "We couldn't read that bid — your words are in Includes. Fill in the vendor and the amount."
-        : "We didn't catch a dollar amount — type it in.");
+        ? "Couldn't read that bid. Your words are in Includes. Fill in the vendor and the amount."
+        : "No dollar amount heard. Type it in.");
       setShowAddBid(true);
       return;
     }
@@ -638,7 +639,7 @@ export default function BuyoutPackageScreen() {
   const handleAddBid = useCallback(() => {
     if (!pkg) return;
     if (!newVendor.trim()) {
-      showAlert('Missing info', 'Who is the bid from? Put the vendor name on it.');
+      showAlert('Add the vendor', 'Enter who the bid is from.');
       return;
     }
     // Separators and "$" stripped before Number() — "4,800" used to store NaN,
@@ -708,7 +709,7 @@ export default function BuyoutPackageScreen() {
   // ── AI leveling ─────────────────────────────────────────────
   const handleLevel = useCallback(async () => {
     if (!pkg || bids.length < 2) {
-      showAlert('Need 2+ bids', 'Add at least two bids before running AI leveling.');
+      showAlert('Add another bid', 'Add at least two bids to level them.');
       return;
     }
     // Bid Leveling is a Pro+ feature — too compute-expensive to give away
@@ -739,12 +740,14 @@ export default function BuyoutPackageScreen() {
       // silently worked. Empty summary + every adjustment at confidence 0
       // is the failure signature.
       if (result.summary === '' && result.adjustments.every(a => a.confidence === 0)) {
-        showAlert('AI leveling unavailable', 'The AI is offline right now. Try again in a minute, or compare bids manually.');
+        showAlert('Couldn’t level the bids', 'Try again in a minute, or compare the bids by hand.');
       } else {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
-      showAlert('Leveling failed', String((err as Error)?.message || err));
+      console.warn('[buyout] leveling failed:', rawErrorMessage(err));
+      const copy = describeError(err, { action: 'level the bids' });
+      showAlert(copy.title, copy.body);
     } finally {
       setLeveling(false);
     }
@@ -806,14 +809,14 @@ export default function BuyoutPackageScreen() {
 
     if (!sub) {
       // Actionable, not a shrug: the bid card carries the control that fixes it.
-      blockers.push('This bid is not linked to a sub on your roster, so no licence or COI has been checked — and the commitment it creates cannot be given a sub portal. Use "Link this bid to a sub" on the bid card first.');
+      blockers.push('This bid is not linked to a sub on your roster, so no license or COI has been checked, and the commitment it creates can’t have a sub portal. Use "Link this bid to a sub" on the bid card first.');
     } else if (award) {
       blockers.push(...award.blockers);
       notes.push(...award.notes);
       if (!packet) {
         // A note, not a blocker: the prequal form is a separate invite the bid
         // invite never mentioned. Offered as one tap below ("Request prequal").
-        notes.push(`No prequal packet on file for ${sub.companyName} — paperwork you may have chosen not to run on this job, not an insurance gap.`);
+        notes.push(`No prequal packet on file for ${sub.companyName} — paperwork you may have chosen not to run on this project, not an insurance gap.`);
       } else {
         // Q5: the packet's STATUS decides, not a re-run of the auto-review on
         // whatever it holds — invited-but-unfilled is pending (a note), and the
@@ -851,7 +854,7 @@ export default function BuyoutPackageScreen() {
       for (const n of notes) lines.push(`- ${n}`);
     }
     lines.push('');
-    lines.push('Awarding will create a Commitment and mark this package complete.');
+    lines.push('Awarding creates a commitment and marks this package complete.');
 
     const doAward = () => {
       // D4-1: the override audit line rides INTO the award. It used to be a
@@ -888,14 +891,14 @@ export default function BuyoutPackageScreen() {
       );
     } else {
       showAlert(
-        'Compliance risk — review before award',
+        'Review compliance before award',
         [
           ...lines,
           '',
           'RISKS:',
           ...blockers.map(b => '• ' + b),
           '',
-          'Awarding accepts this compliance/insurance exposure. Your override will be recorded on the commitment.',
+          'Awarding accepts this compliance and insurance risk. Your override is recorded on the commitment.',
         ].join('\n'),
         [
           { text: 'Cancel', style: 'cancel' },
@@ -994,7 +997,8 @@ export default function BuyoutPackageScreen() {
       } catch (err) {
         console.error('[Buyout] A401 generate failed:', err);
         // A blocked PDF window on web says so (CONTRACT 25); no success haptic.
-        showAlert('Could not generate subcontract', pdfFailureMessage(err, err instanceof Error ? err.message : 'Try again.'));
+        console.warn('[buyout] subcontract PDF failed:', rawErrorMessage(err));
+        showAlert('Couldn’t generate subcontract', pdfFailureMessage(err, describeError(err, { action: 'generate the subcontract' }).body));
       }
     };
     const retainage = resolveRetainagePercent({
@@ -1005,7 +1009,7 @@ export default function BuyoutPackageScreen() {
     if (retainage.needsAsk) {
       showAlert(
         'Retainage on this subcontract',
-        `No retainage rate is on file for ${project.name} — not on its contract terms, an invoice or a pay application. The subcontract can print the retainage line blank ("____% — to be agreed") for you and ${winningBid.vendorName ?? 'the sub'} to fill in, or you can record the job's rate on the project first.`,
+        `No retainage rate is on file for ${project.name} (not on its contract terms, an invoice or a pay app). The subcontract can print the retainage line blank for you and ${winningBid.vendorName ?? 'the sub'} to fill in, or you can record the project's rate first.`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Set it on the project', style: 'default', onPress: () => router.push({ pathname: '/project-detail' as never, params: { id: project.id } as never }) },
@@ -1016,7 +1020,7 @@ export default function BuyoutPackageScreen() {
     }
     showAlert(
       'Retainage on this subcontract',
-      `${retainage.percent}% — ${retainage.label}. A sub's rate can be lower than the job's; if yours for ${winningBid.vendorName ?? 'this sub'} differs, print it blank and write it in.`,
+      `${retainage.percent}% — ${retainage.label}. A sub's rate can be lower than the project's. If yours for ${winningBid.vendorName ?? 'this sub'} differs, print it blank and write it in.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Print it blank', style: 'default', onPress: () => { void render(null); } },
@@ -1029,7 +1033,7 @@ export default function BuyoutPackageScreen() {
     if (!pkg) return;
     showAlert(
       'Delete package?',
-      'This deletes the package and all its bids. Cannot be undone.',
+      'This deletes the package and all its bids. This can’t be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1267,7 +1271,7 @@ export default function BuyoutPackageScreen() {
           <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
           <View style={{ flex: 1 }}>
             <Text style={styles.warningTitle}>Stale package · {daysSinceOpened} days open</Text>
-            <Text style={styles.warningBody}>Material pricing windows are typically 30 days. Award soon or re-bid to avoid expired numbers.</Text>
+            <Text style={styles.warningBody}>Material pricing usually holds for 30 days. Award soon or rebid to avoid expired numbers.</Text>
           </View>
         </View>
       )}
@@ -1303,8 +1307,8 @@ export default function BuyoutPackageScreen() {
           <View style={styles.scopeCard}>
             <Text style={styles.scopeEmptyText}>
               {canGenerateScope(packageItems)
-                ? `This package covers ${packageItems.length} estimate line${packageItems.length === 1 ? '' : 's'}. Write them out as a scope and the sub knows what he is pricing — quantities and units only, never your carry.`
-                : 'Nothing is linked to this package from the estimate, so there is nothing to generate from. Type the scope yourself — without it the invitation asks the sub to price a name and an address, and the bid page tells him to phone you.'}
+                ? `This package covers ${packageItems.length} estimate line${packageItems.length === 1 ? '' : 's'}. Write them out as a scope and the sub knows what they are pricing: quantities and units only, never your carry.`
+                : 'Nothing is linked to this package from the estimate, so there is nothing to generate from. Type the scope yourself. Without it the invitation asks the sub to price a name and an address.'}
             </Text>
             <View style={styles.scopeBtnRow}>
               {canGenerateScope(packageItems) && (
@@ -1342,12 +1346,12 @@ export default function BuyoutPackageScreen() {
             {leveling ? (
               <>
                 <ActivityIndicator size="small" color="#FFF" />
-                <Text style={styles.levelBtnText}>AI is leveling these bids…</Text>
+                <Text style={styles.levelBtnText}>Leveling the bids…</Text>
               </>
             ) : (
               <>
                 <MageAIMark size={16} color="#FFF" />
-                <Text style={styles.levelBtnText}>{levelingResult ? 'Re-run AI leveling' : 'Run AI leveling'}</Text>
+                <Text style={styles.levelBtnText}>{levelingResult ? 'Level again' : 'Level the bids'}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -1366,7 +1370,7 @@ export default function BuyoutPackageScreen() {
             activeOpacity={0.85}
           >
             <Briefcase size={15} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.levelLinkBtnText}>Score with Bid Advisor</Text>
+            <Text style={styles.levelLinkBtnText}>Score this bid</Text>
             <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
           {!!levelingResult?.summary && (
@@ -1439,7 +1443,7 @@ export default function BuyoutPackageScreen() {
         !invitesFailed && (
           <View style={styles.emptyBids}>
             <Text style={styles.emptyBidsText}>
-              Email the subs a link. They see this package&apos;s scope — not your budget — and type their number straight into the matrix below. No account, no app, nothing for you to re-key.
+              Email the subs a link. They see this package&apos;s scope, not your budget, and type their number straight into the matrix below. No account, no app, nothing for you to re-key.
             </Text>
           </View>
         )
@@ -1536,7 +1540,7 @@ export default function BuyoutPackageScreen() {
       {/* A blocked button says why, and says what unblocks it. */}
       {!scopeText && (
         <Text style={styles.inviteBlockedWhy}>
-          No scope written yet. An invitation without one asks the sub to price a name and an address — and the bid page tells him to email you for the details, which is the phone call this replaces. Write the scope above and this turns on.
+          No scope written yet. An invitation without one asks the sub to price a name and an address. Write the scope above to turn this on.
         </Text>
       )}
 
@@ -1575,7 +1579,7 @@ export default function BuyoutPackageScreen() {
       {sortedBids.length === 0 ? (
         <View style={styles.emptyBids}>
           <Text style={styles.emptyBidsText}>
-            Tap "Add by voice" or "Add by hand" to log incoming sub bids. MAGE ID will compare them apples-to-apples and recommend a winner.
+            Tap "Add by voice" or "Add by hand" to log sub bids. MAGE levels them side by side and recommends one.
           </Text>
         </View>
       ) : (
@@ -1601,23 +1605,23 @@ export default function BuyoutPackageScreen() {
                     {isWinner && (
                       <View style={styles.winnerBadge}>
                         <Trophy size={10} color="#FFF" strokeWidth={1.75} />
-                        <Text style={styles.winnerBadgeText}>AI PICK</Text>
+                        <Text style={styles.winnerBadgeText}>AI pick</Text>
                       </View>
                     )}
                     {isLowest && !isWinner && (
                       <View style={styles.lowestBadge}>
-                        <Text style={styles.lowestBadgeText}>LOWEST</Text>
+                        <Text style={styles.lowestBadgeText}>Lowest</Text>
                       </View>
                     )}
                     {bid.status === 'awarded' && (
                       <View style={styles.awardedBadge}>
                         <CheckCircle2 size={10} color="#FFF" strokeWidth={1.75} />
-                        <Text style={styles.awardedBadgeText}>AWARDED</Text>
+                        <Text style={styles.awardedBadgeText}>Awarded</Text>
                       </View>
                     )}
                     {invitedBidIds.has(bid.id) && (
                       <View style={styles.invitedBadge}>
-                        <Text style={styles.invitedBadgeText}>SUB-ENTERED</Text>
+                        <Text style={styles.invitedBadgeText}>Entered by sub</Text>
                       </View>
                     )}
                     {outlier && (
@@ -1873,7 +1877,7 @@ export default function BuyoutPackageScreen() {
               <Text style={styles.fieldLabel}>Includes</Text>
               <TextInput style={[styles.input, styles.multilineInput]} value={newIncludes} onChangeText={setNewIncludes} placeholder="What's covered (drives leveling)" placeholderTextColor={themeColors.textMuted} multiline />
               <Text style={styles.fieldLabel}>Excludes</Text>
-              <TextInput style={[styles.input, styles.multilineInput]} value={newExcludes} onChangeText={setNewExcludes} placeholder="What's NOT covered (the gotcha)" placeholderTextColor={themeColors.textMuted} multiline />
+              <TextInput style={[styles.input, styles.multilineInput]} value={newExcludes} onChangeText={setNewExcludes} placeholder="What's not covered" placeholderTextColor={themeColors.textMuted} multiline />
               <Text style={styles.fieldLabel}>Terms</Text>
               <TextInput style={styles.input} value={newTerms} onChangeText={setNewTerms} placeholder="Net 30, 10% deposit, etc." placeholderTextColor={themeColors.textMuted} />
             </ScrollView>
@@ -1937,7 +1941,7 @@ export default function BuyoutPackageScreen() {
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               <Text style={styles.inviteExplain}>
-                Each sub gets their own link to <Text style={{ fontWeight: '700' }}>{pkg.name}</Text>. It shows the scope, the CSI division and the phase — never your estimate budget — and takes their amount, inclusions and exclusions straight into the leveling matrix.
+                Each sub gets their own link to <Text style={{ fontWeight: '700' }}>{pkg.name}</Text>. It shows the scope, the CSI division and the phase, never your estimate budget, and takes their amount, inclusions and exclusions straight into the leveling matrix.
               </Text>
 
               {/* The roster, which this sheet could not see. Picking a sub here
@@ -2017,7 +2021,7 @@ export default function BuyoutPackageScreen() {
                 keyboardType="email-address"
                 testID="invite-emails-input"
               />
-              <Text style={styles.inviteHint}>One per line, or separated by commas — a pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. An address that matches a sub on your roster is linked to them automatically. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days — the same window material pricing holds for.</Text>
+              <Text style={styles.inviteHint}>One per line, or separated by commas — a pasted &quot;Joe Smith &lt;joe@ace.com&gt;&quot; works too. An address that matches a sub on your roster is linked to them automatically. Each link lands in the list on this screen as well, so if the email can&apos;t go out you can copy it and text it over. Links stop working after 30 days, the same window material pricing holds for.</Text>
               {/* What the sub is actually told, stated plainly: the email's
                   "Bids due" row and the bid page's banner (#99) both read
                   this package's date. */}
@@ -2067,7 +2071,7 @@ export default function BuyoutPackageScreen() {
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               <Text style={styles.inviteExplain}>
-                This is the only description of the work the sub ever sees — it goes in his email and on the page where he types his price. Quantities and units, not your carry.
+                This is the only description of the work the sub sees. It goes in their email and on the page where they enter their price.
               </Text>
               <TextInput
                 style={[styles.input, styles.scopeInput]}
@@ -2116,8 +2120,8 @@ export default function BuyoutPackageScreen() {
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               <Text style={styles.inviteExplain}>
                 {roster.length > 0
-                  ? 'Pick the sub this bid came from. It links the award to his record, so the commitment can carry a sub portal, the compliance check has something to check, and the scorecard learns from the job.'
-                  : 'Nobody is on your roster for this job yet. Add the sub on the Subs tab — with their email, licence and COI dates — and this bid can be linked to them.'}
+                  ? 'Pick the sub this bid came from. It links the award to their record, so the commitment can carry a sub portal, the compliance check has something to check, and the scorecard learns from the project.'
+                  : 'Nobody is on your roster for this project yet. Add the sub on the Subs tab with their email, license and COI dates, and this bid can be linked to them.'}
               </Text>
               <View style={styles.rosterList}>
                 {roster.map(s => {

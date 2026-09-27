@@ -28,11 +28,11 @@ export interface ScheduleOnRampProps {
 const HERO_COPY: Record<'estimate' | 'interview', { title: string; subtitle: string }> = {
   estimate: {
     title: 'Build from your estimate',
-    subtitle: 'One tap — MAGE drafts the tasks from your estimate, you adjust.',
+    subtitle: 'MAGE drafts the tasks from your estimate. You adjust them.',
   },
   interview: {
     title: 'Answer a few quick questions',
-    subtitle: 'MAGE asks the smart questions, then builds it.',
+    subtitle: 'MAGE asks a few questions, then builds it.',
   },
 };
 
@@ -47,8 +47,8 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
   return (
     <View style={styles.wrap}>
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>Let's build your schedule</Text>
-        <Text style={styles.sub}>Start in seconds — you can change everything later.</Text>
+        <Text style={styles.eyebrow}>Build a schedule</Text>
+        <Text style={styles.sub}>You can change everything later.</Text>
 
         {/* ── Hero (recommended) ── */}
         <TouchableOpacity
@@ -83,7 +83,7 @@ export function ScheduleOnRamp({ hasEstimate, canBuildByVoice, onPick }: Schedul
           <Plus size={16} color={t.accent} />
           <View style={styles.secondaryText}>
             <Text style={styles.secondaryTitle}>Start blank</Text>
-            <Text style={styles.secondarySubtitle}>Creates an empty schedule on this project — add tasks inside it.</Text>
+            <Text style={styles.secondarySubtitle}>Creates an empty schedule on this project. Add tasks inside it.</Text>
           </View>
         </TouchableOpacity>
 

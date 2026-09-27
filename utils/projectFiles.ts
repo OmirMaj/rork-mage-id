@@ -178,7 +178,7 @@ export const DEFAULT_FOLDERS = [
   { key: 'photos', label: 'Photos', icon: 'Camera' },
   { key: 'permits', label: 'Permits', icon: 'Shield' },
   { key: 'closeout', label: 'Closeout', icon: 'BookOpen' },
-  { key: 'daily-reports', label: 'Daily Reports', icon: 'ClipboardList' },
+  { key: 'daily-reports', label: 'Daily reports', icon: 'ClipboardList' },
   { key: 'financials', label: 'Financials', icon: 'Receipt' },
 ] as const;
 
@@ -408,7 +408,7 @@ export async function uploadProjectFile(args: UploadFileArgs): Promise<ProjectFi
       // project_docs_delete needs 'editor'). Retrying the same name would
       // collide forever, so say so; Scan Anything re-targets a new name.
       throw new ProjectFileEmptyError(
-        `An empty (0-byte) copy of ${safeSegment(fileName)} is already in this folder — ask the job owner or an editor to delete it, or upload under another name.`,
+        `An empty (0-byte) copy of ${safeSegment(fileName)} is already in this folder. Ask the project owner or an editor to delete it, or upload under another name.`,
         false,
       );
     }
@@ -430,7 +430,7 @@ export async function uploadProjectFile(args: UploadFileArgs): Promise<ProjectFi
       throw new ProjectFileEmptyError(
         removed
           ? 'The file reached the server empty (0 bytes), so nothing was filed.'
-          : 'The file reached the server empty (0 bytes), so nothing was filed. The empty copy could not be removed — ask the job owner or an editor to delete it.',
+          : 'The file reached the server empty (0 bytes), so nothing was filed. The empty copy couldn\'t be removed, so ask the project owner or an editor to delete it.',
         removed,
       );
     }
@@ -461,10 +461,10 @@ export async function uploadProjectFile(args: UploadFileArgs): Promise<ProjectFi
 /** Why a delete matched nothing. Storage RLS (project_docs_delete needs the
  *  'editor' role) refuses a field or viewer seat by removing NOTHING and
  *  returning no error — the file used to reappear with no message (#160). */
-export const PROJECT_FILE_DELETE_REFUSED = 'Not removed — only the job owner or an editor can delete project files.';
+export const PROJECT_FILE_DELETE_REFUSED = 'Not removed. Only the project owner or an editor can delete project files.';
 
 /** remove() matched nothing and the follow-up read couldn't answer either. */
-export const PROJECT_FILE_DELETE_UNCONFIRMED = "Couldn't confirm the delete — refresh to check. Only the job owner or an editor can delete project files.";
+export const PROJECT_FILE_DELETE_UNCONFIRMED = "Couldn't confirm the delete. Refresh to check. Only the project owner or an editor can delete project files.";
 
 /**
  * Delete a file from the bucket. Throws on failure — including the silent

@@ -57,13 +57,14 @@ import {
   type UpcomingInspection,
 } from '@/utils/inspectionPrep';
 import { runInspectionRecall } from '@/utils/inspectionPrepAI';
+import { permitTypeLabel } from '@/utils/statusLabels';
 
 export const RECALL_CHIP = 'From model recall — verify with your AHJ';
-export const RECALL_NEEDS_PRO = 'Commonly-checked items use AI and need Pro';
+export const RECALL_NEEDS_PRO = 'Commonly checked items are on the Pro plan.';
 
 function permitLabel(p: Permit): string {
   const n = (p.permitNumber ?? '').trim();
-  return n ? `${n} permit` : `${p.type.replace(/_/g, ' ')} permit`;
+  return n ? `${n} permit` : permitTypeLabel(p.type);
 }
 
 export default function InspectionReadySheet({
@@ -182,7 +183,7 @@ export default function InspectionReadySheet({
       else addToPunch(item, uri);
       update((e) => ({ ...e, proofByItem: { ...e.proofByItem, [item.id]: true } }));
     } catch {
-      showAlert('Could not attach the photo', 'Try again, or add it from Punch List.');
+      showAlert("Couldn't attach the photo", 'Try again, or add it from the punch list.');
     }
   }, [pickPhoto, linkedPunch, updatePunchItem, addToPunch, update]);
 
@@ -350,7 +351,7 @@ export default function InspectionReadySheet({
               </View>
               {byGroup.scope.length > 0
                 ? byGroup.scope.map(renderItem)
-                : <Text style={s.empty}>No line in this job&apos;s estimate matches this inspection&apos;s trade.</Text>}
+                : <Text style={s.empty}>No line in this project&apos;s estimate matches this inspection&apos;s trade.</Text>}
             </View>
 
             {/* 3. Model recall — labelled, Pro and up. */}
@@ -365,7 +366,7 @@ export default function InspectionReadySheet({
                 <View style={s.proBox}>
                   <Text style={s.empty} testID="inspection-prep-needs-pro">{RECALL_NEEDS_PRO}</Text>
                   <TouchableOpacity style={s.action} onPress={() => setPaywallOpen(true)} accessibilityRole="button" testID="inspection-prep-see-pro">
-                    <Text style={s.actionText}>See Pro</Text>
+                    <Text style={s.actionText}>See plans</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -432,7 +433,7 @@ export default function InspectionReadySheet({
               <View style={s.section} testID="codelook-prep-extras">
                 <View style={s.sectionHead}>
                   <ScanSearch size={15} color={t.accentLabel} strokeWidth={1.75} />
-                  <Text style={s.sectionHeading}>From your Code look</Text>
+                  <Text style={s.sectionHeading}>From your code look</Text>
                 </View>
                 {extras.map(renderItem)}
               </View>

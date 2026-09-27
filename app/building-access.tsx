@@ -128,7 +128,7 @@ export default function BuildingAccessScreen() {
       `${KIND_LABEL[r.kind]} on ${r.date}. The delivery it covers will be flagged as blocked.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Refused', style: 'destructive', onPress: () => updateReservation(r.id, { status: 'denied' }) },
+        { text: 'Mark refused', style: 'destructive', onPress: () => updateReservation(r.id, { status: 'denied' }) },
       ],
     );
   }, [updateReservation]);
@@ -136,7 +136,7 @@ export default function BuildingAccessScreen() {
   const removeSlot = useCallback((r: AccessReservation) => {
     showAlert(
       'Delete this booking?',
-      `${KIND_LABEL[r.kind]} on ${r.date}. This does not cancel it with the building.`,
+      `${KIND_LABEL[r.kind]} on ${r.date}. This doesn't cancel it with the building.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => deleteReservation(r.id) },
@@ -151,7 +151,7 @@ export default function BuildingAccessScreen() {
         <Header onBack={goBack} title="Building access" subtitle="" styles={styles} t={t} onAdd={undefined} />
         <ToolProjectPicker
           toolName="Building access"
-          message="Building rules are per project — pick the job whose building you're working in."
+          message="Building rules are per project. Pick the project whose building you're working in."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={!project && paramProjectId ? paramProjectId : undefined}
@@ -209,13 +209,13 @@ export default function BuildingAccessScreen() {
             <Field
               label="Sent to the building on"
               value={rules?.coiOnFileAt ?? ''}
-              placeholder="YYYY-MM-DD — leave blank until it is"
+              placeholder="YYYY-MM-DD (blank until sent)"
               onChange={(v) => patch({ coiOnFileAt: v.trim() || undefined })}
               styles={styles} t={t} testID="coi-date"
             />
           ) : null}
           <Toggle
-            label="Workers must be badged"
+            label="Crew and subs must be badged"
             hint="Nobody gets past the lobby without one."
             value={rules?.requiresBadging ?? false}
             onChange={(v) => patch({ requiresBadging: v })}
@@ -415,7 +415,7 @@ function SlotRow({
     r.status === 'cancelled' ? t.textMuted :
     t.accentLabel;
   const statusLabel =
-    r.status === 'requested' ? 'Requested — not booked' :
+    r.status === 'requested' ? 'Requested, not booked' :
     r.status === 'confirmed' ? 'Confirmed' :
     r.status === 'denied' ? 'Refused' : 'Cancelled';
 
@@ -436,11 +436,11 @@ function SlotRow({
           <>
             <TouchableOpacity onPress={() => onConfirm(r)} style={[styles.slotBtn, styles.slotBtnPrimary]} accessibilityRole="button" testID={`confirm-slot-${r.id}`}>
               <Check size={13} color={t.accentLabel} strokeWidth={2} />
-              <Text style={[styles.slotBtnText, { color: t.accentLabel }]}>Confirmed</Text>
+              <Text style={[styles.slotBtnText, { color: t.accentLabel }]}>Mark confirmed</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onDeny(r)} style={styles.slotBtn} accessibilityRole="button" testID={`deny-slot-${r.id}`}>
               <X size={13} color={t.textSecondary} strokeWidth={2} />
-              <Text style={styles.slotBtnText}>Refused</Text>
+              <Text style={styles.slotBtnText}>Mark refused</Text>
             </TouchableOpacity>
           </>
         )}

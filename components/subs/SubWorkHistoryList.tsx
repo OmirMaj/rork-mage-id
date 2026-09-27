@@ -33,7 +33,7 @@ function span(entry: SubGcHistory): string {
 function Row({ entry, onPress }: { entry: SubGcHistory; onPress?: () => void }) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const jobs = `${entry.jobCount} ${entry.jobCount === 1 ? 'job' : 'jobs'}`;
+  const jobs = `${entry.jobCount} ${entry.jobCount === 1 ? 'project' : 'projects'}`;
   const closed = `${entry.completedJobCount} closed out`;
 
   const body = (

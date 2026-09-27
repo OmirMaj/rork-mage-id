@@ -22,6 +22,10 @@ interface UpgradeSheetProps {
   featureLabel?: string;
 }
 
+const PLAN_NAME: Record<NonNullable<LimitCheck['upgradeTo']>, string> = {
+  pro: 'Pro', business: 'Business', enterprise: 'Enterprise',
+};
+
 // Post-value upgrade sheet. Distinct from the full-screen <Paywall> (still
 // reachable from Settings / explicit CTAs): this is the "you've now seen what
 // this does" moment, framed as earned. Frosted glass sits over the result the
@@ -34,10 +38,12 @@ export default function UpgradeSheet({ visible, onClose, limit, featureLabel }: 
   const fUp = useSheetFrame('dialog', { visible, animationType: 'fade' });
 
   const headline = limit?.reason === 'lifetime_cap'
-    ? 'You’ve seen what it can do'
-    : 'Keep the momentum going';
+    ? 'You’ve used your free tries'
+    : limit?.reason === 'pro_only'
+      ? `${featureLabel ?? 'This feature'} is on the ${PLAN_NAME[limit.upgradeTo ?? 'pro']} plan`
+      : 'You’ve reached today’s limit';
   const body = limit?.message
-    ?? 'You’ve used your free trials of this feature. Upgrade to keep going.';
+    ?? 'You’ve used the free tries of this feature.';
 
   const handleUpgrade = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

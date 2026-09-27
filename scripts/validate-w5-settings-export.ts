@@ -172,10 +172,10 @@ ok('summarizeExport names photo RECORDS', /photo records/.test(ex.summarizeExpor
 console.log('\n── the screens and pages say the same ──');
 const screen = read('app/data-export.tsx');
 ok('hero: photo records with temporary links (24 h), files not included',
-  /photo records with temporary links \(24 h\) — the photo files\s+are not included/.test(screen));
+  /Photos go as records with temporary links \(24 h\), not the photo files\./.test(screen));
 ok('hero: no "Bundle every"', !/Bundle every/.test(screen));
 ok('toggle: says links expire in 24 h and files are not included',
-  /Photo records with temporary links \(24 h\) — the photo files are not included/.test(screen) && !/Include photo URLs/.test(screen));
+  /Photo records with temporary links \(24 h\), not the photo files\./.test(screen) && !/Include photo URLs/.test(screen));
 ok('screen lists what is not included (NOT_EXPORTED)', /Not included yet: \{NOT_EXPORTED\.join/.test(screen));
 ok('the new collections are passed into allData',
   /aiaPayApps,\s*commitments,\s*fieldTickets,\s*timeEntries,\s*safetyIncidents,\s*\}\),/.test(screen));

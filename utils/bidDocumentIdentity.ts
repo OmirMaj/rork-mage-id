@@ -222,9 +222,9 @@ function licenceSourceSentence(state: string, source: BidLicenceStateSource): st
     case 'licence':
       return `${state} is the licensing state on your company profile.`;
     case 'address':
-      return `We read ${state} from your company address. Licensed in a different state? Set your licensing state in Company Profile.`;
+      return `MAGE read ${state} from your company address. Licensed in a different state? Set your licensing state in Company profile.`;
     case 'market':
-      return `We read ${state} from your pricing market in Settings. Licensed in a different state? Set your licensing state in Company Profile.`;
+      return `MAGE read ${state} from your pricing market in Settings. Licensed in a different state? Set your licensing state in Company profile.`;
     default:
       return '';
   }
@@ -256,7 +256,7 @@ export function bidIdentityGap(
   }
   if (needsLicence && rule) {
     parts.push(
-      `Your ${rule.authority} licence number prints underneath it, and the line is simply left off when the field is empty. ${rule.citation} requires the number on ${rule.requirement}.`,
+      `Your ${rule.authority} license number prints underneath it, and the line is left off when the field is empty. ${rule.citation} requires the number on ${rule.requirement}.`,
     );
     // Always say which field the state was read from. Two of the three are
     // inferences, and a contractor licensed somewhere other than where he
@@ -272,7 +272,7 @@ export function bidIdentityGap(
     needsLicence,
     rule,
     blocking: needsCompanyName || needsLicence,
-    title: 'This prints on the homeowner’s copy',
+    title: 'This prints on the client’s copy',
     reason: parts.join(' '),
   };
 }

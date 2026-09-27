@@ -4,7 +4,7 @@
 //
 // Nothing here writes; the record pane is the submittal screen's own form.
 // Until the submittal read has settled the empty table says "Loading
-// submittals…", never "No submittals on this job yet" (wave 6d, lane V3); a
+// submittals…", never "No submittals on this project yet" (wave 6d, lane V3); a
 // failed read says so, with a retry.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -160,7 +160,7 @@ export function SubmittalLog({ projectId, openId, detail }: SubmittalLogProps) {
             <EmptyState
               icon={<FileCheck2 size={28} color={t.accent} />}
               title="Loading submittals…"
-              message="This job's submittals appear here once they load."
+              message="This project's submittals appear here once they load."
             />
           ) : all.length === 0 && settle.failed ? (
             <EmptyState
@@ -173,7 +173,7 @@ export function SubmittalLog({ projectId, openId, detail }: SubmittalLogProps) {
           ) : (
             <EmptyState
               icon={<FileCheck2 size={28} color={t.accent} />}
-              title={all.length === 0 ? 'No submittals on this job yet' : 'Nothing under this filter'}
+              title={all.length === 0 ? 'No submittals on this project yet' : 'Nothing under this filter'}
               message={all.length === 0 ? 'Route a product spec through the architect before you order.' : 'Pick another chip, or All.'}
               actionLabel="New submittal"
               onAction={newSubmittal}

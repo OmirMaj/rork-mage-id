@@ -278,7 +278,7 @@ function renderDigestHtml(opts: {
           ? `<p style="margin:6px 0 0;color:${STONE};font-size:13px;"><strong style="color:${INK};">Milestone today:</strong> ${b.onSite.milestones.slice(0, 3).map(m => escapeHtml(m.title)).join(', ')}</p>`
           : '';
         const tasksLine = b.onSite.state === 'closed_day'
-          ? quietLine('Not a working day on this job\'s schedule.')
+          ? quietLine('Not a working day on this project\'s schedule.')
           : b.onSite.state === 'not_started'
           ? quietLine(`Work starts ${formatIsoDay(b.onSite.startIso)}.`)
           : b.onSite.state === 'undated'

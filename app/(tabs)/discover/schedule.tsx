@@ -142,7 +142,7 @@ export default function DiscoverScheduleTool() {
           status: 'draft',
         };
         const demoSchedule = buildScheduleFromTasks(
-          'Example Schedule',
+          'Example schedule',
           newProject.id,
           demoTasks,
           undefined,
@@ -167,7 +167,7 @@ export default function DiscoverScheduleTool() {
 
   return (
     <View style={s.container}>
-      <Stack.Screen options={{ headerShown: true, title: 'Schedule Builder' }} />
+      <Stack.Screen options={{ headerShown: true, title: 'Schedule builder' }} />
       <ScrollView
         {...fabScroll}
         contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]}
@@ -186,7 +186,7 @@ export default function DiscoverScheduleTool() {
         {/* Existing schedules — unchanged from before. */}
         {projectsWithSchedules.length > 0 && (
           <View style={s.existingSection}>
-            <Text style={s.sectionTitle}>Existing Schedules</Text>
+            <Text style={s.sectionTitle}>Existing schedules</Text>
             {projectsWithSchedules.map(project => (
               <TouchableOpacity
                 key={project.id}

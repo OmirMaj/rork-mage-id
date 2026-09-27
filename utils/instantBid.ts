@@ -107,7 +107,7 @@ const TIER_META: Record<ProposalTierKey, { label: string; tagline: string; mult:
   // Multipliers anchor each tier off the recommended ("better") midpoint so
   // the spread reads like a real Good/Better/Best ladder (~-18% / base / +22%).
   good: { label: 'Essential', tagline: 'Covers the core scope, value-engineered.', mult: 0.82 },
-  better: { label: 'Recommended', tagline: 'The balanced option most homeowners pick.', mult: 1.0 },
+  better: { label: 'Recommended', tagline: 'The balanced option most clients pick.', mult: 1.0 },
   // No "and warranty": every tier carries the same warranty (the GC's one
   // saved period), so the Premium tier must not imply a longer one.
   best: { label: 'Premium', tagline: 'Upgraded materials and finishes.', mult: 1.22 },
@@ -394,12 +394,12 @@ export async function generateInstantBid(
     // rather than discovering it at job close.
     ...(markupPct > 0
       ? [`Includes your ${markupPct}% markup on cost.`]
-      : ['NO MARKUP APPLIED — this is a cost estimate. It carries no overhead and no profit.']),
+      : ['No markup applied. This is a cost estimate with no overhead and no profit.']),
     budgetMid > 0 ? 'Blended toward the budget range you posted.' : 'No budget range posted; numbers are indicative.',
-    ...(rateCount > 0 ? [`Anchored on ${rateCount} learned rate${rateCount === 1 ? '' : 's'} from your closed jobs.`] : []),
+    ...(rateCount > 0 ? [`Anchored on ${rateCount} learned rate${rateCount === 1 ? '' : 's'} from your closed projects.`] : []),
     // Separate line, separate wording. Never merged into the count above.
     ...(seededRateCount > 0
-      ? [`Anchored on ${seededRateCount} rate${seededRateCount === 1 ? '' : 's'} you set yourself — your numbers, not yet measured on a job here.`]
+      ? [`Anchored on ${seededRateCount} rate${seededRateCount === 1 ? '' : 's'} you set yourself — your numbers, not yet measured on a project here.`]
       : []),
   ];
 

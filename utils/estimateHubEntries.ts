@@ -22,17 +22,17 @@ export interface HubEntry {
 
 export const HUB_ENTRIES: HubEntry[] = [
   // ── Create ──────────────────────────────────────────────────────────────
-  { id: 'review',  label: 'Review Estimate', subtitle: 'Metrics, markup & scope for your working estimate',   route: '/(tabs)/estimate/review',  group: 'create',   iconKey: 'PieChart',   tone: 'accent' },
-  { id: 'quick',   label: 'Quick Estimate', subtitle: 'Fast ballpark from a few questions — no plans needed', route: '/estimate-wizard',        group: 'create',   iconKey: 'Calculator', tone: 'accent' },
-  { id: 'takeoff', label: 'AI Takeoff',     subtitle: 'Upload plans, get LF / SF / EA quantities',            route: '/takeoff',                group: 'create',   iconKey: 'Ruler',      tone: 'accent' },
-  { id: 'visual',  label: 'Visual Takeoff', subtitle: 'Trace areas & lines on plans or photos to quantify',   route: '/area-takeoff',           group: 'create',   iconKey: 'Grid',       tone: 'accent' },
-  { id: 'full',    label: 'Full Estimator', subtitle: 'Line items, materials, labor, markup & PDF',           route: '/(tabs)/estimate/full',   group: 'create',   iconKey: 'Layers',     tone: 'accent' },
+  { id: 'review',  label: 'Review estimate', subtitle: 'Metrics, markup and scope for your working estimate',   route: '/(tabs)/estimate/review',  group: 'create',   iconKey: 'PieChart',   tone: 'accent' },
+  { id: 'quick',   label: 'Quick estimate', subtitle: 'Fast ballpark from a few questions — no plans needed', route: '/estimate-wizard',        group: 'create',   iconKey: 'Calculator', tone: 'accent' },
+  { id: 'takeoff', label: 'AI takeoff',     subtitle: 'Upload plans, get LF / SF / EA quantities',            route: '/takeoff',                group: 'create',   iconKey: 'Ruler',      tone: 'accent' },
+  { id: 'visual',  label: 'Visual takeoff', subtitle: 'Trace areas and lines on plans or photos to quantify',   route: '/area-takeoff',           group: 'create',   iconKey: 'Grid',       tone: 'accent' },
+  { id: 'full',    label: 'Full estimator', subtitle: 'Line items, materials, labor, markup and PDF',           route: '/(tabs)/estimate/full',   group: 'create',   iconKey: 'Layers',     tone: 'accent' },
   { id: 'costxray', label: 'Cost X-Ray',    subtitle: 'Price the hidden conditions before you bid',          route: '/cost-xray',              group: 'create',   iconKey: 'ScanSearch', tone: 'accent' },
   // ── Insights ────────────────────────────────────────────────────────────
-  { id: 'confidence',  label: 'Estimate Risk',   subtitle: 'Score every line against your cost history',       route: '/estimate-confidence',  group: 'insights', iconKey: 'Gauge',      tone: 'info' },
-  { id: 'accuracy',    label: 'Bid vs Actual',   subtitle: 'Per-line variance once the job is done',           route: '/estimate-accuracy',    group: 'insights', iconKey: 'TrendingUp', tone: 'success' },
-  { id: 'calibration', label: 'Calibration',     subtitle: 'Cross-job bias correction by category',            route: '/estimate-calibration', group: 'insights', iconKey: 'GitCompare', tone: 'neutral' },
-  { id: 'living',      label: 'Living Estimate', subtitle: 'Projected margin at completion, live',             route: '/living-estimate',      group: 'insights', iconKey: 'Activity',   tone: 'neutral' },
+  { id: 'confidence',  label: 'Estimate risk',   subtitle: 'Score every line against your cost history',       route: '/estimate-confidence',  group: 'insights', iconKey: 'Gauge',      tone: 'info' },
+  { id: 'accuracy',    label: 'Bid vs. actual',   subtitle: 'Per-line variance once the project is done',           route: '/estimate-accuracy',    group: 'insights', iconKey: 'TrendingUp', tone: 'success' },
+  { id: 'calibration', label: 'Calibration',     subtitle: 'Bias correction by category across projects',            route: '/estimate-calibration', group: 'insights', iconKey: 'GitCompare', tone: 'neutral' },
+  { id: 'living',      label: 'Living estimate', subtitle: 'Projected margin at completion, live',             route: '/living-estimate',      group: 'insights', iconKey: 'Activity',   tone: 'neutral' },
 ];
 
 export const HUB_GROUPS: HubGroup[] = ['create', 'insights'];

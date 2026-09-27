@@ -26,24 +26,24 @@ import type { LienWaiver, LienWaiverType, CompanyBranding } from '@/types';
 // ─── Display helpers ────────────────────────────────────────────────
 export const WAIVER_LABELS: Record<LienWaiverType, { short: string; long: string; description: string }> = {
   conditional_partial: {
-    short: 'Conditional Partial',
+    short: 'Conditional partial',
     long:  'Conditional Waiver and Release on Progress Payment',
-    description: 'Sub releases lien rights up to the paid amount, IF and ONLY IF the payment actually clears.',
+    description: 'The sub releases lien rights up to the paid amount, only if the payment actually clears.',
   },
   unconditional_partial: {
-    short: 'Unconditional Partial',
+    short: 'Unconditional partial',
     long:  'Unconditional Waiver and Release on Progress Payment',
-    description: 'Sub confirms payment received and releases lien rights up to the paid amount. Use only after funds have cleared.',
+    description: 'The sub confirms payment received and releases lien rights up to the paid amount. Use only after funds have cleared.',
   },
   conditional_final: {
-    short: 'Conditional Final',
+    short: 'Conditional final',
     long:  'Conditional Waiver and Release on Final Payment',
-    description: 'Sub releases all remaining lien rights, IF and ONLY IF the final payment clears.',
+    description: 'The sub releases all remaining lien rights, only if the final payment clears.',
   },
   unconditional_final: {
-    short: 'Unconditional Final',
+    short: 'Unconditional final',
     long:  'Unconditional Waiver and Release on Final Payment',
-    description: 'Sub confirms full payment received and releases all lien rights. Use only after final funds have cleared.',
+    description: 'The sub confirms full payment received and releases all lien rights. Use only after final funds have cleared.',
   },
 };
 
@@ -341,7 +341,7 @@ export function buildLienWaiverHtml(
 
   const genericTitleHtml = `
     <div style="text-align:center;margin:24px 0 28px">
-      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.brand};text-transform:uppercase;margin-bottom:6px">Lien Waiver &amp; Release</div>
+      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.brand};text-transform:uppercase;margin-bottom:6px">Lien waiver and release</div>
       <div style="font-family:${PDF_FONT_DISPLAY};font-size:26px;font-weight:700;letter-spacing:-0.5px;color:${PDF_PALETTE.ink};line-height:1.2">${escHtml(meta.long)}</div>
     </div>`;
 
@@ -376,7 +376,7 @@ export function buildLienWaiverHtml(
       </tr>
       ${projectAddress ? `
       <tr>
-        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Property Address</td>
+        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Property address</td>
         <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(projectAddress)}</td>
       </tr>` : ''}
       <tr>
@@ -389,7 +389,7 @@ export function buildLienWaiverHtml(
         <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(throughDateLabel)}</td>
       </tr>` : ''}
       <tr>
-        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Payment Amount</td>
+        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Payment amount</td>
         <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:18px;color:${PDF_PALETTE.ink};font-weight:800">${fmtMoney(waiver.paidAmount, { decimals: 2 })}</td>
       </tr>
     </table>`;
@@ -431,7 +431,7 @@ export function buildLienWaiverHtml(
 
   return pdfShell({
     bodyHtml, branding,
-    title: `${statutory ? statutory.heading : meta.short + ' Lien Waiver'} — ${projectName}`,
+    title: `${statutory ? statutory.heading : meta.short + ' lien waiver'} · ${projectName}`,
     pageMargin: '36px 40px',
   });
 }

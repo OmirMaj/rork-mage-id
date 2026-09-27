@@ -322,7 +322,7 @@ export function pinWriteBlockedReason(
   state?: { isLoading?: boolean; isError?: boolean; reason?: string },
 ): string | null {
   if (role === 'viewer') {
-    return 'You have view-only access to this job, so a pin you place can’t be saved. Ask the project owner for editor or field access.';
+    return 'You have view access on this project, so a pin you place can’t be saved. Ask the project owner for Editor or Field access.';
   }
   // #90: a SETTLED null role (the read answered, and he is on no seat) means
   // he was removed from the job — RLS refuses every pin and the offline queue
@@ -330,8 +330,8 @@ export function pinWriteBlockedReason(
   // loading nothing is decided here; a failed read says so rather than guess.
   if (role === null && state) {
     if (state.isLoading) return null;
-    if (state.isError) return 'Your access to this job couldn’t be checked, so pins can’t be saved yet. Go back and try again.';
-    return state.reason ?? 'You are no longer on this job, so a pin you place can’t be saved. Ask the project owner to invite you again.';
+    if (state.isError) return 'Your access to this project couldn’t be checked, so pins can’t be saved yet. Go back and try again.';
+    return state.reason ?? 'You’re no longer on this project, so a pin you place can’t be saved. Ask the project owner to invite you again.';
   }
   return null;
 }

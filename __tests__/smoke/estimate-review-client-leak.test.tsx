@@ -45,7 +45,7 @@ function collectText(node: unknown, out: string[] = []): string[] {
 // The one intentional /markup/i string on the client surface — the lock copy in
 // components/estimate/EstimateClientView.tsx. Everything else mentioning markup
 // is a leak.
-const INTENTIONAL_MARKUP_COPY = 'Costs, markups & margin are hidden in client view';
+const INTENTIONAL_MARKUP_COPY = 'Costs, markups and margin are hidden in client view';
 
 describe('estimate review — client mode does not leak markup', () => {
   it('the fixture seeds a non-empty cart, so the toggle actually renders', async () => {
@@ -79,7 +79,7 @@ describe('estimate review — client mode does not leak markup', () => {
     // The client subtree is now mounted (EstimateClientView + share button).
     // Proof it actually rendered, not the empty branch:
     expect(tree.getByTestId('review-share-proposal')).toBeTruthy();
-    expect(collectText(tree.toJSON())).toContain('PROJECT TOTAL');
+    expect(collectText(tree.toJSON())).toContain('Project total');
 
     // The hero eyebrow must have dropped its "% MARKUP" — in client mode it is
     // the bare word "ESTIMATE".

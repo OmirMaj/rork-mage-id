@@ -132,23 +132,23 @@ interface PreviewCard {
 const PREVIEW_CARDS: PreviewCard[] = [
   {
     Icon: MageAIMark,
-    title: 'Win more jobs with Instant Bid',
-    body: 'Tap once on a homeowner request — get a polished Good/Better/Best proposal with financing, ready to send in seconds.',
+    title: 'Win more work with instant bids',
+    body: 'Tap a client request and get a good, better and best proposal with financing, ready to send.',
   },
   {
     Icon: Ruler,
     title: 'AI takeoffs from a PDF',
-    body: 'Drop in plans. Get walls, doors, finishes in seconds. Then turn them into sub bid packages.',
+    body: 'Drop in plans. Get walls, doors and finishes, then turn them into sub bid packages.',
   },
   {
     Icon: TrendingUp,
-    title: 'Every job makes your next bid smarter',
-    body: 'MAGE learns your real costs as you build. Each finished job sharpens the next estimate — a moat that compounds with every project.',
+    title: 'Every project sharpens your next bid',
+    body: 'MAGE learns your costs as you build. Each finished project makes the next estimate more accurate.',
   },
   {
     Icon: Mic,
     title: 'Voice on the jobsite',
-    body: 'Tap once, talk. AI logs your daily report, files the RFI, drafts the change order. Works offline.',
+    body: 'Tap once and talk. MAGE drafts your daily report, the RFI and the change order. Works offline.',
   },
   {
     Icon: Check,
@@ -156,7 +156,7 @@ const PREVIEW_CARDS: PreviewCard[] = [
     // The sample path is now learn-by-doing, not a look-around: the first
     // tutorial (utils/tutorial/defs/dailyReportVoice) files today's report on
     // the sample by voice, so the copy promises exactly that and its time.
-    body: "Price a real bid in about two minutes — or try it on a sample job first: you'll file a day's report by voice in about 35 seconds.",
+    body: "Price a real bid in about two minutes. Or try a sample project first and file a day's report by voice in about 35 seconds.",
     isTryIt: true,
   },
 ];
@@ -415,7 +415,7 @@ export default function OnboardingScreen() {
       seedingRef.current = false;
       setSeedingSample(false);
       console.warn('[onboarding] sample seed failed', err);
-      showAlert('Could not build the sample', 'Something went wrong loading the sample job. Try again, or start with a real bid.');
+      showAlert("Couldn't build the sample project", 'Try again, or start with a real bid.');
       return;
     }
 
@@ -502,7 +502,7 @@ export default function OnboardingScreen() {
       setRateHint(
         parsed.rejected.length > 0
           ? "Couldn't read a rate from those lines. Each needs a trade, a unit (SF, LF, EA, HR…) and a price."
-          : 'Paste one rate per line — trade, unit, price. For example: Framing, SF, $12.50',
+          : 'Paste one rate per line: trade, unit, price. For example: Framing, SF, $12.50',
       );
       return;
     }
@@ -610,8 +610,8 @@ export default function OnboardingScreen() {
           </Animated.Text>
 
           <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
-            Plans, estimates, AI takeoffs, daily reports, change orders, AIA pay apps,
-            a live client portal — replaced a dozen tools with one app you carry on the jobsite.
+            Plans, estimates, AI takeoffs, daily reports, change orders, AIA pay apps and
+            a live client portal. One app you carry on the jobsite instead of a dozen tools.
           </Animated.Text>
 
           {/* Trust line — sets pricing expectations upfront so users
@@ -651,7 +651,7 @@ export default function OnboardingScreen() {
           <View style={{ flex: 1 }} />
 
           <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-            <Text style={styles.eyebrowDot}>●</Text>  what you&apos;re getting
+            <Text style={styles.eyebrowDot}>●</Text>  What you&apos;re getting
           </Animated.Text>
 
           <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -733,12 +733,12 @@ export default function OnboardingScreen() {
                           pressed && { opacity: 0.82 },
                         ]}
                         accessibilityRole="button"
-                        accessibilityLabel="Try it on a sample job"
+                        accessibilityLabel="Try it on a sample project"
                         accessibilityState={{ busy: seedingSample, disabled: seedingSample }}
                         testID="onboarding-tour-sample"
                       >
                         <Text style={styles.ctaSecondaryText}>
-                          {seedingSample ? 'Building the sample job…' : 'Try it on a sample job'}
+                          {seedingSample ? 'Building the sample project…' : 'Try it on a sample project'}
                         </Text>
                       </Pressable>
                     )}
@@ -774,7 +774,7 @@ export default function OnboardingScreen() {
             <View style={{ flex: 1 }} />
 
             <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-              <Text style={styles.eyebrowDot}>●</Text>  price from your numbers
+              <Text style={styles.eyebrowDot}>●</Text>  Priced from your numbers
             </Animated.Text>
 
             <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -786,9 +786,8 @@ export default function OnboardingScreen() {
             {!rateReview ? (
               <Animated.View style={{ opacity: bodyOpacity }}>
                 <Text style={styles.lede}>
-                  MAGE learns your rates from every job you close — which means nothing to
-                  price with today. Paste what you already charge and your first estimate is
-                  built on your numbers, not a national average.
+                  Paste what you charge today. Your first estimate uses your rates, and every
+                  project you close makes them sharper.
                 </Text>
                 <Text style={styles.fieldLabel}>Your company name</Text>
                 <TextInput
@@ -803,8 +802,8 @@ export default function OnboardingScreen() {
                   testID="onboarding-company-name"
                 />
                 <Text style={styles.fieldNote}>
-                  Prints on the header of every bid you send. Optional — we&apos;ll ask before the
-                  first one goes out if you skip it.
+                  Prints on the header of every bid you send. Optional. If you skip it, MAGE asks
+                  before the first one goes out.
                 </Text>
                 <TextInput
                   style={styles.pasteInput}
@@ -876,8 +875,8 @@ export default function OnboardingScreen() {
                     </Text>
                   )}
                   <Text style={styles.seedNote}>
-                    Saved as rates you set — never counted as closed jobs. Every job you finish
-                    corrects them.
+                    Saved as rates you set, never counted as closed projects. Every project you
+                    finish corrects them.
                   </Text>
                 </View>
                 <Pressable
@@ -891,7 +890,7 @@ export default function OnboardingScreen() {
                   accessibilityRole="button"
                   testID="onboarding-rates-commit"
                 >
-                  <Text style={styles.ctaPrimaryText}>Price your first bid →</Text>
+                  <Text style={styles.ctaPrimaryText}>Price your first bid</Text>
                 </Pressable>
                 <TouchableOpacity
                   onPress={() => setRateReview(null)}

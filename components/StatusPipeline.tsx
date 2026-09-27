@@ -180,7 +180,7 @@ export function StatusPipeline<S extends string>({
             <View style={styles.metaPill}>
               <Clock size={11} color={themeColors.textSecondary} strokeWidth={2} />
               <Text style={styles.metaPillText}>
-                {inDays === 0 ? 'opened today' : `${inDays}d in pipeline`}
+                {inDays === 0 ? 'Opened today' : `${inDays}d in pipeline`}
               </Text>
             </View>
           ) : null}
@@ -197,7 +197,7 @@ export function StatusPipeline<S extends string>({
               ]}>
                 {isOverdue
                   ? `${Math.abs(dueDays)}d overdue`
-                  : dueDays === 0 ? 'due today' : `due in ${dueDays}d`}
+                  : dueDays === 0 ? 'Due today' : `Due in ${dueDays}d`}
               </Text>
             </View>
           ) : null}

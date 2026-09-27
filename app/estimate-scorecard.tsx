@@ -84,7 +84,7 @@ function ScorecardInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate Scorecard · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Estimate scorecard · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Where your bids are off</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -94,7 +94,7 @@ function ScorecardInner() {
         <EmptyState
           icon={<Library size={36} color={t.accent} strokeWidth={1.6} />}
           title="No bid-vs-actual history yet"
-          message="Close a project that had a cost estimate, with commitments linked to its estimate lines. Once a scope has both a bid and a real cost, it shows up here — and every job after that sharpens it."
+          message="Close a project that had a cost estimate, with commitments linked to its estimate lines. Once a scope has both a bid and a measured cost, it shows up here, and every project after that sharpens it."
         />
       ) : (
         <ScrollView
@@ -103,10 +103,10 @@ function ScorecardInner() {
         >
           {/* ── the number ─────────────────────────────────────────── */}
           <View style={styles.hero}>
-            <Text style={styles.heroEyebrow}>LEFT ON THE TABLE</Text>
+            <Text style={styles.heroEyebrow}>Left on the table</Text>
             <Text style={styles.heroValue}>{money(card.underbidDollars)}</Text>
             <Text style={styles.heroSub}>
-              across {card.jobsAnalyzed} closed job{card.jobsAnalyzed === 1 ? '' : 's'} —
+              across {card.jobsAnalyzed} closed {card.jobsAnalyzed === 1 ? 'project' : 'projects'}:
               scopes that cost more than you bid them
             </Text>
 
@@ -132,7 +132,7 @@ function ScorecardInner() {
             {/* Netting is the trap this screen refuses to fall into. */}
             <Text style={styles.heroNote}>
               These don&rsquo;t cancel out. Padding one trade while starving another is two
-              problems, not zero — the padded bids cost you jobs you never won.
+              problems, not zero. The padded bids cost you projects you never won.
             </Text>
           </View>
 
@@ -149,7 +149,7 @@ function ScorecardInner() {
               <Text style={styles.calmTitle}>No systematic bias yet</Text>
               <Text style={styles.calmBody}>
                 Every trade with enough history is bidding within a few percent of what it
-                actually costs. Individual jobs still vary — that&rsquo;s normal — but nothing is
+                actually costs. Individual projects still vary, but nothing is
                 consistently off in one direction.
               </Text>
             </View>
@@ -171,12 +171,12 @@ function ScorecardInner() {
             accessibilityRole="button"
           >
             <Library size={16} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.linkText}>Open the price book these numbers come from</Text>
+            <Text style={styles.linkText}>Open the cost history these numbers come from</Text>
           </TouchableOpacity>
 
           <Text style={styles.footnote}>
-            Measured from closed jobs only — rates you typed in are excluded, and so is any
-            job the cost engine set aside as a one-off. A miss is quantity × (what it cost −
+            Measured from closed projects only. Rates you typed in are excluded, and so is any
+            project set aside as a one-off. A miss is quantity × (what it cost −
             what you bid), per scope.
           </Text>
         </ScrollView>
@@ -233,7 +233,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: t.line, padding: 20,
   },
-  heroEyebrow: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.4 },
+  heroEyebrow: { textTransform: 'uppercase', ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.4 },
   heroValue: {
     ...Type.serifLargeTitle, color: t.text, marginTop: 6,
     fontVariant: ['tabular-nums'] as const,

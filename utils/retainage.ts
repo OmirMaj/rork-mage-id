@@ -144,8 +144,8 @@ export const RETAINAGE_SOURCES: readonly RetainageSource[] = [
 ] as const;
 
 export const RETAINAGE_LEGAL_DISCLAIMER =
-  'These are the pages MAGE ID read, on the dates shown — not advice, and not a rule this app applies '
-  + 'to your job. Retainage law is state by state and statutes are amended. Your contract and an '
+  'These are the pages MAGE ID read, on the dates shown. They are not advice, and not a rule MAGE ID applies '
+  + 'to your project. Retainage law is state by state and statutes are amended. Your contract and an '
   + 'attorney licensed in your state decide what you may hold and when you must release it.';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -769,7 +769,7 @@ function daysBetween(fromIso: string, now: Date): number | null {
 export function retainageReadiness(input: RetainageReadinessInput): RetainageReadinessSignal {
   const { pending, now } = input;
   if (!(pending > 0.005)) {
-    return { level: 'none', headline: 'No retainage is being held on this job.', reasons: [] };
+    return { level: 'none', headline: 'No retainage is being held on this project.', reasons: [] };
   }
 
   const reasons: string[] = [];
@@ -782,11 +782,11 @@ export function retainageReadiness(input: RetainageReadinessInput): RetainageRea
     reasons.push(
       d != null && d >= 0
         ? `Substantial completion recorded ${d} day${d === 1 ? '' : 's'} ago.`
-        : 'Substantial completion has been recorded on this job.',
+        : 'Substantial completion has been recorded on this project.',
     );
   } else if (input.projectStatus === 'completed' || input.projectStatus === 'closed') {
     completionFact = true;
-    reasons.push(`You marked this job ${input.projectStatus === 'closed' ? 'closed' : 'completed'}.`);
+    reasons.push(`You marked this project ${input.projectStatus === 'closed' ? 'closed' : 'completed'}.`);
   }
 
   if (input.punchTotal <= 0) {
@@ -808,7 +808,7 @@ export function retainageReadiness(input: RetainageReadinessInput): RetainageRea
   if (completionFact && punchFact) {
     return {
       level: 'due',
-      headline: 'This job reads as finished and the retainage is still held.',
+      headline: 'This project reads as finished and the retainage is still held.',
       reasons,
     };
   }

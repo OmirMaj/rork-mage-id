@@ -158,7 +158,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     (emailCount !== null && emailCount > MAGICLINK_EMAIL_CAP) ||
     (ipCount !== null && ipCount > MAGICLINK_IP_CAP)
   ) {
-    return jsonResponse({ error: 'Too many sign-in requests. Please wait a few minutes and try again.' }, 429);
+    return jsonResponse({ error: 'Too many sign-in requests. Wait a few minutes and try again.' }, 429);
   }
 
   // ── crew_claim: a GC inviting a worker to claim his crew profile (#72) ──
@@ -188,7 +188,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     };
     let row = await readRow();
-    if (row === 'error') return jsonResponse({ error: 'Could not check the crew member. Try again.', code: 'lookup_failed' }, 502);
+    if (row === 'error') return jsonResponse({ error: "Couldn't check the crew member. Try again.", code: 'lookup_failed' }, 502);
     let check = checkClaimInvite(row, email, body.claimToken);
     if (check.ok && check.mint) {
       // The phone's own mint write may still be in flight. Save the token as
@@ -197,7 +197,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const minted = await serviceMintToken(body.memberId, caller.id, check.token);
       if (!minted) {
         row = await readRow();
-        if (row === 'error') return jsonResponse({ error: 'Could not check the crew member. Try again.', code: 'lookup_failed' }, 502);
+        if (row === 'error') return jsonResponse({ error: "Couldn't check the crew member. Try again.", code: 'lookup_failed' }, 502);
         check = checkClaimInvite(row, email, null);
       }
     }
@@ -232,7 +232,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
   if (error || !data?.properties?.action_link) {
     console.error('[auth-magic-link] generateLink failed:', error?.message);
-    return jsonResponse({ error: 'Could not generate sign-in link.' }, 500);
+    return jsonResponse({ error: "Couldn't create the sign-in link. Try again." }, 500);
   }
   const actionLink = data.properties.action_link;
 

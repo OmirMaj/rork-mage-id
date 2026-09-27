@@ -79,6 +79,7 @@ import { syncMemoryEmbeddings, answerFromMemory, type MemoryDoc } from '@/utils/
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { pdfFailureMessage } from '@/utils/platformFile';
 
 type BinderStatus = CloseoutBinder['status'];
@@ -203,10 +204,12 @@ export default function CloseoutBinderScreen() {
         setBinderId(saved.id);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        showAlert('Save failed', 'Could not save the binder. Check your connection and try again.');
+        showAlert("Couldn't save the binder", 'Check your connection and try again.');
       }
     } catch (e) {
-      showAlert('Save failed', e instanceof Error ? e.message : 'Try again.');
+      console.warn('[Closeout] binder save failed:', rawErrorMessage(e));
+      const copy = describeError(e, { action: 'save the binder' });
+      showAlert("Couldn't save the binder", `${copy.body} Your edits are still on this screen. Try again before you leave.`);
     } finally {
       setSaving(false);
     }
@@ -281,7 +284,7 @@ export default function CloseoutBinderScreen() {
         // bake that claims a rebuild that did not reach Ask Your Home.
         showAlert(
           'Ask Your Home not updated',
-          `The home records could not be indexed${indexStatus.reason ? ` (${indexStatus.reason})` : ''}, so the passport was left as it was. Check your connection and tap Generate again.`,
+          `The home records could not be indexed${indexStatus.reason ? ` (${indexStatus.reason})` : ''}, so the passport was left as it was. Check your connection and try again.`,
         );
         return;
       }
@@ -312,7 +315,7 @@ export default function CloseoutBinderScreen() {
     } catch (e) {
       // Non-blocking by design — the binder flow is untouched.
       console.warn('[home-passport] generation failed:', e);
-      showAlert('Passport not generated', 'The binder is unaffected. Check your connection and tap Generate again.');
+      showAlert('Home Passport not created', 'The binder is unaffected. Check your connection and try again.');
     } finally {
       setPassportBusy(false);
       setPassportStep('');
@@ -347,7 +350,7 @@ export default function CloseoutBinderScreen() {
   const handleFinalize = useCallback(() => {
     showAlert(
       'Finalize binder?',
-      'You can still tweak the note and maintenance items, but the binder will be marked ready to deliver. Continue?',
+      'You can still edit the note and maintenance items. The binder is marked ready to deliver.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -365,7 +368,7 @@ export default function CloseoutBinderScreen() {
                 // Never blocks or fails the finalize itself.
                 void runPassportGeneration();
               } else {
-                showAlert('Failed', 'Could not finalize. Try again.');
+                showAlert("Couldn't finalize the binder", 'Check your connection and try again.');
               }
             } finally {
               setSaving(false);
@@ -380,8 +383,8 @@ export default function CloseoutBinderScreen() {
     if (!project) return;
     const title = sentAt ? 'Re-deliver to client?' : 'Deliver to client?';
     const message = sentAt
-      ? 'The client already received this binder. We\'ll re-send the email and refresh the portal copy. Continue?'
-      : 'The binder will appear in the client\'s portal under the Closeout section, and we\'ll send them an email so they know where to find it. Continue?';
+      ? 'The client already received this binder. The email is sent again and the portal copy is refreshed.'
+      : 'The binder appears in the client\'s portal under Closeout, and they get an email saying where to find it.';
     showAlert(title, message, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -391,7 +394,7 @@ export default function CloseoutBinderScreen() {
             const now = new Date().toISOString();
             const saved = await persistBinder({ status: 'sent', sentAt: now });
             if (!saved) {
-              showAlert('Failed', 'Could not deliver. Try again.');
+              showAlert("Couldn't deliver the binder", 'Check your connection and try again.');
               return;
             }
             setBinderId(saved.id);
@@ -435,7 +438,7 @@ export default function CloseoutBinderScreen() {
                 'Mark project as closed?',
                 'Now that the binder is delivered, do you want to mark the whole project as closed? You can still come back to it for warranty work, punch follow-ups, or invoice tracking. The client portal link stays open for 30 more days, then closes.'
                   + (digestOn
-                    ? ' The Friday update to your client stops: they get one last email saying the job is complete and the date the link closes.'
+                    ? ' The Friday update to your client stops: they get one last email saying the project is complete and the date the link closes.'
                     : ''),
                 [
                   { text: 'Keep open', style: 'cancel' },
@@ -465,7 +468,7 @@ export default function CloseoutBinderScreen() {
     if (waiverReadError) {
       showAlert(
         'Lien waivers not loaded',
-        `Couldn't read this job's lien waivers (${waiverReadError}), so the binder would list none. Check your signal and try again.`,
+        "Couldn't read this project's lien waivers, so the binder would list none. Check your signal and try again.",
         [{ text: 'Cancel', style: 'cancel' }, { text: 'Retry', onPress: () => setWaiverReload(n => n + 1) }],
       );
       return;
@@ -651,7 +654,7 @@ export default function CloseoutBinderScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[AIA Forms] Generate failed:', err);
-      showAlert('Could not generate', pdfFailureMessage(err, `Couldn't build the ${formId} form. Try again.`));
+      showAlert("Couldn't create the form", pdfFailureMessage(err, `Couldn't build the ${formId} form. Try again.`));
     }
   }, [project, branding, getPunchItemsForProject, getChangeOrdersForProject]);
 
@@ -662,17 +665,17 @@ export default function CloseoutBinderScreen() {
         {/* This screen hides the nav header, so without ToolHeader the picker
             would have no back affordance at all — the exact dead end #3 is
             about. */}
-        <ToolHeader eyebrow="CLOSEOUT · MAGE ID" title="Closeout Binder" />
+        <ToolHeader eyebrow="Closeout · MAGE ID" title="Closeout binder" />
         <ToolProjectPicker
           toolName="the Closeout Binder"
-          message="The closeout binder pulls warranties, selections, and as-builts from a single project."
+          message="The closeout binder pulls warranties, selections and as-builts from a single project."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
           icon={<ShieldCheck size={36} color={themeColors.accent} strokeWidth={1.6} />}
           steps={[
             'Open or create a project from the Projects tab.',
-            'Inside the project, log warranties, selections, and any final invoices or change orders.',
+            'Inside the project, log warranties, selections and any final invoices or change orders.',
             'Tap Closeout in the project tile grid to assemble and send the binder PDF.',
           ]}
         />
@@ -685,7 +688,7 @@ export default function CloseoutBinderScreen() {
   const projectWarrantiesCount  = (warranties ?? []).filter((w: any) => w.projectId === project.id).length;
 
   const statusPill = (() => {
-    const label = status === 'sent' ? 'DELIVERED' : status === 'finalized' ? 'FINALIZED' : 'DRAFT';
+    const label = status === 'sent' ? 'Delivered' : status === 'finalized' ? 'Finalized' : 'Draft';
     const { color, backgroundColor } = statusPillStyle(status);
     return { label, color, bg: backgroundColor };
   })();
@@ -723,11 +726,11 @@ export default function CloseoutBinderScreen() {
         </View>
       </View>
       <FeatureHeader
-        eyebrow="Closeout Binder"
+        eyebrow="Closeout binder"
         title="Everything the client gets at the end"
-        subtitle="Warranties, manuals, paint colors, the trades who did the work, as-builts — all bundled into one PDF binder you hand over on closeout day."
+        subtitle="Warranties, manuals, paint colors, the trades who did the work and as-builts, bundled into one PDF binder you hand over on closeout day."
         explainer={{
-          term: 'Closeout Binder',
+          term: 'Closeout binder',
           definition: 'The closeout binder is the package of everything the client needs to operate what you built: warranty docs from each manufacturer, operating manuals for installed equipment, paint colors and finishes for touch-ups, sub contact info for warranty claims, and as-built drawings showing what was actually built (not just what was designed).',
           whenToUse: [
             'At project closeout, before you hand over the keys',
@@ -779,7 +782,7 @@ export default function CloseoutBinderScreen() {
               <PreviewRow label="Maintenance schedule" value={`${maintenance.length} items`} />
             </View>
             {selectionsCount === 0 && projectCommitmentsCount === 0 && projectWarrantiesCount === 0 && (
-              <Text style={styles.emptyHint}>Tip: even with no data yet, your maintenance schedule and personal note still go into the binder. You can deliver a partial binder now and re-deliver as the project closes out.</Text>
+              <Text style={styles.emptyHint}>Your maintenance schedule and personal note go into the binder even with nothing else logged. Deliver a partial binder now and re-deliver as the project closes out.</Text>
             )}
           </View>
 
@@ -811,7 +814,7 @@ export default function CloseoutBinderScreen() {
             {!hasPortal && (
               <>
                 <Text style={styles.emptyHint}>
-                  Set up the client portal for this job to choose. Until then, neither is shared.
+                  Set up the client portal for this project to choose. Until then, neither is shared.
                 </Text>
                 <TouchableOpacity
                   style={[styles.smallBtn, { alignSelf: 'flex-start', marginTop: 8 }]}
@@ -829,7 +832,7 @@ export default function CloseoutBinderScreen() {
               && (passportBaked.sharing?.supplierNames !== ownerSharing.supplierNames
                 || passportBaked.sharing?.tradeContacts !== ownerSharing.tradeContacts) && (
               <Text style={styles.emptyHint}>
-                Your Home Passport was built under different settings. Ask Your Home already follows these; re-generate it below so the pre-answered FAQ does too.
+                Your Home Passport was built under different settings. Ask Your Home already follows these; rebuild it below so the pre-answered FAQ does too.
               </Text>
             )}
           </View>
@@ -842,14 +845,14 @@ export default function CloseoutBinderScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardLabel}>Home Passport</Text>
                   <Text style={styles.cardHelper}>
-                    Indexes this project&apos;s finishes, warranties, trades, and photos so the client can ask their portal questions — &ldquo;what paint is the kitchen?&rdquo; — and get cited answers, plus a pre-answered FAQ.
+                    Indexes this project&apos;s finishes, warranties, trades and photos so the client can ask their portal questions, like &ldquo;what paint is in the kitchen?&rdquo;, and get cited answers, plus a pre-answered FAQ.
                   </Text>
                 </View>
                 <BookOpen size={18} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               {passportBaked ? (
                 <Text style={styles.emptyHint}>
-                  Generated {formattedAt(passportBaked.generatedAt)} — {passportBaked.summary.docCount} records indexed, {passportBaked.faq.length} questions pre-answered. Re-generate after editing selections, warranties, or contacts.
+                  Generated {formattedAt(passportBaked.generatedAt)} — {passportBaked.summary.docCount} records indexed, {passportBaked.faq.length} questions pre-answered. Rebuild after editing selections, warranties or contacts.
                 </Text>
               ) : (
                 <Text style={styles.emptyHint}>
@@ -862,17 +865,17 @@ export default function CloseoutBinderScreen() {
                 disabled={passportBusy}
                 testID="passport-generate"
                 accessibilityRole="button"
-                accessibilityLabel={passportBaked ? 'Re-generate Home Passport' : 'Generate Home Passport'}
+                accessibilityLabel={passportBaked ? 'Rebuild Home Passport' : 'Create Home Passport'}
               >
                 {passportBusy ? (
                   <>
                     <ActivityIndicator size="small" color={themeColors.accent} />
-                    <Text style={styles.smallBtnText}>{passportStep || 'Generating…'}</Text>
+                    <Text style={styles.smallBtnText}>{passportStep || 'Creating Home Passport…'}</Text>
                   </>
                 ) : (
                   <>
                     <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.smallBtnText}>{passportBaked ? 'Re-generate passport' : 'Generate Home Passport'}</Text>
+                    <Text style={styles.smallBtnText}>{passportBaked ? 'Rebuild Home Passport' : 'Create Home Passport'}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -882,12 +885,12 @@ export default function CloseoutBinderScreen() {
           {/* Notes */}
           <View style={styles.card}>
             <Text style={styles.cardLabel}>A note to the client</Text>
-            <Text style={styles.cardHelper}>Goes at the top of the binder. Personal touch, sign-off, anything they should know.</Text>
+            <Text style={styles.cardHelper}>Goes at the top of the binder: a thank-you, a sign-off, anything they should know.</Text>
             <TextInput
               style={styles.textarea}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Thanks for choosing us. Here's everything you need..."
+              placeholder="Thanks for choosing us. Here's everything you need"
               placeholderTextColor={themeColors.textMuted}
               multiline
               numberOfLines={6}
@@ -900,7 +903,7 @@ export default function CloseoutBinderScreen() {
             <View style={styles.cardHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardLabel}>Maintenance schedule</Text>
-                <Text style={styles.cardHelper}>Routine tasks the client should do. Pre-filled with sane defaults — edit, add, remove.</Text>
+                <Text style={styles.cardHelper}>Routine tasks the client should do. Starts with common defaults you can edit, add to or remove.</Text>
               </View>
               <TouchableOpacity style={styles.smallBtn} onPress={addMaintenance}>
                 <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -914,7 +917,7 @@ export default function CloseoutBinderScreen() {
                     style={styles.maintTask}
                     value={m.task}
                     onChangeText={v => updateMaintenance(m.id, { task: v })}
-                    placeholder="Task (e.g. HVAC filter replacement)"
+                    placeholder="Task, like HVAC filter replacement"
                     placeholderTextColor={themeColors.textMuted}
                   />
                   <View style={styles.maintMeta}>
@@ -934,7 +937,7 @@ export default function CloseoutBinderScreen() {
               </View>
             ))}
             {maintenance.length === 0 && (
-              <Text style={styles.emptyHint}>No maintenance items. Tap Add to start, or leave it blank — the rest of the binder still ships.</Text>
+              <Text style={styles.emptyHint}>No maintenance items. Tap Add to start, or leave it blank. The rest of the binder still goes out.</Text>
             )}
           </View>
 
@@ -948,7 +951,7 @@ export default function CloseoutBinderScreen() {
             <View style={styles.cardHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardLabel}>AIA-styled closeout forms</Text>
-                <Text style={styles.cardHelper}>Generate G704 (Substantial Completion), G706/A affidavits, and G707 (Surety) as PDFs you can sign and send. Auto-fills from project data.</Text>
+                <Text style={styles.cardHelper}>Create G704 (substantial completion), G706 and G706A affidavits, and G707 (surety) as PDFs you can sign and send. Filled from project data.</Text>
               </View>
             </View>
             {AIA_FORM_LIST.map(form => (
@@ -1147,7 +1150,7 @@ function AiaFormModal({
                 style={modalStyles.input}
                 value={state}
                 onChangeText={t => setState(t.slice(0, 2).toUpperCase())}
-                placeholder="e.g. TX"
+                placeholder="TX"
                 placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="characters"
                 maxLength={2}
@@ -1158,7 +1161,7 @@ function AiaFormModal({
                 style={modalStyles.input}
                 value={county}
                 onChangeText={setCounty}
-                placeholder="e.g. Travis"
+                placeholder="Travis"
                 placeholderTextColor={themeColors.textMuted}
               />
               {isG706 && (
@@ -1187,7 +1190,7 @@ function AiaFormModal({
                 style={modalStyles.input}
                 value={suretyName}
                 onChangeText={setSuretyName}
-                placeholder="e.g. Travelers Casualty and Surety"
+                placeholder="Travelers Casualty and Surety"
                 placeholderTextColor={themeColors.textMuted}
                 testID="aia-surety-input"
               />
@@ -1196,7 +1199,7 @@ function AiaFormModal({
                 style={modalStyles.input}
                 value={bondNumber}
                 onChangeText={setBondNumber}
-                placeholder="e.g. 105-XXXX-22"
+                placeholder="105-XXXX-22"
                 placeholderTextColor={themeColors.textMuted}
               />
               <Text style={modalStyles.label}>Bond date</Text>

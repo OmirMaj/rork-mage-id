@@ -297,7 +297,7 @@ describe('lane B3 — /buyout on desktop web (1512 × 945)', () => {
     expect(screen.queryByText('Send RFP →')).toBeNull();
 
     // OVERDUE rides on the package cell of a live package past its date.
-    expect(textIn(screen.getByTestId('buyout-packages-row-pkg-b3-plumb'))).toContain('OVERDUE');
+    expect(textIn(screen.getByTestId('buyout-packages-row-pkg-b3-plumb'))).toContain('Overdue');
     // The budget of a package stored at sell says so under the number.
     expect(textIn(screen.getByTestId('buyout-packages-row-pkg-b3-tile'))).toContain(`${formatMoney(5750)}incl. markup`);
 
@@ -384,7 +384,7 @@ describe('lane B3 — /buyout-package on desktop web (1512 × 945)', () => {
     expect(railText).toContain('Delete this package');
     expect(railText).not.toContain("Joe's Plumbing");
     // The leveling CTA travels with the scope (2 bids in, not awarded).
-    expect(railText).toContain('Run AI leveling');
+    expect(railText).toContain('Level the bids');
     expect(within(rail).getByTestId('invite-subs-to-bid')).toBeTruthy();
   });
 
@@ -424,7 +424,7 @@ describe('lane B3 — /buyout-package on desktop web (1512 × 945)', () => {
     await pump(2);
     press('s', { metaKey: true });
     await pump(2);
-    expect(alertMock.showAlert).toHaveBeenCalledWith('Missing info', expect.any(String));
+    expect(alertMock.showAlert).toHaveBeenCalledWith('Add the vendor', expect.any(String));
   });
 });
 

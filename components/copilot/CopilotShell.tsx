@@ -178,13 +178,13 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
       {/* top bar */}
       <View style={styles.topbar}>
         <View style={styles.topRow}>
-          <Text style={styles.brand}>MAGE&nbsp;COPILOT</Text>
+          <Text style={styles.brand}>MAGE&nbsp;Copilot</Text>
           <TouchableOpacity accessibilityRole="button" onPress={close} accessibilityLabel="Close" hitSlop={10}>
             <X size={20} color={colors.textMuted} strokeWidth={2} />
           </TouchableOpacity>
         </View>
         {state.questionCount > 0 && (
-          <Text style={styles.progress}>Question {state.questionCount} · grounded in your jobs</Text>
+          <Text style={styles.progress}>Question {state.questionCount} · grounded in your projects</Text>
         )}
       </View>
 
@@ -213,9 +213,9 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
         {(state.phase === 'listening' || state.phase === 'idle') && (
           <View style={styles.ask}>
-            <Text style={styles.askEyebrow}>{cap.copy.composeEyebrow ?? 'TELL ME ABOUT THE JOB'}</Text>
+            <Text style={styles.askEyebrow}>{cap.copy.composeEyebrow ?? 'Tell me about the project'}</Text>
             <Text style={styles.question}>{cap.copy.composeQuestion ?? 'What are we building?'}</Text>
-            <Text style={styles.grounding}>{cap.copy.composeHint ?? 'Speak it or type it — scope, rooms, start date, what’s ordered.'}</Text>
+            <Text style={styles.grounding}>{cap.copy.composeHint ?? 'Speak it or type it: scope, rooms, start date, what’s ordered.'}</Text>
             <TextInput
               style={styles.composeInput}
               value={compose}
@@ -241,7 +241,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
         {/* the question */}
         {state.phase === 'asking' && state.currentGap && (
           <View style={styles.ask}>
-            <Text style={styles.askEyebrow}>GROUNDED IN YOUR JOB</Text>
+            <Text style={styles.askEyebrow}>Grounded in your project</Text>
             <Text style={styles.question}>{state.currentGap.question}</Text>
             <Text style={styles.grounding}>{state.currentGap.groundedDefault.basis}</Text>
 
@@ -270,7 +270,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                   style={styles.gapInput}
                   value={entry}
                   onChangeText={setEntry}
-                  placeholder={state.currentGap.placeholder ?? (state.currentGap.kind === 'number' ? 'Type a number…' : 'Type your answer…')}
+                  placeholder={state.currentGap.placeholder ?? (state.currentGap.kind === 'number' ? 'Type a number' : 'Type your answer')}
                   placeholderTextColor={colors.textMuted}
                   keyboardType={state.currentGap.kind === 'number' ? 'numeric' : 'default'}
                   returnKeyType="done"
@@ -301,7 +301,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                       <Text style={styles.optText}>{c.label}</Text>
                       {!!c.basis && <Text style={styles.optSub}>{c.basis}</Text>}
                     </View>
-                    {c.recommended && <Text style={styles.suggested}>SUGGESTED</Text>}
+                    {c.recommended && <Text style={styles.suggested}>Suggested</Text>}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -310,7 +310,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             {/* editable transcript chip */}
             {state.transcript.length > 0 && (
               <TouchableOpacity accessibilityRole="button" style={styles.heard} onPress={() => setMicOpen(true)} activeOpacity={0.7}>
-                <Text style={styles.heardLabel}>YOU SAID</Text>
+                <Text style={styles.heardLabel}>You said</Text>
                 <Text style={styles.heardText} numberOfLines={2}>“{state.transcript[state.transcript.length - 1].text}”</Text>
                 <Pencil size={14} color={colors.textMuted} strokeWidth={1.9} />
               </TouchableOpacity>
@@ -343,7 +343,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 style={styles.composeInput}
                 value={compose}
                 onChangeText={setCompose}
-                placeholder="Add to it or say it another way…"
+                placeholder="Add to it or say it another way"
                 placeholderTextColor={colors.textMuted}
                 multiline
                 testID="copilot-review-compose"
@@ -356,7 +356,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             </View>
           ) : (
             <View style={styles.ask}>
-              <Text style={styles.askEyebrow}>READY TO BUILD</Text>
+              <Text style={styles.askEyebrow}>Ready to build</Text>
               <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
               {!!state.reviewNote && <Text style={styles.grounding} testID="copilot-review-note">{state.reviewNote}</Text>}
               <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
@@ -370,7 +370,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
 
         {state.phase === 'done' && landed && (
           <View style={styles.ask} testID="copilot-landed">
-            <Text style={styles.askEyebrow}>{undone ? 'UNDONE' : 'DONE — HERE’S WHAT CHANGED'}</Text>
+            <Text style={styles.askEyebrow}>{undone ? 'Undone' : 'Done · what changed'}</Text>
             {undone ? (
               <Text style={styles.question}>{undoResult!.message}</Text>
             ) : (
@@ -410,12 +410,12 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
                 new turn can help: a Build failure re-dictated costs another
                 AI turn and throws the same error; a limit needs a plan. */}
             <Text style={styles.askEyebrow}>
-              {limitError ? 'AI LIMIT REACHED'
-                : capError ? 'FREE COVERS ONE JOB'
-                : state.errorKind === 'no_project' ? 'WHICH JOB IS THIS FOR?'
-                : state.errorKind === 'no_estimate' ? 'THIS JOB NEEDS AN ESTIMATE'
-                : applyError ? 'COULDN’T BUILD IT'
-                : 'SOMETHING WENT WRONG'}
+              {limitError ? 'AI limit reached'
+                : capError ? 'Free covers one project'
+                : state.errorKind === 'no_project' ? 'Which project is this for?'
+                : state.errorKind === 'no_estimate' ? 'This project needs an estimate'
+                : applyError ? 'Couldn’t build it'
+                : 'That didn’t go through'}
             </Text>
             <Text style={styles.question}>{state.errorMessage ?? 'Try again.'}</Text>
             {(limitError || capError) && (
@@ -426,7 +426,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed, onPickPr
             {state.errorKind === 'no_project' && onPickProject && (
               <TouchableOpacity accessibilityRole="button" style={[styles.buildBtn, isDesktop && desktopCta]} activeOpacity={0.9} onPress={onPickProject} testID="copilot-pick-job">
                 <Briefcase size={18} color={Colors.textOnAccent} strokeWidth={2} />
-                <Text style={styles.buildBtnText}>Pick a job</Text>
+                <Text style={styles.buildBtnText}>Pick a project</Text>
               </TouchableOpacity>
             )}
             {state.errorKind === 'no_estimate' && onBuildEstimate && (

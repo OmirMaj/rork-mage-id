@@ -319,7 +319,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
             testID={`scopegaps-qty-${rule.id}`}
           />
           <Text style={styles.meta}>{rule.price.unit}</Text>
-          {starter ? <Text style={styles.meta}>starter guess — change it</Text> : null}
+          {starter ? <Text style={styles.meta}>Starter guess · change it</Text> : null}
         </View>
         <Text style={styles.price}>{priceLine}</Text>
         {renderAction(gap)}
@@ -370,7 +370,7 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
         {props.mode === 'cart' ? (
           <View style={styles.toggleBlock}>
             <SegmentedControl<JobKind>
-              options={[{ value: 'residential', label: 'Home job' }, { value: 'commercial', label: 'Commercial job' }]}
+              options={[{ value: 'residential', label: 'Residential' }, { value: 'commercial', label: 'Commercial' }]}
               value={cartJobKind}
               onChange={switchJobKind}
               size="sm"

@@ -15,6 +15,7 @@ import { Type } from '@/constants/typography';
 import { Tokens, Layout } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 
 export default function ResetPasswordScreen() {
   const { colors: themeColors } = useTheme();
@@ -74,7 +75,7 @@ export default function ResetPasswordScreen() {
           });
           if (error) {
             console.log('[ResetPassword] Failed to set session:', error.message);
-            showAlert('Error', 'Invalid or expired reset link. Please request a new one.');
+            showAlert('Reset link expired', 'This reset link is invalid or has expired. Request a new one from the sign-in screen.');
           } else {
             await onNewSessionEstablished(handoff);
           }
@@ -87,11 +88,11 @@ export default function ResetPasswordScreen() {
 
   const handleSubmit = useCallback(async () => {
     if (!newPassword.trim() || newPassword.length < 8) {
-      showAlert('Error', 'Password must be at least 8 characters.');
+      showAlert('Choose a longer password', 'Use at least 8 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      showAlert('Error', 'Passwords do not match.');
+      showAlert("Passwords don't match", 'Enter the same password in both fields.');
       return;
     }
 
@@ -103,8 +104,12 @@ export default function ResetPasswordScreen() {
         router.replace('/login');
       }, 2000);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update password.';
-      showAlert('Error', msg);
+      console.warn('[ResetPassword] update failed:', rawErrorMessage(err));
+      // Supabase's own sentence ("New password should be different from the
+      // old password.") names what to change; show it when it reads as one.
+      const own = ownSentence(err);
+      const copy = describeError(err, { action: 'update your password' });
+      showAlert(own ? "Couldn't update your password" : copy.title, own ?? copy.body);
     } finally {
       setIsSubmitting(false);
     }
@@ -118,9 +123,9 @@ export default function ResetPasswordScreen() {
           <View style={styles.successIcon}>
             <CheckCircle size={48} color={themeColors.success} strokeWidth={1.5} />
           </View>
-          <Text style={styles.successTitle}>Password Updated</Text>
+          <Text style={styles.successTitle}>Password updated</Text>
           <Text style={styles.successText}>
-            Your password has been successfully reset. Redirecting to login...
+            Your password is reset. Taking you to sign in…
           </Text>
         </View>
       </View>
@@ -138,18 +143,18 @@ export default function ResetPasswordScreen() {
           <View style={styles.iconWrap}>
             <Lock size={32} color={themeColors.accent} strokeWidth={1.5} />
           </View>
-          <Text style={styles.title}>Set New Password</Text>
+          <Text style={styles.title}>Set a new password</Text>
           <Text style={styles.subtitle}>
             Enter your new password below.
           </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>New Password</Text>
+            <Text style={styles.inputLabel}>New password</Text>
             <View style={styles.inputWrapper}>
               <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
               <TextInput
                 style={styles.input}
-                placeholder="Minimum 6 characters"
+                placeholder="At least 8 characters"
                 placeholderTextColor={themeColors.textMuted}
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -162,7 +167,7 @@ export default function ResetPasswordScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Confirm Password</Text>
+            <Text style={styles.inputLabel}>Confirm password</Text>
             <View style={styles.inputWrapper}>
               <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
               <TextInput
@@ -191,7 +196,7 @@ export default function ResetPasswordScreen() {
               <ActivityIndicator color={themeColors.surface} size="small" />
             ) : (
               <>
-                <Text style={styles.submitButtonText}>Update Password</Text>
+                <Text style={styles.submitButtonText}>Update password</Text>
                 <ArrowRight size={18} color={themeColors.surface} strokeWidth={2.5} />
               </>
             )}
@@ -202,7 +207,7 @@ export default function ResetPasswordScreen() {
             onPress={() => router.replace('/login')}
             testID="reset-back"
           >
-            <Text style={styles.backText}>Back to Login</Text>
+            <Text style={styles.backText}>Back to sign in</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

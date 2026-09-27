@@ -109,8 +109,8 @@ export function WorkloadTab({ resources, onFixOverloads }: WorkloadTabProps) {
       <View style={styles.empty}>
         <Text style={styles.emptyTitle}>No resources yet</Text>
         <Text style={styles.emptyText}>
-          Assign a crew name to each task — or add resources in project settings — and
-          this heatmap will fill in.
+          Assign a crew name to each task, or add resources in project settings, and
+          this heatmap fills in.
         </Text>
       </View>
     );

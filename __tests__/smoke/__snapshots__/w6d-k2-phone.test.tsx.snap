@@ -1572,7 +1572,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                           "children": [
                             {
                               "children": [
-                                "MAGE Brain",
+                                "Ask and capture",
                               ],
                               "props": {
                                 "style": {
@@ -2414,7 +2414,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               "children": [
                                 {
                                   "children": [
-                                    "Help & tips",
+                                    "Help and tips",
                                   ],
                                   "props": {
                                     "style": {
@@ -4378,7 +4378,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                           "children": [
                             {
                               "children": [
-                                "MAGE Brain",
+                                "Ask and capture",
                               ],
                               "props": {
                                 "style": {
@@ -5220,7 +5220,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               "children": [
                                 {
                                   "children": [
-                                    "Help & tips",
+                                    "Help and tips",
                                   ],
                                   "props": {
                                     "style": {

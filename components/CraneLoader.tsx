@@ -98,7 +98,7 @@ function CraneStatus({ label, facts, factIntervalMs, style }: Required<Pick<Cran
         <Text style={[Type.headline, styles.status, { color: colors.text }]} numberOfLines={2}>{label}</Text>
         {rotating && (
           <Animated.View style={[styles.factWrap, { opacity: factFade }]}>
-            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>WHILE WE WORK</Text>
+            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>While you wait</Text>
             <Text style={[Type.footnote, styles.factText, { color: colors.textSecondary }]}>{facts![factIdx]}</Text>
           </Animated.View>
         )}
@@ -113,6 +113,6 @@ const styles = StyleSheet.create({
   column: { alignItems: 'center', maxWidth: 360 },
   status: { marginTop: 16, textAlign: 'center' },
   factWrap: { marginTop: 28, alignItems: 'center', minHeight: 60, maxWidth: 340 },
-  factEyebrow: { letterSpacing: 1.4, marginBottom: 8 },
+  factEyebrow: { letterSpacing: 1.4, marginBottom: 8, textTransform: 'uppercase' },
   factText: { textAlign: 'center' },
 });

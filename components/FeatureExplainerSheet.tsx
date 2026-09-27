@@ -155,7 +155,7 @@ function FeatureExplainerSheetImpl({
             >
               <PlayCircle size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={[Type.subheadEmphasized, { color: themeColors.accent, flex: 1 }]}>
-                Walk me through it
+                Start the tour
               </Text>
             </TouchableOpacity>
           )}

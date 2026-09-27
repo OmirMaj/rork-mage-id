@@ -98,8 +98,8 @@ async function main() {
     /isPaused: query\.fetchStatus === 'paused',/.test(UPC) && /hasData: query\.data !== undefined,/.test(UPC));
   ok('CollaboratorsManager derives the view from the read\'s state',
     /const view = rosterView\(\{ isLoading, isError, isPaused, hasData, count: collaborators\.length \}\);/.test(CM));
-  ok('"No collaborators yet" renders only for view === \'empty\'',
-    /view === 'empty' \? \( <Text[^>]*>No collaborators yet/.test(CM) && !/collaborators\.length === 0 \? \(/.test(CM));
+  ok('"No team members yet" renders only for view === \'empty\'',
+    /view === 'empty' \? \( <Text[^>]*>No team members yet/.test(CM) && !/collaborators\.length === 0 \? \(/.test(CM));
   ok('error/offline render their line, and error offers Retry (refetch)',
     /view === 'error' \|\| view === 'offline' \?/.test(CM) && /onPress=\{refetch\} testID="collab-roster-retry"/.test(CM));
   ok('Send invite is disabled by inviteBlocked and prints the reason',
@@ -122,8 +122,8 @@ async function main() {
     zero.leaveLabel === 'Leave' && !zero.offerSyncFirst && zero.message.includes(LEAVE_SYNCED_STAYS) && !/Nothing on the job is deleted/.test(zero.message));
   ok('3 queued: says the number, discards, Sync first + Leave anyway',
     three.offerSyncFirst && three.leaveLabel === 'Leave anyway'
-    && three.message.startsWith("3 changes on this job haven't reached the cloud yet. Leaving now discards them."));
-  ok('1 queued: singular', one.message.startsWith("1 change on this job hasn't reached the cloud yet. Leaving now discards it."));
+    && three.message.startsWith("3 changes on this project haven't reached the cloud yet. Leaving now discards them."));
+  ok('1 queued: singular', one.message.startsWith("1 change on this project hasn't reached the cloud yet. Leaving now discards it."));
   expect('"You left" names the dropped count', leftProjectMessage('Henderson', true, 2),
     "You're no longer on Henderson, and it has left this device. 2 changes you had not synced could not be sent.");
   expect('…and says nothing extra when none dropped', leftProjectMessage('Henderson', true, 0), "You're no longer on Henderson, and it has left this device.");
@@ -201,7 +201,7 @@ async function main() {
   expect('#63: no name → email', filedByLine({ filedByUserId: 'f2', viewerId: 'gc', ownerUserId: 'gc', collaborators: collabs }), 'Filed by sam@x.co');
   expect('#63: unresolved → a team member, never a guess', filedByLine({ filedByUserId: 'zz', viewerId: 'f1', ownerUserId: 'gc', collaborators: [] }), 'Filed by a team member');
   expect('#63: his own report → nothing', filedByLine({ filedByUserId: 'f1', viewerId: 'f1', ownerUserId: 'gc', collaborators: collabs }), null);
-  expect('#63: the owner\'s → "the job\'s owner"', filedByLine({ filedByUserId: 'gc', viewerId: 'f1', ownerUserId: 'gc', collaborators: collabs }), "Filed by the job's owner");
+  expect('#63: the owner\'s → "the project\'s owner"', filedByLine({ filedByUserId: 'gc', viewerId: 'f1', ownerUserId: 'gc', collaborators: collabs }), "Filed by the project's owner");
   expect('#63: no author on record → nothing', filedByLine({ filedByUserId: undefined, viewerId: 'f1', ownerUserId: 'gc', collaborators: collabs }), null);
   ok('#63: DFR rows print filedByLine from dr.filedByUserId and the roster',
     /filedByLine\(\{ filedByUserId: dr\.filedByUserId, viewerId: authUser\?\.id, ownerUserId: project\.ownerUserId, collaborators: teamRoster\.collaborators, \}\)/.test(PD));

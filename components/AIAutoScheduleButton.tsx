@@ -16,6 +16,7 @@ import type { Project, LinkedEstimate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 
 interface AIAutoScheduleButtonProps {
   project: Project;
@@ -35,8 +36,8 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (project.schedule && project.schedule.tasks.length > 0) {
       showAlert(
-        'Schedule Exists',
-        'This project already has a schedule. Generating will replace it. Continue?',
+        'Replace the schedule?',
+        'This project already has a schedule. Building a new one replaces it.',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Replace', style: 'destructive', onPress: () => void runGenerate() },
@@ -56,18 +57,21 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
       onScheduleCreated(result.schedule);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
-        'Schedule Generated',
+        'Schedule built',
         `Created ${result.tasks.length} tasks across ${new Set(result.tasks.map(t => t.phase)).size} phases. ${result.linkedItemCount} estimate items linked to tasks.`,
         [
-          { text: 'Stay Here', style: 'cancel' },
+          { text: 'Stay here', style: 'cancel' },
           // Carry the project the schedule was just generated FOR, or the
           // schedule tab opens on whichever project was last active there.
-          { text: 'View Schedule', onPress: () => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: project.id, focus: String(Date.now()) } } as any) },
+          { text: 'View schedule', onPress: () => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: project.id, focus: String(Date.now()) } } as any) },
         ],
       );
     } catch (err: any) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showAlert('Generation Failed', err?.message || 'Could not build a schedule from this estimate. Please try again.');
+      console.warn('[AIAutoScheduleButton] build failed', rawErrorMessage(err));
+      const own = ownSentence(err);
+      const copy = describeError(err, { action: 'build the schedule from this estimate' });
+      showAlert(own ? "Couldn't build the schedule" : copy.title, own ?? copy.body);
     } finally {
       setLoading(false);
     }
@@ -83,9 +87,9 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
           <MageAIMark size={16} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Auto-Schedule from Estimate</Text>
+          <Text style={styles.title}>Schedule from your estimate</Text>
           <Text style={styles.subtitle}>
-            AI builds tasks + dependencies from your {itemCount} line item{itemCount === 1 ? '' : 's'} across {categoryCount} categor{categoryCount === 1 ? 'y' : 'ies'}.
+            Builds tasks and dependencies from your {itemCount} line item{itemCount === 1 ? '' : 's'} across {categoryCount} categor{categoryCount === 1 ? 'y' : 'ies'}.
           </Text>
         </View>
       </View>
@@ -116,7 +120,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
         ) : (
           <>
             <MageAIMark size={15} color="#FFF" />
-            <Text style={styles.actionBtnText}>Generate Schedule</Text>
+            <Text style={styles.actionBtnText}>Build schedule from estimate</Text>
           </>
         )}
       </TouchableOpacity>

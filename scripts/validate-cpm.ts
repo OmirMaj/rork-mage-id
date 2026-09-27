@@ -338,7 +338,7 @@ console.log('\n6. an unsatisfiable hard pin is reported');
   ok('must-start-on inside a predecessor emits an anchor_violation', anchorConflicts.length === 1,
     r.conflicts.map(c => c.message));
   ok('  …and the message names the gap in working days',
-    /\d+ working day\(s\)/.test(anchorConflicts[0]?.message ?? ''), anchorConflicts[0]?.message);
+    /\d+ working days?\b/.test(anchorConflicts[0]?.message ?? ''), anchorConflicts[0]?.message);
 
   // must-finish-on on a Saturday: reachable, and it must NOT blame dependencies
   // that do not exist.
@@ -364,7 +364,7 @@ console.log('\n6. an unsatisfiable hard pin is reported');
   const mfoMsg = mfo.conflicts.find(c => c.kind === 'anchor_violation')?.message ?? '';
   ok('an unsatisfiable must-finish-on emits an anchor_violation', mfoMsg.length > 0, mfo.conflicts);
   ok('  …and the message names the gap in working days',
-    /\d+ working day\(s\)/.test(mfoMsg), mfoMsg);
+    /\d+ working days?\b/.test(mfoMsg), mfoMsg);
   ok('  …and the fixture really is one where the pin wins and the row looks fine',
     mfo.perTask.get('S')!.ef === 5 && mfo.perTask.get('S')!.es < mfo.perTask.get('P')!.ef,
     { S: mfo.perTask.get('S'), P: mfo.perTask.get('P') });

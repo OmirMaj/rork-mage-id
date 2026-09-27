@@ -1077,7 +1077,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     /testID="retention-basis-note"/.test(screen)
     && /before sales tax/.test(screen), true);
   eq('…and the explainer defines the term for a GC who has never met it',
-    /term="Retention \(Retainage\)"/.test(screen), true);
+    /term="Retainage"/.test(screen), true);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3195,7 +3195,7 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
     // three cases back to one sentence fails here.
     eq('…and never sends a LOCKED one to controls that are not on the screen',
       [/re-enter PERIOD TO/i.test(locked), /refresh button above/i.test(locked),
-        /next application/i.test(locked), locked === editable || locked === review],
+        /next pay app/i.test(locked), locked === editable || locked === review],
       [false, false, true, false]);
     eq('…and the banner prints that advice rather than a sentence of its own',
       /coFiguresAdvice\(\{ isReadOnly, isLocked, editLabel: reviewNotice\.editLabel \}\)/.test(aiaScreen)

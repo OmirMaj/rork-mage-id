@@ -198,7 +198,7 @@ export default function PrequalFormScreen() {
       // on every autosave pause, forever.
       showAlert(
         mode === 'submit' ? 'Not submitted' : 'Couldn\'t save',
-        'This link no longer accepts changes — the packet may have been approved, or the invite link expired or was replaced. Your answers are still on this screen. Ask the GC to send a fresh link.',
+        'This link no longer accepts changes. The packet may have been approved, or the invite link expired or was replaced. Your answers are still on this screen, so ask your contractor for a fresh link.',
       );
       return 'refused';
     }
@@ -227,7 +227,7 @@ export default function PrequalFormScreen() {
           title={!token ? 'Missing link' : 'Link expired or invalid'}
           body={!token
             ? 'This page was opened without a valid token. Open the invite link from your email again.'
-            : 'We couldn\'t find a prequalification packet for this link, or it has expired. Ask your GC to resend the invite.'}
+            : 'No prequalification packet matches this link, or it has expired. Ask your contractor to resend the invite.'}
           onBack={() => router.back()}
           testID="prequal-missing"
         />
@@ -377,7 +377,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
     );
     if (hardFail) {
       showAlert('Can\'t submit yet',
-        'Some criteria cannot be auto-approved. Review the checklist above — the GC may still accept with context in the notes, but you\'ll need to reach out directly.');
+        'Some criteria can\'t be auto-approved. Review the checklist above. Your contractor may still accept with context in the notes, so reach out to them directly.');
       return;
     }
     const now = new Date().toISOString();
@@ -405,7 +405,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
     if (outcome !== 'saved') return; // saveViaRpc has said what went wrong
     setStatus('submitted');
     showAlert('Submitted',
-      `Your prequalification packet has been sent to ${gcName || 'the GC'}. They\'ll review it and follow up if anything\'s missing.`,
+      `Your prequalification packet has been sent to ${gcName || 'your contractor'}. They\'ll review it and follow up if anything\'s missing.`,
       [{ text: 'Done', onPress: onExit }],
     );
   }, [submitting, locked, gcName, packet, financials, safety, insurance, licenses, w9OnFile, onSave, onExit]);
@@ -498,8 +498,8 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
                 </Text>
                 <Text style={styles.decisionBody}>
                   {status === 'approved'
-                    ? `${gcName || 'The GC'} approved this packet, so it can\u2019t be edited here. If something has changed, ask them to send you a renewal.`
-                    : 'It may have been approved, or the invite link expired or was replaced. Your answers are still on this screen. Ask the GC to send a fresh link.'}
+                    ? `${gcName || 'Your contractor'} approved this packet, so it can\u2019t be edited here. If something has changed, ask them to send you a renewal.`
+                    : 'It may have been approved, or the invite link expired or was replaced. Your answers are still on this screen, so ask your contractor for a fresh link.'}
                 </Text>
               </View>
             </View>
@@ -511,7 +511,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
               <AlertTriangle size={18} color={rejected ? themeColors.danger : Colors.warningLabel} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.decisionTitle}>
-                  {needsChanges ? 'The GC asked for changes' : 'Not approved'}
+                  {needsChanges ? `${gcName || 'Your contractor'} asked for changes` : 'Not approved'}
                   {reviewedOn ? ` · ${reviewedOn}` : ''}
                 </Text>
                 {packet.reviewerNotes ? (
@@ -523,7 +523,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
                     // submit_prequal_packet moves only draft / invited /
                     // needs_changes to submitted, so a rejected packet stays
                     // rejected whatever is tapped here. Say so.
-                    : 'Your answers below still save, but this packet can’t be resubmitted from this link. If you want to be considered again, ask the GC to send you a renewal.'}
+                    : 'Your answers below still save, but this packet can’t be resubmitted from this link. To be considered again, ask your contractor to send you a renewal.'}
                 </Text>
               </View>
             </View>
@@ -562,7 +562,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           </View>
 
           {/* ── Financials ──────────────────────────────── */}
-          <SectionHeader icon={<DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Company & Financials" />
+          <SectionHeader icon={<DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Company and financials" />
 
           <Field label="Years in business"
             value={financials.yearsInBusiness?.toString() ?? ''}
@@ -572,12 +572,12 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           <Field label="Annual revenue (USD)"
             value={financials.annualRevenue?.toString() ?? ''}
             onChangeText={(v) => patchFin({ annualRevenue: toNum(v) })}
-            keyboardType="number-pad" placeholder="Rolled up last 12 months" />
+            keyboardType="number-pad" placeholder="Last 12 months" />
 
           <Field label="Largest project completed (USD)"
             value={financials.largestProjectCompleted?.toString() ?? ''}
             onChangeText={(v) => patchFin({ largestProjectCompleted: toNum(v) })}
-            keyboardType="number-pad" placeholder="Helps us match scope" />
+            keyboardType="number-pad" placeholder="Largest contract value" />
 
           <Row>
             <View style={{ flex: 1 }}>
@@ -597,7 +597,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           <Field label="Bank reference (optional)"
             value={financials.bankReference ?? ''}
             onChangeText={(v) => patchFin({ bankReference: v })}
-            placeholder="Bank name & contact" />
+            placeholder="Bank name and contact" />
 
           {/* ── Insurance ──────────────────────────────── */}
           <SectionHeader icon={<ShieldCheck size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Insurance" />
@@ -639,11 +639,11 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
             error={typingDates.has('coi') ? undefined : dateError(insurance.coiExpiry)}
             placeholder="2026-12-31" autoCapitalize="none" />
 
-          <ToggleRow label="Workers Comp — active policy"
+          <ToggleRow label="Workers’ comp policy active"
             value={!!insurance.workersCompActive}
             onValueChange={(v) => patchIns({ workersCompActive: v })} />
           {insurance.workersCompActive && (
-            <Field label="Workers Comp carrier"
+            <Field label="Workers’ comp carrier"
               value={insurance.workersCompCarrier ?? ''}
               onChangeText={(v) => patchIns({ workersCompCarrier: v })}
               placeholder="Carrier name" />
@@ -660,7 +660,7 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
             onValueChange={(v) => patchIns({ waiverOfSubrogation: v })} />
 
           {/* ── Safety ──────────────────────────────── */}
-          <SectionHeader icon={<HardHat size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Safety Record" />
+          <SectionHeader icon={<HardHat size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Safety record" />
 
           <Text style={styles.helperText}>
             3-year EMR (Experience Modification Rate). Lower is better — 1.0 is industry average.
@@ -743,8 +743,8 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
           )}
 
           {/* ── W-9 ──────────────────────────────── */}
-          <SectionHeader icon={<FileText size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Tax / W-9" />
-          <ToggleRow label="W-9 on file with this GC"
+          <SectionHeader icon={<FileText size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Tax and W-9" />
+          <ToggleRow label="W-9 on file with this contractor"
             value={w9OnFile}
             onValueChange={toggleW9} />
           <Text style={styles.helperText}>
@@ -798,14 +798,14 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
         ) : refused ? (
           <View style={styles.submittedChip}>
             <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
-            <Text style={styles.submittedText}>Link closed — ask the GC for a fresh link</Text>
+            <Text style={styles.submittedText}>Link closed. Ask your contractor for a fresh link.</Text>
           </View>
         ) : rejected ? (
           // No bare "Submit" on a rejected packet: the server keeps it
           // rejected, and a "Submitted" alert over that would be a lie.
           <View style={styles.submittedChip}>
             <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
-            <Text style={styles.submittedText}>Not approved — ask the GC for a renewal to resubmit</Text>
+            <Text style={styles.submittedText}>Not approved. Ask your contractor for a renewal to resubmit.</Text>
           </View>
         ) : (
           <TouchableOpacity
@@ -825,8 +825,8 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
         {preview.overall !== 'pass' && !isSubmitted && !rejected && !refused && (
           <Text style={styles.submitHelper}>
             {preview.missingFields.length > 0
-              ? 'Some fields are empty. You can still submit and the GC will follow up.'
-              : 'A few criteria won\'t auto-approve — the GC will review manually.'}
+              ? 'Some fields are empty. You can still submit, and your contractor will follow up.'
+              : 'A few criteria won\'t auto-approve. Your contractor will review them by hand.'}
           </Text>
         )}
       </View>

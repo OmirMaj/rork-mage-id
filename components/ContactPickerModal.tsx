@@ -13,6 +13,7 @@ import type { Contact, ContactRole } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useSheetFrame } from '@/components/ui';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 interface ContactPickerModalProps {
   visible: boolean;
@@ -61,7 +62,7 @@ export default function ContactPickerModal({
   onClose,
   onSelect,
   contacts,
-  title = 'Select Recipient',
+  title = 'Select recipient',
   filterRoles,
 }: ContactPickerModalProps) {
   const { colors: themeColors } = useTheme();
@@ -120,7 +121,7 @@ export default function ContactPickerModal({
           ) : null}
           <View style={styles.contactMeta}>
             <View style={[styles.roleBadge, { backgroundColor: roleColor + '15' }]}>
-              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{item.role}</Text>
+              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{humanizeEnum(item.role)}</Text>
             </View>
             {item.email ? (
               <View style={styles.emailRow}>
@@ -152,7 +153,7 @@ export default function ContactPickerModal({
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search contacts..."
+              placeholder="Search contacts"
               placeholderTextColor={themeColors.textMuted}
               autoFocus={false}
               testID="contact-picker-search"
@@ -179,7 +180,7 @@ export default function ContactPickerModal({
                   {query ? 'No contacts found' : 'No contacts yet'}
                 </Text>
                 <Text style={styles.emptyDesc}>
-                  {query ? 'Try a different search term' : 'Add contacts from the Contacts screen'}
+                  {query ? 'Try a different search term.' : 'Add contacts from the Contacts screen.'}
                 </Text>
               </View>
             }

@@ -23,6 +23,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { Type } from '@/constants/typography';
 import { Tokens, Layout } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
@@ -41,6 +42,20 @@ const HIDDEN = { opacity: 0 } as const;
 // confirm card rises into place. 0 under Reduce Motion.
 // hoist into Motion.duration after round 3
 const CONFIRM_HOLD_MS = 420;
+
+/** The sign-up failure as a sentence: the one case a person can act on
+ *  (the email already has an account) is named; everything else goes through
+ *  describeError so no raw auth text reaches the screen. */
+function signUpErrorText(err: unknown): string {
+  const raw = rawErrorMessage(err);
+  if (/already (exists|registered)/i.test(raw)) {
+    return 'An account with this email already exists. Sign in instead.';
+  }
+  if (/password should be|weak password/i.test(raw)) {
+    return 'Choose a longer password with letters and numbers.';
+  }
+  return describeError(err, { action: 'create your account' }).body;
+}
 
 export default function SignupScreen() {
   const { colors: themeColors } = useTheme();
@@ -246,7 +261,7 @@ export default function SignupScreen() {
       setNameDanger(nameEmpty);
       setEmailDanger(emailEmpty);
       setPasswordDanger(passwordEmpty);
-      setError('Please fill in all fields');
+      setError('Fill in every field.');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -300,8 +315,8 @@ export default function SignupScreen() {
       if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
       confirmTimerRef.current = setTimeout(openConfirm, hold);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Signup failed. Please try again.';
-      setError(message);
+      console.warn('[Signup] account creation failed:', rawErrorMessage(err));
+      setError(signUpErrorText(err));
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -412,7 +427,7 @@ export default function SignupScreen() {
           <Slot style={entrance.slot(4)}>
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or with email</Text>
+            <Text style={styles.dividerText}>Or with email</Text>
             <View style={styles.dividerLine} />
           </View>
           </Slot>
@@ -420,12 +435,12 @@ export default function SignupScreen() {
           <Slot style={entrance.slot(5)}>
           <View>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Full Name</Text>
+              <Text style={styles.inputLabel}>Full name</Text>
               <View style={styles.inputWrapper}>
                 <User size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                 <TextInput
                   style={styles.input}
-                  placeholder="John Doe"
+                  placeholder="Dana Ruiz"
                   placeholderTextColor={themeColors.textMuted}
                   value={name}
                   onChangeText={(v) => {
@@ -477,7 +492,7 @@ export default function SignupScreen() {
                 <TextInput
                   ref={passwordRef}
                   style={styles.input}
-                  placeholder="Min 8 characters"
+                  placeholder="At least 8 characters"
                   placeholderTextColor={themeColors.textMuted}
                   value={password}
                   onChangeText={(v) => {
@@ -512,7 +527,7 @@ export default function SignupScreen() {
           <Animated.View style={press.style}>
             <AuthSubmitButton
               phase={submitPhase}
-              label="Create Account"
+              label="Create account"
               trailing={<ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />}
               style={[styles.signupButton, isSubmitting && styles.signupButtonDisabled]}
               textStyle={styles.signupButtonText}
@@ -557,7 +572,7 @@ export default function SignupScreen() {
               onPress={() => router.back()}
               testID="signup-go-login"
             >
-              <Text style={styles.loginLink}>Sign In</Text>
+              <Text style={styles.loginLink}>Sign in</Text>
             </TouchableOpacity>
           </View>
           </Slot>

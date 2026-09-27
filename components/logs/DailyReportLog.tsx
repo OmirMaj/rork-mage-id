@@ -18,7 +18,7 @@
 // reportId (getRowHref), so Cmd-click and the browser's own right-click menu
 // open a report in a new tab — a plain click still opens it beside the list.
 // Until dailyReportsLoaded the empty table says "Loading daily reports…",
-// never "No daily reports on this job yet".
+// never "No daily reports on this project yet".
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -124,7 +124,7 @@ export function DailyReportLog({ projectId, filedBy }: DailyReportLogProps) {
         </View>
       ) : (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>No daily reports on this job yet.</Text>
+          <Text style={styles.emptyText}>No daily reports on this project yet.</Text>
           <Button label="New report" onPress={newReport} size="sm" testID="dfr-log-empty-new" />
         </View>
       )}

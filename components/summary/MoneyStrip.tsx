@@ -53,14 +53,14 @@ export function MoneyStrip({ contractInProgress, pipeline, outstanding, cash4wk,
         <View style={[styles.iconSq, { backgroundColor: colors.success + '1A' }]}>
           <DollarSign size={15} color={colors.success} strokeWidth={2.2} />
         </View>
-        <Text style={styles.headerLabel}>MONEY</Text>
-        <Text style={styles.headerMeta}>jobs in progress</Text>
+        <Text style={styles.headerLabel}>Money</Text>
+        <Text style={styles.headerMeta}>Projects in progress</Text>
       </View>
 
       <View style={styles.strip}>
         <View style={styles.cell}>
           <Text style={[styles.val, { color: colors.text }]} numberOfLines={1}>{formatMoneyShort(contractInProgress)}</Text>
-          <Text style={styles.lbl}>CONTRACT</Text>
+          <Text style={styles.lbl}>Contract</Text>
           {pipeline > 0 ? (
             <Text style={styles.asOf} numberOfLines={1}>+{formatMoneyShort(pipeline)} pipeline</Text>
           ) : null}
@@ -74,7 +74,7 @@ export function MoneyStrip({ contractInProgress, pipeline, outstanding, cash4wk,
           <Text style={[styles.val, { color: outstanding > 0 ? colors.danger : colors.textMuted }]} numberOfLines={1}>
             {formatMoneyShort(outstanding)}
           </Text>
-          <Text style={styles.lbl}>OUTSTANDING</Text>
+          <Text style={styles.lbl}>Outstanding</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.cell, styles.cellBorder]}
@@ -88,7 +88,7 @@ export function MoneyStrip({ contractInProgress, pipeline, outstanding, cash4wk,
           >
             {cash4wk === null ? '—' : formatMoneyShort(cash4wk)}
           </Text>
-          <Text style={styles.lbl}>CASH · 4WK</Text>
+          <Text style={styles.lbl}>Cash · 4wk</Text>
           {asOf ? <Text style={styles.asOf} numberOfLines={1}>{asOf}</Text> : null}
         </TouchableOpacity>
       </View>
@@ -100,7 +100,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { ...cardSurface(t, { radius: 'xl', pad: 14 }), marginHorizontal: 16, marginBottom: 12 },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 9, marginBottom: 10 },
   iconSq: { width: 26, height: 26, borderRadius: 9, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2 },
+  headerLabel: { fontSize: 12, fontWeight: '800' as const, color: t.text, letterSpacing: 0.2, textTransform: 'uppercase' as const },
   headerMeta: { marginLeft: 'auto' as const, fontSize: 11, fontWeight: '700' as const, color: t.textMuted },
   strip: { flexDirection: 'row' as const, backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, overflow: 'hidden' as const },
   cell: { flex: 1, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center' as const },

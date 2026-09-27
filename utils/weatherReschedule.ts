@@ -299,8 +299,8 @@ export function summarizeWeatherImpact(r: WeatherRescheduleResult): string {
   const hit = r.directHitCount;
   const slip = d > 0 ? `${d} day${d === 1 ? '' : 's'}` : 'no net';
   const body = `${hit} weather-sensitive task${hit === 1 ? '' : 's'} hit · ${slip} project slip`;
-  if (r.forecastSource === 'simulated') return `SIMULATED WEATHER — ${body}`;
-  if (r.forecastSource === 'mixed') return `PARTLY SIMULATED — ${body}`;
+  if (r.forecastSource === 'simulated') return `Simulated weather. ${body}`;
+  if (r.forecastSource === 'mixed') return `Partly simulated. ${body}`;
   return body;
 }
 

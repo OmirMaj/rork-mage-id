@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import type { ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   schedule: ProjectSchedule;
@@ -28,9 +29,9 @@ interface Props {
 }
 
 const SEVERITY_STYLES = {
-  high: { bg: Colors.errorLight, border: '#C84038', icon: AlertTriangle, label: 'HIGH RISK', textColor: '#D32F2F' },
-  medium: { bg: '#FFF8E1', border: Colors.warning, icon: MageAIMark, label: 'MEDIUM RISK', textColor: Colors.warningDark },
-  low: { bg: Colors.successLight, border: Colors.success, icon: CheckCircle2, label: 'LOW RISK', textColor: Colors.successDark },
+  high: { bg: Colors.errorLight, border: '#C84038', icon: AlertTriangle, label: 'High risk', textColor: '#D32F2F' },
+  medium: { bg: '#FFF8E1', border: Colors.warning, icon: MageAIMark, label: 'Medium risk', textColor: Colors.warningDark },
+  low: { bg: Colors.successLight, border: Colors.success, icon: CheckCircle2, label: 'Low risk', textColor: Colors.successDark },
 } as const;
 
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -94,7 +95,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       // Say what broke on the card. A spinner that returns to a dashed "Tap to
       // run" box reads as "the feature does nothing".
       console.error('[AI Risk] Failed:', err);
-      setError(`Couldn't run the risk forecast. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      setError(describeError(err, { action: 'run the risk forecast' }).body);
     } finally {
       setIsLoading(false);
     }
@@ -112,12 +113,12 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
         style={styles.initCard}
         onPress={() => void loadOrAnalyze()}
         accessibilityRole="button"
-        accessibilityLabel="Run AI risk analysis"
+        accessibilityLabel="Check schedule risks"
         testID="schedule-risk-run"
       >
         <MageAIMark size={18} color={themeColors.accent} />
         <View style={styles.initTextCol}>
-          <Text style={styles.initText}>{error ? 'Tap to try the risk analysis again' : 'Tap to run AI Risk Analysis'}</Text>
+          <Text style={styles.initText}>{error ? 'Tap to check risks again' : 'Tap to check schedule risks'}</Text>
           {error ? <Text style={styles.initError}>{error}</Text> : null}
         </View>
       </TouchableOpacity>
@@ -129,7 +130,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       <View style={styles.card}>
         <View style={styles.loadingRow}>
           <ActivityIndicator size="small" color={themeColors.accent} />
-          <Text style={styles.loadingText}>Analyzing schedule risks...</Text>
+          <Text style={styles.loadingText}>Checking the schedule for risks…</Text>
         </View>
       </View>
     );
@@ -148,7 +149,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MageAIMark size={16} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>AI Risk Forecast</Text>
+          <Text style={styles.headerTitle}>Risk forecast</Text>
         </View>
         <TouchableOpacity
           onPress={() => void loadOrAnalyze(true)}
@@ -206,7 +207,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
           <View style={styles.riskHeader}>
             <CheckCircle2 size={14} color={Colors.successDark} strokeWidth={1.75} />
             <Text style={[styles.riskSeverity, { color: Colors.successDark }]}>
-              LOW RISK: {lowCount + otherCount} other tasks on track
+              Low risk: {lowCount + otherCount} other tasks on track
             </Text>
           </View>
         </View>
@@ -214,14 +215,14 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
 
       <View style={styles.confidenceRow}>
         <View style={styles.confItem}>
-          <Text style={styles.confLabel}>Completion Confidence</Text>
+          <Text style={styles.confLabel}>Completion confidence</Text>
           <Text style={[styles.confValue, { color: (result.overallConfidence ?? 0) >= 70 ? themeColors.success : Colors.warning }]}>
             {result.overallConfidence ?? 0}%
           </Text>
         </View>
         {result.predictedEndDate ? (
           <View style={styles.confItem}>
-            <Text style={styles.confLabel}>Predicted End</Text>
+            <Text style={styles.confLabel}>Predicted finish</Text>
             <Text style={styles.confValue}>{result.predictedEndDate}</Text>
           </View>
         ) : null}

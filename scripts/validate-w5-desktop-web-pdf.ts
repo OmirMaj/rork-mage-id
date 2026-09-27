@@ -168,7 +168,7 @@ console.log('\n#56 native: the sealed PDF is downloaded, then the LOCAL copy is 
 {
   reset(); signError = 'Object not found'; Platform.OS = 'ios';
   const err = await catchMsg(sealing.downloadSealedContractPdf({ contract: CONTRACT, userId: 'u1', supabase }));
-  ok('a failed signed-URL mint is reported', !!err && /Failed to create a download link: Object not found/.test(err), String(err));
+  ok('a failed signed-URL mint is reported (as a sentence, never the raw storage text)', !!err && /Couldn't create a download link/.test(err) && !/Object not found/.test(err), String(err));
   signError = null;
 }
 
@@ -201,7 +201,7 @@ console.log('\n#56 web: the tab opens in the tap, a block is said out loud:');
   reset(); Platform.OS = 'web'; nextWindow = makeWin(); signError = 'JWT expired';
   const w = nextWindow;
   const err = await catchMsg(sealing.downloadSealedContractPdf({ contract: CONTRACT, userId: 'u1', supabase }));
-  ok('a failed mint rethrows', !!err && /JWT expired/.test(err), String(err));
+  ok('a failed mint rethrows (as a sentence, never the raw auth text)', !!err && /Couldn't create a download link/.test(err) && !/JWT expired/.test(err), String(err));
   ok('…and closes the blank tab instead of leaving it hanging', w.closed === true);
   signError = null;
 }

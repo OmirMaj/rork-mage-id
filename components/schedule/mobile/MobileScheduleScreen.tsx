@@ -85,7 +85,7 @@ import { claimScheduleEditSeed, MODAL_DISMISS_DELAY_MS } from '@/utils/copilot/i
 // by TaskDetailSheet's jump-to-plan action. Renaming the key would be a
 // behaviour change dressed up as a copy fix.
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
-const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living Plan'], ['progress', 'Progress'], ['team', 'Team']];
+const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', 'Living plan'], ['progress', 'Progress'], ['team', 'Team']];
 
 // ---------------------------------------------------------------------------
 // The phone's schedule audit entry.
@@ -441,7 +441,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     const what = ROW_FIELD_KEY_LABEL[first.key] ?? first.key;
     // Neutral about who: a stamp this device did not mint may be the foreman's
     // or the GC's own other device.
-    setRowConflictNotice(`${title}'s ${what} was updated elsewhere — in the field or on another device — at ${when}, after you opened it, so your change was not saved. It now shows that value — change it again if yours is right.`);
+    setRowConflictNotice(`${title}'s ${what} was changed on another device at ${when}, so your change wasn't saved. It now shows the newer value. Change it again if yours is right.`);
   }, [updateProjectRaw]);
   // Re-send what did not land (#138). The row is READ FIRST and the decision is
   // made against the server's copy (planFieldRetry): a phone that had no
@@ -619,7 +619,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     const drafted = peerChangedKeys.filter((k) => SHEET_DRAFT_KEYS.includes(k));
     if (drafted.length > 0) {
       const what = drafted.map((k) => ROW_FIELD_KEY_LABEL[k] ?? k).join(', ');
-      setScheduleNotice(`${followed.title || 'This task'} was updated elsewhere while it was open (${what}). The list shows the new value — close and reopen the task to edit from it.`);
+      setScheduleNotice(`${followed.title || 'This task'} was changed on another device while it was open (${what}). The list shows the new value. Close and reopen the task to edit it.`);
     }
   }, [tasks]);
 
@@ -1099,7 +1099,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
     // against today (SCHED-NO-ANCHOR).
     const target = values.startIso ? parseCalendarDay(values.startIso) : null;
     if (target && !base) {
-      showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule\u2019s start date first \u2014 without it a calendar date has no day number. The task will be added after the last one.');
+      showAlert(UNDATED_SCHEDULE_TITLE, 'Set the schedule\u2019s start date first. Without it, a calendar date has no day number, so the task is added after the last one.');
     }
     if (target && base) {
       // B4 review A9: startDay is a WORKING-day number (the CPM engine,
@@ -1281,7 +1281,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
   const applyStartDate = useCallback((pickedIso: string) => {
     if (!selectedProject || !activeSchedule) return;
     const day = parseCalendarDay(pickedIso);
-    if (!day) { showAlert('Invalid date', 'Pick a day from the calendar.'); return; }
+    if (!day) { showAlert('Check the date', 'Pick a day from the calendar.'); return; }
     const iso = toCalendarDayString(day);
     const nextTasks = activeSchedule.tasks;
     const cpm = runCpm(nextTasks, {
@@ -1346,7 +1346,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
           icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
           title="No project yet"
           message="Create a project to build its schedule."
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as never)}
         />
       </View>
@@ -1534,7 +1534,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
             <EmptyState
               icon={<Mic size={36} color={colors.accent} strokeWidth={1.75} />}
               title="No schedule yet"
-              message="Say the scope out loud — MAGE asks a few grounded questions, then builds the schedule for you. Or add work packages by hand."
+              message="Say the scope out loud. MAGE asks a few questions, then builds the schedule, or you can add work packages by hand."
               actionLabel="Build by voice"
               onAction={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)}
               secondaryLabel="Add manually"
@@ -1545,7 +1545,7 @@ export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { con
               icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
               title="No schedule yet"
               message="Add work packages to start building the schedule. Add an estimate first to build it by voice."
-              actionLabel="New Work Package"
+              actionLabel="New work package"
               onAction={() => setShowAdd(true)}
             />
           )
@@ -1865,11 +1865,11 @@ function FinishDateSheet({
             {!!verdict.detail && <Text style={styles.finishDetail}>{verdict.detail}</Text>}
           </View>
 
-          <Text style={styles.section}>WHAT IS DRIVING THE DATE</Text>
+          <Text style={styles.section}>What&apos;s driving the finish date</Text>
           <View style={styles.finishCard}>
             {chain.length === 0 ? (
               <Text style={styles.finishEmpty}>
-                No critical chain yet — link the work packages that have to happen in order and the driver appears here.
+                No critical chain yet. Link the work packages that have to happen in order and the driver appears here.
               </Text>
             ) : chain.map((t, i) => {
               // Undated schedules print the WORKING-DAY number instead of a
@@ -1896,7 +1896,7 @@ function FinishDateSheet({
             })}
           </View>
 
-          <Text style={styles.section}>BRING THE PLAN UP TO DATE</Text>
+          <Text style={styles.section}>Update the plan</Text>
           <View style={styles.finishCard}>
             {!hasDataDate ? (
               <>
@@ -1978,7 +1978,7 @@ function FinishDateSheet({
 
           {/* THE PLAN THIS IS MEASURED AGAINST. Without a lock there is no
               "behind plan", only pace — this is where the phone gets one. */}
-          <Text style={styles.section}>THE PLAN YOU ARE MEASURED AGAINST</Text>
+          <Text style={styles.section}>Baseline</Text>
           <View style={styles.finishCard}>
             {!hasDataDate ? (
               <>
@@ -2022,7 +2022,7 @@ function FinishDateSheet({
             ) : !activeBaseline ? (
               <>
                 <Text style={styles.finishBody}>
-                  No plan is locked, so this schedule can only read pace — it cannot say how many days behind or ahead of plan you are.
+                  No plan is locked, so this schedule can only read pace. It can&apos;t say how many days behind or ahead of plan you are.
                 </Text>
                 <Text style={styles.finishNote}>
                   Locking records every task’s dates{finishDateLabel !== '—' ? ` and the ${finishDateLabel} finish` : ''} as the plan later dates are compared with.
@@ -2243,7 +2243,7 @@ function LivingFloorPlanContainer({
     const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
     const extras: string[] = [];
     if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);
-    if (droppedExcess > 0) extras.push(`oldest ${droppedExcess} trimmed (cap ${PLAN_SHARE_MAX_PHOTOS})`);
+    if (droppedExcess > 0) extras.push(`Oldest ${droppedExcess} left out (limit ${PLAN_SHARE_MAX_PHOTOS})`);
     if (droppedUnsigned > 0) extras.push(`${droppedUnsigned} photo${droppedUnsigned === 1 ? '' : 's'} skipped (couldn’t get a link — try again online)`);
     if (droppedWithdrawn > 0) extras.push(`${droppedWithdrawn} photo${droppedWithdrawn === 1 ? '' : 's'} left out (draft or recalled from the client portal)`);
     const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
@@ -2309,7 +2309,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   finishDate: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, letterSpacing: -0.5 },
   finishVerdict: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 4 },
   finishDetail: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 3 },
-  section: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8, marginBottom: 8, marginLeft: 4 },
+  section: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8, marginBottom: 8, marginLeft: 4, textTransform: 'uppercase' as const },
   // cardSurface, not a hand-rolled recipe (validate-ui-adoption's ratchet):
   // one definition of what a card looks like, squircle corners included.
   finishCard: { ...cardSurface(t, { radius: 'lg', pad: 14 }), marginBottom: 16 },

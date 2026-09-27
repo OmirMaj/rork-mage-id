@@ -364,7 +364,7 @@ export function milestoneBlockMessage(
       if (ceiling.remaining <= 0.005) {
         return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving nothing to bill against it — this milestone is ${m(amount)}. Work beyond the contract belongs on a change order, which bills on its own ledger; if the contract value itself has changed, update the contract value here and the schedule will follow.`;
       }
-      return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving ${m(ceiling.remaining)} — this milestone is ${m(amount)}. Billing it would take the total past the contract. Bill the remainder from Bill from Estimate, or update the contract value here if it has changed and the schedule will follow.`;
+      return `${m(ceiling.billed)} of this ${m(ceiling.contractValue)} contract has already been invoiced against contract scope, leaving ${m(ceiling.remaining)} — this milestone is ${m(amount)}. Billing it would take the total past the contract. Bill the remainder from Bill from estimate, or update the contract value here if it has changed and the schedule will follow.`;
     }
   }
 }
@@ -839,7 +839,7 @@ export function milestoneBillEffect(
     return {
       kind: 'progress',
       title: 'Billed as work is completed',
-      message: 'Progress payments are billed from Bill from Estimate as the work gets done, so this row never becomes one lump invoice.',
+      message: 'Progress payments are billed from Bill from estimate as the work gets done, so this row never becomes one lump invoice.',
     };
   }
   if (!bill.billable) {
@@ -983,7 +983,7 @@ export function recordPaymentDecision(
   }
   const amount = toCents(parsed);
   if (amount <= 0) {
-    return { kind: 'refuse', title: 'Invalid Amount', message: 'Enter a payment amount above $0.00.' };
+    return { kind: 'refuse', title: 'Enter an amount above $0', message: 'Enter a payment amount above $0.00.' };
   }
   const balance = toCents(Math.max(0, balanceDue));
   if (amount > balance + 0.005) {
@@ -1265,7 +1265,7 @@ export function reminderBlockMessage(reason: ReminderBlockReason, lastSentMs?: n
     case 'payment_pending':
       return 'The client started a bank payment on this invoice and it is still processing (bank transfers take 3-5 business days). Reminders wait until it clears or fails.';
     case 'not_project_owner':
-      return "Reminders go out under the job owner's name, and this invoice was not created from the owner's account — so no reminder is sent for it.";
+      return "Reminders go out under the project owner's name, and this invoice was not created from the owner's account, so no reminder is sent for it.";
     case 'no_recipient':
       return 'Automatic reminders are off — no client email on this invoice or project. Send the invoice to the client by email (or add a portal invitee) and reminders start.';
     // The server owns this string's input, so a value the client doesn't know
@@ -1372,7 +1372,7 @@ export const INVOICE_INSERT_UNCONFIRMED_REASON =
  * on screen so he can try again once the job has synced.
  */
 export function invoiceInsertRefusedMessage(invoiceNumber: number): string {
-  return `Invoice #${invoiceNumber} was not sent. The server refused to save it — usually because this job is still syncing from when you were offline, or your access to it changed. Nothing went to your client. ${INVOICE_UNSAVED_NEXT_STEP}`;
+  return `Invoice #${invoiceNumber} was not sent. The server refused to save it — usually because this project is still syncing from when you were offline, or your access to it changed. Nothing went to your client. ${INVOICE_UNSAVED_NEXT_STEP}`;
 }
 
 /**
@@ -1562,7 +1562,7 @@ export function reminderCarriesPortalLink(
 // (20260920030000_invoices_owner_insert.sql).
 
 export const INVOICE_OWNER_ONLY_REASON =
-  "Only the job's owner bills the client — their invoices and Pay link go to their bank.";
+  "Only the project's owner bills the client — their invoices and Pay link go to their bank.";
 
 export type InvoiceRoleGate = 'open' | 'loading' | 'error' | 'paused' | 'collaborator' | 'no_access';
 
@@ -1604,21 +1604,21 @@ export function invoiceRoleBlockedCopy(
 ): { title: string; body: string } {
   switch (gate) {
     case 'loading':
-      return { title: '', body: 'Checking your role on this job…' };
+      return { title: '', body: 'Checking your role on this project…' };
     case 'error':
       return {
-        title: 'Could not check your role on this job',
-        body: 'MAGE could not load who is on this project, so it cannot tell whether you may bill the client here. Check your connection and try again.',
+        title: 'Couldn’t check your role on this project',
+        body: 'MAGE couldn’t load who is on this project, so it can’t tell whether you can bill the client here. Check your connection and try again.',
       };
     case 'paused':
       return {
         title: 'Waiting for a connection',
-        body: `${(pausedReason ?? '').trim() || "You're offline and this phone has not seen your role on this job yet."} Invoices open once it can check who owns the job.`,
+        body: `${(pausedReason ?? '').trim() || "You're offline and this phone has not seen your role on this project yet."} Invoices open once MAGE can check who owns the project.`,
       };
     case 'collaborator':
-      return { title: 'Billing is the job owner’s', body: `${INVOICE_OWNER_ONLY_REASON} Ask the job's owner to send this invoice.` };
+      return { title: 'Only the project owner bills', body: `${INVOICE_OWNER_ONLY_REASON} Ask the project's owner to send this invoice.` };
     default:
-      return { title: 'You are not on this job', body: `This job is not shared with you. ${INVOICE_OWNER_ONLY_REASON}` };
+      return { title: 'You’re not on this project', body: `This project is not shared with you. ${INVOICE_OWNER_ONLY_REASON}` };
   }
 }
 

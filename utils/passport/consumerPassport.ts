@@ -1027,7 +1027,7 @@ export function buildPassportHandoff(p: ConsumerPassport, maxItemsPerSection = 8
 
   push(`HOME PASSPORT — ${p.home.address || 'this home'}`);
   if (p.home.onRecordSince) push(`On record since ${p.home.onRecordSince}.`);
-  push(`${p.stats.completedProjectCount} completed project(s), ${p.stats.contractorCount} contractor(s) on file.`);
+  push(`${p.stats.completedProjectCount} completed ${p.stats.completedProjectCount === 1 ? 'project' : 'projects'}, ${p.stats.contractorCount} ${p.stats.contractorCount === 1 ? 'contractor' : 'contractors'} on file.`);
 
   if (p.projects.length > 0) {
     push('');

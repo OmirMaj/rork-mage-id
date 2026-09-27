@@ -65,7 +65,6 @@ import {
   resendSend,
   fmtMoney,
   escapeHtml,
-  EMOJI,
   type ProjectContextOpts,
   type UnsubscribeOpts,
 } from "../_shared/email.ts";
@@ -451,14 +450,14 @@ function wave3NotifyText(event: string, p: Record<string, unknown>, projectName:
       const status = p.portal_status === 'sent' ? 'sent' : p.portal_status === 'draft' ? 'draft' : null;
       const tail = status === 'sent'
         ? (p.in_weekly_digest === false
-          ? "It's already on the homeowner's portal. Hide it if it shouldn't be."
-          : "It's already on the homeowner's portal and will be in Friday's update. Hide it if it shouldn't be.")
+          ? "It's already on your client's portal. Hide it if it shouldn't be."
+          : "It's already on your client's portal and will be in Friday's update. Hide it if it shouldn't be.")
         : status === 'draft'
-          ? 'Review it before anything goes to the homeowner.'
-          : 'Open it to check what the homeowner can see.';
+          ? 'Review it before anything goes to your client.'
+          : 'Open it to check what your client can see.';
       const rows: [string, string, boolean?][] = [['Filed by', who]];
       if (day) rows.push(['Report date', day]);
-      rows.push(['Homeowner portal', status === 'sent' ? 'Showing now' : status === 'draft' ? 'Not shown — waiting on you' : 'Check in the app']);
+      rows.push(['Client portal', status === 'sent' ? 'Showing now' : status === 'draft' ? 'Not shown — waiting on you' : 'Check in the app']);
       return {
         prefKey: 'field_report',
         pushTitle: `Daily report filed · ${projectName}`,
@@ -878,7 +877,7 @@ function wave5NotifyText(event: string, f: Record<string, unknown>, projectName:
         emailSubject: `${who} signed their lien waiver${onJob}`,
         eyebrow: 'Lien waiver signed',
         title: `${who} signed their lien waiver`,
-        subtitle: 'The signed waiver is on the job’s lien waiver list.',
+        subtitle: 'The signed waiver is on the project’s lien waiver list.',
         rows,
         ctaLabel: 'Open lien waivers',
       };
@@ -1526,7 +1525,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           preheader: `${author}: ${body.slice(0, 100)}`,
           eyebrow: 'New portal message',
           title: `${author} sent you a message`,
-          subtitle: `Reply through MAGE ID — your client gets an email with your answer and a link back to their portal.`,
+          subtitle: `Reply through MAGE ID. Your client gets an email with your answer and a link back to their portal.`,
           bodyHtml: emailQuote(trimmed),
           cta: { label: 'Reply in MAGE ID', href: appLink('portal_message', projectData) },
           secondaryCta: portalUrl ? { label: 'View their portal', href: portalUrl } : undefined,
@@ -1551,7 +1550,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           preheader: `${proposer} suggested ${fmtMoney(amount)} for ${projectName}.`,
           eyebrow: 'Budget proposal',
           title: `${proposer} suggested ${fmtMoney(amount)}`,
-          subtitle: 'Accept it as the project target, counter back, or just message — you decide.',
+          subtitle: 'Accept it as the project target, counter, or reply with a message.',
           bodyHtml: `${emailStatCard(emailStatRow('Proposed budget', fmtMoney(amount), { emphasize: true }))}${note ? emailQuote(note) : ''}`,
           cta: { label: 'Review the proposal', href: appLink('budget_proposal', projectData) },
         },
@@ -1599,7 +1598,6 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const description = typeof payload.co_description === 'string' ? payload.co_description : '';
       const isApproved = decision === 'approved';
       const verb = isApproved ? 'approved' : 'declined';
-      const symbol = isApproved ? EMOJI.approved : EMOJI.declined;
       await dispatchOne('gc', {
         prefKey: 'co_approval',
         pushTitle: `${isApproved ? 'CO approved' : 'CO declined'} · ${projectName}`,
@@ -1607,18 +1605,18 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         pushData: { projectId, portalId, kind: 'co_approval', changeOrderId: coId ?? undefined },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${symbol} ${coName === 'a change order' ? 'Change order' : coName} ${verb}${coAmount ? ` · ${coAmount}` : ''} · ${projectName}`,
+        emailSubject: `${coName === 'a change order' ? 'Change order' : coName} ${verb}${coAmount ? ` · ${coAmount}` : ''} · ${projectName}`,
         emailWrap: {
           preheader: `${signerName} ${verb} ${coName}${coAmount ? ` for ${coAmount}` : ''}.`,
           eyebrow: isApproved ? 'Change order approved' : 'Change order declined',
           title: `${signerName} ${verb} ${coName}`,
           subtitle: isApproved
-            ? 'Approval is logged and time-stamped — proceed with the work.'
+            ? 'Approval is logged and time-stamped. Proceed with the work.'
             // #73: name the action the CO screen actually has — "Revise &
             // re-issue" on the declined CO starts a new version with the next
             // number (the declined one keeps its record).
             : note
-              ? 'Their reason is below — answer it, then use Revise & re-issue on the change order if it still applies.'
+              ? 'Their reason is below. Answer it, then use Revise & re-issue on the change order if it still applies.'
               : 'They gave no reason. Reach out to clarify, then use Revise & re-issue on the change order if appropriate.',
           bodyHtml: `${emailStatCard([
             coName !== 'a change order' ? emailStatRow('Change order', escapeHtml(coName.replace('CO ', ''))) : '',
@@ -1688,18 +1686,18 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         }).catch(() => {});
         break;
       }
-      const statusMap: Record<string, { eyebrow: string; title: string; subtitle: string; symbol: string; accent?: string }> = {
-        paid: { eyebrow: 'Invoice paid', title: `${company} paid invoice #${num}`, subtitle: 'Payment is on its way — check your bank for the deposit. We sent this on their behalf.', symbol: EMOJI.paid, accent: '#026354' },
-        approved: { eyebrow: 'Invoice approved', title: `${company} approved invoice #${num}`, subtitle: "You'll get another note once payment is on its way.", symbol: EMOJI.approved },
-        rejected: { eyebrow: 'Invoice update', title: `${company} sent back invoice #${num}`, subtitle: 'Reach out for clarification or revise and resubmit through your portal.', symbol: EMOJI.declined, accent: '#C2410C' },
+      const statusMap: Record<string, { eyebrow: string; title: string; subtitle: string; statusWord: string; accent?: string }> = {
+        paid: { eyebrow: 'Invoice paid', title: `${company} paid invoice #${num}`, subtitle: 'Payment is on its way. Check your bank for the deposit. We sent this on their behalf.', statusWord: 'paid', accent: '#026354' },
+        approved: { eyebrow: 'Invoice approved', title: `${company} approved invoice #${num}`, subtitle: "You'll get another note once payment is on its way.", statusWord: 'approved' },
+        rejected: { eyebrow: 'Invoice update', title: `${company} sent back invoice #${num}`, subtitle: 'Reach out for clarification, or revise and resubmit through your portal.', statusWord: 'sent back', accent: '#C2410C' },
       };
-      const meta = statusMap[newStatus] ?? { eyebrow: 'Invoice update', title: `${company} updated invoice #${num}`, subtitle: '', symbol: '' };
+      const meta = statusMap[newStatus] ?? { eyebrow: 'Invoice update', title: `${company} updated invoice #${num}`, subtitle: '', statusWord: 'updated' };
       const subject = newStatus === 'paid'
-        ? `${meta.symbol} Paid: ${fmtMoney(amount)} · invoice #${num}`
-        : `Invoice #${num} ${newStatus} · ${fmtMoney(amount)}`;
+        ? `Invoice #${num} paid · ${fmtMoney(amount)}`
+        : `Invoice #${num} ${meta.statusWord} · ${fmtMoney(amount)}`;
 
       const html = wrapEmailHtml({
-        preheader: `${company} ${newStatus === 'paid' ? 'just paid' : newStatus} invoice #${num} for ${fmtMoney(amount)}.`,
+        preheader: `${company} ${newStatus === 'paid' ? 'paid' : meta.statusWord} invoice #${num} for ${fmtMoney(amount)}.`,
         eyebrow: meta.eyebrow,
         title: `Hi ${submitter},`,
         subtitle: meta.title,
@@ -1842,7 +1840,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           preheader: `${cityState ? cityState + ' · ' : ''}${budgetLine}. ${scope.slice(0, 80)}`,
           eyebrow: 'New project nearby',
           title,
-          subtitle: 'Open it to see drawings, photos, and the full scope. Bid before the deadline closes.',
+          subtitle: 'Open it to see plans, photos and the full scope. Bid before the deadline.',
           bodyHtml: `${emailStatCard(`${emailStatRow('Location', cityState || 'Pending')}${emailStatRow('Budget', budgetLine, { emphasize: true })}`)}${scope ? emailQuote(scope) : ''}`,
           cta: { label: 'View project', href: detailUrl },
         },
@@ -1866,22 +1864,22 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const newProjectLink = appLink('rfp_awarded', { project_id: newProjectId });
       await dispatchOne('gc', {
         prefKey: 'rfp_awarded',
-        pushTitle: `🎉 You won the bid · ${projectName}`,
-        pushBody: `The homeowner picked you. Project is set up — open it to publish their portal and send them the link.`,
+        pushTitle: `Bid won · ${projectName}`,
+        pushBody: `The client picked you. The project is set up. Open it to publish their portal and send them the link.`,
         pushData: { projectId: newProjectId, kind: 'rfp_awarded' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${EMOJI.celebrate} You won the bid · ${projectName}`,
+        emailSubject: `Bid won · ${projectName}`,
         emailWrap: {
-          preheader: `Congrats — the homeowner picked you for ${projectName}.`,
+          preheader: `The client picked you for ${projectName}.`,
           accent: '#026354',
           eyebrow: 'Bid awarded',
-          title: 'You won.',
-          subtitle: `The homeowner just awarded ${projectName} to you. We've set up the project in MAGE ID with their address, photos, drawings, scope and the price they accepted. Their email is already on the client-portal invite — open portal setup to publish it and send them the link.`,
+          title: 'The project is yours.',
+          subtitle: `The client awarded ${projectName} to you. The project is set up in MAGE ID with their address, photos, plans, scope and the price they accepted. Their email is already on the client portal invite. Open portal setup to publish it and send them the link.`,
           bodyHtml: `
             ${emailHero({ kicker: 'Project awarded', bigText: projectName, subText: awardedValueText ? `${awardedValueText} contract value` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
-            <p style="margin:0 0 12px;"><strong>What's next:</strong> open the project, review what the homeowner posted, then publish their portal and send the link to ${homeownerEmail ? escapeHtml(homeownerEmail) : 'the homeowner'} so they know you're on it.</p>
-            <p style="margin:0;color:#9AA3AD;font-size:13px;">Other bidders were politely declined automatically — you don't need to do anything on that side.</p>
+            <p style="margin:0 0 12px;"><strong>What's next:</strong> open the project, review what the client posted, then publish their portal and send the link to ${homeownerEmail ? escapeHtml(homeownerEmail) : 'the client'} so they know you're on it.</p>
+            <p style="margin:0;color:#9AA3AD;font-size:13px;">The other bidders were declined automatically. There's nothing to do on that side.</p>
           `,
           cta: { label: 'Open the project', href: newProjectLink },
         },
@@ -1895,22 +1893,22 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       const contractTitle = (payload.contract_title as string) || 'the construction agreement';
       await dispatchOne('gc', {
         prefKey: 'contract_signed',
-        pushTitle: `${EMOJI.signed} Contract signed · ${projectName}`,
+        pushTitle: `Contract signed · ${projectName}`,
         pushBody: `${signerName} signed ${contractTitle}${contractValue ? ` (${fmtMoney(contractValue)})` : ''}`,
         pushData: { projectId, portalId, kind: 'contract_signed' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${EMOJI.signed} Contract signed · ${projectName}${contractValue ? ` · ${fmtMoney(contractValue)}` : ''}`,
+        emailSubject: `Contract signed · ${projectName}${contractValue ? ` · ${fmtMoney(contractValue)}` : ''}`,
         emailWrap: {
-          preheader: `${signerName} just signed ${contractTitle}${contractValue ? ` for ${fmtMoney(contractValue)}` : ''}.`,
+          preheader: `${signerName} signed ${contractTitle}${contractValue ? ` for ${fmtMoney(contractValue)}` : ''}.`,
           eyebrow: 'Contract signed',
-          title: 'Signed and binding.',
-          subtitle: `${signerName} just counter-signed ${contractTitle}. The agreement is now in effect — start the work with confidence.`,
+          title: 'Signed. The job is yours.',
+          subtitle: `${signerName} counter-signed ${contractTitle}. The agreement is now in effect.`,
           accent: '#026354',
           bodyHtml: `
             ${contractValue ? emailHero({ kicker: 'Contract value', bigText: fmtMoney(contractValue), subText: `Signed by ${signerName}`, accent: '#026354' }) : ''}
             ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow('Signed by', escapeHtml(signerName))}${contractValue ? emailStatRow('Contract value', fmtMoney(contractValue), { emphasize: true, valueColor: '#026354' }) : ''}${emailStatRow('Signed at', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}`)}
-            <p style="margin:0;">The signed PDF is in MAGE ID under this project's Contract section — pull it for your records. A copy lives in the homeowner's portal too, so they can reference it any time.</p>
+            <p style="margin:0;">The signed PDF is in MAGE ID under this project's contract. A copy is in your client's portal too, so they can refer to it any time.</p>
           `,
           cta: { label: 'View signed contract', href: appLink('contract_signed', projectData) },
           secondaryCta: portalUrl ? { label: 'Open client portal', href: portalUrl } : undefined,
@@ -1938,7 +1936,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           preheader: `Your client picked ${productName}${brand ? ' by ' + brand : ''} for ${category}.`,
           eyebrow: overBudget ? 'Selection chosen · over allowance' : 'Selection chosen',
           title: `Picked: ${productName}`,
-          subtitle: 'Place the order, lock the spec, and the choice will sync into MAGE ID under Selections.',
+          subtitle: 'Place the order and lock the spec. The choice is in MAGE ID under Selections.',
           bodyHtml: `
             ${emailProductCard({ imageUrl: productImage, productName, brand, category, price: totalCost ? fmtMoney(totalCost) : undefined, overBudget })}
           `,
@@ -1969,7 +1967,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           preheader: `${askerName}: ${question.slice(0, 100)}`,
           eyebrow: 'New question on your RFP',
           title: `${askerName} asked:`,
-          subtitle: 'Answer once — every bidder sees the same response so your scope stays clean.',
+          subtitle: 'Answer once. Every bidder sees the same response, so your scope stays consistent.',
           bodyHtml: `${emailQuote(question)}<p style="margin:0;"><strong>RFP:</strong> ${escapeHtml(rfpTitle)}</p>`,
           cta: { label: 'Answer in MAGE ID', href: detailUrl },
         },
@@ -2049,19 +2047,19 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       // Homeowner-bound — the warm hand-off email.
       if (homeownerEmail) {
         const html = wrapEmailHtml({
-          preheader: `${company} sent you the closeout binder for ${projectName} — it's all in your portal.`,
+          preheader: `${company} sent you the closeout binder for ${projectName}. It's in your portal.`,
           eyebrow: 'Closeout binder delivered',
-          title: `Hi ${homeownerName} — your home's owner's manual.`,
+          title: `Hi ${homeownerName}, your home's records are ready`,
           // Phase 0 (founder decision 5): a sub's direct contact reaches the
           // owner only when the GC shares it for the job, and it is off by
           // default, so this line does not promise one. The trades are named
           // either way.
-          subtitle: `${company} just delivered the closeout binder for ${projectName}. Every paint color, fixture brand, warranty, maintenance reminder and the trades who did the work — all in your portal.`,
+          subtitle: `${company} delivered the closeout binder for ${projectName}. Every paint color, fixture brand, warranty, maintenance reminder and the trades who did the work are in your portal.`,
           accent: '#026354',
           bodyHtml: `
             ${emailHero({ kicker: 'Project complete', bigText: projectName, subText: finalCost ? `Final cost: ${fmtMoney(finalCost)}` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
             ${emailStatCard(`${photoCount ? emailStatRow('Project photos', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties on file', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
-            <p style="margin:0 0 14px;">Open your portal and tap <strong>Closeout Binder</strong>. Read it on your phone, or hit Print to save a PDF you can keep forever.</p>
+            <p style="margin:0 0 14px;">Open your portal and tap <strong>Closeout binder</strong>. Read it on your phone, or tap Print to save a PDF you can keep.</p>
             <p style="margin:0;color:#9AA3AD;font-size:13px;">Save the binder as a PDF while you can: the portal link below stays open until 30 days after ${escapeHtml(company)} closes out the job, then it stops working.</p>
           `,
           cta: { label: 'Open my portal', href: portalLink2 },
@@ -2076,7 +2074,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         });
         const r = await sendIfNotSuppressed({
           to: homeownerEmail,
-          subject: `${EMOJI.binder} Your closeout binder is ready · ${projectName}`,
+          subject: `Closeout binder ready · ${projectName}`,
           html,
           fromCompanyName: gc.company_name ?? undefined,
           replyTo: gc.email ?? undefined,
@@ -2110,24 +2108,24 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
       if (gc.email) {
         await dispatchOne('gc', {
           prefKey: 'closeout_binder',
-          pushTitle: `📦 Closeout delivered · ${projectName}`,
+          pushTitle: `Closeout delivered · ${projectName}`,
           pushBody: `Binder sent${homeownerName ? ' to ' + homeownerName : ''}. Project complete.`,
           pushData: { projectId, kind: 'closeout_binder_sent_confirmation', binderId },
           pushToken: gc.push_token,
           email: gc.email,
-          emailSubject: `${EMOJI.binder} Closeout delivered · ${projectName}`,
+          emailSubject: `Closeout delivered · ${projectName}`,
           emailWrap: {
-            preheader: `Closeout binder for ${projectName} sent${homeownerName !== 'there' ? ` to ${homeownerName}` : ''}. Nice work.`,
+            preheader: `Closeout binder for ${projectName} sent${homeownerName !== 'there' ? ` to ${homeownerName}` : ''}.`,
             accent: '#026354',
             eyebrow: 'Project closed out',
             title: 'Binder delivered. Project complete.',
-            subtitle: `${homeownerName !== 'there' ? `${homeownerName} now has` : 'The homeowner now has'} the full closeout package — every spec, warranty, and maintenance reminder for ${projectName}. Nice work.`,
+            subtitle: `${homeownerName !== 'there' ? `${homeownerName} now has` : 'Your client now has'} the full closeout package: every spec, warranty and maintenance reminder for ${projectName}.`,
             bodyHtml: `
               ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${photoCount ? emailStatRow('Photos delivered', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties packaged', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
-              <p style="margin:0;">Their warranty walk reminder is set for 11 months from substantial completion — we'll surface it on your home tab when it's time.</p>
+              <p style="margin:0;">Their warranty walk reminder is set for 11 months from substantial completion. It shows on your Home tab when it's time.</p>
             `,
             cta: { label: 'View binder', href: appLink('closeout_binder_sent', projectData) },
-            secondaryCta: portalUrl ? { label: 'See homeowner portal', href: portalLink2 } : undefined,
+            secondaryCta: portalUrl ? { label: 'Open client portal', href: portalLink2 } : undefined,
           },
         });
       }

@@ -141,7 +141,7 @@ export function usePortalBudgetProposals(projectId: string | undefined) {
       // query rather than materialise an empty list the server never sent.
       if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous);
       else void queryClient.resetQueries({ queryKey, exact: true });
-      oops(`Couldn't ${args.status === 'accepted' ? 'accept' : 'decline'} that proposal — check your connection and try again.`);
+      oops(`Couldn't ${args.status === 'accepted' ? 'accept' : 'decline'} that proposal. Check your connection and try again.`);
     },
     onSuccess: (res) => {
       // 'queued': the persisted queue now carries the response, so the overlay

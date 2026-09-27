@@ -108,7 +108,7 @@ export function SubNetworkProfileView({
 
           <SignalRow
             icon={<Briefcase size={16} color={t.accent} strokeWidth={1.9} />}
-            label="Jobs closed out"
+            label="Projects closed out"
             detail={
               r.jobsInProgress > 0
                 ? `${r.jobsInProgress} still running`

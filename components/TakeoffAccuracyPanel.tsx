@@ -109,7 +109,7 @@ function TakeoffAccuracyPanelImpl({ takeoff, overrides }: TakeoffAccuracyPanelPr
       </View>
       <View style={styles.legend}>
         <Text style={styles.legendText}>
-          Positive % means the AI under-counted (you raised the number). Negative means it over-counted.
+          Positive % means MAGE under-counted (you raised the number). Negative means it over-counted.
         </Text>
       </View>
       {/* Feedback CTA removed pre-launch — was labeled "(coming soon)" with

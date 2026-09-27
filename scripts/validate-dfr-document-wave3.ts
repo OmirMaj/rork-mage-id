@@ -139,9 +139,9 @@ console.log('\n#26 weather prints what was recorded; the day is the report\'s da
   ok('…and no invented high/low pair', !live.includes('72° / 72°F'));
 
   ok('a backfilled report is not "Today\'s report"', !blank.includes('Today&#39;s report') && !blank.includes("Today's report"));
-  ok('…its subtitle is "Field report for <project>"', blank.includes('Field report for Maple St Remodel.'));
-  ok('…its intro names its own day', blank.includes('The field report for Friday, September 11, 2026 is below.'));
-  ok('today\'s report still says "Today\'s"', live.includes('Today&#39;s report for Maple St Remodel.') && live.includes('Today&#39;s field report is below.'));
+  ok('…its subtitle is "Daily report for <project>"', blank.includes('Daily report for Maple St Remodel.'));
+  ok('…its intro names its own day', blank.includes('The daily report for Friday, September 11, 2026 is below.'));
+  ok('today\'s report still says "Today\'s"', live.includes('Today&#39;s report for Maple St Remodel.') && live.includes('Today&#39;s daily report is below.'));
   ok('the title is the calendar day west of Greenwich (not Thursday the 10th)',
     blank.includes('Friday, September 11, 2026') && !blank.includes('September 10'));
   ok('the screen no longer parseInt\'s the temperature into a high/low',
@@ -499,7 +499,7 @@ console.log('\n#35/#131/#129 change-order email:');
     ...base, portalUrl: 'https://mageid.app/p/abc', portalNeedsPasscode: true,
     taxRatePct: 8.25, taxAmount: 82.5, totalWithTax: 1082.5, originalContractSum: 50000, priorApprovedChangesTotal: 500,
   });
-  ok('#35 the portal link is the CTA', /href="https:\/\/mageid\.app\/p\/abc"[^>]*>Review &amp; sign change order/.test(withPortal));
+  ok('#35 the portal link is the CTA', /href="https:\/\/mageid\.app\/p\/abc"[^>]*>Review and sign/.test(withPortal));
   ok('#35 never "one tap"', !/one tap/i.test(withPortal));
   ok('#35 the passcode is mentioned when the portal asks for one', withPortal.includes('asks for the passcode'));
   const noPortal = em.buildChangeOrderEmailHtml({ ...base });
@@ -549,11 +549,11 @@ console.log('\n#150/#57 submittal PDF + email:');
     submittedDate: '2026-09-01', requiredDate: '2026-10-01', reviewCycles: [], currentStatus: 'pending', attachments: [],
     createdAt: '', updatedAt: '',
   } as unknown as Parameters<typeof pdf.generateSubmittalPDFUri>[0], project, branding);
-  ok('#150 Required By prints the calendar day west of Greenwich (Oct 1, not Sep 30)', /Required By<\/span><span class="doc-value">Oct 1, 2026</.test(printedHtml), printedHtml.match(/Required By[\s\S]{0,80}/)?.[0]);
+  ok('#150 Required By prints the calendar day west of Greenwich (Oct 1, not Sep 30)', /Required by<\/span><span class="doc-value">Oct 1, 2026</.test(printedHtml), printedHtml.match(/Required by[\s\S]{0,80}/)?.[0]);
   const e0 = pdf.buildSubmittalEmailHtml({ companyName: 'O', projectName: 'M', submittalNumber: 4, submittalTitle: 'Millwork', status: 'pending' });
-  ok('#57 blank message + nothing attached → never says "attached"', !/attached/i.test(e0.replace(/markups/gi, '')), e0.match(/Please review[^<]*/)?.[0]);
+  ok('#57 blank message + nothing attached → never says "attached"', !/attached/i.test(e0.replace(/markups/gi, '')), e0.match(/Review the[^<]*/)?.[0]);
   const e1 = pdf.buildSubmittalEmailHtml({ companyName: 'O', projectName: 'M', submittalNumber: 4, submittalTitle: 'Millwork', status: 'pending', attachmentCount: 1 });
-  ok('#57 with a file attached it says so', e1.includes('review the attached submittal'));
+  ok('#57 with a file attached it says so', e1.includes('Review the attached submittal'));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

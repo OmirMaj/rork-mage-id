@@ -60,8 +60,8 @@ export function countGroundingEntries(entries: readonly ProvenanceLike[]): Groun
 }
 
 const DEFAULT_EMPTY_LABEL = 'Priced from market averages — MAGE has none of your rates yet';
-const HISTORY_ONLY_LABEL = 'Priced from market averages · calibrated to your job history — no learned rates yet';
-const CALIBRATED_SUFFIX = ' · calibrated to your job history';
+const HISTORY_ONLY_LABEL = 'Priced from market averages · calibrated to your cost history · no trade rates yet';
+const CALIBRATED_SUFFIX = ' · calibrated to your cost history';
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /**

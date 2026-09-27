@@ -145,15 +145,15 @@ describe('L4 — the job page shows Code checks', () => {
     fireEvent.press(screen.getByTestId(`codethread-check-row-${CHECK_ID}`));
     await pump(3);
     const actions = screen.getByTestId('codethread-actions-permits-0');
-    fireEvent.press(within(actions).getByText('Add to Permits'));
-    const call = alert.mock.calls.find((c) => c[0] === 'Add to Permits');
+    fireEvent.press(within(actions).getByText('Add to permits'));
+    const call = alert.mock.calls.find((c) => c[0] === 'Add to permits');
     expect(call?.[1]).toBe('Add this permit to your tracker? It starts as Applied in the tracker. Update the status and date when you actually file.');
     const add = (call?.[2] ?? []).find((b) => b.text === 'Add');
     // Two confirms in the same tick: the busy guard lets one through.
     await act(async () => { add?.onPress?.(); add?.onPress?.(); });
     await pump(3);
     expect(within(screen.getByTestId('codethread-actions-permits-0')).getByText('Added to your permit tracker')).toBeTruthy();
-    expect(within(screen.getByTestId('codethread-actions-permits-0')).queryByText('Add to Permits')).toBeNull();
+    expect(within(screen.getByTestId('codethread-actions-permits-0')).queryByText('Add to permits')).toBeNull();
     // One add, one recorded action (the store dedups on disk, so count the calls).
     expect(recordSpy.mock.calls.filter((c) => c[2].kind === 'permit')).toHaveLength(1);
     const permits = JSON.parse((await AsyncStorage.getItem('mageid_permits')) ?? '[]') as { notes?: string }[];
@@ -169,11 +169,11 @@ describe('L4 — the job page shows Code checks', () => {
     fireEvent.press(screen.getByTestId(`codethread-check-row-${CHECK_ID}`));
     await pump(3);
     // Two presses before any re-render: two confirms queued, both holding the same stale closure.
-    const btn = within(screen.getByTestId('codethread-actions-permits-0')).getByText('Add to Permits');
+    const btn = within(screen.getByTestId('codethread-actions-permits-0')).getByText('Add to permits');
     fireEvent.press(btn);
     fireEvent.press(btn);
     const adds = alert.mock.calls
-      .filter((c) => c[0] === 'Add to Permits')
+      .filter((c) => c[0] === 'Add to permits')
       .map((c) => (c[2] ?? []).find((b) => b.text === 'Add'));
     expect(adds).toHaveLength(2);
     await act(async () => { adds[0]?.onPress?.(); });

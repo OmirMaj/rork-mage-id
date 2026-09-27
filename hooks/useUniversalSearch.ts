@@ -24,6 +24,15 @@ import type {
   PrequalPacket, PriceAlert,
 } from '@/types';
 
+// Communication-event labels come from a map, never the raw enum (docs/VOICE.md §6).
+const COMM_EVENT_LABEL: Record<string, string> = {
+  document_sent: 'Document sent', co_submitted: 'CO submitted', co_approved: 'CO approved', co_rejected: 'CO rejected',
+  invoice_sent: 'Invoice sent', invoice_paid: 'Invoice paid', invoice_overdue: 'Invoice overdue',
+  daily_report_sent: 'Daily report sent', collaborator_added: 'Team member added', internal_note: 'Internal note',
+  client_message: 'Client message',
+};
+
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -430,7 +439,7 @@ export function useUniversalSearch(query: string): UniversalSearchResult {
       if (best) {
         raw.push(makeResult(
           { kind: 'commEvent', id: ce.id, projectId: ce.projectId },
-          `${ce.type.replace(/_/g, ' ')} · ${ce.summary.slice(0, 40)}`,
+          `${COMM_EVENT_LABEL[ce.type] ?? ce.type} · ${ce.summary.slice(0, 40)}`,
           best,
           recencyMultiplier(ce.timestamp, now),
           projectNameById,

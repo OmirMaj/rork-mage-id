@@ -148,7 +148,7 @@ function SafetyToolboxInner() {
       // A recorded signature is immutable — signed attendees can't be pulled
       // off the sheet. Unsigned rows are still free to remove.
       if (prev[idx]?.signedAt) {
-        showAlert('Signed in — locked', 'A signed attendee is part of the record and can\'t be removed.');
+        showAlert('Signed in and locked', 'A signed attendee is part of the record and can\'t be removed.');
         return prev;
       }
       return prev.filter((_, i) => i !== idx);
@@ -161,7 +161,7 @@ function SafetyToolboxInner() {
       // Signing is append-only: once signed, it stays signed. Only an unsigned
       // attendee can be signed in.
       if (a.signedAt) {
-        showAlert('Signed in — locked', 'A signature can\'t be undone once recorded.');
+        showAlert('Signed in and locked', 'A signature can\'t be undone once recorded.');
         return a;
       }
       return { ...a, signedAt: new Date().toISOString() };
@@ -225,7 +225,7 @@ function SafetyToolboxInner() {
     if (blocked) { showAlert('Can\'t delete', blocked); return; }
     const talk = items.find(x => x.id === id);
     if (talk && talk.attendees.some(a => !!a.signedAt)) {
-      showAlert('Signed — locked', 'A toolbox talk with signed attendees is part of the safety record and can\'t be deleted.');
+      showAlert('Signed and locked', 'A toolbox talk with signed attendees is part of the safety record and can\'t be deleted.');
       return;
     }
     showAlert('Delete toolbox talk', 'Delete this toolbox talk?', [
@@ -242,19 +242,19 @@ function SafetyToolboxInner() {
   if (!project) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Toolbox Talks' }} />
+        <Stack.Screen options={{ title: 'Toolbox talks' }} />
         <EmptyState
           icon={<Megaphone size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="Open a project first"
           message="Toolbox talks are tied to a project so each one carries its topic, presenter, and attendee sign-ins. To start one:"
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
-            'Open Toolbox Talks and hit + to add one.',
+            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
+            'Open Toolbox talks and tap + to add one.',
           ]}
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel="Pick a job"
+          actionLabel="Pick a project"
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -263,7 +263,7 @@ function SafetyToolboxInner() {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{ title: `Toolbox Talks — ${project.name}` }} />
+      <Stack.Screen options={{ title: `Toolbox talks — ${project.name}` }} />
       <ScrollView {...fabScroll} contentContainerStyle={[{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {/* Audit #121: an invited crew seat reads only the talks he filed
             (20260919130000); the GC's are not shown to him. */}
@@ -310,7 +310,7 @@ function SafetyToolboxInner() {
             <EmptyState
               icon={<Megaphone size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title={isCrewSeat ? crewEmptyTitle('toolbox') : 'No toolbox talks yet'}
-              message="Log the pre-shift safety huddle: the topic, who presented, and who signed in. Keep a paper trail crews and inspectors can trust."
+              message="Log the pre-shift safety huddle: the topic, who presented and who signed in."
               actionLabel="Add first talk"
               onAction={openNew}
             />
@@ -329,7 +329,7 @@ function SafetyToolboxInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-toolbox">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Add Toolbox Talk</Text>
+          <Text style={styles.addItemBtnText}>Add toolbox talk</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -343,7 +343,7 @@ function SafetyToolboxInner() {
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? 'Signed Talk' : editingTalk ? 'Edit Talk' : 'New Toolbox Talk'}</Text>
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? 'Signed talk' : editingTalk ? 'Edit talk' : 'New toolbox talk'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -353,7 +353,7 @@ function SafetyToolboxInner() {
                   <View style={styles.lockedBanner}>
                     <Lock size={14} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.lockedBannerText}>
-                      Signed — locked. Attendee sign-ins are append-only; the topic, presenter, date, and notes can’t be edited.
+                      Signed and locked. Sign-ins can only be added, and the topic, presenter, date and notes can’t be edited.
                     </Text>
                   </View>
                 ) : null}
@@ -378,7 +378,7 @@ function SafetyToolboxInner() {
                   value={notes}
                   onChangeText={setNotes}
                   editable={!isLocked}
-                  placeholder="Key points covered in the talk..."
+                  placeholder="Key points covered in the talk"
                   placeholderTextColor={themeColors.textMuted}
                   multiline
                 />
@@ -464,7 +464,7 @@ function SafetyToolboxInner() {
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-toolbox">
-                    <Text style={styles.saveBtnText}>{editingTalk ? 'Update' : 'Add Talk'}</Text>
+                    <Text style={styles.saveBtnText}>{editingTalk ? 'Update' : 'Add talk'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

@@ -189,7 +189,7 @@ describe('offline queue — classification (O5 #1)', () => {
     expect(await getOfflineQueue()).toHaveLength(0);
     expect(res.failed).toBe(1);
     expect(oops).toHaveBeenCalledTimes(1);
-    expect(String(oops.mock.calls[0][0])).toContain('invoices');
+    expect(String(oops.mock.calls[0][0])).toContain('Invoice');
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
   });
 
@@ -734,7 +734,7 @@ describe('offline queue — enqueue failure is surfaced (HEALTH-F10 / O5 #2)', (
     ).rejects.toThrow('SQLITE_FULL');
 
     expect(oops).toHaveBeenCalledTimes(1);
-    expect(String(oops.mock.calls[0][0])).toContain('rfis');
+    expect(String(oops.mock.calls[0][0])).toContain('RFI');
     expect(await getOfflineQueue()).toHaveLength(0);
   });
 

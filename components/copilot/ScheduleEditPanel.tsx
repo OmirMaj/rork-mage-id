@@ -95,7 +95,7 @@ export default function ScheduleEditPanel({
     }
     beforeRef.current = null;
     afterRef.current = null;
-    return { ok: true, message: 'Undone — the schedule is back to how it was.' };
+    return { ok: true, message: 'Undone. The schedule is back to how it was.' };
   }, [commit, hasToolbarUndo]);
 
   // Memoized: the shell's preview re-interprets the ops whenever ctx changes

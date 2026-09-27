@@ -39,6 +39,7 @@ import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { edgeErrorCode } from '@/utils/edgeError';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert, type AlertButton } from '@/utils/alert';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 import { desktopField, useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useSplitRecord } from '@/components/desktop/SplitView';
@@ -122,7 +123,7 @@ export function ClaimedWorkerSelfView({
           this route in app/_layout.tsx) already prints the screen name, so an
           in-page copy of it rendered the same word twice, stacked. The title
           belongs to the header; the body starts with content. */}
-      {!embedded && <Stack.Screen options={{ title: 'My Profile' }} />}
+      {!embedded && <Stack.Screen options={{ title: 'My profile' }} />}
       <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }} showsVerticalScrollIndicator={false}>
         {header}
         {members.map(m => (
@@ -189,7 +190,7 @@ function SelfEditCard({
           <Text style={styles.retainHelp}>
             {HIRE_ENABLED
               ? 'Controls whether your profile can appear in the hiring marketplace.'
-              : 'Direct Hire isn\u2019t live yet. Turn this on to be listed when it opens.'}
+              : 'Direct hire isn\u2019t open yet. Turn this on to be listed when it opens.'}
           </Text>
         </View>
         <Switch
@@ -376,7 +377,7 @@ function CrewScreenInner() {
     // catch below surfaces — do NOT branch on a daily counter to "fix" this.
     const limit = await checkAILimit(tier, 'smart', 'scanCredential');
     if (!limit.allowed) {
-      showAlert('Scan limit reached', limit.message ?? 'Upgrade to keep scanning.');
+      showAlert('Scan limit reached', limit.message ?? 'Scan limit reached. See plans for more ID scans.');
       return;
     }
     setScanStage('scanning');
@@ -478,7 +479,7 @@ function CrewScreenInner() {
       // success haptic for a save that didn't do what he asked.
       showAlert(
         'ID photo not kept',
-        'It couldn\u2019t upload (no connection?). Only the masked number and expiry were saved. Scan again with signal to keep the photo.',
+        'Couldn\u2019t upload. You may be offline. Only the masked number and expiry were saved. Scan again with signal to keep the photo.',
       );
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
@@ -550,7 +551,7 @@ function CrewScreenInner() {
     if (!member.email) {
       // #71: the alert used to send him nowhere. 'Add email' opens the
       // editor with the email field focused.
-      showAlert('Email needed', `Add ${member.fullName}\u2019s email first \u2014 the claim link is sent there.`, [
+      showAlert('Add an email', `Add ${member.fullName}\u2019s email first. The claim link is sent there.`, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Add email', onPress: () => openEditor(true) },
       ]);
@@ -560,7 +561,7 @@ function CrewScreenInner() {
       // Async: the token is read back from the server's row, so the link
       // carries the token the server actually stored (CrewContext).
       const token = await startClaimInvite(member.id);
-      if (!token) { showAlert('Could not start invite', 'This worker isn\u2019t on your crew list any more.'); return; }
+      if (!token) { showAlert('Couldn\u2019t start the invite', 'This crew member isn\u2019t on your crew list any more.'); return; }
       const { companyName } = await sendClaimInvite(member.email, token, member.id);
       // #72: the invite now goes out in his company's name (read by the
       // server from his own profile) — say which name the worker will see.
@@ -572,7 +573,12 @@ function CrewScreenInner() {
       );
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      showAlert('Invite failed', e instanceof Error ? e.message : 'Try again.');
+      console.warn('[crew] invite failed', rawErrorMessage(e));
+      // The server's refusal ("This crew member has already claimed the
+      // profile.") is the reason; retrying won't change it.
+      const own = ownSentence(e);
+      const copy = describeError(e, { action: 'send the invite' });
+      showAlert(own ? 'Couldn\u2019t send the invite' : copy.title, own ?? copy.body);
     }
   }, [member, startClaimInvite, openEditor]);
 
@@ -594,7 +600,7 @@ function CrewScreenInner() {
     });
     showAlert(
       'Delete crew member',
-      `Remove ${member.fullName} from your roster? Any attached ID is purged, and his certificate links${member.claimedByUserId ? ' and claimed profile' : ''} go with him. To keep his certificates and history, mark him inactive instead.`,
+      `Remove ${member.fullName} from your roster? Their ID and certificate links${member.claimedByUserId ? ' and claimed profile' : ''} are deleted too. To keep their history, mark them inactive instead.`,
       buttons,
     );
   }, [member, deleteCrewMember, handleSetActive, isDesktopWeb, split]);
@@ -630,7 +636,7 @@ function CrewScreenInner() {
           <View style={{ flex: 1 }}>
             <Text style={styles.retainLabel}>{member.status === 'inactive' ? 'Inactive' : 'Active'}</Text>
             <Text style={styles.retainHelp}>
-              Inactive workers drop off Clock In and cert pickers; their shifts and certs stay.
+              Inactive crew members drop off Clock In and cert pickers. Their shifts and certs stay.
             </Text>
           </View>
           <Switch
@@ -651,7 +657,7 @@ function CrewScreenInner() {
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="e.g. Maria Gonzalez" placeholderTextColor={themeColors.textMuted} testID="crew-edit-name" />
               {contactLocked ? (
                 <Text style={styles.lockedNote} testID="crew-contact-locked">
-                  He manages his contact details now — he claimed his profile, so his phone, email and trades are his to change.
+                  They claimed their profile, so they manage their phone, email and trades.
                 </Text>
               ) : null}
               <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
@@ -703,7 +709,7 @@ function CrewScreenInner() {
                 <View style={styles.identityExpiredRow} testID="crew-id-expired">
                   <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={2} />
                   <Text style={styles.identityVerifiedText}>
-                    {idExpiredLabel(member.idExpiry)} — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}. Re-scan his current ID.
+                    {idExpiredLabel(member.idExpiry)} — {member.idIssuer ?? 'ID'} ····{member.idMaskedLast4}. Re-scan their current ID.
                   </Text>
                 </View>
               );

@@ -422,7 +422,7 @@ export function scheduleWritePathForRole(role: string | null | undefined): Sched
  *  two refusals cannot drift. `null` = this role may write it. */
 export const SCHEDULE_NOT_SAVED_TITLE = 'Schedule not saved';
 export const SCHEDULE_WRITE_FIELD_REASON =
-  'Field access saves task progress, status, notes and actual start/finish — from Quick Field Update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
+  'Field access saves task progress, status, notes and actual start/finish — from Quick field update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
 export const SCHEDULE_WRITE_VIEWER_REASON =
   'You have view-only access to this project, so a new schedule is not saved. Ask the project owner for field or editor access.';
 export function scheduleWriteBlockedReason(path: ScheduleWritePath): string | null {
@@ -591,11 +591,11 @@ export function fieldSendFailureMessage(err: { message?: string; code?: string }
   if (code === 'PGRST202' || code === '42883' || msg.includes('could not find the function')) {
     return 'Not saved — progress updates on field access are not switched on for this account yet. Tell the project owner.';
   }
-  if (code === '22023') return `Not saved — ${err?.message?.replace(/^field_update_schedule_tasks:\s*/, '') ?? 'that change is not a field update'}.`;
+  if (code === '22023') return 'Not saved — that change isn\'t a progress update, so field access can\'t send it.';
   if (msg.includes('network') || msg.includes('fetch') || msg.includes('offline') || msg.includes('timed out')) {
     return 'Not saved — no connection. Progress updates on field access need a signal; try again when you are back online.';
   }
-  return 'Not saved — the server did not accept the update. Try again, or ask the project owner.';
+  return 'Not saved — the update didn\'t go through. Try again, or ask the project owner.';
 }
 
 /**

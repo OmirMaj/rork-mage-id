@@ -102,7 +102,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
             <ThinkingStates steps={thinkingSteps} active={visible} />
           ) : (
             <Text style={styles.subtitle}>
-              {subtitle ?? 'The model is estimating from your scope plus the rates listed above — nothing is pulled from a price list. Usually 8 to 30 seconds.'}
+              {subtitle ?? 'Estimating from your scope and the rates listed above. This takes 8 to 30 seconds.'}
             </Text>
           )}
 
@@ -113,7 +113,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
           </View>
 
           <View style={styles.factCard}>
-            <Text style={styles.factLabel}>WHILE YOU WAIT</Text>
+            <Text style={styles.factLabel}>While you wait</Text>
             <Animated.Text style={[styles.factText, { opacity: factOpacity }]}>
               {FUN_FACTS[factIdx]}
             </Animated.Text>
@@ -202,6 +202,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   factLabel: {
     fontSize: 10, fontWeight: '800',
     color: t.accent, letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   factText: {
     fontSize: Type.footnote.fontSize, color: t.text,

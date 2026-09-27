@@ -62,7 +62,7 @@ describe("Pay what's earned card", () => {
     expect(screen.getByText('Suggest approving $3,800 now and holding $12,960 until the work catches up.')).toBeTruthy();
     expect(screen.getByText(/MAGE can’t approve part of an invoice/)).toBeTruthy();
     expect(screen.getByTestId('payearned-copy-inv3')).toBeTruthy();
-    expect(screen.getByText(/your daily reports list them on site on 1 day\(s\)/)).toBeTruthy();
+    expect(screen.getByText(/your daily reports list them on site on 1 day\./)).toBeTruthy();
   });
 
   it('renders one muted line and no suggestion when billing is in line', () => {

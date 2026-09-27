@@ -100,8 +100,10 @@ export function InspectionResultReviewSheet(
             </View>
             <Text style={styles.blockBody}>
               {releasedCount === 0
-                ? 'This inspection did not gate any scheduled task — marking it passed just records the result.'
-                : 'The task(s) this inspection was holding will be unblocked and the schedule reflowed.'}
+                ? 'This inspection didn\'t hold up any scheduled task, so marking it passed only records the result.'
+                : releasedCount === 1
+                  ? 'The task this inspection was holding is unblocked and the schedule reflows.'
+                  : 'The tasks this inspection was holding are unblocked and the schedule reflows.'}
             </Text>
           </View>
         ) : (
@@ -139,7 +141,9 @@ export function InspectionResultReviewSheet(
               <Text style={styles.blockBody}>
                 {blockedCount === 0
                   ? 'Nothing downstream was waiting on this inspection.'
-                  : 'The task(s) this inspection gates remain blocked until the re-inspection clears.'}
+                  : blockedCount === 1
+                    ? 'The task this inspection holds stays blocked until the re-inspection clears.'
+                    : 'The tasks this inspection holds stay blocked until the re-inspection clears.'}
               </Text>
             </View>
 
@@ -177,7 +181,7 @@ export function InspectionResultReviewSheet(
           testID="result-confirm-btn"
         >
           <Text style={styles.confirmText}>
-            {isPass ? 'Confirm & release' : 'Confirm re-inspection'}
+            {isPass ? 'Confirm and release' : 'Confirm re-inspection'}
           </Text>
         </TouchableOpacity>
       </View>

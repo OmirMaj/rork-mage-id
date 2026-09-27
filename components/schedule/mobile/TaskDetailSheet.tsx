@@ -85,7 +85,7 @@ function ReadOnlyChecklist({ items }: { items: { id: string; label: string; done
   return (
     <View style={[styles.card, { marginTop: 12 }]} testID="task-checklist-readonly">
       <View style={styles.pctHeaderRow}>
-        <Text style={styles.gLbl}>TASK CHECKLIST</Text>
+        <Text style={styles.gLbl}>Task checklist</Text>
         <Text style={styles.gVal}>{doneCount}/{items.length}</Text>
       </View>
       {items.length === 0 ? <Text style={styles.gLbl}>No checklist items.</Text> : null}
@@ -365,7 +365,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
             )}
             {tab === 'resources' && (
               <View style={styles.card}>
-                <Text style={styles.gLbl}>Crew / Sub</Text>
+                <Text style={styles.gLbl}>Crew or sub</Text>
                 <TextInput
                   value={crew}
                   onChangeText={setCrew}
@@ -395,7 +395,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, workingDay
                   onEndEditing={commitNotes}
                   onBlur={commitNotes}
                   editable={!locks.progress}
-                  placeholder="Add notes…"
+                  placeholder="Add notes"
                   placeholderTextColor={colors.textMuted}
                   style={[styles.input, styles.notesInput]}
                   multiline

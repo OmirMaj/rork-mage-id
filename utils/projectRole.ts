@@ -47,8 +47,8 @@ export interface ResolvedRoleState {
 }
 
 /** Review round 1 · the reasons a paused (offline) read gives for no role. */
-export const ROLE_PAUSED_NOT_ON_PHONE = 'This job is not on this phone, so your access to it cannot be checked offline. Connect to the internet and try again.';
-export const ROLE_PAUSED_UNKNOWN = 'Your access to this job cannot be checked offline. Connect to the internet and try again.';
+export const ROLE_PAUSED_NOT_ON_PHONE = 'This project isn’t on this phone, so your access to it can’t be checked offline. Connect to the internet and try again.';
+export const ROLE_PAUSED_UNKNOWN = 'Your access to this project can’t be checked offline. Connect to the internet and try again.';
 
 /**
  * The one decision behind useProjectRoleState, pure so it is tested (#90 and
@@ -155,7 +155,7 @@ export const ROSTER_OFFLINE_LINE = "You're offline. The team list loads when you
  *  this job" check needs the list, and a re-send to someone already invited
  *  must be a choice made with the list in view. Null = the roster is known. */
 export function inviteBlockedReason(view: RosterView): string | null {
-  if (view === 'error') return "Invites are paused until the team list loads, so you can see who's already on this job or invited before you send.";
+  if (view === 'error') return "Invites are paused until the team list loads, so you can see who's already on this project or invited before you send.";
   if (view === 'offline') return "Invites need a connection. The team list loads when you have signal.";
   if (view === 'loading') return 'Loading the team list…';
   return null;
@@ -194,7 +194,7 @@ export function filedByLine(a: {
   const who = a.filedByUserId;
   if (!who) return null;
   if (a.viewerId && who === a.viewerId) return null;
-  if (a.ownerUserId && who === a.ownerUserId) return "Filed by the job's owner";
+  if (a.ownerUserId && who === a.ownerUserId) return "Filed by the project's owner";
   const row = a.collaborators.find(c => c.userId === who);
   const name = (row?.name ?? '').trim() || (row?.email ?? '').trim();
   return name ? `Filed by ${name}` : 'Filed by a team member';
@@ -233,7 +233,7 @@ export function leaveDialogCopy(name: string, pending: number, unsaved = 0, maxB
   const notSaved = Math.min(Math.max(0, unsaved), Math.max(0, pending));
   const queued = Math.max(0, pending - notSaved);
   if (pending > 0) {
-    const head = `${pending} change${pending === 1 ? '' : 's'} on this job ${pending === 1 ? "hasn't" : "haven't"} reached the cloud yet.`;
+    const head = `${pending} change${pending === 1 ? '' : 's'} on this project ${pending === 1 ? "hasn't" : "haven't"} reached the cloud yet.`;
     const refused = notSaved === 0 ? ''
       : notSaved === pending
         ? ` ${pending === 1 ? 'It is' : 'They are'} under Not saved — MAGE refused ${pending === 1 ? 'it' : 'them'}, so syncing won't send ${pending === 1 ? 'it' : 'them'}. Open Not saved to Retry or Discard.`
@@ -254,7 +254,7 @@ export function leftProjectMessage(name: string, forgot: boolean, dropped: numbe
   const job = name.trim() || 'this project';
   const head = forgot
     ? `You're no longer on ${job}, and it has left this device.`
-    : `You're no longer on ${job}. It leaves your job list when your projects next reload.`;
+    : `You're no longer on ${job}. It leaves your project list when your projects next reload.`;
   return dropped > 0
     ? `${head} ${dropped} change${dropped === 1 ? '' : 's'} you had not synced could not be sent.`
     : head;
@@ -290,4 +290,4 @@ export function missingProjectView(a: { projectsLoaded: boolean; projectsFetchin
   if (!a.projectsLoaded || a.projectsFetching || a.deleting) return 'loading';
   return a.justJoined ? 'joined' : 'not_found';
 }
-export const JUST_JOINED_NOT_LOADED = "You joined, but this job hasn't loaded yet. Check your signal and try again.";
+export const JUST_JOINED_NOT_LOADED = "You joined, but this project hasn't loaded yet. Check your signal and try again.";

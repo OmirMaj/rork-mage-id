@@ -43,6 +43,7 @@ import type { PunchItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
@@ -73,7 +74,7 @@ const DEFAULT_WALK_ITEMS: WalkItem[] = [
   { id: 'plumbing-leaks',      phase: 'Plumbing',       title: 'Plumbing: under sinks, water heater, hose bibs', hint: 'Open every sink trap area + check water heater pan.' },
   { id: 'plumbing-shutoffs',   phase: 'Plumbing',       title: 'Plumbing: angle stops, supply lines', hint: 'Each shutoff actuates; no calcified buildup or weeping.' },
   { id: 'electrical-gfci',     phase: 'Electrical',     title: 'Electrical: every GFCI test/reset', hint: 'Kitchen, baths, garage, exterior. Replace any that fail.' },
-  { id: 'electrical-detectors',phase: 'Electrical',     title: 'Smoke/CO detectors: chirp test + battery age', hint: 'A battery swap at the walk is a homeowner expectation.' },
+  { id: 'electrical-detectors',phase: 'Electrical',     title: 'Smoke/CO detectors: chirp test + battery age', hint: 'Clients expect a battery swap at the walk.' },
   { id: 'hvac-filters',        phase: 'HVAC',           title: 'HVAC filters + condensate drain + airflow', hint: 'New filter; flush condensate; balance complaint rooms.' },
   { id: 'finishes-touchup',    phase: 'Finishes',       title: 'Paint touch-up + grout/caulk in wet areas', hint: 'Tub-to-tile, kitchen counter-to-backsplash, expansion joints.' },
   { id: 'flooring',            phase: 'Finishes',       title: 'Flooring: squeaks, transitions, gaps', hint: 'Seasonal humidity cycle; minor gaps are normal.' },
@@ -103,6 +104,7 @@ export default function WarrantyWalkScreen() {
   // #142: HIS warranty length, 12 only as a stated assumption.
   const { months: warrantyMonths, assumed: monthsAssumed } = resolveWalkMonths(resolveWarrantyMonths(settings));
   const walkLabel = warrantyWalkLabel(warrantyMonths); // '11-month' | '23-month' | 'pre-expiry'
+  const walkTitle = walkLabel === 'pre-expiry' ? 'Pre-expiry walk' : `${walkLabel} walk`;
   const schedule = useMemo(
     () => (project ? warrantyWalkScheduleFor(project, warrantyMonths) : null),
     [project, warrantyMonths],
@@ -197,7 +199,7 @@ export default function WarrantyWalkScreen() {
     e.preventDefault();
     showAlert(
       'Leave this walk?',
-      "It isn't logged yet. Your ticks, flags and notes are saved on this phone — open the walk again to pick up where you left off.",
+      "It isn't logged yet. Your checks, flags and notes are saved on this phone. Open the walk again to pick up where you left off.",
       [
         { text: 'Keep walking', style: 'cancel' },
         {
@@ -206,7 +208,7 @@ export default function WarrantyWalkScreen() {
           onPress: () => { void clearDraft().finally(() => { allowLeave.current = true; navigation.dispatch(e.data.action); }); },
         },
         {
-          text: 'Leave — keep it',
+          text: 'Leave and keep it',
           onPress: () => {
             if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
             void writeDraft(itemsRef.current, notesRef.current).finally(() => {
@@ -277,15 +279,17 @@ export default function WarrantyWalkScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert(
         'Walk logged',
-        `${totals.checkedCount} item${totals.checkedCount === 1 ? '' : 's'} checked${
+        `${totals.checkedCount} ${totals.checkedCount === 1 ? 'item' : 'items'} checked${
           createdPunchCount > 0
-            ? `, ${createdPunchCount} flagged item${createdPunchCount === 1 ? '' : 's'} added to the punch list for follow-up`
+            ? `, ${createdPunchCount} flagged ${createdPunchCount === 1 ? 'item' : 'items'} added to the punch list for follow-up`
             : ''
-        }. The home-screen banner will clear once you reload.`,
+        }. The home screen banner clears when you reload.`,
         [{ text: 'OK', onPress: () => { allowLeave.current = true; router.back(); } }],
       );
     } catch (err) {
-      showAlert('Save failed', (err as Error).message ?? 'Try again.');
+      console.warn('[WarrantyWalk] save failed:', rawErrorMessage(err));
+      const copy = describeError(err, { action: 'log the walk', keptLocally: true });
+      showAlert("Couldn't log the walk", copy.body);
     } finally {
       setCompleting(false);
     }
@@ -299,8 +303,8 @@ export default function WarrantyWalkScreen() {
       .map(i => ({ email: i.email!.trim(), name: i.name }));
     if (recipients.length === 0) {
       showAlert(
-        'No homeowner email on file',
-        'Add the homeowner as a portal invite (Project → Portal → Invites) so we can email them the walk summary.',
+        'No client email on file',
+        'Add your client as a portal invite (Project → Portal → Invites) to email them the walk summary.',
       );
       return;
     }
@@ -310,7 +314,7 @@ export default function WarrantyWalkScreen() {
       // #142: the homeowner reads a month count only when it is HIS — with no
       // warranty set, "11-month" would be our assumption printed as his term.
       const emailWalk = monthsAssumed ? 'warranty walk' : `${walkLabel} warranty walk`;
-      const emailWalkTitle = monthsAssumed ? 'warranty walk' : `${walkLabel} walk`;
+      const emailWalkTitle = monthsAssumed ? 'Warranty walk' : walkTitle;
       const checkedRows = DEFAULT_WALK_ITEMS
         .filter(it => items[it.id]?.checked)
         .map(it => `<li style="margin-bottom:6px;color:#4A5159;">${escapeHtml(it.title)}${items[it.id]?.notes ? ` <span style="color:#9AA3AD;">— ${escapeHtml(items[it.id].notes)}</span>` : ''}</li>`)
@@ -356,14 +360,14 @@ export default function WarrantyWalkScreen() {
       const sentCount = results.filter(r => r.success).length;
       if (sentCount > 0) {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert('Summary sent', `Sent to ${sentCount} recipient${sentCount === 1 ? '' : 's'}.`);
+        showAlert('Summary sent', `Sent to ${sentCount} ${sentCount === 1 ? 'recipient' : 'recipients'}.`);
       } else {
-        showAlert('Send failed', 'No emails went out — check your network and try again.');
+        showAlert("Couldn't send the summary", 'No emails went out. Check your connection and try again.');
       }
     } finally {
       setEmailing(false);
     }
-  }, [project, settings, items, totals, overallNotes, isFree, monthsAssumed, walkLabel]);
+  }, [project, settings, items, totals, overallNotes, isFree, monthsAssumed, walkLabel, walkTitle]);
 
   // Group items by phase for cleaner scrolling. Computed BEFORE the
   // `!project` early return so the hook call order stays stable across
@@ -382,7 +386,7 @@ export default function WarrantyWalkScreen() {
   if (!project) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Warranty Walk' }} />
+        <Stack.Screen options={{ title: 'Warranty walk' }} />
         <Text style={styles.loadingText}>Project not found.</Text>
       </View>
     );
@@ -394,7 +398,7 @@ export default function WarrantyWalkScreen() {
     <>
       <Stack.Screen
         options={{
-          title: monthsAssumed ? 'Warranty walk' : `${walkLabel.charAt(0).toUpperCase()}${walkLabel.slice(1)} walk`,
+          title: monthsAssumed ? 'Warranty walk' : walkTitle,
           headerLeft: () => (
             // router.back() fires the beforeRemove guard above, like a swipe.
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
@@ -411,8 +415,8 @@ export default function WarrantyWalkScreen() {
           <Text style={styles.heroTitle}>{project.name}</Text>
           <Text style={styles.heroBody}>
             {monthsAssumed
-              ? 'Walk the home with the homeowner before your warranty closes. Anything you find now is still yours to fix under it; flagging it before the end beats a "we noticed this last week" call the month after.'
-              : `Walk the home with the homeowner before your ${warrantyMonths}-month warranty closes. Anything you find now is still yours to fix under it; flagging it before the end beats a "we noticed this last week" call the month after.`}
+              ? 'Walk the home with your client before your warranty closes. Anything you find now is still yours to fix under it, and flagging it early beats a "we noticed this last week" call the month after.'
+              : `Walk the home with your client before your ${warrantyMonths}-month warranty closes. Anything you find now is still yours to fix under it, and flagging it early beats a "we noticed this last week" call the month after.`}
           </Text>
           {monthsAssumed ? (
             <TouchableOpacity
@@ -506,7 +510,7 @@ export default function WarrantyWalkScreen() {
           style={styles.overallNotes}
           value={overallNotes}
           onChangeText={setOverallNotes}
-          placeholder="Anything the homeowner asked about, big-picture observations, etc."
+          placeholder="Anything your client asked about, and big-picture observations"
           placeholderTextColor={themeColors.textMuted}
           multiline
         />
@@ -518,7 +522,7 @@ export default function WarrantyWalkScreen() {
           style={[styles.secondaryBtn, (emailing || (totals.checkedCount === 0 && totals.flaggedCount === 0)) && { opacity: 0.6 }]}
         >
           {emailing ? <ActivityIndicator color={themeColors.accent} /> : <Mail size={16} color={themeColors.accent} strokeWidth={1.75} />}
-          <Text style={styles.secondaryBtnText}>Email summary to homeowner</Text>
+          <Text style={styles.secondaryBtnText}>Email summary to client</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

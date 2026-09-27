@@ -179,7 +179,7 @@ export function EstimateWizardDesktop({
         {railFits ? (
           <View style={styles.rail} testID="wizard-rail">
             <Card>
-              <Text style={styles.railHeading}>What the AI will price</Text>
+              <Text style={styles.railHeading}>What MAGE will price</Text>
               {echoRows(answers).map((r) => (
                 <View key={r.key} style={styles.echoRow}>
                   <Text style={styles.echoLabel}>{r.label}</Text>

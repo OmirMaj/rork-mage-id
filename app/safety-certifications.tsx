@@ -28,6 +28,7 @@ import { certStatus } from '@/utils/safety/certStatus';
 import type { Certification, CertificationStatus, CrewMember } from '@/types';
 import { showAlert } from '@/utils/alert';
 import { edgeErrorCode } from '@/utils/edgeError';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 // Local calendar day for date defaults — toISOString() is the UTC day and
 // stamps an after-5pm-Pacific record with tomorrow's date (audit round 2 #6).
 import { todayCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
@@ -225,7 +226,7 @@ function SafetyCertificationsInner() {
     // Same metering key as the crew ID scan: both call scan-credential, and the
     // server's monthly cap is the authoritative one.
     const limit = await checkAILimit(tier, 'smart', 'scanCredential');
-    if (!limit.allowed) { showAlert('Scan limit reached', limit.message ?? 'Upgrade to keep scanning.'); return; }
+    if (!limit.allowed) { showAlert('Scan limit reached', limit.message ?? 'Scan limit reached. See plans for more card scans.'); return; }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true })
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
@@ -249,7 +250,7 @@ function SafetyCertificationsInner() {
       if (exp) setExpiresDate(exp);
       setScanNote(
         `Read from the card by AI${fields.issuer ? ` (issuer: ${fields.issuer})` : ''}${fields.certNumber ? `, card no. ${fields.certNumber}` : ''}. `
-        + (exp ? 'Check the dates against the card before saving.' : 'No expiry date could be read — type it from the card.'),
+        + (exp ? 'Check the dates against the card before saving.' : 'No expiry date could be read. Type it from the card.'),
       );
     } catch (e) {
       // CONTRACT 26 (#124): scanCertification throws edgeFunctionError, so a
@@ -268,9 +269,10 @@ function SafetyCertificationsInner() {
           ],
         );
       } else if (code === 'hourly_limit') {
-        setScanNote(e instanceof Error ? e.message : 'Too many scans this hour — try again later.');
+        setScanNote(e instanceof Error && e.message ? e.message : 'Scan limit reached for this hour. Try again later.');
       } else {
-        setScanNote(e instanceof Error ? `Scan failed: ${e.message}` : 'Scan failed — try a clearer, well-lit photo.');
+        console.warn('[safety-certifications] scan failed', rawErrorMessage(e));
+        setScanNote(`${describeError(e, { action: 'read the card' }).body} A clearer, well-lit photo helps.`);
       }
     } finally {
       setScanning(false);
@@ -285,18 +287,18 @@ function SafetyCertificationsInner() {
 
   const handleSave = useCallback(() => {
     const holder = holderName.trim();
-    if (!workerId && !holder) { showAlert('Missing info', 'Pick a crew member or enter a holder name.'); return; }
-    if (!type.trim()) { showAlert('Missing info', 'Certification type is required.'); return; }
+    if (!workerId && !holder) { showAlert('Add a holder', 'Pick a crew member or enter a holder name.'); return; }
+    if (!type.trim()) { showAlert('Add a certification type', 'Enter the certification type.'); return; }
     // Reject an unparseable date rather than silently storing it (certStatus would
     // otherwise flag it 'expired'; catch the typo at entry so the user can fix it).
     const expTrim = expiresDate.trim();
     if (expTrim && Number.isNaN(Date.parse(expTrim))) {
-      showAlert('Invalid expiry date', 'Enter the expiry as YYYY-MM-DD (e.g. 2026-12-31).');
+      showAlert('Check the expiry date', 'Enter the expiry as YYYY-MM-DD (e.g. 2026-12-31).');
       return;
     }
     const issTrim = issuedDate.trim();
     if (issTrim && Number.isNaN(Date.parse(issTrim))) {
-      showAlert('Invalid issued date', 'Enter the issued date as YYYY-MM-DD (e.g. 2025-01-15).');
+      showAlert('Check the issued date', 'Enter the issued date as YYYY-MM-DD (e.g. 2025-01-15).');
       return;
     }
     const status = certStatus(expiresDate || undefined, today);
@@ -324,7 +326,7 @@ function SafetyCertificationsInner() {
   }, [deleteCertification, displayName]);
 
   const openDocument = useCallback((url: string) => {
-    void Linking.openURL(url).catch(() => showAlert('Cannot open', 'This document link could not be opened.'));
+    void Linking.openURL(url).catch(() => showAlert("Couldn't open the document", "This document link couldn't be opened."));
   }, []);
 
   const filterChips: { key: StatusFilter; label: string }[] = [
@@ -430,7 +432,7 @@ function SafetyCertificationsInner() {
 
         <TouchableOpacity style={styles.addItemBtn} onPress={openNew} activeOpacity={0.7} testID="add-certification">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.addItemBtnText}>Add Certification</Text>
+          <Text style={styles.addItemBtnText}>Add certification</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -440,7 +442,7 @@ function SafetyCertificationsInner() {
             <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' as const }, fForm.scrollContent]} keyboardShouldPersistTaps="handled">
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '92%' }, fForm.card]}>
                 <View style={styles.formHeader}>
-                  <Text style={styles.formTitle}>{editing ? 'Edit Certification' : 'New Certification'}</Text>
+                  <Text style={styles.formTitle}>{editing ? 'Edit certification' : 'New certification'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -465,12 +467,12 @@ function SafetyCertificationsInner() {
                       })}
                     </ScrollView>
                   ) : (
-                    <Text style={styles.hintText}>No active crew members yet — enter a holder name below.</Text>
+                    <Text style={styles.hintText}>No active crew members yet. Enter a holder name below.</Text>
                   )}
                   {workerId ? (
                     <TouchableOpacity style={styles.clearMemberBtn} onPress={clearMember} accessibilityRole="button" accessibilityLabel="Unlink crew member">
                       <X size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
-                      <Text style={styles.clearMemberText}>Not on the crew — enter name by hand</Text>
+                      <Text style={styles.clearMemberText}>Not on the crew? Enter the name by hand</Text>
                     </TouchableOpacity>
                   ) : null}
 
@@ -516,14 +518,14 @@ function SafetyCertificationsInner() {
                       <TextInput style={styles.input} value={issuedDate} onChangeText={setIssuedDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Expires date</Text>
+                      <Text style={styles.fieldLabel}>Expiry date</Text>
                       <TextInput style={styles.input} value={expiresDate} onChangeText={setExpiresDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
                     </View>
                   </View>
 
                   {subcontractors.length > 0 && (
                     <>
-                      <Text style={styles.fieldLabel}>Subcontractor (optional)</Text>
+                      <Text style={styles.fieldLabel}>Sub (optional)</Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
                         <TouchableOpacity
                           style={[styles.typeChip, !subId && styles.typeChipActive]}
@@ -545,7 +547,7 @@ function SafetyCertificationsInner() {
                   )}
 
                   <Text style={styles.fieldLabel}>Document URL (optional)</Text>
-                  <TextInput style={styles.input} value={documentUrl} onChangeText={setDocumentUrl} placeholder="https://..." placeholderTextColor={themeColors.textMuted} autoCapitalize="none" keyboardType="url" />
+                  <TextInput style={styles.input} value={documentUrl} onChangeText={setDocumentUrl} placeholder="https://" placeholderTextColor={themeColors.textMuted} autoCapitalize="none" keyboardType="url" />
                 </ScrollView>
 
                 <View style={styles.formActions}>

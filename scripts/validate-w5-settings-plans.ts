@@ -54,7 +54,7 @@ for (const ks of extraKeys) {
 }
 ok('RFIs & Submittals is on the Pro card, not Business',
   planFeatureLines('pro').some((l) => /RFIs/.test(l)) && !planFeatureLines('business').some((l) => /RFIs/.test(l)));
-ok('the plan viewer is on the Pro card', planFeatureLines('pro').some((l) => /Plan Viewer/.test(l)));
+ok('the plan viewer is on the Pro card', planFeatureLines('pro').some((l) => /Plan viewer/i.test(l)));
 
 console.log('\n── FAQ (#134, #127) ──');
 ok('the FAQ tier answer is FREE_TIER_FAQ', /q: 'What\\u2019s the difference between Free, Pro and Business\?',\s*a: FREE_TIER_FAQ,/.test(src));
@@ -75,7 +75,7 @@ ok('no apps.apple.com link for the web', !/'https:\/\/apps\.apple\.com\/account\
 ok('a hand-granted plan: "Your plan was turned on by MAGE ID" + mailto help@mageid.app',
   /label: 'Your plan was turned on by MAGE ID'/.test(src)
   && /'mailto:help@mageid\.app\?subject=Change%20my%20MAGE%20ID%20plan'/.test(src)
-  && /Email help@mageid\.app to change or cancel \\u2014 nothing is deleted/.test(src));
+  && /Email help@mageid\.app to change or cancel\. Nothing is deleted\./.test(src));
 ok('never "no support call needed"', !/no support call needed/.test(src));
 ok('the Free-card downgrade alert uses the same branch', /showAlert\('Switch to Free', planChangeRoute\.downgradeMessage\)/.test(src));
 ok('the downgrade copy no longer sends him to support@', !/To downgrade to Free[^']*support@mageid\.app/.test(src));

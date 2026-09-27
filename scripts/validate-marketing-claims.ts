@@ -201,7 +201,7 @@ for (const { pattern, why } of PRICING_BANNED) {
     'a negative savings row above an unchanged total tells the client money came off that never did');
   ok('the note helpers render only when > 0 and say the total is not reduced',
     /function bulkSavingsNoteText\(amount[^)]*\): string \{\s*return \(amount \?\? 0\) > 0\s*\?[\s\S]{0,300}not deducted from the total above/.test(pdf)
-    && /function bulkSavingsNoteHtml\(amount[^)]*\): string \{\s*return \(amount \?\? 0\) > 0\s*\?[\s\S]{0,400}Not deducted from the Estimate Total above/.test(pdf));
+    && /function bulkSavingsNoteHtml\(amount[^)]*\): string \{\s*return \(amount \?\? 0\) > 0\s*\?[\s\S]{0,400}Not deducted from the estimate total above/.test(pdf));
   for (const [label, re] of [
     ['legacy HTML PDF', /bulkSavingsNoteHtml\(legacyEst\.bulkSavingsTotal\)/],
     ['legacy text export', /bulkSavingsNoteText\(legacyEst\.bulkSavingsTotal\)/],

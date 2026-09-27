@@ -269,8 +269,8 @@ for (const s of SAMPLES) {
     /boundary: 'route'/.test(eb));
   ok('the app-level boundary still restarts the bundle (it is above the router, and must)',
     /reloadAsync/.test(eb));
-  ok('the route fallback re-labels its primary button — "Restart at Home" is a lie one route down',
-    /primaryLabel="Go Back"/.test(eb));
+  ok('the route fallback re-labels its primary button — "Restart at home" is a lie one route down',
+    /primaryLabel="Go back"/.test(eb));
   // …but NOT its testID. validate-contrast Check 7 (MISS-03) proves the crash
   // card offers a route out by grepping this file for the literal JSX
   // attribute `testID="error-boundary-home"`. The first draft of this wave

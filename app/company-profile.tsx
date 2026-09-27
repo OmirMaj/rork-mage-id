@@ -50,7 +50,7 @@ import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel, warrantyShortLa
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const LEAVE_TITLE = 'Company info not saved';
-const LEAVE_BODY = "You changed your company name, phone, email, address, licence number or tagline and haven't saved. Proposals, invoices and the portal keep the old details until you save.";
+const LEAVE_BODY = "You changed your company name, phone, email, address, license number or tagline and haven't saved. Proposals, invoices and the portal keep the old details until you save.";
 
 /** The text fields that wait for Save. Logo, signature and licensing state save on their own. */
 export interface BrandingTextDraft {
@@ -88,7 +88,7 @@ export default function CompanyProfileScreen() {
     <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
       <Stack.Screen
         options={{
-          title: 'Company Profile',
+          title: 'Company profile',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -253,7 +253,7 @@ function CompanyProfileForm() {
       }
     } catch (e) {
       console.error('[CompanyProfile] Logo pick error:', e);
-      showAlert('Error', 'Failed to pick image. Please try again.');
+      showAlert("Couldn't add the logo", "That image couldn't be opened. Try again or pick a different one.");
     }
   }, [autoSave]);
 
@@ -353,7 +353,7 @@ function CompanyProfileForm() {
     >
       <Stack.Screen
         options={{
-          title: 'Company Profile',
+          title: 'Company profile',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -375,7 +375,7 @@ function CompanyProfileForm() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.sectionHeader}>COMPANY BRANDING</Text>
+        <Text style={styles.sectionHeader}>Company branding</Text>
         <Text style={styles.sectionSubtext}>
           This info appears on PDF estimates, invoices, and the client portal invite email.
         </Text>
@@ -384,7 +384,7 @@ function CompanyProfileForm() {
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accentFill }]}>
               <Building2 size={14} color="#fff" strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Company Name</Text>
+            <Text style={styles.rowLabel}>Company name</Text>
             <TextInput
               style={styles.inlineInput}
               value={companyName}
@@ -416,7 +416,7 @@ function CompanyProfileForm() {
             <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
               <User size={14} color="#fff" strokeWidth={1.75} />
             </View>
-            <Text style={styles.rowLabel}>Contact Name</Text>
+            <Text style={styles.rowLabel}>Contact name</Text>
             <TextInput
               style={styles.inlineInput}
               value={contactName}
@@ -505,7 +505,7 @@ function CompanyProfileForm() {
               style={[styles.licenceWhy, !licenseNumber.trim() && styles.licenceWhyMissing]}
               testID="branding-license-why"
             >
-              {`${licenceRule.citation} requires your ${licenceRule.authority} licence number on ${licenceRule.requirement}. It prints under your company name${licenseNumber.trim() ? '.' : ' — and bids are held until it is filled in.'}`}
+              {`${licenceRule.citation} requires your ${licenceRule.authority} license number on ${licenceRule.requirement}. It prints under your company name${licenseNumber.trim() ? '.' : ' — and bids are held until it is filled in.'}`}
             </Text>
           ) : null}
           <View style={styles.rowSeparator} />
@@ -531,14 +531,14 @@ function CompanyProfileForm() {
                       : 'Read from your company address \u2014 tap to set it'
                     : licenceWhere.source === 'market'
                       ? `Read from your pricing market (${settings.location}) \u2014 tap to set it`
-                      : 'Not set \u2014 decides which state\u2019s licence rules your bids follow'}
+                      : 'Not set \u2014 decides which state\u2019s license rules your bids follow'}
               </Text>
             </View>
             <Text style={styles.rowValue}>{licenceStateName || 'Choose'}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionHeader}>HOW YOU GET PAID</Text>
+        <Text style={styles.sectionHeader}>How you get paid</Text>
         <Text style={styles.sectionSubtext}>
           Asked the first time a document prints it. Changes apply to new proposals and contracts — anything already sent keeps the terms it went out with.
         </Text>
@@ -580,7 +580,7 @@ function CompanyProfileForm() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionHeader}>COMPANY LOGO</Text>
+        <Text style={styles.sectionHeader}>Company logo</Text>
         <Text style={styles.sectionSubtext}>
           Upload your company logo to include on PDF documents.
         </Text>
@@ -604,12 +604,12 @@ function CompanyProfileForm() {
               <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
                 <ImageIcon size={14} color="#fff" strokeWidth={1.75} />
               </View>
-              <Text style={styles.rowLabel}>Upload Logo</Text>
+              <Text style={styles.rowLabel}>Upload logo</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        <Text style={styles.sectionHeader}>SIGNATURE</Text>
+        <Text style={styles.sectionHeader}>Signature</Text>
         <Text style={styles.sectionSubtext}>
           Draw your signature to auto-sign documents and estimates.
         </Text>
@@ -620,7 +620,7 @@ function CompanyProfileForm() {
                 <Text style={styles.signaturePreviewLabel}>Your saved signature</Text>
                 <View style={styles.signatureMiniPreview}>
                   <PenTool size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.signatureSavedText}>Signature saved ({signatureData.length} strokes)</Text>
+                  <Text style={styles.signatureSavedText}>Signature saved ({signatureData.length} {signatureData.length === 1 ? 'stroke' : 'strokes'})</Text>
                 </View>
               </View>
               <View style={styles.signatureActions}>
@@ -656,7 +656,7 @@ function CompanyProfileForm() {
               <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
                 <PenTool size={14} color="#fff" strokeWidth={1.75} />
               </View>
-              <Text style={styles.rowLabel}>Draw Signature</Text>
+              <Text style={styles.rowLabel}>Draw signature</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -664,7 +664,7 @@ function CompanyProfileForm() {
         <View style={styles.pdfPreviewNote}>
           <FileText size={14} color={themeColors.info} strokeWidth={1.75} />
           <Text style={styles.pdfPreviewNoteText}>
-            Your company info, logo, and signature appear on every PDF estimate, invoice, and the client-portal invite email.
+            Your company info, logo, and signature appear on every PDF estimate, invoice, and the client portal invite email.
           </Text>
         </View>
 
@@ -673,7 +673,7 @@ function CompanyProfileForm() {
             to the headerRight to save. */}
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85} testID="company-profile-save">
           <Save size={16} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.saveButtonText}>Save Company Info</Text>
+          <Text style={styles.saveButtonText}>Save company info</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -692,7 +692,7 @@ function CompanyProfileForm() {
               </TouchableOpacity>
             </View>
             <Text style={styles.sigModalDesc}>
-              Decides which state\u2019s licence rules your bids follow. It does not change your pricing market.
+              Decides which state’s license rules your bids follow. It doesn’t change your pricing market.
             </Text>
             <ScrollView keyboardShouldPersistTaps="handled">
               {/* Only once he has answered: a way back to the inference,
@@ -744,13 +744,13 @@ function CompanyProfileForm() {
         <View style={[styles.sigModalOverlay, fSig.overlay]}>
           <View style={[styles.sigModalCard, fSig.card]}>
             <View style={styles.sigModalHeader}>
-              <Text style={styles.sigModalTitle}>Draw Your Signature</Text>
+              <Text style={styles.sigModalTitle}>Draw your signature</Text>
               <TouchableOpacity onPress={() => setShowSignatureModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sigModalDesc}>
-              Use your finger to sign below. This will be used on all PDF documents.
+              Sign below with your finger. It goes on every PDF document.
             </Text>
             <SignaturePad
               initialPaths={signatureData}
@@ -773,6 +773,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.textMuted,
     letterSpacing: 0.8,
+    textTransform: 'uppercase' as const,
     marginTop: 22,
     marginBottom: 6,
     marginHorizontal: 20,

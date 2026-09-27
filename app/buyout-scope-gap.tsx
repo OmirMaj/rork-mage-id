@@ -80,7 +80,7 @@ function BuyoutScopeGapInner() {
     try {
       const res = await analyzeAdjacentScope(project);
       if (!res.success) {
-        setAiError(res.error || 'Could not analyze scope.');
+        setAiError(res.error || 'Couldn’t check for missed scope. Try again.');
         return;
       }
       setAiItems(res.items);
@@ -92,17 +92,17 @@ function BuyoutScopeGapInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Scope-Gap Audit' }} />
+        <Stack.Screen options={{ title: 'Scope gap check' }} />
         <EmptyState
           icon={<ScanSearch size={36} color={t.accent} strokeWidth={1.6} />}
-          title="No project to audit yet"
-          message="The scope-gap audit checks your estimate against your buyout packages to find work nobody's covering. To use it:"
+          title="No project to check yet"
+          message="The scope gap check compares your estimate with your buyout packages to find work nobody is covering. To use it:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Build an estimate and break it into buyout packages.',
-            'Tap Scope-Gap Audit to find the holes before you award.',
+            'Tap Scope gap check to find the holes before you award.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -121,7 +121,7 @@ function BuyoutScopeGapInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Scope-Gap Audit · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Scope gap check · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -140,7 +140,7 @@ function BuyoutScopeGapInner() {
         ) : !report.hasStructure ? (
           <View style={styles.infoCard}>
             <Boxes size={26} color={t.accent} strokeWidth={1.7} />
-            <Text style={styles.infoTitle}>No buyout to audit yet</Text>
+            <Text style={styles.infoTitle}>No buyout to check yet</Text>
             <Text style={styles.infoBody}>
               There are no bid packages or commitments to check the estimate against. Run
               Generative Setup to break the estimate into packages, then come back to find
@@ -174,7 +174,7 @@ function BuyoutScopeGapInner() {
               </View>
               <Text style={styles.heroSub}>
                 {report.uncoveredItems.length === 0
-                  ? 'Every estimate line is in a package or commitment. Clean buyout.'
+                  ? 'Every estimate line is in a package or commitment.'
                   : `${report.uncoveredItems.length} line${report.uncoveredItems.length === 1 ? '' : 's'} (${formatMoneyFull(report.uncoveredBudget)}) sit in no package — assign them before you award.`}
               </Text>
             </View>
@@ -245,7 +245,7 @@ function BuyoutScopeGapInner() {
                     ) : (
                       <>
                         <MageAIMark size={15} color="#fff" />
-                        <Text style={styles.aiBtnText}>Find commonly-missed scope</Text>
+                        <Text style={styles.aiBtnText}>Find commonly missed scope</Text>
                       </>
                     )}
                   </TouchableOpacity>

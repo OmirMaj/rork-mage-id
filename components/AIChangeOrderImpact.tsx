@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import type { Project, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 interface Props {
   changeDescription: string;
@@ -94,8 +95,8 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
       // Name the failure. Console-only meant a GC pricing a change on site
       // watched "Analyzing Impact..." return to the unpressed button with no
       // analysis and no reason (audit 2026-09-07, ai-features).
-      console.error('[AI CO Impact] Failed:', err);
-      setError(`Couldn't analyze this change. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      console.warn('[AI CO Impact] Failed:', rawErrorMessage(err));
+      setError(describeError(err, { action: 'analyze this change' }).body);
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +116,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
             <MageAIMark size={16} color={changeDescription.trim() ? themeColors.accent : themeColors.textMuted} />
           )}
           <Text style={[styles.triggerText, !changeDescription.trim() && { color: themeColors.textMuted }]}>
-            {isLoading ? 'Analyzing Impact...' : error ? 'Try analyzing again' : 'Analyze Impact with AI'}
+            {isLoading ? 'Analyzing the change…' : error ? 'Analyze again' : 'Analyze impact'}
           </Text>
         </TouchableOpacity>
         {/* The button is disabled until there is something to analyze — say so
@@ -171,7 +172,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
             ? <ActivityIndicator size="small" color={themeColors.accent} />
             : <MageAIMark size={16} color={clarifyAnswer.trim() ? themeColors.accent : themeColors.textMuted} />}
           <Text style={[styles.triggerText, !clarifyAnswer.trim() && { color: themeColors.textMuted }]}>
-            {isLoading ? 'Analyzing...' : 'Analyze Impact'}
+            {isLoading ? 'Analyzing the change…' : 'Analyze impact'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -185,7 +186,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
           <MageAIMark size={16} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>Change Order Impact Analysis</Text>
+          <Text style={styles.headerTitle}>Change order impact</Text>
         </View>
         <Text style={styles.aiTag}>AI</Text>
       </TouchableOpacity>
@@ -209,7 +210,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <CalendarDays size={14} color={themeColors.info} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>Schedule Impact</Text>
+              <Text style={styles.sectionTitle}>Schedule impact</Text>
             </View>
             <Text style={styles.impactValue}>+{result.scheduleDays} days</Text>
             {(result.affectedTasks ?? []).map((task, idx) => (
@@ -226,7 +227,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <DollarSign size={14} color={themeColors.success} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>Cost Impact</Text>
+              <Text style={styles.sectionTitle}>Cost impact</Text>
             </View>
             <View style={styles.costGrid}>
               <View style={styles.costItem}>
@@ -252,7 +253,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <MageAIMark size={14} color={Colors.warningLabel} />
-                <Text style={styles.sectionTitle}>Downstream Effects</Text>
+                <Text style={styles.sectionTitle}>Downstream effects</Text>
               </View>
               {(result.downstreamEffects ?? []).map((effect, idx) => (
                 <Text key={idx} style={styles.effectText}>• {effect}</Text>
@@ -267,7 +268,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
 
           {(result.compressionOptions ?? []).length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.recTitle}>Compression Options</Text>
+              <Text style={styles.recTitle}>Compression options</Text>
               {(result.compressionOptions ?? []).map((opt, idx) => (
                 <View key={idx} style={styles.compRow}>
                   <Text style={styles.compDesc}>{opt.description}</Text>
@@ -280,7 +281,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
           )}
 
           <TouchableOpacity style={styles.reanalyzeBtn} onPress={() => void handleAnalyze()} disabled={isLoading}>
-            <Text style={styles.reanalyzeText}>{isLoading ? 'Re-analyzing...' : 'Re-analyze'}</Text>
+            <Text style={styles.reanalyzeText}>{isLoading ? 'Analyzing the change…' : 'Analyze again'}</Text>
           </TouchableOpacity>
         </>
       )}

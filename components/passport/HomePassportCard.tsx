@@ -260,7 +260,7 @@ export function HomePassportCard({
 
       {/* ── Equipment & appliances ──────────────────────────────────── */}
       <PassportSection
-        title="Equipment & appliances"
+        title="Equipment and appliances"
         icon={Package}
         count={passport.equipment.length}
         emptyLabel="No equipment logged yet."
@@ -341,7 +341,7 @@ export function HomePassportCard({
 
       {/* ── Documents & photos ──────────────────────────────────────── */}
       <PassportSection
-        title="Documents & photos"
+        title="Documents and photos"
         icon={ScrollText}
         count={passport.documents.length}
         emptyLabel="No documents on record yet."

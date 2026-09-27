@@ -287,7 +287,7 @@
     <div class="logo">M</div>
     <div>
       <div class="brand">MAGE ID</div>
-      <div class="brand-sub">Reviewer Portal</div>
+      <div class="brand-sub">Reviewer portal</div>
     </div>
   </div>
 
@@ -370,16 +370,16 @@
   function renderError(msg) {
     document.getElementById('content').innerHTML =
       '<div class="error-state">' +
-        '<div class="empty-icon" style="background:var(--error);color:#fff;">⚠</div>' +
+        '<div class="empty-icon" style="background:var(--error);color:#fff;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg></div>' +
         '<div class="empty-title">Link not valid</div>' +
-        '<div class="empty-body">' + escHtml(msg || 'This link is invalid or expired. Ask the contractor to send you a new one.') + '</div>' +
+        '<div class="empty-body">' + escHtml(msg || 'This link is invalid or expired. Ask your contractor to send you a new one.') + '</div>' +
       '</div>';
   }
 
   function renderSuccess(name, revision) {
     document.getElementById('content').innerHTML =
       '<div class="success-state">' +
-        '<div class="success-icon">✓</div>' +
+        '<div class="success-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M20 6 9 17l-5-5"/></svg></div>' +
         '<div class="empty-title">Response sent</div>' +
         '<div class="empty-body">' +
           // #56: true once 20260919080000 is live — the response is filed on
@@ -525,7 +525,7 @@
     // name) — it never replaces it. The old copy promised a history ("all of
     // them in chronological order") that no screen showed.
     var existingNotice = rfi.has_existing_response && !closed
-      ? '<div style="margin-top:14px;"><span class="existing-pill">✓ A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still send a revision. It is added below the answer on file, dated and with your name — the first answer is not replaced.</div></div>'
+      ? '<div style="margin-top:14px;"><span class="existing-pill">A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still send a revision. It is added below the answer on file, dated and with your name — the first answer is not replaced.</div></div>'
       : '';
 
     var html = '' +
@@ -622,7 +622,7 @@
 
     return '' +
       '<form id="response-form" class="doc-card">' +
-        '<div class="section-title">Your Response</div>' +
+        '<div class="section-title">Your response</div>' +
         actionBlock +
         '<div class="form-group">' +
           '<label class="form-label" for="response-body">' +
@@ -651,7 +651,7 @@
           '</select>' +
         '</div>' +
         '<button id="submit-btn" class="submit-btn" type="submit">' +
-          (docType === 'rfi' ? 'Send Response' : 'Submit Review') +
+          (docType === 'rfi' ? 'Send response' : 'Send review') +
         '</button>' +
         '<div class="helper-banner">' +
           (docType === 'rfi'
@@ -685,11 +685,11 @@
       var role = (document.getElementById('responder-role').value || '').trim();
 
       if (body.length < 2) {
-        alert('Please enter a response.');
+        alert('Enter a response.');
         return;
       }
       if (DOC_TYPE === 'submittal' && !selectedActionCode) {
-        alert('Please pick an action code.');
+        alert('Pick an action code.');
         return;
       }
 
@@ -717,8 +717,8 @@
         renderSuccess(name, result.revision === true);
       }).catch(function (err) {
         btn.disabled = false;
-        btn.textContent = DOC_TYPE === 'rfi' ? 'Send Response' : 'Submit Review';
-        alert('Could not submit response. ' + (err.message || ''));
+        btn.textContent = DOC_TYPE === 'rfi' ? 'Send response' : 'Send review';
+        alert("Your response didn't send. Check your connection and try again.");
       });
     });
   }
@@ -729,7 +729,7 @@
   function loadFailureMessage(err) {
     var status = err && err.status;
     if (status >= 400 && status < 500) {
-      return 'This link is invalid or expired. Ask the contractor to send you a new one.';
+      return 'This link is invalid or expired. Ask your contractor to send you a new one.';
     }
     if (status >= 500) {
       return 'The server could not load this document right now. Try again in a few minutes — if it keeps happening, ask the contractor to send a new link.';

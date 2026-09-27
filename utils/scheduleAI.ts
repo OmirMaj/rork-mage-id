@@ -155,7 +155,7 @@ Return up to 6 findings, most important first.`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, findings: [], summary: 'AI risk check failed. Try again.', cached: res.cached };
+    return { ok: false, findings: [], summary: "Couldn't check the schedule for risks. Try again.", cached: res.cached };
   }
 
   const raw = res.data as { summary?: string; findings?: {
@@ -181,7 +181,7 @@ Return up to 6 findings, most important first.`;
 
   return {
     ok: true,
-    summary: raw.summary || (findings.length > 0 ? `${findings.length} issues found` : 'Schedule looks clean.'),
+    summary: raw.summary || (findings.length > 0 ? `${findings.length} ${findings.length === 1 ? 'issue' : 'issues'} found` : 'No issues found.'),
     findings,
     cached: res.cached,
   };
@@ -243,7 +243,7 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, ideas: [], summary: 'AI optimizer failed.', cached: res.cached };
+    return { ok: false, ideas: [], summary: "Couldn't find ways to shorten the schedule. Try again.", cached: res.cached };
   }
 
   const raw = res.data as { summary?: string; ideas?: {
@@ -269,7 +269,7 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
 
   return {
     ok: true,
-    summary: raw.summary || `${ideas.length} ideas`,
+    summary: raw.summary || `${ideas.length} ${ideas.length === 1 ? 'idea' : 'ideas'}`,
     ideas,
     cached: res.cached,
   };
@@ -317,7 +317,7 @@ Project finish: day ${cpm.projectFinish}`;
   });
 
   if (!res.success) {
-    return { ok: false, explanation: 'AI explainer unavailable right now.', cached: res.cached };
+    return { ok: false, explanation: "Couldn't explain the critical path right now. Try again.", cached: res.cached };
   }
   const raw = typeof res.data === 'string' ? res.data : (res.raw ?? '');
   // Defensive: even though the prompt asks for plain prose, strip any stray
@@ -461,7 +461,7 @@ ${simplified}`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, patches: [], summary: 'Could not parse that.' };
+    return { ok: false, patches: [], summary: "Couldn't read that. Try saying it another way." };
   }
 
   const raw = res.data as { summary?: string; updates?: {
@@ -499,7 +499,7 @@ ${simplified}`;
     if (existing) existing.patch = { ...existing.patch, ...patch };
     else patches.push({ taskId: id, taskTitle: t.title, patch, rationale: u.rationale || '' });
   }
-  return { ok: true, patches, summary: raw.summary || `${patches.length} update(s) parsed`, cached: res.cached };
+  return { ok: true, patches, summary: raw.summary || `${patches.length} ${patches.length === 1 ? 'update' : 'updates'} found`, cached: res.cached };
 }
 
 // ---------------------------------------------------------------------------
@@ -581,7 +581,7 @@ ${description}`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, tasks: [], summary: 'Generator failed.' };
+    return { ok: false, tasks: [], summary: "Couldn't draft the schedule. Try again." };
   }
   const raw = res.data as { summary?: string; tasks?: AIGeneratedTask[] };
   const tasks = (raw.tasks ?? []).map(t => ({
@@ -686,7 +686,7 @@ ${itemLines}`;
   });
 
   if (!res.success || !res.data) {
-    return { ok: false, tasks: [], summary: 'Generator failed.', cached: res.cached };
+    return { ok: false, tasks: [], summary: "Couldn't draft the schedule. Try again.", cached: res.cached };
   }
   const raw = res.data as { summary?: string; tasks?: (AIGeneratedTask & { itemRefs?: number[] })[] };
   const tasks: AIGeneratedTask[] = (raw.tasks ?? []).map(t => {
@@ -989,7 +989,7 @@ Rules:
     // schema so 'validation' is unreachable here), but correct if one is added.
     ok: !res.errorKind || res.errorKind === 'validation',
     patches,
-    summary: raw.summary ?? (patches.length === 0 ? 'No changes proposed.' : `${patches.length} task(s) to update.`),
+    summary: raw.summary ?? (patches.length === 0 ? 'No changes suggested.' : `${patches.length} ${patches.length === 1 ? 'task' : 'tasks'} to update.`),
     fromCache: res.fromCache,
     // Preserve 'validation' kind so UI can show "partial result" banner even on a success
     errorKind: res.errorKind,

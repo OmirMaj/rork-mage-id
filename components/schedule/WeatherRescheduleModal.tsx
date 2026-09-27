@@ -100,11 +100,11 @@ export default function WeatherRescheduleModal({
                   <CloudOff size={15} color={t.warningLabel} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.provenanceTitle}>
-                      {isFullySimulated ? SIMULATED_WEATHER_HEADLINE : 'PARTLY SIMULATED FORECAST'}
+                      {isFullySimulated ? SIMULATED_WEATHER_HEADLINE : 'Partly simulated forecast'}
                     </Text>
                     <Text style={styles.provenanceBody}>
                       {isFullySimulated
-                        ? `${SIMULATED_NO_LOG_NOTICE} Live weather isn't available for this job right now.`
+                        ? `${SIMULATED_NO_LOG_NOTICE} Live weather isn't available for this project right now.`
                         : `${result!.simulatedAffectedDates.length} of ${result!.affectedDates.length} delay days are simulated (beyond live forecast coverage). Only the ${result!.liveAffectedDates.length} live day${result!.liveAffectedDates.length === 1 ? '' : 's'} will be recorded in the weather delay log.`}
                     </Text>
                   </View>
@@ -211,6 +211,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   provenanceTitle: {
     fontSize: Type.caption1.fontSize, fontWeight: '800',
     color: t.warningLabel, letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   provenanceBody: {
     fontSize: Type.caption2.fontSize, color: t.textSecondary,

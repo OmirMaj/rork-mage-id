@@ -83,7 +83,7 @@ console.log('\nA. #67 — the sealed contract says how the homeowner signed');
     return printedHtml;
   };
   const homeownerBlock = (html: string) => {
-    const a = html.indexOf('>Homeowner<');
+    const a = html.indexOf('>Owner<');
     return a > -1 ? html.slice(a, html.indexOf('</div>\n    </div>', a) + 20) : '';
   };
 

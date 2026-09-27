@@ -292,7 +292,7 @@ export function AskConversation(props: AskConversationProps) {
         setTurns(prev => [...prev, {
           role: 'assistant',
           text: limit.message ?? (canUpgrade
-            ? "You've hit today's advanced AI limit. Upgrade to keep asking MAGE — opening your plan options now."
+            ? 'Today’s advanced AI calls are used up. More are on a higher plan. Opening plans.'
             // The allowance rolls at 00:00 UTC — often later TODAY (audit #123).
             : `You've used today's advanced AI calls. ${nextAiResetLabel().daily}.`),
           error: true,
@@ -398,7 +398,7 @@ export function AskConversation(props: AskConversationProps) {
   const recentStrip = panel ? (
     recentThreads.length > 0 && (
       <View style={styles.recentWrap}>
-        <Text style={styles.recentLabel}>RECENT</Text>
+        <Text style={styles.recentLabel}>Recent</Text>
         {recentThreads.slice(0, PANEL_RECENT_MAX).map(thread => {
           const firstQ = thread.turns.find(x => x.role === 'user')?.text ?? 'Conversation';
           return (
@@ -421,7 +421,7 @@ export function AskConversation(props: AskConversationProps) {
   ) : (
     recentThreads.length > 0 && (
       <View style={styles.recentWrap}>
-        <Text style={styles.recentLabel}>RECENT</Text>
+        <Text style={styles.recentLabel}>Recent</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
           {recentThreads.map(thread => {
             const firstQ = thread.turns.find(x => x.role === 'user')?.text ?? 'Conversation';
@@ -449,11 +449,11 @@ export function AskConversation(props: AskConversationProps) {
         <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
         <MageAIMark size={28} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
       </Animated.View>
-      <Text style={styles.emptyTitle}>What can I help with?</Text>
+      <Text style={styles.emptyTitle}>Ask about your business</Text>
       <Text style={styles.emptyBody}>
         {anchorProject
-          ? `Ask about ${anchorProject.name} — its money, schedule, RFIs. Say "all jobs" to ask across the business. Every answer cites where it came from.`
-          : 'Ask about your money, schedules, leads — anything across your jobs. Every answer cites where it came from.'}
+          ? `Ask about ${anchorProject.name}: its money, schedule and RFIs. Tap "All projects" to ask across the business. Every answer cites where it came from.`
+          : 'Ask about your money, schedules and leads across your projects. Every answer cites where it came from.'}
       </Text>
       <View style={styles.suggestions}>
         {starters.map(({ q, icon }) => {
@@ -581,7 +581,7 @@ export function AskConversation(props: AskConversationProps) {
         style={styles.input}
         value={draft}
         onChangeText={setDraft}
-        placeholder="Ask anything…"
+        placeholder="Ask anything"
         placeholderTextColor={themeColors.textMuted}
         multiline
         onSubmitEditing={() => ask(draft)}
@@ -637,14 +637,14 @@ export function AskConversation(props: AskConversationProps) {
                   onPress={() => setAnchorCleared(true)}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all jobs`}
+                  accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all projects`}
                   testID="ask-anchor-clear"
                 >
-                  <Text style={styles.anchorClear}>All jobs</Text>
+                  <Text style={styles.anchorClear}>All projects</Text>
                 </TouchableOpacity>
               </>
             ) : (
-              <Text style={styles.anchorText} numberOfLines={1}>Answering across all your jobs</Text>
+              <Text style={styles.anchorText} numberOfLines={1}>Answering across all your projects</Text>
             )}
             {!empty && props.onNewChat && (
               <TouchableOpacity
@@ -710,10 +710,10 @@ export function AskConversation(props: AskConversationProps) {
             onPress={() => setAnchorCleared(true)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all jobs`}
+            accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all projects`}
             testID="ask-anchor-clear"
           >
-            <Text style={styles.anchorClear}>All jobs</Text>
+            <Text style={styles.anchorClear}>All projects</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -851,7 +851,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   // Recent-threads strip in the empty state — recall a past answer for free.
   recentWrap: { marginTop: 22, alignSelf: 'stretch' },
-  recentLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, letterSpacing: 1, marginBottom: 10 },
+  recentLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' },
   recentRow: { gap: 9, paddingRight: 8 },
   recentCard: {
     width: 152, flexDirection: 'row', alignItems: 'flex-start', gap: 7,

@@ -45,15 +45,15 @@ export async function sealSignedContract(input: {
   const { contract, project, branding, supabase, userId } = input;
 
   // Guard: only seal a fully-signed contract that hasn't been sealed yet.
-  if (contract.status !== 'signed') throw new Error('Contract is not in signed status.');
+  if (contract.status !== 'signed') throw new Error('Only a signed contract can be sealed.');
   if (!contract.gcSignature || !contract.homeownerSignature) {
-    throw new Error('Both GC and homeowner signatures are required to seal.');
+    throw new Error('Both your signature and the client\'s are needed to seal the contract.');
   }
   if (contract.signedPdfUrl) throw new SealAlreadyExistsError();
 
   // 1. Render the PDF on-device.
   const fileUri = await generateContractPDFUri(contract, project, branding);
-  if (!fileUri) throw new Error('Web sealing is not supported. Use the mobile app to seal a contract.');
+  if (!fileUri) throw new Error('Sealing works in the mobile app. Open this contract on your phone to seal it.');
 
   // 2. Read bytes (base64) + compute client SHA-256.
   const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
@@ -76,7 +76,7 @@ export async function sealSignedContract(input: {
     if (msg.includes('already exists') || msg.includes('duplicate') || msg.includes('conflict')) {
       throw new SealAlreadyExistsError();
     }
-    throw new Error(`Failed to upload sealed PDF: ${upErr.message}`);
+    throw new Error("Couldn't upload the sealed PDF. Check your connection and try again.");
   }
 
   // 4. Server-side hash-verify + DB write.
@@ -86,11 +86,11 @@ export async function sealSignedContract(input: {
   if (error) {
     // CONTRACT 26: the function's own sentence (hash mismatch, not signed…).
     const e = await edgeFunctionError(error, 'seal-document failed');
-    throw new Error(`seal-document failed: ${e.message}`);
+    throw new Error(e.message);
   }
   const payload = data as { signed_pdf_url?: string; document_hash?: string; sealed_at?: string } | null;
   if (!payload || !payload.signed_pdf_url || !payload.document_hash || !payload.sealed_at) {
-    throw new Error('seal-document returned an incomplete result.');
+    throw new Error("The contract couldn't be sealed. Try again.");
   }
   return {
     signedPdfUrl: payload.signed_pdf_url,
@@ -124,7 +124,7 @@ export async function downloadSealedContractPdf(input: {
   supabase: SupabaseClient;
 }): Promise<void> {
   const { contract, userId, supabase } = input;
-  if (!contract.signedPdfUrl) throw new Error('No sealed PDF on file for this contract.');
+  if (!contract.signedPdfUrl) throw new Error('There is no sealed PDF on file for this contract.');
 
   // signed_pdf_url is the storage path (set by the edge fn). Mint a
   // short-lived signed URL, then hand the FILE to the user.
@@ -150,7 +150,7 @@ export async function downloadSealedContractPdf(input: {
         .from('secure-contracts')
         .createSignedUrl(storagePath, SEALED_PDF_URL_TTL_SECONDS);
       if (error || !data?.signedUrl) {
-        throw new Error(`Failed to create a download link: ${error?.message ?? 'unknown error'}`);
+        throw new Error("Couldn't create a download link for the sealed PDF. Try again.");
       }
       w.opener = null;
       w.location.href = data.signedUrl;
@@ -176,7 +176,7 @@ export async function downloadSealedContractPdf(input: {
     .from('secure-contracts')
     .createSignedUrl(storagePath, SEALED_PDF_URL_TTL_SECONDS);
   if (error || !data?.signedUrl) {
-    throw new Error(`Failed to create a download link: ${error?.message ?? 'unknown error'}`);
+    throw new Error("Couldn't create a download link for the sealed PDF. Try again.");
   }
   const dir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
   if (!dir) throw new Error(SEALED_PDF_DOWNLOAD_FAILED_MESSAGE);

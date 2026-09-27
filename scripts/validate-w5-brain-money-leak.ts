@@ -129,7 +129,7 @@ console.log('\n#22 — a graded scan is filed from the grader’s fields:');
     /setSummary\(summarizeLeakHistory\(raw\)\)/.test(code) && !/convertedRows\.reduce/.test(code));
   ok('the screen never says the owner declined (code, not the comment that explains why)', !/owner declined/i.test(code));
   ok('Eaten says what the grader knows: no matching approved CO within 60 days',
-    /No matching approved change order found within 60 days/.test(code));
+    /No matching approved change order within 60 days/.test(code));
 }
 
 console.log('\n#104 / #122 — a failed ledger read is not an empty ledger:');

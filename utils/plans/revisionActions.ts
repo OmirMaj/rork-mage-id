@@ -654,14 +654,14 @@ export function effectivePlanRole(
  */
 export function planControlBlock(role: PlanRole, control: PlanControl, status?: PlanRoleStatus): string | null {
   if (role === null) {
-    if (status?.isError) return 'Couldn\u2019t check your role on this job \u2014 tap Try again.';
-    if (status?.offline) return 'You\u2019re offline, so your role on this job can\u2019t be checked yet \u2014 this unlocks when you reconnect.';
-    return 'Checking your role on this job\u2026';
+    if (status?.isError) return 'Couldn\u2019t check your role on this project. Tap Try again.';
+    if (status?.offline) return 'You\u2019re offline, so your role on this project can\u2019t be checked yet. This turns on when you reconnect.';
+    return 'Checking your role on this project\u2026';
   }
   if (role === 'owner') return null;
   switch (control) {
     case 'import':
-      return role === 'editor' ? null : 'Only the project owner or an editor can add sheets to this job.';
+      return role === 'editor' ? null : 'Only the project owner or an editor can add sheets to this project.';
     case 'compare':
       return role === 'editor' ? null : 'Only the project owner or an editor can compare revisions \u2014 a comparison files the new revision into the set.';
     case 'delete':

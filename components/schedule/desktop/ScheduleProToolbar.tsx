@@ -40,6 +40,7 @@ import {
   ALL_VIEWS, VIEW_LABEL, row2Plan, type Density, type ProView,
 } from '@/utils/scheduleProLayout';
 import type { VerdictTone } from '@/utils/scheduleVerdict';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 export interface ScheduleProToolbarZoom {
   zoomIn: () => void;
@@ -151,7 +152,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{p.projectName}</Text>
           <View style={styles.metaRow}>
             <Text style={styles.meta} numberOfLines={1}>{p.meta}</Text>
-            <View style={[styles.verdictDot, { backgroundColor: dot }]} accessibilityLabel={`Schedule verdict: ${p.verdictTone}`} />
+            <View style={[styles.verdictDot, { backgroundColor: dot }]} accessibilityLabel={`Schedule verdict: ${humanizeEnum(p.verdictTone)}`} />
           </View>
         </View>
         <TextInput
@@ -159,7 +160,7 @@ export function ScheduleProToolbar(p: ScheduleProToolbarProps) {
           value={command}
           onChangeText={setCommand}
           onSubmitEditing={submit}
-          placeholder="Ask or change the schedule… ⌘J"
+          placeholder="Ask or change the schedule  ⌘J"
           placeholderTextColor={t.textMuted}
           returnKeyType="send"
           style={styles.command}

@@ -44,7 +44,7 @@ import { useTutorialProgress } from '@/utils/tutorial/progress';
 import { startTutorial } from '@/utils/tutorial/store';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
-export const TUTORIALS_HUB_INTRO = 'Practise on a sample job — each under a minute. Nothing goes to a client or a sub.';
+export const TUTORIALS_HUB_INTRO = 'Practise on a sample project. Each takes under a minute, and nothing goes to a client or a sub.';
 
 const GROUP_ICON: Record<TutorialGroup, LucideIcon> = {
   site: ClipboardCheck,
@@ -96,7 +96,7 @@ export function TutorialsHubView({ sections, emptyReason, busyId, onStart }: Tut
           {TUTORIALS_HUB_INTRO}
         </Text>
         <Text style={[Type.footnote, styles.introSub, { color: colors.textSecondary }]}>
-          Each one runs in the real screens on a sample job. You do the real thing; the app points the way and moves on when it worked.
+          Each one runs in the real screens on a sample project. You do the real work; MAGE ID points the way and moves on when it's done.
         </Text>
 
         {emptyReason ? (
@@ -150,7 +150,7 @@ export function TutorialsHubView({ sections, emptyReason, busyId, onStart }: Tut
                       <View style={styles.cardFoot}>
                         {busy ? <ActivityIndicator size="small" color={colors.textSecondary} /> : null}
                         <Text style={[Type.footnoteEmphasized, { color: colors.accentLabel }]}>
-                          {busy ? 'Opening the sample job…' : action}
+                          {busy ? 'Opening the sample project…' : action}
                         </Text>
                       </View>
                     </Card>

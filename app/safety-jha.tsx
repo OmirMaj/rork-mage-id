@@ -196,7 +196,7 @@ function SafetyJhaInner() {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (!taskDescription.trim()) { showAlert('Add a task', 'Describe the task first so AI can analyze it.'); return; }
+    if (!taskDescription.trim()) { showAlert('Add a task', 'Describe the task first so MAGE can list its hazards.'); return; }
     if (generateBlocked) { showAlert('Business feature', generateBlocked); return; }
     const check = await checkAILimit(tier, 'smart');
     if (!check.allowed) { showAlert(aiLimitAlertTitle(check.reason), check.message ?? 'Daily AI limit reached.'); return; }
@@ -215,7 +215,7 @@ function SafetyJhaInner() {
       const refusal = safetyAiServerRefusal('jha_generate', res.status);
       if (refusal) { showAlert('Business feature', refusal); return; }
       const json = await res.json();
-      if (!res.ok || !json.success) { showAlert('AI unavailable', json.error ?? 'Could not generate. Fill the JHA manually.'); return; }
+      if (!res.ok || !json.success) { console.warn('[safety-jha] draft failed', json.error); showAlert("Couldn't draft the JHA", 'Fill it in by hand, or try again in a moment.'); return; }
       const aiSteps: JHAStep[] = (json.data.steps ?? []).map((s: { step: string; hazards: string[]; controls: string[] }) => ({
         id: generateUUID(), step: s.step, hazards: s.hazards ?? [], controls: s.controls ?? [],
       }));
@@ -227,7 +227,7 @@ function SafetyJhaInner() {
       await recordAIUsage('smart');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      showAlert('AI unavailable', 'Network issue — fill the JHA manually.');
+      showAlert("Couldn't draft the JHA", "You may be offline. Fill it in by hand, or try again when you're back online.");
     } finally {
       setGenerating(false);
     }
@@ -236,7 +236,7 @@ function SafetyJhaInner() {
   const handleSave = useCallback(() => {
     // Immutable once signed — a signed JHA can only be archived, never edited.
     if (editingJha && editingJha.signOffs.length > 0) {
-      showAlert('Signed — locked', 'This JHA has sign-offs and can no longer be edited. Archive it instead.');
+      showAlert('Signed and locked', 'This JHA has sign-offs and can no longer be edited. Archive it instead.');
       return;
     }
     const blocked = safetyWriteBlockedReason(seat);
@@ -280,7 +280,7 @@ function SafetyJhaInner() {
     if (blocked) { showAlert('Can\'t delete', blocked); return; }
     const jha = items.find(x => x.id === id);
     if (jha && jha.signOffs.length > 0) {
-      showAlert('Signed — locked', 'A JHA with recorded sign-offs is part of the safety record and can\'t be deleted. Archive it instead.');
+      showAlert('Signed and locked', 'A JHA with recorded sign-offs is part of the safety record and can\'t be deleted. Archive it instead.');
       return;
     }
     showAlert('Delete JHA', 'Delete this job hazard analysis?', [
@@ -331,15 +331,15 @@ function SafetyJhaInner() {
         <EmptyState
           icon={<HardHat size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="Open a project first"
-          message="Job hazard analyses are tied to a project so each one carries its trade, steps, and sign-offs. To start one:"
+          message="JHAs are tied to a project so each one carries its trade, steps and sign-offs. To start one:"
           steps={[
-            'Open Safety (Tools, or the sidebar) and pick the job you are on.',
-            'Open JHAs and hit + to add one, or generate it with AI.',
+            'Open Safety (Tools, or the sidebar) and pick the project you are on.',
+            'Open JHAs and tap + to add one, or draft it from a task description.',
           ]}
           // Safety's own project picker, not Home: the "Safety tile inside the
           // project tile grid" these steps used to promise did not exist, so
           // this door led nowhere (audit #81).
-          actionLabel="Pick a job"
+          actionLabel="Pick a project"
           onAction={() => router.replace('/safety' as never)}
         />
       </View>
@@ -415,7 +415,7 @@ function SafetyJhaInner() {
             <EmptyState
               icon={<HardHat size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title={isCrewSeat ? crewEmptyTitle('jha') : 'No JHAs yet'}
-              message="Break a task into steps, name the hazards, and lock in the controls before crews start. Let AI draft it from a task description, then edit and get sign-offs."
+              message="Break a task into steps, name the hazards and set the controls before crews start. Draft it from a task description, then edit it and get sign-offs."
               actionLabel="Add first JHA"
               onAction={() => { resetForm(); setShowForm(true); }}
             />
@@ -477,13 +477,13 @@ function SafetyJhaInner() {
                   </View>
                 </View>
 
-                <Text style={styles.fieldLabel}>Task Description</Text>
+                <Text style={styles.fieldLabel}>Task description</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }, isLocked ? styles.inputLocked : null]}
                   value={taskDescription}
                   onChangeText={setTaskDescription}
                   editable={!isLocked}
-                  placeholder="Describe the task so AI can analyze the hazards..."
+                  placeholder="Describe the task to list its hazards"
                   placeholderTextColor={themeColors.textMuted}
                   multiline
                 />
@@ -492,7 +492,7 @@ function SafetyJhaInner() {
                   <>
                     <TouchableOpacity style={[styles.aiBtn, generateBlocked ? styles.aiBtnDisabled : null]} onPress={handleGenerate} disabled={generating || !!generateBlocked} activeOpacity={0.85} testID="jha-generate">
                       <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
-                      <Text style={styles.aiBtnText}>{generating ? 'Analyzing…' : 'Generate with AI'}</Text>
+                      <Text style={styles.aiBtnText}>{generating ? 'Drafting the JHA…' : 'Draft JHA'}</Text>
                     </TouchableOpacity>
                     {generateBlocked ? (
                       <Text style={styles.cardCheckText} testID="jha-generate-blocked">{generateBlocked}</Text>
@@ -553,7 +553,7 @@ function SafetyJhaInner() {
                   value={ppeText}
                   onChangeText={handlePpeChange}
                   editable={!isLocked}
-                  placeholder="Hard hat, harness, gloves (comma-separated)"
+                  placeholder="Hard hat, harness, gloves (separate with commas)"
                   placeholderTextColor={themeColors.textMuted}
                 />
 

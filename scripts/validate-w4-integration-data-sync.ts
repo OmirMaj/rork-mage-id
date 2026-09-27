@@ -145,7 +145,7 @@ console.log('\nD. screens and context:');
   const so = slice(SET, 'const confirmSignOut = useCallback(', '}, [logout, router, signingOut]);');
   ok('the sign-out confirm counts unsaved records and says signing out deletes them',
     /countOwnUnsavedRecords\(\)/.test(so) && /Signing out deletes/.test(so) && /'Review Not saved', onPress: \(\) => requestSyncSheet\(\)/.test(so)
-      && /unsaved > 0 \? 'Delete & Sign Out'/.test(so));
+      && /unsaved > 0 \? 'Delete and sign out'/.test(so));
   const INV = read('app', 'invoice.tsx');
   const past = slice(INV, 'const commitPaymentPastUnsaved = useCallback(', 'const handleMarkPaid = useCallback(');
   ok('the invoice screen asks before a payment over an unsaved append on the same invoice',

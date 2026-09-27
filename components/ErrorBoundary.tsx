@@ -119,7 +119,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 // values that work in both themes against a neutral background.
 function ErrorFallback({
   error, message, onReset, onGoHome,
-  primaryLabel = 'Restart at Home',
+  primaryLabel = 'Restart at home',
   primaryIcon = <Home size={16} color="#FFFFFF" strokeWidth={2} />,
 }: {
   error: Error | null;
@@ -150,9 +150,9 @@ function ErrorFallback({
         <View style={fallbackStyles.iconWrap}>
           <AlertTriangle size={32} color="#FF3B30" strokeWidth={1.8} />
         </View>
-        <Text style={fallbackStyles.title}>Something went wrong</Text>
+        <Text style={fallbackStyles.title}>This screen hit an error</Text>
         <Text style={fallbackStyles.message}>
-          {message || 'The app encountered an unexpected error. Please try again.'}
+          {message || 'MAGE ID hit an unexpected error. Try again.'}
         </Text>
         {error && (
           <ScrollView
@@ -195,7 +195,7 @@ function ErrorFallback({
           testID="error-boundary-retry"
         >
           <RefreshCw size={16} color="#1C4023" strokeWidth={2} />
-          <Text style={fallbackStyles.retryText}>Try Again</Text>
+          <Text style={fallbackStyles.retryText}>Try again</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -270,7 +270,7 @@ export function RouteErrorFallback({ error, retry }: { error: Error; retry: () =
         message="This screen ran into a problem. The rest of the app is fine — go back and try it again."
         onReset={() => { void retry(); }}
         onGoHome={goBack}
-        primaryLabel="Go Back"
+        primaryLabel="Go back"
         primaryIcon={<ChevronLeft size={16} color="#FFFFFF" strokeWidth={2} />}
       />
     </View>

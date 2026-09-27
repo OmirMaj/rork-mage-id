@@ -81,9 +81,9 @@ export default function EstimateHubScreen() {
           style={styles.heroBack}
           testID="estimate-back-to-discover"
         />
-        <Text style={styles.heroEyebrow}>ESTIMATING</Text>
+        <Text style={styles.heroEyebrow}>Estimating</Text>
         <Text style={styles.heroTitle}>Estimate</Text>
-        <Text style={styles.heroSubtitle}>Price the job, then learn from every bid.</Text>
+        <Text style={styles.heroSubtitle}>Price the project, then learn from every bid.</Text>
       </View>
 
       <ScrollView
@@ -95,12 +95,12 @@ export default function EstimateHubScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionLabel}>CREATE</Text>
+        <Text style={styles.sectionLabel}>Create</Text>
         <View style={isDesktop ? styles.cardGrid : undefined}>
           {entriesForGroup('create').map(renderCard)}
         </View>
 
-        <Text style={[styles.sectionLabel, { marginTop: 20 }]}>INSIGHTS</Text>
+        <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Insights</Text>
         <View style={isDesktop ? styles.cardGrid : undefined}>
           {entriesForGroup('insights').map(renderCard)}
         </View>

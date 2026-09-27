@@ -165,7 +165,7 @@ function LastPlannerInner() {
               icon={<Target size={36} color={t.accent} strokeWidth={1.6} />}
               title="No projects yet"
               message="Last Planner runs the weekly commitment loop on a project's schedule. Create a project and build a schedule first."
-              actionLabel="Open Projects"
+              actionLabel="Open projects"
               onAction={() => router.push('/(tabs)/(home)' as never)}
             />
           ) : (
@@ -216,7 +216,7 @@ function LastPlannerInner() {
             icon={<ListChecks size={36} color={t.accent} strokeWidth={1.6} />}
             title="Build a schedule first"
             message="Last Planner sits on top of the CPM schedule — it needs tasks and a start date to plan the next 3 weeks."
-            actionLabel="Open Schedule"
+            actionLabel="Open schedule"
             onAction={() => router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never)}
           />
         </View>
@@ -231,7 +231,7 @@ function LastPlannerInner() {
 
       <View style={[styles.segmentWrap, { maxWidth: contentWidth }]}>
         <Segment label="Lookahead" active={tab === 'lookahead'} onPress={() => { setTab('lookahead'); haptic(); }} t={t} styles={styles} />
-        <Segment label="This Week" active={tab === 'week'} onPress={() => { setTab('week'); haptic(); }} t={t} styles={styles} />
+        <Segment label="This week" active={tab === 'week'} onPress={() => { setTab('week'); haptic(); }} t={t} styles={styles} />
         <Segment label="Reliability" active={tab === 'reliability'} onPress={() => { setTab('reliability'); haptic(); }} t={t} styles={styles} />
       </View>
       {lp.syncState === 'local-only' && (
@@ -497,8 +497,8 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
             <CalendarOff size={14} color={t.dangerLabel} strokeWidth={1.75} />
             <Text style={styles.clashBannerTitle}>
               {clashDigest.length === 1
-                ? 'A crew is booked on two jobs this week'
-                : `${clashDigest.length} crews are booked on two jobs this week`}
+                ? 'A crew is booked on two projects this week'
+                : `${clashDigest.length} crews are booked on two projects this week`}
             </Text>
           </View>
           {clashDigest.map(d => (
@@ -521,7 +521,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
       ) : null}
 
       {wwp.length === 0 ? (
-        <View style={styles.infoCard}><ListChecks size={24} color={t.accent} strokeWidth={1.75} /><Text style={styles.infoTitle}>No tasks scheduled this week</Text><Text style={styles.infoBody}>Use the arrows to move weeks, or commit work from the Lookahead.</Text></View>
+        <View style={styles.infoCard}><ListChecks size={24} color={t.accent} strokeWidth={1.75} /><Text style={styles.infoTitle}>No tasks scheduled this week</Text><Text style={styles.infoBody}>Use the arrows to move weeks, or commit work from the lookahead.</Text></View>
       ) : (
         <>
           <Text style={styles.note}>Commit the work the crew <Text style={{ fontWeight: '700', color: t.text }}>will</Text> finish this week. At week's end, mark each kept or missed.</Text>
@@ -608,7 +608,7 @@ function WeekView({ tasks, startDate, weekStart, calendar, setWeekStart, constra
                       {e.outcome === 'done'
                         ? <><CircleCheck size={13} color={t.success} strokeWidth={1.75} /><Text style={[styles.reviewedText, { color: t.success }]}>Kept</Text></>
                         : <><X size={13} color={t.danger} strokeWidth={1.75} /><Text style={[styles.reviewedText, { color: t.danger }]}>Missed{e.varianceReason ? ` · ${VARIANCE_LABELS[e.varianceReason]}` : ''}</Text></>}
-                      <TouchableOpacity onPress={() => onReview(e.task)} hitSlop={8}><Text style={styles.reReviewText}>change</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => onReview(e.task)} hitSlop={8}><Text style={styles.reReviewText}>Change</Text></TouchableOpacity>
                     </View>
                   ) : (
                     <View style={styles.reviewBtns}>
@@ -683,7 +683,7 @@ function ReliabilityView({ commitments, weekStart, t, styles }: {
       <View style={styles.infoCard}>
         <Target size={26} color={t.accent} strokeWidth={1.7} />
         <Text style={styles.infoTitle}>No reliability data yet</Text>
-        <Text style={styles.infoBody}>Commit tasks in This Week, then mark them kept or missed at week's end. Your PPC — the % of commitments you actually keep — builds here. The Lean target is 80–85%.</Text>
+        <Text style={styles.infoBody}>Commit this week&apos;s tasks, then mark each kept or missed. Your percent plan complete (PPC) builds here. The Lean target is 80–85%.</Text>
       </View>
     );
   }
@@ -696,7 +696,7 @@ function ReliabilityView({ commitments, weekStart, t, styles }: {
   return (
     <>
       <View style={[styles.ppcHero, { borderColor: bc }]}>
-        <Text style={styles.ppcHeroLabel}>Percent Plan Complete · latest week</Text>
+        <Text style={styles.ppcHeroLabel}>Percent plan complete · latest week</Text>
         <View style={styles.ppcHeroRow}>
           <Text style={[styles.ppcHeroNum, { color: bc }]}>{latestPct}%</Text>
           {trend.direction === 'up' ? <TrendingUp size={20} color={t.success} strokeWidth={1.75} /> : trend.direction === 'down' ? <TrendingDown size={20} color={t.danger} strokeWidth={1.75} /> : null}
@@ -781,7 +781,7 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
             ))}
           </View>
           <Text style={styles.fieldLabel}>What exactly</Text>
-          <TextInput style={styles.fieldInput} value={description} onChangeText={setDescription} placeholder="e.g. tile order not shipped yet" placeholderTextColor={t.textMuted} />
+          <TextInput style={styles.fieldInput} value={description} onChangeText={setDescription} placeholder="e.g. Tile order not shipped yet" placeholderTextColor={t.textMuted} />
           <View style={styles.fieldRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>Need by (optional)</Text>
@@ -789,7 +789,7 @@ function ConstraintModal({ task, onClose, onSave, t, styles }: {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>Owner (optional)</Text>
-              <TextInput style={styles.fieldInput} value={owner} onChangeText={setOwner} placeholder="who clears it" placeholderTextColor={t.textMuted} />
+              <TextInput style={styles.fieldInput} value={owner} onChangeText={setOwner} placeholder="Who clears it" placeholderTextColor={t.textMuted} />
             </View>
           </View>
           <TouchableOpacity

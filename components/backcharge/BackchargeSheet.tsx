@@ -122,7 +122,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
       addProjectPhoto(saved);
       setPhoto({ uri: saved.uri, photoId: saved.id, punchItemId: null });
     } catch {
-      showAlert('Could not attach the photo', 'Try again, or pick one from a punch item.');
+      showAlert("Couldn't attach the photo", 'Try again, or pick one from a punch item.');
     }
   }, [addProjectPhoto, project.id, sub.companyName, reason]);
 
@@ -236,12 +236,12 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
         <View style={styles.photoRow}>
           <Image source={{ uri: photo.uri }} style={styles.thumb} accessibilityLabel="Backcharge photo" />
           <Text style={styles.muted}>
-            {photo.photoId ? 'Saved to this job’s photos.' : 'From the punch item’s photo.'}
+            {photo.photoId ? 'Saved to this project’s photos.' : 'From the punch item’s photo.'}
           </Text>
         </View>
       ) : null}
       <Button
-        label={photo ? 'Replace photo' : 'Take / pick a photo'}
+        label={photo ? 'Replace photo' : 'Take or pick a photo'}
         variant="secondary"
         size="sm"
         onPress={() => { void takePhoto(); }}

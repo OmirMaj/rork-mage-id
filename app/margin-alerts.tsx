@@ -160,7 +160,7 @@ function MarginAlertsInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Margin Alerts · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Margin alerts · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>What changed</Text>
         </View>
         {alerts.length > 0 ? (
@@ -187,8 +187,8 @@ function MarginAlertsInner() {
           title={trackedCount > 0 ? 'No new margin alerts' : 'Nothing to watch yet'}
           message={
             trackedCount > 0
-              ? `Watching ${trackedCount} active job${trackedCount === 1 ? '' : 's'}. You'll be alerted the moment one's risk steps up, margin health degrades, a job goes underwater, or erosion deepens.`
-              : 'Margin Alerts watches every active job and tells you when its margin slips. To populate it:'
+              ? `Watching ${trackedCount} active ${trackedCount === 1 ? 'project' : 'projects'}. You get an alert when a project's risk goes up, its margin slips or it goes underwater.`
+              : 'Margin alerts watch every active project and tell you when its margin slips. To start:'
           }
           steps={
             trackedCount > 0
@@ -196,10 +196,10 @@ function MarginAlertsInner() {
               : [
                   'Mark projects as estimated or in progress.',
                   'Give each an estimate with markup so there is a margin to track.',
-                  'Award buyout and approve change orders — alerts fire as margin moves.',
+                  'Award buyout and approve change orders. Alerts come in as margin moves.',
                 ]
           }
-          actionLabel={trackedCount > 0 ? 'Open Margin Board' : 'Open Projects'}
+          actionLabel={trackedCount > 0 ? 'Open margin board' : 'Open projects'}
           onAction={() =>
             trackedCount > 0
               ? router.push('/portfolio-margin' as any)
@@ -217,9 +217,9 @@ function MarginAlertsInner() {
                 // contractor running one to three jobs — i.e. the whole target
                 // market — on a screen whose entire job is to be believed about
                 // money (polish audit 2026-09-10, dead-ends #12).
-                <><Text style={styles.summaryStrong}>{actionable}</Text> job{actionable === 1 ? ' needs' : 's need'} attention since you last looked.</>
+                <><Text style={styles.summaryStrong}>{actionable}</Text> {actionable === 1 ? 'project needs' : 'projects need'} attention since you last looked.</>
               ) : (
-                <>Good news only — recoveries since you last looked.</>
+                <>Only recoveries since you last looked.</>
               )}
             </Text>
           </View>
@@ -272,7 +272,7 @@ function MarginAlertsInner() {
           })}
 
           <Text style={styles.note}>
-            Tap a job to drill into its Margin Risk and the Living Estimate behind it.
+            Tap a project to see its margin risk and the living estimate behind it.
             {Platform.OS !== 'web' ? ' New high-risk crossings also push a notification.' : ''}
             {' '}Mark all read to clear — an unread alert sticks around until you do.
           </Text>

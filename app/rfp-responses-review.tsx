@@ -45,6 +45,7 @@ import { prePostReachNotice } from '@/supabase/functions/notify-nearby-contracto
 import { RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED } from '@/constants/featureFlags';
 import { useProperties } from '@/contexts/PropertyContext';
 import { workOrdersAssignedByAward } from '@/utils/propertyMirror';
+import { describeError } from '@/utils/errorCopy';
 
 interface ResponseRow {
   id: string;
@@ -236,7 +237,7 @@ export default function RfpResponsesReviewScreen() {
         ? data.homeownerEmail : null;
       const carried = joinItems(awardCarriedItems(rfp ?? {}, priceTextFor(response.bid_amount)));
       showAlert(
-        'Awarded!',
+        'Project awarded',
         `${company} has been notified. ${carried.charAt(0).toUpperCase()}${carried.slice(1)} ${carried.includes(' and ') ? 'are' : 'is'} on their new project.\n\n`
           + (email
             ? `They'll set up your project portal and send the link to ${email}.`
@@ -245,7 +246,9 @@ export default function RfpResponsesReviewScreen() {
       );
     } catch (e) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showAlert('Could not award', String((e as Error).message ?? e));
+      console.warn('[rfp] award failed:', (e as Error)?.message);
+      const copy = describeError(e, { action: 'award this bid' });
+      showAlert(copy.title, copy.body);
     } finally {
       setBusyId(null);
     }
@@ -322,7 +325,7 @@ export default function RfpResponsesReviewScreen() {
   );
 
   if (!bidId) {
-    return renderState('We could not open that link', 'It is missing a project reference. Open the post again from My RFPs.');
+    return renderState('Couldn’t open that link', 'It is missing a project reference. Open the post again from My RFPs.');
   }
   if (!isSupabaseConfigured) {
     return renderState('Couldn\'t load this RFP', 'MAGE ID can\'t reach its server from this build, so the bids can\'t be loaded.');
@@ -439,7 +442,7 @@ export default function RfpResponsesReviewScreen() {
               {!SERVICE_AREA_SETUP_ENABLED
                 ? `${prePostReachNotice(RFP_BROWSE_ENABLED, SERVICE_AREA_SETUP_ENABLED) ?? ''} New bids show up here automatically.`
                 : RFP_BROWSE_ENABLED
-                ? 'We alerted MAGE ID contractors who cover your area, and your post is listed for contractors browsing nearby jobs. My RFPs shows how many were alerted. New bids show up here automatically.'
+                ? 'MAGE ID alerted contractors who cover your area, and your post is listed for contractors browsing nearby projects. My RFPs shows how many were alerted. New bids show up here automatically.'
                 : 'Only MAGE ID contractors who cover your area are alerted — browsing posted projects isn\'t open yet. My RFPs shows how many were alerted, including if that is none. New bids show up here automatically.'}
             </Text>
           </View>
@@ -477,18 +480,18 @@ export default function RfpResponsesReviewScreen() {
                 {isAwardedRow && (
                   <View style={styles.awardedPill}>
                     <Trophy size={10} color={themeColors.success} strokeWidth={1.75} />
-                    <Text style={styles.awardedPillText}>AWARDED</Text>
+                    <Text style={styles.awardedPillText}>Awarded</Text>
                   </View>
                 )}
                 {isShortlist && (
                   <View style={styles.shortlistPill}>
                     <Star size={10} color={Colors.warningLabel} strokeWidth={1.75} />
-                    <Text style={styles.shortlistPillText}>SHORTLIST</Text>
+                    <Text style={styles.shortlistPillText}>Shortlist</Text>
                   </View>
                 )}
                 {isDeclined && (
                   <View style={styles.declinedPill}>
-                    <Text style={styles.declinedPillText}>DECLINED</Text>
+                    <Text style={styles.declinedPillText}>Declined</Text>
                   </View>
                 )}
               </View>
@@ -635,11 +638,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   identityMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
 
   awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: t.success + '20' },
-  awardedPillText:{ fontSize: 9, fontWeight: '800', color: t.success, letterSpacing: 0.6 },
+  awardedPillText:{ fontSize: 9, fontWeight: '800', color: t.success, letterSpacing: 0.6, textTransform: 'uppercase' },
   shortlistPill:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
-  shortlistPillText:{ fontSize: 9, fontWeight: '800', color: Colors.warningLabel, letterSpacing: 0.6 },
+  shortlistPillText:{ fontSize: 9, fontWeight: '800', color: Colors.warningLabel, letterSpacing: 0.6, textTransform: 'uppercase' },
   declinedPill:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: t.danger + '15' },
-  declinedPillText:{ fontSize: 9, fontWeight: '800', color: t.danger, letterSpacing: 0.6 },
+  declinedPillText:{ fontSize: 9, fontWeight: '800', color: t.danger, letterSpacing: 0.6, textTransform: 'uppercase' },
 
   siteVisitRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30' },
   siteVisitText: { fontSize: Type.caption1.fontSize, color: Colors.warningLabel, fontWeight: '700' },

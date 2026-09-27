@@ -448,7 +448,7 @@ export default function UniversalSearch() {
             <View>
               {/* MAGE Brain — the surface does more than navigate: ask, speak, help. */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>MAGE Brain</Text>
+                <Text style={styles.sectionHeader}>Ask and capture</Text>
               </View>
               <TouchableOpacity style={styles.brainActionRow} onPress={handleAskMage} activeOpacity={0.7} testID="brain-action-ask">
                 <View style={styles.brainActionIcon}><MageAIMark size={18} color={themeColors.accent} /></View>
@@ -469,7 +469,7 @@ export default function UniversalSearch() {
               <TouchableOpacity style={styles.brainActionRow} onPress={handleHelp} activeOpacity={0.7} testID="brain-action-help">
                 <View style={styles.brainActionIcon}><HelpCircle size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
                 <View style={styles.brainActionBody}>
-                  <Text style={styles.brainActionText}>Help &amp; tips</Text>
+                  <Text style={styles.brainActionText}>Help and tips</Text>
                 </View>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -518,8 +518,8 @@ export default function UniversalSearch() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Nothing by that name</Text>
               <Text style={styles.emptyBody}>
-                Try the trade term — “gantt”, “punch”, “g702” — or the name of
-                a project, an invoice, an RFI.
+                Try a trade term like “gantt”, “punch” or “g702”, or the name of
+                a project, an invoice or an RFI.
               </Text>
             </View>
           ) : null}

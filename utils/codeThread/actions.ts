@@ -82,7 +82,7 @@ export function rfiDraftFromCodeItem(a: {
   return {
     projectId: a.projectId,
     subject: `Code question: ${a.text.slice(0, 80)}`,
-    question: `Our code check (${codes}; ${a.authority ?? 'jurisdiction not on file'}) flagged: ${a.text}. Please confirm the requirement for this job and how you want it detailed.`,
+    question: `Our code check (${codes}; ${a.authority ?? 'jurisdiction not on file'}) flagged: ${a.text}. Please confirm the requirement for this project and how you want it detailed.`,
     submittedBy: a.submittedBy,
     assignedTo: '',
     // UNSENT: an empty dateSubmitted is how Waiting On knows it was never sent.

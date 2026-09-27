@@ -548,9 +548,9 @@ console.log('\nboth screens actually render it, and neither prints a bare margin
   // every guard green. Pin the expression that fills the cell as well as the
   // heading above it.
   const rowCell: [string, RegExp][] = [
-    ['Cost to Date', /r\.costToDate == null \? '—' : `<span class="num">\$\{fmtMoney\(r\.costToDate\)\}/],
-    ['Cost to Complete', /const ctc = wipRowCostToComplete\(r\);/],
-    ['Earned Rev.', /const earned = wipRowEarned\(r\);/],
+    ['Cost to date', /r\.costToDate == null \? '—' : `<span class="num">\$\{fmtMoney\(r\.costToDate\)\}/],
+    ['Cost to complete', /const ctc = wipRowCostToComplete\(r\);/],
+    ['Earned rev.', /const earned = wipRowEarned\(r\);/],
     ['Over/(Under)', /const overUnder = wipRowOverbilled\(r\) - r\.unbilled;/],
   ];
   for (const [col, valueRe] of rowCell) {
@@ -581,7 +581,7 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
   ok('…and it names the prerequisite, not the failure',
     /at least one active project with a cost-and-markup estimate/.test(WIP_SCREEN));
   ok('…and says what a bank would read a zero schedule as',
-    /bank or a surety would read as your actual position/.test(WIP_SCREEN));
+    /bank or surety would read a schedule of/.test(WIP_SCREEN) && /zeros as your actual position/.test(WIP_SCREEN));
 
   ok('Save period refuses with no rows',
     /if \(liveRows\.length === 0\) \{ showAlert\('Nothing to save yet', NOTHING_TO_REPORT\); return; \}/.test(WIP_SCREEN));
@@ -635,15 +635,15 @@ console.log('\nan all-zero WIP schedule cannot be frozen or exported:');
   ok('the snapshot alert no longer invites CPA/bank review unprompted',
     !/Lock it to freeze for CPA\/bank review/.test(withoutComments(WIP_SCREEN)));
   ok('…it asks the GC to top up cost-to-date first',
-    /Check cost-to-date and cost-to-complete on each project/.test(WIP_SCREEN));
+    /Check cost to date on each project/.test(WIP_SCREEN));
   // AND IT SAYS WHAT THE SNAPSHOT ACTUALLY IS. Every figure frozen into a
   // period is derived from CURRENT context state — MAGE holds no as-of ledger
   // to restate a closed month from — so a period dated 3/31 saved on 4/10
   // contains ten days of April. Now that the date is pickable, saying so is the
   // difference between a labelling convenience and a misdated document.
   ok('…and admits the figures are current-state, not restated to the period end',
-    /AS THEY STAND TODAY/.test(WIP_SCREEN)
-    && /does not restate a closed month/.test(WIP_SCREEN));
+    /Figures are as of today, labelled with this period end/.test(WIP_SCREEN)
+    && /count as \$0 until you add one/.test(WIP_SCREEN));
 }
 
 // ── The shape of the contract, so a widening cannot go unnoticed ────────────
@@ -1129,7 +1129,7 @@ console.log('\nthe WIP screen renders the period it would export:');
   ok('a loss job is flagged on the project list',
     /const flagged = r\.output\.anticipatedLoss/.test(WIP_SCREEN));
   ok('…and labelled in words, not by a bare red triangle',
-    /testID="wip-loss-tag"/.test(WIP_SCREEN) && /LOSS JOB<\/Text>/.test(WIP_SCREEN));
+    /testID="wip-loss-tag"/.test(WIP_SCREEN) && /Projected loss<\/Text>/.test(WIP_SCREEN));
   ok('…and the portfolio headline discloses the provision it nets away',
     /testID="wip-loss-provision"/.test(WIP_SCREEN)
     && /Provision to book now/.test(WIP_SCREEN));
@@ -1156,7 +1156,7 @@ console.log('\nthe WIP screen renders the period it would export:');
   ok('retainage held is carried onto the row and rendered',
     /retainageHeld: billings\.retainageHeld/.test(WIP_SCREEN)
     && /label="Retainage held"/.test(WIP_SCREEN)
-    && /label="Retainage held by owner"/.test(WIP_SCREEN),
+    && /label="Retainage held by client"/.test(WIP_SCREEN),
     'the portfolio strip AND the per-project drill-in both have to carry it');
   // A period frozen before the column existed must read "not recorded", never
   // $0 — a zero asserts the owner is holding nothing back, which is the

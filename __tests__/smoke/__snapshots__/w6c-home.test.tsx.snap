@@ -3,48 +3,48 @@
 exports[`lane F — /attention on the phone (390 iOS) /attention, empty world — the rail's all-clear, scoped 1`] = `
 {
   "lines": 472,
-  "sha256": "d8e502f76f648162b6010c36c03e34f91e1f6f75065533dbeb2d1d6c1bd518fe",
+  "sha256": "e624cdc9827e58fba9c65c8e10406bdd73f3cce497751fb07852f865a86aa999",
 }
 `;
 
 exports[`lane F — /attention on the phone (390 iOS) /attention, populated world 1`] = `
 {
   "lines": 483,
-  "sha256": "ec745e2727b5e14b5b9378f875161141ad6ce6631e8feb8b2b2726e07251c9dd",
+  "sha256": "85201f409b8c92417f04a14aa940e9157e435a66c26b97725bced05ddd4f1bc7",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs (the stage chips render) 1`] = `
 {
-  "lines": 1996,
-  "sha256": "e173797ba777a0971f252dba404fe81121f8a8b0ec5683b960e520d2b6c97103",
+  "lines": 1997,
+  "sha256": "0bc8901834150213d2b6530ff0bbe355364da0b20d3cd0871cd6da66790c6ae4",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs on site today (Today on site: four rows and "+2 more") 1`] = `
 {
-  "lines": 2415,
-  "sha256": "06e8a42330b556a65c96a28a8d1a5ea8f2ac0cab397b7f90ae209ca6d3b73ada",
+  "lines": 2422,
+  "sha256": "3ee002bee40c208926fd383405fac3d18ba063ab468a77203e32d3ab0d8b4130",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs, a chip tapped (Closed / Closeout bucket) 1`] = `
 {
-  "lines": 1941,
-  "sha256": "8fa43023c7d43acc041bfd72ddd0184e5cf221821903d7813f52bc329e57edfb",
+  "lines": 1942,
+  "sha256": "53f64dfdf3a37f145f4b70f6ba1eba01ec480434dbf5b4c7fa475d82bff1351d",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, the fixture world (one job on site) 1`] = `
 {
-  "lines": 1907,
-  "sha256": "b7c9e0f87b38b66972223a31a8a11d69dcce0057a165ab2f395edc45302b17bd",
+  "lines": 1908,
+  "sha256": "b399090740d6bf22b57628cfe63c5c9ff9db0ddaeddc4225e8f22635d3111bbb",
 }
 `;
 
 exports[`lane F — the tablet Home keeps the ProjectRow table (golden, 820 iOS) Home, six jobs, tablet 1`] = `
 {
-  "lines": 1991,
-  "sha256": "286407dfed3f8e44371ea5a6b7c71ba224efbcc6f741ce13d6a77110a8fb7a5f",
+  "lines": 1992,
+  "sha256": "bce4aa0c55f8ace15a9b6aca055cee2882717aec760a8fbd53ad3aa8225c36e5",
 }
 `;

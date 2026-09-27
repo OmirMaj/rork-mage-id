@@ -26,19 +26,19 @@ export function EstimateTotalsBar({ itemCount, divisionCount, cost, markups, gra
   return (
     <View style={styles.bar}>
       <View style={styles.col}>
-        <Text style={styles.k}>TOTALS</Text>
+        <Text style={styles.k}>Totals</Text>
         <Text style={styles.sm}>{divisionCount} div · {itemCount} {itemCount === 1 ? 'item' : 'items'}</Text>
       </View>
       <View style={styles.col}>
-        <Text style={styles.k}>COST</Text>
+        <Text style={styles.k}>Cost</Text>
         <Text style={styles.v}>{money(cost)}</Text>
       </View>
       <View style={styles.col}>
-        <Text style={styles.k}>MARKUPS</Text>
+        <Text style={styles.k}>Markups</Text>
         <Text style={styles.v}>{money(markups)}</Text>
       </View>
       <View style={[styles.col, styles.colEnd]}>
-        <Text style={styles.k}>GRAND TOTAL</Text>
+        <Text style={styles.k}>Grand total</Text>
         <Text style={[styles.v, styles.grand]}>{money(grandTotal)}</Text>
       </View>
     </View>

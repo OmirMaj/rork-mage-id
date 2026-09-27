@@ -197,6 +197,12 @@ function buildPrequalRenewal(existing: PrequalPacket, token: string, email: stri
  * ("CHANGES" inside an 82px pill); this badge is a sentence, so "Needs changes"
  * rather than "Changes".
  */
+/** Every packet status as words, for the detail line (never the raw value). */
+const PREQUAL_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft', invited: 'Invited', in_progress: 'In progress', submitted: 'Submitted',
+  approved: 'Approved', needs_changes: 'Needs changes', rejected: 'Rejected', expired: 'Expired',
+};
+
 const PREQUAL_SIDE_BRANCH_LABEL: Record<string, string> = {
   needs_changes: 'Needs changes',
   rejected: 'Rejected',
@@ -423,7 +429,7 @@ function PrequalManagerInner() {
     const subject = encodeURIComponent(`Prequalification for ${sub.companyName}`);
     const body = encodeURIComponent(
       `Hi ${sub.contactName || 'there'},\n\n` +
-      `Please complete our subcontractor prequalification form. This keeps your paperwork current and unlocks bid invites from us — it takes about 10 minutes and you don't need a login.\n\n` +
+      `Complete our subcontractor prequalification form so your paperwork stays current and you can get bid invites from us. It takes about 10 minutes and needs no login.\n\n` +
       `Start here: ${link}\n\n` +
       `If the link doesn't open, tell us your preferred email and we'll resend.\n\n` +
       signOff
@@ -440,7 +446,7 @@ function PrequalManagerInner() {
         webBody: `Your mail app should open with the link to ${email}. Nothing is sent until you tap Send there. If no mail app opened, copy the link and send it yourself — a text message works.`,
       },
       failed: {
-        title: 'Invite saved — no email went out',
+        title: 'Invite saved, not emailed',
         body: `No mail app opened, so ${email} has not been sent anything. Copy the link and send it yourself — a text message works.`,
       },
     });
@@ -459,7 +465,7 @@ function PrequalManagerInner() {
     const what = kind === 'needs_changes' ? 'needs changes' : 'was not approved';
     if (!to || !link) {
       showAlert(
-        'Saved — but the sub has not been told',
+        'Saved, but the sub hasn’t been told',
         !to
           ? `The packet is marked "${what}", but there is no email on it. Tell ${sub?.companyName ?? 'the sub'} yourself, or send a renewal with their address.`
           : `The packet is marked "${what}", but it has no link to send. Send a renewal to give the sub a working link.`,
@@ -484,12 +490,12 @@ function PrequalManagerInner() {
       mailto: `mailto:${to}?subject=${subject}&body=${body}`,
       link,
       ready: {
-        title: 'Status saved — email ready to send',
+        title: 'Status saved · email ready to send',
         nativeBody: `Your mail app opened with the note to ${to}. It is not sent until you tap Send there. The sub also sees the note when they open their link.`,
         webBody: `Your mail app should open with the note to ${to}. Nothing is sent until you tap Send there. If no mail app opened, copy the link and send it with your note. The sub also sees the note when they open their link.`,
       },
       failed: {
-        title: 'Status saved — no email went out',
+        title: 'Status saved, not emailed',
         body: `No mail app opened, so ${to} has not been told. Copy the link and send it with your note, or use Resend note from this packet.`,
       },
     });
@@ -549,7 +555,7 @@ function PrequalManagerInner() {
   /** Resend the decision note (#111) — for a mail composer that was dismissed. */
   const handleResendNote = useCallback((packet: PrequalPacket) => {
     if (packet.status !== 'needs_changes' && packet.status !== 'rejected') return;
-    void emailDecision(packet, packet.status, packet.reviewerNotes || (packet.status === 'rejected' ? 'Rejected by reviewer' : 'Please provide missing fields'));
+    void emailDecision(packet, packet.status, packet.reviewerNotes || (packet.status === 'rejected' ? 'Rejected by reviewer' : 'Fill in the missing fields.'));
   }, [emailDecision]);
 
   /**
@@ -590,7 +596,7 @@ function PrequalManagerInner() {
                 webBody: `Your mail app should open with the new link to ${email}. Nothing is sent until you tap Send there. If no mail app opened, copy the new link and send it yourself.`,
               },
               failed: {
-                title: 'Renewal saved — no email went out',
+                title: 'Renewal saved, not emailed',
                 body: `No mail app opened, so ${email} has not been told. Copy the new link and send it yourself.`,
               },
             });
@@ -609,8 +615,8 @@ function PrequalManagerInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Prequal + COI · MAGE ID</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Subcontractor compliance</Text>
+          <Text style={styles.headerEyebrow}>Prequal and COI · MAGE ID</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Sub compliance</Text>
         </View>
       </View>
 
@@ -681,7 +687,7 @@ function PrequalManagerInner() {
         {rows.length === 0 ? (
           <View style={styles.emptyBox}>
             <ShieldAlert size={24} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyText}>No subcontractors on file. Add one from the Subs directory to invite a packet.</Text>
+            <Text style={styles.emptyText}>No subs on file. Add one on the Subs tab to send a prequal invite.</Text>
           </View>
         ) : (
           <View style={styles.listCard}>
@@ -853,8 +859,8 @@ function InviteModal({ sub, renewal, onClose, onSend }: {
             />
             <Text style={styles.inviteHelp}>
               {renewal
-                ? `We\u2019ll compose a message with a NEW link. The old link stops working${renewal.approved ? ' and the packet leaves \u201capproved\u201d until they resubmit' : ''}. Their previous answers are kept as the starting point.`
-                : 'We\u2019ll compose a message with a magic link. The sub can fill out the packet without creating an account.'}
+                ? `Your mail app opens with a new link. The old link stops working${renewal.approved ? ' and the packet leaves \u201capproved\u201d until they resubmit' : ''}. Their previous answers are kept as the starting point.`
+                : 'Your mail app opens with a message and a link. The sub can fill out the packet without an account.'}
             </Text>
           </View>
           <View style={styles.modalFooter}>
@@ -1030,13 +1036,13 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
                     const link = prequalInviteUrl(packet.inviteToken ?? '');
                     const ok = await copyToClipboard(link);
                     showAlert(
-                      ok ? 'Copied' : 'Copy failed',
-                      ok ? 'Magic link copied to clipboard.' : 'Could not copy the link.',
+                      ok ? 'Link copied' : 'Couldn’t copy the link',
+                      ok ? 'The invite link is on your clipboard.' : 'Try again.',
                     );
                   }}
                 >
                   <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.copyLinkText}>Copy magic link</Text>
+                  <Text style={styles.copyLinkText}>Copy invite link</Text>
                 </TouchableOpacity>
               )}
 
@@ -1056,12 +1062,12 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
 
               {/* Packet details */}
               <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Packet details</Text>
-              <DetailLine label="Status" value={packet.status} />
+              <DetailLine label="Status" value={PREQUAL_STATUS_LABEL[packet.status] ?? 'Not set'} />
               {invitedOn && <DetailLine label="Invited" value={invitedOn} />}
               {submittedOn && <DetailLine label="Submitted" value={submittedOn} />}
               <DetailLine label="CGL per occurrence" value={packet.insurance.cglPerOccurrence ? `$${packet.insurance.cglPerOccurrence.toLocaleString()}` : '—'} />
               <DetailLine label="CGL aggregate" value={packet.insurance.cglAggregate ? `$${packet.insurance.cglAggregate.toLocaleString()}` : '—'} />
-              <DetailLine label="Workers Comp" value={packet.insurance.workersCompActive ? `Active · ${packet.insurance.workersCompCarrier ?? '—'}` : 'Not confirmed'} />
+              <DetailLine label="Workers’ comp" value={packet.insurance.workersCompActive ? `Active · ${packet.insurance.workersCompCarrier ?? '—'}` : 'Not confirmed'} />
               <DetailLine label="CG 20 10" value={packet.insurance.hasCG2010 ? 'Attested' : 'Missing'} />
               <DetailLine label="CG 20 37" value={packet.insurance.hasCG2037 ? 'Attested' : 'Missing'} />
               <DetailLine label="COI expiry" value={coiExpiryDisplay} />
@@ -1096,7 +1102,7 @@ function ReviewModal({ packet, freshness, sub, onClose, onApprove, onNeedsChange
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btnGhost, { flex: 1 }, checking && styles.btnDisabled]}
-              onPress={() => onNeedsChanges(packet, note || 'Please provide missing fields')}
+              onPress={() => onNeedsChanges(packet, note || 'Fill in the missing fields.')}
               disabled={checking}
               accessibilityState={{ disabled: checking }}
             >

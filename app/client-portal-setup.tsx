@@ -58,6 +58,7 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 import { Button } from '@/components/ui';
 import { nailIt } from '@/components/animations/NailItToast';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
@@ -146,44 +147,44 @@ interface PermissionToggle {
 const PERMISSION_TOGGLES: PermissionToggle[] = [
   {
     key: 'showSchedule',
-    label: 'Project Schedule',
-    description: 'Gantt chart & task progress',
+    label: 'Project schedule',
+    description: 'Gantt chart and task progress',
     icon: <CalendarDays size={18} color={"#1565C0"} strokeWidth={1.75} />,
   },
   {
     key: 'showBudgetSummary',
-    label: 'Budget Summary',
-    description: 'Overall spend vs. contract value',
+    label: 'Budget summary',
+    description: 'Overall spend against contract value',
     icon: <BarChart3 size={18} color={Colors.successDark} strokeWidth={1.75} />,
   },
   {
     key: 'showInvoices',
     label: 'Invoices',
-    description: 'Invoice history & payment status',
+    description: 'Invoice history and payment status',
     icon: <DollarSign size={18} color={Colors.warningLabel} strokeWidth={1.75} />,
   },
   {
     key: 'showChangeOrders',
-    label: 'Change Orders',
-    description: 'Approved & pending change orders',
+    label: 'Change orders',
+    description: 'Approved and pending change orders',
     icon: <FileText size={18} color={"#C84038"} strokeWidth={1.75} />,
   },
   {
     key: 'showPhotos',
-    label: 'Site Photos',
+    label: 'Site photos',
     description: 'Progress photos from the field',
     icon: <Image size={18} color={Colors.purple} strokeWidth={1.75} />,
   },
   {
     key: 'showDailyReports',
-    label: 'Daily Reports',
-    description: 'Weather, crew, and work summaries',
+    label: 'Daily reports',
+    description: 'Weather, crew and work summaries',
     icon: <ClipboardList size={18} color="#32ADE6" strokeWidth={1.75} />,
   },
   {
     key: 'showPunchList',
-    label: 'Punch List',
-    description: 'Open items & completion status',
+    label: 'Punch list',
+    description: 'Open items and completion status',
     icon: <CheckCircle2 size={18} color={Colors.successDark} strokeWidth={1.75} />,
   },
   {
@@ -555,7 +556,7 @@ function ClientPortalSetupScreenInner() {
       }
       setPortal(p => ({ ...p, proposalPaymentTerms: next.stamp }));
       persistProposalKeys({ proposalPaymentTerms: next.stamp });
-      nailIt(`This proposal now prints ${splitLabel(next.stamp)} — your client must reload to accept`);
+      nailIt(`Proposal now prints ${splitLabel(next.stamp)} · Your client must reload to accept`);
     } finally {
       setReplacingTerms(false);
     }
@@ -1155,7 +1156,7 @@ function ClientPortalSetupScreenInner() {
     // #19: never "Saved" for a save that reaches no one.
     if (ownerOnlyReason) { showAlert('Not saved', ownerOnlyReason); return; }
     if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < 4)) {
-      showAlert('Passcode Required', 'Please enter a passcode of at least 4 characters, or turn off "Ask for a passcode".');
+      showAlert('Add a passcode', 'Enter a passcode of at least 4 characters, or turn off "Ask for a passcode".');
       return;
     }
     setIsSaving(true);
@@ -1176,7 +1177,7 @@ function ClientPortalSetupScreenInner() {
       // saved switches reach the homeowner even if he leaves right away.
       requestPortalPublish(id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Saved', portalListsServerRead
+      showAlert('Portal saved', portalListsServerRead
         ? 'Portal settings updated.'
         : 'Portal settings saved. Your client\'s page will update when your lists finish syncing.');
     } finally {
@@ -1445,7 +1446,8 @@ function ClientPortalSetupScreenInner() {
       isHtml: false,
     });
     if (!fallback.success && fallback.error && fallback.error !== 'cancelled') {
-      showAlert('Email Not Sent', fallback.error);
+      console.warn('[ClientPortal] email fallback failed:', fallback.error);
+      showAlert('Email not sent', 'Your mail app couldn’t send the invite. Copy the portal link and send it yourself.');
     }
   }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately, warnIfExpired, warnIfLinkPending]);
 
@@ -1454,10 +1456,10 @@ function ClientPortalSetupScreenInner() {
       const digits = Math.floor(1000 + Math.random() * 9000).toString();
       setPortal(p => ({ ...p, passcode: digits, requirePasscode: true }));
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      showAlert('New Passcode', `New passcode: ${digits}\n\nRemember to tap Save and re-share it with clients.`);
+      showAlert('New passcode', `New passcode: ${digits}\n\nTap Save, then share the new passcode with your client.`);
     };
     showAlert(
-      'Reset Passcode',
+      'Reset passcode?',
       'Generate a new 4-digit passcode? Your client will need the new code at the page\'s passcode step. It does not change the link: anyone who already has the link can still reach the project.',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -1474,11 +1476,11 @@ function ClientPortalSetupScreenInner() {
     // can't get past Resend's validator should be caught here.
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!email || !EMAIL_REGEX.test(email)) {
-      showAlert('Invalid Email', 'Please enter a valid email address — like name@example.com.');
+      showAlert('Check the email address', 'Enter a valid email address, like name@example.com.');
       return;
     }
     if (portal.invites?.some(i => i.email === email)) {
-      showAlert('Already Invited', 'This email has already been invited.');
+      showAlert('Already invited', 'This email is already on the portal.');
       return;
     }
     const invite: ClientPortalInvite = {
@@ -1495,7 +1497,7 @@ function ClientPortalSetupScreenInner() {
   }, [inviteEmail, inviteName, portal.invites]);
 
   const handleRemoveInvite = useCallback((inviteId: string) => {
-    showAlert('Remove Access', 'Remove this client\'s access?', [
+    showAlert('Remove access?', 'This client can no longer open the portal.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove', style: 'destructive', onPress: () => {
@@ -1506,10 +1508,10 @@ function ClientPortalSetupScreenInner() {
   }, []);
 
   const handleDisablePortal = useCallback(() => {
-    showAlert('Disable Portal', 'This will revoke all client access. Continue?', [
+    showAlert('Turn off the portal?', 'Every client loses access to the portal.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Disable', style: 'destructive', onPress: () => {
+        text: 'Turn off', style: 'destructive', onPress: () => {
           if (!id) return;
           // #134: revoking access also turns the weekly recap OFF, so turning
           // the portal back on never silently restarts emails he didn't
@@ -1533,10 +1535,10 @@ function ClientPortalSetupScreenInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'Client Portal' }} />
+        <Stack.Screen options={{ title: 'Client portal' }} />
         <ToolProjectPicker
-          toolName="Client Portal"
-          message="Each project gets its own private homeowner portal with progress, photos, selections, and pay buttons."
+          toolName="Client portal"
+          message="Each project gets its own private client portal with progress, photos, selections and pay buttons."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
@@ -1544,7 +1546,7 @@ function ClientPortalSetupScreenInner() {
           steps={[
             'Open or create a project from the Projects tab.',
             'Tap Client Portal inside the project tile grid.',
-            'Toggle which sections to share, then send the magic link to the homeowner.',
+            'Choose which sections to share, then send the link to your client.',
           ]}
         />
       </View>
@@ -1555,7 +1557,7 @@ function ClientPortalSetupScreenInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Client Portal',
+          title: 'Client portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -1607,7 +1609,7 @@ function ClientPortalSetupScreenInner() {
         <View style={styles.linkCard}>
           <View style={styles.linkCardHeader}>
             <Globe size={20} color={Colors.purple} strokeWidth={1.75} />
-            <Text style={styles.linkCardTitle}>Portal Link</Text>
+            <Text style={styles.linkCardTitle}>Portal link</Text>
             <View style={[styles.activeBadge, { backgroundColor: tone.badge }]}>
               <Text style={[styles.activeBadgeText, { color: tone.ink }]}>{tone.short}</Text>
             </View>
@@ -1641,7 +1643,7 @@ function ClientPortalSetupScreenInner() {
                 : linkHealFailed
                   ? 'Couldn\u2019t get this link\u2019s security key from the server. Check your connection and tap Retry — Copy and Share stay locked until it arrives.'
                   : linkPending
-                    ? 'Fetching this link\u2019s security key from the server — Copy and Share unlock when it arrives.'
+                    ? 'Fetching this link\u2019s security key from the server. Copy and Share become available when it arrives.'
                     : 'Ends in a security key that lets your client sign change orders — part of it is hidden here so a screenshot can\u2019t give it away. Use Copy: a shortened or retyped link opens the portal but cannot approve anything.'}
           </Text>
           {linkHealFailed && (
@@ -1718,7 +1720,7 @@ function ClientPortalSetupScreenInner() {
             {linkExpiry.kind === 'expired' && (
               <Text style={styles.expiryHint}>
                 {handoverClosed
-                  ? `This job was closed out, and the link closed ${HANDOVER_GRACE_DAYS} days later. To reopen it for your client, pick a number of days below and generate — the URL doesn\u2019t change, so the link they already have starts working again.`
+                  ? `This project was closed out, and the link closed ${HANDOVER_GRACE_DAYS} days later. To reopen it for your client, pick a number of days below and generate. The URL doesn\u2019t change, so the link they already have starts working again.`
                   : 'Your client sees a dead page until you generate a new one. The URL doesn\u2019t change, so the link they already have starts working again.'}
               </Text>
             )}
@@ -1810,14 +1812,14 @@ function ClientPortalSetupScreenInner() {
                 value={portal.passcode ?? ''}
                 onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
                 editable={!ownerOnlyReason}
-                placeholder="Enter a passcode (4-12 chars)"
+                placeholder="Passcode (4 to 12 characters)"
                 placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="none"
                 maxLength={20}
               />
               <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} disabled={!!ownerOnlyReason} activeOpacity={0.8}>
                 <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.resetPasscodeText}>Generate New Passcode</Text>
+                <Text style={styles.resetPasscodeText}>New passcode</Text>
               </TouchableOpacity>
             </>
           )}
@@ -1825,9 +1827,9 @@ function ClientPortalSetupScreenInner() {
 
         {/* Homeowner Language */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Homeowner&apos;s Language</Text>
+          <Text style={styles.sectionTitle}>Client&apos;s language</Text>
           <Text style={styles.sectionSubtitle}>
-            The portal labels + AI daily summaries land in this language. Names of brands and the project itself stay in their original form.
+            Portal labels and AI daily summaries appear in this language. Brand names and the project name stay as written.
           </Text>
           <View style={styles.langGrid}>
             {LANGUAGES.map(l => {
@@ -1857,14 +1859,14 @@ function ClientPortalSetupScreenInner() {
 
         {/* Welcome Message */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Welcome Message</Text>
+          <Text style={styles.sectionTitle}>Welcome message</Text>
           <Text style={styles.sectionSubtitle}>Optional message shown to clients when they open the portal</Text>
           <TextInput
             style={styles.welcomeInput}
             value={portal.welcomeMessage}
             onChangeText={val => setPortal(p => ({ ...p, welcomeMessage: val }))}
             editable={!ownerOnlyReason}
-            placeholder="e.g. Hi! Here's a live view of your project. Feel free to reach out with any questions."
+            placeholder="For example: Here's a live view of your project. Reach out with any questions."
             placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={3}
@@ -1873,7 +1875,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Client Budget Input */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Client Budget Input</Text>
+          <Text style={styles.sectionTitle}>Client budget input</Text>
           <Text style={styles.sectionSubtitle}>
             Let the owner propose a starting budget directly from the portal — useful
             when you don&apos;t have an estimate yet and want to anchor the conversation.
@@ -1999,13 +2001,13 @@ function ClientPortalSetupScreenInner() {
                   // #134: the function refuses a disabled portal outright.
                   showAlert('Portal is off', 'Nothing was emailed. Turn the portal on to email your client.');
                 } else if (sent > 0) {
-                  showAlert('Preview sent', `Sent the recap to ${sent} portal invite${sent === 1 ? '' : 's'}. Check your inbox or your client's.`);
+                  showAlert('Preview sent', `Sent the recap to ${sent} portal ${sent === 1 ? 'invite' : 'invites'}. Check your inbox or your client's.`);
                 } else if (errs.includes('project_closed')) {
                   // The closing email only goes out through the weekly recap's
                   // Friday run, which skips portals with the recap off — so
                   // promise it only when the recap is on.
-                  showAlert('Job is closed', portal.weeklyDigest?.enabled
-                    ? 'The Friday update stops at handover. Your client got (or will get on Friday) one last email saying the job is complete and when the portal link closes.'
+                  showAlert('Project is closed', portal.weeklyDigest?.enabled
+                    ? 'The Friday update stops at handover. Your client got (or will get on Friday) one last email saying the project is complete and when the portal link closes.'
                     : 'The Friday update stops at handover. The weekly recap is off for this portal, so no closing email goes out — tell your client yourself when the portal link closes.');
                 } else if (errs.includes('portal_link_ended')) {
                   showAlert('Portal link has ended', 'Send your client a new portal link before previewing the weekly update.');
@@ -2021,7 +2023,8 @@ function ClientPortalSetupScreenInner() {
                   showAlert('Preview not sent', `The email service refused it: ${refusal.replace(/^[^:]*:\s*/, '')}`);
                 }
               } catch (err) {
-                showAlert('Preview failed', (err as Error).message ?? 'Could not send preview.');
+                const copy = describeError(err, { action: 'send the preview' });
+                showAlert("Couldn't send the preview", copy.body);
               }
             }}
             activeOpacity={0.85}
@@ -2057,7 +2060,7 @@ function ClientPortalSetupScreenInner() {
                         ? (portal.proposalApprovalEnabled
                           ? `Your client can read the proposal in the portal but can't accept it there yet. ${PROPOSAL_ACCEPTANCE_OFF_REASON}`
                           : PROPOSAL_ACCEPTANCE_OFF_REASON)
-                        : 'Owner reviews the scope and price and signs to accept, from the portal')
+                        : 'Your client reviews the scope and price and signs to accept, from the portal')
                       : proposalBlock.gc}
                   </Text>
                 </View>
@@ -2307,10 +2310,10 @@ function ClientPortalSetupScreenInner() {
 
         {/* Auto-share */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AUTO-SHARE WITH CLIENT</Text>
+          <Text style={styles.sectionTitle}>Auto-share with client</Text>
           <Text style={styles.sectionSubtitle}>
-            When ON, new items of that type are shared with your client the moment you save them.
-            When OFF, new items go to your Outbox as Drafts — tap Send to share each one.
+            When on, new items of that type are shared with your client the moment you save them.
+            When off, new items go to your outbox as drafts. Tap Send to share each one.
           </Text>
           <View style={styles.togglesCard}>
             {([
@@ -2343,8 +2346,8 @@ function ClientPortalSetupScreenInner() {
 
         {/* Permissions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What Clients Can See</Text>
-          <Text style={styles.sectionSubtitle}>Toggle sections on or off. Changes take effect immediately after saving.</Text>
+          <Text style={styles.sectionTitle}>What clients can see</Text>
+          <Text style={styles.sectionSubtitle}>Turn sections on or off. Changes reach your client when you save.</Text>
           <View style={styles.togglesCard}>
             {PERMISSION_TOGGLES.map((item, index) => (
               <View key={item.key} style={[styles.toggleRow, index < PERMISSION_TOGGLES.length - 1 && styles.toggleRowBorder]}>
@@ -2378,8 +2381,8 @@ function ClientPortalSetupScreenInner() {
 
         {/* Invite Clients */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Invite Clients</Text>
-          <Text style={styles.sectionSubtitle}>Add clients by email to track who has access</Text>
+          <Text style={styles.sectionTitle}>Invite clients</Text>
+          <Text style={styles.sectionSubtitle}>Add clients by email to track who has access.</Text>
           <View style={styles.inviteForm}>
             <TextInput
               style={styles.input}
@@ -2399,7 +2402,7 @@ function ClientPortalSetupScreenInner() {
             />
             <TouchableOpacity style={[styles.inviteBtn, !!ownerOnlyReason && { opacity: 0.5 }]} onPress={handleAddInvite} disabled={!!ownerOnlyReason}>
               <Plus size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.inviteBtnText}>Add Client</Text>
+              <Text style={styles.inviteBtnText}>Add client</Text>
             </TouchableOpacity>
           </View>
 
@@ -2454,8 +2457,8 @@ function ClientPortalSetupScreenInner() {
             <MageAIMark size={16} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.weeklyUpdateTitle}>Draft Weekly Update</Text>
-            <Text style={styles.weeklyUpdateSub}>AI writes a friendly progress email from the last 7 days. You edit, then send.</Text>
+            <Text style={styles.weeklyUpdateTitle}>Draft weekly update</Text>
+            <Text style={styles.weeklyUpdateSub}>MAGE drafts a progress email from the last 7 days. You edit, then send.</Text>
           </View>
           <Text style={styles.weeklyUpdateArrow}>›</Text>
         </TouchableOpacity>
@@ -2468,7 +2471,7 @@ function ClientPortalSetupScreenInner() {
           accessibilityState={{ disabled: !!ownerOnlyReason }}
         >
           <EyeOff size={16} color={themeColors.danger} strokeWidth={1.75} />
-          <Text style={styles.disableBtnText}>Disable Client Portal</Text>
+          <Text style={styles.disableBtnText}>Turn off client portal</Text>
         </TouchableOpacity>
       </ScrollView>
       <SendPortalLinkModal

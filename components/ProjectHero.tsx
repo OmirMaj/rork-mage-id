@@ -52,7 +52,7 @@ function fmtMoney(v: number): string {
   return `${sign}$${Math.round(abs)}`;
 }
 
-const HEALTH_LABEL: Record<MarginHealth, string> = { healthy: 'HEALTHY', watch: 'WATCH', critical: 'CRITICAL' };
+const HEALTH_LABEL: Record<MarginHealth, string> = { healthy: 'Healthy', watch: 'Watch', critical: 'Critical' };
 
 export default function ProjectHero({ project: _project, pulse }: { project: Project; pulse: ProjectPulse }) {
   const { colors: t } = useTheme();
@@ -146,7 +146,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
     if (!roleError) return <LockedAccessCard what="Margin" />;
     return (
       <View style={styles.card} testID="project-hero-unavailable">
-        <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+        <Text style={styles.eyebrow}>Projected margin</Text>
         <Text style={styles.unavailable}>
           Couldn't verify your access to this project's financials. Check your connection and pull to refresh.
         </Text>
@@ -162,7 +162,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
         accessibilityRole="progressbar"
         accessibilityLabel="Loading crew hours and receipts"
       >
-        <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+        <Text style={styles.eyebrow}>Projected margin</Text>
         <View style={styles.loadingRow}>
           <ActivityIndicator size="small" color={t.accent} />
           <Text style={styles.loadingText}>Loading crew hours and receipts…</Text>
@@ -194,7 +194,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
 
   return (
     <View style={styles.card}>
-      <Text style={styles.eyebrow}>PROJECTED MARGIN</Text>
+      <Text style={styles.eyebrow}>Projected margin</Text>
       <View style={styles.numRow}>
         <Text style={styles.num}>{shown.toFixed(1)}</Text>
         <Text style={styles.pct}>%</Text>
@@ -217,7 +217,7 @@ export default function ProjectHero({ project: _project, pulse }: { project: Pro
       {/* spirit level → margin risk */}
       <View style={styles.levelWrap}>
         <View style={styles.levelHead}>
-          <Text style={styles.levelLabel}>MARGIN RISK</Text>
+          <Text style={styles.levelLabel}>Margin risk</Text>
           <Text style={[styles.levelBand, { color: riskColor }]}>{riskBandLabel(risk.band)}</Text>
         </View>
         <View style={styles.vial}>
@@ -255,7 +255,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
     borderRadius: 20, padding: 22,
   },
-  eyebrow: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.4 },
+  eyebrow: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.4, textTransform: 'uppercase' },
   numRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 6 },
   num: { ...Type.serifHero, color: t.text, fontVariant: ['tabular-nums'] },
   pct: { ...Type.serifLargeTitle, color: t.textMuted, marginTop: 6, marginLeft: 2 },
@@ -273,7 +273,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // a native scaleX from the left edge (the ProjectCard burn-bar recipe — the
   // rounded ends squash while it runs, accepted).
   bracketBar: { height: 1.5, marginHorizontal: 0, width: '100%', transformOrigin: 'left' },
-  bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8, flexShrink: 0 },
+  bracketLabel: { ...Type.monoCaption, letterSpacing: 1, marginLeft: 8, flexShrink: 0, textTransform: 'uppercase' },
 
   erosion: { fontSize: Type.footnote.fontSize, fontWeight: '600', marginTop: 12 },
   unavailable: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 19 },
@@ -282,7 +282,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   levelWrap: { marginTop: 18 },
   levelHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
-  levelLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.2 },
+  levelLabel: { ...Type.monoCaption, color: t.textMuted, letterSpacing: 1.2, textTransform: 'uppercase' },
   levelBand: { ...Type.monoCaption, letterSpacing: 0.6, fontWeight: '700' },
   vial: {
     height: 22, borderRadius: 11, backgroundColor: t.bg,

@@ -370,7 +370,7 @@ console.log('\n4. giving up is visible:');
   }
   expect('every reason reads differently — one generic sentence explains nothing', seen.size, reasons.length);
   ok('three of them tell the user to re-record, because only they can',
-    reasons.filter((r) => /re-record/i.test(giveUpMessage(r, task()))).length >= 3);
+    reasons.filter((r) => /record it again/i.test(giveUpMessage(r, task()))).length >= 3);
 }
 
 expect('clip length is spoken in minutes and seconds', formatClipLength(92_000), '1:32');

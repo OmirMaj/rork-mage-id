@@ -397,13 +397,13 @@ export function planUploadBlockedReason(
 ): string | null {
   if (role === 'owner' || role === 'editor') return null;
   if (role === 'viewer') {
-    return 'You have view-only access to this job, so you can’t add a plan to it. Ask the project owner for editor access, or skip the pin.';
+    return 'You have view access on this project, so you can’t add plans to it. Ask the project owner for Editor access, or skip the pin.';
   }
   if (role === 'field') {
     return 'Field access can pin on a plan but can’t add one. Ask the project owner or an editor to add the plan, or skip the pin.';
   }
-  if (status.isLoading) return 'Checking whether you can add plans to this job…';
-  return 'Couldn’t check your access to this job — usually no signal. Try again with signal, or skip the pin.';
+  if (status.isLoading) return 'Checking whether you can add plans to this project…';
+  return 'Couldn’t check your access to this project. This is usually no signal. Try again with signal, or skip the pin.';
 }
 
 // ── Durable vs device-only (critic 2026-09-17, issue #3) ─────────────────────

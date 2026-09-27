@@ -732,7 +732,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
           "children": [
             {
               "children": [
-                "All jobs",
+                "All projects",
               ],
               "props": {
                 "style": {
@@ -745,7 +745,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
             },
           ],
           "props": {
-            "accessibilityLabel": "Stop answering for Harlow Residence — kitchen + primary suite and ask about all jobs",
+            "accessibilityLabel": "Stop answering for Harlow Residence — kitchen + primary suite and ask about all projects",
             "accessibilityRole": "button",
             "accessibilityState": {
               "busy": undefined,
@@ -1074,7 +1074,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                     },
                     {
                       "children": [
-                        "What can I help with?",
+                        "Ask about your business",
                       ],
                       "props": {
                         "style": {
@@ -1089,7 +1089,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                     },
                     {
                       "children": [
-                        "Ask about Harlow Residence — kitchen + primary suite — its money, schedule, RFIs. Say "all jobs" to ask across the business. Every answer cites where it came from.",
+                        "Ask about Harlow Residence — kitchen + primary suite: its money, schedule and RFIs. Tap "All projects" to ask across the business. Every answer cites where it came from.",
                       ],
                       "props": {
                         "style": {
@@ -2503,7 +2503,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                 "multiline": true,
                 "onChangeText": [Function],
                 "onSubmitEditing": [Function],
-                "placeholder": "Ask anything…",
+                "placeholder": "Ask anything",
                 "placeholderTextColor": "rgba(43,48,56,0.72)",
                 "style": {
                   "backgroundColor": "#FFFFFF",
@@ -3623,7 +3623,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                     },
                     {
                       "children": [
-                        "What can I help with?",
+                        "Ask about your business",
                       ],
                       "props": {
                         "style": {
@@ -3638,7 +3638,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                     },
                     {
                       "children": [
-                        "Ask about your money, schedules, leads — anything across your jobs. Every answer cites where it came from.",
+                        "Ask about your money, schedules and leads across your projects. Every answer cites where it came from.",
                       ],
                       "props": {
                         "style": {
@@ -4622,7 +4622,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                 "multiline": true,
                 "onChangeText": [Function],
                 "onSubmitEditing": [Function],
-                "placeholder": "Ask anything…",
+                "placeholder": "Ask anything",
                 "placeholderTextColor": "rgba(43,48,56,0.72)",
                 "style": {
                   "backgroundColor": "#FFFFFF",
@@ -5746,7 +5746,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                     },
                     {
                       "children": [
-                        "What can I help with?",
+                        "Ask about your business",
                       ],
                       "props": {
                         "style": {
@@ -5761,7 +5761,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                     },
                     {
                       "children": [
-                        "Ask about your money, schedules, leads — anything across your jobs. Every answer cites where it came from.",
+                        "Ask about your money, schedules and leads across your projects. Every answer cites where it came from.",
                       ],
                       "props": {
                         "style": {
@@ -6753,7 +6753,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                 "multiline": true,
                 "onChangeText": [Function],
                 "onSubmitEditing": [Function],
-                "placeholder": "Ask anything…",
+                "placeholder": "Ask anything",
                 "placeholderTextColor": "rgba(43,48,56,0.72)",
                 "style": {
                   "backgroundColor": "#FFFFFF",

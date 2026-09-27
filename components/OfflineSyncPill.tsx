@@ -132,7 +132,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
       line.canRetry
         // Worded per operation: a failed edit or delete is not a lost record.
         ? discardConfirmBody(line.discards)
-        : `${line.line}.\n\nDismissing this notice does NOT recover the data — you need to re-enter it.`,
+        : `${line.line}.\n\nDismissing this notice doesn’t recover the data. You need to re-enter it.`,
       [
         { text: 'Keep it', style: 'cancel' },
         {

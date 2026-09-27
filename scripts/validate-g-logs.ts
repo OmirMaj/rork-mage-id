@@ -430,9 +430,9 @@ console.log('\nhonest loading (wave 6d, lane V3 — runtime fix C6): no "No … 
     const src = read(file);
     const empty = src.slice(src.indexOf('emptyState={'), src.indexOf('renderCard='));
     ok(`${file}: reads its settle signal (${signal}) and derives \`loading\` from it`, reads.test(src) && src.includes(loadingLine));
-    ok(`${file}: the emptyState branches on \`loading\` FIRST ("Loading …"), before any "No … on this job yet"`,
+    ok(`${file}: the emptyState branches on \`loading\` FIRST ("Loading …"), before any "No … on this project yet"`,
       /^emptyState=\{loading \? \(\s*<EmptyState[\s\S]{0,160}title="Loading [A-Za-z ]+…"/.test(empty)
-      && empty.indexOf('title="Loading') < empty.indexOf('on this job yet'));
+      && empty.indexOf('title="Loading') < empty.indexOf('on this project yet'));
     ok(`${file}: the chip counts are hidden while loading (never a 0 it has not earned)`, /count: loading \? undefined : counts\[f\.key\]/.test(src));
   }
   for (const [file, key, noun] of [['components/logs/RfiLog.tsx', 'rfis', 'RFIs'], ['components/logs/SubmittalLog.tsx', 'submittals', 'submittals']] as const) {

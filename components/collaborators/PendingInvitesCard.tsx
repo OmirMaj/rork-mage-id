@@ -32,6 +32,7 @@ import { parsePendingInvites, pendingInviteHeadline, type PendingInvite } from '
 import { settleWithin } from '@/utils/projectRole';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError } from '@/utils/errorCopy';
 
 export default function PendingInvitesCard() {
   const { colors: t } = useTheme();
@@ -67,7 +68,7 @@ export default function PendingInvitesCard() {
       if (error || !body?.success) {
         setErrorById((m) => ({
           ...m,
-          [inv.collaboratorId]: body?.error || (error instanceof Error ? error.message : "Couldn't accept the invite. Try again."),
+          [inv.collaboratorId]: body?.error || describeError(error ?? body, { action: 'accept the invite' }).body,
         }));
         void query.refetch();
         return;
@@ -84,7 +85,7 @@ export default function PendingInvitesCard() {
       if (projectsRead === 'failed') {
         // Accepted on the server, list not re-read: say so here rather than
         // open a screen that cannot show the job yet.
-        setErrorById((m) => ({ ...m, [inv.collaboratorId]: "Invite accepted — the job appears in your list when you're back online." }));
+        setErrorById((m) => ({ ...m, [inv.collaboratorId]: "Invite accepted. The project appears in your list when you're back online." }));
         void query.refetch();
         return;
       }

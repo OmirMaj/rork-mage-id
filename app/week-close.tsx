@@ -101,7 +101,7 @@ function WeekCloseInner() {
   );
 
   const headline = close?.allQuiet
-    ? (sourceFailed ? 'Close incomplete — MAGE was unreachable' : QUIET_CLOSE_HEADLINE)
+    ? (sourceFailed ? 'Close incomplete: MAGE couldn’t be reached' : QUIET_CLOSE_HEADLINE)
     : `${openLegs} leg${openLegs === 1 ? '' : 's'} open`;
 
   const openItem = (item: BriefItem) => {
@@ -150,7 +150,7 @@ function WeekCloseInner() {
   // unbilled is $0, so the leg is empty. That is "nothing measured", not
   // "nothing owed", and the two deserve different sentences. Cost, not revenue.
   const EMPTY_LEG_LINES: Record<WeekCloseLeg['id'], string> = {
-    bill: 'Nothing unbilled from the costs recorded so far — log crew hours or a sub payment and this fills in.',
+    bill: 'Nothing unbilled from the costs recorded so far. Log crew hours or a sub payment and this fills in.',
     chase: 'No overdue invoices out there.',
     close: 'No weekly plan was tracked this week.',
     commit: 'No lookahead tasks queued for next week yet.',
@@ -177,7 +177,7 @@ function WeekCloseInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Friday Close',
+          title: 'Friday close',
           headerShown: true,
           presentation: 'modal',
           headerRight: () => (
@@ -234,10 +234,10 @@ function WeekCloseInner() {
           onPress={markDone}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Mark week close done"
+          accessibilityLabel="Close this week"
         >
           <CheckCircle2 size={16} color="#FFF" strokeWidth={2} />
-          <Text style={styles.doneBtnText}>Done — close this week</Text>
+          <Text style={styles.doneBtnText}>Close this week</Text>
         </TouchableOpacity>
       </ScrollView>
     </>

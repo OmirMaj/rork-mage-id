@@ -14,6 +14,7 @@ import type { AssemblyItem } from '@/constants/assemblies';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 import { priceMaterialLine } from '@/utils/estimateMarkup';
 import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 
@@ -144,7 +145,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
   const handleSaveCurrentVersion = useCallback(async () => {
     if (currentGrandTotal <= 0) {
-      showAlert('Nothing to Save', 'Add items to your estimate first.');
+      showAlert('Nothing to save', 'Add items to your estimate first.');
       return;
     }
     const items = currentCart.map(i => ({
@@ -158,7 +159,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
     const version: SavedEstimateVersion = {
       id: `v-${Date.now()}`,
-      name: `V${nextVersionNumber(savedVersions)} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      name: `V${nextVersionNumber(savedVersions)} · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
       savedAt: new Date().toISOString(),
       materialsTotal: currentMaterialsTotal,
       laborTotal: currentLaborTotal,
@@ -188,14 +189,15 @@ const EstimateComparison = React.memo(function EstimateComparison({
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       } catch (err) {
         console.error('[EstimateComparison] Failed to save version:', err);
-        showAlert('Couldn’t save', `This device would not store the version: ${err instanceof Error ? err.message : 'unknown error'}. Your estimate itself is untouched — try again.`);
+        const copy = describeError(err, { action: 'save this version', keptLocally: true });
+        showAlert(copy.title, copy.body);
         return;
       }
       setSavedVersions(updated);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const note = evicted.length > 0
         ? `Estimate saved as "${version.name}". ${evicted.map(v => `"${v.name}"`).join(', ')} dropped off the end.`
-        : `Estimate saved as "${version.name}"`;
+        : `Estimate saved as "${version.name}".`;
       showAlert('Saved', note);
     };
 
@@ -215,7 +217,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
         + `"${dropped.name}" ($${Math.round(dropped.grandTotal).toLocaleString('en-US')}, saved `
         + `${new Date(dropped.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
         + `${alsoDropped}. `
-        + 'It is only on this device, so it cannot be recovered afterwards.',
+        + 'It\'s only on this device, so it can\'t be recovered.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Save anyway', style: 'destructive', onPress: () => { void write(); } },
@@ -232,7 +234,8 @@ const EstimateComparison = React.memo(function EstimateComparison({
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (err) {
       console.error('[EstimateComparison] Failed to delete version:', err);
-      showAlert('Couldn’t delete', `This device would not update the saved versions: ${err instanceof Error ? err.message : 'unknown error'}. The version is still there — try again.`);
+      const copy = describeError(err, { action: 'delete this version' });
+      showAlert(copy.title, `${copy.body} The version is still on the list.`);
       return;
     }
     setSavedVersions(updated);
@@ -278,7 +281,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
       <View style={[s.container, fP.card]}>
         <View style={s.header}>
           <View>
-            <Text style={s.headerTitle}>Compare Estimates</Text>
+            <Text style={s.headerTitle}>Compare estimates</Text>
             <Text style={s.headerSub}>Track changes across versions</Text>
           </View>
           <TouchableOpacity onPress={onClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={t.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -287,7 +290,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
         <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
           <TouchableOpacity style={s.saveBtn} onPress={handleSaveCurrentVersion} activeOpacity={0.85}>
             <Save size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
-            <Text style={s.saveBtnText}>Save Current as Version</Text>
+            <Text style={s.saveBtnText}>Save as version</Text>
           </TouchableOpacity>
 
           {savedVersions.length === 0 && !loading && (
@@ -300,7 +303,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
           {savedVersions.length > 0 && (
             <>
-              <Text style={s.sectionTitle}>Saved Versions</Text>
+              <Text style={s.sectionTitle}>Saved versions</Text>
               {savedVersions.map(version => {
                 const isSelected = selectedVersion?.id === version.id;
                 return (
@@ -325,7 +328,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
                       </View>
                       <View style={s.versionRight}>
                         <Text style={[s.versionTotal, isSelected && s.versionTotalSelected]}>${version.grandTotal.toFixed(0)}</Text>
-                        <Text style={s.versionCount}>{version.materialCount + version.laborCount + version.assemblyCount} items</Text>
+                        <Text style={s.versionCount}>{version.materialCount + version.laborCount + version.assemblyCount} {version.materialCount + version.laborCount + version.assemblyCount === 1 ? 'item' : 'items'}</Text>
                       </View>
                     </View>
                     {isSelected && (
@@ -351,7 +354,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
                   <Text style={[s.compHeaderCell, { flex: 2 }]} />
                   <Text style={s.compHeaderCell}>Current</Text>
                   <Text style={s.compHeaderCell}>{selectedVersion.name}</Text>
-                  <Text style={s.compHeaderCell}>Delta</Text>
+                  <Text style={s.compHeaderCell}>Change</Text>
                 </View>
 
                 {[
@@ -369,7 +372,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
                 <View style={s.compDivider} />
                 <View style={s.compRow}>
-                  <Text style={[s.compCell, { flex: 2, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize }]}>Grand Total</Text>
+                  <Text style={[s.compCell, { flex: 2, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize }]}>Grand total</Text>
                   <Text style={[s.compCell, { fontWeight: '700' as const, color: Colors.primary }]}>${currentGrandTotal.toFixed(0)}</Text>
                   <Text style={[s.compCell, { color: t.textMuted }]}>${selectedVersion.grandTotal.toFixed(0)}</Text>
                   <Text style={[s.compCell, { color: comparison.totalDelta.color, fontWeight: '700' as const, fontSize: Type.caption1.fontSize }]}>{comparison.totalDelta.text}</Text>
@@ -378,11 +381,11 @@ const EstimateComparison = React.memo(function EstimateComparison({
 
               {comparison.changedItems.length > 0 && (
                 <View style={s.changesSection}>
-                  <Text style={s.changesSectionTitle}>Line Item Changes</Text>
+                  <Text style={s.changesSectionTitle}>Line item changes</Text>
                   {comparison.changedItems.slice(0, 15).map((item, idx) => {
                     const bgColor = item.type === 'new' ? Colors.successLight : item.type === 'removed' ? Colors.errorLight : Colors.warningLight;
                     const textColor = item.type === 'new' ? t.successLabel : item.type === 'removed' ? t.dangerLabel : t.warningLabel;
-                    const label = item.type === 'new' ? 'NEW' : item.type === 'removed' ? 'REMOVED' : 'CHANGED';
+                    const label = item.type === 'new' ? 'New' : item.type === 'removed' ? 'Removed' : 'Changed';
                     return (
                       <View key={`${item.name}-${idx}`} style={[s.changeRow, { backgroundColor: bgColor }]}>
                         <View style={s.changeInfo}>
@@ -486,7 +489,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   changeInfo: { flex: 1, gap: 4 },
   changeName: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.text },
   changeBadge: { alignSelf: 'flex-start' as const },
-  changeBadgeText: { fontSize: 9, fontWeight: '700' as const, letterSpacing: 0.5 },
+  changeBadgeText: { fontSize: 9, fontWeight: '700' as const, letterSpacing: 0.5, textTransform: 'uppercase' },
   changeAmounts: { alignItems: 'flex-end', gap: 2 },
   changeOld: { fontSize: Type.caption2.fontSize, color: t.textMuted, textDecorationLine: 'line-through' as const },
   changeNew: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },

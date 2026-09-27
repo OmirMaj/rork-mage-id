@@ -167,7 +167,7 @@ ok('client-view shows a loading state before any failure',
   && /if \(resolving\) \{/.test(cv));
 ok('a genuinely expired link says so', /This link has expired/.test(cv));
 ok('a missing portal does NOT say expired',
-  /We could not find this portal/.test(cv));
+  /Couldn\\'t find this portal/.test(cv));
 ok('a truncated link gets its own message', /This link is incomplete/.test(cv));
 ok('every failure points back at the contractor',
   (cv.match(/contractor/g) ?? []).length >= 4);
@@ -208,7 +208,7 @@ ok('snapshot mode is read-only (no CO signing without a session)',
   ok('client-view reads the proposal off the RAW snapshot, not the hydrator',
     /remote\.snapshot\?\.proposal/.test(cv) && !/hydrated\?\.proposal/.test(cv));
   ok('…and shows it read-only, with no write path on this screen',
-    /title="Your Proposal"/.test(cv) && !/proposal_approvals/.test(cv));
+    /title="Your proposal"/.test(cv) && !/proposal_approvals/.test(cv));
 }
 
 // ── The route must be reachable without a session ────────────────────────────

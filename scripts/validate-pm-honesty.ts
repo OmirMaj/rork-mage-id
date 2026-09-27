@@ -200,7 +200,7 @@ console.log('\n── owner email, units, notes ──');
   ok('a bad unit count blocks Save (not silently dropped)',
     /const unitsInvalid = eUnits\.trim\(\) !== '' && parseUnitsInput\(eUnits\) === undefined;/.test(mpCode)
     && /disabled=\{!eName\.trim\(\) \|\| unitsInvalid\}/.test(mpCode));
-  ok('the "{units} units" tag can now render', /\{!!property\.units && <View style=\{styles\.tag\}><Text style=\{styles\.tagText\}>\{property\.units\} units/.test(mpCode));
+  ok('the "{units} units" tag can now render', /\{!!property\.units && <View style=\{styles\.tag\}><Text style=\{styles\.tagText\}>\{property\.units\} \{property\.units === 1 \? 'unit' : 'units'\}/.test(mpCode));
   // And the mirror carries them (a column nobody could fill is now filled).
   const row = pm.propertyToRow({ id: 'p', name: 'n', ownerEmail: 'o@x.com', units: 12, notes: 'gate 1234', createdAt: 'a', updatedAt: 'b' }, 'u');
   ok('owner email, units and notes reach their columns', row.owner_email === 'o@x.com' && row.units === 12 && row.notes === 'gate 1234');

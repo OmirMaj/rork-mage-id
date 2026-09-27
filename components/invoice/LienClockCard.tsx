@@ -25,7 +25,7 @@ import { UNVERIFIED_SENTENCE, lienClockFor } from '@/utils/lienRightsClock';
 
 export const LIEN_ATTORNEY_LINE = 'This is a date reminder, not legal advice — confirm with your attorney.';
 export const LIEN_PUBLIC_JOB_LINE =
-  'These are the private-job dates. A public job (city, state, school, authority) has a much shorter deadline — ask your attorney today.';
+  'These are the dates for a private project. A public project (city, state, school, authority) has a much shorter deadline, so ask your attorney today.';
 
 export function LienClockCard({ projectId }: { projectId: string }) {
   const { colors: t } = useTheme();
@@ -36,7 +36,7 @@ export function LienClockCard({ projectId }: { projectId: string }) {
   if (!dailyReportsLoaded) {
     return (
       <View testID="lienclock-card" style={styles.wrap}>
-        <Text style={styles.muted}>Reading your daily log…</Text>
+        <Text style={styles.muted}>Reading your daily reports…</Text>
       </View>
     );
   }

@@ -125,7 +125,7 @@ export default function ProjectScopeScreen() {
             <ChevronLeft size={24} color={c.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>PROJECT SCOPE</Text>
+            <Text style={styles.eyebrow}>Project scope</Text>
             <Text style={styles.projName} numberOfLines={1}>{project.name}</Text>
           </View>
           <TouchableOpacity onPress={skip} hitSlop={12} testID="scope-skip" accessibilityRole="button" accessibilityLabel="Skip for now">
@@ -174,7 +174,7 @@ export default function ProjectScopeScreen() {
 const makeStyles = (c: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, paddingHorizontal: 16, paddingBottom: 8 },
-  eyebrow: { ...Type.caption2, fontWeight: '800' as const, color: c.accent, letterSpacing: 0.8 },
+  eyebrow: { ...Type.caption2, fontWeight: '800' as const, color: c.accent, letterSpacing: 0.8, textTransform: 'uppercase' as const },
   projName: { ...Type.subhead, fontWeight: '700' as const, color: c.text },
   skipText: { ...Type.footnote, color: c.textSecondary, fontWeight: '600' as const },
   progressWrap: { paddingHorizontal: 20, paddingVertical: 8, gap: 6 },

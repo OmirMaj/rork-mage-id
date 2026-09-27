@@ -318,7 +318,7 @@ export default function PersonaSelectScreen() {
       // silent-fail on first tap.
       showAlert(
         "Couldn't save your choice",
-        'Please tap your role again.',
+        'Tap your role again.',
       );
     }
   }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, invitedProject, waitingInvite, lookForInvites, queryClient, fetchPendingInvites, pendingInvitesQueryKey, restoreList]);
@@ -408,7 +408,7 @@ export default function PersonaSelectScreen() {
         <View style={{ flex: 1 }} />
 
         <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
-          <Text style={styles.eyebrowDot}>●</Text>  pick your side
+          <Text style={styles.eyebrowDot}>●</Text>  Pick your side
         </Animated.Text>
 
         <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
@@ -419,10 +419,10 @@ export default function PersonaSelectScreen() {
 
         <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
           {invitedProject
-            ? "You've joined a project. Tell us which side you're on and we'll open it — you can switch later in Settings."
+            ? "You've joined a project. Tell us which side you're on and we'll open it. You can switch later in Settings."
             : waitingInvite
-            ? `${pendingInviteHeadline(waitingInvite)}. Tell us which side you're on and it will be waiting on your Home screen to accept — you can switch later in Settings.`
-            : "MAGE ID has two sides — the operating system for builders, and a marketplace for property owners hiring them. Pick one and we'll set up the right experience. You can switch later in Settings."}
+            ? `${pendingInviteHeadline(waitingInvite)}. Tell us which side you're on and it will be waiting on your Home screen to accept. You can switch later in Settings.`
+            : "MAGE ID has two sides: software for builders, and a marketplace for property owners hiring them. Pick one and we'll set it up. You can switch later in Settings."}
         </Animated.Text>
 
         <View style={[styles.cardList, isDesktop && styles.cardGrid]}>

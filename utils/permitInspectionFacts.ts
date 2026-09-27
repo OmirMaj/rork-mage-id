@@ -641,7 +641,7 @@ export function inspectionHistoryFactsFor(
       : ' No correction notes on file to quote.';
   const chipExtra = [
     reinspections > 0 && kind === 'record' ? ` ${reinspectionLine}` : '',
-    jobs.length > 1 ? ` Across ${jobs.length} of your jobs.` : '',
+    jobs.length > 1 ? ` Across ${jobs.length} of your projects.` : '',
     widenedRows > 0 ? ` ${widenedRows} matched by place name — one may be a same-named town.` : '',
   ].join('');
 

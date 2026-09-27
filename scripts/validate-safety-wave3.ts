@@ -123,7 +123,7 @@ console.log('\n#88 the 300 names the injured worker:');
   ok("a privacy case prints 'Privacy case' in the name column (1904.29(b)(7))", privacy.employeeName === 'Privacy case' && privacy.missing.length === 0);
   ok('the CSV never carries the hidden name', !osha300ToCsv([privacy], { name: 'Acme', year: '2026' }).includes('Jane D'));
   ok('the CSV has no screen-only columns', !osha300ToCsv([privacy], { name: 'Acme', year: '2026' }).includes('incidentId'));
-  ok('no people → blocked with a reason', /needs the injured worker/.test(recordableWorkerProblem([]) ?? ''));
+  ok('no people → blocked with a reason', /needs the injured person/.test(recordableWorkerProblem([]) ?? ''));
   ok('two people, none marked → asks which one', /Mark which person/.test(recordableWorkerProblem([{ name: 'A', role: 'x' }, { name: 'B', role: 'y' }]) ?? ''));
   ok('one person, no job title → asks for it', /job title/.test(recordableWorkerProblem([{ name: 'A', role: ' ' }]) ?? ''));
   ok('privacy case with a job title passes', recordableWorkerProblem([{ name: '', role: 'Welder', injured: true, privacyCase: true } as never]) === null);
@@ -197,7 +197,7 @@ console.log('\n#82 collaborator cases reach the GC; the 300 is the owner\'s:');
     /incidentsForOwnEstablishment\(incidents, projects, user\?\.id\)/.test(src('app/safety-osha.tsx')) && /incidentsForOwnEstablishment\(/.test(src('app/safety.tsx')));
   const inc = src('app/safety-incidents.tsx');
   ok('collaborator copy names who sees the case and does NOT promise the OSHA 300',
-    /seat === 'crew'/.test(inc) && /Only you and this job&apos;s owner can see the cases you report here/.test(inc)
+    /seat === 'crew'/.test(inc) && /Only you and this project&apos;s owner can see the cases you report here/.test(inc)
       && !/testID="incident-collab-note"[^<]*OSHA 300/.test(inc));
 }
 

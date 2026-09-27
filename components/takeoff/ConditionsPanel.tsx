@@ -285,7 +285,7 @@ export default function ConditionsPanel(p: ConditionsPanelProps) {
                   {row.price.rateSource === 'book'
                     ? <RateProvenanceChip entry={row.price.entry} />
                     : row.price.rateSource === 'override'
-                      ? <Text style={styles.detailText}>your rate (typed)</Text>
+                      ? <Text style={styles.detailText}>Your rate (typed)</Text>
                       : null}
                   <TouchableOpacity onPress={() => p.onEdit(c.id)} accessibilityRole="button" testID={`takeoffws-edit-${c.id}`}>
                     <Text style={styles.link}>Edit condition</Text>

@@ -228,7 +228,7 @@ console.log('\n2. subRows — the phone Subs tab\'s own rule');
   check("no COI date: coiDay and coiDaysLeft null; the label names the gap ('No docs')", c.coiDay === null && c.coiDaysLeft === null && c.complianceLabel === 'No docs');
   check("an unreadable COI date is unknown, not a day (g: 'soon-ish')", subRegisterRow(SUBS[6], [], null, NOW_MS).coiDay === null);
   const b = subRegisterRow(SUBS[1], commitments, null, NOW_MS);
-  check('b: COI in 10 days (coiDaysLeft 10), Expiring Soon', b.coiDay === '2026-08-25' && b.coiDaysLeft === 10 && b.complianceLabel === 'Expiring Soon');
+  check('b: COI in 10 days (coiDaysLeft 10), Expiring soon', b.coiDay === '2026-08-25' && b.coiDaysLeft === 10 && b.complianceLabel === 'Expiring soon');
   const order = subsByUpdated(SUBS.map((s) => subRegisterRow(s, [], null, NOW_MS))).map((r) => r.id);
   check('rows keep the phone\'s order: updatedAt, newest first', order[0] === 'b' && order[1] === 'a', order.join(','));
   check('subsByUpdated sorts a COPY (the context array is not touched)', SUBS[0].id === 'a' && SUBS[1].id === 'b');
@@ -271,7 +271,7 @@ console.log('\n4. Source pins — the phone arm, the splits, the reasons');
 {
   const SCREENS = [
     { file: 'app/(tabs)/subs/index.tsx', register: 'SubsRegister', phone: ['renderItem={renderSub}', 'testID="subs-search"', 'testID="open-coi-vault"'], never: 3, any: 1 },
-    { file: 'app/coi-vault.tsx', register: 'CoiVaultRegister', phone: ['subcontractors.map(sub =>', "<Stack.Screen options={{ title: 'Sub Insurance' }} />", 'eyebrow="COI Tracker"'], never: 0, any: 1 },
+    { file: 'app/coi-vault.tsx', register: 'CoiVaultRegister', phone: ['subcontractors.map(sub =>', "<Stack.Screen options={{ title: 'Sub insurance' }} />", 'eyebrow="COI tracker"'], never: 0, any: 1 },
   ];
   for (const s of SCREENS) {
     const src = stripComments(read(s.file));

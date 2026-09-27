@@ -158,7 +158,7 @@ export default function EntityActionSheet({
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         if (!ok) {
-          showAlert('Copy failed', 'Could not copy link to clipboard.');
+          showAlert('Couldn’t copy link', 'Try again.');
         }
         return;
       }
@@ -172,8 +172,8 @@ export default function EntityActionSheet({
             } else {
               const ok = await copyToClipboard(body);
               showAlert(
-                ok ? 'Copied' : 'Copy failed',
-                ok ? 'Share text copied to clipboard.' : 'Could not copy share text.',
+                ok ? 'Copied' : 'Couldn’t copy',
+                ok ? 'Share text copied to the clipboard.' : 'Try again.',
               );
             }
           } else {

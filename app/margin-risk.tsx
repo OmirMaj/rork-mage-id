@@ -92,17 +92,17 @@ function MarginRiskInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Margin Risk' }} />
+        <Stack.Screen options={{ title: 'Margin risk' }} />
         <EmptyState
           icon={<ShieldAlert size={36} color={t.accent} strokeWidth={1.6} />}
           title="No project to score yet"
-          message="The Margin Risk Score weighs the signals that predict whether a job will bleed margin. To see one:"
+          message="The margin risk score weighs the signals that predict whether a project will lose margin. To see one:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Build an estimate with markup so there is a margin to protect.',
-            'Tap Margin Risk to see the score and what is driving it.',
+            'Tap Margin risk to see the score and what is driving it.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -121,7 +121,7 @@ function MarginRiskInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Margin Risk · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Margin risk · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -213,7 +213,7 @@ function MarginRiskInner() {
               activeOpacity={0.8}
             >
               <Activity size={16} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.linkRowText}>Open the Living Estimate</Text>
+              <Text style={styles.linkRowText}>Open the living estimate</Text>
               <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </>

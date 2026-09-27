@@ -48,7 +48,7 @@ export default function EstimateDiffView({ ops, ctx, onApply, onDiscard }: {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.eyebrow}>HERE’S THE CHANGE</Text>
+      <Text style={styles.eyebrow}>The change</Text>
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         <Text style={styles.total}>Total {money(view.before.grandTotal)} → {money(view.after.grandTotal)} ({signed(grandDelta)})</Text>
         {view.before.globalMarkup !== view.after.globalMarkup && (

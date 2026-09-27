@@ -176,16 +176,16 @@ describe('honest long waits', () => {
   });
 
   describe('CodeCheckLoader', () => {
-    it('a timer-driven activeStep never ticks anything; the list reads "What we check"', () => {
+    it('a timer-driven activeStep never ticks anything; the list reads "What MAGE checks"', () => {
       const r = render(<CodeCheckLoader steps={STEPS} activeStep={0} />);
       for (let s = 0; s <= 5; s++) {
         r.rerender(<CodeCheckLoader steps={STEPS} activeStep={s} />);
         expect(r.queryAllByTestId('progress-step-tick', H)).toHaveLength(0);
         expect(r.queryAllByTestId('progress-step-current', H)).toHaveLength(0);
         expect(r.getAllByTestId('progress-step-neutral', H)).toHaveLength(STEPS.length);
-        expect(r.getByTestId('code-check-steps-header').props.children).toBe('What we check');
+        expect(r.getByTestId('code-check-steps-header').props.children).toBe('What MAGE checks');
       }
-      expect(r.getByText('Recalling the code that likely governs this job')).toBeTruthy();
+      expect(r.getByText('Recalling the code that likely governs this project')).toBeTruthy();
       r.unmount();
     });
 

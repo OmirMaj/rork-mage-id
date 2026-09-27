@@ -842,7 +842,7 @@ function AIAPayAppScreenInner() {
     if (!fresh) return;
     showAlert(
       'Refresh the schedule of values?',
-      'On lines the contract still has, Scheduled Value and Description are replaced with the estimate’s and the change orders approved through this period; Contract Sum to Date is recomputed. New estimate lines and change orders are added at the bottom. Everything else stays: lines you added, your item numbers, every amount you entered, both retainage rates, and the architect’s certificate.',
+      'On lines the contract still has, the scheduled value and description are replaced with the estimate’s and the change orders approved through this period, and the contract sum to date is recomputed. New estimate lines and change orders are added at the bottom. Everything else stays: lines you added, your item numbers, every amount you entered, both retainage rates, and the architect’s certificate.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -863,7 +863,7 @@ function AIAPayAppScreenInner() {
       showAlert(
         'Period locked',
         isLocked
-          ? 'This pay application has been generated with a payment link. Create the next period to revise.'
+          ? 'This pay app already has a pay link. Create the next period to revise it.'
           : 'You are viewing the saved certificate. Tap Edit draft to change it.'
       );
       return;
@@ -871,7 +871,7 @@ function AIAPayAppScreenInner() {
     if (!project?.schedule || !project.linkedEstimate || !app) {
       showAlert(
         'No schedule data',
-        'Link a schedule with a linked estimate to use this action.'
+        'This project needs a schedule and a linked estimate to sync progress.'
       );
       return;
     }
@@ -901,7 +901,7 @@ function AIAPayAppScreenInner() {
     if (appliedCount === 0) {
       showAlert(
         'No progress yet',
-        'Neither project EV nor any linked task has progress > 0.'
+        'The project and its linked tasks all show 0% progress.'
       );
       return;
     }
@@ -978,7 +978,7 @@ function AIAPayAppScreenInner() {
       showAlert(
         isLocked ? 'Period locked' : 'Viewing the saved certificate',
         isLocked
-          ? 'This pay application has already been generated and a payment link is active. To revise the numbers, create the next period instead.'
+          ? 'This pay app already has an active pay link. To revise the numbers, create the next period.'
           : 'This is the certificate as it was saved. Tap Edit draft if you need to change it.'
       );
       return;
@@ -1052,7 +1052,7 @@ function AIAPayAppScreenInner() {
             payLinkId = res.id;
           } else if (isPayLinkBalanceCode(res.code)) {
             console.warn('[AIA] payment link refused on the server balance:', res.code);
-            balanceRefusal = res.error ?? 'The server shows a different balance for this pay application.';
+            balanceRefusal = res.error ?? 'The server shows a different balance for this pay app.';
           } else {
             console.warn('[AIA] Auto-generate payment link failed:', res.error);
             stripeFailureReason = res.error ?? 'unknown';
@@ -1089,19 +1089,19 @@ function AIAPayAppScreenInner() {
     // one-tap pay.
     if (stripeNotConnected && due > 0) {
       showAlert(
-        'Saved — but no Pay button',
-        'You haven\'t connected Stripe yet, so this AIA pay application was saved without a one-tap Pay button on the client portal. Set up Stripe to add Pay buttons to AIA apps and invoices going forward.',
+        'Saved without a Pay button',
+        'Stripe isn\'t connected, so this pay app was saved without a Pay button on the client portal. Set up Stripe to add Pay buttons to pay apps and invoices.',
         [
           { text: 'Later', style: 'cancel' },
           { text: 'Set up Stripe', onPress: () => router.push('/payments-setup' as never) },
         ],
       );
     } else if (balanceRefusal && due > 0) {
-      showAlert('Saved — no Pay button', `${balanceRefusal} The pay application is saved without a Pay button.`, [{ text: 'OK', style: 'default' }]);
+      showAlert('Saved without a Pay button', `${balanceRefusal} The pay app is saved without a Pay button.`, [{ text: 'OK', style: 'default' }]);
     } else if (stripeFailureReason && due > 0) {
       showAlert(
-        'Saved — Pay button could not be attached',
-        `Stripe didn't reach us when generating the payment link (${stripeFailureReason}). The AIA is saved; you can re-share later when Stripe is reachable to attach a Pay button.`,
+        'Pay button not added',
+        'Stripe couldn\'t make the pay link. The pay app is saved. Share it again later to add a Pay button.',
         [{ text: 'OK', style: 'default' }],
       );
     }
@@ -1182,7 +1182,7 @@ function AIAPayAppScreenInner() {
               { pendingBankPayment: !!pendingBankPayment, sourceInvoiceSettled },
             )) {
               setCertRemintNote(
-                `The certificate changed while the Pay link was being replaced; the new link charges ${formatMoney(payable, 2)}, `
+                `The certificate changed while the pay link was being replaced. The new link charges ${formatMoney(payable, 2)}, `
                 + `not the certified ${formatMoney(aiaPayableNow(merged), 2)}. Replace it again.`,
               );
             }
@@ -1204,8 +1204,9 @@ function AIAPayAppScreenInner() {
         failure = (err as Error)?.message ?? 'network error';
       }
       if (failure) {
+        console.warn('[AIA] certified pay link replacement failed:', failure);
         setCertRemintNote(
-          `The Pay link was made for ${was}; a replacement for the certified ${formatMoney(payable, 2)} could not be made (${failure}). `
+          `The pay link was made for ${was}. A replacement for the certified ${formatMoney(payable, 2)} couldn't be made. `
           + 'The client portal hides the old Pay button until it is replaced.',
         );
       }
@@ -1251,7 +1252,7 @@ function AIAPayAppScreenInner() {
     if (isLocked) {
       showAlert(
         'Period locked',
-        'This pay application has already been generated. Create the next period to produce a new PDF + pay link.'
+        'This pay app has already been generated. Create the next period to make a new PDF and pay link.'
       );
       return;
     }
@@ -1275,7 +1276,7 @@ function AIAPayAppScreenInner() {
       );
     } catch (err) {
       // CONTRACT 25 (#147): a blocked web window now throws — say so.
-      showAlert('Error', pdfFailureMessage(err, 'Could not generate the pay application PDF.'));
+      showAlert('Couldn’t generate the PDF', pdfFailureMessage(err, 'The pay app PDF couldn’t be generated. Try again.'));
     } finally {
       setGenerating(false);
     }
@@ -1295,7 +1296,7 @@ function AIAPayAppScreenInner() {
       await handleSave();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      showAlert('Error', pdfFailureMessage(err, 'Could not generate the pay application PDF.'));
+      showAlert('Couldn’t generate the PDF', pdfFailureMessage(err, 'The pay app PDF couldn’t be generated. Try again.'));
     } finally {
       setGenerating(false);
     }
@@ -1386,7 +1387,7 @@ function AIAPayAppScreenInner() {
         parts.push(`${plan.invalid} pasted ${plan.invalid === 1 ? 'cell was' : 'cells were'} left out — not an amount, or past the columns you can type in (${sovEditing ? 'Item through Stored' : 'This period and Stored; tap Edit lines for Item, Description and Scheduled'}).`);
       }
       if (plan.extraRows > 0) {
-        parts.push(`${plan.extraRows} pasted ${plan.extraRows === 1 ? 'row runs' : 'rows run'} past the last line. Add lines first — a pay application's lines are never added by a paste.`);
+        parts.push(`${plan.extraRows} pasted ${plan.extraRows === 1 ? 'row runs' : 'rows run'} past the last line. Add lines first. Pasting never adds lines to a pay app.`);
       }
       showAlert(`Pasted ${plan.patches.length} ${plan.patches.length === 1 ? 'line' : 'lines'}`, parts.join(' '));
     }
@@ -1402,18 +1403,18 @@ function AIAPayAppScreenInner() {
   if (!project || forceProjectPick) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
+        <Stack.Screen options={{ title: 'Pay apps' }} />
         <ToolProjectPicker
-          toolName="AIA Pay Apps"
-          message="A G702 / G703 certifies one billing period against one job's schedule of values."
+          toolName="Pay apps"
+          message="A G702 / G703 certifies one billing period against one project's schedule of values."
           projects={projects}
           onPick={pickProject}
           staleProjectId={staleProjectId}
           icon={<MagePayApp size={36} color={themeColors.accent} />}
           steps={[
             'Open or create a project from the Projects tab.',
-            'Inside that project, create a Progress Invoice from your estimate or schedule of values.',
-            'Come back here (or tap Generate AIA Pay App on the invoice) to fill G702/G703 and route it for sign-off.',
+            'Inside that project, create a progress invoice from your estimate or schedule of values.',
+            'Come back here, or open the pay app from the invoice, to fill the G702/G703 and route it for sign-off.',
           ]}
         />
       </View>
@@ -1425,7 +1426,7 @@ function AIAPayAppScreenInner() {
   if (!invoice) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
-        <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
+        <Stack.Screen options={{ title: 'Pay apps' }} />
         <ScrollView contentContainerStyle={styles.periodPickContent} showsVerticalScrollIndicator={false}>
           {progressInvoices.length === 0 ? (
             // The blocked case, said plainly: this is not "nothing here", it is
@@ -1434,7 +1435,7 @@ function AIAPayAppScreenInner() {
             <EmptyState
               icon={<MagePayApp size={36} color={themeColors.accent} />}
               title={`${project.name} has no progress invoice yet`}
-              message="A pay application certifies a billing period, and the period is a progress invoice — MAGE fills G702/G703 from that invoice's schedule of values, so there is nothing to certify until one exists."
+              message="A pay app certifies one billing period, and each period is a progress invoice. MAGE fills the G702/G703 from that invoice's schedule of values."
               actionLabel="Create a progress invoice"
               onAction={() => router.push({
                 pathname: '/bill-from-estimate' as never,
@@ -1445,7 +1446,7 @@ function AIAPayAppScreenInner() {
             <>
               <Text style={styles.periodPickLead}>
                 {project.name} has {progressInvoices.length} progress invoices. A pay
-                application certifies one period — pick the one you are billing.
+                app certifies one period. Pick the one you are billing.
               </Text>
               <Text style={styles.periodPickTitle}>Pick a billing period</Text>
               {progressInvoices.map(inv => (
@@ -1490,7 +1491,7 @@ function AIAPayAppScreenInner() {
   if (!app || !totals) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Pay Application' }} />
+        <Stack.Screen options={{ title: 'Pay app' }} />
         <ConstructionLoader size="lg" />
       </View>
     );
@@ -1564,7 +1565,7 @@ function AIAPayAppScreenInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'Progress Billing',
+          title: 'Progress billing',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -1581,12 +1582,12 @@ function AIAPayAppScreenInner() {
         <FeatureHeader
           eyebrow="AIA G702 / G703"
           title="Bill the bank"
-          subtitle="Turn your % complete into the AIA pay application your owner&apos;s lender expects. Auto-fills contract sum, retainage, and the schedule of values."
+          subtitle="Turn your % complete into the AIA pay app your client&apos;s lender expects. Fills in the contract sum, retainage and schedule of values."
           explainer={{
-            term: 'AIA Pay Application',
-            definition: 'The American Institute of Architects (AIA) G702 and G703 forms are the industry-standard pay-application format used on most commercial and many residential bank-financed projects. The G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up.',
+            term: 'AIA pay app',
+            definition: 'The American Institute of Architects (AIA) G702 and G703 forms are the industry-standard pay app format used on most commercial and many residential bank-financed projects. The G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up.',
             whenToUse: [
-              'Your owner or their bank/lender requires AIA-format billing',
+              'Your client or their lender requires AIA-format billing',
               'You need to bill in stages tied to actual completion percentage',
               'Retainage (a % held back until completion) is part of your contract',
             ],
@@ -1612,7 +1613,7 @@ function AIAPayAppScreenInner() {
                 onPress={handleReprint}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Print this saved pay application"
+                accessibilityLabel="Print this saved pay app"
                 testID="aia-reprint"
               >
                 <Printer size={15} color={themeColors.accent} strokeWidth={2} />
@@ -1624,7 +1625,7 @@ function AIAPayAppScreenInner() {
                   onPress={() => setEditRequested(true)}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Edit this draft pay application"
+                  accessibilityLabel="Edit this draft pay app"
                   testID="aia-edit-draft"
                 >
                   <Pencil size={15} color={themeColors.accent} strokeWidth={2} />
@@ -1646,10 +1647,10 @@ function AIAPayAppScreenInner() {
             </Text>
             <Text style={styles.lockedBannerBody}>
               {pendingBankPayment && !savedPaidAt
-                ? `${pendingBankPayment.line}. The payment link is retired while it settles, and no new one is made — a new link would invite a second payment. If the bank payment fails, you can send a new pay link from the invoice.`
+                ? `${pendingBankPayment.line}. The pay link is retired while it settles, and no new one is made, because a new link would invite a second payment. If the bank payment fails, you can send a new pay link from the invoice.`
                 : savedPaidAt
-                ? `This pay application was paid on ${new Date(savedPaidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. The portal no longer shows a Pay button for it. To bill the next period, create the next application — carry-forward will seed it from this period's billed-through totals.`
-                : `This pay application has been generated with a payment link active for ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. To revise the numbers, create the next period instead — carry-forward will seed the next pay-app from this period's billed-through totals.`}
+                ? `This pay app was paid on ${new Date(savedPaidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. The portal no longer shows a Pay button for it. To bill the next period, create the next pay app. It starts from this period's billed-through totals.`
+                : `This pay app has an active pay link for ${formatMoney(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0, 2)}. To revise the numbers, create the next period. It starts from this period's billed-through totals.`}
             </Text>
             <TouchableOpacity
               style={styles.lockedBannerCta}
@@ -1674,10 +1675,10 @@ function AIAPayAppScreenInner() {
           <View style={[styles.sovWarnBanner, isDesktop && styles.formColumnDesktop]} testID="aia-paylink-amount-unknown">
             <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
             <Text style={styles.sovWarnText}>
-              This application carries a payment link from before MAGE recorded what each link
-              charges, so the portal will not show a Pay button for it — a Stripe link collects the
-              one amount it was created with, and this record cannot say what that was. Collect this
-              period through the invoice&apos;s own Pay button instead.
+              This pay app has a pay link from before MAGE recorded what each link charges, so the
+              portal won&apos;t show a Pay button for it. A Stripe link collects only the amount it
+              was created with, and this record can&apos;t say what that was. Collect this period
+              through the invoice&apos;s own Pay button.
             </Text>
           </View>
         )}
@@ -1687,7 +1688,7 @@ function AIAPayAppScreenInner() {
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroTitleBlock}>
               <Text style={styles.heroLabel}>G702 · G703</Text>
-              <Text style={styles.heroTitle}>Pay Application #{app.applicationNumber}</Text>
+              <Text style={styles.heroTitle}>Pay app #{app.applicationNumber}</Text>
               <Text style={styles.heroSub}>{project.name}</Text>
               {savedForThisAppNumber && (
                 <PortalStatusPill portalState={savedForThisAppNumber.portalState} itemUpdatedAt={savedForThisAppNumber.savedAt} />
@@ -1702,14 +1703,14 @@ function AIAPayAppScreenInner() {
             <View style={styles.carriedRow}>
               <CheckCircle2 size={14} color={themeColors.accent} strokeWidth={2.4} />
               <Text style={styles.carriedText}>
-                Carried forward from Pay App #{carriedFromAppNumber} — every line&apos;s &ldquo;from previous&rdquo; amount and the G702 &ldquo;less previous certificates&rdquo; total are pre-filled. Just enter this period&apos;s percent-complete per line.
+                Carried forward from pay app #{carriedFromAppNumber}. Every line&apos;s &ldquo;from previous&rdquo; amount and the G702 &ldquo;less previous certificates&rdquo; total are filled in. Enter this period&apos;s percent complete for each line.
               </Text>
             </View>
           )}
 
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Contract Sum</Text>
+              <Text style={styles.heroStatLabel}>Contract sum</Text>
               <Text style={styles.heroStatValue}>{formatMoney(app.contractSumToDate)}</Text>
               {app.netChangeByCO !== 0 && (
                 <Text style={styles.heroStatSub}>
@@ -1718,7 +1719,7 @@ function AIAPayAppScreenInner() {
               )}
             </View>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>This Period Due</Text>
+              <Text style={styles.heroStatLabel}>Due this period</Text>
               <Text style={[styles.heroStatValue, { color: themeColors.accent }]}>
                 {formatMoney(totals.currentPaymentDue)}
               </Text>
@@ -1729,9 +1730,9 @@ function AIAPayAppScreenInner() {
 
         {/* Header meta */}
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
-          <Text style={styles.sectionTitle}>Application Details</Text>
+          <Text style={styles.sectionTitle}>Pay app details</Text>
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Owner Name</Text>
+            <Text style={styles.formLabel}>Owner name</Text>
             <TextInput
               style={styles.formInput}
               value={app.ownerName}
@@ -1761,7 +1762,7 @@ function AIAPayAppScreenInner() {
               project's own pay-app sequence now, and editable for a GC
               migrating a job mid-stream. */}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Application No.</Text>
+            <Text style={styles.formLabel}>Pay app no.</Text>
             <TextInput
               style={styles.formInput}
               value={String(app.applicationNumber)}
@@ -1783,15 +1784,15 @@ function AIAPayAppScreenInner() {
           {savedForProject.some(a =>
             a.id !== savedForThisInvoice?.id && a.applicationNumber === app.applicationNumber) && (
             <Text style={styles.fieldError} testID="aia-appno-collision">
-              Another saved pay application on this job is already #{app.applicationNumber}. A lender
-              reconciles draws by this number — give this one its own.
+              Another saved pay app on this project is already #{app.applicationNumber}. Lenders
+              reconcile draws by this number, so give this one its own.
             </Text>
           )}
           {app.applicationNumber !== resolvedApplicationNumber && (
             <Text style={styles.retainageSourceNote} testID="aia-appno-override">
-              MAGE would number this #{resolvedApplicationNumber} from this job&apos;s saved pay
-              applications. You have set it to #{app.applicationNumber} — keep it that way only
-              if earlier applications on this contract were billed outside MAGE.
+              MAGE would number this #{resolvedApplicationNumber} from this project&apos;s saved pay
+              apps. You have set it to #{app.applicationNumber}. Keep it that way only if earlier
+              pay apps on this contract were billed outside MAGE.
             </Text>
           )}
 
@@ -1811,7 +1812,7 @@ function AIAPayAppScreenInner() {
               fields were added for. They are checked with the same predicate
               the consumers use, and the error is stated at the field. */}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Period From</Text>
+            <Text style={styles.formLabel}>Period from</Text>
             <TextInput
               style={styles.formInput}
               value={app.periodFrom ?? ''}
@@ -1826,12 +1827,12 @@ function AIAPayAppScreenInner() {
           {!!app.periodFrom && !isCalendarDay(app.periodFrom) && (
             <Text style={styles.fieldError} testID="aia-period-from-error">
               Not a date MAGE can read. Use YYYY-MM-DD (for example 2026-03-01). Until it is, the
-              CHANGE ORDER SUMMARY files every approved change order under &ldquo;previous
-              months&rdquo; because it cannot tell which month they landed in.
+              change order summary files every approved change order under &ldquo;previous
+              months&rdquo; because it can&apos;t tell which month they landed in.
             </Text>
           )}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Period To</Text>
+            <Text style={styles.formLabel}>Period to</Text>
             <TextInput
               style={styles.formInput}
               value={app.periodTo ?? ''}
@@ -1846,12 +1847,12 @@ function AIAPayAppScreenInner() {
           {!isCalendarDay(app.periodTo) && (
             <Text style={styles.fieldError} testID="aia-period-to-error">
               Period end is not a date MAGE can read. Use YYYY-MM-DD (for example 2026-03-31).
-              Until it is, EVERY approved change order is included on this certificate and the
-              prior period is picked by application number rather than by date.
+              Until it is, every approved change order is included on this certificate and the
+              prior period is picked by pay app number rather than by date.
             </Text>
           )}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Application Date</Text>
+            <Text style={styles.formLabel}>Pay app date</Text>
             <TextInput
               style={styles.formInput}
               value={app.applicationDate ?? ''}
@@ -1865,7 +1866,7 @@ function AIAPayAppScreenInner() {
           </View>
           {!isCalendarDay(app.applicationDate) && (
             <Text style={styles.fieldError} testID="aia-application-date-error">
-              Not a date MAGE can read. Use YYYY-MM-DD (for example 2026-04-02); the G702 prints
+              Not a date MAGE can read. Use YYYY-MM-DD (for example 2026-04-02). The G702 prints
               this as the day you signed.
             </Text>
           )}
@@ -1873,13 +1874,13 @@ function AIAPayAppScreenInner() {
               hardcoded `undefined` by the seeder with no control anywhere, so
               the box printed an em dash on every certificate forever. */}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Contract Date</Text>
+            <Text style={styles.formLabel}>Contract date</Text>
             <TextInput
               style={styles.formInput}
               value={app.contractDate ?? ''}
               editable={!isReadOnly}
               onChangeText={v => setApp(p => p ? { ...p, contractDate: v || undefined } : p)}
-              placeholder="YYYY-MM-DD — the date the contract was signed"
+              placeholder="YYYY-MM-DD, the day the contract was signed"
               autoCapitalize="none"
               testID="aia-contract-date"
               placeholderTextColor={themeColors.textMuted}
@@ -1893,18 +1894,18 @@ function AIAPayAppScreenInner() {
           {coSplit.afterPeriod.length > 0 && (
             <Text style={styles.retainageSourceNote} testID="aia-co-after-period">
               {coSplit.afterPeriod.length} approved change order{coSplit.afterPeriod.length === 1 ? '' : 's'}{' '}
-              ({coSplit.afterPeriod.map(co => `#${co.number}`).join(', ')}) were approved AFTER{' '}
+              ({coSplit.afterPeriod.map(co => `#${co.number}`).join(', ')}) {coSplit.afterPeriod.length === 1 ? 'was' : 'were'} approved after{' '}
               {/* The date THIS SPLIT actually used. It used to print
                   `app.periodTo` while coSplit ran on the invoice's issue date,
                   so the banner could say "approved AFTER 2026-04-30" about a
                   change order approved on the 20th. */}
-              {effectivePeriodTo || 'this period'}, so they are not on this certificate. They will appear on
-              Application #{app.applicationNumber + 1}.
+              {effectivePeriodTo || 'this period'}, so {coSplit.afterPeriod.length === 1 ? 'it is' : 'they are'} not on this certificate. {coSplit.afterPeriod.length === 1 ? 'It' : 'They'} will appear on
+              pay app #{app.applicationNumber + 1}.
             </Text>
           )}
 
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Less Previous Certificates</Text>
+            <Text style={styles.formLabel}>Less previous certificates</Text>
             <MoneyField
               style={styles.formInput}
               value={app.lessPreviousCertificates}
@@ -1961,7 +1962,7 @@ function AIAPayAppScreenInner() {
               and the only workaround was a blended rate, which then misstates
               5a. The note below used to state the conflation as policy. */}
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Stored Material Retainage % (5b)</Text>
+            <Text style={styles.formLabel}>Stored material retainage % (5b)</Text>
             <View style={styles.retainageChips}>
               <TouchableOpacity
                 onPress={() => updateStoredRetainagePctAll(undefined)}
@@ -2007,7 +2008,7 @@ function AIAPayAppScreenInner() {
             against a $64,000 application left the GC permanently $5,800 short
             in a number he believed was automatic. */}
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
-          <Text style={styles.sectionTitle}>Architect&apos;s Certificate</Text>
+          <Text style={styles.sectionTitle}>Architect&apos;s certificate</Text>
           {/* RECORDABLE ON A LOCKED CERTIFICATE, deliberately. A GC with
               Stripe Connect gets a pay link on the first Save, so isReadOnly
               is true on every certificate an architect ever answers — gating
@@ -2015,12 +2016,12 @@ function AIAPayAppScreenInner() {
               only flow it exists for, and left the next period's line 7
               seeding from the amount applied for. See payAppEditability. */}
           <Text style={styles.sectionHint}>
-            Fill this in when the certificate comes back — you can do this after the application
-            has gone out. Next period&apos;s &ldquo;Less Previous Certificates&rdquo; seeds from the
-            certified figure when there is one.
+            Fill this in when the certificate comes back, even after the pay app has gone out.
+            Next period&apos;s &ldquo;less previous certificates&rdquo; starts from the certified
+            figure when there is one.
           </Text>
           <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Amount Certified</Text>
+            <Text style={styles.formLabel}>Amount certified</Text>
             {app.amountCertified == null ? (
               <TouchableOpacity
                 style={[styles.chip, certReadOnly && styles.chipOff]}
@@ -2029,7 +2030,7 @@ function AIAPayAppScreenInner() {
                 activeOpacity={0.8}
                 testID="aia-record-certified"
               >
-                <Text style={styles.chipText}>Not yet certified — record it</Text>
+                <Text style={styles.chipText}>Not certified yet · Record it</Text>
               </TouchableOpacity>
             ) : (
               <MoneyField
@@ -2044,7 +2045,7 @@ function AIAPayAppScreenInner() {
           {app.amountCertified != null && (
             <>
               <View style={styles.formRow}>
-                <Text style={styles.formLabel}>Certified Date</Text>
+                <Text style={styles.formLabel}>Certified date</Text>
                 <TextInput
                   style={styles.formInput}
                   value={app.certifiedDate ?? ''}
@@ -2117,10 +2118,10 @@ function AIAPayAppScreenInner() {
                 onPress={() => { if (savedForThisInvoice) void remintCertifiedPayLink(savedForThisInvoice); }}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Try replacing the Pay link again"
+                accessibilityLabel="Try replacing the pay link again"
                 testID="aia-cert-remint-retry"
               >
-                <Text style={styles.sovFooterBtnText}>Replace the Pay link again</Text>
+                <Text style={styles.sovFooterBtnText}>Replace the pay link again</Text>
               </TouchableOpacity>
             </>
           )}
@@ -2204,7 +2205,7 @@ function AIAPayAppScreenInner() {
         {/* Schedule of Values */}
         <View style={styles.section} {...(isDesktopWeb ? { onLayout: sovBox.onLayout } : null)}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Schedule of Values (G703)</Text>
+            <Text style={styles.sectionTitle}>Schedule of values (G703)</Text>
             <View style={styles.sovHeaderActions}>
               {isDesktopWeb && (
                 <SegmentedControl
@@ -2251,7 +2252,7 @@ function AIAPayAppScreenInner() {
                   <RefreshCw size={13} color={themeColors.text} strokeWidth={2} />
                 </TouchableOpacity>
               )}
-              <Text style={styles.sectionTitleCount}>{app.lines.length} items</Text>
+              <Text style={styles.sectionTitleCount}>{app.lines.length} {app.lines.length === 1 ? 'item' : 'items'}</Text>
             </View>
           </View>
           {gridOn ? (
@@ -2276,19 +2277,19 @@ function AIAPayAppScreenInner() {
               CAME FROM and points at both ways to change it. */}
           <Text style={[styles.sovBasisNote, isDesktop && desktopProse]} testID="aia-sov-basis">
             {sovBasis === 'linked_estimate'
-              ? 'Scheduled Value is each line of the linked estimate plus each approved change order — the full contract, not this draw. This Period is what invoice #' + invoice.number + ' bills against it. Tap Edit lines to negotiate the schedule of values itself; anything you change there stays put, because a saved application is no longer rebuilt from the estimate when you reopen it.'
-              : 'This project has no itemized estimate linked, so the Scheduled Value column could only be reconstructed from invoice #' + invoice.number + ' — it covers just the scope this invoice touched. Either link the job\u2019s estimate (Estimate \u2192 Link to Project) and refresh, or tap Edit lines and enter the agreed schedule of values directly.'}
+              ? 'Scheduled value is each line of the linked estimate plus each approved change order: the full contract, not this draw. This period is what invoice #' + invoice.number + ' bills against it. Tap Edit lines to change the schedule of values. Your changes stay, because a saved pay app is not rebuilt from the estimate when you reopen it.'
+              : 'This project has no itemized estimate linked, so the scheduled value column was rebuilt from invoice #' + invoice.number + ' and covers only the scope this invoice touched. Link the project\u2019s estimate (Estimate \u2192 Link to project) and refresh, or tap Edit lines and enter the agreed schedule of values.'}
           </Text>
 
           {sovReconciliation && !sovReconciliation.reconciled && (
             <View style={[styles.sovWarnBanner, isDesktop && styles.formColumnDesktop]} testID="aia-sov-reconciliation">
               <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
               <Text style={styles.sovWarnText}>
-                The schedule of values totals {formatMoney(sovReconciliation.totalScheduledValue, 2)} but
-                Contract Sum to Date is {formatMoney(sovReconciliation.contractSumToDate, 2)} —
+                The schedule of values totals {formatMoney(sovReconciliation.totalScheduledValue, 2)}, but
+                the contract sum to date is {formatMoney(sovReconciliation.contractSumToDate, 2)},
                 a {formatMoney(Math.abs(sovReconciliation.difference), 2)}{' '}
-                {sovReconciliation.difference > 0 ? 'overage' : 'gap'}. % Complete is computed from this
-                column and Balance to Finish from the contract sum, so they are telling a bank two
+                {sovReconciliation.difference > 0 ? 'overage' : 'gap'}. Percent complete comes from this
+                column and balance to finish from the contract sum, so they tell a bank two
                 different stories. Fix it in the project&apos;s estimate and its approved change orders and
                 tap the refresh button above, or tap Edit lines and correct the schedule of values here.
               </Text>
@@ -2304,7 +2305,7 @@ function AIAPayAppScreenInner() {
               <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
               <Text style={styles.sovWarnText}>
                 G702 line 2 says {formatMoney(app.netChangeByCO, 2)} of net change by change
-                orders, but the CHANGE ORDER SUMMARY totals {formatMoney(printedCoSummary.netChange, 2)}.{' '}
+                orders, but the change order summary totals {formatMoney(printedCoSummary.netChange, 2)}.{' '}
                 {/* The advice used to be one sentence naming PERIOD TO and the
                     refresh button. Both are gone on a read-only certificate —
                     which is every saved one until the GC taps Edit, and every
@@ -2325,10 +2326,10 @@ function AIAPayAppScreenInner() {
                   `${overBilledLines.length > 3 ? `, +${overBilledLines.length - 3} more` : ''}). `
                 )}
                 {totalOverBilled > 0.01 && (
-                  `Total Completed & Stored exceeds Contract Sum to Date by ${formatMoney(totalOverBilled, 2)}. `
+                  `Total completed and stored exceeds the contract sum to date by ${formatMoney(totalOverBilled, 2)}. `
                 )}
                 Billing over a schedule of values is not printed as a rule on the G703, but it is what
-                gets a pay application returned. Correct the amounts, or raise the scheduled values with
+                gets a pay app returned. Correct the amounts, or raise the scheduled values with
                 an approved change order first.
               </Text>
             </View>
@@ -2451,7 +2452,7 @@ function AIAPayAppScreenInner() {
                         });
                       }}
                       keyboardType="decimal-pad"
-                      placeholder="same"
+                      placeholder="Same"
                       placeholderTextColor={themeColors.textMuted}
                       testID={`aia-line-stored-retainage-${line.id}`}
                     />
@@ -2473,7 +2474,7 @@ function AIAPayAppScreenInner() {
                     )}
                   </View>
                   <View style={styles.sovValueCol}>
-                    <Text style={styles.sovValueLabel}>This Period</Text>
+                    <Text style={styles.sovValueLabel}>This period</Text>
                     <MoneyField
                       style={styles.sovInput}
                       value={line.thisPeriod}
@@ -2532,8 +2533,8 @@ function AIAPayAppScreenInner() {
                   >
                     <PackageCheck size={14} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.sovInstalledText}>
-                      Installed this period — move {formatMoney(line.materialsPresentlyStored, 2)} from
-                      Stored into This Period
+                      Installed this period: move {formatMoney(line.materialsPresentlyStored, 2)} from
+                      stored into this period
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -2624,16 +2625,16 @@ function AIAPayAppScreenInner() {
 
         {/* Running totals */}
         <View style={[styles.section, isDesktop && styles.formColumnDesktop]}>
-          <Text style={styles.sectionTitle}>Summary (G702 Cover)</Text>
+          <Text style={styles.sectionTitle}>Summary (G702 cover)</Text>
           <View style={styles.totalsCard}>
             {/* CENTS, on every platform: the PDF the GC certifies prints cents,
                 and a summary a dollar off it is two documents (founder
                 default 2, wave 6d). */}
-            <Row label="Original Contract Sum" value={formatMoney(app.originalContractSum, 2)} />
-            <Row label="Net Change by COs" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}`} />
-            <Row label="Contract Sum to Date" value={formatMoney(app.contractSumToDate, 2)} bold />
+            <Row label="Original contract sum" value={formatMoney(app.originalContractSum, 2)} />
+            <Row label="Net change by change orders" value={`${app.netChangeByCO >= 0 ? '+' : '-'}${formatMoney(Math.abs(app.netChangeByCO), 2)}`} />
+            <Row label="Contract sum to date" value={formatMoney(app.contractSumToDate, 2)} bold />
             <Divider />
-            <Row label="Total Completed & Stored" value={formatMoney(totals.totalCompletedAndStored, 2)} />
+            <Row label="Total completed and stored" value={formatMoney(totals.totalCompletedAndStored, 2)} />
             {/* A deductive change-order line carries NEGATIVE retainage, which
                 can make the certificate's total retainage a net add-back. The
                 hardcoded "-" prefix printed "--$250.00" on that certificate,
@@ -2645,11 +2646,11 @@ function AIAPayAppScreenInner() {
                 : `-${formatMoney(totals.totalRetainage, 2)}`}
               dim
             />
-            <Row label="Total Earned Less Retainage" value={formatMoney(totals.totalEarnedLessRetainage, 2)} />
-            <Row label="Less Previous Certificates" value={`-${formatMoney(app.lessPreviousCertificates, 2)}`} dim />
+            <Row label="Total earned less retainage" value={formatMoney(totals.totalEarnedLessRetainage, 2)} />
+            <Row label="Less previous certificates" value={`-${formatMoney(app.lessPreviousCertificates, 2)}`} dim />
             <Divider />
-            <Row label="Current Payment Due" value={formatMoney(totals.currentPaymentDue, 2)} highlight />
-            <Row label="Balance to Finish" value={formatMoney(totals.balanceToFinish, 2)} dim />
+            <Row label="Current payment due" value={formatMoney(totals.currentPaymentDue, 2)} highlight />
+            <Row label="Balance to finish" value={formatMoney(totals.balanceToFinish, 2)} dim />
           </View>
 
           {/* Early-access interest capture, next to the figures they would
@@ -2746,7 +2747,7 @@ function AIAPayAppScreenInner() {
         </ActionBar>
         )}
         <Text style={styles.bottomBarHint}>
-          A pay application reaches your client portal after you send it there and the portal updates — then owners and architects can review and download it.
+          A pay app reaches your client portal once you send it there and the portal updates. Clients and architects can then review and download it.
         </Text>
       </View>
 
@@ -2762,7 +2763,7 @@ function AIAPayAppScreenInner() {
             <View style={styles.modalIconWrap}>
               <ShieldAlert size={26} color="#C26A00" strokeWidth={1.75} />
             </View>
-            <Text style={styles.modalTitle}>Heads up — quick legal note</Text>
+            <Text style={styles.modalTitle}>Legal note</Text>
             <Text style={styles.modalBody}>
               MAGE ID generates draft pay applications styled after AIA G702 / G703.{' '}
               <Text style={styles.modalBodyEmph}>
@@ -2796,7 +2797,7 @@ function AIAPayAppScreenInner() {
             </View>
             <Text style={styles.modalTitle}>Ready to certify?</Text>
             <Text style={styles.modalBody}>
-              Have you reviewed every line item, total, and retainage value on this pay application?
+              Have you reviewed every line item, total and retainage value on this pay app?
               {'\n\n'}
               <Text style={styles.modalBodyEmph}>
                 Once submitted, you certify these figures are accurate. The contractor named on this document is solely responsible for what&apos;s on it.

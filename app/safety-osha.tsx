@@ -150,7 +150,7 @@ function SafetyOshaInner() {
       await exportOsha300Pdf(scopedIncidents, est, summaryInput);
     } catch (err) {
       // CONTRACT 25 (#147): a blocked web window throws the blocked sentence.
-      showAlert('Export failed', pdfFailureMessage(err, 'Could not generate the OSHA 300 PDF. Please try again.'));
+      showAlert('Export failed', pdfFailureMessage(err, "Couldn't create the OSHA 300 PDF. Try again."));
     }
   }, [scopedIncidents, est, summaryInput, companyName]);
 
@@ -160,7 +160,7 @@ function SafetyOshaInner() {
     try {
       await shareOsha300Csv(scopedIncidents, est);
     } catch {
-      showAlert('Export failed', 'Could not generate the OSHA 300 CSV. Please try again.');
+      showAlert('Export failed', "Couldn't create the OSHA 300 CSV. Try again.");
     }
   }, [scopedIncidents, est, companyName]);
 
@@ -230,8 +230,8 @@ function SafetyOshaInner() {
           <View style={styles.blockedBanner} testID="osha-export-blocked">
             <AlertTriangle size={14} color={themeColors.warningLabel} strokeWidth={1.9} />
             <Text style={styles.blockedText}>{exportBlocked}</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as never)} accessibilityRole="button" accessibilityLabel="Open Settings" hitSlop={8}>
-              <Text style={styles.blockedLink}>Open Settings</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as never)} accessibilityRole="button" accessibilityLabel="Open settings" hitSlop={8}>
+              <Text style={styles.blockedLink}>Open settings</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -325,8 +325,8 @@ function SafetyOshaInner() {
               // naming one screen as the only door.
               message={
                 availableYears.length > 1
-                  ? 'Pick another log year above. Cases land here from the Incidents log and from the Safety block on a daily report — only OSHA-recordable ones.'
-                  : 'Cases land here from the Incidents log and from the Safety block on a daily report, once the 1904 criteria make them recordable.'
+                  ? 'Pick another log year above. OSHA-recordable cases land here from the incidents log and the Safety block on a daily report.'
+                  : 'Cases land here from the incidents log and the Safety block on a daily report, once the 1904 criteria make them recordable.'
               }
             />
           </View>
@@ -414,7 +414,7 @@ function SafetyOshaInner() {
               />
               <Text style={styles.derivedNote}>
                 {hoursNum <= 0
-                  ? 'Enter total hours worked first — a rate needs a denominator.'
+                  ? 'Enter total hours worked first. The rates are calculated from them.'
                   : 'Rates stay hidden until you confirm these match payroll: app clock-ins alone usually run low, and low hours make the rate look worse than it is.'}
               </Text>
             </>

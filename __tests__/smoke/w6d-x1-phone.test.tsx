@@ -473,7 +473,7 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
     ['OfflineSyncPill (failed)', CASES.find(([n]) => n === 'OfflineSyncPill (failed)')![2], 'Not saved to MAGE', 560],
     ['AssemblyEditorModal', CASES.find(([n]) => n === 'AssemblyEditorModal')![2], 'Create assembly', 720],
     ['RateOverrideModal', CASES.find(([n]) => n === 'RateOverrideModal')![2], 'Done', 560],
-    ['SubDailyUpdateModal', CASES.find(([n]) => n === 'SubDailyUpdateModal')![2], 'Save + email GC', 560],
+    ['SubDailyUpdateModal', CASES.find(([n]) => n === 'SubDailyUpdateModal')![2], 'Save and email', 560],
     ['TakeoffFieldVerifyButton (new)', CASES.find(([n]) => n === 'TakeoffFieldVerifyButton (new)')![2], 'Save verification', 440],
     ['TakeoffFieldVerifyButton (existing)', CASES.find(([n]) => n === 'TakeoffFieldVerifyButton (existing)')![2], 'Delete verification', 440],
   ];
@@ -492,10 +492,11 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
   it.each([
     ['ConfirmEmailModal', CASES.find(([n]) => n === 'ConfirmEmailModal')![2], 'omir@example.test', 440],
     ['UpgradeSheet', CASES.find(([n]) => n === 'UpgradeSheet')![2], 'See plans', 440],
-    ['QuickFieldUpdate (Target Project)', CASES.find(([n]) => n === 'QuickFieldUpdate')![2], 'Target Project', 440],
+    // The picker's title is 'Project'; no other sheet in this subtree has that word capitalised.
+    ['QuickFieldUpdate (project picker)', CASES.find(([n]) => n === 'QuickFieldUpdate')![2], 'Project', 440],
     ['PropertyManagerHome (Add a property)', CASES.find(([n]) => n === 'PropertyManagerHome')![2], 'Add a property', 560],
     ['UniversalMicButton', CASES.find(([n]) => n === 'UniversalMicButton')![2], 'Voice action', 560],
-    ['InstantBidProposalModal', CASES.find(([n]) => n === 'InstantBidProposalModal')![2], 'Instant Bid', 720],
+    ['InstantBidProposalModal', CASES.find(([n]) => n === 'InstantBidProposalModal')![2], 'Instant bid', 720],
     ['PunchExportSheet', CASES.find(([n]) => n === 'PunchExportSheet')![2], 'Export punch list', 720],
   ] as Array<[string, () => React.ReactElement, string, number]>)('%s — in the app, a capped card with a fade', async (_n, make, text, width) => {
     const json = await mountInAppDesktop(make());
@@ -534,11 +535,11 @@ describe('lane X1 — desktop web 1512: the dialogs are centred, capped cards', 
     await pump();
     const json = tree.toJSON();
     expect(cardAround(json, 'Schedule will shift')?.maxWidth).toBe(440);
-    expect(cardAround(json, 'Project Start Date')?.maxWidth).toBe(440);
-    expect(cardAround(json, 'Link Predecessors')?.maxWidth).toBe(560);
-    expect(cardAround(json, 'Schedule Templates')?.maxWidth).toBe(560);
+    expect(cardAround(json, 'Project start date')?.maxWidth).toBe(440);
+    expect(cardAround(json, 'Link predecessors')?.maxWidth).toBe(560);
+    expect(cardAround(json, 'Schedule templates')?.maxWidth).toBe(560);
     // The templates sheet is a card, not a bottom sheet: all four corners round.
-    const tpl = cardAround(json, 'Schedule Templates')!;
+    const tpl = cardAround(json, 'Schedule templates')!;
     expect(tpl.borderBottomLeftRadius).toBe(tpl.borderTopLeftRadius);
   });
 });

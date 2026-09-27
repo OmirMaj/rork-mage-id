@@ -129,7 +129,7 @@ check('seat price is 15', SEAT_PRICE_USD === 15);
   } else {
     check('over allowance is NOT allowed while billing is off', !third.allowed);
     check('…does not claim a charge', !third.bills && third.addedMonthlyUsd === 0);
-    check('…points at upgrade', /upgrade/i.test(third.message));
+    check('…points at the plans', /see plans/i.test(third.message));
     check('…and reminds them field is free', /field/i.test(third.message));
   }
 

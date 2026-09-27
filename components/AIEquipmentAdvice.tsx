@@ -23,6 +23,7 @@ import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   equipment: Equipment;
@@ -32,9 +33,9 @@ interface Props {
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 const REC_STYLES = {
-  rent: { label: 'Keep Renting', Icon: RefreshCw, color: "#1565C0", bg: Colors.infoLight },
-  buy: { label: 'Buy It', Icon: Tag, color: Colors.successDark, bg: Colors.successLight },
-  lease: { label: 'Consider Leasing', Icon: ClipboardList, color: Colors.warningLabel, bg: Colors.warningLight },
+  rent: { label: 'Keep renting', Icon: RefreshCw, color: "#1565C0", bg: Colors.infoLight },
+  buy: { label: 'Buy it', Icon: Tag, color: Colors.successDark, bg: Colors.successLight },
+  lease: { label: 'Consider leasing', Icon: ClipboardList, color: Colors.warningLabel, bg: Colors.warningLight },
 } as const;
 
 /** The arithmetic, or the one sentence saying what is missing. */
@@ -75,8 +76,8 @@ function measuredUsage(equipment: Equipment): MeasuredUsage {
     return {
       ok: false,
       reason: owned
-        ? "Log some usage on this machine and MAGE can tell you whether owning it still pays. Rent vs buy turns on your real days — it won't guess them."
-        : "Log some usage on this machine and MAGE can tell you whether to keep renting. Rent vs buy turns on your real days — it won't guess them.",
+        ? 'Log usage on this machine to see whether owning it still pays. Rent or buy depends on the days it actually works.'
+        : 'Log usage on this machine to see whether to keep renting. Rent or buy depends on the days it actually works.',
     };
   }
   const rate = Number.isFinite(equipment.dailyRate) ? equipment.dailyRate : 0;
@@ -86,7 +87,7 @@ function measuredUsage(equipment: Equipment): MeasuredUsage {
     // exists.
     return {
       ok: false,
-      reason: `Set a Daily Rate above and MAGE can price the ${daysUsed < 10 ? daysUsed.toFixed(1) : Math.round(daysUsed)} days already logged. Rent vs buy is a comparison against what a day on this machine costs — it won't guess that either.`,
+      reason: `Set a daily rate above to price the ${daysUsed < 10 ? daysUsed.toFixed(1) : Math.round(daysUsed)} days already logged. Rent or buy compares against what a day on this machine costs.`,
     };
   }
   const projects = new Set(log.map(u => u.projectId).filter(Boolean)).size;
@@ -158,7 +159,8 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Equipment] Analysis failed:', err);
-      showAlert('AI Error', 'Could not analyze equipment. Try again.');
+      const copy = describeError(err, { action: 'compare renting and buying' });
+      showAlert(copy.title, copy.body);
     } finally {
       setIsLoading(false);
     }
@@ -183,7 +185,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
         ) : (
           <MageAIMark size={16} color={themeColors.accent} />
         )}
-        <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Rent vs Buy Advice'}</Text>
+        <Text style={styles.triggerText}>{isLoading ? 'Comparing rent and buy…' : 'Rent or buy?'}</Text>
       </TouchableOpacity>
     );
   }
@@ -194,13 +196,13 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
     <View style={styles.container}>
       <View style={styles.header}>
         <MageAIMark size={12} color={themeColors.accent} />
-        <Text style={styles.headerTitle}>Rent vs Buy: {equipment.name}</Text>
-        <Text style={styles.aiTag}>AI-generated</Text>
+        <Text style={styles.headerTitle}>Rent or buy: {equipment.name}</Text>
+        <Text style={styles.aiTag}>AI draft</Text>
       </View>
 
       <View style={[styles.recBadge, { backgroundColor: rec.bg }]}>
         <rec.Icon size={15} color={rec.color} strokeWidth={2} />
-        <Text style={[styles.recLabel, { color: rec.color }]}>RECOMMENDATION: {rec.label.toUpperCase()}</Text>
+        <Text style={[styles.recLabel, { color: rec.color }]}>Recommendation: {rec.label}</Text>
       </View>
 
       {/* Every tile is arithmetic on the GC's own utilization log.
@@ -253,8 +255,8 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       {/* The verdict above is the model's judgement, and any purchase price in
           it is recall — the relay has no equipment catalog and no browsing. */}
       <Text style={styles.groundingChip}>
-        Any purchase price named above is the model&apos;s recall, not a quote — MAGE has
-        no equipment price feed. Confirm it with your dealer before you buy.
+        Any purchase price above is MAGE&apos;s estimate, not a quote.
+        MAGE has no equipment price feed, so confirm prices with your dealer before you buy.
       </Text>
 
       <View style={styles.reconsiderRow}>
@@ -322,6 +324,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     fontWeight: '800' as const,
     letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
   },
   statsRow: {
     flexDirection: 'row',

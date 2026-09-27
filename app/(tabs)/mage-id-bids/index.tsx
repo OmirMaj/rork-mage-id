@@ -369,7 +369,7 @@ export default function MageIdBidsTabScreen() {
             style={[styles.segment, isDesktop && segmentedDesktop.segment, styles.segmentUnavailable]}
             accessible
             accessibilityRole="text"
-            accessibilityLabel="Browse nearby projects — not open yet"
+            accessibilityLabel="Browse nearby projects, not open yet"
             testID="mageid-bids-browse-unavailable"
           >
             <Compass size={13} color={Colors.textMuted} strokeWidth={1.75} />
@@ -505,8 +505,8 @@ export default function MageIdBidsTabScreen() {
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
             <Text style={styles.emptyBody}>
               {!location
-                ? 'Homeowners post their remodel + new-build RFPs here for contractors to bid on. Allow location access or expand your radius to see what\'s near you.'
-                : 'New projects show up here as homeowners post them. Try a wider radius, clear your scope filters, or check back tomorrow.'}
+                ? 'Clients post remodel and new-build RFPs here for contractors to bid on. Allow location access or widen your radius to see what\'s near you.'
+                : 'New projects show up here as clients post them. Try a wider radius, clear your scope filters, or check back tomorrow.'}
             </Text>
           </View>
         )}
@@ -539,7 +539,7 @@ export default function MageIdBidsTabScreen() {
             <Inbox size={28} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>Sign in to see your posts</Text>
             <Text style={styles.emptyBody}>
-              Log in or create an account first, then post your project to start collecting bids.
+              Sign in or create an account, then post your project to start collecting bids.
             </Text>
           </View>
         )}
@@ -591,13 +591,13 @@ export default function MageIdBidsTabScreen() {
                   {isAwarded && (
                     <View style={[styles.statusPill, { backgroundColor: Colors.success + '20' }]}>
                       <Trophy size={10} color={Colors.successLabel} strokeWidth={1.75} />
-                      <Text style={[styles.statusPillText, { color: Colors.successLabel }]}>AWARDED</Text>
+                      <Text style={[styles.statusPillText, { color: Colors.successLabel }]}>Awarded</Text>
                     </View>
                   )}
                   {isOpen && (
                     <View style={[styles.statusPill, { backgroundColor: Colors.primary + '20' }]}>
                       <Clock size={10} color={Colors.primary} strokeWidth={1.75} />
-                      <Text style={[styles.statusPillText, { color: Colors.primary }]}>OPEN</Text>
+                      <Text style={[styles.statusPillText, { color: Colors.primary }]}>Open</Text>
                     </View>
                   )}
                 </View>

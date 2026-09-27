@@ -418,7 +418,7 @@ console.log('\naward compliance gate (split COI / licence legs):');
   expect('...the dialog cites the date and the evidence',
     vaultOnly.notes.some(n => n.includes('COI current through Nov 4, 2026') && n.includes('COI vault') && n.includes('verified 11d ago')), true);
   expect('...and names the missing licence as its own line',
-    vaultOnly.notes.some(n => n.startsWith('No licence expiry on file')), true);
+    vaultOnly.notes.some(n => n.startsWith('No license expiry on file')), true);
   // The chip rule is unchanged — this is the exact divergence being pinned.
   expect('(the chip still says unknown for the same sub — different question)',
     getComplianceStatus(aSub({ licenseExpiry: '', coiExpiry: '2026-11-04' }), ANOW), 'unknown' as ComplianceState);
@@ -442,7 +442,7 @@ console.log('\naward compliance gate (split COI / licence legs):');
 
   const licExpired = reviewAwardCompliance(aSub({ licenseExpiry: '2026-01-01', coiExpiry: '2027-01-01' }), ANOW);
   expect('an expired LICENCE is a named note, never a blocker',
-    [licExpired.blockers.length, licExpired.notes.some(n => n.includes('licence expiry on file is Jan 1, 2026'))], [0, true]);
+    [licExpired.blockers.length, licExpired.notes.some(n => n.includes('license expiry on file is Jan 1, 2026'))], [0, true]);
 
   // A renewal typed on the record that is later than the vault's certificates
   // is not overruled by the older vault date (and vice versa).

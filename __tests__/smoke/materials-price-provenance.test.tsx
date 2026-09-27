@@ -500,7 +500,7 @@ describe('the Materials screen renders what it is', () => {
     const tree = await mountRouteChecked('/materials');
     const text = collectText(tree.toJSON()).join('   ');
 
-    expect(text).toMatch(/REFERENCE PRICE BOOK/);
+    expect(text).toMatch(/Reference price book/);
     expect(text).not.toMatch(/LIVE PRICING/i);
     expect(text).not.toMatch(/Prices updated/i);
     expect(text).not.toMatch(/Pull to refresh/i);

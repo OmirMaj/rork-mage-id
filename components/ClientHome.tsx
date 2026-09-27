@@ -221,7 +221,7 @@ export default function ClientHome() {
   // The "live one-liner" under the greeting. Composes from real numbers
   // so it never lies. Empty state gets its own copy.
   const subtitle = useMemo(() => {
-    if (totals.posted === 0) return 'Ready when you are — post your first project below.';
+    if (totals.posted === 0) return 'No projects posted yet. Post your first one below.';
     const parts: string[] = [];
     if (totals.open > 0)    parts.push(`${totals.open} out for bid`);
     if (totals.awarded > 0) parts.push(`${totals.awarded} in progress`);
@@ -546,7 +546,7 @@ function RfpCard({
               <Clock size={10} color="#FFF" strokeWidth={2.4} />
             )}
             <Text style={styles.rfpStatusPillFloatingText}>
-              {isAwarded ? 'AWARDED' : 'OPEN'}
+              {isAwarded ? 'Awarded' : 'Open'}
             </Text>
           </View>
         )}

@@ -100,9 +100,9 @@ export default function WidgetSetupScreen() {
           <Text style={styles.eyebrow}>On your own website</Text>
           <Text style={styles.heroTitle}>Let visitors price their job</Text>
           <Text style={styles.heroSub}>
-            Paste one line into your site and homeowners get an instant ballpark — a published
-            national range for the scope, not your prices. Every one that fills it in arrives here as
-            a lead, with the range they were shown kept apart from any budget they give you.
+            Paste one line into your site and visitors get a ballpark: a published national range
+            for the scope, not your prices. Everyone who fills it in arrives here as a lead, with the
+            range they saw kept apart from any budget they give you.
           </Text>
           {/* The widget (supabase/functions/widget-estimate) reads none of his
               data: its range comes from a fixed table of published U.S. costs.
@@ -119,15 +119,15 @@ export default function WidgetSetupScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.warnTitle}>Set your company name first</Text>
               <Text style={styles.warnText}>
-                The widget shows homeowners your company name when their details are sent. Add it in
-                Settings, then come back — the snippet below is a placeholder until then.
+                The widget shows visitors your company name when their details are sent. Add it in
+                Settings. Until then, the snippet below is a placeholder.
               </Text>
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/settings' as never)}
                 accessibilityRole="button"
                 accessibilityLabel="Open settings to set your company name"
               >
-                <Text style={styles.warnLink}>Open Settings</Text>
+                <Text style={styles.warnLink}>Open settings</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -166,7 +166,7 @@ export default function WidgetSetupScreen() {
             <Text style={styles.slugNote}>
               Your widget ID is <Text style={styles.slugMono}>{widgetId}</Text>. It never changes, so
               renaming your company won&apos;t break the widget. A snippet copied before this used your
-              company name — paste this one over it.
+              company name. Paste this one over it.
             </Text>
           )}
         </View>

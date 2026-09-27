@@ -555,7 +555,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -563,6 +563,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -592,7 +593,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -600,6 +601,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -629,7 +631,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -637,6 +639,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -668,7 +671,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -676,6 +679,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -826,7 +830,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -834,6 +838,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -863,7 +868,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -871,6 +876,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -900,7 +906,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -908,6 +914,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -946,7 +953,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -954,6 +961,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -1015,7 +1023,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -1023,6 +1031,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at native 1000x700 (Andro
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -2858,7 +2867,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -2866,6 +2875,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -2895,7 +2905,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -2903,6 +2913,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -2932,7 +2943,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -2940,6 +2951,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -2971,7 +2983,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -2979,6 +2991,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -3129,7 +3142,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -3137,6 +3150,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -3166,7 +3180,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -3174,6 +3188,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -3203,7 +3218,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -3211,6 +3226,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -3249,7 +3265,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -3257,6 +3273,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -3318,7 +3335,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -3326,6 +3343,7 @@ exports[`golden: SchedulerTabShell legacy chrome board at web 820 renders exactl
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5161,7 +5179,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -5169,6 +5187,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5198,7 +5217,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -5206,6 +5225,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5235,7 +5255,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -5243,6 +5263,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5274,7 +5295,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -5282,6 +5303,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -5432,7 +5454,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -5440,6 +5462,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5469,7 +5492,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -5477,6 +5500,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5506,7 +5530,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -5514,6 +5538,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5552,7 +5577,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -5560,6 +5585,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5621,7 +5647,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -5629,6 +5655,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -5826,7 +5853,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                           "children": [
                                             {
                                               "children": [
-                                                "Task Name",
+                                                "Task name",
                                               ],
                                               "props": {
                                                 "numberOfLines": 1,
@@ -6498,7 +6525,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                           "children": [
                                             {
                                               "children": [
-                                                "PHASE",
+                                                "Phase",
                                               ],
                                               "props": {
                                                 "style": {
@@ -9748,7 +9775,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -10958,7 +10985,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -12157,7 +12184,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -13355,7 +13382,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -13804,7 +13831,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at native 1000x700 (Androi
                                                   "children": null,
                                                   "props": {
                                                     "blurOnSubmit": false,
-                                                    "placeholder": "＋  Type a task name…",
+                                                    "placeholder": "＋  Type a task name",
                                                     "placeholderTextColor": "rgba(43,48,56,0.78)",
                                                     "returnKeyType": "done",
                                                     "style": {
@@ -14144,7 +14171,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -14152,6 +14179,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14181,7 +14209,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -14189,6 +14217,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14218,7 +14247,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -14226,6 +14255,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14257,7 +14287,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -14265,6 +14295,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -14415,7 +14446,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -14423,6 +14454,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14452,7 +14484,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -14460,6 +14492,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14489,7 +14522,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -14497,6 +14530,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14535,7 +14569,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -14543,6 +14577,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14604,7 +14639,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -14612,6 +14647,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -14816,7 +14852,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                           "children": [
                                             {
                                               "children": [
-                                                "Task Name",
+                                                "Task name",
                                               ],
                                               "props": {
                                                 "numberOfLines": 1,
@@ -15502,7 +15538,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                           "children": [
                                             {
                                               "children": [
-                                                "PHASE",
+                                                "Phase",
                                               ],
                                               "props": {
                                                 "style": {
@@ -18697,7 +18733,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -19889,7 +19925,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -21070,7 +21106,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -22250,7 +22286,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                         },
                                                         {
                                                           "children": [
-                                                            "Not Started",
+                                                            "Not started",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -22700,7 +22736,7 @@ exports[`golden: SchedulerTabShell legacy chrome list at web 820 renders exactly
                                                   "children": null,
                                                   "props": {
                                                     "blurOnSubmit": false,
-                                                    "placeholder": "＋  Type a task name…",
+                                                    "placeholder": "＋  Type a task name",
                                                     "placeholderTextColor": "rgba(43,48,56,0.78)",
                                                     "returnKeyType": "done",
                                                     "style": {
@@ -23040,7 +23076,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -23048,6 +23084,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23077,7 +23114,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -23085,6 +23122,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23114,7 +23152,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -23122,6 +23160,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23153,7 +23192,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -23161,6 +23200,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -23311,7 +23351,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -23319,6 +23359,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23348,7 +23389,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -23356,6 +23397,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23385,7 +23427,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -23393,6 +23435,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23431,7 +23474,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -23439,6 +23482,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23500,7 +23544,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -23508,6 +23552,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -23667,7 +23712,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "HEALTH SCORE",
+                                    "Health score",
                                   ],
                                   "props": {
                                     "style": {
@@ -23675,6 +23720,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -23725,7 +23771,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "CRITICAL PATH",
+                                    "Critical path",
                                   ],
                                   "props": {
                                     "style": {
@@ -23733,6 +23779,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -23783,7 +23830,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "BUDGET",
+                                    "Budget",
                                   ],
                                   "props": {
                                     "style": {
@@ -23791,6 +23838,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -23841,7 +23889,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "OVERDUE",
+                                    "Overdue",
                                   ],
                                   "props": {
                                     "style": {
@@ -23849,6 +23897,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -23912,7 +23961,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                   "children": [
                                     {
                                       "children": [
-                                        "Earned Value",
+                                        "Earned value",
                                       ],
                                       "props": {
                                         "style": {
@@ -24096,7 +24145,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                   "children": [
                                     {
                                       "children": [
-                                        "Tasks by Status",
+                                        "Tasks by status",
                                       ],
                                       "props": {
                                         "style": {
@@ -24243,13 +24292,14 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                             },
                                             {
                                               "children": [
-                                                "DONE",
+                                                "Done",
                                               ],
                                               "props": {
                                                 "style": {
                                                   "color": "rgba(43,48,56,0.78)",
                                                   "fontSize": 9,
                                                   "letterSpacing": 0.6,
+                                                  "textTransform": "uppercase",
                                                 },
                                               },
                                               "type": "Text",
@@ -24331,7 +24381,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                             },
                                             {
                                               "children": [
-                                                "In Progress",
+                                                "In progress",
                                                 " · ",
                                                 "1",
                                               ],
@@ -24370,7 +24420,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                             },
                                             {
                                               "children": [
-                                                "Not Started",
+                                                "Not started",
                                                 " · ",
                                                 "4",
                                               ],
@@ -24435,7 +24485,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                               "children": [
                                 {
                                   "children": [
-                                    "Critical Path Activities",
+                                    "Critical path tasks",
                                   ],
                                   "props": {
                                     "style": {
@@ -24528,7 +24578,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24621,7 +24671,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24714,7 +24764,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24807,7 +24857,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24900,7 +24950,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -24993,7 +25043,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at native 1000x700 (An
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -25314,7 +25364,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -25322,6 +25372,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25351,7 +25402,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -25359,6 +25410,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25388,7 +25440,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -25396,6 +25448,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25427,7 +25480,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -25435,6 +25488,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -25585,7 +25639,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -25593,6 +25647,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25622,7 +25677,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -25630,6 +25685,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25659,7 +25715,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -25667,6 +25723,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25705,7 +25762,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -25713,6 +25770,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25774,7 +25832,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -25782,6 +25840,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -25941,7 +26000,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "HEALTH SCORE",
+                                    "Health score",
                                   ],
                                   "props": {
                                     "style": {
@@ -25949,6 +26008,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -25999,7 +26059,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "CRITICAL PATH",
+                                    "Critical path",
                                   ],
                                   "props": {
                                     "style": {
@@ -26007,6 +26067,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -26057,7 +26118,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "BUDGET",
+                                    "Budget",
                                   ],
                                   "props": {
                                     "style": {
@@ -26065,6 +26126,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -26115,7 +26177,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "OVERDUE",
+                                    "Overdue",
                                   ],
                                   "props": {
                                     "style": {
@@ -26123,6 +26185,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                       "fontSize": 10,
                                       "fontWeight": "700",
                                       "letterSpacing": 0.6,
+                                      "textTransform": "uppercase",
                                     },
                                   },
                                   "type": "Text",
@@ -26186,7 +26249,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                   "children": [
                                     {
                                       "children": [
-                                        "Earned Value",
+                                        "Earned value",
                                       ],
                                       "props": {
                                         "style": {
@@ -26370,7 +26433,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                   "children": [
                                     {
                                       "children": [
-                                        "Tasks by Status",
+                                        "Tasks by status",
                                       ],
                                       "props": {
                                         "style": {
@@ -26517,13 +26580,14 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                             },
                                             {
                                               "children": [
-                                                "DONE",
+                                                "Done",
                                               ],
                                               "props": {
                                                 "style": {
                                                   "color": "rgba(43,48,56,0.78)",
                                                   "fontSize": 9,
                                                   "letterSpacing": 0.6,
+                                                  "textTransform": "uppercase",
                                                 },
                                               },
                                               "type": "Text",
@@ -26605,7 +26669,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                             },
                                             {
                                               "children": [
-                                                "In Progress",
+                                                "In progress",
                                                 " · ",
                                                 "1",
                                               ],
@@ -26644,7 +26708,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                             },
                                             {
                                               "children": [
-                                                "Not Started",
+                                                "Not started",
                                                 " · ",
                                                 "4",
                                               ],
@@ -26709,7 +26773,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                               "children": [
                                 {
                                   "children": [
-                                    "Critical Path Activities",
+                                    "Critical path tasks",
                                   ],
                                   "props": {
                                     "style": {
@@ -26802,7 +26866,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -26895,7 +26959,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -26988,7 +27052,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27081,7 +27145,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27174,7 +27238,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27267,7 +27331,7 @@ exports[`golden: SchedulerTabShell legacy chrome overview at web 820 renders exa
                                 },
                                 {
                                   "children": [
-                                    "no buffer",
+                                    "No float",
                                   ],
                                   "props": {
                                     "style": {
@@ -27588,7 +27652,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -27596,6 +27660,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -27625,7 +27690,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -27633,6 +27698,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -27662,7 +27728,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -27670,6 +27736,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -27701,7 +27768,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -27709,6 +27776,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -27859,7 +27927,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -27867,6 +27935,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -27896,7 +27965,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -27904,6 +27973,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -27933,7 +28003,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -27941,6 +28011,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -27979,7 +28050,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -27987,6 +28058,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -28048,7 +28120,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -28056,6 +28128,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -28274,7 +28347,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                           "children": [
                             {
                               "children": [
-                                "Living Plan",
+                                "Living plan",
                               ],
                               "props": {
                                 "style": {
@@ -28441,7 +28514,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                   "children": [
                                                     {
                                                       "children": [
-                                                        "Task Name",
+                                                        "Task name",
                                                       ],
                                                       "props": {
                                                         "numberOfLines": 1,
@@ -31043,7 +31116,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -31878,7 +31951,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -32702,7 +32775,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -33525,7 +33598,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -33944,7 +34017,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                           "children": null,
                                                           "props": {
                                                             "blurOnSubmit": false,
-                                                            "placeholder": "＋  Type a task name…",
+                                                            "placeholder": "＋  Type a task name",
                                                             "placeholderTextColor": "rgba(43,48,56,0.78)",
                                                             "returnKeyType": "done",
                                                             "style": {
@@ -37728,7 +37801,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                           "children": [
                                                             {
                                                               "children": [
-                                                                "TODAY",
+                                                                "Today",
                                                               ],
                                                               "props": {
                                                                 "style": {
@@ -37736,6 +37809,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at native 1000x700 (An
                                                                   "fontSize": 9,
                                                                   "fontWeight": "700",
                                                                   "letterSpacing": 0.4,
+                                                                  "textTransform": "uppercase",
                                                                 },
                                                               },
                                                               "type": "Text",
@@ -38972,7 +39046,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "START",
+                            "Start",
                           ],
                           "props": {
                             "style": {
@@ -38980,6 +39054,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39009,7 +39084,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "FINISH",
+                            "Finish",
                           ],
                           "props": {
                             "style": {
@@ -39017,6 +39092,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39046,7 +39122,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "DURATION",
+                            "Duration",
                           ],
                           "props": {
                             "style": {
@@ -39054,6 +39130,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39085,7 +39162,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                           "children": [
                             {
                               "children": [
-                                "PROGRESS",
+                                "Progress",
                               ],
                               "props": {
                                 "style": {
@@ -39093,6 +39170,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                   "fontSize": 9,
                                   "fontWeight": "700",
                                   "letterSpacing": 0.8,
+                                  "textTransform": "uppercase",
                                 },
                               },
                               "type": "Text",
@@ -39243,7 +39321,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "TASKS",
+                            "Tasks",
                           ],
                           "props": {
                             "style": {
@@ -39251,6 +39329,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39280,7 +39359,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "OVERDUE",
+                            "Overdue",
                           ],
                           "props": {
                             "style": {
@@ -39288,6 +39367,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39317,7 +39397,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "COMPLETED",
+                            "Completed",
                           ],
                           "props": {
                             "style": {
@@ -39325,6 +39405,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39363,7 +39444,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "BASELINE",
+                            "Baseline",
                           ],
                           "props": {
                             "style": {
@@ -39371,6 +39452,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39432,7 +39514,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                       "children": [
                         {
                           "children": [
-                            "VIEW",
+                            "View",
                           ],
                           "props": {
                             "style": {
@@ -39440,6 +39522,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                               "fontSize": 9,
                               "fontWeight": "700",
                               "letterSpacing": 0.8,
+                              "textTransform": "uppercase",
                             },
                           },
                           "type": "Text",
@@ -39658,7 +39741,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                           "children": [
                             {
                               "children": [
-                                "Living Plan",
+                                "Living plan",
                               ],
                               "props": {
                                 "style": {
@@ -39832,7 +39915,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                   "children": [
                                                     {
                                                       "children": [
-                                                        "Task Name",
+                                                        "Task name",
                                                       ],
                                                       "props": {
                                                         "numberOfLines": 1,
@@ -42540,7 +42623,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -43407,7 +43490,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -44263,7 +44346,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -45118,7 +45201,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                 },
                                                                 {
                                                                   "children": [
-                                                                    "Not Started",
+                                                                    "Not started",
                                                                   ],
                                                                   "props": {
                                                                     "style": {
@@ -45538,7 +45621,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                           "children": null,
                                                           "props": {
                                                             "blurOnSubmit": false,
-                                                            "placeholder": "＋  Type a task name…",
+                                                            "placeholder": "＋  Type a task name",
                                                             "placeholderTextColor": "rgba(43,48,56,0.78)",
                                                             "returnKeyType": "done",
                                                             "style": {
@@ -49248,7 +49331,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                           "children": [
                                                             {
                                                               "children": [
-                                                                "TODAY",
+                                                                "Today",
                                                               ],
                                                               "props": {
                                                                 "style": {
@@ -49256,6 +49339,7 @@ exports[`golden: SchedulerTabShell legacy chrome timeline at web 820 renders exa
                                                                   "fontSize": 9,
                                                                   "fontWeight": "700",
                                                                   "letterSpacing": 0.4,
+                                                                  "textTransform": "uppercase",
                                                                 },
                                                               },
                                                               "type": "Text",
@@ -56597,7 +56681,7 @@ exports[`golden: shared-schedule (InteractiveGantt's only non-Pro consumer) 1000
                                           "children": [
                                             {
                                               "children": [
-                                                "TODAY",
+                                                "Today",
                                               ],
                                               "props": {
                                                 "style": {
@@ -56605,6 +56689,7 @@ exports[`golden: shared-schedule (InteractiveGantt's only non-Pro consumer) 1000
                                                   "fontSize": 9,
                                                   "fontWeight": "700",
                                                   "letterSpacing": 0.4,
+                                                  "textTransform": "uppercase",
                                                 },
                                               },
                                               "type": "Text",

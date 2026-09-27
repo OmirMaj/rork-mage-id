@@ -395,14 +395,14 @@ export function recordableWorkerProblem(people: readonly IncidentPerson[]): stri
   const person = marked ?? (list.length === 1 ? list[0] : undefined);
   if (!person) {
     return list.length === 0
-      ? 'This case is OSHA-recordable, so the 300 log needs the injured worker. Add him under People involved with his name and job title.'
-      : 'This case is OSHA-recordable. Mark which person was injured (tap "Injured" on his row) so the 300 log names the right worker.';
+      ? 'This case is OSHA-recordable, so the 300 log needs the injured person. Add them under People involved with their name and job title.'
+      : 'This case is OSHA-recordable. Mark which person was injured (tap "Injured?" on their row) so the 300 log names the right person.';
   }
   if (!person.privacyCase && !(person.name ?? '').trim()) {
-    return 'The injured worker needs a name on the 300 log. Type it, or mark it a privacy case if 1904.29(b)(7) applies.';
+    return 'The injured person needs a name on the 300 log. Type it, or mark it a privacy case if 1904.29(b)(7) applies.';
   }
   if (!(person.role ?? '').trim()) {
-    return 'The injured worker needs a job title on the 300 log (for example "Carpenter"). Add it on his row.';
+    return 'The injured person needs a job title on the 300 log (for example "Carpenter"). Add it on their row.';
   }
   return null;
 }
@@ -469,13 +469,13 @@ export function safetySeatFor(args: {
 /** The reason a seat can't delete a safety record, or null when it can. */
 export function safetyDeleteBlockedReason(seat: SafetySeat): string | null {
   if (seat === 'owner') return null;
-  if (seat === 'checking') return 'Checking your role on this job. Try again in a moment.';
+  if (seat === 'checking') return 'Checking your role on this project. Try again in a moment.';
   return 'Only the project owner can delete safety records. Ask your GC to remove it.';
 }
 
 /** The reason a seat can't file or edit safety records, or null when it can. */
 export function safetyWriteBlockedReason(seat: SafetySeat): string | null {
   return seat === 'viewer'
-    ? 'You were invited to this job as a viewer, so you can read its safety records but not file them. Ask your GC for field access.'
+    ? 'You were invited to this project as a viewer, so you can read its safety records but not file them. Ask your GC for field access.'
     : null;
 }

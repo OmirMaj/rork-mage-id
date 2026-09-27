@@ -209,7 +209,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
               {isBlocked && (
                 <View style={s.blockedTag}>
                   <AlertTriangle size={9} color={t.dangerLabel} strokeWidth={1.75} />
-                  <Text style={s.blockedTagText}>BLOCKED</Text>
+                  <Text style={s.blockedTagText}>Blocked</Text>
                 </View>
               )}
             </View>
@@ -455,13 +455,13 @@ function LookaheadView({
           style={[s.segmentBtn, weekCount === 3 && s.segmentBtnActive]}
           onPress={() => setWeekCount(3)}
         >
-          <Text style={[s.segmentBtnText, weekCount === 3 && s.segmentBtnTextActive]}>3 Week</Text>
+          <Text style={[s.segmentBtnText, weekCount === 3 && s.segmentBtnTextActive]}>3 weeks</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.segmentBtn, weekCount === 6 && s.segmentBtnActive]}
           onPress={() => setWeekCount(6)}
         >
-          <Text style={[s.segmentBtnText, weekCount === 6 && s.segmentBtnTextActive]}>6 Week</Text>
+          <Text style={[s.segmentBtnText, weekCount === 6 && s.segmentBtnTextActive]}>6 weeks</Text>
         </TouchableOpacity>
       </View>
 

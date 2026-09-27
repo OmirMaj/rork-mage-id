@@ -41,16 +41,16 @@ export function SafetyAccessBlocked({ roleState, onClose }: { roleState: Project
     return (
       <View style={[styles.gateWrap, { backgroundColor: t.bg }]} testID="safety-gate-checking">
         <ActivityIndicator color={t.accent} />
-        <Text style={styles.gateText}>Checking your access to this job…</Text>
+        <Text style={styles.gateText}>Checking your access to this project…</Text>
       </View>
     );
   }
   if (roleState.isError) {
     return (
       <View style={[styles.gateWrap, { backgroundColor: t.bg }]} testID="safety-gate-error">
-        <Text style={styles.gateTitle}>Could not check your access to this job</Text>
+        <Text style={styles.gateTitle}>Couldn&apos;t check your access to this project</Text>
         <Text style={styles.gateText}>
-          MAGE could not load who is on this project, so it cannot tell whether your GC invited you to its safety records. Check your connection and try again.
+          MAGE couldn&apos;t load who is on this project, so it can&apos;t tell whether your GC invited you to its safety records. Check your connection and try again.
         </Text>
         <Button label="Try again" onPress={() => { void roleState.refetch(); }} variant="secondary" />
       </View>
@@ -170,11 +170,11 @@ function SafetyHubInner() {
     return [
       { key: 'jha', label: 'JHAs', icon: HardHat, count: getJhasForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-jha', params: { projectId: pid } }) },
-      { key: 'toolbox', label: 'Toolbox Talks', icon: Megaphone, count: getToolboxTalksForProject(pid).length,
+      { key: 'toolbox', label: 'Toolbox talks', icon: Megaphone, count: getToolboxTalksForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-toolbox', params: { projectId: pid } }) },
       { key: 'incidents', label: 'Incidents', icon: ShieldAlert, count: getIncidentsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-incidents', params: { projectId: pid } }) },
-      { key: 'hazards', label: 'Hazard Log', icon: TriangleAlert, count: getHazardsForProject(pid).length,
+      { key: 'hazards', label: 'Hazard log', icon: TriangleAlert, count: getHazardsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-hazards', params: { projectId: pid } }) },
       { key: 'inspections', label: 'Inspections', icon: ClipboardCheck, count: getInspectionsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-inspections' as never, params: { projectId: pid } as never }) },
@@ -202,7 +202,7 @@ function SafetyHubInner() {
     return [
       { key: 'certifications', label: 'Certifications', icon: BadgeCheck, count: expiringCertifications(now).length,
         onPress: () => router.push('/safety-certifications' as never) },
-      { key: 'forms', label: 'Forms Library', icon: FileText, count: templates.length,
+      { key: 'forms', label: 'Forms library', icon: FileText, count: templates.length,
         onPress: () => router.push('/safety-forms' as never) },
       { key: 'osha', label: `OSHA 300 Log · ${oshaYear}`, icon: ShieldAlert, count: oshaCount,
         onPress: () => router.push(
@@ -241,7 +241,7 @@ function SafetyHubInner() {
                   testID="safety-switch-project"
                 >
                   <ArrowLeftRight size={14} color={t.accent} strokeWidth={1.75} />
-                  <Text style={styles.switchBtnText}>Switch job</Text>
+                  <Text style={styles.switchBtnText}>Switch project</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -252,11 +252,11 @@ function SafetyHubInner() {
             <ToolProjectPicker
               toolName="Safety"
               message={ownTier
-                ? 'JHAs, toolbox talks, incidents, the hazard log and inspections are tied to a job. Pick the job you are on.'
+                ? 'JHAs, toolbox talks, incidents, the hazard log and inspections are tied to a project. Pick the project you are on.'
                 // Audit #121: he cannot see a single JHA, talk or hazard the
                 // GC wrote (20260919130000 — author or project owner only), so
                 // this says what he CAN do rather than "run their" records.
-                : 'Your plan does not include Safety, but your GC invited you to the jobs below. You can file JHAs, toolbox talks, hazards and incident reports here. They go to the job\'s owner. You\'ll see the ones you file, not the GC\'s.'}
+                : 'Your GC invited you to these projects. JHAs, toolbox talks, hazards and incidents you file go to them, and you see the ones you file, not your GC\'s.'}
               projects={pickable}
               onPick={pickProject}
               staleProjectId={staleProjectId}
@@ -272,7 +272,7 @@ function SafetyHubInner() {
           </>
         ) : (
           <Text style={styles.collabNote} testID="safety-company-tools-note">
-            Certifications, the forms library and the OSHA 300 log are your own company&apos;s records. They come with the Business plan; the jobs above are covered by your GC&apos;s.
+            Certifications, the forms library and the OSHA 300 log are your own company&apos;s records, on the Business plan. The projects above are covered by your GC&apos;s.
           </Text>
         )}
       </ScrollView>

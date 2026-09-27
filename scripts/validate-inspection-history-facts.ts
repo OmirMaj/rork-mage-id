@@ -428,9 +428,9 @@ console.log('\nwhose job, whose town — the record spans both:');
   ok('...and the prompt says the record spans more than one job',
     /These come from 2 of your jobs with this authority \(Maple St, Oak Ave\)/.test(g.promptBlock), g.promptBlock);
   ok('...and the chip says so too — the contractor sees what the model sees',
-    /Across 2 of your jobs/.test(g.chipLabel), g.chipLabel);
+    /Across 2 of your projects/.test(g.chipLabel), g.chipLabel);
   const one = inspectionHistoryFactsFor([permit({ projectName: 'Maple St', permitNumber: 'A-1', inspections: [insp()] })], PHOENIX, 'electrical');
-  ok('one job says nothing about spanning jobs', !/of your jobs/.test(one.chipLabel), one.chipLabel);
+  ok('one job says nothing about spanning jobs', !/of your (jobs|projects)/.test(one.chipLabel), one.chipLabel);
 }
 {
   // A match made on bare place tokens may be a same-named town. Keeping the

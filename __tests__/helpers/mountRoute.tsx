@@ -211,7 +211,7 @@ function findSwallowedCrash(tree: MountResult): Error | null {
     // "something went wrong".
     const texts = collectText(tree.toJSON());
     const detail = texts.find(
-      (t) => t !== 'Something went wrong' && t !== 'Try Again' && t.length > 3
+      (t) => t !== 'This screen hit an error' && t !== 'Try again' && t.length > 3
     );
     return new Error(detail ?? 'ErrorBoundary rendered its fallback');
   }

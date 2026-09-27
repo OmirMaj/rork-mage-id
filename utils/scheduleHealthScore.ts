@@ -344,7 +344,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       key: 'lags',
       label: 'Lags',
       dcmaLabel: 'DCMA #3 — Lags',
-      description: 'A lag is waiting time with no activity behind it. DCMA wants them on under 5% of links.',
+      description: 'A lag is waiting time with no task behind it. DCMA wants them on under 5% of links.',
       value: lagValue,
       weight: lagWeight,
       flagged: lags.slice(0, 6).map(x => ({
@@ -353,7 +353,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       severity: severityFromValue(lagValue, lagWeight),
       suggestion: lags.length === 0
         ? 'No lags — every wait is modelled as real work.'
-        : `${lags.length} of ${allLinks.length} links carry a lag (${Math.round(lagRatio * 100)}%). Model long waits as activities ("slab cure") so the client can see them.`,
+        : `${lags.length} of ${allLinks.length} links carry a lag (${Math.round(lagRatio * 100)}%). Model long waits as tasks ("slab cure") so the client can see them.`,
     });
 
     // ── DCMA #4 Relationship Types ────────────────────────────────────
@@ -367,7 +367,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'relationship_types',
       label: 'Relationship types',
-      dcmaLabel: 'DCMA #4 — Relationship Types',
+      dcmaLabel: 'DCMA #4 — Relationship types',
       description: 'At least 90% of links should be Finish-to-Start. SS/FF/SF are harder to read and easier to get wrong.',
       value: relValue,
       weight: relWeight,
@@ -394,7 +394,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'hard_constraints',
       label: 'Hard date pins',
-      dcmaLabel: 'DCMA #5 — Hard Constraints',
+      dcmaLabel: 'DCMA #5 — Hard constraints',
       description: 'Must-start-on / must-finish-on pins beat the logic. DCMA wants them on under 5% of tasks.',
       value,
       weight,
@@ -422,12 +422,12 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'negative_float',
       label: 'Negative float',
-      dcmaLabel: 'DCMA #7 — Negative Float',
+      dcmaLabel: 'DCMA #7 — Negative float',
       description: 'Negative float means the plan cannot be built as drawn — something has to give.',
       value,
       weight,
       flagged: negative.slice(0, 8).map(x => ({
-        id: x.t.id, title: x.t.title, reason: `${x.r.totalFloat}d float — ${Math.abs(x.r.totalFloat)} working day(s) short`,
+        id: x.t.id, title: x.t.title, reason: `${x.r.totalFloat}d float · ${Math.abs(x.r.totalFloat)} working ${Math.abs(x.r.totalFloat) === 1 ? 'day' : 'days'} short`,
       })),
       severity: severityFromValue(value, weight),
       suggestion: negative.length === 0
@@ -468,7 +468,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'invalid_dates',
       label: 'Invalid dates',
-      dcmaLabel: 'DCMA #9 — Invalid Dates',
+      dcmaLabel: 'DCMA #9 — Invalid dates',
       description: 'Date fields that contradict themselves — an actual finish before its start, or a pin with no usable date.',
       value,
       weight,
@@ -490,7 +490,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     if (withBaseline.length === 0 || cpm.projectFinish <= 1 || !calendar?.scheduleStartDate) {
       checks.push({
         key: 'cpli',
-        label: 'Critical Path Length Index',
+        label: 'Critical path length index',
         dcmaLabel: 'DCMA #13 — CPLI',
         description: 'How the forecast finish compares to the promised one. Needs a baseline.',
         value: 0.5,
@@ -498,7 +498,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
         flagged: [],
         severity: 'warn',
         suggestion: withBaseline.length === 0
-          ? 'Capture a baseline to turn CPLI on — it is the single number a federal or institutional owner asks for first.'
+          ? 'Capture a baseline to turn CPLI on. It\'s the number a federal or institutional owner asks for first.'
           : 'CPLI needs the project calendar to compare a working-day baseline against a calendar-day forecast. Set a start date on the schedule.',
       });
     } else {
@@ -514,7 +514,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       const value = Math.max(0, Math.min(1, (cpli - 0.8) / 0.2));
       checks.push({
         key: 'cpli',
-        label: 'Critical Path Length Index',
+        label: 'Critical path length index',
         dcmaLabel: 'DCMA #13 — CPLI',
         description: 'CPLI = (critical path length + project float) ÷ critical path length. 1.00 hits the baseline; DCMA fails under 0.95.',
         value,
@@ -523,7 +523,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
         severity: severityFromValue(value, weight),
         suggestion: cpli >= 1
           ? `CPLI ${cpli.toFixed(2)} — the forecast finishes on or inside the baseline.`
-          : `CPLI ${cpli.toFixed(2)} — the forecast runs ${Math.abs(projectTotalFloat)} working day(s) past the baseline. Recover time on the critical path or rebaseline and say why.`,
+          : `CPLI ${cpli.toFixed(2)} — the forecast runs ${Math.abs(projectTotalFloat)} working ${Math.abs(projectTotalFloat) === 1 ? 'day' : 'days'} past the baseline. Recover time on the critical path or rebaseline and say why.`,
       });
     }
   }
@@ -568,14 +568,14 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'long_tasks',
       label: 'Long tasks',
-      dcmaLabel: 'DCMA #8 — High Duration',
-      description: `Activities longer than ${longThreshold} working days hide compound work. Break them down.`,
+      dcmaLabel: 'DCMA #8 — High duration',
+      description: `Tasks longer than ${longThreshold} working days hide several pieces of work. Break them down.`,
       value,
       weight,
       flagged: longTasks.slice(0, 6).map(t => ({ id: t.id, title: t.title, reason: `${t.durationDays} days` })),
       severity: severityFromValue(value, weight),
       suggestion: longTasks.length === 0
-        ? 'No long tasks. Activities are appropriately scoped.'
+        ? 'No long tasks. Every task is scoped tightly.'
         : `Break down ${longTasks.length} long task${longTasks.length === 1 ? '' : 's'} into smaller steps for better tracking.`,
     });
   }
@@ -615,7 +615,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
         weight,
         flagged: [],
         severity: 'warn',
-        suggestion: 'Tap "Baseline" in the toolbar to capture a snapshot. Slippage tracking will activate after.',
+        suggestion: 'Tap "Baseline" in the toolbar to capture a snapshot. Slippage tracking starts after that.',
       });
     } else {
       const slipped = withBaseline.filter(t => {
@@ -679,10 +679,10 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
       // "(proxy …)" label without a data date, because that is what it is, and
       // validate-schedule-health pins the partial-item wording either way.
       dcmaLabel: today != null
-        ? 'DCMA #11 — Missed Tasks (proxy — missed finishes only)'
-        : 'DCMA #11 — Missed Tasks (proxy — no data date)',
+        ? 'DCMA #11 — Missed tasks (proxy: missed finishes only)'
+        : 'DCMA #11 — Missed tasks (proxy: no data date)',
       description: today != null
-        ? 'Work that should already have finished by today and still shows 0% — the plan is behind the field, or nobody is updating it.'
+        ? 'Work that should have finished by today still shows 0%. The plan is behind the field, or nobody is updating it.'
         : 'Tasks that should already be in progress but still show 0% suggest the plan isn\'t being maintained.',
       value,
       weight,
@@ -745,7 +745,7 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
     checks.push({
       key: 'milestone_clarity',
       label: 'Milestone clarity',
-      description: 'Named milestones (foundation, dry-in, C of O) anchor the schedule for the GC + client.',
+      description: 'Named milestones (foundation, dry-in, C of O) anchor the schedule for you and the client.',
       value,
       weight,
       flagged: [],
@@ -819,11 +819,11 @@ export function computeScheduleHealthScore({ tasks, cpm, calendar, dataDate }: S
   const grade = gradeFromScore(score);
 
   const summary = (() => {
-    if (score >= 90) return `Excellent (${grade}). Schedule is professional-grade.`;
-    if (score >= 80) return `Solid (${grade}). Few small fixes can lift this to A.`;
-    if (score >= 70) return `Decent (${grade}). Several improvements available below.`;
-    if (score >= 60) return `Needs work (${grade}). Address the red flags before bidding off this.`;
-    return `Significant gaps (${grade}). Run AI auto-schedule or rebuild from the estimate.`;
+    if (score >= 90) return `Excellent (${grade}). The schedule is ready to build from.`;
+    if (score >= 80) return `Solid (${grade}). A few small fixes lift this to A.`;
+    if (score >= 70) return `Decent (${grade}). See the improvements below.`;
+    if (score >= 60) return `Needs work (${grade}). Fix the red flags before bidding off this.`;
+    return `Significant gaps (${grade}). Rebuild it from the estimate or fix the red flags below.`;
   })();
 
   return {

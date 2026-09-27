@@ -37,7 +37,7 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
       case 'disconnected':
         return { label: item.tier === 'link' ? 'Open' : 'Connect', color: themeColors.accent, bgColor: themeColors.accent + '14', icon: Plug };
       case 'coming_soon':
-        return { label: 'Coming Soon', color: '#9E9E9E', bgColor: '#F5F5F5', icon: Lock };
+        return { label: 'Not live yet', color: '#9E9E9E', bgColor: '#F5F5F5', icon: Lock };
       case 'error':
         return { label: 'Error', color: Colors.errorDark, bgColor: Colors.errorLight, icon: WifiOff };
       default:
@@ -151,7 +151,7 @@ export default function IntegrationsScreen() {
 
     if (item.externalUrl) {
       Linking.openURL(item.externalUrl).catch(() => {
-        showAlert('Error', 'Could not open the link.');
+        showAlert('Couldn’t open the link', 'Try again.');
       });
       return;
     }
@@ -165,14 +165,14 @@ export default function IntegrationsScreen() {
       // banner reinforces that nothing here actually transacts.
       showAlert(
         `${item.name} not yet available`,
-        'Direct integration is in development. Want to be notified when it ships? We can email you at the address on your account.',
+        'This integration isn’t built yet. MAGE can email you at your account address when it is.',
         [
           { text: 'Maybe later', style: 'cancel' },
           {
             text: 'Notify me',
             onPress: () => {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              showAlert('Got it', `We'll email you when ${item.name} sync goes live.`);
+              showAlert('You’re on the list', `MAGE emails you when ${item.name} sync is live.`);
             },
           },
         ]
@@ -237,19 +237,19 @@ export default function IntegrationsScreen() {
           backgroundColor: Colors.warning + '15', borderRadius: 12,
           borderWidth: 1, borderColor: Colors.warning + '40',
         }}>
-          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warningLabel, letterSpacing: 0.5 }}>
-            PREVIEW
+          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warningLabel, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+            Preview
           </Text>
           <Text style={{ fontSize: 13, color: themeColors.text, marginTop: 4, lineHeight: 18 }}>
-            This is a preview of the Integrations Hub. Connect buttons aren&apos;t live yet — your data won&apos;t actually sync. We&apos;ll email you when each integration ships.
+            Connect buttons here aren&apos;t live yet, and nothing syncs. MAGE emails you when each integration ships.
           </Text>
         </View>
         <View style={styles.heroSection}>
           <View style={styles.heroIconWrap}>
             <Wifi size={28} color={themeColors.accent} strokeWidth={1.75} />
           </View>
-          <Text style={styles.heroTitle}>Integrations Hub</Text>
-          <Text style={styles.heroSubtitle}>QuickBooks, plans, and payments — wired into your jobs.</Text>
+          <Text style={styles.heroTitle}>Integrations</Text>
+          <Text style={styles.heroSubtitle}>QuickBooks, plans and payments, connected to your projects.</Text>
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
               <Text style={[styles.heroStatValue, { color: themeColors.accent }]}>{connectedCount}</Text>
@@ -265,7 +265,7 @@ export default function IntegrationsScreen() {
               <Text style={[styles.heroStatValue, { color: '#9E9E9E' }]}>
                 {integrations.filter(i => i.status === 'coming_soon').length}
               </Text>
-              <Text style={styles.heroStatLabel}>Coming Soon</Text>
+              <Text style={styles.heroStatLabel}>Not live yet</Text>
             </View>
           </View>
         </View>
@@ -302,7 +302,7 @@ export default function IntegrationsScreen() {
           <View style={styles.listSection}>
             {filtered.filter(i => i.status === 'connected').length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>ACTIVE CONNECTIONS</Text>
+                <Text style={styles.sectionLabel}>Active connections</Text>
                 {filtered.filter(i => i.status === 'connected').map(item => (
                   <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
                 ))}
@@ -311,7 +311,7 @@ export default function IntegrationsScreen() {
 
             {filtered.filter(i => i.status === 'disconnected' || i.status === 'error').length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>AVAILABLE</Text>
+                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Available</Text>
                 {filtered.filter(i => i.status === 'disconnected' || i.status === 'error').map(item => (
                   <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
                 ))}
@@ -320,7 +320,7 @@ export default function IntegrationsScreen() {
 
             {filtered.filter(i => i.status === 'coming_soon').length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>COMING SOON</Text>
+                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Not live yet</Text>
                 {filtered.filter(i => i.status === 'coming_soon').map(item => (
                   <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
                 ))}
@@ -430,6 +430,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: 10,
     paddingHorizontal: 4,
+    textTransform: 'uppercase',
   },
   card: {
     marginBottom: 8,

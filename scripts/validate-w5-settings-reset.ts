@@ -104,18 +104,18 @@ ok('Cancel is the first (safe) choice', /\[\s*\{ text: 'Cancel', style: 'cancel'
 ok('handleClearAll counts the Not-saved records (countOwnUnsavedRecords)', /countOwnUnsavedRecords\(\)\.catch\(\(\) => 0\)/.test(clear));
 ok('…says a reset deletes them, and offers Review Not saved first',
   /Resetting deletes/.test(clear) && /\{ text: 'Review Not saved', onPress: \(\) => requestSyncSheet\(\) \}/.test(clear));
-ok('the dialog says jobs stay on the account and reload', /Your jobs stay on your account and reload/.test(clear));
-ok('the Done alert says the device was reset and jobs are reloading',
-  /showAlert\('Done', 'This device was reset\. Your jobs are reloading from your account\.'\)/.test(reset));
+ok('the dialog says projects stay on the account and reload', /Your projects stay on your account and reload/.test(clear));
+ok('the Done alert says the device was reset and projects are reloading',
+  /showAlert\('Device reset', 'Your projects are reloading from your account\.'\)/.test(reset));
 ok('the row is "Reset this device" (not "Clear All Projects & Data")',
   />Reset this device</.test(src) && !/Clear All Projects/.test(src) && !/Delete Everything/.test(src));
-ok('the row copy says the jobs stay on the account', /Your jobs stay on your account and reload\./.test(src));
+ok('the row copy says the projects stay on the account', /Your projects stay on your account and reload\./.test(src));
 
 console.log('\n── #46: no security switch that does nothing ──');
 ok('the switch is disabled and fixed off', /<Switch\s+value=\{false\}\s+disabled/.test(src));
 ok('no switch toggles biometricsEnabled any more', !/onValueChange=\{setBiometrics\}/.test(src) && !/onPress=\{\(\) => setBiometrics\(/.test(src));
 ok("the row says the app lock isn't built and where Face ID sign-in is",
-  /const APP_LOCK_NOT_BUILT = 'App lock isn\\u2019t built yet\. Face ID sign-in is on the login screen\.';/.test(src)
+  /const APP_LOCK_NOT_BUILT = 'App lock isn\\u2019t available yet\. Face ID sign-in is on the sign-in screen\.';/.test(src)
   && /\{APP_LOCK_NOT_BUILT\}/.test(src));
 ok('setBiometrics keeps its load-guard lines (validate-settings-load-guard pins them)',
   /if \(!commitScreen\(\{ biometricsEnabled: val \}\)\) return;\s*setBiometricsEnabled\(val\);/.test(src));

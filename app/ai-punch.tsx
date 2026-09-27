@@ -49,6 +49,7 @@ import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 // LS-5: a viewer seat cannot file punch items (RLS needs 'field').
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
@@ -227,7 +228,7 @@ function AiPunchScreenInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        showAlert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
+        showAlert('Max 12 photos', 'Pick the clearest shots. Each run reads up to 12 photos.');
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
@@ -315,8 +316,8 @@ function AiPunchScreenInner() {
     // whole fix and this early return becomes the bug.
     if (collaboratorGranted && !tierMeetsRequirement(subscriptionTier, 'pro')) {
       showAlert(
-        'Photo AI runs on the owner’s account',
-        'You were invited to this project, so the punch list is yours to work — but AI photo analysis is still billed to whoever runs it, and your own plan is Free. Ask the project owner to run this analysis, or upgrade your own account.',
+        'Punch from photos is on the Pro plan',
+        'You were invited to this project, so you can work its punch list. Reading photos runs on your own plan, which is Free. Ask the project owner to run it, or see plans.',
         // Keep the upgrade path one tap away: the old (wrong) "buy Pro" prompt
         // at least deep-linked here, and losing that would trade one dead end
         // for another.
@@ -355,7 +356,7 @@ function AiPunchScreenInner() {
         };
       });
       if (reviewable.length === 0) {
-        setError('AI didn’t find any punch items in those photos. Try shots closer to the work, or with better lighting.');
+        setError('No punch items found in those photos. Try shots closer to the work, or with better lighting.');
       } else if (meta.skippedIndexes.length > 0) {
         // Partial success — some photos couldn't be read but the AI
         // analyzed the rest. Surface as a warning, not an error
@@ -373,7 +374,7 @@ function AiPunchScreenInner() {
       // "Photo analyzer call failed: Edge Function returned a non-2xx status
       // code", and no suggestion that the same batch will pass on a retry.
       const refusal = showAiRefusal(err, router);
-      setError(refusal ?? ((err as Error)?.message || String(err)));
+      setError(refusal ?? ownSentence(err) ?? describeError(err, { action: 'read these photos' }).body);
     } finally {
       setBusy(false);
     }
@@ -443,7 +444,7 @@ function AiPunchScreenInner() {
       return;
     }
     if (!item.editedDescription.trim()) {
-      showAlert('Description required');
+      showAlert('Add a description');
       return;
     }
     let stamp: PhotoGeoStamp | null = null;
@@ -510,10 +511,10 @@ function AiPunchScreenInner() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="AI PUNCH · MAGE ID" title="AI Punch from Photos" />
+        <ToolHeader eyebrow="Punch from photos · MAGE ID" title="Punch from photos" />
         <ToolProjectPicker
-          toolName="AI Punch"
-          message="AI Punch turns walkthrough photos into a punch list — pick photos, AI drafts the items, you review and save them into the project."
+          toolName="Punch from photos"
+          message="Turn walkthrough photos into punch items. MAGE drafts them, and you review and save them to the project."
           projects={projects}
           onPick={setPickedProjectId}
         />
@@ -525,7 +526,7 @@ function AiPunchScreenInner() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ToolHeader eyebrow="AI PUNCH · MAGE ID" title={project.name} />
+        <ToolHeader eyebrow="Punch from photos · MAGE ID" title={project.name} />
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + fabLift + BRAIN_FAB_CLEARANCE }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
@@ -535,13 +536,13 @@ function AiPunchScreenInner() {
             <View style={styles.heroIconWrap}>
               <MageAIMark size={28} color={themeColors.accent} />
             </View>
-            <Text style={styles.heroTitle}>AI Punch from Photos</Text>
+            <Text style={styles.heroTitle}>Punch from photos</Text>
             <Text style={styles.heroSub}>
               {reviewItems.length > 0
-                ? `Review what AI found. Edit, save, or discard each item.`
+                ? `Review what MAGE found. Edit, save or discard each item.`
                 : error
-                ? `That didn't work — those photos couldn't be read. Pick a different set and try again.`
-                : `Pick up to 12 photos from this project. AI will turn them into a punch list — review, edit, save.`}
+                ? `Those photos couldn't be read. Pick a different set and try again.`
+                : `Pick up to 12 photos from this project. MAGE drafts punch items from them. Review before saving.`}
             </Text>
           </View>
 
@@ -751,12 +752,12 @@ function AiPunchScreenInner() {
               {busy ? (
                 <>
                   <ActivityIndicator size="small" color="#FFF" />
-                  <Text style={styles.fabPrimaryText}>AI is reading the photos…</Text>
+                  <Text style={styles.fabPrimaryText}>Reading photos…</Text>
                 </>
               ) : (
                 <>
                   <MageAIMark size={16} color="#FFF" />
-                  <Text style={styles.fabPrimaryText}>Run AI · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
+                  <Text style={styles.fabPrimaryText}>Find punch items · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
                   <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
                 </>
               )}

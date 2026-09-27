@@ -91,7 +91,7 @@ export default function SmartInbox() {
           <View style={styles.emptyIcon}>
             <CheckCircle2 size={20} color={colors.success} strokeWidth={2.2} />
           </View>
-          <Text style={styles.emptyText}>Nothing in the inbox.</Text>
+          <Text style={styles.emptyText}>Nothing in the inbox</Text>
           {/* Was "All caught up. / Nothing urgent across your projects." — a
               total claim about every project, produced by a fixed set of rules
               that do not read everything. Say what was actually checked; the
@@ -142,7 +142,7 @@ export default function SmartInbox() {
 
       {shown.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <Text style={styles.emptyText}>No items in this filter.</Text>
+          <Text style={styles.emptyText}>Nothing matches this filter</Text>
         </View>
       ) : (
         <View style={styles.list}>

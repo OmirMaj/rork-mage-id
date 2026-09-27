@@ -183,7 +183,7 @@ export default function ManagedPropertyScreen() {
         </View>
         <View style={styles.missingWrap}>
           <AlertTriangle size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-          <Text style={styles.missingText}>This property could not be found.</Text>
+          <Text style={styles.missingText}>Couldn't find this property. It may have been deleted.</Text>
         </View>
       </View>
     );
@@ -220,7 +220,7 @@ export default function ManagedPropertyScreen() {
           )}
           <View style={styles.propTagRow}>
             {!!property.propertyType && <View style={styles.tag}><Text style={styles.tagText}>{property.propertyType}</Text></View>}
-            {!!property.units && <View style={styles.tag}><Text style={styles.tagText}>{property.units} units</Text></View>}
+            {!!property.units && <View style={styles.tag}><Text style={styles.tagText}>{property.units} {property.units === 1 ? 'unit' : 'units'}</Text></View>}
             {!!property.ownerName && <View style={styles.tag}><Text style={styles.tagText}>Owner: {property.ownerName}</Text></View>}
           </View>
           {!!property.notes && <Text style={styles.propNotes}>{property.notes}</Text>}

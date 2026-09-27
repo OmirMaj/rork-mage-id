@@ -317,7 +317,7 @@ export default function ClientMessagesScreen() {
     if (!project || !portal?.portalId) return;
     const body = composeBody.trim();
     if (!body) return;
-    const gcName = settings?.branding?.companyName || 'Your General Contractor';
+    const gcName = settings?.branding?.companyName || 'Your contractor';
     // SYNC-F8: the insert goes through the offline queue with a client id
     // (usePortalThread). The composer keeps the text until the message has
     // landed or been queued for the next flush, and the success haptic fires
@@ -329,12 +329,12 @@ export default function ClientMessagesScreen() {
       authorName: gcName,
     });
     if (outcome === 'failed') {
-      oops("Message didn't send — check your connection and try again.");
+      oops("Message didn't send. Check your connection and try again.");
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     setComposeBody('');
-    if (outcome === 'queued') nailIt("Saved — it'll send when you're back online.");
+    if (outcome === 'queued') nailIt("Saved offline. It sends when you're back online.");
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, portal, composeBody, settings, threadQ]);
 
@@ -367,7 +367,7 @@ export default function ClientMessagesScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 40, alignItems: 'center' }]}>
         <Stack.Screen options={{ title: 'Messages', ...headerBack }} />
-        <Text style={styles.muted}>Project not found.</Text>
+        <Text style={styles.muted}>Project not found</Text>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Text style={styles.backBtnTxt}>Go back</Text>
         </TouchableOpacity>
@@ -425,9 +425,9 @@ export default function ClientMessagesScreen() {
         {display.length === 0 ? (
           <View style={styles.empty}>
             <MessageSquare size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No messages yet.</Text>
+            <Text style={styles.emptyTitle}>No messages yet</Text>
             <Text style={styles.emptyHint}>
-              Break the ice — send a quick hello and let your client know how to reach you.
+              Send a first message so your client knows how to reach you.
             </Text>
           </View>
         ) : (

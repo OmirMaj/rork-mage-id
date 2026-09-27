@@ -211,7 +211,7 @@ console.log('\nthe GC\'s own deliberate change after the foreman\'s (fix round 1
     /const refused = sentTasks \? staleFieldEdits\(keptTasks, sentTasks\) : \[\];\s*if \(stamp\) noteOwnScheduleSave\(syncGateRef\.current, stamp\);\s*updateProjectRaw\(id, updates\);/.test(row)
       && /onFieldRefusalsRef\.current\?\.\(refused, keptTasks, sentTasks\)/.test(row)
       && /writePath === 'row'\s*\? saveAsRow/.test(PRO));
-  ok('...and the screen says so', /writePath === 'row' && fieldConflictNotice \?/.test(PRO) && /setFieldConflictNotice\(`\$\{title\}'s \$\{what\} was updated elsewhere — in the field or on another device — at/.test(PRO)
+  ok('...and the screen says so', /writePath === 'row' && fieldConflictNotice \?/.test(PRO) && /setFieldConflictNotice\(`\$\{title\}'s \$\{what\} was changed on another device at/.test(PRO)
     && /useEffect\(\(\) => \{ setFieldConflictNotice\(null\); \}, \[projectId\]\);/.test(PRO));
 }
 
