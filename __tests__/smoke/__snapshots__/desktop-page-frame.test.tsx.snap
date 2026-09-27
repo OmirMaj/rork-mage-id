@@ -22113,6 +22113,11 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                   "backgroundColor": "rgb(242, 242, 242)",
                                                   "flex": 1,
                                                   "opacity": 1,
+                                                  "transform": [
+                                                    {
+                                                      "translateY": 0,
+                                                    },
+                                                  ],
                                                 },
                                               },
                                               "type": "View",

@@ -10,7 +10,7 @@ exports[`lane DB — golden (recorded on the untouched base) /copilot?capability
 exports[`lane DB — golden (recorded on the untouched base) /schedule at 390 with the "Tell me what to change" sheet open (ScheduleEditPanel, modal) 1`] = `
 {
   "lines": 739,
-  "sha256": "d00037f55f02c71f8c16566d987225804ada8c8060fd920480d8a1b2040187c4",
+  "sha256": "279afc986a1037ce6a969ca4deea848fa5d6feb60122b66446de79c6e75af2df",
 }
 `;
 

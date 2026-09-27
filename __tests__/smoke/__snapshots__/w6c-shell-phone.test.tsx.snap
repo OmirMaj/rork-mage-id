@@ -51766,6 +51766,11 @@ exports[`Settings tab on a phone (real app, 390 ios) contractor 1`] = `
                                                   "backgroundColor": "rgb(242, 242, 242)",
                                                   "flex": 1,
                                                   "opacity": 1,
+                                                  "transform": [
+                                                    {
+                                                      "translateY": 0,
+                                                    },
+                                                  ],
                                                 },
                                               },
                                               "type": "View",
@@ -71873,6 +71878,11 @@ exports[`Settings tab on a phone (real app, 390 ios) property_manager 1`] = `
                                                   "backgroundColor": "rgb(242, 242, 242)",
                                                   "flex": 1,
                                                   "opacity": 1,
+                                                  "transform": [
+                                                    {
+                                                      "translateY": 0,
+                                                    },
+                                                  ],
                                                 },
                                               },
                                               "type": "View",
@@ -73730,6 +73740,11 @@ exports[`TabLayout on a phone client, 390 ios (keeps today's badge) 1`] = `
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
                           "opacity": 1,
+                          "transform": [
+                            {
+                              "translateY": 0,
+                            },
+                          ],
                         },
                       },
                       "type": "View",
@@ -75129,6 +75144,11 @@ exports[`TabLayout on a phone contractor, 390 ios (badge "!" + the couldn't-reac
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
                           "opacity": 1,
+                          "transform": [
+                            {
+                              "translateY": 0,
+                            },
+                          ],
                         },
                       },
                       "type": "View",
@@ -82570,6 +82590,11 @@ exports[`TabLayout on a phone property_manager, 390 ios 1`] = `
                           "backgroundColor": "rgb(242, 242, 242)",
                           "flex": 1,
                           "opacity": 1,
+                          "transform": [
+                            {
+                              "translateY": 0,
+                            },
+                          ],
                         },
                       },
                       "type": "View",

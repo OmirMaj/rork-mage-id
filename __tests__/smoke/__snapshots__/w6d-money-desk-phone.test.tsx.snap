@@ -52,7 +52,7 @@ exports[`lane M2 golden — the phone (390 × 844 iOS) (k) /lien-waivers, a fail
 exports[`lane M2 golden — the phone (390 × 844 iOS) (l) /invoice, a draft with 3 lines 1`] = `
 {
   "lines": 1010,
-  "sha256": "fb2d559155cde808665174e701d7233fd8cc9b432e0b9a6631687e84d2a4cf57",
+  "sha256": "6e03d912c42e100a13eabef328d9e6978038815a461c3191da0d8069c2612d64",
 }
 `;
 

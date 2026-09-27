@@ -97,6 +97,7 @@ const SC = await import('../components/ui/SegmentedControl');
 const { Motion } = await import('../constants/designTokens');
 const PC = await import('../components/ProjectCard');
 const SK = await import('../components/Skeleton');
+const { LOADER } = await import('../utils/levelTimeline');
 const SS = await import('../hooks/useSyncStatus');
 const { computeSyncStatus } = await import('../utils/syncStatusCore');
 
@@ -166,8 +167,11 @@ const { computeSyncStatus } = await import('../utils/syncStatusCore');
   ok('an extra release is a no-op (never negative, never a second stop)', stops === 1 && c.count() === 0);
   c.acquire();
   ok('a new first subscriber starts it again', starts === 2);
-  ok('the pulse range matches the web keyframe (0.5 ↔ 0.85), static 0.6',
-    SK.SHIMMER_LOW === 0.5 && SK.SHIMMER_HIGH === 0.85 && SK.SHIMMER_STATIC === 0.6);
+  // The breath wave's numbers are CORE's LOADER (utils/levelTimeline.ts, pure).
+  const S = LOADER.skeleton;
+  ok('the wave: period 1600 ms, alpha 0.09, dip 0.40, Reduce Motion factor 0.8',
+    S.periodMs === 1600 && S.alpha === 0.09 && S.dip === 0.4 && S.rmFactor === 0.8, JSON.stringify(S));
+  ok('Reduce Motion: a static 0.09 × 0.8 = 0.072', SK.SKELETON_STATIC_OPACITY === 0.072, String(SK.SKELETON_STATIC_OPACITY));
 }
 
 // ── 5. statusEqual / unsavedEqual ──────────────────────────────────────────
@@ -240,8 +244,12 @@ const { computeSyncStatus } = await import('../utils/syncStatusCore');
     && /duration: instant \? 0 : 220,/.test(card) && /delay: instant \? 0 : entranceStagger\(index\),/.test(card));
 
   const sk = strip(read('components/Skeleton.tsx'));
-  ok('Skeleton: no per-instance loop, the web pulse on the root', !/useRef\(new Animated\.Value/.test(sk) && /webMotion\('pulse'\)/.test(sk));
-  ok('Skeleton roots are hidden from assistive tech', (sk.match(/\{\.\.\.A11Y_HIDDEN\}/g) ?? []).length === 3);
+  ok('Skeleton: no per-instance Animated.Value; web blocks use skeletonCss (no webMotion(\'pulse\'))',
+    !/useRef\(new Animated\.Value/.test(sk) && !/new Animated\.Value\([^)]*\)\)\.current/.test(sk)
+    && /skeletonWaveStyle\(phase\)/.test(sk) && /from '@\/components\/loaders\/css\/skeletonCss'/.test(sk)
+    && !/webMotion\(/.test(sk));
+  // Five roots now: Skeleton, SkeletonRow, SkeletonCard + the new SkeletonHero and SkeletonTable.
+  ok('Skeleton roots are hidden from assistive tech', (sk.match(/\{\.\.\.A11Y_HIDDEN\}/g) ?? []).length === 5);
 
   const sync = strip(read('hooks/useSyncStatus.ts'));
   ok('the sync poll is 30 s', /const POLL_INTERVAL_MS = 30_000;/.test(sync));
