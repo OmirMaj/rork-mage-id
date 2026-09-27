@@ -123,7 +123,7 @@ export default function ClosuresModal({
             <CalendarX size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.title}>Closures</Text>
             <Text style={styles.subtitle} numberOfLines={1}>
-              Holidays, rain days, site lockdowns — skipped in CPM math.
+              Holidays, rain days and jobsite lockdowns. The schedule skips these days.
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>

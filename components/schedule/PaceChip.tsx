@@ -19,6 +19,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 interface PaceChipProps {
   suggestedDays: number;
@@ -46,12 +47,12 @@ export default function PaceChip({ suggestedDays, jobCount, confidence, onApply,
         activeOpacity={0.8}
         hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
         accessibilityRole="button"
-        accessibilityLabel={`Duration set from your pace across ${jobCount} ${jobCount === 1 ? 'job' : 'jobs'}. Tap to use the AI's original ${aiOriginalDays ?? suggestedDays} days.`}
+        accessibilityLabel={`Duration set from your pace across ${jobCount} ${jobCount === 1 ? 'project' : 'projects'}. Tap to use the AI draft's ${aiOriginalDays ?? suggestedDays} days.`}
         testID="pace-chip-preapplied"
       >
         <History size={11} color={t.success} strokeWidth={2} />
         <Text style={[styles.text, { color: t.success }]}>
-          Set from your {jobCount} job{jobCount === 1 ? '' : 's'} · tap for AI&apos;s {aiOriginalDays ?? suggestedDays}d
+          Set from your {jobCount} project{jobCount === 1 ? '' : 's'} · Tap to use the AI draft ({aiOriginalDays ?? suggestedDays}d)
         </Text>
         <View style={[styles.dot, { backgroundColor: t.success }]} />
       </TouchableOpacity>
@@ -65,12 +66,12 @@ export default function PaceChip({ suggestedDays, jobCount, confidence, onApply,
       activeOpacity={0.8}
       hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
       accessibilityRole="button"
-      accessibilityLabel={`Use your pace: ${suggestedDays} days, from ${jobCount} past ${jobCount === 1 ? 'job' : 'jobs'}, ${confidence} confidence`}
+      accessibilityLabel={`Use your pace: ${suggestedDays} days, from ${jobCount} past ${jobCount === 1 ? 'project' : 'projects'}, ${humanizeEnum(confidence)} confidence`}
       testID="pace-chip"
     >
       <History size={11} color={t.accent} strokeWidth={2} />
       <Text style={styles.text}>
-        Your pace: {suggestedDays}d ({jobCount} job{jobCount === 1 ? '' : 's'} · {confidence})
+        Your pace: {suggestedDays}d ({jobCount} project{jobCount === 1 ? '' : 's'} · {humanizeEnum(confidence)} confidence)
       </Text>
       <View style={[styles.dot, { backgroundColor: confidence === 'high' ? t.success : t.accent }]} />
     </TouchableOpacity>

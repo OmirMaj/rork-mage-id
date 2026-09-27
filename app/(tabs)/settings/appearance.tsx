@@ -10,9 +10,9 @@ import { EyebrowLabel } from '@/components/ui/EyebrowLabel';
 import type { ThemeColors } from '@/constants/colors';
 
 const OPTIONS: { value: ThemePref; label: string; helper: string }[] = [
-  { value: 'light', label: 'Light', helper: 'Cream/paper background. Default.' },
-  { value: 'dark', label: 'Dark', helper: 'Ink/amber. Matches the marketing site.' },
-  { value: 'system', label: 'System', helper: 'Follow iOS appearance setting.' },
+  { value: 'light', label: 'Light', helper: 'Light background. The default.' },
+  { value: 'dark', label: 'Dark', helper: 'Dark background for low light.' },
+  { value: 'system', label: 'System', helper: 'Follows your device appearance setting.' },
 ];
 
 export default function Appearance() {

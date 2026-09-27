@@ -124,7 +124,7 @@ function WinOptimizerInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Win Optimizer · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Win optimizer · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price a bid'}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -134,7 +134,7 @@ function WinOptimizerInner() {
         {/* Inputs */}
         <View style={styles.inputCard}>
           <View style={styles.inputRow}>
-            <Text style={styles.inputLabel}>Job cost</Text>
+            <Text style={styles.inputLabel}>Project cost</Text>
             <View style={styles.inputWrap}>
               <Text style={styles.inputPrefix}>$</Text>
               <TextInput
@@ -187,11 +187,10 @@ function WinOptimizerInner() {
         {!result ? (
           <View style={styles.infoCard}>
             <Trophy size={26} color={t.accent} strokeWidth={1.7} />
-            <Text style={styles.infoTitle}>Enter a job cost to price your bid</Text>
+            <Text style={styles.infoTitle}>Enter a project cost to price your bid</Text>
             <Text style={styles.infoBody}>
-              The Win Optimizer finds the price that makes you the most money — balancing your
-              margin against the odds of actually winning the job, learned from your own won/lost
-              proposals.
+              The win optimizer finds the price that makes you the most money. It balances your
+              margin against your odds of winning, learned from the proposals you won and lost.
             </Text>
           </View>
         ) : (
@@ -232,8 +231,8 @@ function WinOptimizerInner() {
                 ))}
               </View>
               <View style={styles.curveAxis}>
-                <Text style={styles.curveAxisText}>lower price · win more</Text>
-                <Text style={styles.curveAxisText}>higher price · earn more</Text>
+                <Text style={styles.curveAxisText}>Lower price · win more</Text>
+                <Text style={styles.curveAxisText}>Higher price · earn more</Text>
               </View>
             </View>
 

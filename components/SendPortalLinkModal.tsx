@@ -31,6 +31,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { copyToClipboard } from '@/utils/clipboard';
 import { sendEmail } from '@/utils/emailService';
+import { describeError } from '@/utils/errorCopy';
 import { segmentedDesktop, useIsDesktop, useSheetDialogScope } from '@/components/ui';
 
 export interface SendPortalLinkModalProps {
@@ -92,7 +93,7 @@ export function SendPortalLinkModal({
     setError(null);
     setSuccess(null);
     if (recipients.length === 0) {
-      setError(mode === 'email' ? 'Add at least one email address' : 'Add at least one phone number');
+      setError(mode === 'email' ? 'Add at least one email address.' : 'Add at least one phone number.');
       return;
     }
     const bad = recipients.find(r => !validateRecipient(r));
@@ -110,7 +111,7 @@ export function SendPortalLinkModal({
           if (!result.success) failed++;
         }
         if (failed > 0) {
-          setError(`${failed} of ${recipients.length} email${recipients.length === 1 ? '' : 's'} failed to send`);
+          setError(`${failed} of ${recipients.length} ${recipients.length === 1 ? 'email' : 'emails'} didn't send. Check the addresses and try again.`);
         } else {
           setSuccess(`Sent to ${recipients.length} ${recipients.length === 1 ? 'recipient' : 'recipients'}`);
           setTimeout(onClose, 1200);
@@ -126,8 +127,8 @@ export function SendPortalLinkModal({
           const text = `${message}\n\nSend to: ${recipients.join(', ')}`;
           const ok = await copyToClipboard(text);
           setSuccess(ok
-            ? 'Copied message + recipients to clipboard — paste into your messaging app.'
-            : 'Couldn’t access clipboard. Long-press the message above to copy manually.');
+            ? 'Message and recipients copied. Paste them into your messaging app.'
+            : 'Couldn’t copy. Long-press the message above to copy it.');
           setTimeout(onClose, 2000);
         } else {
           const phones = recipients.join(Platform.OS === 'ios' ? ',' : ';');
@@ -137,13 +138,13 @@ export function SendPortalLinkModal({
             setError('Couldn’t open the SMS composer on this device.');
           } else {
             await Linking.openURL(url);
-            setSuccess('SMS composer opened.');
+            setSuccess('Messages opened');
             setTimeout(onClose, 800);
           }
         }
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Send failed');
+      setError(describeError(e, { action: 'send the portal link' }).body);
     } finally {
       setBusy(false);
     }

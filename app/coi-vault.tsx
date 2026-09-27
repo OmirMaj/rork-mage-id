@@ -76,6 +76,7 @@ import { useSplitRecord } from '@/components/desktop/SplitView';
 import { CoiVaultRegister } from '@/components/registers/CoiVaultRegister';
 import { useRegisterRecordDirty } from '@/components/registers/RegisterRecordHost';
 import { NavRow } from '@/components/NavRow';
+import { describeError } from '@/utils/errorCopy';
 
 /**
  * The door to the insurance audit pack (list-2 lane I). One row, rendered in
@@ -366,7 +367,8 @@ function COIVaultInner() {
     } catch (err) {
       setBusy(null);
       console.error('[COI] Upload failed:', err);
-      showAlert('Upload failed', err instanceof Error ? err.message : 'Try again.');
+      const copy = describeError(err, { action: 'upload the certificate' });
+      showAlert(copy.title, copy.body);
     }
   }, [ingest]);
 
@@ -477,13 +479,13 @@ function COIVaultInner() {
           detailBody={coiDetailBody}
         />
       ) : (<>
-      <Stack.Screen options={{ title: 'Sub Insurance' }} />
+      <Stack.Screen options={{ title: 'Sub insurance' }} />
       <FeatureHeader
-        eyebrow="COI Tracker"
+        eyebrow="COI tracker"
         title="Make sure your subs are insured"
-        subtitle="Every sub on your jobsite needs to prove they're covered. Upload their certificate (photo or PDF) and record each policy's expiry — you're reminded 30 days before it lapses."
+        subtitle="Upload each sub's certificate (photo or PDF) and record each policy's expiry. You're reminded 30 days before it lapses."
         explainer={{
-          term: 'Certificate of Insurance (COI)',
+          term: 'Certificate of insurance (COI)',
           definition: 'A COI is a one-page document a subcontractor\'s insurer issues showing what coverage the sub carries — General Liability, Workers\' Comp, Auto, sometimes specialty endorsements like "Additional Insured" naming you. If a sub causes damage or injury and isn\'t insured, it can come back on you.',
           whenToUse: [
             'Before letting a sub start work on your site',
@@ -542,7 +544,7 @@ function COIVaultInner() {
             <Shield size={36} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No subs yet</Text>
             <Text style={styles.emptyBody}>
-              Add subs from the Subcontractors screen first, then come back here to upload their COIs.
+              Add subs from the Subs screen first, then come back here to upload their COIs.
             </Text>
           </View>
         ) : (
@@ -596,8 +598,8 @@ function COIVaultInner() {
 // ── Per-COI card (detail view) ──────────────────────────────────
 
 const COVERAGE_TYPES: { key: COICoverageType; label: string }[] = [
-  { key: 'general_liability', label: 'General Liability' },
-  { key: 'workers_comp', label: "Workers' Comp" },
+  { key: 'general_liability', label: 'General liability' },
+  { key: 'workers_comp', label: "Workers' comp" },
   { key: 'auto', label: 'Auto' },
   { key: 'umbrella', label: 'Umbrella' },
   { key: 'professional', label: 'Professional' },
@@ -889,7 +891,7 @@ function COICard({
         style={styles.notesInput}
         value={coi.notes ?? ''}
         onChangeText={t => onUpdate({ notes: t })}
-        placeholder="Anything specific about this COI..."
+        placeholder="Anything specific about this COI"
         placeholderTextColor={themeColors.textMuted}
         multiline
       />

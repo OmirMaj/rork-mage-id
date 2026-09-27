@@ -567,7 +567,7 @@ export function MobileGantt({
         {/* LEFT — frozen WBS column */}
         <View style={{ width: LEFT_W }}>
           <View style={{ height: HEADER_H, justifyContent: 'flex-end', paddingBottom: 6, paddingLeft: 12 }}>
-            <Text style={styles.leftHdr}>WORK PACKAGES</Text>
+            <Text style={styles.leftHdr}>Work packages</Text>
           </View>
           {/* Rows above the window. `lrow` is a fixed height with border-box
               borders, so N * ROW_H is exactly the space they occupied. */}
@@ -594,7 +594,7 @@ export function MobileGantt({
           {bottomSpacerH > 0 && <View style={{ height: bottomSpacerH }} />}
           <TouchableOpacity style={styles.addRow} activeOpacity={0.7} onPress={onAddTask} testID="mobile-gantt-add">
             <Plus size={15} color={colors.accent} strokeWidth={1.75} />
-            <Text style={styles.addText}>New Work Package</Text>
+            <Text style={styles.addText}>New work package</Text>
           </TouchableOpacity>
         </View>
 
@@ -691,7 +691,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   chipActive: { backgroundColor: t.accentFill, borderColor: t.accent },
   chipText: { fontSize: 12, fontWeight: '700' as const, color: t.textMuted },
   chipTextActive: { color: '#FFFFFF' },
-  leftHdr: { fontSize: 9.5, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.6 },
+  leftHdr: { fontSize: 9.5, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   lrow: { height: ROW_H, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 7, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: t.line },
   phaseRow: { backgroundColor: t.surfaceAlt },
   taskRow: { paddingLeft: 16 },

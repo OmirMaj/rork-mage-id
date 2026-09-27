@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import type { ScheduleTask } from '@/types';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
+import { describeError } from '@/utils/errorCopy';
 import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
 
 interface Props {
@@ -82,7 +83,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
       // report blank, with no way to tell signal loss from a broken feature
       // (audit 2026-09-07, ai-features). Same shape as AIQuickEstimate.
       console.error('[AI DFR] Generation failed:', err);
-      setError(`Couldn't generate the report. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      setError(describeError(err, { action: 'draft the daily report' }).body);
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +105,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
           <MageAIMark size={16} color={"#FFFFFF"} />
         )}
         <Text style={styles.btnText}>
-          {isLoading ? 'Generating...' : 'Auto-Generate from Schedule'}
+          {isLoading ? 'Drafting…' : 'Draft from schedule'}
         </Text>
       </TouchableOpacity>
       {pastDayReason ? (

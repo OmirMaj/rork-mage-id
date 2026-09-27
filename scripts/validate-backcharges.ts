@@ -210,7 +210,7 @@ console.log('\n§7 a backcharge from a punch item');
   ok('no seat yet (null) → checking', backchargeFromPunchBlock(null, true, T, null) === BACKCHARGE_SEAT_CHECKING && /Checking/.test(BACKCHARGE_SEAT_CHECKING));
   ok('a failed role read never says Checking (#90)', backchargeFromPunchBlock(null, true, T, null, 'failed') === BACKCHARGE_SEAT_FAILED);
   ok('a role read paused offline says offline', backchargeFromPunchBlock(null, true, T, null, 'offline') === BACKCHARGE_SEAT_OFFLINE && /offline/.test(BACKCHARGE_SEAT_OFFLINE));
-  ok('a settled empty read says not on this job', backchargeFromPunchBlock(null, true, T, null, 'none') === BACKCHARGE_SEAT_NONE && /not on this job/.test(BACKCHARGE_SEAT_NONE));
+  ok('a settled empty read says not on this project', backchargeFromPunchBlock(null, true, T, null, 'none') === BACKCHARGE_SEAT_NONE && /not on this project/.test(BACKCHARGE_SEAT_NONE));
   ok('only an in-flight read says Checking', backchargeFromPunchBlock(null, true, T, null, 'loading') === BACKCHARGE_SEAT_CHECKING);
   {
     const pl = readFileSync(join(ROOT, 'app/punch-list.tsx'), 'utf8');
@@ -222,7 +222,7 @@ console.log('\n§7 a backcharge from a punch item');
   ok('seat beats tier: null on a failing tier reads checking', backchargeFromPunchBlock(null, false, T, BACKCHARGE_NEEDS_SUB) === BACKCHARGE_SEAT_CHECKING);
   ok('tier beats prefill: owner on a failing tier → the tier sentence', backchargeFromPunchBlock('owner', false, T, BACKCHARGE_NEEDS_SUB) === T);
   ok('prefill last: owner on a passing tier with a why → that why', backchargeFromPunchBlock('owner', true, T, BACKCHARGE_AMBIGUOUS_SUB) === BACKCHARGE_AMBIGUOUS_SUB);
-  ok('the tier sentence names the plan', backchargeTierWhy('business') === 'Backcharges come with the Business plan — the same plan as sub portals.', backchargeTierWhy('business'));
+  ok('the tier sentence names the plan', backchargeTierWhy('business') === 'Backcharges are on the Business plan, the same plan as sub portals.', backchargeTierWhy('business'));
 
   // The prefill.
   const byId = backchargePrefillFromPunch(punch({ assignedSubId: 'sB', assignedSub: 'Vega Painting' }), subs);

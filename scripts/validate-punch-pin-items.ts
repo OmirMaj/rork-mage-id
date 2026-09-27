@@ -368,14 +368,14 @@ console.log('\nA7. walk helpers and roles');
   // #90: a SETTLED null role (removed from the job) is blocked with a reason;
   // a null that is still loading is not decided; a failed read says so.
   ok('a settled null role (removed from the job) is blocked',
-    /no longer on this job/.test(pinWriteBlockedReason(null, { isLoading: false, isError: false }) ?? ''));
+    /no longer on this project/.test(pinWriteBlockedReason(null, { isLoading: false, isError: false }) ?? ''));
   ok('…with the hook\'s offline reason when it has one',
     pinWriteBlockedReason(null, { isLoading: false, isError: false, reason: 'Can’t be checked offline' }) === 'Can’t be checked offline');
   eq('a null role still loading is not blocked', pinWriteBlockedReason(null, { isLoading: true, isError: false }), null);
   ok('a failed read blocks with its own reason', /couldn’t be checked/.test(pinWriteBlockedReason(null, { isLoading: false, isError: true }) ?? ''));
   eq('an owner with a settled state is not blocked', pinWriteBlockedReason('owner', { isLoading: false, isError: false }), null);
   ok('the screen hands the whole role state to it', /pinWriteBlockedReason\(roleState\.role, roleState\)/.test(readFileSync(join(ROOT, 'app', 'punch-pin.tsx'), 'utf8')));
-  ok('the viewer reason says why and what to do', /view-only/.test(pinWriteBlockedReason('viewer') ?? '') && /Ask the project owner/.test(pinWriteBlockedReason('viewer') ?? ''));
+  ok('the viewer reason says why and what to do', /view access/.test(pinWriteBlockedReason('viewer') ?? '') && /Ask the project owner/.test(pinWriteBlockedReason('viewer') ?? ''));
   ok('isPinnedForExport agrees with planRefFor', isPinnedForExport(items[0], BY_ID) && !isPinnedForExport(mk('z', { planSheetId: 's1' }), BY_ID));
 }
 

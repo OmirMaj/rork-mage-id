@@ -62,13 +62,13 @@ const LITERAL_ROW_ALLOWLIST: Record<string, string> = {
   // on the very screen that blocks the second one (polish audit 2026-09-10).
   // The allowlist now records WHY it is unverifiable and what the truth is, so
   // the next reader checks maxProjects instead of trusting the word "ungated".
-  'Unlimited Projects':
+  'Unlimited projects':
     'gated by hooks/useTierAccess maxProjects (free = 1), not by a FeatureKey — '
     + 'so this guard cannot verify it; the row must carry free: false + freeNote "1"',
-  'Manual Estimates': 'ungated — nothing checks a FeatureKey',
-  'Manual Daily Reports': 'ungated — nothing checks a FeatureKey',
-  'AI Takeoff (PDF → LF/SF)': "metered by FEATURE_CONFIG.aiTakeoff (proOnly), not a tier gate",
-  'Voice-to-Report (Android: beta)': 'metered by FEATURE_CONFIG.voiceCapture (freeLifetimeCap), not a tier gate',
+  'Manual estimates': 'ungated — nothing checks a FeatureKey',
+  'Manual daily reports': 'ungated — nothing checks a FeatureKey',
+  'AI takeoff (PDF → LF/SF)': "metered by FEATURE_CONFIG.aiTakeoff (proOnly), not a tier gate",
+  'Voice-to-report (Android: beta)': 'metered by FEATURE_CONFIG.voiceCapture (freeLifetimeCap), not a tier gate',
   // ('AI Photo Triage / Punch' left this list in wave 5: the row became two
   // keyed rows — photo_documentation at Pro, punch_list_closeout at Business —
   // so no literal row spans two gates any more.)
@@ -124,7 +124,7 @@ ok(
 
 // The specific row this guard was written for. Pinned by name because it is
 // the one that cost a Pro subscriber a $50/mo upsell they did not need.
-const planViewer = keyed.find(r => r.label.startsWith('Plan Viewer'));
+const planViewer = keyed.find(r => /^Plan viewer/i.test(r.label));
 ok("the Plan Viewer row derives from 'plan_markup'", planViewer?.key === 'plan_markup',
   planViewer
     ? `it derives from '${planViewer.key}' instead`
@@ -144,7 +144,7 @@ ok('…and therefore shows a check in the Pro column',
 // hole; if the hole is unavoidable, the value on the other side of it should
 // still be pinned.
 {
-  const row = /\{\s*label:\s*'Unlimited Projects'[^}]*\}/.exec(src)?.[0] ?? '';
+  const row = /\{\s*label:\s*'Unlimited projects'[^}]*\}/.exec(src)?.[0] ?? '';
   ok('the Unlimited Projects row exists and is still hand-findable',
     row.length > 0,
     'renamed or removed — update this check and the allowlist entry together');

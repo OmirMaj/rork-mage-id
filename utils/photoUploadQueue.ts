@@ -121,8 +121,8 @@ function notifyDroppedPhotos(count: number, reason: string, userReason?: string)
     // A caller that KNOWS why (he left the job) says so; the generic line is
     // for a flush that gave up.
     oops(userReason
-      ? `${count} photo(s) not uploaded: ${userReason}`
-      : `${count} photo(s) couldn't be uploaded and were dropped. Please re-take them.`);
+      ? `${count} ${count === 1 ? 'photo' : 'photos'} not uploaded: ${userReason}`
+      : `${count} ${count === 1 ? 'photo' : 'photos'} couldn't upload and ${count === 1 ? 'was' : 'were'} removed. Take ${count === 1 ? 'it' : 'them'} again.`);
   } catch {/* toast host not mounted — nothing actionable */}
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports

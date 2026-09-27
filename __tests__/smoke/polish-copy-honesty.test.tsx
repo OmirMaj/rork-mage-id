@@ -137,7 +137,7 @@ describe('/handover resolves its own project instead of dead-ending', () => {
         inv({ number: 1, status: 'paid', totalDue: 100000, subtotal: 100000, retentionPercent: 10, amountPaid: 90000 }),
       ], '2026-09-23');
       expect(row.status).toBe('partial');
-      expect(row.detail).toBe('All invoices paid — $10,000.00 retention still held; bill the release before handover');
+      expect(row.detail).toBe('All invoices paid · $10,000.00 retainage still held. Bill the release before handover');
       expect(row.detail).not.toMatch(/paid in full/);
     });
 
@@ -248,7 +248,7 @@ describe('/business prints no crew-load rate it cannot measure', () => {
   it('says there is no schedule rather than three 0% bars', async () => {
     const text = await render('/business', 'populated');
     const joined = text.join(' ');
-    expect(joined).toContain('Crew Load');
+    expect(joined).toContain('Crew load');
     // The window labels only render alongside the percentages, so their
     // absence is proof the bars are gone rather than just recoloured.
     expect(joined).not.toContain('Next 4 weeks');
@@ -260,7 +260,7 @@ describe('/business prints no crew-load rate it cannot measure', () => {
     const text = await render('/business', 'empty');
     const joined = text.join(' ');
     expect(joined).not.toContain('Closes feed this');
-    expect(joined).toContain('Margin by job type needs 2 closed jobs of the same type. You have 0');
+    expect(joined).toContain('Margin by project type needs 2 closed projects of the same type. You have 0');
   });
 
   it('never tells a GC he needs 2 closed jobs while naming a number above 2', () => {

@@ -220,7 +220,7 @@ ok('reason cites the statute when the licence blocks',
 ok('reason is empty when nothing is missing',
   bidIdentityGap({ ...CA, licenseNumber: '1043927' }).reason === '');
 ok('title names the document, not the form',
-  /homeowner/i.test(caGap.title), caGap.title);
+  /client’s copy/i.test(caGap.title), caGap.title);
 
 const merged = mergedBidBranding(
   { companyName: '', contactName: 'R. Ortiz', address: CA.address, licenseNumber: '', tagline: 't', email: 'e', phone: 'p' },
@@ -630,7 +630,7 @@ console.log('\nITEM 21 — the profile surface that feeds the bid and the price 
     bidLicenceStateSource(NEW_CA, 'San Francisco, CA'), { state: 'CA', source: 'market' });
   const marketReason = bidIdentityGap(NEW_CA, 'Phoenix, AZ').reason;
   ok('…and the reason names the market and the field that overrides it',
-    /pricing market/i.test(marketReason) && /licensing state in Company Profile/.test(marketReason), marketReason);
+    /pricing market/i.test(marketReason) && /licensing state in Company profile/.test(marketReason), marketReason);
   ok('…and no longer tells him to put a state he is not in into his address',
     !/company address/i.test(marketReason), marketReason);
   eq('the United States default names no state, so nothing is asked',

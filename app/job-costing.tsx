@@ -72,6 +72,15 @@ import { jobCostFooter, jobCostPhaseCells, pctSpentText } from '@/utils/dashboar
 // Root
 // ─────────────────────────────────────────────────────────────
 
+// Permit types print as words, not the stored enum.
+const PERMIT_TYPE_LABEL: Record<string, string> = {
+  building: 'Building permit', electrical: 'Electrical permit', plumbing: 'Plumbing permit',
+  mechanical: 'Mechanical permit', demolition: 'Demolition permit', grading: 'Grading permit',
+  fire: 'Fire permit', occupancy: 'Certificate of occupancy', special_inspection: 'Special inspection',
+  hot_work: 'Hot work permit', shutdown: 'Shutdown', after_hours: 'After-hours permit',
+  landlord_approval: 'Landlord approval', elevator_dock: 'Elevator and dock booking', other: 'Permit',
+};
+
 export default function JobCostingScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -239,7 +248,7 @@ function JobCostingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       // CONTRACT 25 (#147): PO_PDF_WINDOW_BLOCKED_MESSAGE passes through.
-      showAlert('Could not build the PO', pdfFailureMessage(e, "Couldn't build the PO. Try again."));
+      showAlert('Couldn’t build the PO', pdfFailureMessage(e, "Couldn't build the PO. Try again."));
     } finally {
       setIssuingPo(null);
     }
@@ -251,7 +260,7 @@ function JobCostingInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     };
     if (Platform.OS === 'web') { if (confirm('Remove this commitment?')) exec(); return; }
-    showAlert('Remove commitment?', 'This cannot be undone.', [
+    showAlert('Remove commitment?', 'This can’t be undone.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: exec },
     ]);
@@ -264,9 +273,9 @@ function JobCostingInner() {
             without ToolHeader the picker runs under the notch and has no back
             affordance. */}
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="JOB COSTING · MAGE ID" title="Job Costing" />
+        <ToolHeader eyebrow="Job costing · MAGE ID" title="Job costing" />
         <ToolProjectPicker
-          toolName="Job Costing"
+          toolName="job costing"
           message="Job costing rolls up commitments, receipts, crew hours and change orders for one project at a time."
           projects={projects}
           onPick={setPickedProjectId}
@@ -275,7 +284,7 @@ function JobCostingInner() {
           steps={[
             'Open or create a project from the Projects tab.',
             'Inside the project, log a sub commitment, invoice, or change order.',
-            'Tap Job Costing in the project tile grid to see budget vs. actual.',
+            'Tap Job costing in the project tile grid to see budget vs. actual.',
           ]}
         />
       </View>
@@ -295,7 +304,7 @@ function JobCostingInner() {
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
+            <Text style={styles.headerEyebrow}>Job costing · MAGE ID</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
           </View>
           <View style={styles.headerBtn} />
@@ -308,7 +317,7 @@ function JobCostingInner() {
               <Text style={styles.stateHint}>You may be offline. Costs stay hidden until your role on this project is confirmed.</Text>
               <TouchableOpacity style={styles.retryBtn} onPress={refetchRole} accessibilityRole="button" testID="job-costing-role-retry">
                 <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.retryBtnText}>Retry</Text>
+                <Text style={styles.retryBtnText}>Try again</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -331,7 +340,7 @@ function JobCostingInner() {
             <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
+            <Text style={styles.headerEyebrow}>Job costing · MAGE ID</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
           </View>
           <View style={styles.headerBtn} />
@@ -653,7 +662,7 @@ function JobCostingInner() {
               : <FileDown size={14} color={themeColors.accent} strokeWidth={1.75} />}
           </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
+        <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete commitment">
           <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -682,16 +691,14 @@ function JobCostingInner() {
             phase). A footer that describes the previous arithmetic is worse
             than no footer. */}
         <Text style={styles.footerNote}>
-          Budget includes approved change orders at their estimated COST — a change order&apos;s
-          dollar value is a sell price, and this is a cost budget, so it enters at that price times
-          this job&apos;s own cost ratio (the same convention the WIP report uses). Actual is money
-          you have paid OUT — subcontract and PO payments, snapped supplier receipts, priced crew
-          hours, logged equipment days at each machine&apos;s day rate, and permit fees. Payments
-          your client makes to you are revenue and are counted nowhere on this screen. EAC assumes
-          remaining committed work lands at signed price, and takes the uncommitted budget as a
-          floor ONCE across the whole job — so buying out a trade at its estimate changes nothing,
-          and spend your estimate never priced is absorbed by budget still uncommitted rather than
-          reported as an overrun. Tap any phase to see the records behind it.
+          Budget includes approved change orders at their estimated cost: a change order&apos;s
+          sell price times this project&apos;s own cost ratio, as the WIP report does. Actual is money
+          you have paid out: subcontract and PO payments, supplier receipts, priced crew hours,
+          equipment days at each machine&apos;s day rate, and permit fees. Payments your client
+          makes to you are revenue and are counted nowhere on this screen. EAC assumes committed
+          work lands at signed price and takes uncommitted budget as one floor across the whole
+          project, so spend your estimate never priced is absorbed by uncommitted budget rather
+          than reported as an overrun. Tap any phase to see the records behind it.
         </Text>
     </>
   );
@@ -755,7 +762,7 @@ function JobCostingInner() {
         defaultSort={{ key: 'variance', dir: 'desc' }}
         emptyState={<Text style={styles.emptyText}>No phases yet — add a commitment or estimate items.</Text>}
         footerTotals={{
-          phase: 'Job total',
+          phase: 'Project total',
           budget: formatMoney(phaseFooter.budget),
           committed: formatMoney(phaseFooter.committed),
           actual: formatMoney(phaseFooter.actual),
@@ -812,7 +819,7 @@ function JobCostingInner() {
             hitSlop={8}
             style={styles.deleteBtn}
             accessibilityRole="button"
-            accessibilityLabel="Delete"
+            accessibilityLabel="Delete commitment"
           >
             <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -852,10 +859,10 @@ function JobCostingInner() {
           <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Job Costing · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Job costing · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add">
+        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add commitment">
           <Plus size={18} color={'#FFFFFF'} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
@@ -1152,7 +1159,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
   const handleSave = () => {
     const amt = Number(amount) || 0;
     if (!description.trim() || amt <= 0) {
-      showAlert('Missing info', 'Add a description and an amount.');
+      showAlert('Add a description and amount', 'Enter a description and an amount.');
       return;
     }
     const now = new Date().toISOString();
@@ -1303,7 +1310,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} style={styles.btnPrimary}>
               <Check size={16} color={'#FFFFFF'} strokeWidth={1.75} />
-              <Text style={styles.btnPrimaryText}>{existing ? 'Save' : 'Add'}</Text>
+              <Text style={styles.btnPrimaryText}>{existing ? 'Save commitment' : 'Add commitment'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1453,7 +1460,7 @@ function buildPhaseDrill(
     });
   }
   if (coRows.length > 0) {
-    groups.push({ key: 'changeOrders', label: `Change orders (${coRows.length})`, rows: coRows, note: 'Change orders move BUDGET, not actual cost.' });
+    groups.push({ key: 'changeOrders', label: `Change orders (${coRows.length})`, rows: coRows, note: 'Change orders move budget, not actual cost.' });
   }
 
   const receiptRows: DrillRow[] = [];
@@ -1516,7 +1523,7 @@ function buildPhaseDrill(
       label: `Crew shifts, self-perform (${crewRows.length})`,
       rows: crewRows,
       ...(notInTotal > 0 ? {
-        note: `${notInTotal} more finished shift${notInTotal === 1 ? '' : 's'} on this job ${notInTotal === 1 ? 'is' : 'are'} not in this total — no labor rate for the trade, or 0 hours. Time Tracking lists all ${finishedOnJob}.`,
+        note: `${notInTotal} more finished shift${notInTotal === 1 ? '' : 's'} on this project ${notInTotal === 1 ? 'is' : 'are'} not in this total (no labor rate for the trade, or 0 hours). Time tracking lists all ${finishedOnJob}.`,
       } : {}),
     });
   }
@@ -1546,7 +1553,7 @@ function buildPhaseDrill(
       // The one overlap this stream has, said out loud. Nothing links an
       // Equipment record to a Commitment, so a rental logged as hours AND
       // entered as a PO is counted twice and only the GC can see it.
-      note: `Charged at each machine's day rate, ${EQUIPMENT_HOURS_PER_DAY} logged hours to the day. If you also entered a rental invoice as a PO or a receipt, that money is on this job twice — keep the hours or the invoice, not both.`,
+      note: `Charged at each machine's day rate, ${EQUIPMENT_HOURS_PER_DAY} logged hours to the day. If you also entered a rental invoice as a PO or a receipt, that money is on this project twice. Keep the hours or the invoice, not both.`,
     });
   }
 
@@ -1556,7 +1563,7 @@ function buildPhaseDrill(
     if (!p) continue;
     permitRows.push({
       id,
-      title: `${p.type.replace(/_/g, ' ')}${p.permitNumber ? ` · ${p.permitNumber}` : ''}`,
+      title: `${PERMIT_TYPE_LABEL[p.type] ?? 'Permit'}${p.permitNumber ? ` · ${p.permitNumber}` : ''}`,
       detail: [p.jurisdiction, shortDate(p.appliedDate)].filter(Boolean).join(' · '),
       amount: formatMoneyFull(p.fee),
       onPress: open.permits,

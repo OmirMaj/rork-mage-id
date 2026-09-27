@@ -138,7 +138,7 @@ console.log('\n#120 the GC\'s crew cards reach the foreman\'s sign-off');
 console.log('\n#121 a crew seat is told what he sees');
 {
   ok('hub says he files, it goes to the owner, he sees his own',
-    /You can file JHAs, toolbox talks, hazards and incident reports here\. They go to the job\\'s owner\. You\\'ll see the ones you file, not the GC\\'s\./.test(HUB));
+    /Your GC invited you to these projects\. JHAs, toolbox talks, hazards and incidents you file go to them, and you see the ones you file, not your GC\\'s\./.test(HUB));
   ok('hub no longer says "run their JHAs"', !/run their JHAs/.test(HUB));
   for (const [name, src, kind] of [['JHA', JHA, 'jha'], ['toolbox', TBX, 'toolbox'], ['hazards', HAZ, 'hazard']] as const) {
     ok(`${name}: crew note on the list`, new RegExp(`\\{crewListNote\\('${kind}'\\)\\}`).test(src));

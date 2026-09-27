@@ -66,7 +66,7 @@ export function EstimateDivisionTable({ divisions }: { divisions: DivisionRow[] 
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <Text style={styles.headerLabel}>SCOPE</Text>
+        <Text style={styles.headerLabel}>Scope</Text>
         <Text style={styles.headerCount}>{divisions.length} {divisions.length === 1 ? 'division' : 'divisions'}</Text>
       </View>
       <View style={styles.card}>
@@ -125,7 +125,7 @@ export function EstimateDivisionTable({ divisions }: { divisions: DivisionRow[] 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   wrap: { marginTop: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 },
-  headerLabel: { fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800' },
+  headerLabel: { textTransform: 'uppercase', fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800' },
   headerCount: { fontSize: 11.5, color: t.textMuted },
   card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, paddingVertical: 12 },

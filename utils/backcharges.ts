@@ -239,17 +239,18 @@ export function backchargeNotice(a: { subName: string; projectName: string; comp
 
 export const BACKCHARGE_NEEDS_SUB = 'Assign this punch item to a sub first — a backcharge comes off a sub’s bill.';
 export const BACKCHARGE_AMBIGUOUS_SUB = 'More than one sub has that name — pick the sub on the punch item first.';
-export const BACKCHARGE_SEAT_CHECKING = 'Checking your access to this job…';
-export const BACKCHARGE_SEAT_FIELD = 'Backcharges are money — your seat on this job doesn’t include costs.';
-export const BACKCHARGE_SEAT_VIEWER = 'Your seat on this job is view-only.';
-export const BACKCHARGE_SEAT_FAILED = 'Couldn’t check your role on this job — try again in a moment.';
-export const BACKCHARGE_SEAT_OFFLINE = 'You’re offline — your role on this job is checked when you reconnect.';
-export const BACKCHARGE_SEAT_NONE = 'You’re not on this job’s team, so you can’t backcharge on it.';
+export const BACKCHARGE_SEAT_CHECKING = 'Checking your access to this project…';
+export const BACKCHARGE_SEAT_FIELD = 'Backcharges are money, and your role on this project doesn’t include costs.';
+export const BACKCHARGE_SEAT_VIEWER = 'You have view-only access to this project.';
+export const BACKCHARGE_SEAT_FAILED = 'Couldn’t check your role on this project. Try again in a moment.';
+export const BACKCHARGE_SEAT_OFFLINE = 'You’re offline. Your role on this project is checked when you reconnect.';
+export const BACKCHARGE_SEAT_NONE = 'You’re not on this project’s team, so you can’t backcharge on it.';
 
 /** The tier sentence, for the plan sub portals need (featureTiers). */
 export function backchargeTierWhy(requiredTier: string): string {
-  const name = requiredTier ? requiredTier.charAt(0).toUpperCase() + requiredTier.slice(1) : 'a paid';
-  return `Backcharges come with the ${name} plan — the same plan as sub portals.`;
+  const PLAN_LABEL: Record<string, string> = { free: 'Free', pro: 'Pro', business: 'Business', enterprise: 'Enterprise' };
+  const name = requiredTier ? (PLAN_LABEL[requiredTier] ?? requiredTier) : 'a paid';
+  return `Backcharges are on the ${name} plan, the same plan as sub portals.`;
 }
 
 function clipText(s: string, max: number): string {

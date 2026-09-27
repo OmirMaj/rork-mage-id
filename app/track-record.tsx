@@ -136,7 +136,7 @@ function TrackRecordInner() {
         <View style={[styles.content, isDesktop && styles.contentDesktop]}>
           {/* Hero */}
           <View style={styles.hero}>
-            <Text style={styles.eyebrow}>What the Brain called vs. what happened</Text>
+            <Text style={styles.eyebrow}>What MAGE called vs. what happened</Text>
             {summary.hitRatePct != null ? (
               <>
                 <Text style={styles.heroStat}>{summary.hitRatePct}% right</Text>
@@ -151,7 +151,7 @@ function TrackRecordInner() {
               <>
                 <Text style={styles.heroStat}>Still learning</Text>
                 <Text style={styles.heroSub}>
-                  The Brain grades itself as your jobs close. Keep feeding it actuals and its
+                  MAGE grades its calls as your projects close. Record actual costs and the
                   record fills in here.
                 </Text>
               </>
@@ -163,7 +163,7 @@ function TrackRecordInner() {
               <TrendingUp size={18} color={t.accent} strokeWidth={2} />
               <Text style={styles.emptyText}>
                 Nothing graded yet. Every pace call, estimate, margin verdict, leak flag, and bid
-                gets scored against reality once a job closes — the receipts show up right here.
+                is scored against what happened once a project closes. The results show up here.
               </Text>
             </View>
           ) : (

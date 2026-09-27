@@ -365,9 +365,9 @@ const html = read('marketing/portal/index.html');
   const em = read('utils/emailService.ts');
   const emc = code(em);
   ok('emailService: no "1–2 business days" payout promise', !/1[–-]2 business days/.test(em));
-  ok('…the welcome email\'s "Get paid in-app" line renders PAYOUT_TIMING_SHORT from platformFees',
+  ok('…the welcome email\'s "Get paid in the app" line renders PAYOUT_TIMING_SHORT from platformFees',
     /import \{ PAYOUT_TIMING_SHORT \} from '@\/utils\/platformFees';/.test(emc)
-    && /title: 'Get paid in-app', body: `One-tap Pay button on every invoice\. \$\{PAYOUT_TIMING_SHORT\}\.` \}/.test(emc));
+    && /title: 'Get paid in the app', body: `A Pay button on every invoice\. \$\{PAYOUT_TIMING_SHORT\}\.` \}/.test(emc));
   ok('…the Pay-link footer no longer promises bank payment (it exists only when ACH is on in Stripe)',
     !/card &amp; bank payment/.test(em) && /Powered by Stripe · secure online payment/.test(emc));
 

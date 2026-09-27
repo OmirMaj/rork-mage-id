@@ -300,7 +300,7 @@ console.log('\nsubmittal screen wiring');
 
 console.log('\nSendToClientButton (#36 label, #58 no save-in-send)');
 {
-  ok('the label names the client portal for every caller', /'Send to client portal'/.test(BTN) && /'Re-send to client portal'/.test(BTN));
+  ok('the label names the client portal for every caller', /'Send to client portal'/.test(BTN) && /'Resend to client portal'/.test(BTN));
   ok('no bare "Send to Client" / "Re-send updated" left', !/'Send to Client'/.test(BTN) && !/'Re-send updated'/.test(BTN) && !/'Re-send to Client'/.test(BTN));
   const doSend = BTN.slice(BTN.indexOf('const doSend'), BTN.indexOf('const doRecall'));
   ok('no pre-send save hook (it would snapshot the pre-save record)', !/onBeforeSend/.test(BTN) && /await sendToClientPortal\(\{ kind, itemId, projectId \}\)/.test(doSend));

@@ -90,13 +90,13 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
   const replacing = replaceWarning(ctx.project?.linkedEstimate ?? null);
 
   if (!patchDraft) {
-    return <Text style={styles.muted}>This review needs the Copilot screen — open it from a job.</Text>;
+    return <Text style={styles.muted}>This review needs the Copilot screen. Open it from a project.</Text>;
   }
 
   if (!priced) {
     return (
       <View style={styles.wrap}>
-        <Text style={styles.eyebrow}>PRICING YOUR ESTIMATE</Text>
+        <Text style={styles.eyebrow}>Pricing your estimate</Text>
         {!!note && <Text style={styles.note}>{note}</Text>}
         {price.kind === 'error' ? (
           <>
@@ -129,7 +129,7 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
   const est = preview!.est;
   return (
     <View style={styles.wrap} testID="copilot-estimate-review">
-      <Text style={styles.eyebrow}>READY TO BUILD</Text>
+      <Text style={styles.eyebrow}>Ready to build</Text>
       <Text style={styles.headline}>{preview!.headline}</Text>
       {!!note && <Text style={styles.note}>{note}</Text>}
 
@@ -173,7 +173,7 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
 
       {(priced.qualityAssumed || priced.sizeAssumed || priced.notes.length > 0) && (
         <View style={styles.group}>
-          <Text style={styles.groupHead}>ASSUMPTIONS — CHANGE ON THE GRID</Text>
+          <Text style={styles.groupHead}>Assumptions · change them on the grid</Text>
           {priced.qualityAssumed && <Text style={styles.assumption}>• Finish level: {priced.quality} (assumed)</Text>}
           {priced.sizeAssumed && <Text style={styles.assumption}>• Work area: about {priced.sizeSqft} SF (assumed)</Text>}
           {priced.notes.map((n, i) => <Text key={i} style={styles.assumption}>• {n}</Text>)}
@@ -192,7 +192,7 @@ export default function EstimateCopilotReview({ draft, ctx, onBuild, onDiscard, 
         <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
         <Text style={styles.primaryText}>{replacing ? 'Replace estimate' : 'Build it'}</Text>
       </TouchableOpacity>
-      {!markup && <Text style={styles.muted}>Pick a markup first — MAGE won’t guess what you charge.</Text>}
+      {!markup && <Text style={styles.muted}>Pick a markup first. Build turns on once you set what you charge.</Text>}
       <TouchableOpacity accessibilityRole="button" style={styles.discard} onPress={onDiscard} activeOpacity={0.7}>
         <X size={14} color={colors.textMuted} strokeWidth={2} />
         <Text style={styles.discardText}>Discard</Text>

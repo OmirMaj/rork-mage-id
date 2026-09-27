@@ -226,7 +226,7 @@ export default function PublicProfileSetupScreen() {
   const togglePublish = useCallback(async (val: boolean) => {
     if (!project) return;
     if (publishBlocked || !ownerId) {
-      showAlert("Can't publish this job", publishBlocked ?? 'Sign in to publish this page.');
+      showAlert("Can't publish this project", publishBlocked ?? 'Sign in to publish this page.');
       return;
     }
     touchedRef.current = true;
@@ -370,8 +370,8 @@ export default function PublicProfileSetupScreen() {
       void copyToClipboard(url).then(ok => {
         if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showAlert(
-          ok ? 'Copied' : 'Copy failed',
-          ok ? 'The public profile link has been copied.' : 'Could not copy the link.',
+          ok ? 'Copied' : 'Couldn’t copy',
+          ok ? 'The public profile link has been copied.' : 'Copy the link from the field instead.',
         );
       });
     } else if (kind === 'share') {
@@ -381,7 +381,7 @@ export default function PublicProfileSetupScreen() {
       }).then(outcome => {
         if (outcome === 'shared' || outcome === 'copied') persist({ publishedAt: new Date().toISOString() });
         if (outcome === 'copied') showAlert('Link copied', 'Sharing is not available here, so the link was copied instead.');
-        if (outcome === 'failed') showAlert('Share failed', 'Could not share or copy the link.');
+        if (outcome === 'failed') showAlert('Couldn’t share', 'Copy the link from the field instead.');
       });
     } else {
       openPreview(url);
@@ -464,16 +464,16 @@ export default function PublicProfileSetupScreen() {
               <Globe size={20} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.heroEyebrow}>Free portfolio page</Text>
-            <Text style={styles.heroTitle}>Which job do you want to show off?</Text>
+            <Text style={styles.heroTitle}>Which project do you want to show?</Text>
             <Text style={styles.heroBody}>
               {id
                 ? 'That project is no longer on this account. Pick another one below.'
-                : 'A public page for one project — photos, scope and your company name — that you can link from your website or send to a prospect.'}
+                : 'A public page for one project, with photos, scope and your company name. Link it from your website or send it to a prospect.'}
             </Text>
           </View>
           <View style={styles.section}>
             {pickable.length === 0 ? (
-              <Text style={styles.muted}>No projects yet. Create one, add photos as the job goes, and publish its page when it is done.</Text>
+              <Text style={styles.muted}>No projects yet. Create one, add photos as the work goes, and publish its page when it is done.</Text>
             ) : (
               <View style={styles.togglesCard}>
                 {pickable.map((p) => (
@@ -508,7 +508,7 @@ export default function PublicProfileSetupScreen() {
     <>
       <Stack.Screen
         options={{
-          title: 'Public Profile',
+          title: 'Public profile',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
@@ -533,7 +533,7 @@ export default function PublicProfileSetupScreen() {
             <Text style={{ color: themeColors.accent, fontWeight: '700' }}>
               mageid.app/builders/…/{profile.slug || slugify(project.name)}
             </Text>{' '}
-            — perfect to link from your website, Google Business profile, or send to prospective clients.
+            to link from your website or Google Business profile, or send to prospective clients.
           </Text>
         </View>
 
@@ -655,7 +655,7 @@ export default function PublicProfileSetupScreen() {
             {/* Slug */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>URL slug</Text>
-              <Text style={styles.sectionSubtitle}>Lowercase, hyphens only — keeps the link friendly.</Text>
+              <Text style={styles.sectionSubtitle}>Lowercase letters and hyphens only.</Text>
               <TextInput
                 style={styles.input}
                 value={profile.slug ?? ''}
@@ -703,7 +703,7 @@ export default function PublicProfileSetupScreen() {
                     ? 'The full street address prints on the page, exactly as above.'
                     : where.shown
                       ? "Only the city and state print. Your client's street address stays off the page unless you turn it on below."
-                      : "This job has no city and state on file, so the page shows no location. Your client's street address stays off unless you turn it on below."}
+                      : "This project has no city and state on file, so the page shows no location. Your client's street address stays off unless you turn it on below."}
               </Text>
               <View style={styles.statRow}>
                 <View style={{ flex: 1 }}>
@@ -725,7 +725,7 @@ export default function PublicProfileSetupScreen() {
                 <View style={styles.statRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.statLabel}>Show street address</Text>
-                    <Text style={styles.toggleDesc} numberOfLines={2}>{project.location?.trim() ? project.location.trim() : 'No address on this job'}</Text>
+                    <Text style={styles.toggleDesc} numberOfLines={2}>{project.location?.trim() ? project.location.trim() : 'No address on this project'}</Text>
                   </View>
                   <Switch
                     value={profile.showAddress === true}
@@ -794,7 +794,7 @@ export default function PublicProfileSetupScreen() {
                 <Text style={styles.blockedReason}>{"Your logo couldn't be published, so the page shows your company's initial."}</Text>
               ) : null}
               <Text style={styles.muted}>
-                Tip: take strong before/after shots — the public page renders them as a gallery.
+                Tip: take before and after shots. The public page shows them as a gallery.
               </Text>
             </View>
           </>

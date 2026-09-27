@@ -41,7 +41,7 @@ function costBasisNote(rows: { costAtCompletion?: WipEstimatedCost; costToDate?:
 
 function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   const meta = [
-    { label: 'Report type', value: 'Work in Progress (WIP)' },
+    { label: 'Report type', value: 'Work in progress (WIP)' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
     { label: 'Projects',    value: String(report.rows.length) },
   ];
@@ -121,7 +121,7 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   });
 
   const totalsRow = [
-    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">PORTFOLIO</div>`,
+    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">Portfolio</div>`,
     `<span class="num">${fmtMoney(report.totals.contractValue)}</span>`,
     `<span class="num">${fmtMoney(report.totals.approvedChangeOrders)}</span>`,
     `<span class="num">${fmtMoney(report.totals.revisedContract)}</span>`,
@@ -150,11 +150,11 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
       { header: 'Contract',          align: 'right', width: '6%' },
       { header: 'Approved COs',      align: 'right', width: '6%' },
       { header: 'Revised',           align: 'right', width: '6%' },
-      { header: 'Cost to Date',      align: 'right', width: '6%' },
-      { header: 'Est. Final Cost',   align: 'right', width: '6%' },
-      { header: 'Cost to Complete',  align: 'right', width: '6%' },
-      { header: '% Complete',        align: 'right', width: '5%' },
-      { header: 'Earned Rev.',       align: 'right', width: '7%' },
+      { header: 'Cost to date',      align: 'right', width: '6%' },
+      { header: 'Est. final cost',   align: 'right', width: '6%' },
+      { header: 'Cost to complete',  align: 'right', width: '6%' },
+      { header: '% complete',        align: 'right', width: '5%' },
+      { header: 'Earned rev.',       align: 'right', width: '7%' },
       { header: 'Billed',            align: 'right', width: '7%' },
       { header: 'Paid',              align: 'right', width: '6%' },
       { header: 'Over/(Under)',      align: 'right', width: '8%' },
@@ -170,8 +170,8 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial Report',
-      title:   'Work in Progress',
+      eyebrow: 'Financial report',
+      title:   'Work in progress',
       subtitle: 'Bank-ready WIP across active projects.',
       meta,
     })}
@@ -205,7 +205,7 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
             + `${fmtMoney(report.totals.noCostBasisContract)}, carry a contract value with no cost `
             + 'estimate, no signed subcontract or PO and nothing spent. A contract with no cost '
             + 'basis has no measurable margin, so their profit and margin cells are blank and they '
-            + 'are excluded from the PORTFOLIO profit and margin rather than reported at 100%.')
+            + 'are excluded from the portfolio profit and margin rather than reported at 100%.')
         : ''}
       ${escHtml(costBasisNote(report.rows))}
     </div>
@@ -215,7 +215,7 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   return pdfShell({
     bodyHtml,
     branding,
-    title: `WIP Report — ${fmtDate(report.asOf)}`,
+    title: `WIP report · ${fmtDate(report.asOf)}`,
     pageMargin: '28px 22px',
   });
 }
@@ -245,7 +245,7 @@ function buildProfitHtml(
   noCostBasisRevenue = 0,
 ): string {
   const meta = [
-    { label: 'Report type', value: 'Profit & Margin' },
+    { label: 'Report type', value: 'Profit and margin' },
     { label: 'Generated',   value: fmtDate(new Date().toISOString()) },
     { label: 'Projects',    value: String(rows.length) },
   ];
@@ -273,7 +273,7 @@ function buildProfitHtml(
   });
 
   const totalRow = [
-    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">PORTFOLIO</div>`,
+    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">Portfolio</div>`,
     `<span class="num">${fmtMoney(totalRevenue)}</span>`,
     '—',
     '—',
@@ -288,7 +288,7 @@ function buildProfitHtml(
         <strong style="color:${PDF_PALETTE.ink}">No cost basis — ${noCostBasisCount} project${noCostBasisCount === 1 ? '' : 's'} totalling ${fmtMoney(noCostBasisRevenue)}.</strong>
         ${noCostBasisCount === 1 ? 'It carries' : 'They carry'} a contract value with no cost estimate, no signed subcontract or PO, and nothing spent.
         A contract with no cost basis has no measurable margin, so ${noCostBasisCount === 1 ? 'it is' : 'they are'} shown with an em dash and excluded from the
-        PORTFOLIO profit and margin above rather than reported at 100%.
+        portfolio profit and margin above rather than reported at 100%.
       </div>`
     : '';
 
@@ -296,8 +296,8 @@ function buildProfitHtml(
     [
       { header: 'Project', width: '32%' },
       { header: 'Revenue',          align: 'right', width: '13%' },
-      { header: 'Cost to Date',     align: 'right', width: '13%' },
-      { header: 'Est. Final Cost',  align: 'right', width: '14%' },
+      { header: 'Cost to date',     align: 'right', width: '13%' },
+      { header: 'Est. final cost',  align: 'right', width: '14%' },
       { header: 'Profit',            align: 'right', width: '14%' },
       { header: 'Margin',            align: 'right', width: '14%' },
     ],
@@ -307,8 +307,8 @@ function buildProfitHtml(
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial Report',
-      title:   'Profit by Project',
+      eyebrow: 'Financial report',
+      title:   'Profit by project',
       subtitle: 'Running margin across the active portfolio.',
       meta,
     })}
@@ -326,7 +326,7 @@ function buildProfitHtml(
 
   return pdfShell({
     bodyHtml, branding,
-    title: `Profit Report — ${fmtDate(new Date().toISOString())}`,
+    title: `Profit report · ${fmtDate(new Date().toISOString())}`,
   });
 }
 
@@ -351,7 +351,7 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
   const collectible = report.rows.filter(r => r.outstanding > 0.5).length;
   const retainageOnly = report.rows.length - collectible;
   const meta = [
-    { label: 'Report type', value: 'A/R Aging' },
+    { label: 'Report type', value: 'A/R aging' },
     { label: 'Generated',   value: fmtDate(report.asOf) },
     // Collectible rows only — a retainage-only row owes nothing today.
     { label: 'Open invoices', value: String(collectible) },
@@ -374,7 +374,7 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
       `).join('')}
     </div>
     <div style="padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.amber};margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline">
-      <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:${PDF_PALETTE.cream}">Total Outstanding</div>
+      <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:${PDF_PALETTE.cream}">Total outstanding</div>
       <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:800">${fmtMoney(report.totals.totalOutstanding, { decimals: 2 })}</div>
     </div>
     <div style="padding:12px 16px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};margin-bottom:18px;display:flex;justify-content:space-between;align-items:baseline">
@@ -406,7 +406,7 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
   });
   // Foots the same way the CSV's TOTAL line does.
   const totalRow = [
-    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">TOTAL</div>`,
+    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">Total</div>`,
     '',
     '',
     `<span class="num" style="font-weight:800">${money2(report.rows.reduce((s, r) => s + r.totalDue, 0))}</span>`,
@@ -428,9 +428,9 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
           { header: 'Invoice', width: '17%' },
           { header: 'Issued',         align: 'right', width: '11%' },
           { header: 'Due',            align: 'right', width: '11%' },
-          { header: 'Total Due',      align: 'right', width: '13%' },
+          { header: 'Total due',      align: 'right', width: '13%' },
           { header: 'Paid',           align: 'right', width: '12%' },
-          { header: 'Retainage Held', align: 'right', width: '12%' },
+          { header: 'Retainage held', align: 'right', width: '12%' },
           { header: 'Outstanding',    align: 'right', width: '13%' },
           { header: 'Bucket',         align: 'right', width: '11%' },
         ],
@@ -440,19 +440,19 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Financial Report',
-      title:   'Accounts Receivable — Aging',
+      eyebrow: 'Financial report',
+      title:   'Accounts receivable aging',
       subtitle: 'Open invoices bucketed by days past due.',
       meta,
     })}
     ${bucketSummary}
     ${tableHtml}
-    ${pdfFooter(branding, undefined, 'Aged from the invoice due date to the report generation date. Retainage is held by the owner until closeout; it is a receivable and is not aged. Total Due − Paid − Retainage Held = Outstanding. Status updates may take up to 24h to flow back from payment processors.')}
+    ${pdfFooter(branding, undefined, 'Aged from the invoice due date to the report generation date. Retainage is held by the client until closeout. It is a receivable and is not aged. Total due − paid − retainage held = outstanding. Payment status can take up to 24 hours to update.')}
   `;
 
   return pdfShell({
     bodyHtml, branding,
-    title: `A/R Aging — ${fmtDate(report.asOf)}`,
+    title: `A/R aging · ${fmtDate(report.asOf)}`,
   });
 }
 
@@ -488,7 +488,7 @@ async function shareHtml(html: string, title: string): Promise<void> {
 }
 
 export async function shareWIPReport(report: WIPReport, branding: CompanyBranding): Promise<void> {
-  await shareHtml(buildWIPHtml(report, branding), `WIP Report ${fmtDate(report.asOf)}`);
+  await shareHtml(buildWIPHtml(report, branding), `WIP report ${fmtDate(report.asOf)}`);
 }
 
 export async function shareProfitReport(
@@ -504,12 +504,12 @@ export async function shareProfitReport(
   await shareHtml(
     buildProfitHtml(rows, totalRevenue, totalProfit, weightedMargin, branding,
       noCostBasisCount, noCostBasisRevenue),
-    'Profit Report',
+    'Profit report',
   );
 }
 
 export async function shareARAgingReport(report: ARAgingReport, branding: CompanyBranding): Promise<void> {
-  await shareHtml(buildARAgingHtml(report, branding), `A/R Aging ${fmtDate(report.asOf)}`);
+  await shareHtml(buildARAgingHtml(report, branding), `A/R aging ${fmtDate(report.asOf)}`);
 }
 
 /**

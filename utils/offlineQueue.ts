@@ -1003,17 +1003,22 @@ function notifyDropListeners(entries: readonly OfflineMutation[], reason: string
   }
   const unclaimed = entries.filter((m) => !claimed.has(m.id));
   if (unclaimed.length > 0 && !noToast) {
-    const tableList = [...new Set(unclaimed.map((m) => m.table))].join(', ');
+    const tables = [...new Set(unclaimed.map((m) => m.table))];
     // Wave 5: a known refusal says what happened and what to do, not "re-check".
     let known: string | null = null;
+    // The toast names the records that were lost, in words ("Invoice", "RFI"),
+    // so a GC knows which data never reached the cloud.
+    let labels = tables.join(', ');
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      known = (require('@/utils/syncLedger') as typeof import('@/utils/syncLedger')).knownRefusalToast(reason);
+      const ledger = require('@/utils/syncLedger') as typeof import('@/utils/syncLedger');
+      labels = tables.map((t) => ledger.labelForTable(t)).join(', ');
+      known = ledger.knownRefusalToast(reason);
     } catch { known = null; }
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { oops } = require('@/components/animations/NailItToast');
-      oops(known ?? `${unclaimed.length} change(s) couldn't be synced (${tableList}). Please re-check that data.`);
+      oops(known ?? `${unclaimed.length} ${unclaimed.length === 1 ? 'change' : 'changes'} couldn't be saved to the cloud (${labels}). Check that data.`);
     } catch {/* toast host not mounted — nothing actionable */}
   }
   try {

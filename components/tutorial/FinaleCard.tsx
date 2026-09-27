@@ -67,7 +67,7 @@ export function FinaleCard({ finale, reduceMotion, wide, onAction }: FinaleCardP
           ]}
         >
           <View style={styles.headRow}>
-            <EyebrowLabel tone="success">PRACTISED ON THE SAMPLE</EyebrowLabel>
+            <EyebrowLabel tone="success">Practised on the sample</EyebrowLabel>
             <Pressable
               onPress={() => onAction('done')}
               accessibilityRole="button"
@@ -86,7 +86,7 @@ export function FinaleCard({ finale, reduceMotion, wide, onAction }: FinaleCardP
             </Text>
           ) : null}
           <Text style={[Type.footnote, styles.note, { color: colors.textSecondary }]}>
-            That was the real screen on the sample job. Nothing was sent to anyone else.
+            That was the real screen on the sample project. Nothing was sent to anyone else.
           </Text>
 
           <View style={styles.buttons}>

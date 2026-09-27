@@ -212,7 +212,7 @@ describe('lane T2 — desktop takeoff workspace', () => {
   it('desktop web 1512: the workspace mounts; no sheets → the first-run state', async () => {
     await mountAt('web', 1512, 945, `/area-takeoff?${P}`);
     expect(screen.getByTestId('takeoffws-root')).toBeTruthy();
-    expect(screen.getByText('Measure a plan. Price it from your own jobs.')).toBeTruthy();
+    expect(screen.getByText('Measure a plan. Price it from your own projects.')).toBeTruthy();
     expect(screen.getByTestId('takeoffws-upload-plans')).toBeTruthy();
     expect(screen.getByText('1 Set scale (K) · 2 Pick a condition · 3 Click to measure')).toBeTruthy();
   });
@@ -508,8 +508,8 @@ describe('lane TK-b — AI suggestions in the Conditions panel', () => {
 
   it('no AI Takeoff saved on this browser → the "none" sentence and the Run AI Takeoff link', async () => {
     await mountAt('web', 1512, 945, `/area-takeoff?${P}`, seedAll);
-    expect(textOf(screen.getByTestId('takeoffws-ai-none'))).toContain('No AI Takeoff saved on this browser for this job yet. An AI Takeoff run on your phone stays on that phone.');
-    expect(textOf(screen.getByTestId('takeoffws-ai-run'))).toBe('Run AI Takeoff');
+    expect(textOf(screen.getByTestId('takeoffws-ai-none'))).toContain('No AI takeoff saved on this browser for this project yet. An AI takeoff run on your phone stays on that phone.');
+    expect(textOf(screen.getByTestId('takeoffws-ai-run'))).toBe('Run AI takeoff');
   });
 
   it('Run AI Takeoff and come back: the panel re-reads on focus; /takeoff re-saving never re-offers an accepted row', async () => {
@@ -568,7 +568,7 @@ describe('lane TK-b — AI suggestions in the Conditions panel', () => {
 
   it('a corrupt saved AI Takeoff → the failed sentence, never the none sentence', async () => {
     await mountAt('web', 1512, 945, `/area-takeoff?${P}`, seedAi('{not json'));
-    expect(textOf(screen.getByTestId('takeoffws-ai-failed'))).toContain('Couldn’t read the AI Takeoff saved on this browser for this job.');
+    expect(textOf(screen.getByTestId('takeoffws-ai-failed'))).toContain('Couldn’t read the AI takeoff saved on this browser for this project.');
     expect(screen.getByTestId('takeoffws-ai-retry')).toBeTruthy();
     expect(screen.queryByTestId('takeoffws-ai-none')).toBeNull();
   });

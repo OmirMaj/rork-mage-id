@@ -39,6 +39,7 @@ import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
 import type { BidPackageBid } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 export default function BidLevelingScreen() {
   const router = useRouter();
@@ -119,10 +120,11 @@ function BidLevelingInner() {
       const baseMsg = `Leveled ${applied} bid${applied === 1 ? '' : 's'} for excluded scope. Ranking updated.`;
       const groundingNote = historyCount > 0
         ? ` ${historyCount} adjustment${historyCount === 1 ? '' : 's'} priced from your cost history.`
-        : ' No learned rates matched — using market estimates. Close more jobs to improve accuracy.';
+        : ' No rates in your cost history matched, so these use market estimates. Close more projects to sharpen them.';
       setAiMsg(baseMsg + groundingNote);
     } catch (e) {
-      setAiMsg(`Leveling hit an error: ${String((e as Error).message ?? e)}`);
+      console.warn('[bid-leveling] AI leveling failed:', rawErrorMessage(e));
+      setAiMsg(describeError(e, { action: 'level the exclusions' }).body);
     } finally {
       setAiBusy(false);
     }
@@ -137,7 +139,7 @@ function BidLevelingInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Bid Leveling · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Bid leveling · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{pkg?.name ?? 'Level bids'}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -149,8 +151,8 @@ function BidLevelingInner() {
           title={!pkg ? 'Package not found' : 'No bids to level yet'}
           message={
             !pkg
-              ? 'Open this from a buyout package to compare its bids apples-to-apples.'
-              : 'Add at least two bids to this package — with what each one includes and excludes — and MAGE will level them and recommend the best value.'
+              ? 'Open this from a buyout package to compare its bids side by side.'
+              : 'Add at least two bids to this package, with what each includes and excludes, and MAGE levels them and recommends the best value.'
           }
           actionLabel="Back"
           onAction={() => router.back()}
@@ -164,7 +166,7 @@ function BidLevelingInner() {
               <View style={[styles.recoCard, { borderColor: t.success + '55' }]}>
                 <View style={styles.recoHead}>
                   <Trophy size={16} color={t.success} strokeWidth={1.75} />
-                  <Text style={styles.recoLabel}>BEST VALUE</Text>
+                  <Text style={styles.recoLabel}>Best value</Text>
                 </View>
                 <Text style={styles.recoVendor}>{rec.vendor}</Text>
                 <Text style={styles.recoAmount}>{formatMoneyFull(rec.leveledAmount)} <Text style={styles.recoLeveled}>leveled</Text></Text>
@@ -179,7 +181,7 @@ function BidLevelingInner() {
           {/* AI level CTA + summary */}
           <TouchableOpacity style={[styles.aiBtn, aiBusy && { opacity: 0.7 }]} onPress={aiLevel} disabled={aiBusy} activeOpacity={0.85} testID="bid-ai-level">
             {aiBusy ? <ActivityIndicator size="small" color={t.accent} /> : <MageAIMark size={16} color={t.accent} />}
-            <Text style={styles.aiBtnText}>{aiBusy ? 'Leveling exclusions…' : 'AI-level the exclusions'}</Text>
+            <Text style={styles.aiBtnText}>{aiBusy ? 'Leveling exclusions…' : 'Level the exclusions'}</Text>
           </TouchableOpacity>
           {aiMsg && <Text style={styles.aiMsg}>{aiMsg}</Text>}
 
@@ -190,7 +192,7 @@ function BidLevelingInner() {
             activeOpacity={0.85}
           >
             <Star size={14} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.decisionBtnText}>Score with Bid Advisor</Text>
+            <Text style={styles.decisionBtnText}>Score this bid</Text>
           </TouchableOpacity>
 
           <View style={styles.kpiRow}>
@@ -238,9 +240,9 @@ function BidLevelingInner() {
 // ── Basis chip labels ─────────────────────────────────────────────────────────
 
 const BASIS_LABEL: Record<AdjustmentBasis, string> = {
-  your_history: 'your history',
-  estimate:     'estimate',
-  market_guess: 'AI estimate',
+  your_history: 'Your history',
+  estimate:     'Estimate',
+  market_guess: 'AI draft',
 };
 
 function BidRow({
@@ -327,7 +329,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   recoCard: { backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, padding: 16, marginBottom: 12, gap: 3 },
   recoHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
-  recoLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 0.6, color: t.success },
+  recoLabel: { textTransform: 'uppercase', fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 0.6, color: t.success },
   recoVendor: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 2 },
   recoAmount: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text },
   recoLeveled: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textMuted },

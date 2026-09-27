@@ -78,7 +78,7 @@ export default function SubPortalsListScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'Sub Portals' }} />
+      <Stack.Screen options={{ title: 'Sub portals' }} />
       {/* THE BACK IS DRAWN IN THE BODY (audit 2026-09-23 #149). The root stack
           hides this screen's header (app/_layout.tsx: headerShown: false), so
           the headerLeft chevron that used to be declared here never rendered
@@ -108,14 +108,14 @@ export default function SubPortalsListScreen() {
           onPress={() => setPaywallOpen(true)}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Upgrade to Business to unlock sub portals"
+          accessibilityLabel="Sub portals are on the Business plan. See plans."
         >
           <View style={styles.upgradeBannerIcon}>
             <Building2 size={18} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.upgradeBannerTitle}>Sub portals are a Business feature</Text>
-            <Text style={styles.upgradeBannerBody}>Upgrade to send self-serve links and collect invoices from your subs.</Text>
+            <Text style={styles.upgradeBannerTitle}>Sub portals are on the Business plan</Text>
+            <Text style={styles.upgradeBannerBody}>Send subs their own link and collect their invoices. See plans.</Text>
           </View>
           <ChevronRight size={18} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -130,7 +130,7 @@ export default function SubPortalsListScreen() {
           <View style={styles.empty}>
             <Inbox size={32} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No commitments yet</Text>
-            <Text style={styles.emptyBody}>Add a sub commitment to a project — that&apos;s the link between a sub and a project, and what powers their portal.</Text>
+            <Text style={styles.emptyBody}>Add a sub commitment to a project. It links the sub to the project and powers their portal.</Text>
           </View>
         }
         renderItem={({ item }) => <PairRowItem item={item} locked={!isUnlocked} onPress={() =>

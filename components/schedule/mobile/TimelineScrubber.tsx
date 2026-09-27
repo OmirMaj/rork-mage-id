@@ -63,7 +63,7 @@ export function TimelineScrubber({ dateAtIndex, totalDays, dayIndex, todayIndex,
     <View style={styles.wrap}>
       <View style={styles.dateRow}>
         <Text style={styles.date}>{fmt(dateAtIndex)}</Text>
-        <Text style={styles.hint}>drag to see it build</Text>
+        <Text style={styles.hint}>Drag to replay the build</Text>
       </View>
       <View
         ref={trackRef}

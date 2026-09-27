@@ -31,7 +31,7 @@ export function TaskChecklist({ items, onToggle, onAdd }: TaskChecklistProps) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.title}>TASK CHECKLIST</Text>
+        <Text style={styles.title}>Task checklist</Text>
         <Text style={styles.count}>{doneCount}/{items.length}</Text>
       </View>
       {items.map((it) => (
@@ -46,7 +46,7 @@ export function TaskChecklist({ items, onToggle, onAdd }: TaskChecklistProps) {
           style={styles.input}
           value={draft}
           onChangeText={setDraft}
-          placeholder="Add a step…"
+          placeholder="Add a step"
           placeholderTextColor={colors.textMuted}
           returnKeyType="done"
           onSubmitEditing={submit}
@@ -60,7 +60,7 @@ export function TaskChecklist({ items, onToggle, onAdd }: TaskChecklistProps) {
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, padding: 14, marginTop: 12 },
   header: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, marginBottom: 8 },
-  title: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.8 },
+  title: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const },
   count: { fontSize: 13, fontWeight: '800' as const, color: t.text },
   row: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 11, paddingVertical: 8, borderTopWidth: 1, borderTopColor: t.line },
   label: { flex: 1, fontSize: 14, fontWeight: '600' as const, color: t.text },

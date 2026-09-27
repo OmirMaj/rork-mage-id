@@ -187,7 +187,7 @@ export function emailProductCard(opts: {
     ? `<td width="120" valign="top" style="padding:0 16px 0 0;"><img src="${escapeHtml(opts.imageUrl)}" alt="${escapeHtml(opts.productName)}" width="120" height="120" style="display:block;width:120px;height:120px;border-radius:10px;border:1px solid ${SAND};object-fit:cover;" /></td>`
     : '';
   const priceLine = opts.price
-    ? `<p style="margin:8px 0 0;font-family:${FONT_STACK};font-size:16px;font-weight:800;color:${INK};letter-spacing:-0.2px;">${escapeHtml(opts.price)}${opts.overBudget ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;background:#FFE4D5;color:#C2410C;font-size:11px;font-weight:700;border-radius:999px;letter-spacing:0.4px;text-transform:uppercase;">over allowance</span>` : ''}</p>`
+    ? `<p style="margin:8px 0 0;font-family:${FONT_STACK};font-size:16px;font-weight:800;color:${INK};letter-spacing:-0.2px;">${escapeHtml(opts.price)}${opts.overBudget ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;background:#FFE4D5;color:#C2410C;font-size:11px;font-weight:700;border-radius:999px;letter-spacing:0.4px;text-transform:uppercase;">Over allowance</span>` : ''}</p>`
     : '';
   const categoryLine = opts.category
     ? `<p style="margin:0 0 4px;font-family:${FONT_STACK};font-size:11px;font-weight:800;color:${AMBER};letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(opts.category)}</p>`
@@ -291,7 +291,7 @@ const GROWTH_BADGE_URL = `${PORTAL_BASE_URL}/?ref=email`;
 function brandLineHtml(growthBadge?: boolean): string {
   if (growthBadge) {
     return `<p style="margin:0;font-family:${FONT_STACK};font-size:12px;color:${STONE};line-height:1.6;">
-        Built with <a href="${GROWTH_BADGE_URL}" style="color:${AMBER};font-weight:800;text-decoration:none;">MAGE ID</a> — the all-in-one app for contractors. <a href="${GROWTH_BADGE_URL}" style="color:${INK};font-weight:700;text-decoration:underline;">Run your projects free →</a>
+        Built with <a href="${GROWTH_BADGE_URL}" style="color:${AMBER};font-weight:800;text-decoration:none;">MAGE ID</a> — project management for contractors. <a href="${GROWTH_BADGE_URL}" style="color:${INK};font-weight:700;text-decoration:underline;">Run your projects free →</a>
       </p>`;
   }
   return `<p style="margin:0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;">
@@ -330,7 +330,7 @@ function footerHtml(opts: {
   const prefsUrl = opts.unsubscribe?.recipientEmail ? buildPreferencesUrl(opts.unsubscribe.recipientEmail) : null;
   const linkStyle = `color:${FOG};text-decoration:underline;`;
   const unsubLine = unsubUrl
-    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="${linkStyle}">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="${linkStyle}">manage email preferences</a>` : ''}</p>`
+    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="${linkStyle}">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="${linkStyle}">Manage email preferences</a>` : ''}</p>`
     : transactional && prefsUrl
       ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(prefsUrl)}" style="${linkStyle}">Manage email preferences</a></p>`
       : '';

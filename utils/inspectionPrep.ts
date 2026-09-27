@@ -344,7 +344,7 @@ export function buildChecklist(a: {
       const qty = qtyText(line.quantity);
       const unit = (line.unit ?? '').trim();
       const text = qty ? `${name} (${qty}${unit ? ` ${unit}` : ''})` : name;
-      if (add({ id: itemId('scope', text), group: 'scope', text, why: `From this job's estimate: ${name}` })) n += 1;
+      if (add({ id: itemId('scope', text), group: 'scope', text, why: `From this project's estimate: ${name}` })) n += 1;
     }
   }
 

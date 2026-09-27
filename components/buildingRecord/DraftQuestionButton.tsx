@@ -175,7 +175,7 @@ function DraftQuestionInner({
         onClose={close}
         size="wide"
         title="Draft a question"
-        subtitle={topic ? `About ${topic}. Nothing is sent from MAGE — you send it.` : 'Nothing is sent from MAGE — you send it.'}
+        subtitle={topic ? `About ${topic}. MAGE doesn’t send it; you do.` : 'MAGE doesn’t send it; you do.'}
         testID={testID ? `${testID}-sheet` : undefined}
         primaryAction={{
           label: 'Open in Mail',

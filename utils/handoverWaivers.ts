@@ -132,7 +132,7 @@ export function lienWaiverCoverage(
 
 /** The row's detail line — kept beside the rule so the words cannot drift from it. */
 export function lienWaiverDetail(cov: WaiverCoverage): string {
-  if (cov.total === 0) return 'No subcontractor commitments on file. Add commitments to track lien waivers.';
+  if (cov.total === 0) return 'No sub commitments on file. Add commitments to track lien waivers.';
   if (cov.status === 'done') return `Unconditional final waiver from every sub (${cov.total})`;
   const withFinal = cov.final + cov.conditional;
   let s = `${withFinal} of ${cov.total} subs have a final waiver`;
@@ -196,7 +196,7 @@ export function jobInvoiceHandoverState(
   }
   const newest = byNumber[byNumber.length - 1];
   if (newest.status === 'draft') {
-    return { status: 'open', detail: `Invoice #${newest.number} is still a draft — send it`, targetInvoiceId: newest.id };
+    return { status: 'open', detail: `Invoice #${newest.number} is still a draft. Send it`, targetInvoiceId: newest.id };
   }
   const drafts = byNumber.filter((i) => i.status === 'draft');
   if (drafts.length > 0) {
@@ -204,7 +204,7 @@ export function jobInvoiceHandoverState(
     // full" while it sits there; send it or delete it.
     return {
       status: 'partial',
-      detail: `Invoice #${drafts[0].number} is still a draft — send it or delete it before handover`,
+      detail: `Invoice #${drafts[0].number} is still a draft. Send it or delete it before handover`,
       targetInvoiceId: drafts[0].id,
     };
   }
@@ -212,7 +212,7 @@ export function jobInvoiceHandoverState(
   if (heldCents > 0) {
     return {
       status: 'partial',
-      detail: `All invoices paid — ${money(heldCents / 100)} retention still held; bill the release before handover`,
+      detail: `All invoices paid · ${money(heldCents / 100)} retainage still held. Bill the release before handover`,
       targetInvoiceId: newest.id,
     };
   }
@@ -290,7 +290,7 @@ function listed(items: string[]): string {
 
 export function permitsHandoverState(permits: readonly PermitLike[], today: string): PermitsHandoverState {
   if (permits.length === 0) {
-    return { status: 'none', detail: 'No permits logged on this job.' };
+    return { status: 'none', detail: 'No permits logged on this project.' };
   }
   const blockers: string[] = [];
   const pending: string[] = [];

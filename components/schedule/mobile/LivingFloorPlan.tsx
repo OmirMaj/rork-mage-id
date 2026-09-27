@@ -130,8 +130,8 @@ export function LivingFloorPlan({
         <EmptyState icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />} title="No floor plan yet"
           message={clientMode
             ? 'Your contractor hasn’t added a floor plan to this link yet.'
-            : 'Add a floor plan to start the Living Floor Plan.'}
-          actionLabel={clientMode ? undefined : 'Add Floor Plan'}
+            : 'Add a floor plan to start the living floor plan.'}
+          actionLabel={clientMode ? undefined : 'Add floor plan'}
           onAction={onAddPlan ?? (() => {})} />
       </View>
     );
@@ -154,7 +154,7 @@ export function LivingFloorPlan({
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 24 }}>
         <View style={styles.head}>
-          <Text style={styles.title}>{clientMode ? 'Your floor plan' : 'Living Floor Plan'}</Text>
+          <Text style={styles.title}>{clientMode ? 'Your floor plan' : 'Living floor plan'}</Text>
           {!locked && !!onShare && (
             <TouchableOpacity style={styles.headBtn} onPress={onShare} testID="living-plan-share"
               accessibilityRole="button" accessibilityLabel="Share this plan with the client">
@@ -172,7 +172,7 @@ export function LivingFloorPlan({
         </View>
         {clientMode && (
           <Text style={styles.clientHint} testID="living-plan-client-hint">
-            Drag the timeline to see how the work is planned to move through the house. Photos appear once they were taken.
+            Drag the timeline to see how the work is planned to move through the house. Photos appear from the day they were taken.
           </Text>
         )}
         <View style={[styles.planWrap, { aspectRatio: aspect }]} onLayout={(e: LayoutChangeEvent) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>

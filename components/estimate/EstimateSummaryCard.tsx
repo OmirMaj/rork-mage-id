@@ -42,15 +42,15 @@ export function EstimateSummaryCard({ directCost, markups, contingency }: Props)
 
   return (
     <View style={styles.card}>
-      <Text style={styles.label}>ESTIMATE SUMMARY</Text>
-      <View style={styles.row}><Text style={styles.k}>Total Cost</Text><Text style={styles.v}>{money(directCost)}</Text></View>
-      <View style={styles.row}><Text style={styles.k}>Total Markups</Text><Text style={styles.v}>{money(markups)}</Text></View>
+      <Text style={styles.label}>Estimate summary</Text>
+      <View style={styles.row}><Text style={styles.k}>Total cost</Text><Text style={styles.v}>{money(directCost)}</Text></View>
+      <View style={styles.row}><Text style={styles.k}>Total markups</Text><Text style={styles.v}>{money(markups)}</Text></View>
       {contingency !== undefined && (
         <View style={styles.row}><Text style={styles.k}>Contingency</Text><Text style={styles.v}>{money(contingency)}</Text></View>
       )}
       <View style={styles.divider} />
       <View style={styles.grand}>
-        <Text style={styles.grandK}>GRAND TOTAL</Text>
+        <Text style={styles.grandK}>Grand total</Text>
         <Text style={styles.grandV}>{money(total)}</Text>
       </View>
 
@@ -70,7 +70,7 @@ export function EstimateSummaryCard({ directCost, markups, contingency }: Props)
         </View>
         <View style={styles.legend}>
           <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.accent }]} /><Text style={styles.legendK}>Markup</Text><Text style={styles.legendV}>{money(markups)}</Text></View>
-          <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.textMuted }]} /><Text style={styles.legendK}>Direct Cost</Text><Text style={styles.legendV}>{money(directCost)}</Text></View>
+          <View style={styles.legendRow}><View style={[styles.dot, { backgroundColor: colors.textMuted }]} /><Text style={styles.legendK}>Direct cost</Text><Text style={styles.legendV}>{money(directCost)}</Text></View>
         </View>
       </View>
     </View>
@@ -79,13 +79,13 @@ export function EstimateSummaryCard({ directCost, markups, contingency }: Props)
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, padding: 15 },
-  label: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5, color: t.text, marginBottom: 12 },
+  label: { textTransform: 'uppercase', fontSize: 11, fontWeight: '800', letterSpacing: 0.5, color: t.text, marginBottom: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   k: { fontSize: 12.5, color: t.textSecondary },
   v: { fontSize: 12.5, color: t.text, fontWeight: '600' },
   divider: { height: 1, backgroundColor: t.line, marginVertical: 9 },
   grand: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  grandK: { fontSize: 12.5, fontWeight: '800', color: t.text },
+  grandK: { textTransform: 'uppercase', fontSize: 12.5, fontWeight: '800', color: t.text },
   grandV: { fontSize: 21, fontWeight: '800', color: t.accent, letterSpacing: -0.4 },
 
   donutWrap: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: t.line },

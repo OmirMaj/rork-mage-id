@@ -65,7 +65,7 @@ export default function AiSuggestionsSection(p: AiSuggestionsSectionProps) {
 
   const runLink = (
     <TouchableOpacity onPress={p.onRunAi} accessibilityRole="link" testID="takeoffws-ai-run">
-      <Text style={styles.link}>Run AI Takeoff</Text>
+      <Text style={styles.link}>Run AI takeoff</Text>
     </TouchableOpacity>
   );
 
@@ -86,17 +86,17 @@ export default function AiSuggestionsSection(p: AiSuggestionsSectionProps) {
 
       {!open || p.state === 'loading' ? null : p.state === 'none' ? (
         <View style={styles.body} testID="takeoffws-ai-none">
-          <Text style={styles.muted}>No AI Takeoff saved on this browser for this job yet. An AI Takeoff run on your phone stays on that phone.</Text>
+          <Text style={styles.muted}>No AI takeoff saved on this browser for this project yet. An AI takeoff run on your phone stays on that phone.</Text>
           {runLink}
         </View>
       ) : p.state === 'stale' ? (
         <View style={styles.body} testID="takeoffws-ai-stale">
-          <Text style={styles.muted}>The AI Takeoff saved on this browser is over 60 days old — run it again on the current plans.</Text>
+          <Text style={styles.muted}>The AI takeoff saved on this browser is over 60 days old. Run it again on the current plans.</Text>
           {runLink}
         </View>
       ) : p.state === 'failed' ? (
         <View style={styles.body} testID="takeoffws-ai-failed">
-          <Text style={styles.muted}>Couldn’t read the AI Takeoff saved on this browser for this job.</Text>
+          <Text style={styles.muted}>Couldn’t read the AI takeoff saved on this browser for this project.</Text>
           <TouchableOpacity onPress={p.onRetry} accessibilityRole="button" testID="takeoffws-ai-retry">
             <Text style={styles.link}>Try again</Text>
           </TouchableOpacity>
@@ -104,7 +104,7 @@ export default function AiSuggestionsSection(p: AiSuggestionsSectionProps) {
       ) : (
         <View testID="takeoffws-ai-ready">
           <Text style={[styles.muted, styles.intro]}>
-            {`From AI Takeoff on ${savedOn(p.savedAt)}, saved on this browser — read from the drawings, not measured. Nothing here counts until you accept it.`}
+            {`From AI takeoff on ${savedOn(p.savedAt)}, saved on this browser. Read from the plans, not measured. Nothing here counts until you accept it.`}
           </Text>
           {p.totalRows === 0 ? (
             <Text style={[styles.muted, styles.intro]} testID="takeoffws-ai-done">Every AI suggestion is accepted or dismissed.</Text>
@@ -119,7 +119,7 @@ export default function AiSuggestionsSection(p: AiSuggestionsSectionProps) {
                   <Icon size={14} color={t.textMuted} strokeWidth={1.75} />
                   <Text style={styles.name} numberOfLines={1}>{s.name}</Text>
                   <Text style={styles.qty} numberOfLines={1}>{qtyOf(s)}</Text>
-                  <Text style={styles.amount} numberOfLines={1}>not counted</Text>
+                  <Text style={styles.amount} numberOfLines={1}>Not counted</Text>
                   <TouchableOpacity
                     onPress={() => p.onDismiss(s)}
                     style={styles.dismiss}

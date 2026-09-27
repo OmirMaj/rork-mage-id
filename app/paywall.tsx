@@ -107,40 +107,40 @@ const FEATURE_SPECS: FeatureRowSpec[] = [
   // NOTE the label is load-bearing: scripts/validate-paywall-feature-matrix.ts
   // allow-lists hand-typed rows BY LABEL, so renaming this row without editing
   // that allowlist fails ship-check.
-  { label: 'Unlimited Projects', free: false, pro: true, business: true, freeNote: '1' },
-  { label: 'Manual Estimates', free: true, pro: true, business: true },
-  { label: 'Manual Daily Reports', free: true, pro: true, business: true },
-  { label: 'AI Cost Estimator', key: 'ai_estimate_wizard' },
+  { label: 'Unlimited projects', free: false, pro: true, business: true, freeNote: '1' },
+  { label: 'Manual estimates', free: true, pro: true, business: true },
+  { label: 'Manual daily reports', free: true, pro: true, business: true },
+  { label: 'AI cost estimator', key: 'ai_estimate_wizard' },
   // AI Takeoff and Voice-to-Report are NOT tier-gated screens — they are
   // metered by utils/aiRateLimiter FEATURE_CONFIG (aiTakeoff is `proOnly`;
   // voiceCapture gives free users a 3-use lifetime trial and the server
   // hard-gates the takeoff steps to Pro+). There is no FeatureKey to derive
   // from, so these two stay literal on purpose.
-  { label: 'AI Takeoff (PDF → LF/SF)', free: false, pro: true, business: true },
-  { label: 'AI Schedule Builder (Gantt)', key: 'schedule_gantt_pdf' },
+  { label: 'AI takeoff (PDF → LF/SF)', free: false, pro: true, business: true },
+  { label: 'AI schedule builder (Gantt)', key: 'schedule_gantt_pdf' },
   // freeNote, not an X: FEATURE_CONFIG.voiceCapture.freeLifetimeCap = 3, so a
   // bare X denied a trial that exists (and marketing/pricing.html says the
   // same "3 free tries"). The label is unchanged — the matrix validator's
   // allowlist matches it by name.
-  { label: 'Voice-to-Report (Android: beta)', free: false, pro: true, business: true, freeNote: '3 tries' },
+  { label: 'Voice-to-report (Android: beta)', free: false, pro: true, business: true, freeNote: '3 tries' },
   // Was ONE literal row, 'AI Photo Triage / Punch', ticked at Pro — so a Pro
   // buyer was sold AI punch items and then paywalled from the punch list they
   // landed in (#41). Two gates, two rows, both derived.
-  { label: 'AI Photo Triage', key: 'photo_documentation' },
-  { label: 'AI Punch from Photos', key: 'punch_list_closeout' },
-  { label: 'Cash Flow + EVM (CPI/SPI)', key: 'cash_flow_forecaster' },
-  { label: 'AIA G702/G703 Pay Apps', key: 'aia_pay_app' },
-  { label: 'Change Orders + Invoicing', key: 'change_orders_invoicing' },
-  { label: 'Equipment Tracking', key: 'equipment_rental' },
-  { label: 'Client Portal (custom branded)', key: 'client_portal' },
-  { label: 'Subcontractor Management', key: 'subcontractor_management' },
-  { label: 'Punch List & Closeout', key: 'punch_list_closeout' },
-  { label: 'RFIs & Submittals', key: 'rfis_submittals' },
-  { label: 'Full Budget Dashboard', key: 'full_budget_dashboard' },
+  { label: 'AI photo triage', key: 'photo_documentation' },
+  { label: 'AI punch items from photos', key: 'punch_list_closeout' },
+  { label: 'Cash flow and EVM (CPI/SPI)', key: 'cash_flow_forecaster' },
+  { label: 'AIA G702/G703 pay apps', key: 'aia_pay_app' },
+  { label: 'Change orders and invoicing', key: 'change_orders_invoicing' },
+  { label: 'Equipment tracking', key: 'equipment_rental' },
+  { label: 'Client portal (custom branded)', key: 'client_portal' },
+  { label: 'Sub management', key: 'subcontractor_management' },
+  { label: 'Punch list and closeout', key: 'punch_list_closeout' },
+  { label: 'RFIs and submittals', key: 'rfis_submittals' },
+  { label: 'Full budget dashboard', key: 'full_budget_dashboard' },
   // Was hand-typed `pro: false, business: true` — an XCircle in the Pro column
   // for a feature plan_markup actually unlocks at Pro. Now derived from
   // featureTiers, so the Pro column reads as included.
-  { label: 'Plan Viewer · Sheet Pinning (Android: beta)', key: 'plan_markup' },
+  { label: 'Plan viewer · sheet pinning (Android: beta)', key: 'plan_markup' },
 ];
 
 const FEATURES: FeatureRow[] = FEATURE_SPECS.map(toFeatureRow);
@@ -180,17 +180,17 @@ const AI_LIMITS: AILimitRow[] = [
   // #39: takeoff runs, spec-book imports and Compare Drawings all draw on this
   // one monthly allowance; the bare label let a Pro user spend it on takeoffs
   // without knowing the drawing analyzer shared it.
-  { label: 'Drawing analyses /mo (takeoff runs, spec books, Compare Drawings)', free: '—', pro: '15', business: '50', enterprise: '100' },
+  { label: 'Drawing analyses /mo (takeoff runs, spec books, compare drawings)', free: '—', pro: '15', business: '50', enterprise: '100' },
   { label: 'Photo analyses /mo',   free: '—',   pro: '50',  business: '150', enterprise: '200' },
   { label: 'PDF takeoff pages /mo',free: '—',   pro: '30',  business: '100', enterprise: '300' },
   { label: 'Cost X-Ray analyses /mo', free: '—', pro: '—', business: '50', enterprise: '150' },
-  { label: 'Construction Answers /mo', free: '—', pro: '—', business: '100', enterprise: '300' },
+  { label: 'Construction answers /mo', free: '—', pro: '—', business: '100', enterprise: '300' },
 ];
 // Photo Code Look has its own monthly meter (MONTHLY_CAPS code_look). A
 // separate row rendered after both AI_LIMITS tables (testIDs 'codelook-…'),
 // so the tables above stay exactly as they were. scripts/validate-code-look.ts
 // pins these numbers to MONTHLY_CAPS.
-const CODE_LOOK_LIMIT: AILimitRow = { label: 'Photo Code Look /mo', free: '—', pro: '20', business: '60', enterprise: '150' };
+const CODE_LOOK_LIMIT: AILimitRow = { label: 'Photo code look /mo', free: '—', pro: '20', business: '60', enterprise: '150' };
 
 function FeatureCheck({ available, note, colors }: { available: boolean; note?: string; colors: ThemeColors }) {
   // A note wins over the icon: "1" says more about a capped tier than a cross.
@@ -262,7 +262,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchasePro();
-      showAlert('Welcome to Pro!', 'You now have access to all Pro features.');
+      showAlert("You're on Pro", 'Every Pro feature is on for your account.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -271,7 +271,7 @@ export default function PaywallScreen() {
         return;
       }
       console.log('[Paywall] Purchase Pro failed:', err);
-      showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+      showAlert("Couldn't complete purchase", "The purchase didn't go through. Try again.");
     }
   }, [purchasePro, router]);
 
@@ -279,7 +279,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchaseBusiness();
-      showAlert('Welcome to Business!', 'You now have access to all features.');
+      showAlert("You're on Business", 'Every Business feature is on for your account.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -288,7 +288,7 @@ export default function PaywallScreen() {
         return;
       }
       console.log('[Paywall] Purchase Business failed:', err);
-      showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+      showAlert("Couldn't complete purchase", "The purchase didn't go through. Try again.");
     }
   }, [purchaseBusiness, router]);
 
@@ -296,7 +296,7 @@ export default function PaywallScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await purchaseEnterprise();
-      showAlert('Welcome to Enterprise!', "You're on the highest plan with the highest AI usage caps.");
+      showAlert("You're on Enterprise", 'Every Enterprise feature is on for your account, with the highest AI usage limits.');
       router.back();
     } catch (err: unknown) {
       const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
@@ -310,14 +310,14 @@ export default function PaywallScreen() {
       if (!enterprisePackage) {
         showAlert('Enterprise unavailable', "Enterprise isn't available in the app yet. Email support@mageid.app and we'll set it up.");
       } else {
-        showAlert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+        showAlert("Couldn't complete purchase", "The purchase didn't go through. Try again.");
       }
     }
   }, [purchaseEnterprise, router, enterprisePackage]);
 
   // When RC offerings failed to load (isFallbackPricing), purchase CTAs
   // can't process IAP — Alert the notice instead of silently dead-ending.
-  const FALLBACK_NOTICE_TEXT = 'In-app purchasing is currently unavailable. Check your connection and try again.';
+  const FALLBACK_NOTICE_TEXT = "Purchases aren't available right now. Check your connection and try again.";
 
   // Android ships too (app.mageid.android), and RevenueCat buys through Google
   // Play there. Naming the wrong store in a refusal is a small lie told at the
@@ -408,7 +408,7 @@ export default function PaywallScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close" accessibilityRole="button" accessibilityLabel="Close">
           <X size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Choose Your Plan</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Choose your plan</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -419,12 +419,12 @@ export default function PaywallScreen() {
         {/* Why MAGE — lead the conversion moment with the moat, not just the price grid.
             Copy source: docs/positioning-playbook.md (every claim maps to a shipped feature). */}
         <View style={styles.hero}>
-          <Text style={styles.heroEyebrow}>WHY MAGE</Text>
-          <Text style={styles.heroTitle}>The AI that makes you money — not just organizes your job.</Text>
+          <Text style={styles.heroEyebrow}>Why MAGE ID</Text>
+          <Text style={styles.heroTitle}>Built to make you money, not only to organize your projects.</Text>
           <View style={styles.heroPoints}>
-            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> Your prices, <Text style={styles.heroStrong}>learned from your own jobs</Text> — not a generic catalog.</Text>
-            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> <Text style={styles.heroStrong}>Margin that defends itself</Text> — get warned before a job loses money.</Text>
-            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> One connected loop — estimate → actuals — <Text style={styles.heroStrong}>on your phone</Text>.</Text>
+            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> Your prices, <Text style={styles.heroStrong}>learned from your own projects</Text>, not a generic catalog.</Text>
+            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> <Text style={styles.heroStrong}>Margin warnings</Text> before a project loses money.</Text>
+            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> Estimate to actuals in one place, <Text style={styles.heroStrong}>on your phone</Text>.</Text>
           </View>
         </View>
 
@@ -449,7 +449,7 @@ export default function PaywallScreen() {
 
           <View style={[styles.planCard, isDesktop && styles.planCardDesktop, styles.planCardHighlight, highlightedPlan === 'pro' && styles.planCardIntentHighlight, tier === 'pro' && styles.planCardActive]}>
             <View style={styles.popularTag}>
-              <Text style={styles.popularTagText}>POPULAR</Text>
+              <Text style={styles.popularTagText}>Popular</Text>
             </View>
             <View style={styles.planIconSlot}>
               <IconWrapper icon={Crown} tone="accent" size="md" />
@@ -622,7 +622,7 @@ export default function PaywallScreen() {
           </View>
         )}
 
-        <Text style={styles.compareTitle}>Feature Comparison</Text>
+        <Text style={styles.compareTitle}>Compare plans</Text>
         <View style={styles.compareTable}>
           <View style={styles.compareHeaderRow}>
             <Text style={[styles.compareCell, styles.compareLabelCell]}>Feature</Text>
@@ -648,7 +648,7 @@ export default function PaywallScreen() {
 
         {/* AI Usage Limits — Enterprise's actual differentiator. Same
             features as Business, but more headroom for heavy AI users. */}
-        <Text style={styles.compareTitle}>AI Usage Limits</Text>
+        <Text style={styles.compareTitle}>AI usage limits</Text>
         <View style={styles.compareTable}>
           <View style={styles.compareHeaderRow}>
             <Text style={[styles.compareCell, styles.compareLabelCell]}>Quota</Text>
@@ -678,7 +678,7 @@ export default function PaywallScreen() {
         {/* Fintech & revenue perks. Surfaces the embedded-fintech bundle
             as part of the Business+ value prop. The fee row reads from
             utils/platformFees.ts (MONEY-F8) — see FINTECH_PERKS above. */}
-        <Text style={styles.compareTitle}>Fintech &amp; Revenue Perks</Text>
+        <Text style={styles.compareTitle}>Payments and financing</Text>
         <View style={styles.compareTable}>
           <View style={styles.compareHeaderRow}>
             <Text style={[styles.compareCell, styles.compareLabelCell]}>Perk</Text>
@@ -732,7 +732,7 @@ export default function PaywallScreen() {
         {packagesStillLoading && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator color={themeColors.accent} size="small" />
-            <Text style={styles.loadingText}>Loading plans...</Text>
+            <Text style={styles.loadingText}>Loading plans…</Text>
           </View>
         )}
       </ScrollView>
@@ -790,7 +790,7 @@ function WebPaywallView({
   // side by side (below). The phone renders the same two blocks in place.
   const featureTable = (
     <View style={[{ marginBottom: 24 }, isDesktop && tablesSideBySide && styles.webTableCol]}>
-      <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>What unlocks at each tier</Text>
+      <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>What each plan includes</Text>
       <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
         <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
           <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Feature</Text>
@@ -811,7 +811,7 @@ function WebPaywallView({
   );
   const quotaTable = (
     <View style={[{ marginBottom: 24 }, isDesktop && tablesSideBySide && styles.webTableCol]}>
-      <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>AI quotas</Text>
+      <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>AI usage limits</Text>
       <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
         <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
           <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Quota</Text>
@@ -869,8 +869,8 @@ function WebPaywallView({
           </Text>
           <Text style={[Type.body, { color: themeColors.textSecondary, marginTop: 8, textAlign: 'center', maxWidth: 520 }]}>
             {wp.available
-              ? 'Secure checkout, right here. Your plan unlocks instantly across the web and mobile apps — cancel anytime.'
-              : 'App Store + Google Play handle the subscription. Open MAGE ID on your phone to pick a plan — your account will be linked the moment you sign in.'}
+              ? 'Your plan is active right away on web and mobile. Cancel anytime.'
+              : 'The App Store and Google Play handle subscriptions. Open MAGE ID on your phone to choose a plan. It links to this account when you sign in.'}
           </Text>
         </View>
 
@@ -923,7 +923,7 @@ function WebPaywallView({
             </Text>
           </View>
           <Text style={{ color: themeColors.textSecondary, fontSize: 13, lineHeight: 19 }}>
-            Open MAGE ID on the same iOS or Android device, sign in with this account, and your subscription will activate automatically. Pro and Business unlocks reach the web app within ~30 seconds of mobile sign-in.
+            Open MAGE ID on the same iOS or Android device, sign in with this account, and your subscription activates automatically. It reaches the web app within about 30 seconds of signing in on mobile.
           </Text>
         </View>
 
@@ -971,7 +971,7 @@ function WebPaywallView({
                   style={{ marginTop: 10 }}
                 >
                   <Text style={{ color: themeColors.accent, fontSize: Type.footnote.fontSize, fontWeight: '600' }}>
-                    {`Not available for checkout yet — contact us for ${plan.name}`}
+                    {`Not available for checkout yet. Contact us for ${plan.name}`}
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -989,8 +989,8 @@ function WebPaywallView({
         <View style={{ alignItems: 'center', marginTop: 8, gap: 6 }}>
           <Text style={{ color: themeColors.textMuted, fontSize: 12, textAlign: 'center' }}>
             {wp.available
-              ? 'Secure checkout by RevenueCat + Stripe. Cancel anytime.'
-              : 'Secure payment via App Store / Google Play. Cancel anytime.'}
+              ? 'Secure checkout by Stripe. Cancel anytime.'
+              : 'Secure payment through the App Store or Google Play. Cancel anytime.'}
           </Text>
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity onPress={() => onOpenLegal('privacy')} accessibilityRole="link">
@@ -1061,7 +1061,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginBottom: 16,
     gap: 8,
   },
-  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 0.8, color: t.accent },
+  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 0.8, color: t.accent, textTransform: 'uppercase' as const },
   heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, lineHeight: 26 },
   heroPoints: { gap: 6, marginTop: 2 },
   heroPoint: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
@@ -1134,6 +1134,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: '#fff',
     letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
   },
   /** Wrapper for the IconWrapper primitive so vertical spacing matches the
    *  rest of the plan-card stack. IconWrapper itself owns size + bg. */

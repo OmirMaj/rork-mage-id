@@ -38,14 +38,14 @@ export function EstimateClientView({ view, projectName, paymentSchedule }: { vie
     <View>
       <View style={styles.lockChip}>
         <Lock size={13} color="#6C7480" strokeWidth={2} />
-        <Text style={styles.lockText}>Costs, markups & margin are hidden in client view</Text>
+        <Text style={styles.lockText}>Costs, markups and margin are hidden in client view</Text>
       </View>
 
-      <Text style={styles.totalLabel}>PROJECT TOTAL</Text>
+      <Text style={styles.totalLabel}>Project total</Text>
       <Text style={styles.total}>{money(view.projectTotal)}</Text>
       {!!projectName && <Text style={styles.prep}>Proposal · {projectName}</Text>}
 
-      <Text style={styles.sectionLabel}>SCOPE OF WORK</Text>
+      <Text style={styles.sectionLabel}>Scope of work</Text>
       <View style={styles.card}>
         {view.scopeGroups.map((g, i) => (
           <View key={g.key} style={[styles.row, i < view.scopeGroups.length - 1 && styles.rowBorder]}>
@@ -57,7 +57,7 @@ export function EstimateClientView({ view, projectName, paymentSchedule }: { vie
 
       {view.allowances.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>ALLOWANCES INCLUDED</Text>
+          <Text style={styles.sectionLabel}>Allowances included</Text>
           <View style={styles.card}>
             {view.allowances.map((a, i) => (
               <View key={`${a.name}-${i}`} style={[styles.row, i < view.allowances.length - 1 && styles.rowBorder]}>
@@ -71,7 +71,7 @@ export function EstimateClientView({ view, projectName, paymentSchedule }: { vie
 
       {!!paymentSchedule?.length && (
         <>
-          <Text style={styles.sectionLabel}>PAYMENT SCHEDULE</Text>
+          <Text style={styles.sectionLabel}>Payment schedule</Text>
           <View style={styles.card}>
             {paymentSchedule.map((m, i) => (
               <View key={`${m.label}-${i}`} style={[styles.payRow, i < paymentSchedule.length - 1 && styles.rowBorder]}>
@@ -96,10 +96,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.sm, paddingHorizontal: 11, paddingVertical: 8, marginBottom: 18,
   },
   lockText: { fontSize: 11, color: t.textMuted, flex: 1 },
-  totalLabel: { fontSize: 10.5, letterSpacing: 1, color: t.textMuted, fontWeight: '700', marginBottom: 5 },
+  totalLabel: { textTransform: 'uppercase', fontSize: 10.5, letterSpacing: 1, color: t.textMuted, fontWeight: '700', marginBottom: 5 },
   total: { fontSize: 40, fontWeight: '800', color: t.text, letterSpacing: -1 },
   prep: { fontSize: 12, color: t.textSecondary, marginTop: 8 },
-  sectionLabel: { fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800', marginTop: 24, marginBottom: 9 },
+  sectionLabel: { textTransform: 'uppercase', fontSize: 10.5, letterSpacing: 1.2, color: t.textMuted, fontWeight: '800', marginTop: 24, marginBottom: 9 },
   card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: t.line },

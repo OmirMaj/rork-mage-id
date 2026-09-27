@@ -31,7 +31,7 @@ const BID_TYPES: { id: BidType; label: string }[] = [
 ];
 
 const BID_CATEGORIES: { id: BidCategory; label: string }[] = [
-  { id: 'construction', label: 'Construction' }, { id: 'it_services', label: 'IT Services' },
+  { id: 'construction', label: 'Construction' }, { id: 'it_services', label: 'IT services' },
   { id: 'environmental', label: 'Environmental' }, { id: 'energy', label: 'Energy' },
   { id: 'infrastructure', label: 'Infrastructure' }, { id: 'transportation', label: 'Transportation' },
   { id: 'utilities', label: 'Utilities' }, { id: 'healthcare', label: 'Healthcare' },
@@ -116,7 +116,7 @@ export default function PostBidScreen() {
     }
 
     if (!title.trim() || !agency.trim() || !city.trim() || !estimatedValue || !bondRequired || !deadline || !contactEmail.trim()) {
-      showAlert('Missing Fields', 'Please fill in all required fields.');
+      showAlert('Fill in the required fields', 'Add a title, issuing agency, city, estimated value, bond, deadline and contact email.');
       return;
     }
 
@@ -126,7 +126,7 @@ export default function PostBidScreen() {
     // uncomputable deadline out of the feed's daysLeft math downstream.
     const deadlineDate = new Date(deadline.trim());
     if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline.trim()) || isNaN(deadlineDate.getTime())) {
-      showAlert('Invalid Deadline', 'Enter the deadline as YYYY-MM-DD (e.g. 2026-06-01).');
+      showAlert('Check the deadline', 'Enter the deadline as YYYY-MM-DD (e.g. 2026-06-01).');
       return;
     }
 
@@ -164,7 +164,7 @@ export default function PostBidScreen() {
     // homeowner-RFP "near you" feed (that feed filters is_homeowner_rfp), so
     // we don't imply it will show up there.
     showAlert(
-      'Bid Posted',
+      'Bid posted',
       'Your solicitation is saved. Contractors whose bond capacity and certifications match will see it in their matching opportunities.',
       [{ text: 'OK', onPress: () => router.back() }],
     );
@@ -186,7 +186,7 @@ export default function PostBidScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Post a Bid',
+        title: 'Post a bid',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -199,7 +199,7 @@ export default function PostBidScreen() {
               <Text style={[styles.usageBadgeText, atLimit && styles.usageBadgeTextAtLimit]}>
                 {atLimit
                   ? canPaywallUpsell
-                    ? `${tier === 'free' ? 'Free' : 'Pro'} plan includes ${monthlyLimit} community posts a month — upgrade for more`
+                    ? `${tier === 'free' ? 'Free' : 'Pro'} plan includes ${monthlyLimit} community posts a month. See plans for more.`
                     : `${monthlyLimit} community posts per month on your plan`
                   : `${usedThisMonth} of ${monthlyLimit} community posts used this month`}
               </Text>
@@ -209,7 +209,7 @@ export default function PostBidScreen() {
           <Text style={styles.label}>Title *</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Bid title" placeholderTextColor={themeColors.textMuted} testID="bid-title" />
 
-          <Text style={styles.label}>Issuing Agency *</Text>
+          <Text style={styles.label}>Issuing agency *</Text>
           <TextInput style={styles.input} value={agency} onChangeText={setAgency} placeholder="Agency or company name" placeholderTextColor={themeColors.textMuted} />
 
           <View style={styles.row}>
@@ -229,7 +229,7 @@ export default function PostBidScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>Bid Type *</Text>
+          <Text style={styles.label}>Bid type *</Text>
           <View style={styles.chipRow}>
             {BID_TYPES.map(t => (
               <TouchableOpacity key={t.id} style={[styles.chip, bidType === t.id && styles.chipActive]} onPress={() => setBidType(t.id)}>
@@ -249,11 +249,11 @@ export default function PostBidScreen() {
 
           <View style={styles.row}>
             <View style={styles.halfField}>
-              <Text style={styles.label}>Estimated Value ($) *</Text>
+              <Text style={styles.label}>Estimated value ($) *</Text>
               <TextInput style={styles.input} value={estimatedValue} onChangeText={setEstimatedValue} placeholder="5000000" keyboardType="numeric" placeholderTextColor={themeColors.textMuted} />
             </View>
             <View style={styles.halfField}>
-              <Text style={styles.label}>Bond Required ($) *</Text>
+              <Text style={styles.label}>Bond required ($) *</Text>
               <TextInput style={styles.input} value={bondRequired} onChangeText={setBondRequired} placeholder="2500000" keyboardType="numeric" placeholderTextColor={themeColors.textMuted} />
             </View>
           </View>
@@ -262,15 +262,15 @@ export default function PostBidScreen() {
           <TextInput style={styles.input} value={deadline} onChangeText={setDeadline} placeholder="2026-06-01" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Description</Text>
-          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the project scope..." placeholderTextColor={themeColors.textMuted} multiline numberOfLines={4} />
+          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the project scope" placeholderTextColor={themeColors.textMuted} multiline numberOfLines={4} />
 
-          <Text style={styles.label}>Contact Email *</Text>
+          <Text style={styles.label}>Contact email *</Text>
           <TextInput style={styles.input} value={contactEmail} onChangeText={setContactEmail} placeholder="bids@example.com" keyboardType="email-address" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Apply URL (optional)</Text>
-          <TextInput style={styles.input} value={applyUrl} onChangeText={setApplyUrl} placeholder="https://..." autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
+          <TextInput style={styles.input} value={applyUrl} onChangeText={setApplyUrl} placeholder="https://" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
 
-          <Text style={styles.label}>Required Certifications</Text>
+          <Text style={styles.label}>Required certifications</Text>
           <TouchableOpacity style={styles.certToggle} onPress={() => setShowCertPicker(!showCertPicker)}>
             <Text style={styles.certToggleText}>
               {selectedCerts.length === 0 ? 'None selected' : `${selectedCerts.length} selected`}
@@ -316,8 +316,8 @@ export default function PostBidScreen() {
           >
             <Text style={styles.submitBtnText}>
               {atLimit
-                ? canPaywallUpsell ? 'Monthly limit reached — upgrade to post' : 'Monthly limit reached'
-                : 'Publish Bid'}
+                ? canPaywallUpsell ? 'Monthly limit reached · See plans' : 'Monthly limit reached'
+                : 'Publish bid'}
             </Text>
           </TouchableOpacity>
         </ScrollView>

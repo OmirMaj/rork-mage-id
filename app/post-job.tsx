@@ -22,8 +22,8 @@ import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 
 const JOB_TYPES: { id: JobType; label: string }[] = [
-  { id: 'full_time', label: 'Full-Time' }, { id: 'part_time', label: 'Part-Time' },
-  { id: 'contract', label: 'Contract' }, { id: 'per_diem', label: 'Per Diem' },
+  { id: 'full_time', label: 'Full-time' }, { id: 'part_time', label: 'Part-time' },
+  { id: 'contract', label: 'Contract' }, { id: 'per_diem', label: 'Per diem' },
 ];
 
 const EXP_LEVELS: { id: ExperienceLevel; label: string }[] = [
@@ -55,7 +55,7 @@ export default function PostJobScreen() {
 
   const handleSubmit = useCallback(() => {
     if (!title.trim() || !city.trim() || !payMin || !payMax || !startDate) {
-      showAlert('Missing Fields', 'Please fill in all required fields.');
+      showAlert('Fill in the required fields', 'Add a job title, city, pay range and start date.');
       return;
     }
 
@@ -82,7 +82,7 @@ export default function PostJobScreen() {
 
     addJob(job);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Job Saved', 'Your job listing has been saved to this device.', [
+    showAlert('Job post saved', 'Your job post is saved on this device.', [
       { text: 'OK', onPress: () => router.back() },
     ]);
   }, [title, trade, city, state, payMin, payMax, payType, jobType, expLevel, description, startDate, licenses, addJob, router]);
@@ -91,14 +91,14 @@ export default function PostJobScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{
-          title: 'Post a Job',
+          title: 'Post a job',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
         }} />
         <View style={styles.unavailable}>
-          <Text style={styles.unavailableTitle}>Direct Hire is coming soon</Text>
-          <Text style={styles.unavailableBody}>The in-app hiring marketplace isn&apos;t available yet. We&apos;ll let you know when you can post jobs and connect with workers.</Text>
+          <Text style={styles.unavailableTitle}>Direct hire isn&apos;t open yet</Text>
+          <Text style={styles.unavailableBody}>Job posts open when the hiring marketplace launches. You&apos;ll be told when you can post jobs and reach crew members.</Text>
         </View>
       </View>
     );
@@ -107,17 +107,17 @@ export default function PostJobScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Post a Job',
+        title: 'Post a job',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView {...fabScroll} style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
-          <Text style={styles.label}>Job Title *</Text>
+          <Text style={styles.label}>Job title *</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Journeyman Electrician" placeholderTextColor={themeColors.textMuted} />
 
-          <Text style={styles.label}>Trade / Skill Category *</Text>
+          <Text style={styles.label}>Trade or skill *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollRow}>
             {TRADE_CATEGORIES.map(t => (
               <TouchableOpacity key={t.id} style={[styles.chip, trade === t.id && styles.chipActive]} onPress={() => setTrade(t.id)}>
@@ -143,7 +143,7 @@ export default function PostJobScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>Pay Type</Text>
+          <Text style={styles.label}>Pay type</Text>
           <View style={styles.chipRow}>
             <TouchableOpacity style={[styles.chip, payType === 'hourly' && styles.chipActive]} onPress={() => setPayType('hourly')}>
               <Text style={[styles.chipText, payType === 'hourly' && styles.chipTextActive]}>Hourly</Text>
@@ -164,7 +164,7 @@ export default function PostJobScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>Job Type *</Text>
+          <Text style={styles.label}>Job type *</Text>
           <View style={styles.chipRow}>
             {JOB_TYPES.map(t => (
               <TouchableOpacity key={t.id} style={[styles.chip, jobType === t.id && styles.chipActive]} onPress={() => setJobType(t.id)}>
@@ -173,7 +173,7 @@ export default function PostJobScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>Experience Level *</Text>
+          <Text style={styles.label}>Experience level *</Text>
           <View style={styles.chipRow}>
             {EXP_LEVELS.map(e => (
               <TouchableOpacity key={e.id} style={[styles.chip, expLevel === e.id && styles.chipActive]} onPress={() => setExpLevel(e.id)}>
@@ -182,17 +182,17 @@ export default function PostJobScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>Start Date (YYYY-MM-DD) *</Text>
+          <Text style={styles.label}>Start date (YYYY-MM-DD) *</Text>
           <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="2026-05-01" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Description</Text>
-          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the role..." placeholderTextColor={themeColors.textMuted} multiline numberOfLines={4} />
+          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the role" placeholderTextColor={themeColors.textMuted} multiline numberOfLines={4} />
 
-          <Text style={styles.label}>Required Licenses (comma separated)</Text>
+          <Text style={styles.label}>Required licenses (comma separated)</Text>
           <TextInput style={styles.input} value={licenses} onChangeText={setLicenses} placeholder="OSHA 30, SST Card, CDL" placeholderTextColor={themeColors.textMuted} />
 
           <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} testID="submit-job">
-            <Text style={styles.submitBtnText}>Publish Job</Text>
+            <Text style={styles.submitBtnText}>Publish job post</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>

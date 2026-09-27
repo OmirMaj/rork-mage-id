@@ -54,12 +54,13 @@ function emptyPercentReason(plan: RetainageReleasePlan): string {
   const noWork = plan.skipped.filter(s => s.reason === 'no_work_value').length;
   const atTarget = plan.skipped.filter(s => s.reason === 'already_at_or_below_target').length;
   if (noBasis + noWork > 0 && atTarget === 0) {
-    return `${noBasis + noWork} invoice(s) hold a dollar figure a percentage target cannot step. Use the $ amount mode.`;
+    const n = noBasis + noWork;
+    return `${n} ${n === 1 ? 'invoice holds' : 'invoices hold'} a dollar figure a percentage target can’t step. Use the $ amount mode.`;
   }
   if (noBasis + noWork > 0) {
-    return `${atTarget} invoice(s) are already at or below it, and ${noBasis + noWork} hold a dollar figure a percentage target cannot step.`;
+    return `${atTarget} ${atTarget === 1 ? 'invoice is' : 'invoices are'} already at or below it, and ${noBasis + noWork} hold a dollar figure a percentage target can’t step.`;
   }
-  return 'Every invoice on this job is already at or below it.';
+  return 'Every invoice on this project is already at or below it.';
 }
 
 // HEALTH-F5: sign-correct money via the one formatter — no local Math.abs copies.
@@ -234,7 +235,7 @@ export default function RetentionScreen() {
     if (writeQueue != null) return;
     if (plan.allocations.length === 0) {
       showAlert(
-        'Nothing to Release',
+        'Nothing to release',
         releaseMode === 'percent'
           ? `${emptyPercentReason(plan)} Enter a lower target, or release a dollar figure instead.`
           : 'Enter an amount above zero. There must be retainage still held to release it.',
@@ -249,8 +250,8 @@ export default function RetentionScreen() {
     });
     if (result.outcomes.length === 0) {
       showAlert(
-        'Nothing Released',
-        'These invoices changed since this preview was drawn — none of the amounts still fit inside what is held. Reopen the release and try again.',
+        'Nothing released',
+        'These invoices changed after this preview, so none of the amounts still fit inside what is held. Reopen the release and try again.',
       );
       return;
     }
@@ -265,8 +266,8 @@ export default function RetentionScreen() {
     if (needRemint.length > 0) {
       lines.push(
         `${needRemint.length} invoice${needRemint.length === 1 ? ' had a' : 's had'} payment link${needRemint.length === 1 ? '' : 's'} for the old balance `
-        + `(#${needRemint.map(o => o.invoiceNumber).join(', #')}). Those links no longer match what is owed, so the client cannot use them — `
-        + `open the invoice and regenerate to bill the released money by link.`,
+        + `(#${needRemint.map(o => o.invoiceNumber).join(', #')}). Those links no longer match what is owed, so the client can’t use them. `
+        + `Open the invoice and regenerate the link to bill the released money.`,
       );
     }
     if (result.refused.length > 0) {
@@ -293,7 +294,7 @@ export default function RetentionScreen() {
       const { lines } = writeQueue;
       setWriteQueue(null);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showAlert('Retainage Released', lines.join('\n\n'));
+      showAlert('Retainage released', lines.join('\n\n'));
       return;
     }
     updateInvoice(write.invoiceId, write.patch);
@@ -313,7 +314,7 @@ export default function RetentionScreen() {
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: scopedProject ? `${scopedProject.name} · Retention` : 'Retention',
+          title: scopedProject ? `${scopedProject.name} · Retainage` : 'Retainage',
           headerStyle: { backgroundColor: themeColors.bg },
           headerTintColor: themeColors.accent,
           headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -325,7 +326,7 @@ export default function RetentionScreen() {
               onPress={() => setExplainerOpen(true)}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="What is retention?"
+              accessibilityLabel="What is retainage?"
               testID="retention-explainer-chip"
             >
               <HelpCircle size={20} color={themeColors.textSecondary} strokeWidth={2} />
@@ -339,19 +340,18 @@ export default function RetentionScreen() {
         onClose={() => setExplainerOpen(false)}
         term="Retention (Retainage)"
         definition={
-          'Retention is a slice of every progress payment the client keeps back — commonly 5% or 10% — '
-          + 'until the job is substantially complete and the punch list is cleared. It is your money; '
-          + 'it is just being held. MAGE computes it on the WORK VALUE — the invoice subtotal, before '
-          + 'sales tax — because you remit that tax to the state whether or not the client holds '
-          + 'retention, so withholding against it would hold back money you have already paid out. '
+          'Retainage is the share of every progress payment the client keeps back (commonly 5% or 10%) '
+          + 'until the project is substantially complete and the punch list is cleared. It is your money, '
+          + 'held. MAGE computes it on the work value, the invoice subtotal before sales tax, because you '
+          + 'remit that tax to the state whether or not the client holds retainage. '
           + 'It does not have to come back all at once: you can step the withholding down (10% to 5%, '
           + 'say) and release the rest at closeout.'
         }
         whenToUse={[
-          'When a contract says the owner holds 5% or 10% until substantial completion',
-          'At closeout, to see exactly what is still owed to you across every job',
-          'Mid-job, when the contract steps the withholding down — release part of it and leave the rest',
-          'Before you release retention to a sub — hold yours until yours is released',
+          'When a contract says the client holds 5% or 10% until substantial completion',
+          'At closeout, to see exactly what is still owed to you across every project',
+          'Mid-project, when the contract steps the withholding down — release part of it and leave the rest',
+          'Before you release retainage to a sub — hold theirs until yours is released',
         ]}
       />
 
@@ -366,7 +366,7 @@ export default function RetentionScreen() {
             <Lock size={28} color={Colors.warningLabel} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroAmount}>{formatCurrencyPrecise(totals.totalPending)}</Text>
-          <Text style={styles.heroLabel}>Retention Pending Release</Text>
+          <Text style={styles.heroLabel}>Retainage pending release</Text>
           {totals.projectsWithRetention > 0 && (
             <Text style={styles.heroMeta}>
               Across {totals.projectsWithRetention} project{totals.projectsWithRetention === 1 ? '' : 's'}
@@ -389,7 +389,7 @@ export default function RetentionScreen() {
           <View style={[styles.metricCard, { borderColor: Colors.warning + '40' }]}>
             <Lock size={14} color={Colors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalHeld)}</Text>
-            <Text style={styles.metricLabel}>Total Held</Text>
+            <Text style={styles.metricLabel}>Total held</Text>
           </View>
           <View style={[styles.metricCard, { borderColor: themeColors.success + '40' }]}>
             <Unlock size={14} color={themeColors.success} strokeWidth={1.75} />
@@ -420,7 +420,7 @@ export default function RetentionScreen() {
         {projectRetention.length === 0 && (
           <View style={styles.emptyState}>
             <Lock size={36} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No Retention Held Yet</Text>
+            <Text style={styles.emptyTitle}>No retainage held yet</Text>
             <Text style={styles.emptyBody}>
               When you set a Retention % on an invoice (e.g. 10%), that amount is held back by the client until punch list is cleared or substantial completion. It will appear here so you can track and release it.
             </Text>
@@ -455,7 +455,7 @@ export default function RetentionScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.projectName} numberOfLines={1}>{pr.project.name}</Text>
                   <Text style={styles.projectMeta}>
-                    {pr.invoicesWithRetention.length} invoice{pr.invoicesWithRetention.length === 1 ? '' : 's'} with retention
+                    {pr.invoicesWithRetention.length} invoice{pr.invoicesWithRetention.length === 1 ? '' : 's'} with retainage
                     {isComplete ? ' · Fully released' : ''}
                     {pr.summary.pendingPercent != null && pr.retentionPending > 0.005
                       // The JOB rate — all withholding ÷ all work value. A
@@ -463,7 +463,7 @@ export default function RetentionScreen() {
                       // average is NOT what a "step to 5%" lands on; the
                       // release preview prints the resulting job rate for
                       // exactly that reason.
-                      ? ` · holding ${pr.summary.pendingPercent.toFixed(pr.summary.pendingPercent < 10 ? 1 : 0)}% of work value across the job`
+                      ? ` · holding ${pr.summary.pendingPercent.toFixed(pr.summary.pendingPercent < 10 ? 1 : 0)}% of work value across the project`
                       : ''}
                   </Text>
                 </View>
@@ -544,11 +544,11 @@ export default function RetentionScreen() {
               {expanded && (
                 <View style={styles.expandedSection}>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Contract Billed</Text>
+                    <Text style={styles.detailLabel}>Contract billed</Text>
                     <Text style={styles.detailValue}>{formatCurrencyPrecise(pr.totalContract)}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={[styles.detailLabel, { color: Colors.warningLabel }]}>Retention Held</Text>
+                    <Text style={[styles.detailLabel, { color: Colors.warningLabel }]}>Retainage held</Text>
                     <Text style={[styles.detailValue, { color: Colors.warningLabel }]}>{formatCurrencyPrecise(pr.retentionHeld)}</Text>
                   </View>
                   <View style={styles.detailRow}>
@@ -556,7 +556,7 @@ export default function RetentionScreen() {
                     <Text style={[styles.detailValue, { color: themeColors.success }]}>{formatCurrencyPrecise(pr.retentionReleased)}</Text>
                   </View>
                   <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: themeColors.line, paddingTop: 8, marginTop: 4 }]}>
-                    <Text style={styles.detailLabelBold}>Pending Release</Text>
+                    <Text style={styles.detailLabelBold}>Pending release</Text>
                     <Text style={[styles.detailValueBold, { color: isComplete ? themeColors.success : themeColors.danger }]}>
                       {formatCurrencyPrecise(pr.retentionPending)}
                     </Text>
@@ -615,9 +615,8 @@ export default function RetentionScreen() {
           <View style={styles.tipCard}>
             <TrendingUp size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.tipText}>
-              Release every invoice on a job from the button on its card, or open a single invoice to release
-              just that one. Retainage does not have to come back in one piece — step the withholding down
-              now and release the balance at closeout.
+              Release every invoice on a project from the button on its card, or open one invoice to release
+              just that one. You can step the withholding down now and release the balance at closeout.
             </Text>
           </View>
         )}
@@ -765,34 +764,33 @@ export default function RetentionScreen() {
                           to the same number. */}
                       {plan.pendingPercentAfter != null && (
                         <Text style={styles.previewFoot}>
-                          The job is holding{' '}
+                          The project is holding{' '}
                           {releaseRow.summary.pendingPercent != null
                             ? `${releaseRow.summary.pendingPercent.toFixed(2)}%`
                             : '—'} of work value now and {plan.pendingPercentAfter.toFixed(2)}% after this
                           release. {releaseMode === 'percent'
-                            ? 'A percentage target is applied to each invoice separately, so the job figure does not land on the number you typed.'
-                            : 'Both figures are the whole job: what is still held divided by all the work value billed.'}
+                            ? 'A percentage target is applied to each invoice separately, so the project figure doesn’t land on the number you typed.'
+                            : 'Both figures are the whole project: what is still held divided by all the work value billed.'}
                         </Text>
                       )}
                       {plan.unallocated > 0.005 && (
                         <Text style={styles.previewWarn}>
-                          {formatCurrencyPrecise(plan.unallocated)} of what you typed cannot be released — that
-                          is more than this job is holding.
+                          {formatCurrencyPrecise(plan.unallocated)} of what you typed can’t be released. That
+                          is more than this project is holding.
                         </Text>
                       )}
                       {plan.skipped.some(s => s.reason === 'no_work_value') && (
                         <Text style={styles.previewWarn}>
-                          {plan.skipped.filter(s => s.reason === 'no_work_value').length} invoice(s) hold a
+                          {plan.skipped.filter(s => s.reason === 'no_work_value').length === 1 ? '1 invoice holds' : `${plan.skipped.filter(s => s.reason === 'no_work_value').length} invoices hold`} a
                           retainage dollar figure with no work value to take a percentage of, so a percentage
-                          target cannot touch them. Use the $ amount mode, or release them from the invoice.
+                          target can’t change it. Use the $ amount mode, or release it from the invoice.
                         </Text>
                       )}
                       {plan.skipped.some(s => s.reason === 'no_percentage_basis') && (
                         <Text style={styles.previewWarn}>
-                          {plan.skipped.filter(s => s.reason === 'no_percentage_basis').length} invoice(s)
-                          hold a fixed dollar amount rather than a percentage, so MAGE does not know what
-                          percentage that was ever meant to be and will not step it against a guess. Use the
-                          $ amount mode, or release them from the invoice.
+                          {plan.skipped.filter(s => s.reason === 'no_percentage_basis').length === 1 ? '1 invoice holds' : `${plan.skipped.filter(s => s.reason === 'no_percentage_basis').length} invoices hold`}
+                          a fixed dollar amount rather than a percentage, so a percentage target can’t
+                          step it. Use the $ amount mode, or release it from the invoice.
                         </Text>
                       )}
                     </View>
@@ -869,7 +867,7 @@ export default function RetentionScreen() {
               <Text style={styles.sourcesIntro}>
                 Retainage does not have to come back in one piece, which is why this screen can release part
                 of it. What decides that is your contract. Of the two pages below, one (Illinois) is a
-                statute that steps the withholding down during the job; the other (California) sets a
+                statute that steps the withholding down during the project; the other (California) sets a
                 deadline for paying it after completion. These are the pages MAGE ID read, and when.
               </Text>
               {RETAINAGE_SOURCES.map(src => (

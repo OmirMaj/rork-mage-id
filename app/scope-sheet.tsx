@@ -34,6 +34,7 @@ import { Tokens } from '@/constants/designTokens';
 import type { ScopeSheet, ScopeSheetItem } from '@/types';
 import { showAlert } from '@/utils/alert';
 import { projectTypeLabel } from '@/utils/projectTypes';
+import { describeError } from '@/utils/errorCopy';
 import {
   generateScopeSheet, loadScopeSheet, saveScopeSheet, scopeSheetToText, estimateTotalOf,
 } from '@/utils/scopeSheet';
@@ -42,7 +43,7 @@ type SectionKey = 'inclusions' | 'exclusions' | 'clarifications' | 'assumptions'
 
 const SECTIONS: { key: SectionKey; title: string; subtitle: string; icon: typeof Check }[] = [
   { key: 'inclusions',     title: 'Inclusions',     subtitle: "What you're providing",        icon: CircleCheck },
-  { key: 'exclusions',     title: 'Exclusions',     subtitle: "What's NOT in the price",       icon: CircleMinus },
+  { key: 'exclusions',     title: 'Exclusions',     subtitle: "What's not in the price",       icon: CircleMinus },
   { key: 'clarifications', title: 'Clarifications', subtitle: 'Pin these down before signing', icon: CircleHelp },
   { key: 'assumptions',    title: 'Assumptions',    subtitle: 'What the price depends on',     icon: Info },
   { key: 'allowances',     title: 'Allowances',     subtitle: 'Placeholder budgets',           icon: Wallet },
@@ -115,7 +116,8 @@ export default function ScopeSheetScreen() {
       if (s.source === 'ai') void recordAIUsage('smart', 'aiEstimateWizard');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      showAlert('Could not generate', err instanceof Error ? err.message : 'Please try again.');
+      const copy = describeError(err, { action: 'draft the scope sheet' });
+      showAlert("Couldn't draft the scope sheet", copy.body);
     } finally {
       setGenerating(false);
     }
@@ -155,7 +157,7 @@ export default function ScopeSheetScreen() {
     if (!sheet) return;
     await Clipboard.setStringAsync(scopeSheetToText(sheet, project?.name));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    showAlert('Copied', 'Scope sheet copied to clipboard.');
+    showAlert('Scope sheet copied', 'It\'s on your clipboard.');
   }, [sheet, project?.name]);
 
   const shareAll = useCallback(async () => {
@@ -167,7 +169,7 @@ export default function ScopeSheetScreen() {
   if (!project) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Scope Sheet' }} />
+        <Stack.Screen options={{ title: 'Scope sheet' }} />
         <Text style={styles.emptyText}>Open this from a project to draft its scope sheet.</Text>
       </View>
     );
@@ -181,7 +183,7 @@ export default function ScopeSheetScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Scope Sheet' }} />
+      <Stack.Screen options={{ title: 'Scope sheet' }} />
       <ScrollView {...fabScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         {/* Header card */}
         <View style={styles.headerCard}>
@@ -225,11 +227,11 @@ export default function ScopeSheetScreen() {
             <View style={styles.emptyIcon}><MageAIMark size={26} color={t.accent} /></View>
             <Text style={styles.emptyTitle}>Draft the scope from your estimate</Text>
             <Text style={styles.emptyBody}>
-              MAGE reads your estimate line items and drafts the inclusions, exclusions, clarifications, assumptions, and
-              allowances — the scope language that protects your margin at change-order time. Edit anything before you send it.
+              MAGE drafts the inclusions, exclusions, clarifications, assumptions and allowances from your estimate
+              line items. Edit anything before you send it.
             </Text>
             <TouchableOpacity style={styles.primaryBtn} onPress={() => generate(false)} disabled={generating} activeOpacity={0.85} testID="generate-scope-sheet">
-              {generating ? <ActivityIndicator color={Colors.textOnAccent} /> : <><MageAIMark size={16} color={Colors.textOnAccent} /><Text style={styles.primaryBtnText}>Generate scope sheet</Text></>}
+              {generating ? <ActivityIndicator color={Colors.textOnAccent} /> : <><MageAIMark size={16} color={Colors.textOnAccent} /><Text style={styles.primaryBtnText}>Draft scope sheet</Text></>}
             </TouchableOpacity>
           </View>
         )}
@@ -259,7 +261,7 @@ export default function ScopeSheetScreen() {
                         style={styles.editInput}
                         value={draft}
                         onChangeText={setDraft}
-                        placeholder="Describe this scope line…"
+                        placeholder="Describe this scope line"
                         placeholderTextColor={t.textMuted}
                         multiline
                         autoFocus
@@ -334,7 +336,7 @@ export default function ScopeSheetScreen() {
       <UpgradeSheet
         visible={!!upgradeLimit}
         limit={upgradeLimit}
-        featureLabel="AI Scope Sheet"
+        featureLabel="Scope sheet drafts"
         onClose={() => setUpgradeLimit(null)}
       />
     </View>

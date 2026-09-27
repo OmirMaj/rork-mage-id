@@ -995,6 +995,6 @@ export interface ReportCsvDocument {
 export function reportCsvDocument(kind: 'wip' | 'aging', asOf: string): ReportCsvDocument {
   const asOfDay = asOf.slice(0, 10);
   return kind === 'wip'
-    ? { fileName: `wip-schedule-${asOfDay}.csv`, dialogTitle: `WIP Schedule ${asOfDay}` }
-    : { fileName: `ar-aging-${asOfDay}.csv`, dialogTitle: `A/R Aging ${asOfDay}` };
+    ? { fileName: `wip-schedule-${asOfDay}.csv`, dialogTitle: `WIP schedule ${asOfDay}` }
+    : { fileName: `ar-aging-${asOfDay}.csv`, dialogTitle: `A/R aging ${asOfDay}` };
 }

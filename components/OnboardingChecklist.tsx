@@ -326,7 +326,7 @@ function OnboardingChecklistImpl({
             <Text style={styles.subtitle}>
               {doneCount === 0
                 ? '5 steps. The first three take about two minutes; Stripe takes longer.'
-                : `${doneCount} of ${total} done — keep going.`}
+                : `${doneCount} of ${total} done`}
             </Text>
           </View>
         </View>
@@ -391,7 +391,7 @@ function OnboardingChecklistImpl({
                   onPress={() => handleShowMe(showMe)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={`${showMe.label} — practise on a sample job`}
+                  accessibilityLabel={`${showMe.label}, practise on the sample project`}
                   testID={`onboarding-checklist-${item.key}-show-me`}
                 >
                   <Text style={styles.showMeText}>{showMe.label}</Text>

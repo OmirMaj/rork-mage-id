@@ -41,7 +41,7 @@ export function typeProfitabilityFacts(result: TypeProfitabilityResult): Portfol
   const visibleRows = result.rows.filter(r => !r.gated && r.avgMarginPct !== null);
   if (visibleRows.length === 0) {
     facts.push(
-      'No job types have enough closed projects (2+) to report realized margin yet.',
+      'No project types have enough closed projects (2+) to report realized margin yet.',
     );
   } else {
     // Sort by revenue-weighted margin descending
@@ -51,13 +51,13 @@ export function typeProfitabilityFacts(result: TypeProfitabilityResult): Portfol
     for (const r of sorted) {
       const rwm = r.revenueWeightedMarginPct ?? r.avgMarginPct!;
       facts.push(
-        `${r.label}: ${r.jobCount} closed job${r.jobCount === 1 ? '' : 's'}, ${fmtPct(rwm)} revenue-weighted margin (${fmtMoney(r.totalRevenue)} total revenue).`,
+        `${r.label}: ${r.jobCount} closed project${r.jobCount === 1 ? '' : 's'}, ${fmtPct(rwm)} revenue-weighted margin (${fmtMoney(r.totalRevenue)} total revenue).`,
       );
     }
     const gatedTypes = result.rows.filter(r => r.gated && r.jobCount === 1);
     if (gatedTypes.length > 0) {
       facts.push(
-        `${gatedTypes.length} other type${gatedTypes.length === 1 ? '' : 's'} have only 1 closed job — not enough for a reliable margin reading.`,
+        `${gatedTypes.length} other type${gatedTypes.length === 1 ? '' : 's'} have only 1 closed project, not enough for a reliable margin reading.`,
       );
     }
   }

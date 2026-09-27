@@ -799,7 +799,7 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
     ok('…and at a $0.00 remainder it does NOT send him somewhere to bill nothing',
       /leaving nothing to bill against it/.test(copy)
       && /change order/.test(copy) && /update the contract value/.test(copy)
-      && !/Bill from Estimate/.test(copy),
+      && !/Bill from estimate/.test(copy),
       copy);
     const partial = milestoneBillability({
       milestone: ms(1) as never, contractValue: CONTRACT, contractStatus: 'signed',
@@ -811,7 +811,7 @@ console.log('\nONE contract, ONE billed-to-date (MONEY-LEDGER-1):');
     ok('…while a refusal with a real remainder still names both ways out',
       partial.reason === 'contract_fully_billed'
       && /leaving \$1,000\.00/.test(partialCopy)
-      && /Bill from Estimate/.test(partialCopy) && /update the contract value/.test(partialCopy),
+      && /Bill from estimate/.test(partialCopy) && /update the contract value/.test(partialCopy),
       partialCopy);
   }
 
@@ -1427,8 +1427,8 @@ console.log('\nbuyout nets against its budget (JOBCOST-PHASE-1):');
       + 'two-screens-disagree defect moved inside one screen');
     ok('…and the footer no longer describes the arithmetic this wave replaced',
       !/Budget includes approved change orders\. Actual is/.test(jcScreen)
-      && /at their estimated COST/.test(jcScreen)
-      && /floor ONCE across the whole job/.test(jcScreen),
+      && /at their estimated cost/.test(jcScreen)
+      && /one floor across the whole\s+project/.test(jcScreen),
       'the footer said "Budget includes approved change orders" (they now enter at cost) and '
       + '"uncommitted budget is a floor" (it is now one project-level floor)');
   }

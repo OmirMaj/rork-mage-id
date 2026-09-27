@@ -333,7 +333,7 @@ export default function HandoverScreen() {
         key: 'warranties',
         label: 'Warranties on file',
         detail: projectWarranties.length === 0
-          ? 'Add manufacturer + workmanship warranties so the client has them.'
+          ? 'Add manufacturer and workmanship warranties so the client has them.'
           : `${projectWarranties.length} warrant${projectWarranties.length === 1 ? 'y' : 'ies'} recorded`,
         icon: ShieldCheck,
         status: warrantyStatus,
@@ -354,12 +354,12 @@ export default function HandoverScreen() {
         key: 'binder',
         label: 'Closeout binder delivered',
         detail: !binder
-          ? 'Compile and deliver the binder so the client has finishes, warranties, and contacts in one place.'
+          ? 'Compile and deliver the binder so the client has finishes, warranties and contacts in one place.'
           : binder.status === 'sent'
             ? `Delivered ${binder.sentAt ? new Date(binder.sentAt).toLocaleDateString() : ''}`
             : binder.status === 'finalized'
-              ? 'Finalized — tap to deliver to client'
-              : 'Draft only — finalize and deliver',
+              ? 'Finalized · Tap to deliver to client'
+              : 'Draft only · Finalize and deliver',
         icon: BookOpen,
         status: binderStatus,
         cta: '/closeout-binder',
@@ -420,17 +420,17 @@ export default function HandoverScreen() {
     const permitsRow: HandoverItem = permitState.status === 'none'
       ? {
         key: 'permits_na',
-        label: 'Permits & final inspection',
+        label: 'Permits and final inspection',
         detail: manualChecks['permits_na']
           ? `No permits required on this job — confirmed ${new Date(manualChecks['permits_na']).toLocaleDateString()}`
-          : 'No permits logged. Tap to confirm this job needed none — or log them on the Permits screen.',
+          : 'No permits logged. Tap to confirm this project needed none, or log them on the Permits screen.',
         icon: Landmark,
         status: manualChecks['permits_na'] ? 'done' : 'open',
         manual: true,
       }
       : {
         key: 'permits',
-        label: 'Permits & final inspection',
+        label: 'Permits and final inspection',
         detail: permitState.detail,
         icon: Landmark,
         status: permitState.status,
@@ -502,10 +502,10 @@ export default function HandoverScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ToolHeader eyebrow="HANDOVER · MAGE ID" title="Walkthrough day checklist" />
+        <ToolHeader eyebrow="Handover · MAGE ID" title="Walkthrough day checklist" />
         <ToolProjectPicker
           toolName="Handover"
-          message="The walkthrough checklist reads one job — its selections, punch list, warranties, binder and final invoice."
+          message="The walkthrough checklist reads one project: its selections, punch list, warranties, binder and final invoice."
           projects={projects}
           onPick={setPickedProjectId}
           staleProjectId={staleProjectId}
@@ -531,9 +531,9 @@ export default function HandoverScreen() {
       <FeatureHeader
         eyebrow="Handover"
         title="Don&apos;t leave anything unchecked"
-        subtitle="The walkthrough-day flow most GCs improvise. Every spec confirmed, every signature collected, every key handed over — captured in one place."
+        subtitle="Every spec confirmed, every signature collected and every key handed over, in one place."
         explainer={{
-          term: 'Handover Checklist',
+          term: 'Handover checklist',
           definition: 'Handover is the day you walk the client through the finished project, demonstrate every system (HVAC, controls, life safety, access), confirm every selection, walk the punch list, and collect signatures on the certificate of substantial completion. Skipping a step here is how warranty disputes start six months later.',
           whenToUse: [
             'Day-of project completion, before the client takes occupancy',
@@ -546,7 +546,7 @@ export default function HandoverScreen() {
       {loading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="small" color={themeColors.accent} />
-          <Text style={styles.loadingText}>Computing your status…</Text>
+          <Text style={styles.loadingText}>Checking closeout items…</Text>
         </View>
       ) : (
         <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
@@ -560,7 +560,7 @@ export default function HandoverScreen() {
             </View>
             <Text style={styles.heroBody}>
               {allDone
-                ? 'Every box is ticked. Hand over the keys with confidence.'
+                ? 'Every item is done. You can hand over the keys.'
                 : `${heroParts.join(', ')}.`}
             </Text>
             {/* Progress bar */}
@@ -596,7 +596,7 @@ export default function HandoverScreen() {
           ))}
 
           <Text style={styles.fineprint}>
-            MAGE ticks what it can read from this job. Walk-through and keys — and &quot;no permits required&quot; on a job with none logged — are yours to tick; we save the date you do it.
+            MAGE checks off what it can read from this project. The walk-through, the keys and &quot;no permits required&quot; on a project with none logged are yours to check off, and the date you do it is saved.
           </Text>
         </ScrollView>
       )}

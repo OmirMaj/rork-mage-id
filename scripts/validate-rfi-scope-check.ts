@@ -102,7 +102,7 @@ ok('card marks drafts with RFI_DRAFT_ACTION', /RFI_DRAFT_ACTION/.test(card) && /
 ok('card gates on isLeakDraftOwner', /isLeakDraftOwner\(project,\s*user\?\.id\)/.test(card));
 const raw = read(CARD);
 ok('card says the estimate blocked reason',
-  raw.includes('Link an estimate to this job first. The check compares the answer with your contracted scope.'));
+  raw.includes('Link an estimate to this project first. The check compares the answer with your contracted scope.'));
 ok('card says the owner blocked reason', raw.includes('Only the project owner drafts change orders.'));
 ok("card groups 'Looks already in your scope'", raw.includes('Looks already in your scope'));
 ok('card says verdicts are kept until you sign out', raw.includes('until you sign out'));

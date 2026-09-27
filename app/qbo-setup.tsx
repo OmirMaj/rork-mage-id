@@ -335,7 +335,8 @@ function QboSetupScreenInner() {
         body: { kind: 'reversal', op: 'upsert', objectId: `${line.invoiceId}::${line.entryId}`, listedAmount: line.amount },
       });
       if (error || !data?.success) {
-        showAlert('Not saved', `${data?.error ?? error?.message ?? 'MAGE could not reach the server.'} Check your connection and try again — the refund stays listed until this is saved.`);
+        console.warn('[qbo-setup] refund ack not saved:', data?.error ?? error?.message);
+        showAlert('Not saved', 'MAGE couldn’t save this. Check your connection and try again. The refund stays listed until it is saved.');
         return;
       }
       await ledgerQuery.refetch();
@@ -468,11 +469,11 @@ function QboSetupScreenInner() {
               <View style={styles.hero}>
                 <View style={styles.heroBadge}>
                   <View style={styles.qboMark}><Text style={styles.qboMarkText}>qb</Text></View>
-                  <Text style={styles.heroPill}>QUICKBOOKS ONLINE</Text>
+                  <Text style={styles.heroPill}>QuickBooks Online</Text>
                 </View>
                 <Text style={styles.heroTitle}>Live 2-way sync with QuickBooks</Text>
                 <Text style={styles.heroSub}>
-                  Stop double-entering invoices. MAGE pushes new customers, invoices, items, and the payments you record to your books as you save them. Payments clients make through your Pay link, and anything that failed to push, go over on the next background reconcile (every 30 minutes) — and QuickBooks-side payments come back the same way.
+                  MAGE sends new customers, invoices, items and the payments you record to your books as you save them. Pay-link payments, retries and payments entered in QuickBooks move on the next background reconcile, every 30 minutes.
                 </Text>
                 <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onConnect} testID="qbo-connect">
                   <ExternalLink size={16} color="#FFFFFF" strokeWidth={1.75} />
@@ -487,7 +488,7 @@ function QboSetupScreenInner() {
                 <SyncRow Icon={Users}    title="Customers"  sub="Each MAGE project becomes a QuickBooks Customer" styles={styles} colors={colors} />
                 <SyncRow Icon={Package}  title="Items"      sub="Estimate line items become Service items in QBO" styles={styles} colors={colors} />
                 <SyncRow Icon={FileText} title="Invoices"   sub="MAGE invoices appear with line-item detail" styles={styles} colors={colors} />
-                <SyncRow Icon={DollarSign} title="Payments" sub="Two-way — recorded and Pay-link payments go to QuickBooks; payments entered in QuickBooks come back" styles={styles} colors={colors} />
+                <SyncRow Icon={DollarSign} title="Payments" sub="Both ways. Recorded and Pay-link payments go to QuickBooks; payments entered in QuickBooks come back" styles={styles} colors={colors} />
               </View>
 
               {/* How it works */}
@@ -495,7 +496,7 @@ function QboSetupScreenInner() {
               <View style={styles.stepsCard}>
                 <StepRow num={1} title="Connect once"    sub="Sign in to Intuit, pick your QuickBooks company, approve access. We never see your password." styles={styles} colors={colors} last={false} />
                 <StepRow num={2} title="Work in MAGE"    sub="Create projects and invoices like you normally would. Every save pushes to QuickBooks behind the scenes." styles={styles} colors={colors} last={false} />
-                <StepRow num={3} title="Reconcile auto"  sub="A background job runs every 30 minutes: it sends Pay-link payments, retries anything that failed, and brings QBO-side payments back to MAGE." styles={styles} colors={colors} last={true} />
+                <StepRow num={3} title="Reconcile automatically"  sub="A background job runs every 30 minutes: it sends Pay-link payments, retries anything that failed, and brings QBO-side payments back to MAGE." styles={styles} colors={colors} last={true} />
               </View>
 
               {/* Trust footer */}
@@ -516,10 +517,10 @@ function QboSetupScreenInner() {
           ) : status.status === 'error' || status.status === 'connecting' ? (
             <View style={[styles.card, styles.cardWarn]}>
               <AlertTriangle size={20} color={colors.danger} strokeWidth={1.75} />
-              <Text style={styles.cardTitle}>{status.status === 'connecting' ? 'Connecting…' : 'Connection Error'}</Text>
+              <Text style={styles.cardTitle}>{status.status === 'connecting' ? 'Connecting…' : 'Connection error'}</Text>
               <Text style={styles.cardSub}>{status.status === 'connecting'
                 ? 'OAuth in progress. Come back in a moment.'
-                : 'Something went wrong with your QuickBooks connection. Try reconnecting.'}</Text>
+                : 'Your QuickBooks connection has an error. Reconnect to fix it.'}</Text>
               {status.status === 'error' && (
                 <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onConnect} testID="qbo-connect">
                   <Text style={styles.primaryText}>{busy ? 'Opening…' : 'Retry'}</Text>
@@ -531,7 +532,7 @@ function QboSetupScreenInner() {
               {celebrate ? (
                 <View style={styles.celebrateHero}>
                   <QboSuccessCheckmark size={88} color={colors.success} />
-                  <Text style={styles.celebrateTitle}>Connected!</Text>
+                  <Text style={styles.celebrateTitle}>Connected</Text>
                   <Text style={styles.celebrateSub}>
                     {status.companyName ? `MAGE is now linked to ${status.companyName}.` : 'MAGE is now linked to your QuickBooks Online account.'}
                   </Text>
@@ -583,7 +584,7 @@ function QboSetupScreenInner() {
                     </View>
                     {unsyncedPayments > 0 ? (
                       <Text style={styles.cardSub}>
-                        New Pay-link payments and failed pushes are tried again on the next reconcile (every 30 minutes), up to 5 times. A payment MAGE refused or stopped trying is listed below with the reason, and is not sent while that holds — match it by hand in QuickBooks. Payments from before automatic sending began are not sent either — your bookkeeper may already have entered them.
+                        New Pay-link payments and failed pushes are tried again on the next reconcile (every 30 minutes), up to 5 times. A payment MAGE refused or stopped trying is listed below with the reason. Match those by hand in QuickBooks. Payments from before automatic sending began aren’t sent. Your bookkeeper may already have entered them.
                       </Text>
                     ) : null}
                     {stuckPayments.map((p) => (
@@ -684,7 +685,7 @@ function QboSetupScreenInner() {
                   <Text style={styles.syncSub}>
                     {pendingCount > 0
                       ? `${pendingCount} purchase${pendingCount === 1 ? '' : 's'}/bill${pendingCount === 1 ? '' : 's'} from QuickBooks waiting for your confirm`
-                      : 'Purchases & bills from QuickBooks — confirm to file into job costs'}
+                      : 'Purchases and bills from QuickBooks. Confirm them to file into job costs.'}
                   </Text>
                 </View>
                 {pendingCount > 0 && (
@@ -812,6 +813,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: t.textMuted,
     letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   heroTitle: {
     fontSize: 22,

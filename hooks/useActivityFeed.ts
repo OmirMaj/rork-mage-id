@@ -14,6 +14,16 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { invoiceIsSettled } from '@/utils/invoiceBilling'; // MONEY-F5
 import type { EntityRef } from '@/types';
 
+// Status labels come from a map, never from the raw enum (docs/VOICE.md §6).
+const CO_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
+  rejected: 'Rejected', revised: 'Revised', void: 'Void',
+};
+const SUBMITTAL_STATUS_LABEL: Record<string, string> = {
+  pending: 'Pending', in_review: 'In review', approved: 'Approved', approved_as_noted: 'Approved as noted',
+  revise_resubmit: 'Revise and resubmit', rejected: 'Rejected',
+};
+
 export type ActivityAction =
   | 'created'
   | 'updated'
@@ -68,7 +78,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
         timestamp: co.updatedAt ?? co.date,
         action: co.status === 'approved' ? 'completed' : 'updated',
         title: `CO #${co.number} — ${co.description}`,
-        summary: `${co.status.replace(/_/g, ' ')} · ${formatMoneyShort(co.changeAmount)}`,
+        summary: `${CO_STATUS_LABEL[co.status] ?? co.status} · ${formatMoneyShort(co.changeAmount)}`,
       });
     }
 
@@ -92,7 +102,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
         ref: { kind: 'dailyReport', id: dr.id, projectId },
         timestamp: dr.updatedAt ?? dr.date,
         action: dr.status === 'sent' ? 'completed' : 'updated',
-        title: `Daily Report · ${dr.date}`,
+        title: `Daily report · ${dr.date}`,
         summary: dr.workPerformed ? truncate(dr.workPerformed, 80) : undefined,
       });
     }
@@ -129,7 +139,7 @@ export function useActivityFeed(projectId: string | undefined): ActivityItem[] {
         timestamp: sub.updatedAt ?? sub.submittedDate,
         action: sub.currentStatus === 'approved' ? 'completed' : 'updated',
         title: `Submittal #${sub.number} — ${sub.title}`,
-        summary: `${sub.specSection || 'No spec'} · ${sub.currentStatus.replace(/_/g, ' ')}`,
+        summary: `${sub.specSection || 'No spec'} · ${SUBMITTAL_STATUS_LABEL[sub.currentStatus] ?? sub.currentStatus}`,
       });
     }
 

@@ -591,11 +591,11 @@ export function fieldSendFailureMessage(err: { message?: string; code?: string }
   if (code === 'PGRST202' || code === '42883' || msg.includes('could not find the function')) {
     return 'Not saved — progress updates on field access are not switched on for this account yet. Tell the project owner.';
   }
-  if (code === '22023') return `Not saved — ${err?.message?.replace(/^field_update_schedule_tasks:\s*/, '') ?? 'that change is not a field update'}.`;
+  if (code === '22023') return 'Not saved — that change isn\'t a progress update, so field access can\'t send it.';
   if (msg.includes('network') || msg.includes('fetch') || msg.includes('offline') || msg.includes('timed out')) {
     return 'Not saved — no connection. Progress updates on field access need a signal; try again when you are back online.';
   }
-  return 'Not saved — the server did not accept the update. Try again, or ask the project owner.';
+  return 'Not saved — the update didn\'t go through. Try again, or ask the project owner.';
 }
 
 /**

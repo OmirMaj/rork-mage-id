@@ -519,7 +519,7 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
     ['pay_app_contract_sum', /LATEST saved AIA pay application/],
     // And the ETC branch has to say the GC entered it, because on that branch
     // the cost at completion is his forecast rather than anything MAGE derived.
-    ['cost_to_complete_entered', /cost to complete YOU entered/],
+    ['cost_to_complete_entered', /cost to complete you entered/],
     ['estimate_grand_total', /grand total/i],
     ['change_order_snapshot', /change order/i],
     ['target_budget', /target budget/i],
@@ -608,7 +608,7 @@ const DRAFT = invoice('inv-draft', 80_000, 'draft');
   // true here; a ternary on it would be the tested-but-unreachable shape this
   // repo removed `percentCompleteOverride` for).
   eq('…and the drill-in names the gap the figure actually has',
-    /A trade with no rate on file and a machine with no day rate add nothing/.test(screen), true);
+    /Trades with no rate on file and equipment with no day rate count as \$0/.test(screen), true);
   eq('…without an unreachable lower-bound branch beside it',
     /Self-performed labor is NOT included/.test(screen), false);
   // …while the ENGINE keeps that sentence, because a period frozen before F4
@@ -866,11 +866,11 @@ console.log('\ncost-to-date is the whole recorded cost, identically, in both eng
   eq('the components sentence names only the components that carry money',
     describeCostToDateComponents(full), '$1,000 subs paid + $200 material receipts + $50 permit fees.');
   eq('…and an empty wired job says MAGE looked, not that it cannot see',
-    /No cost recorded on this job yet/.test(
+    /No cost recorded on this project yet/.test(
       describeCostToDateComponents(suggestCostToDateWithSource([], [], { projectId: 'p1' }))), true);
   eq('…while an unwired empty job says only what it checked',
     describeCostToDateComponents(suggestCostToDateWithSource([], [])),
-    'No sub payments and no material receipts recorded on this job yet.');
+    'No sub payments and no material receipts recorded on this project yet.');
 }
 
 // ── AXES 5, 6 AND 7 — CONTRACT, BILLINGS, PERCENT COMPLETE ──────────────────

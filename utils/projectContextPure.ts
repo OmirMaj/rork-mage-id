@@ -1464,7 +1464,7 @@ export function coRealtimeShouldRefetch(
  * same rule as utils/portalLiteSync.isPortalOwner. Signed out, every project
  * is a local one.
  */
-export const DELETE_NOT_OWNER_REASON = 'Only the project owner can delete this job. You can leave it instead.';
+export const DELETE_NOT_OWNER_REASON = 'Only the project owner can delete this project. You can leave it instead.';
 /**
  * Wave 5 #61 (CONTRACT 22): the safety rule, checked after the owner rule. A
  * job with injury / near-miss records on the OSHA 300 log is not deleted —
@@ -1492,7 +1492,7 @@ export function deleteProjectRefusal(
 /** The server could not be asked (offline, timed out, refused the read) and
  *  the device knows of no incident: the delete waits — a guess either way
  *  would erase records OSHA says to keep. */
-export const SAFETY_CHECK_OFFLINE_REASON = 'Can’t check this job’s safety records offline — try again with signal.';
+export const SAFETY_CHECK_OFFLINE_REASON = 'Can’t check this project’s safety records offline. Try again with signal.';
 
 /** The action a safety refusal offers instead of Delete. */
 export const DELETE_SAFETY_ACTION = 'mark_closed' as const;
@@ -1502,8 +1502,8 @@ export const DELETE_SAFETY_ACTION = 'mark_closed' as const;
 export function deleteProjectSafetyRefusal(jobName: string | null | undefined, incidentCount: number | null | undefined): string | null {
   const n = typeof incidentCount === 'number' && Number.isFinite(incidentCount) ? Math.floor(incidentCount) : 0;
   if (n <= 0) return null;
-  const job = (jobName ?? '').trim() || 'This job';
-  return `${job} has ${n} injury/near-miss record${n === 1 ? '' : 's'} on your OSHA 300 log, which must be kept for 5 years. Mark the job Closed instead.`;
+  const job = (jobName ?? '').trim() || 'This project';
+  return `${job} has ${n} injury/near-miss record${n === 1 ? '' : 's'} on your OSHA 300 log, which must be kept for 5 years. Mark the project Closed instead.`;
 }
 
 /**
@@ -1875,7 +1875,7 @@ export function revokedCachedProjectIds(
 /** The sentence a queued write for a job he lost access to is dropped with. */
 export function noLongerHaveAccessReason(jobName: string | null | undefined): string {
   const name = (jobName ?? '').trim();
-  return `You no longer have access to ${name ? name : 'this job'}`;
+  return `You no longer have access to ${name ? name : 'this project'}`;
 }
 
 /**

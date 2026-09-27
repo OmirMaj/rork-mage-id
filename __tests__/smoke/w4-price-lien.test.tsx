@@ -118,7 +118,7 @@ describe('Lien clock card', () => {
       const eight = formatCalendarDay(addCalendarMonths(last, 8));
       const four = formatCalendarDay(addCalendarMonths(last, 4));
       expect(screen.getByText(new RegExp(`New York: file by ${eight} — or by ${four} if this is a single-family dwelling`))).toBeTruthy();
-      expect(screen.getByText(/A public job \(city, state, school, authority\) has a much shorter deadline/)).toBeTruthy();
+      expect(screen.getByText(/A public project \(city, state, school, authority\) has a much shorter deadline/)).toBeTruthy();
       expect(screen.getByText(/N\.Y\. Lien Law § 10/)).toBeTruthy();
     } else {
       expect(screen.getByText(/We couldn't verify New York's lien deadline today/)).toBeTruthy();
@@ -137,7 +137,7 @@ describe('Lien clock card', () => {
     mockCtx.dailyReportsLoaded = false;
     mockCtx.getDailyReportsForProject = () => [];
     render(<LienClockCard projectId="p1" />, { wrapper: Wrapper });
-    expect(screen.getByText('Reading your daily log…')).toBeTruthy();
+    expect(screen.getByText('Reading your daily reports…')).toBeTruthy();
     expect(screen.queryByText(/No daily report on this job/)).toBeNull();
   });
 });

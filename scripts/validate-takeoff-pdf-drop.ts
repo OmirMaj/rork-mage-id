@@ -71,7 +71,7 @@ const hookCode = hook.replace(/^\s*\/\/.*$/gm, '');
 ok('planControlBlock(…, \'import\', …)', /planControlBlock\(\s*seatRole\s*,\s*'import'\s*,/.test(hookCode));
 ok('#90: a settled null seat (not loading / errored / paused / offline) says "not on this job", never "Checking…" for good',
   /settledNoSeat = seatRole === null && !roleState\.isLoading && !roleState\.isError\s*&& !roleState\.isPaused && !offline;/.test(hookCode)
-  && /settledNoSeat\s*\?\s*NO_SEAT_IMPORT/.test(hookCode) && /export const NO_SEAT_IMPORT = 'You\\u2019re not on this job/.test(hookCode));
+  && /settledNoSeat\s*\?\s*NO_SEAT_IMPORT/.test(hookCode) && /export const NO_SEAT_IMPORT = 'You\\u2019re not on this project/.test(hookCode));
 ok('seat role through effectivePlanRole', /effectivePlanRole\(\s*role\s*,/.test(hookCode));
 ok('role status from useProjectRoleState + offline', /useProjectRoleState\(/.test(hookCode) && /isError:\s*roleState\.isError,\s*offline/.test(hookCode));
 ok('a blocked seat stops before anything else', /if \(blockReason\) \{ showAlert\('Can(?:\\u2019|’)t add sheets', blockReason\); return \[\]; \}/.test(hookCode));
@@ -86,7 +86,7 @@ ok('Plans’ field mapping', ['userId: authUser?.id', 'storagePath: p.storagePat
   .every((s) => hookCode.includes(s)));
 const fin = /\}\s*finally\s*\{([\s\S]*?)\n {4}\}/.exec(hookCode);
 ok('URL.revokeObjectURL inside a finally', !!fin && /URL\.revokeObjectURL\(fileUri\)/.test(fin[1]));
-ok('errors → Import failed', /showAlert\('Import failed', msg\)/.test(hookCode));
+ok('errors → describeError, never the raw message', /describeError\(err, \{ action: 'import that PDF' \}\)/.test(hookCode) && /showAlert\(copy\.title, copy\.body\)/.test(hookCode));
 ok('status: Uploading → Saving <n> → the done line', /setStatus\('Uploading PDF(?:\\u2026|…)'\)[\s\S]*setStatus\(pdfDropSavingLine\(pages\.length\)\)[\s\S]*settle\(created\.length > 0 \? pdfDropDoneLine\(created\.length\)/.test(hookCode));
 ok('inert off the web', /if \(Platform\.OS !== 'web'\) return INERT;/.test(hookCode));
 

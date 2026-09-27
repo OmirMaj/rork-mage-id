@@ -120,7 +120,7 @@ export function defaultMissedOutMs(entry: TimeEntry, alertHours: number, nowMs: 
 /** Why an entered out time can't be saved, or null when it can. */
 export function outTimeProblem(entry: Pick<TimeEntry, 'clockIn'>, outMs: number, nowMs: number): string | null {
   const inMs = Date.parse(entry.clockIn);
-  if (!Number.isFinite(outMs)) return 'Enter the time he left, e.g. 3:30 pm.';
+  if (!Number.isFinite(outMs)) return 'Enter the time they left, e.g. 3:30 pm.';
   if (Number.isFinite(inMs) && outMs <= inMs) return 'The out time has to be after the clock-in.';
   if (outMs > nowMs + 60_000) return 'The out time can’t be later than now.';
   if (Number.isFinite(inMs) && outMs - inMs > 24 * 3_600_000) return 'A shift can’t run past 24 hours. Pick a time within a day of the clock-in.';
@@ -254,7 +254,7 @@ export function payrollBlockedReason(sel: PayrollSelection, period: PayPeriod): 
   if (sel.open.length > 0) {
     return `Nobody has finished a shift between ${period.start} and ${period.end} yet — ${sel.open.length} still on the clock. Clock them out first.`;
   }
-  return `No finished shifts between ${period.start} and ${period.end}. Pick another week or job.`;
+  return `No finished shifts between ${period.start} and ${period.end}. Pick another week or project.`;
 }
 
 /** "2 crew still on the clock (Mike, Jose) — not included". */
@@ -578,5 +578,5 @@ export function savedCrewLine(fetchedAt: string, offline: boolean): string {
     : 'earlier';
   return offline
     ? `You're offline. Crew list and certificate flags from ${when}, saved on this phone.`
-    : `Showing the crew list saved ${when} while this job's list reloads.`;
+    : `Showing the crew list saved ${when} while this project's list reloads.`;
 }

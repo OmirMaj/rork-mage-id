@@ -82,7 +82,7 @@ if (N) {
   const fail = N.wave3NotifyText('client_payment_failed', { number: 7, amount: 1250.5 }, 'Henderson');
   ok('a bounced payment says nothing was credited', !!fail && /\$1,250\.50/.test(fail.pushBody) && /still open/.test(fail.pushBody));
   const dr = N.wave3NotifyText('field_report_filed', { author_name: 'Luis' }, 'Henderson');
-  ok('a filed report names its author and that the homeowner sees nothing yet', dr?.title === 'Luis filed a daily report' && /homeowner/.test(dr.pushBody));
+  ok('a filed report names its author and that the client sees nothing yet', dr?.title === 'Luis filed a daily report' && /client/.test(dr.pushBody));
   const rfi = N.wave3NotifyText('pro_response_received', { kind: 'rfi', number: 12, responder_name: 'Arch Co', action_code: 'Answered' }, 'Henderson');
   ok('an RFI response names the RFI, the responder and the code', rfi?.pushTitle === 'RFI #12 answered · Henderson' && /Arch Co responded — Answered/.test(rfi.pushBody));
   const sub = N.wave3NotifyText('pro_response_received', { kind: 'submittal', number: 3, action_code: 'Revise and resubmit' }, 'H');

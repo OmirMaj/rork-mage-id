@@ -101,7 +101,7 @@ export function provenanceClaimModel(
   input: ProvenanceInput,
 ): RateProvenanceChipModel | null {
   const { provenance, jobCount, earnedBasis } = input;
-  const jobs = `${jobCount} job${jobCount === 1 ? '' : 's'}`;
+  const jobs = `${jobCount} ${jobCount === 1 ? 'project' : 'projects'}`;
 
   if (provenance === 'earned') {
     // jobCount EXCLUDES seed samples by construction. An 'earned' entry that
@@ -110,16 +110,16 @@ export function provenanceClaimModel(
     // Signed, not settled. Real jobs, real contracts — but calling it MEASURED
     // would be claiming a payment that has not happened.
     if (earnedBasis === 'contracted') {
-      return { provenance: 'earned', label: `SIGNED · ${jobs}`, tone: 'contracted', jobCount };
+      return { provenance: 'earned', label: `Signed · ${jobs}`, tone: 'contracted', jobCount };
     }
-    return { provenance: 'earned', label: `MEASURED · ${jobs}`, tone: 'measured', jobCount };
+    return { provenance: 'earned', label: `Measured · ${jobs}`, tone: 'measured', jobCount };
   }
   if (provenance === 'mixed') {
-    return { provenance: 'mixed', label: `MIXED · ${jobs}`, tone: 'stated', jobCount };
+    return { provenance: 'mixed', label: `Mixed · ${jobs}`, tone: 'stated', jobCount };
   }
   // seeded — the contractor's own stated rate, nothing measured. Neutral tone,
   // and it never cites a job count, because there are none.
-  return { provenance: 'seeded', label: 'YOU SET THIS', tone: 'stated', jobCount: 0 };
+  return { provenance: 'seeded', label: 'Your rate', tone: 'stated', jobCount: 0 };
 }
 
 /**

@@ -116,8 +116,8 @@ export default function SharedPhotosScreen() {
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-photos-no-token">
         <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
         <AlertCircle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
-        <Text style={styles.errorTitle}>No share token</Text>
-        <Text style={styles.errorBody}>This link is missing the data it needs. Ask the contractor for a fresh share link.</Text>
+        <Text style={styles.errorTitle}>This link is incomplete</Text>
+        <Text style={styles.errorBody}>This link is missing the data it needs. Ask your contractor for a fresh share link.</Text>
       </View>
     );
   }
@@ -128,7 +128,7 @@ export default function SharedPhotosScreen() {
         <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
         <AlertCircle size={28} color={themeColors.danger} strokeWidth={1.75} />
         <Text style={styles.errorTitle}>Couldn&apos;t open this link</Text>
-        <Text style={styles.errorBody}>The share data is corrupted or this link is from an older version of MAGE ID. Ask the contractor for a fresh link.</Text>
+        <Text style={styles.errorBody}>This link can&apos;t be read. It may be from an older version of MAGE ID, so ask your contractor for a fresh link.</Text>
       </View>
     );
   }
@@ -285,7 +285,7 @@ export default function SharedPhotosScreen() {
         {/* Footer — gentle CTA, marketing only */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Powered by MAGE ID — jobsite-grade construction management for general contractors.
+            Powered by MAGE ID · Construction management for general contractors
           </Text>
           {Platform.OS === 'web' && (
             <TouchableOpacity

@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { paymentHistoryForInvoice } from '@/utils/paymentPrediction';
 import type { Invoice } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -124,8 +125,8 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
       setResult(data);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (err) {
-      console.log('[AI Invoice] Prediction failed:', err);
-      setError(`Couldn't predict payment on this invoice. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      console.warn('[AI Invoice] Prediction failed:', rawErrorMessage(err));
+      setError(describeError(err, { action: 'predict when this invoice gets paid' }).body);
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +151,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
       <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.header}>
           <MageAIMark size={12} color={"#FF6A1A"} />
-          <Text style={styles.headerTitle}>Payment Prediction</Text>
+          <Text style={styles.headerTitle}>Payment prediction</Text>
         </View>
         <Animated.View style={[styles.skeleton, { opacity }]} />
         <Animated.View style={[styles.skeleton, styles.skeletonShort, { opacity }]} />
@@ -200,8 +201,8 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
         <MageAIMark size={12} color={"#FF6A1A"} />
-        <Text style={styles.headerTitle}>Payment Prediction</Text>
-        <Text style={styles.aiTag}>AI-generated</Text>
+        <Text style={styles.headerTitle}>Payment prediction</Text>
+        <Text style={styles.aiTag}>AI draft</Text>
       </View>
 
       <View style={styles.predRow}>

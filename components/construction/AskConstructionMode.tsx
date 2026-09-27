@@ -129,7 +129,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
         </View>
         <Text style={styles.heroTitle}>Ask</Text>
         <Text style={styles.heroSubtitle}>
-          Deep answers on codes, spans and permits — researched against the actual code and your job, with every source cited.
+          Answers on codes, spans and permits, researched against the code and your project, with every source cited.
         </Text>
         <View style={styles.tierChip}><Text style={styles.tierChipText}>Business</Text></View>
       </View>
@@ -168,7 +168,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
       <TextInput
         value={question}
         onChangeText={setQuestion}
-        placeholder="Ask about codes, spans, permits, or your plans…"
+        placeholder="Ask about codes, spans, permits or your plans"
         placeholderTextColor={Colors.textMuted}
         style={styles.textArea}
         multiline
@@ -201,7 +201,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
           testID="construction-ask-run"
         >
           {loading ? <ActivityIndicator color="#FFF" /> : <MageAIMark size={18} color="#FFF" />}
-          <Text style={styles.runBtnText}>{loading ? 'Researching your codes + job…' : 'Get answer'}</Text>
+          <Text style={styles.runBtnText}>{loading ? 'Researching the code for your project…' : 'Get answer'}</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -211,7 +211,7 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
           testID="construction-ask-upgrade"
         >
           <MageAIMark size={18} color="#FFF" />
-          <Text style={styles.runBtnText}>Upgrade to Business to ask</Text>
+          <Text style={styles.runBtnText}>See Business plan</Text>
         </TouchableOpacity>
       )}
 
@@ -220,13 +220,13 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
         <View style={styles.noticeCard} testID="construction-ask-error">
           {errCode === 'needs_business' ? (
             <TouchableOpacity onPress={() => setShowPaywall(true)} activeOpacity={0.8}>
-              <Text style={styles.noticeText}>Construction Answers is on the Business plan. Tap to upgrade.</Text>
+              <Text style={styles.noticeText}>Construction answers are on the Business plan. Tap to see plans.</Text>
             </TouchableOpacity>
           ) : errCode === 'limit_reached' ? (
             <Text style={styles.noticeText}>{errMsg || "You've hit this month's Construction Answers limit."}</Text>
           ) : errCode === 'unauthenticated' ? (
             <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8}>
-              <Text style={styles.noticeText}>Please sign in to use Construction Answers. Tap to sign in.</Text>
+              <Text style={styles.noticeText}>Sign in to ask construction questions.</Text>
             </TouchableOpacity>
           ) : (
             // offline / timeout / server_error / not_configured — each says

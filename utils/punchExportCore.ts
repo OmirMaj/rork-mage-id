@@ -527,7 +527,9 @@ export function shortRefs(items: readonly Pick<PunchItem, 'id'>[]): Map<string, 
 export function statusLabel(s: string): string {
   const stage = stagesFor('punch').find(st => st.key === s);
   if (stage) return stage.label;
-  return str(s).replace(/_/g, ' ').replace(/\b[a-z]/g, c => c.toUpperCase());
+  // An unrecognised stored value: sentence case (docs/VOICE.md §6), never Title Case.
+  const words = str(s).split('_').join(' ').trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : '';
 }
 
 export function priorityLabel(p: string): string {

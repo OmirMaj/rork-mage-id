@@ -68,6 +68,8 @@ import {
   type TitleBlockSuggestion,
 } from '@/utils/plans/revisionActions';
 import { disciplineChips, disciplineOf, type Discipline } from '@/utils/plans/planDiscipline';
+import { describeError } from '@/utils/errorCopy';
+import { edgeErrorCode } from '@/utils/edgeError';
 
 type PlanImageSource = 'camera' | 'library';
 
@@ -408,8 +410,14 @@ export default function PlansScreen() {
     } catch (err) {
       // The function's own sentence (utils/edgeError): a tier refusal, the
       // page cap, the hourly limit — never "non-2xx status code".
-      const msg = (err as Error).message || 'Could not import that PDF.';
-      showAlert('Import failed', msg);
+      // A function-authored refusal carries a code and its own sentence; any
+      // other failure is described, never shown raw (docs/VOICE.md §6).
+      // A bare `http_<status>` code is readEdgeError's own fallback, not a
+      // sentence the function wrote, so it is described like any other failure.
+      const fnCode = edgeErrorCode(err);
+      const fnSentence = fnCode && !fnCode.startsWith('http_') ? (err as Error).message : '';
+      if (fnSentence) showAlert('Couldn’t import the plans', fnSentence);
+      else { const copy = describeError(err, { action: 'import the plans' }); showAlert(copy.title, copy.body); }
     } finally {
       setPdfImporting(false);
       setPdfStatus('');
@@ -511,7 +519,7 @@ export default function PlansScreen() {
   const handleDelete = useCallback((sheet: PlanSheet) => {
     const block = deleteBlockFor(sheet);
     if (block) { showAlert('Can\u2019t delete this sheet', block); return; }
-    showAlert('Delete sheet', `Remove \u201C${sheet.name}\u201D? All pins and markup on this sheet \u2014 including teammates\u2019 \u2014 will also be removed.`, [
+    showAlert('Delete this sheet?', `\u201C${sheet.name}\u201D and every pin and markup on it, including teammates\u2019, are deleted.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deletePlanSheet(sheet.id) },
     ]);
@@ -684,7 +692,7 @@ export default function PlansScreen() {
           says "tap Try again" — this is the Try again. */}
       {seatRole === null && roleState.isError ? (
         <View style={styles.statusBar} testID="plans-role-banner">
-          <Text style={[styles.statusBarText, { flex: 1 }]}>Couldn&apos;t check your role on this job, so adding and deleting sheets is off.</Text>
+          <Text style={[styles.statusBarText, { flex: 1 }]}>Couldn&apos;t check your role on this project, so adding and deleting sheets is off.</Text>
           <Button label="Try again" variant="secondary" size="sm" onPress={roleState.refetch} testID="plans-role-banner-retry" />
         </View>
       ) : null}
@@ -716,7 +724,7 @@ export default function PlansScreen() {
           <View style={styles.emptyCard}>
             <FileImage size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No plan sheets yet</Text>
-            <Text style={styles.emptyText}>{importBlock && seatRole !== null ? importBlock : 'Import a multi-page PDF and we\'ll convert each sheet automatically, or pick a single image (PNG/JPG).'}</Text>
+            <Text style={styles.emptyText}>{importBlock && seatRole !== null ? importBlock : 'Import a multi-page PDF to split it into sheets, or pick a single image (PNG or JPG).'}</Text>
             <View style={styles.emptyBtnRow}>
               <TouchableOpacity onPress={handleImportPdf} style={[styles.primaryBtn, importBlock ? { opacity: 0.5 } : null]} disabled={pdfImporting || importing} accessibilityHint={importBlock ?? undefined}>
                 {pdfImporting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <FileText size={16} color="#FFFFFF" strokeWidth={1.75} />}
@@ -728,7 +736,7 @@ export default function PlansScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.helperText}>
-              PDFs are rendered server-side at 144 DPI — high enough to read sheet titles on a phone, light enough to scroll without lag. Up to 50 pages per upload.
+              PDFs render at 144 DPI, sharp enough to read sheet titles on a phone. Up to 50 pages per upload.
             </Text>
           </View>
         ) : (
@@ -765,7 +773,7 @@ export default function PlansScreen() {
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.compareBtnTitle}>AI compare to revision</Text>
-              <Text style={styles.compareBtnSub}>Pick a sheet + upload its new rev (PDF page or image) — AI flags every change</Text>
+              <Text style={styles.compareBtnSub}>Pick a sheet and upload its new revision (PDF page or image). MAGE flags every change.</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -786,7 +794,7 @@ export default function PlansScreen() {
           <MageAIMark size={16} color={themeColors.accent} />
           <View style={{ flex: 1 }}>
             <Text style={styles.compareBtnTitle}>Ask your plans</Text>
-            <Text style={styles.compareBtnSub}>Ask anything in plain English — MAGE finds it in the sheets</Text>
+            <Text style={styles.compareBtnSub}>Ask in plain English. MAGE finds it in the sheets.</Text>
           </View>
           <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -823,7 +831,7 @@ export default function PlansScreen() {
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.compareBtnTitle}>Estimate rooms from a sheet</Text>
-              <Text style={styles.compareBtnSub}>AI reads a floor plan and prices it room by room — uses your AI allowance</Text>
+              <Text style={styles.compareBtnSub}>MAGE reads a floor plan and prices it room by room. Uses your AI allowance.</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -867,7 +875,7 @@ export default function PlansScreen() {
           <View style={[styles.modalBackdrop, fSweep.overlay]}>
             <View style={[styles.modalCard, { maxHeight: '92%' }, fSweep.card]} testID="plansweep-modal">
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Plan Set Code Sweep</Text>
+                <Text style={styles.modalTitle}>Code check for the plan set</Text>
                 <TouchableOpacity onPress={() => setSweepOpen(false)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={18} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -910,7 +918,7 @@ export default function PlansScreen() {
             <TextInput
               value={newSheet?.name ?? ''}
               onChangeText={(t) => setNewSheet((d) => d ? { ...d, name: t } : d)}
-              placeholder="Floor Plan — Level 1"
+              placeholder="Floor plan, level 1"
               style={styles.input}
             />
             <TouchableOpacity
@@ -922,7 +930,7 @@ export default function PlansScreen() {
               testID="plans-new-sheet-save"
             >
               {savingSheet ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Check size={16} color="#FFFFFF" strokeWidth={1.75} />}
-              <Text style={styles.primaryBtnText}>{savingSheet ? 'Uploading plan' : 'Save & open'}</Text>
+              <Text style={styles.primaryBtnText}>{savingSheet ? 'Uploading plan' : 'Save and open'}</Text>
             </TouchableOpacity>
             {savingSheet ? (
               <Text style={styles.helperText}>The plan uploads once so every phone and the office can see it.</Text>
@@ -943,7 +951,7 @@ export default function PlansScreen() {
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.helperText}>Read by AI — check each against the sheet. Only the ticked ones are saved.</Text>
+            <Text style={styles.helperText}>Read by AI. Check each against the sheet; only the ticked ones are saved.</Text>
             <ScrollView style={{ maxHeight: 360 }}>
               {titleReview?.items.map((item) => (
                 <TouchableOpacity
@@ -1019,9 +1027,9 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
           <View style={styles.emptyCard}>
             <ImageIcon size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No projects yet</Text>
-            <Text style={styles.emptyText}>Plans attach to a project so every pin (punch items, photos, RFIs) ties back to a job. Create a project first, then come back here to import drawings.</Text>
+            <Text style={styles.emptyText}>Plans attach to a project so every pin (punch items, photos, RFIs) ties back to it. Create a project first, then import plans here.</Text>
             <TouchableOpacity onPress={onBack} style={[styles.primaryBtn, { marginTop: 12 }]}>
-              <Text style={styles.primaryBtnText}>Open Projects</Text>
+              <Text style={styles.primaryBtnText}>Open projects</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -1069,7 +1077,7 @@ function PlansAccessGate({ gate, projectName, onRetry, onBack, insets }: {
             <ActivityIndicator size="small" color={themeColors.accent} />
           ) : gate === 'error' ? (
             <>
-              <Text style={styles.emptyText}>Couldn&apos;t check your access to this job. Check your connection and try again.</Text>
+              <Text style={styles.emptyText}>Couldn&apos;t check your access to this project. Check your connection and try again.</Text>
               <Button label="Try again" variant="secondary" size="sm" onPress={onRetry} testID="plans-role-retry" />
             </>
           ) : (
@@ -1091,14 +1099,14 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>Pro feature</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Pro plan</Text>
         </View>
       </View>
       <View style={{ padding: 24 }}>
         <View style={styles.emptyCard}>
           <FileImage size={28} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.emptyTitle}>Plan markup is a Pro feature</Text>
-          <Text style={styles.emptyText}>Upgrade to Pro to import drawings, drop pins tied to photos and punch items, and annotate sheets with the crew.</Text>
+          <Text style={styles.emptyTitle}>Plan markup is on the Pro plan</Text>
+          <Text style={styles.emptyText}>Import plans, drop pins tied to photos and punch items, and mark up sheets with the crew.</Text>
           <TouchableOpacity onPress={onUpgrade} style={[styles.primaryBtn, { marginTop: 14 }]}>
             <Text style={styles.primaryBtnText}>See plans</Text>
           </TouchableOpacity>

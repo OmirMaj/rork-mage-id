@@ -239,11 +239,11 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
       };
       const first = excerptOf(mine[0]);
       if (mine.length === 1) {
-        oops(first ? `Message didn't send: “${first}” — please re-send it.` : "A message didn't send — please re-send it.");
+        oops(first ? `Message didn't send: “${first}”. Send it again.` : "A message didn't send. Send it again.");
       } else {
         oops(first
-          ? `${mine.length} messages didn't send, starting with “${first}” — please re-send them.`
-          : `${mine.length} messages didn't send — please re-send them.`);
+          ? `${mine.length} messages didn't send, starting with “${first}”. Send them again.`
+          : `${mine.length} messages didn't send. Send them again.`);
       }
       return mine;
     });

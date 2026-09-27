@@ -26,6 +26,7 @@ import { scheduleVerdict } from '@/utils/scheduleVerdict';
 import { useResponsive } from '@/utils/useResponsive';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { TileGrid } from '@/components/ui/TileGrid';
+import { TASK_STATUS_LABEL } from '@/utils/statusLabels';
 
 export function DashboardTab({ hasBudget }: {
   /** false = no budget is linked. On desktop the earned-value card, which can
@@ -104,26 +105,26 @@ export function DashboardTab({ hasBudget }: {
           (220 px minimum, up to 4), so a tile never stretches past its data. */}
       <TileGrid preset="kpi" phoneStyle={[styles.statRow, isPhone && styles.statRowPhone]}>
         <StatCard
-          label="HEALTH SCORE"
+          label="Health score"
           value={String(healthScore)}
           valueColor={healthColor}
           delta={cpm.slipDaysVsBaseline == null ? 'No baseline' : cpm.slipDaysVsBaseline === 0 ? 'On baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
           phone={isPhone}
         />
         <StatCard
-          label="CRITICAL PATH"
+          label="Critical path"
           value={`${cpm.criticalPathDays}d`}
           delta={`${critical.length} task${critical.length === 1 ? '' : 's'}`}
           phone={isPhone}
         />
         <StatCard
-          label="BUDGET"
+          label="Budget"
           value="Not linked"
           delta="Link an estimate to track cost"
           phone={isPhone}
         />
         <StatCard
-          label="OVERDUE"
+          label="Overdue"
           value={String(stats.overdue)}
           valueColor={stats.overdue > 0 ? Colors.pillLate : undefined}
           delta={stats.overdueTaskName ?? 'None'}
@@ -137,7 +138,7 @@ export function DashboardTab({ hasBudget }: {
         {hideEvPlaceholder ? null : (
         <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1.4 }]}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Earned Value</Text>
+            <Text style={styles.chartTitle}>Earned value</Text>
             <View style={styles.legend}>
               <Legend color={Colors.tradeColors.general} label="EV" />
               <Legend color={t.textSecondary} label="PV" />
@@ -153,7 +154,7 @@ export function DashboardTab({ hasBudget }: {
 
         <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1 }]}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Tasks by Status</Text>
+            <Text style={styles.chartTitle}>Tasks by status</Text>
             <Text style={styles.chartHint}>{stats.total} total</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -166,12 +167,12 @@ export function DashboardTab({ hasBudget }: {
             />
             <View>
               <LegendRow color={Colors.tradeColors.general} label="Done" count={stats.done} />
-              <LegendRow color="#FFCC80" label="In Progress" count={stats.inProgress} />
+              <LegendRow color="#FFCC80" label={TASK_STATUS_LABEL.in_progress} count={stats.inProgress} />
               {/* textMuted, not a soft tint: this swatch and its donut segment
                   are a DATA encoding — the count of not-started tasks — so it
                   has to be a colour you can see, not the 6%/12% neutral wash
                   the old Colors.fillTertiary composited to on white. */}
-              <LegendRow color={t.textMuted} label="Not Started" count={stats.notStarted} />
+              <LegendRow color={t.textMuted} label={TASK_STATUS_LABEL.not_started} count={stats.notStarted} />
               {stats.overdue > 0 && <LegendRow color={Colors.pillLate} label="Overdue" count={stats.overdue} />}
             </View>
           </View>
@@ -181,11 +182,11 @@ export function DashboardTab({ hasBudget }: {
       {/* Critical-path activities list */}
       <View style={[styles.cpList, isDesktop && styles.cpListDesktop]}>
         <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>Critical Path Activities</Text>
+          <Text style={styles.chartTitle}>Critical path tasks</Text>
           <Text style={styles.chartHint}>{critical.length} tasks · {cpm.criticalPathDays}d total</Text>
         </View>
         {critical.length === 0 && (
-          <Text style={styles.emptyText}>No critical-path activities yet.</Text>
+          <Text style={styles.emptyText}>No critical-path tasks yet.</Text>
         )}
         {critical.map(t => (
           <View key={t.id} style={styles.cpRow}>
@@ -194,7 +195,7 @@ export function DashboardTab({ hasBudget }: {
               <Text style={styles.cpName} numberOfLines={1}>{t.title}</Text>
               <Text style={styles.cpTrade}>{tradeLabel(tradeKeyForTask(t)).toUpperCase()}</Text>
             </View>
-            <Text style={styles.cpFloat}>no buffer</Text>
+            <Text style={styles.cpFloat}>No float</Text>
             <Text style={styles.cpDue}>{t.deadline ? formatCalendarDay(t.deadline, { month: 'short', day: 'numeric' }) : '—'}</Text>
           </View>
         ))}
@@ -268,7 +269,7 @@ function StatusDonut({ done, inProgress, notStarted, overdue, total }: { done: n
       </Svg>
       <View style={{ position: 'absolute', alignItems: 'center' }}>
         <Text style={{ fontSize: 18, color: t.text, fontWeight: '700' }}>{Math.round((done / safeTotal) * 100)}%</Text>
-        <Text style={{ fontSize: 9, color: t.textSecondary, letterSpacing: 0.6 }}>DONE</Text>
+        <Text style={{ fontSize: 9, color: t.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' }}>Done</Text>
       </View>
     </View>
   );
@@ -291,7 +292,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1, backgroundColor: t.surface, borderRadius: 10, padding: 14,
     borderWidth: StyleSheet.hairlineWidth, borderColor: t.line,
   },
-  statLabel: { fontSize: 10, color: t.textSecondary, letterSpacing: 0.6, fontWeight: '700' },
+  statLabel: { fontSize: 10, color: t.textSecondary, letterSpacing: 0.6, fontWeight: '700', textTransform: 'uppercase' },
   statValue: { fontSize: 22, fontWeight: '700', color: t.text, letterSpacing: -0.4, marginTop: 6 },
   statDelta: { fontSize: 10, color: t.textSecondary, marginTop: 4 },
   chartsRow: { flexDirection: 'row', gap: 10 },

@@ -143,7 +143,7 @@ export default function ScheduleSettingsMenu({
               <Text style={styles.help}>
                 {startText
                   ? 'Day 1 of the schedule. Task days are dated from here.'
-                  : 'No calendar anchor yet — days count 1, 2, 3… with no weekends. Setting a date re-anchors tasks onto real working days (undoable).'}
+                  : 'No start date yet, so days count 1, 2, 3 with no weekends. Setting a date moves tasks onto real working days, and you can undo it.'}
               </Text>
             </View>
             <TouchableOpacity

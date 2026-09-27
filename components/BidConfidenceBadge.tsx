@@ -73,20 +73,20 @@ export default function BidConfidenceBadge({ project, variant = 'light' }: Props
       activeOpacity={0.75}
       onPress={() => router.push({ pathname: '/estimate-confidence' as never, params: { projectId: project.id } as never })}
       accessibilityRole="button"
-      accessibilityLabel={report.hasHistory ? `Bid confidence ${report.score} out of 100` : 'Bid confidence — building from your jobs'}
+      accessibilityLabel={report.hasHistory ? `Bid confidence ${report.score} out of 100` : 'Bid confidence, building from your projects'}
       testID="bid-confidence-badge"
     >
       <ShieldCheck size={13} color={onHero ? '#FFFFFF' : dot} strokeWidth={2} />
       {report.hasHistory ? (
         <>
           <View style={[styles.dot, { backgroundColor: dot }]} />
-          <Text style={[styles.label, { color: textColor }]}>Bid Confidence </Text>
+          <Text style={[styles.label, { color: textColor }]}>Bid confidence </Text>
           <Text style={[styles.score, { color: textColor }]}>{report.score}</Text>
         </>
       ) : (
         <>
-          <Text style={[styles.label, { color: textColor }]}>Bid Confidence</Text>
-          <Text style={[styles.sub, { color: subColor }]}>building from your jobs</Text>
+          <Text style={[styles.label, { color: textColor }]}>Bid confidence</Text>
+          <Text style={[styles.sub, { color: subColor }]}>Building from your projects</Text>
         </>
       )}
     </TouchableOpacity>

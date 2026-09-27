@@ -141,7 +141,7 @@ export function CoiVaultRegister({ subcontractors, cois, split, uploadButton, de
     <EmptyState
       icon={<Shield size={28} color={t.accent} strokeWidth={1.75} />}
       title="This sub isn't on your list any more"
-      message="He may have been deleted. Pick another sub from the list."
+      message="The sub may have been deleted. Pick another sub from the list."
       actionLabel="Close"
       onAction={split.close}
     />
@@ -193,7 +193,7 @@ export function CoiVaultRegister({ subcontractors, cois, split, uploadButton, de
             <EmptyState
               icon={<Shield size={28} color={t.accent} strokeWidth={1.75} />}
               title="No subs yet"
-              message="Add subs from the Subcontractors screen first, then come back here to upload their COIs."
+              message="Add subs on the Subs screen first, then come back to upload their COIs."
             />
           ) : (
             <EmptyState

@@ -68,8 +68,8 @@ export function LevelingPreviewModal(props: {
           </View>
 
           <Text style={styles.summaryLine}>
-            {summary.shiftedCount} task(s) shift · finish {finishText} · biggest move {summary.maxShiftDays}d
-            {pushCount > 0 ? ` · ${pushCount} move(s) run out of float` : ''}
+            {summary.shiftedCount} {summary.shiftedCount === 1 ? 'task shifts' : 'tasks shift'} · finish {finishText} · biggest move {summary.maxShiftDays}d
+            {pushCount > 0 ? ` · ${pushCount} ${pushCount === 1 ? 'move runs' : 'moves run'} out of float` : ''}
           </Text>
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>

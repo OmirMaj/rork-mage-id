@@ -37,6 +37,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError } from '@/utils/errorCopy';
 
 export default function GenerativeSetupScreen() {
   const router = useRouter();
@@ -142,7 +143,7 @@ function GenerativeSetupInner() {
         const limit = await checkAILimit(tier, 'smart', 'scheduleBuilder');
         if (!limit.allowed) {
           showAILimitAlert({ limit, router });
-          scheduleError = 'AI limit reached';
+          scheduleError = 'You reached today’s AI limit.';
         } else {
           try {
             const r = await generateScheduleFromEstimate(project, project.linkedEstimate, projects, subcontractors);
@@ -150,8 +151,8 @@ function GenerativeSetupInner() {
             scheduleCreated = true;
             await recordAIUsage('smart', 'scheduleBuilder');
           } catch (e) {
-            scheduleError = e instanceof Error ? e.message : 'Schedule generation failed';
-            console.warn('[generative-setup] schedule failed:', scheduleError);
+            console.warn('[generative-setup] schedule failed:', e instanceof Error ? e.message : e);
+            scheduleError = describeError(e, { action: 'build the draft schedule' }).body;
           }
         }
       }
@@ -165,17 +166,17 @@ function GenerativeSetupInner() {
   if (!project) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Set Up Project' }} />
+        <Stack.Screen options={{ title: 'Set up project' }} />
         <EmptyState
           icon={<Boxes size={36} color={t.accent} strokeWidth={1.6} />}
           title="No project to set up"
-          message="Generative Setup turns an estimate into buyout packages, a submittal log, and a draft schedule. To use it:"
+          message="Generative setup turns an estimate into buyout packages, a submittal log and a draft schedule. To use it:"
           steps={[
             'Open or create a project from the Projects tab.',
             'Build an estimate so there are line items to break out.',
-            'Tap Set Up Project to scaffold the rest.',
+            'Tap “Set up project” to build the rest.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -195,7 +196,7 @@ function GenerativeSetupInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Generative Setup · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Generative setup · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -217,7 +218,7 @@ function GenerativeSetupInner() {
             <MageAIMark size={26} color={t.accent} />
             <Text style={styles.infoTitle}>Build an estimate first</Text>
             <Text style={styles.infoBody}>
-              Generative Setup breaks your estimate into buyout packages and a submittal
+              Generative setup breaks your estimate into buyout packages and a submittal
               log. This project doesn&apos;t have an estimate with line items yet.
             </Text>
           </View>
@@ -225,8 +226,8 @@ function GenerativeSetupInner() {
           <>
             <Text style={styles.lead}>
               Turn your estimate into a working project. MAGE drafts the buyout and a
-              submittal log from your line items — all linked back to the estimate, so
-              your Living Estimate tracks buyout variance as you award.
+              submittal log from your line items, linked back to the estimate so buyout
+              variance tracks as you award.
             </Text>
 
             {/* Buyout packages */}
@@ -291,8 +292,8 @@ function GenerativeSetupInner() {
               count={null}
               subtitle={
                 hasSchedule
-                  ? 'This project already has a schedule — generating replaces it'
-                  : 'AI builds a phased schedule from your estimate (~15–35 tasks)'
+                  ? 'This project already has a schedule. Generating replaces it.'
+                  : 'AI builds a phased schedule from your estimate (about 15–35 tasks)'
               }
               value={includeSchedule}
               onValueChange={setIncludeSchedule}
@@ -409,7 +410,7 @@ function SuccessView({
         )}
         {result.scheduleCreated && <Text style={styles.successStat}>Draft schedule generated</Text>}
         {result.scheduleError && (
-          <Text style={[styles.successStat, { color: t.danger }]}>Schedule couldn&apos;t be generated — {result.scheduleError}</Text>
+          <Text style={[styles.successStat, { color: t.danger }]}>Schedule not built. {result.scheduleError}</Text>
         )}
       </View>
 

@@ -48,6 +48,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { Colors } from '@/constants/colors';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
 export default function MaterialReceiptScreen() {
@@ -166,7 +167,8 @@ function MaterialReceiptInner() {
       setError(null);
       setSaved(null);
     } catch (e) {
-      setError(`Couldn't open the ${source}: ${String((e as Error).message ?? e)}`);
+      console.warn('[material-receipt] picker failed', rawErrorMessage(e));
+      setError(describeError(e, { action: `open the ${source}` }).body);
     }
   }, []);
 
@@ -197,13 +199,14 @@ function MaterialReceiptInner() {
       if (autoLink && autoLink !== commitmentId) setCommitmentId(autoLink);
       const normalized = normalizeExtraction(data, { projectId, commitmentId: autoLink, imageUri });
       if (normalized.lines.length === 0) {
-        setError("MAGE couldn't read any line items — make sure the whole invoice is in frame and legible, then retry.");
+        setError("MAGE couldn't read any line items. Get the whole invoice in frame and in focus, then try again.");
         setDraft(null);
         return;
       }
       setDraft(normalized);
     } catch (e) {
-      setError(`Extraction failed: ${String((e as Error).message ?? e)}`);
+      console.warn('[material-receipt] extraction failed', rawErrorMessage(e));
+      setError(describeError(e, { action: 'read the invoice' }).body);
     } finally {
       setBusy(false);
     }
@@ -277,7 +280,7 @@ function MaterialReceiptInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Material Receipt · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Material receipt · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Snap a supplier invoice'}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -353,7 +356,7 @@ function MaterialReceiptInner() {
           <View style={styles.draftWrap}>
             <View style={styles.fieldRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Vendor</Text>
+                <Text style={styles.fieldLabel}>Supplier</Text>
                 <TextInput value={draft.vendor} onChangeText={v => patchDraft({ vendor: v })} style={styles.field} placeholder="Supplier" placeholderTextColor={t.textMuted} />
               </View>
               <View style={{ width: 120 }}>
@@ -440,7 +443,7 @@ function MaterialReceiptInner() {
 
             <View style={styles.priceBookNote}>
               <BookOpen size={14} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.priceBookText}>Saving feeds <Text style={{ fontWeight: '800', color: t.text }}>{sampleCount}</Text> price{sampleCount === 1 ? '' : 's'} into your Cost Database.</Text>
+              <Text style={styles.priceBookText}>Saving feeds <Text style={{ fontWeight: '800', color: t.text }}>{sampleCount}</Text> price{sampleCount === 1 ? '' : 's'} into your cost history.</Text>
             </View>
 
             {ownerGate.state !== 'open' && (

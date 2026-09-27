@@ -656,7 +656,7 @@ console.log('\ncontract screen — progress rows (Direction B):');
       ceiling.reason === 'contract_fully_billed'
       && /leaving nothing to bill against it/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount))
       && /change order/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount))
-      && !/Bill from Estimate/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount)),
+      && !/Bill from estimate/.test(milestoneBlockMessage(ceiling.reason, ceiling.ceiling, ceiling.amount)),
       milestoneBlockMessage('contract_fully_billed', ceiling.ceiling, ceiling.amount));
     // …while the same refusal WITH room left — what a lump row prints, and
     // what a progress row is kept open by — still names the route that works,
@@ -666,7 +666,7 @@ console.log('\ncontract screen — progress rows (Direction B):');
         const partial = at(99_000); // $1,000 left, a $65,000 row
         return partial.reason === 'contract_fully_billed'
           && /leaving \$1,000\.00/.test(milestoneBlockMessage(partial.reason, partial.ceiling, partial.amount))
-          && /Bill from Estimate/.test(milestoneBlockMessage(partial.reason, partial.ceiling, partial.amount));
+          && /Bill from estimate/.test(milestoneBlockMessage(partial.reason, partial.ceiling, partial.amount));
       })(),
       'the remedy that exists must still be named');
     ok('…while a reason that IS about this row still closes it whatever is left',

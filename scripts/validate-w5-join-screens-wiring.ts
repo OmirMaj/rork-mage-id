@@ -265,7 +265,7 @@ console.log('\n#57 / #156 — every create path asks the cap gate:');
   const hook = read('hooks/useCopilotConversation.ts');
   const shell = read('components/copilot/CopilotShell.tsx');
   ok('the Copilot names a cap refusal (project_cap) and offers See plans, not a retry',
-    /capRefused \? 'project_cap'/.test(hook) && /FREE COVERS ONE JOB/.test(shell) && /\(limitError \|\| capError\) &&/.test(shell) && /!limitError && !applyError && !capError/.test(shell));
+    /capRefused \? 'project_cap'/.test(hook) && /Free covers one project/.test(shell) && /\(limitError \|\| capError\) &&/.test(shell) && /!limitError && !applyError && !capError/.test(shell));
 }
 
 // ── #74 claimed crew worker ───────────────────────────────────────────────

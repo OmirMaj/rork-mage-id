@@ -1482,7 +1482,7 @@
 
       if (!invoiceNumber) { statusEl.textContent = 'Add an invoice number.'; statusEl.classList.add('show', 'error'); return; }
       if (!amount || amount <= 0) { statusEl.textContent = 'Enter an amount greater than zero.'; statusEl.classList.add('show', 'error'); return; }
-      if (amount >= 1e9) { statusEl.textContent = 'Please enter a realistic amount.'; statusEl.classList.add('show', 'error'); return; }
+      if (amount >= 1e9) { statusEl.textContent = 'Enter a realistic amount.'; statusEl.classList.add('show', 'error'); return; }
 
       var lineItems = Array.from(linesContainer.querySelectorAll('.line-row')).map(function (row) {
         return {
@@ -1516,9 +1516,9 @@
       }
 
       if (ok) {
-        statusEl.textContent = 'Sent — your contractor has been notified. Refresh to see this in your invoice list.';
+        statusEl.textContent = 'Sent. Your contractor has been notified. Refresh to see this in your invoice list.';
         statusEl.classList.add('show', 'ok');
-        btn.innerHTML = 'Sent ✓';
+        btn.innerHTML = 'Sent <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M20 6 9 17l-5-5"/></svg>';
         setTimeout(function () {
           closeDrawer();
           // Clear the form for next submission

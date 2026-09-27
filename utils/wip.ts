@@ -650,14 +650,14 @@ export const WIP_SOURCE_LABELS: Record<WipSource, string> = {
   estimate_base_total: 'Linked estimate — base total (cost before markup)',
   signed_commitments: 'Signed subcontracts and POs, including CO revisions',
   commitments_and_receipts:
-    'Subs paid to date plus material receipts — self-performed labor NOT included, so this is a lower bound',
+    'Subs paid to date plus material receipts — self-performed labor not included, so this is a lower bound',
   recorded_actual_cost:
-    'Every cost recorded on this job — subs paid, material receipts, your own crews’ hours at your rates, '
+    'Every cost recorded on this project — subs paid, material receipts, your own crews’ hours at your rates, '
     + 'equipment days and permit fees',
   cost_incurred:
-    'Cost you have already paid out on this job — more than the estimate or the commitments, so it sets the floor',
+    'Cost you have already paid out on this project — more than the estimate or the commitments, so it sets the floor',
   cost_to_complete_entered:
-    'Cost to date plus the cost to complete YOU entered — your own forecast for this period, not a figure MAGE derived',
+    'Cost to date plus the cost to complete you entered — your own forecast for this period, not a figure MAGE derived',
   none: 'No source on file — enter this figure yourself',
 };
 
@@ -1062,9 +1062,9 @@ export const WIP_COST_TO_DATE_CAVEAT =
 /** What an export says about cost-to-date when every row's figure is complete. */
 export const WIP_COST_TO_DATE_COMPLETE =
   'Cost to date counts subcontractor payments, material receipts, your own crews’ hours at '
-  + 'your configured rates, equipment days at each machine’s day rate, and permit fees. A trade '
-  + 'with no rate on file and a machine with no day rate contribute nothing — MAGE does not '
-  + 'invent a rate — so those are the only gaps this figure can have.';
+  + 'your configured rates, equipment days at each machine’s day rate, and permit fees. Trades '
+  + 'with no rate on file and equipment with no day rate count as $0 until you add one, so those '
+  + 'are the only gaps this figure can have.';
 
 /**
  * The cost-to-date caveat THESE rows have earned, read off their own recorded
@@ -1112,9 +1112,9 @@ export function describeCostToDateComponents(ctd: WipCostToDate): string {
   const named = parts.filter(([v]) => v > 0).map(([v, label]) => `${wipMoney(v)} ${label}`);
   if (named.length === 0) {
     return ctd.complete
-      ? 'No cost recorded on this job yet — no sub payments, no receipts, no crew hours, no '
+      ? 'No cost recorded on this project yet — no sub payments, no receipts, no crew hours, no '
         + 'equipment and no permit fees.'
-      : 'No sub payments and no material receipts recorded on this job yet.';
+      : 'No sub payments and no material receipts recorded on this project yet.';
   }
   return named.join(' + ') + '.';
 }
@@ -1786,9 +1786,9 @@ function topUpForChangeOrders(
  */
 function overspentNote(costAtCompletion: number, costIncurred?: number): string {
   if (costIncurred == null || costIncurred <= costAtCompletion) return '';
-  return ` You have already recorded ${wipMoney(costIncurred)} of cost on this job — MORE than the `
-    + 'cost at completion above, so the margin here is overstated. Enter what is still left to spend '
-    + '(cost to complete) on this job, or update the estimate, before anyone underwrites it.';
+  return ` You have already recorded ${wipMoney(costIncurred)} of cost on this project, more than the `
+    + 'cost at completion above, so the margin here is overstated. Enter the cost to complete, '
+    + 'or update the estimate, before anyone underwrites it.';
 }
 
 /**
@@ -1823,7 +1823,7 @@ export function contractVsEstimateNote(
   const material = Math.max(500, Math.abs(contract.value) * 0.02);
   if (Math.abs(gap) <= material) return '';
   return `This contract figure comes off your saved pay application and sits ${wipMoney(Math.abs(gap))} `
-    + `${gap > 0 ? 'ABOVE' : 'BELOW'} the ${wipMoney(estimateGrandTotal)} your estimate prices this job at. `
+    + `${gap > 0 ? 'above' : 'below'} the ${wipMoney(estimateGrandTotal)} your estimate prices this project at. `
     + 'MAGE uses the pay application, because that is the sum you certified to the owner — but if the '
     + 'pay app was seeded from the wrong contract, every figure on this row is measured against it.';
 }
@@ -1881,13 +1881,13 @@ export function describeCostBasis(cost: WipEstimatedCost, costIncurred?: number)
   // plus what he says is left.
   if (cost.basis === 'entered') {
     const etc = Math.max(0, cost.value - cost.incurredFloor);
-    return `Cost basis: YOUR cost to complete, ${wipMoney(etc)}, on top of the `
-      + `${wipMoney(cost.incurredFloor)} this job has already cost — ${wipMoney(cost.value)} at `
+    return `Cost basis: your cost to complete, ${wipMoney(etc)}, on top of the `
+      + `${wipMoney(cost.incurredFloor)} this project has already cost — ${wipMoney(cost.value)} at `
       + 'completion. That is your forecast for this period, not a figure MAGE derived, and every '
       + 'percentage, earned-revenue and margin figure on this row is measured against it.';
   }
   if (cost.basis === 'none') {
-    return 'Cost basis: nothing on file. Give this job an estimate with a cost line, or type its '
+    return 'Cost basis: nothing on file. Give this project an estimate with a cost line, or type its '
       + 'cost-to-date, before you hand these figures to anyone.';
   }
   if (cost.basis === 'commitments') {
@@ -1911,7 +1911,7 @@ export function describeCostBasis(cost: WipEstimatedCost, costIncurred?: number)
     return `Cost basis: your estimate's cost before markup, ${wipMoney(cost.estimateBasis)}. The `
       + `${wipMoney(cost.committedFloor)} you have signed in subcontracts and POs is read as work `
       + 'that estimate already prices, so it is not added on top of it. If any of it is scope your '
-      + 'estimate never priced, this job will cost more than the figure above.'
+      + 'estimate never priced, this project will cost more than the figure above.'
       + overspentNote(cost.value, costIncurred);
   }
   return `Cost basis: your estimate's cost before markup, ${wipMoney(cost.estimateBasis)}. Nothing `
@@ -1975,7 +1975,7 @@ export function describePortfolioCostBasis(
   if (costs.length === 0) return '';
   if (costs.length === 1) return describeCostBasis(costs[0], costIncurred);
 
-  const jobs = (n: number) => `${n} job${n === 1 ? '' : 's'}`;
+  const jobs = (n: number) => `${n} ${n === 1 ? 'project' : 'projects'}`;
   const onEstimate = costs.filter((c) => c.basis === 'estimate');
   const onCommitments = costs.filter((c) => c.basis === 'commitments');
   const onNothing = costs.filter((c) => c.basis === 'none');
@@ -2002,7 +2002,7 @@ export function describePortfolioCostBasis(
       + overspent;
   }
   if (onEntered.length === costs.length) {
-    return `Cost basis: YOUR own cost to complete on all ${jobs(costs.length)}, ${wipMoney(total)} at `
+    return `Cost basis: your own cost to complete on all ${jobs(costs.length)}, ${wipMoney(total)} at `
       + 'completion. These are your forecasts for this period, not figures MAGE derived.';
   }
   const parts: string[] = [];

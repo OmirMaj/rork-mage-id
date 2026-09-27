@@ -202,7 +202,7 @@ export function AutoScheduleReviewSheet(
               <Text style={styles.zoningTitle}>
                 {zoning?.district
                   ? `Confirm zoning: ${zoning.district}?`
-                  : 'MAGE does not know this jobsite’s zoning district'}
+                  : 'No zoning district on file for this jobsite'}
               </Text>
               <Text style={styles.zoningBody} testID="zoning-gate-reason">
                 {zoning?.reason
@@ -359,7 +359,7 @@ export function AutoScheduleReviewSheet(
                 <LeadTimeChip line={line} styles={styles} />
                 {line.unresolved ? (
                   <View style={styles.unresolvedChip} testID={`review-row-unresolved-${line.inspection.id}`}>
-                    <Text style={styles.unresolvedChipText}>couldn&apos;t link — pick a predecessor</Text>
+                    <Text style={styles.unresolvedChipText}>Couldn&apos;t link. Pick a predecessor.</Text>
                   </View>
                 ) : null}
               </View>

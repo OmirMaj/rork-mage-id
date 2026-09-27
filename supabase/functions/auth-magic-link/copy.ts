@@ -117,7 +117,7 @@ export interface EmailCopy {
 export function signInEmailCopy(email: string): EmailCopy {
   return {
     subject: 'Your MAGE ID sign-in link',
-    preheader: 'Your one-tap sign-in link for MAGE ID — expires in 60 minutes.',
+    preheader: 'Your one-tap sign-in link for MAGE ID. It expires in 60 minutes.',
     eyebrow: 'One-tap sign-in',
     title: 'Your MAGE ID sign-in link',
     subtitle: `Tap the button below to continue as ${email}. The link is good for one tap and expires in 60 minutes.`,

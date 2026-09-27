@@ -342,7 +342,7 @@ console.log('\nwho may add a plan (storage insert needs editor)');
   const idle = { isLoading: false, isError: false };
   eq('owner: allowed', planUploadBlockedReason('owner', idle), null);
   eq('editor: allowed', planUploadBlockedReason('editor', idle), null);
-  ok('viewer: blocked with a reason', /view-only/.test(planUploadBlockedReason('viewer', idle) ?? ''));
+  ok('viewer: blocked with a reason', /view access/.test(planUploadBlockedReason('viewer', idle) ?? ''));
   ok('field: blocked BEFORE picking, with its own reason', /Field access/.test(planUploadBlockedReason('field', idle) ?? ''));
   ok('role still loading: blocked, says it is checking', /Checking/.test(planUploadBlockedReason(null, { isLoading: true, isError: false }) ?? ''));
   ok('role failed to load: blocked, says why', /Couldn.t check/.test(planUploadBlockedReason(null, { isLoading: false, isError: true }) ?? ''));
@@ -418,7 +418,7 @@ console.log('\nPlanPinStep (source)');
   ok('Skip is always rendered', /testID="walk-pin-skip"/.test(step));
   ok('Next is disabled until a pin is placed and says why', /disabled=\{!pin/.test(step) && /Tap the plan where this is/.test(step));
   ok('a plan that cannot load says so', /Plan can.{0,12}t load/.test(step));
-  ok('the no-plan screen says so plainly', /No floor plan on this job yet/.test(step));
+  ok('the no-plan screen says so plainly', /No floor plan on this project yet/.test(step));
   ok('the image source comes from pinStepImageSource (path-keyed cache, valid url)', /pinStepImageSource\(sheet/.test(step) && !/cacheKey:/.test(step));
   ok('Try again re-signs from the storage path (an expired link never recovers otherwise)',
     /onPress=\{handleRetry\}/.test(step) && /resolvePlanSheetUrl\(target\.storagePath\)/.test(step)

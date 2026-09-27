@@ -97,17 +97,17 @@ function SubScorecardInner() {
   if (subcontractors.length === 0 && suppliers.length === 0) {
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Sub Scorecard' }} />
+        <Stack.Screen options={{ title: 'Sub scorecard' }} />
         <EmptyState
           icon={<HardHat size={36} color={t.accent} strokeWidth={1.6} />}
           title="No subs to grade yet"
-          message="The Sub Scorecard grades every subcontractor from your real job costs — closed-commitment overruns, change-order creep, and paperwork standing. To see it:"
+          message="The sub scorecard grades every sub from your own project costs: closed-commitment overruns, change-order creep and paperwork. To see it:"
           steps={[
-            'Add subcontractors from the Subs tab.',
-            'Award commitments to them through Buyout.',
-            'Come back to see who actually earns the next call.',
+            'Add subs from the Subs tab.',
+            'Award commitments to them through buyout.',
+            'Come back to see who earns the next call.',
           ]}
-          actionLabel="Open Subs"
+          actionLabel="Open subs"
           onAction={() => router.push('/(tabs)/subs' as any)}
         />
       </View>
@@ -155,7 +155,7 @@ function SubScorecardInner() {
           <>
             <Text style={styles.lede}>
               {suppliers.length === 0
-                ? 'No deliveries recorded yet. Schedule what you are expecting and mark it received — reliability builds itself from that, with nothing extra to fill in.'
+                ? 'No deliveries recorded yet. Schedule what you expect and mark it received, and reliability builds from that.'
                 : `${suppliers.length} supplier${suppliers.length === 1 ? '' : 's'} ranked from promised dates versus what actually landed. A supplier stays ungraded until there is enough history to defend the number.`}
             </Text>
             {suppliers.map(card => {
@@ -242,7 +242,7 @@ function SubScorecardInner() {
         ) : (<>
         <Text style={styles.lede}>
           {graded > 0
-            ? `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} ranked from your signed commitments and compliance records. ${graded} ha${graded === 1 ? 's' : 've'} job history behind the grade.`
+            ? `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} ranked from your signed commitments and compliance records. ${graded} ha${graded === 1 ? 's' : 've'} project history behind the grade.`
             : `${result.cards.length} sub${result.cards.length === 1 ? '' : 's'} on file — none with signed commitments yet, so grades reflect paperwork only. Award work through Buyout and the scores get real.`}
         </Text>
 
@@ -322,9 +322,8 @@ function SubScorecardInner() {
           Grades blend cost discipline on closed commitments, change-order growth on
           signed work, punch items bounced at review, schedule reliability on tasks
           assigned to the sub, and today&apos;s COI / license / W-9 standing. Factors
-          without enough linked data are shown as &quot;—&quot; and sit out of the blend —
-          they never fake a neutral score. History depth moves confidence, not the
-          grade — a new sub with clean paper isn&apos;t punished, just unproven.
+          without enough linked data show as &quot;—&quot; and sit out of the blend. History depth
+          moves confidence, not the grade, so a new sub with clean paper isn&apos;t punished.
         </Text>
         </>)}
       </ScrollView>

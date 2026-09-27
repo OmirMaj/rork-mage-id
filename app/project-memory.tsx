@@ -160,7 +160,7 @@ function ProjectMemoryInner() {
         <View style={styles.headerTitleWrap}>
           <View style={styles.headerIcon}><MageAIMark size={15} color={themeColors.accent} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Project Memory</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Project memory</Text>
             <Text style={styles.headerSub} numberOfLines={1}>{project?.name ?? 'Ask this project’s history'}</Text>
           </View>
         </View>
@@ -184,7 +184,7 @@ function ProjectMemoryInner() {
               <View style={styles.emptyIcon}><MageAIMark size={26} color={themeColors.accent} /></View>
               <Text style={styles.emptyTitle}>Ask this project anything</Text>
               <Text style={styles.emptyBody}>
-                I&apos;ve read {docs.length} record{docs.length === 1 ? '' : 's'} from this job — RFIs, daily reports,
+                MAGE has read {docs.length} record{docs.length === 1 ? '' : 's'} from this project: RFIs, daily reports,
                 change orders, submittals and punch items. Ask why something happened or how it was handled.
               </Text>
               {syncStatus && syncStatus.total > 0 && syncStatus.indexed < syncStatus.total ? (
@@ -241,7 +241,7 @@ function ProjectMemoryInner() {
             style={styles.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder="Ask why, how, or what happened…"
+            placeholder="Ask why, how or what happened"
             placeholderTextColor={themeColors.textMuted}
             multiline
             onSubmitEditing={() => ask(draft)}

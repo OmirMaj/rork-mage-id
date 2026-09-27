@@ -618,7 +618,7 @@ ok('the through date on the document keeps the record\'s own day number',
   const CENTS = 18400.5;
   const html = renderFor('CA', 'conditional_partial', { paidAmount: CENTS });
   const statutoryBlank = (html.match(/Amount of Check<\/td>\s*<td[^>]*>([^<]*)</) ?? ['', ''])[1].trim();
-  const factsRow = (html.match(/Payment Amount<\/td>\s*<td[^>]*>([^<]*)</) ?? ['', ''])[1].trim();
+  const factsRow = (html.match(/Payment amount<\/td>\s*<td[^>]*>([^<]*)</) ?? ['', ''])[1].trim();
   ok('the statutory blank and our own facts row state the SAME amount',
     statutoryBlank === factsRow && factsRow === '$18,400.50',
     `statute="${statutoryBlank}" facts="${factsRow}"`);

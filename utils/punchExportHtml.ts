@@ -741,7 +741,7 @@ export function buildPunchExportHtml(
   const safeBranding: CompanyBranding = { ...opts.branding, logoUri: safeLogoSrc(opts.branding.logoUri) ?? undefined };
   const cardsMode = opts.includePhotos && model.photoItemIds.length > 0;
   const overCap = new Set(model.photoOverCapIds);
-  const title = `Punch list${model.internal ? ' (internal)' : ''} — ${model.projectName} — ${model.generatedDay}`;
+  const title = `Punch list${model.internal ? ' (internal)' : ''} · ${model.projectName} · ${model.generatedDay}`;
 
   const body: string[] = [];
   body.push(`<style>${PUNCH_EXPORT_CSS}${target === 'web' ? `\n${WEB_LANDSCAPE_PAGE_CSS}\n` : ''}</style>`);
@@ -774,8 +774,8 @@ export function buildPunchExportHtml(
     body.push(`<div class="pe-lead">${sm.notDone} still open (${sm.ready} ready for inspection) · ${sm.overdue} overdue · ${closed} closed</div>`);
     body.push(pdfStatGrid([
       { label: 'Open', value: String(sm.byStatus.open), accent: sm.byStatus.open > 0 ? 'error' : undefined },
-      { label: 'In Progress', value: String(sm.byStatus.in_progress) },
-      { label: 'Ready for Review', value: String(sm.byStatus.ready_for_review) },
+      { label: 'In progress', value: String(sm.byStatus.in_progress) },
+      { label: 'Ready for review', value: String(sm.byStatus.ready_for_review) },
       { label: 'Closed', value: String(closed), accent: 'success' },
       { label: 'Total', value: String(sm.total) },
     ]));
@@ -791,7 +791,7 @@ export function buildPunchExportHtml(
   }
   if (model.assignees.length >= 2) {
     body.push(pdfTable(
-      [{ header: 'Assigned to' }, { header: 'Open', align: 'right' }, { header: 'In Progress', align: 'right' }, { header: 'Ready for Review', align: 'right' }, { header: 'Closed', align: 'right' }, { header: 'Total', align: 'right' }],
+      [{ header: 'Assigned to' }, { header: 'Open', align: 'right' }, { header: 'In progress', align: 'right' }, { header: 'Ready for review', align: 'right' }, { header: 'Closed', align: 'right' }, { header: 'Total', align: 'right' }],
       model.assignees.map(a => [
         escHtml(a.label),
         escHtml(a.byStatus.open),

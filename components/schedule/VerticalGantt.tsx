@@ -171,10 +171,10 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={s.header}>
           <View style={s.headerDateCol}>
-            <Text style={s.headerLabel}>DATE</Text>
+            <Text style={s.headerLabel}>Date</Text>
           </View>
           <View style={s.headerTaskCol}>
-            <Text style={s.headerLabel}>TASKS</Text>
+            <Text style={s.headerLabel}>Tasks</Text>
           </View>
         </View>
         {dayRows.map(renderDayRow)}

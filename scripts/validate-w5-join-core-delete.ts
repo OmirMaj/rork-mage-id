@@ -43,13 +43,13 @@ async function main() {
   console.log('\n#61 the safety rule (pure)');
   ok('no records → no refusal', deleteProjectSafetyRefusal('Henderson', 0) === null && deleteProjectSafetyRefusal('Henderson', undefined) === null);
   ok('one record → the singular sentence',
-    deleteProjectSafetyRefusal('Henderson', 1) === 'Henderson has 1 injury/near-miss record on your OSHA 300 log, which must be kept for 5 years. Mark the job Closed instead.');
+    deleteProjectSafetyRefusal('Henderson', 1) === 'Henderson has 1 injury/near-miss record on your OSHA 300 log, which must be kept for 5 years. Mark the project Closed instead.');
   ok('three → plural', /has 3 injury\/near-miss records on your OSHA 300 log/.test(deleteProjectSafetyRefusal('Henderson', 3) ?? ''));
   ok('deleteProjectRefusal: the owner rule first, then the safety rule',
     deleteProjectRefusal({ ownerUserId: 'gc', name: 'H' }, 'u1', { incidentCount: 2 }) === DELETE_NOT_OWNER_REASON
       && /OSHA 300/.test(deleteProjectRefusal({ ownerUserId: 'u1', name: 'H' }, 'u1', { incidentCount: 2 }) ?? '')
       && deleteProjectRefusal({ ownerUserId: 'u1', name: 'H' }, 'u1') === null);
-  ok('the offline sentence', SAFETY_CHECK_OFFLINE_REASON === 'Can’t check this job’s safety records offline — try again with signal.');
+  ok('the offline sentence', SAFETY_CHECK_OFFLINE_REASON === 'Can’t check this project’s safety records offline. Try again with signal.');
   ok('the device count: cached incidents + queued incident inserts, each id once',
     localSafetyIncidentCount('p1',
       [{ id: 'i1', projectId: 'p1' }, { id: 'i2', projectId: 'p2' }],

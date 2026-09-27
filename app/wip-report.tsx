@@ -151,8 +151,8 @@ function overrideInForce(
 // scope so the four useCallbacks do not each have to carry it as a dependency.
 const NOTHING_TO_REPORT =
   'A WIP schedule needs at least one active project with a cost-and-markup estimate. '
-  + 'There is nothing to freeze or export yet — and a schedule of zeros is a document a '
-  + 'bank or a surety would read as your actual position.';
+  + 'There is nothing to freeze or export yet, and a bank or surety would read a schedule of '
+  + 'zeros as your actual position.';
 
 export default function WipReportScreen() {
   const router = useRouter();
@@ -920,8 +920,8 @@ function WipReportScreenInner() {
     // what the screen shows" defect this wave is closing one row up.
     if (viewingFrozen) {
       showAlert(
-        'You are reading a saved period',
-        'Save period snapshots your CURRENT figures. Tap Live first, check the period end, then save.',
+        'You’re viewing a saved period',
+        'Save period snapshots your current figures. Tap Live first, check the period end, then save.',
       );
       return;
     }
@@ -943,12 +943,8 @@ function WipReportScreenInner() {
       // kind of thing a CPA finds later.
       showAlert(
         'Period saved',
-        `WIP snapshot dated ${periodEndDate} created. These are your figures AS THEY STAND TODAY, `
-        + 'labelled with that period end — MAGE does not restate a closed month, so save the period '
-        + 'as close to the date as you can. Check cost-to-date and cost-to-complete on each project '
-        + 'before you lock it: the automatic cost figure counts sub payments, material receipts, '
-        + 'crew hours at your configured rates, equipment days and permit fees — a trade or a machine '
-        + 'with no rate on file adds nothing, because MAGE will not invent one.',
+        'Figures are as of today, labelled with this period end. Check cost to date on each project '
+        + 'before you lock it. Trades or equipment with no rate on file count as $0 until you add one.',
       );
     };
     if (duplicate) {
@@ -1019,7 +1015,7 @@ function WipReportScreenInner() {
     // itself, not the snapshot — telling that GC to "save a period first" sends
     // him to a Save button that refuses for the same reason.
     : hasRows
-      ? 'Lock freezes a period you have SAVED. Save one first — that is the snapshot your CPA or your bank reads, and locking is what stops it moving underneath them.'
+      ? 'Lock freezes a saved period, so save one first. Locking stops the snapshot your CPA or bank reads from changing.'
       : NOTHING_TO_REPORT;
   const canLock = lockBlockedReason === null;
 
@@ -1029,7 +1025,7 @@ function WipReportScreenInner() {
   // Save has its own prerequisite too, and while a frozen period is on screen it
   // is not "you have no projects" — it is "you are reading a document".
   const saveBlockedReason = viewingFrozen
-    ? 'Save period snapshots your CURRENT figures. Tap Live first, check the period end, then save.'
+    ? 'Save period snapshots your current figures. Tap Live first, check the period end, then save.'
     : hasRows ? null : NOTHING_TO_REPORT;
 
   const blockedNotes = [...new Set([
@@ -1065,11 +1061,11 @@ function WipReportScreenInner() {
     const ok = await copyToClipboard(csv);
     if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      ok ? 'CSV copied' : 'Copy failed',
+      ok ? 'CSV copied' : 'Couldn’t export CSV',
       ok
-        ? 'This device could not hand over a file, so the schedule is on your clipboard — paste it '
-          + 'into Excel / QuickBooks / Sage.'
-        : 'Could not save or copy the CSV.',
+        ? "This device couldn't hand over a file, so the schedule is on your clipboard. Paste it "
+          + 'into Excel, QuickBooks or Sage.'
+        : "Couldn't save or copy the CSV.",
     );
   }, [exportPeriod]);
 
@@ -1087,7 +1083,7 @@ function WipReportScreenInner() {
     // its sentence ("allow pop-ups …") is let through; anything else keeps this
     // screen's own wording (#147, CONTRACT 25).
     try { await shareWipPeriodPdf(exportPeriod, settings?.branding?.companyName || 'MAGE ID', todayCalendarDay()); }
-    catch (err) { showAlert('Export failed', pdfFailureMessage(err, 'Could not generate the WIP PDF.')); }
+    catch (err) { showAlert('Couldn’t export PDF', pdfFailureMessage(err, 'Couldn’t generate the WIP PDF. Try again.')); }
   }, [exportPeriod, settings]);
 
   // THE HEADER'S PRINT AND EXPORT CSV (desktop only — contract D18). OBJECT
@@ -1157,11 +1153,11 @@ function WipReportScreenInner() {
   const fDrill = useSheetFrame('wide', { visible: drillProjectId !== null, animationType: 'slide' });
   const projectColumns: DataTableColumn<WipSnapshotRowWithSources>[] = [
     {
-      key: 'job', label: 'Job', flex: 1, minWidth: 200, sortValue: (r) => r.projectName,
+      key: 'job', label: 'Project', flex: 1, minWidth: 200, sortValue: (r) => r.projectName,
       render: (r) => (
         <View style={styles.projectNameRow}>
           <Text style={styles.projectName} numberOfLines={1}>{r.projectName}</Text>
-          {r.output.anticipatedLoss ? <Text style={styles.lossTag}>LOSS JOB</Text> : null}
+          {r.output.anticipatedLoss ? <Text style={styles.lossTag}>Projected loss</Text> : null}
           {rowFlagState(r).flagged ? <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} /> : null}
         </View>
       ),
@@ -1227,8 +1223,8 @@ function WipReportScreenInner() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Financial Reporting</Text>
-          <Text style={styles.title}>WIP Report</Text>
+          <Text style={styles.eyebrow}>Financial reports</Text>
+          <Text style={styles.title}>WIP report</Text>
         </View>
         {/* Print and Export CSV one click from the header, on a desk (D18). */}
         {isDesktop && <ToolbarActions actions={toolbar} testID="wip-toolbar" />}
@@ -1251,20 +1247,20 @@ function WipReportScreenInner() {
       <FeatureExplainerSheet
         visible={explainerOpen}
         onClose={() => setExplainerOpen(false)}
-        term="WIP Schedule (Work-In-Progress)"
+        term="WIP schedule (work in progress)"
         definition={
-          'A WIP schedule compares what you have EARNED on each job against what you have BILLED for it. '
+          'A WIP schedule compares what you have earned on each project against what you have billed for it. '
           + 'Earned revenue is the contract times percent complete, and percent complete is cost-to-date '
-          + 'divided by your total estimated cost. Overbilling means you have billed MORE than you have '
+          + 'divided by your total estimated cost. Overbilling means you have billed more than you have '
           + 'earned — the client is funding you ahead of the work, which is good for cash but is a liability '
-          + 'you still owe in labor and materials. Underbilling means you have earned MORE than you have '
+          + 'you still owe in labor and materials. Underbilling means you have earned more than you have '
           + 'billed — you are financing your client with your own money, and it is the first thing a surety '
           + 'or a lender looks for.'
         }
         whenToUse={[
           'Every month before you close the books — lock the period so the figures cannot move afterward',
           'When a bank or a bonding agent asks for a WIP schedule (they will ask for it by that name)',
-          'When a job feels profitable but the bank account disagrees — underbilling is usually why',
+          'When a project feels profitable but the bank account disagrees — underbilling is usually why',
         ]}
       />
 
@@ -1292,8 +1288,8 @@ function WipReportScreenInner() {
             <>
               <Text style={styles.emptyTitle}>{hasRows ? 'Nothing on this period' : 'No active projects'}</Text>
               <Text style={styles.muted}>
-                A WIP schedule compares what you have EARNED on each job against what you have
-                BILLED for it, so it needs a job to read. To put one on here:
+                A WIP schedule compares what you have earned on each project against what you have
+                billed for it, so it needs a project to read. To put one on here:
               </Text>
               <Text style={styles.muted}>1  Create a project from the Projects tab.</Text>
               {/* Says what the estimate is FOR, not that it drives every figure
@@ -1547,7 +1543,7 @@ function WipReportScreenInner() {
                   <View style={styles.projectNameRow}>
                   <Text style={styles.projectName}>{r.projectName}</Text>
                   {r.output.anticipatedLoss ? (
-                    <Text style={styles.lossTag} testID="wip-loss-tag">LOSS JOB</Text>
+                    <Text style={styles.lossTag} testID="wip-loss-tag">Projected loss</Text>
                   ) : null}
                 </View>
                   <Text style={styles.muted}>{pct(r.output.percentComplete)} complete · {money(r.output.earnedRevenue)} earned</Text>
@@ -1579,8 +1575,8 @@ function WipReportScreenInner() {
                             ? ' · every cost recorded on this job — tap for the breakdown'
                             : ' · subs paid + material receipts only — tap to add your own crews')
                           : rowCost && rowCost.committedFloor > 0
-                            ? ` — nothing paid out yet, though ${money(rowCost.committedFloor)} is signed. Tap to enter what this job has cost you.`
-                            : ' — nothing recorded yet. Tap to enter what this job has cost you.'}
+                            ? ` — nothing paid out yet, though ${money(rowCost.committedFloor)} is signed. Tap to enter what this project has cost you.`
+                            : ' — nothing recorded yet. Tap to enter what this project has cost you.'}
                   </Text>
                 </View>
                 {flagged ? <AlertTriangle size={16} color={themeColors.danger} strokeWidth={2} /> : null}
@@ -1619,7 +1615,7 @@ function WipReportScreenInner() {
               </View>
               {drillInput && drillOutput ? (
                 <>
-                  <Text style={styles.muted}>Cost-to-date (subs + materials; add self-performed labor)</Text>
+                  <Text style={styles.muted}>Cost to date (subs and materials; add self-performed labor)</Text>
                   <TextInput
                     style={styles.input}
                     keyboardType="numeric"
@@ -1647,7 +1643,7 @@ function WipReportScreenInner() {
                       percent complete, earned revenue, backlog and margin all
                       follow from a forecast the person running the job made
                       rather than from an estimate that has been overtaken. */}
-                  <Text style={styles.muted}>Cost to complete — what is still left to spend on this job</Text>
+                  <Text style={styles.muted}>Cost to complete: what is still left to spend on this project</Text>
                   <TextInput
                     style={styles.input}
                     keyboardType="numeric"
@@ -1665,12 +1661,12 @@ function WipReportScreenInner() {
                         + 'on THIS device only; it is frozen into any period you save, and periods do '
                         + 'sync, but your other devices show the derived figure until you re-enter it.'
                       : drillInput.costToDate > drillInput.totalEstimatedCost
-                        ? 'This job has already cost MORE than the cost at completion above, so percent '
+                        ? 'This project has already cost more than the cost at completion above, so percent '
                           + 'complete reads 100% and backlog reads $0 whatever is actually left to do. '
                           + 'Type what is still left to spend and every figure here is measured against '
                           + 'your forecast instead.'
                         : 'Leave blank and MAGE forecasts it as cost at completion minus cost to date. '
-                          + 'A surety asks for this figure by name, updated by whoever is running the job.'}
+                          + 'A surety asks for this figure by name, updated by whoever is running the project.'}
                   </Text>
                   <Row label="Revised contract" value={money(drillOutput.revisedContract)} styles={styles} />
                   <Row label="% complete" value={pct(drillOutput.percentComplete)} styles={styles} />
@@ -1681,13 +1677,13 @@ function WipReportScreenInner() {
                     label="Cost at completion"
                     value={money(drillOutput.estimatedCostAtCompletion ?? drillInput.totalEstimatedCost)}
                     styles={styles} />
-                  <Row label="Est gross profit" value={money(drillOutput.estGrossProfit)} styles={styles} />
-                  <Row label="Est gross margin" value={pct(drillOutput.estGrossMarginPct)} styles={styles} />
+                  <Row label="Est. gross profit" value={money(drillOutput.estGrossProfit)} styles={styles} />
+                  <Row label="Est. gross margin" value={pct(drillOutput.estGrossMarginPct)} styles={styles} />
                   <Row label="Profit to date" value={money(drillOutput.profitToDate)} styles={styles} />
                   <Row label="Cost to complete" value={money(drillOutput.costToComplete)} styles={styles} />
                   <Row label="Backlog" value={money(drillOutput.backlog)} styles={styles} />
                   <Row
-                    label="Retainage held by owner"
+                    label="Retainage held by client"
                     value={drillInput.retainageHeld == null ? 'Not recorded' : money(drillInput.retainageHeld)}
                     styles={styles} />
 
@@ -1738,7 +1734,7 @@ function WipReportScreenInner() {
                           visible as the figure his forecast replaced. */}
                       <Text style={styles.sourceLine}>
                         {drillRow.etc
-                          ? `Cost basis: the ${money(drillInput.costToDate)} this job has cost so far plus `
+                          ? `Cost basis: the ${money(drillInput.costToDate)} this project has cost so far plus `
                             + `the ${money(drillRow.etc.value)} you said is still left to spend — your own `
                             + `forecast for this period. MAGE\u2019s own figure was `
                             + `${money(drillRow.cost.value)}; clear the cost-to-complete box to go back to it.`
@@ -1766,8 +1762,8 @@ function WipReportScreenInner() {
                           // by `wipCostToDateCaveat` reading each row's own source.
                           : `Cost-to-date ${money(drillRow.auto.value)} — `
                             + describeCostToDateComponents(drillRow.auto)
-                            + ' A trade with no rate on file and a machine with no day rate add nothing'
-                            + ' — MAGE does not invent a rate — so those are the only gaps.'}
+                            + ' Trades with no rate on file and equipment with no day rate count as $0'
+                            + ' until you add one. Those are the only gaps.'}
                       </Text>
                       {drillRow.override && !drillRow.override.synced ? (
                         <Text style={styles.sourceLine}>
@@ -1784,7 +1780,7 @@ function WipReportScreenInner() {
                       <View style={styles.flagRow}>
                         <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} />
                         <Text style={styles.flagText}>
-                          Loss job: the full estimated loss is booked now (GAAP), not pro-rated by % complete.
+                          Projected loss: the full estimated loss is booked now (GAAP), not pro-rated by % complete.
                         </Text>
                       </View>
                     </View>
@@ -1889,7 +1885,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // the one thing that does not survive a screenshot or a monochrome print —
   // and "loss job" is the single most consequential word on this schedule.
   lossTag: {
-    fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.danger,
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.danger, textTransform: 'uppercase',
     borderWidth: 1, borderColor: t.danger, borderRadius: Tokens.radius.sm,
     paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' as const,
   },

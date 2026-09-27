@@ -151,7 +151,7 @@ function EstimateConfidenceInner() {
     const sk = calibPreview?.skippedAtBookRate ?? [];
     if (sk.length === 0) return '';
     const names = sk.slice(0, 3).map(x => x.name).join(', ') + (sk.length > 3 ? ` +${sk.length - 3} more` : '');
-    return `${sk.length} line${sk.length > 1 ? 's' : ''} already priced at the rate your jobs measured ${sk.length > 1 ? 'are' : 'is'} left alone (${names}) — the correction is already in ${sk.length > 1 ? 'their' : 'its'} price.`;
+    return `${sk.length} line${sk.length > 1 ? 's' : ''} already priced at the rate your projects measured ${sk.length > 1 ? 'are' : 'is'} left alone (${names}). The correction is already in ${sk.length > 1 ? 'their' : 'its'} price.`;
   }, [calibPreview]);
 
   const onApplyCalibration = useCallback(() => {
@@ -159,7 +159,7 @@ function EstimateConfidenceInner() {
     const delta = calibPreview.newGrandTotal - calibPreview.oldGrandTotal;
     showAlert(
       'Apply your cost corrections?',
-      `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be re-priced from your job history${calibPreview.cappedToBookRate > 0 ? ` (${calibPreview.cappedToBookRate} only up to your measured rate, not past it)` : ''}.${skippedCopy ? `\n\n${skippedCopy}` : ''}\n\n${formatMoney(calibPreview.oldGrandTotal)} → ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
+      `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be repriced from your cost history${calibPreview.cappedToBookRate > 0 ? ` (${calibPreview.cappedToBookRate} only up to your measured rate, not past it)` : ''}.${skippedCopy ? `\n\n${skippedCopy}` : ''}\n\n${formatMoney(calibPreview.oldGrandTotal)} → ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -186,7 +186,7 @@ function EstimateConfidenceInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Estimate Confidence · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Estimate confidence · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project?.name ?? 'Price check'}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -198,7 +198,7 @@ function EstimateConfidenceInner() {
         <EmptyState
           icon={<ShieldCheck size={36} color={t.accent} strokeWidth={1.6} />}
           title="No estimate yet"
-          message="Estimate Risk checks each line of a job's estimate against your cost history. None of your projects has an estimate with lines yet — build one, then come back."
+          message="Estimate risk checks each line of a project's estimate against your cost history. None of your projects has an estimate with lines yet. Build one, then come back."
           actionLabel="Build an estimate"
           onAction={() => router.push('/estimate-wizard' as never)}
         />
@@ -207,7 +207,7 @@ function EstimateConfidenceInner() {
           {candidates.length > 0 && (
             <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
               <EstimateJobPicker
-                label="Check another job"
+                label="Check another project"
                 jobs={candidates}
                 selectedId={projectId}
                 onPick={(id) => router.setParams({ projectId: id })}
@@ -220,8 +220,8 @@ function EstimateConfidenceInner() {
             title={!project ? 'Project not found' : 'No estimate to check'}
             message={
               !project
-                ? 'This link points to a project that isn\u2019t on this device any more. Pick a job above, or go back.'
-                : 'Estimate Confidence checks each line against your cost database. Build an estimate with cost and markup to use it.'
+                ? 'This link points to a project that isn\u2019t on this device any more. Pick a project above, or go back.'
+                : 'Estimate confidence checks each line against your cost history. Build an estimate with cost and markup to use it.'
             }
             actionLabel="Back"
             onAction={() => router.back()}
@@ -297,7 +297,7 @@ function EstimateConfidenceInner() {
             <View style={styles.disclose}>
               <Info size={15} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.discloseText}>
-                No cost history yet — close a job or two with linked commitments and this fills in. Until then every line reads as no-history.
+                No cost history yet, so every line reads No history. Close a project with linked commitments and this fills in.
               </Text>
             </View>
           )}
@@ -381,7 +381,7 @@ function LineRow({
                 </>
               )}
               <Text style={styles.lineDot}>·</Text>
-              <Text style={styles.lineMetaText}>{line.jobCount} job{line.jobCount === 1 ? '' : 's'}</Text>
+              <Text style={styles.lineMetaText}>{line.jobCount} {line.jobCount === 1 ? 'project' : 'projects'}</Text>
             </>
           ) : (
             <>

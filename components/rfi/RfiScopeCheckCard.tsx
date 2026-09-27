@@ -49,9 +49,10 @@ import { buildScopeIndex, isInContractScope } from '@/utils/scopeCoverage';
 import { scopeRateFor, scopeRateCaption } from '@/utils/scopePricing';
 import { formatMoney } from '@/utils/formatters';
 import type { Project, RFI } from '@/types';
+import { describeError } from '@/utils/errorCopy';
 
 export const RFI_SCOPE_NEEDS_ESTIMATE =
-  'Link an estimate to this job first. The check compares the answer with your contracted scope.';
+  'Link an estimate to this project first. The check compares the answer with your contracted scope.';
 export const RFI_SCOPE_OWNER_ONLY = 'Only the project owner drafts change orders.';
 
 type StoredVerdict = {
@@ -239,7 +240,8 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
       }
       setRun({ kind: 'idle' });
     } catch (err) {
-      setRun({ kind: 'failed', error: err instanceof Error ? err.message : String(err) });
+      console.warn('[rfi-scope] check failed:', err instanceof Error ? err.message : err);
+      setRun({ kind: 'failed', error: describeError(err, { action: 'check the RFI against the scope' }).body });
     } finally {
       runningRef.current = false;
     }
@@ -297,7 +299,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
   const runStatus = run.kind === 'limit'
     ? <Text style={styles.warn} testID="rfiscope-limit">{run.message}</Text>
     : run.kind === 'failed'
-      ? <Text style={styles.warn} testID="rfiscope-failed">The check failed. Nothing was saved. Try again in a moment.{run.error ? ` ${run.error}` : ''}</Text>
+      ? <Text style={styles.warn} testID="rfiscope-failed">{run.error ? `Nothing was saved. ${run.error}` : 'The check failed. Nothing was saved. Try again in a moment.'}</Text>
       : null;
   const checkAgain = (
     <Button
@@ -375,7 +377,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
           </View>
         ) : null}
         <Text style={styles.meta}>
-          Compared with {result.estimateLines} estimate line(s) and {result.changeOrders} change order(s). Checked {dayLabel(result.at)}. Nothing is sent: the change order opens as a draft for you to price and send.
+          Compared with {result.estimateLines} estimate {result.estimateLines === 1 ? 'line' : 'lines'} and {result.changeOrders} change {result.changeOrders === 1 ? 'order' : 'orders'}. Checked {dayLabel(result.at)}. Nothing is sent: the change order opens as a draft for you to price and send.
         </Text>
         <View style={styles.actions}>
           <Button
@@ -407,7 +409,7 @@ export function RfiScopeCheckCard({ rfi, project }: { rfi: RFI; project: Project
         <View style={styles.row}>
           <CheckCircle2 size={16} color={t.success} strokeWidth={1.75} />
           <Text style={[styles.text, styles.flex]} testID="rfiscope-none">
-            Nothing in this answer reads as added scope. Compared with {n ?? 0} estimate line(s) and {m ?? 0} change order(s). Checked {dayLabel(at)}.
+            Nothing in this answer reads as added scope. Compared with {n ?? 0} estimate {(n ?? 0) === 1 ? 'line' : 'lines'} and {m ?? 0} change {(m ?? 0) === 1 ? 'order' : 'orders'}. Checked {dayLabel(at)}.
           </Text>
         </View>
         <View style={styles.actions}>{checkAgain}</View>

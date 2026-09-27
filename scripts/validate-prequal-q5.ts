@@ -97,7 +97,7 @@ ok('the invite is signed with the GC\'s company, not "MAGE ID"',
   /signOff\n?\s*\);/.test(invite) && !/Thanks,\\nMAGE ID/.test(pm)
   && /prequalSignOff\(settings\?\.branding\?\.companyName\)/.test(pm));
 ok('a failed mail open offers the link to copy instead of doing nothing',
-  !/\.catch\(\(\) => \{\}\)/.test(invite) && /Invite saved — no email went out/.test(invite)
+  !/\.catch\(\(\) => \{\}\)/.test(invite) && /Invite saved, not emailed/.test(invite)
   && /composeMailOrOfferLink\(\{/.test(invite) && /Invite ready to send/.test(invite));
 // Review r1: on react-native-web Linking.openURL resolves whenever window.open
 // does not throw, so the "opened" branch is the ONLY branch the web app ever

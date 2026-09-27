@@ -322,13 +322,13 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     const r = render(<Wrap><SchedulerTabShell {...shellProps()} /></Wrap>);
     await settle();
     expect(r.queryByText('Plan ▾')).not.toBeNull();
-    expect(r.queryByText('BASELINE')).not.toBeNull();
+    expect(r.queryByText('Baseline')).not.toBeNull();
 
     r.rerender(<Wrap><SchedulerTabShell {...shellProps(PRO)} /></Wrap>);
     await settle();
     expect(r.queryByText('Plan ▾')).toBeNull();
     expect(r.queryByText('Track ▾')).toBeNull();
-    expect(r.queryByText('BASELINE')).toBeNull();
+    expect(r.queryByText('Baseline')).toBeNull();
     // The controlled view is the Timeline split, with no local layout bar and
     // no Gantt toolbar (its zoom / Fit / Today come through ganttRef).
     expect(r.queryByTestId('gantt-split-grid')).not.toBeNull();
@@ -353,16 +353,16 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     expect(styleOf(r.getByTestId('gantt-split-divider')).width).toBe(8);
   });
 
-  it("GridPane's first visible header texts are Task Name · Dur. · Start · Finish ('#' leads from 440)", async () => {
+  it("GridPane's first visible header texts are Task name · Dur. · Start · Finish ('#' leads from 440)", async () => {
     const r = render(<Wrap><SchedulerTabShell {...shellProps({ ...PRO, paneOpen: true })} /></Wrap>);
     await settle();
     await layoutRow(r, 1448);
     const header = () => textsOf(r.getByTestId('gantt-split-grid') as unknown as Inst);
-    expect(header().slice(0, 4)).toEqual(['Task Name', 'Dur.', 'Start', 'Finish']);
+    expect(header().slice(0, 4)).toEqual(['Task name', 'Dur.', 'Start', 'Finish']);
 
     r.rerender(<Wrap><SchedulerTabShell {...shellProps(PRO)} /></Wrap>);
     await settle();
-    expect(header().slice(0, 5)).toEqual(['#', 'Task Name', 'Dur.', 'Start', 'Finish']);
+    expect(header().slice(0, 5)).toEqual(['#', 'Task name', 'Dur.', 'Start', 'Finish']);
   });
 
   it('compact density: 32 px rows under a 48 px header, in the grid and the Gantt alike', async () => {
@@ -455,11 +455,11 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
   it('the Overview drops the "link a budget" EV card only when hasBudget is false', async () => {
     const r = render(<Wrap><SchedulerTabShell {...shellProps({ desktopChrome: 'toolbar', view: 'overview', hasBudget: false })} /></Wrap>);
     await settle();
-    expect(r.queryByText('Earned Value')).toBeNull();
-    expect(r.queryByText('Tasks by Status')).not.toBeNull();
+    expect(r.queryByText('Earned value')).toBeNull();
+    expect(r.queryByText('Tasks by status')).not.toBeNull();
     r.rerender(<Wrap><SchedulerTabShell {...shellProps({ desktopChrome: 'toolbar', view: 'overview' })} /></Wrap>);
     await settle();
-    expect(r.queryByText('Earned Value')).not.toBeNull();
+    expect(r.queryByText('Earned value')).not.toBeNull();
   });
 
   it('a right-click menu opens at the pointer as a 220-280 px popover, pulled inside the window', async () => {

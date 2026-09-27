@@ -177,7 +177,7 @@ function check(tasks: ScheduleTask[], key: string) {
   const behindCheck = check(behind, 'cpli')!;
   expect('#13 a behind-baseline plan scores 0', behindCheck.value, 0);
   expect('#13 explains the gap in working days',
-    /working day\(s\) past the baseline/.test(behindCheck.suggestion), true);
+    /working days? past the baseline/.test(behindCheck.suggestion), true);
 
   // Without a calendar the two scales cannot be compared, and CPLI must refuse
   // rather than divide a working ordinal by a calendar index.

@@ -31,39 +31,39 @@ export interface SettingsGroup {
 
 /** The index, in order. Each section id belongs to exactly one group. */
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
-  { key: 'account', label: 'Account & plan', sections: ['account-type', 'subscription', 'ai-usage', 'security'] },
+  { key: 'account', label: 'Account and plan', sections: ['account-type', 'subscription', 'ai-usage', 'security'] },
   { key: 'workspace', label: 'Workspace', sections: ['location-units', 'estimate-defaults', 'pdf-naming', 'theme', 'notifications'] },
   { key: 'money', label: 'Money', sections: ['payments', 'integrations', 'your-costs', 'supplier-marketplace'] },
-  { key: 'sharing', label: 'Sharing & data', sections: ['project-pages', 'contacts-email', 'your-data'] },
+  { key: 'sharing', label: 'Sharing and data', sections: ['project-pages', 'contacts-email', 'your-data'] },
   { key: 'help', label: 'Help', sections: ['help', 'faq', 'about', 'legal'] },
   { key: 'danger', label: 'Danger zone', sections: ['danger'] },
   { key: 'developer', label: 'Developer', sections: ['developer'], ownerOnly: true },
 ];
 
-/** The index row text for each section (Title Case of the pane's header). */
+/** The index row text for each section (sentence case, as the pane's header). */
 export const SECTION_LABEL: Record<SettingsSectionId, string> = {
-  'account-type': 'Account Type',
-  'ai-usage': 'AI Usage',
-  'location-units': 'Location & Units',
-  'estimate-defaults': 'Estimate Defaults',
-  'pdf-naming': 'PDF Naming',
-  theme: 'App Theme',
+  'account-type': 'Account type',
+  'ai-usage': 'AI usage',
+  'location-units': 'Location and units',
+  'estimate-defaults': 'Estimate defaults',
+  'pdf-naming': 'PDF naming',
+  theme: 'App theme',
   security: 'Security',
   notifications: 'Notifications',
   payments: 'Payments',
   integrations: 'Integrations',
-  'project-pages': 'Project Pages & Verification',
-  'your-costs': 'Your Costs',
-  'contacts-email': 'Contacts & Email',
-  'your-data': 'Your Data',
-  developer: 'Developer (Owner Only)',
-  'supplier-marketplace': 'Supplier Marketplace',
-  subscription: 'Subscription Plan',
-  help: 'Help & Support',
+  'project-pages': 'Project pages and verification',
+  'your-costs': 'Your costs',
+  'contacts-email': 'Contacts and email',
+  'your-data': 'Your data',
+  developer: 'Developer (owner only)',
+  'supplier-marketplace': 'Supplier marketplace',
+  subscription: 'Subscription plan',
+  help: 'Help and support',
   faq: 'FAQ',
   about: 'About',
   legal: 'Legal',
-  danger: 'Danger Zone',
+  danger: 'Danger zone',
 };
 
 /** Contractor-only settings a property manager never sees. The INDEX reads

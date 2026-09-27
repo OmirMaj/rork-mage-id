@@ -14,6 +14,26 @@ import { openPrintWindowOrThrow } from './platformFile';
 import { coApprovalLine } from './coApproval';
 import { homeownerSignatureMethodLabel } from './contractSignatureCore';
 
+// Status labels printed on documents come from maps, never from the raw enum
+// (docs/VOICE.md: a humanized enum prints Title Case and whatever the row holds).
+const CO_STATUS_PDF_LABEL: Record<string, string> = {
+  draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
+  rejected: 'Rejected', revised: 'Revised', void: 'Void',
+};
+const pdfCoStatusLabel = (s: string): string => CO_STATUS_PDF_LABEL[s] ?? 'Status not set';
+const PAYMENT_TERMS_PDF_LABEL: Record<string, string> = {
+  net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45', due_on_receipt: 'Due on receipt',
+};
+const pdfPaymentTermsLabel = (t: string): string => PAYMENT_TERMS_PDF_LABEL[t] ?? 'Not set';
+const INCIDENT_SEVERITY_PDF_LABEL: Record<string, string> = {
+  near_miss: 'Near miss', minor: 'Minor', moderate: 'Moderate', major: 'Major', critical: 'Critical',
+};
+const pdfIncidentSeverityLabel = (s: string | undefined): string => (s && INCIDENT_SEVERITY_PDF_LABEL[s]) || 'Not recorded';
+const RFI_STATUS_PDF_LABEL: Record<string, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', void: 'Void' };
+const pdfRfiStatusLabel = (s: string): string => RFI_STATUS_PDF_LABEL[s] ?? 'Status not set';
+const RFI_PRIORITY_PDF_LABEL: Record<string, string> = { low: 'Low', normal: 'Normal', urgent: 'Urgent' };
+const pdfRfiPriorityLabel = (p: string): string => RFI_PRIORITY_PDF_LABEL[p] ?? 'Normal';
+
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
 export interface QuickEstimateResultForPdf {
@@ -138,7 +158,7 @@ function buildQuickEstimateHtml(
   // it's the human-authored ground truth.
   const scopeBlock = (result.summary || answers.scope) ? `
     <div class="no-break" style="margin-bottom:24px">
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Scope of Work</div>
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Scope of work</div>
       ${result.summary ? `<div style="font-size:13px;color:${PDF_PALETTE.text};line-height:1.65;margin-bottom:${answers.scope ? '10px' : '0'}">${escHtml(result.summary)}</div>` : ''}
       ${answers.scope && answers.scope !== result.summary ? `<div style="font-size:13px;color:${PDF_PALETTE.text2};line-height:1.65;font-style:italic">${escHtml(answers.scope)}</div>` : ''}
       ${answers.specialRequirements ? `<div style="font-size:12px;color:${PDF_PALETTE.text2};line-height:1.6;margin-top:10px;padding:10px 12px;background:${PDF_PALETTE.bone2}40;border-radius:8px"><strong style="color:${PDF_PALETTE.text}">Special requirements:</strong> ${escHtml(answers.specialRequirements)}</div>` : ''}
@@ -148,7 +168,7 @@ function buildQuickEstimateHtml(
   // ── COST DISTRIBUTION CARD with horizontal bars ──
   const categoryBreakdown = result.total > 0 ? `
     <div class="no-break" style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#FFF;border:1px solid ${PDF_PALETTE.bone}">
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:14px">Cost Distribution</div>
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:14px">Cost distribution</div>
       ${categories.map(cat => {
         const subtotal = (grouped.get(cat) ?? []).reduce((s, li) => s + li.total, 0);
         const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
@@ -210,7 +230,7 @@ function buildQuickEstimateHtml(
     <div class="no-break" style="margin-top:10px;padding:22px 24px;border-radius:14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Line items subtotal</span><span class="num" style="font-weight:600">${fmtMoney(result.subtotal, { decimals: 2 })}</span></div>
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Contingency</span><span class="num" style="font-weight:600">${fmtMoney(result.contingency, { decimals: 2 })}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits & fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits, { decimals: 2 })}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits and fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits, { decimals: 2 })}</span></div>
       <div style="height:1px;background:${PDF_PALETTE.bone};margin:14px 0"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end">
         <div>
@@ -230,7 +250,7 @@ function buildQuickEstimateHtml(
   // include in their fine print.
   const inclusionsBlock = categories.length > 0 ? `
     <div class="no-break" style="margin-top:24px">
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">What's Included</div>
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">What's included</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px 10px">
         ${categories.map(cat => `<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${PDF_PALETTE.successTint};color:${PDF_PALETTE.success};font-size:11px;font-weight:600">${escHtml(cat)}</span>`).join('')}
       </div>
@@ -242,7 +262,7 @@ function buildQuickEstimateHtml(
 
   const exclusionsBlock = `
     <div class="no-break" style="margin-top:18px">
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">What's Not Included</div>
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">What's not included</div>
       <div style="font-size:11.5px;color:${PDF_PALETTE.text2};line-height:1.7;padding-left:4px">
         &bull; Architectural / engineering / design fees<br/>
         &bull; HOA, city, or third-party plan-review fees beyond standard permits<br/>
@@ -267,7 +287,7 @@ function buildQuickEstimateHtml(
   const stageRows = paymentStageRows(result.total, split);
   const paymentTermsBlock = `
     <div class="no-break" style="margin-top:24px">
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Payment Terms</div>
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Payment terms</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         ${stageRows.map((r, i) => {
           const last = i === stageRows.length - 1;
@@ -305,7 +325,7 @@ function buildQuickEstimateHtml(
   // ── NOTES (kept, but only if the AI returned any) ──
   const notesBlock = result.notes.length === 0 ? '' : `
     <div class="no-break" style="margin-top:18px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.amberTint};border:1px solid ${PDF_PALETTE.amber}40">
-      <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:8px">Project Notes</div>
+      <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:8px">Project notes</div>
       ${result.notes.map(n => `<div style="font-size:12px;color:${PDF_PALETTE.text};margin-bottom:4px;line-height:1.55">• ${escHtml(n)}</div>`).join('')}
     </div>`;
 
@@ -319,15 +339,15 @@ function buildQuickEstimateHtml(
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Construction Estimate',
-      title: answers.projectType || 'Project Estimate',
+      eyebrow: 'Construction estimate',
+      title: answers.projectType || 'Project estimate',
       meta: [], // moved into projectInfoBlock below for a more formal layout
     })}
     ${projectInfoBlock}
     <div style="margin-top:8px">${pdfStatGrid(heroStats)}</div>
     ${scopeBlock}
     ${categoryBreakdown}
-    <div style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${PDF_PALETTE.text};margin:24px 0 12px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Detailed Line Items</div>
+    <div style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${PDF_PALETTE.text};margin:24px 0 12px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Detailed line items</div>
     ${lineItemSections || `<div style="padding:20px;text-align:center;color:${PDF_PALETTE.textMuted};font-style:italic">No line items provided.</div>`}
     ${totalsBlock}
     ${inclusionsBlock}
@@ -356,7 +376,7 @@ export async function shareQuickEstimatePDF(
   split: PaymentSplit,
 ): Promise<void> {
   const html = buildQuickEstimateHtml(result, answers, branding, split);
-  const title = `Quick Estimate — ${answers.projectType || 'Construction'}`;
+  const title = `Quick estimate — ${answers.projectType || 'Construction'}`;
 
   if (Platform.OS === 'web') {
     // #124: throws when the browser blocks the window, so the wizard's catch
@@ -416,7 +436,7 @@ export function bulkSavingsNoteText(amount: number | undefined | null): string {
 }
 function bulkSavingsNoteHtml(amount: number | undefined | null): string {
   return (amount ?? 0) > 0
-    ? `<p class="summary-note" style="margin:8px 0 0;font-size:12px;color:#555">Buyout savings: ${formatCurrency(amount ?? 0)} — what the awarded subcontracts came in under budget. Not deducted from the Estimate Total above.</p>`
+    ? `<p class="summary-note" style="margin:8px 0 0;font-size:12px;color:#555">Buyout savings: ${formatCurrency(amount ?? 0)} — what the awarded subcontracts came in under budget. Not deducted from the estimate total above.</p>`
     : '';
 }
 
@@ -430,7 +450,7 @@ function buildEstimateHtml(
   const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
   const logoBlock = branding.logoUri
-    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Company Logo" /></div>`
+    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Company logo" /></div>`
     : '';
 
   const companyBlock = branding.companyName
@@ -446,7 +466,7 @@ function buildEstimateHtml(
           ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
         </div>
       </div>`
-    : `<div class="company-header"><div class="company-name">MAGE ID Estimate</div></div>`;
+    : `<div class="company-header"><div class="company-name">MAGE ID estimate</div></div>`;
 
   let itemsHtml = '';
 
@@ -471,14 +491,14 @@ function buildEstimateHtml(
     // from the rows printed right above it ($66.59 over rows adding to $66.58).
     const totalCents = estimateTotalCents(est.grandTotal);
     itemsHtml = `
-      <h2>Materials & Items</h2>
+      <h2>Materials and items</h2>
       <table>
         <thead>
           <tr>
             <th style="text-align:left;width:40%">Item</th>
             <th>Category</th>
             <th>Qty</th>
-            <th style="text-align:right">Line Total</th>
+            <th style="text-align:right">Line total</th>
           </tr>
         </thead>
         <tbody>
@@ -493,7 +513,7 @@ function buildEstimateHtml(
         </tbody>
       </table>
       <div class="summary-box">
-        <div class="summary-row total"><span>Estimate Total</span><span>${formatCurrency(totalCents / 100)}</span></div>
+        <div class="summary-row total"><span>Estimate total</span><span>${formatCurrency(totalCents / 100)}</span></div>
       </div>
       ${bulkSavingsNoteHtml(est.bulkSavingsTotal)}`;
   } else if (legacyEst) {
@@ -505,7 +525,7 @@ function buildEstimateHtml(
             <th style="text-align:left;width:35%">Item</th>
             <th>Category</th>
             <th>Qty</th>
-            <th>Unit Price</th>
+            <th>Unit price</th>
             <th style="text-align:right">Total</th>
           </tr>
         </thead>
@@ -547,16 +567,16 @@ function buildEstimateHtml(
       <div class="summary-box">
         <div class="summary-row"><span>Materials</span><span>${formatCurrency(legacyEst.materialTotal)}</span></div>
         <div class="summary-row"><span>Labor</span><span>${formatCurrency(legacyEst.laborTotal)}</span></div>
-        <div class="summary-row"><span>Permits & Fees</span><span>${formatCurrency(legacyEst.permits)}</span></div>
+        <div class="summary-row"><span>Permits and fees</span><span>${formatCurrency(legacyEst.permits)}</span></div>
         <div class="summary-row"><span>Overhead</span><span>${formatCurrency(legacyEst.overhead)}</span></div>
         <div class="summary-divider"></div>
         <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(legacyEst.subtotal)}</span></div>
         <div class="summary-row"><span>Tax</span><span>${formatCurrency(legacyEst.tax)}</span></div>
         <div class="summary-row"><span>Contingency</span><span>${formatCurrency(legacyEst.contingency)}</span></div>
         <div class="summary-divider thick"></div>
-        <div class="summary-row total"><span>Grand Total</span><span>${formatCurrency(legacyEst.grandTotal)}</span></div>
-        ${legacyEst.pricePerSqFt > 0 ? `<div class="summary-row sub"><span>Price per Sq Ft</span><span>${formatCurrency(legacyEst.pricePerSqFt)}</span></div>` : ''}
-        ${legacyEst.estimatedDuration ? `<div class="summary-row sub"><span>Est. Duration</span><span>${escapeHtml(legacyEst.estimatedDuration)}</span></div>` : ''}
+        <div class="summary-row total"><span>Grand total</span><span>${formatCurrency(legacyEst.grandTotal)}</span></div>
+        ${legacyEst.pricePerSqFt > 0 ? `<div class="summary-row sub"><span>Price per sq ft</span><span>${formatCurrency(legacyEst.pricePerSqFt)}</span></div>` : ''}
+        ${legacyEst.estimatedDuration ? `<div class="summary-row sub"><span>Estimated duration</span><span>${escapeHtml(legacyEst.estimatedDuration)}</span></div>` : ''}
       </div>
       ${bulkSavingsNoteHtml(legacyEst.bulkSavingsTotal)}`;
   }
@@ -625,10 +645,10 @@ function buildEstimateHtml(
 
     scheduleHtml = `
       <div class="page-break"></div>
-      <h2>Project Schedule</h2>
+      <h2>Project schedule</h2>
       <div class="schedule-stats">
         <div class="schedule-stat"><strong>${schedule.totalDurationDays}</strong> days total</div>
-        <div class="schedule-stat"><strong>${schedule.criticalPathDays}</strong> critical path</div>
+        <div class="schedule-stat"><strong>${schedule.criticalPathDays}</strong> days on the critical path</div>
         <div class="schedule-stat"><strong>${schedule.tasks.length}</strong> tasks</div>
         ${milestones.length > 0 ? `<div class="schedule-stat"><strong>${milestones.length}</strong> milestones</div>` : ''}
       </div>
@@ -672,7 +692,7 @@ function buildEstimateHtml(
       </div>
 
       ${criticalTasks.length > 0 ? `
-        <h3>Critical Path</h3>
+        <h3>Critical path</h3>
         <div class="critical-path-chain">
           ${criticalTasks.map((t, i) => `
             <span class="critical-node">${escapeHtml(t.title)} (${t.durationDays}d)</span>
@@ -696,14 +716,14 @@ function buildEstimateHtml(
 
   const signatureBlock = branding.signatureData && branding.signatureData.length > 0
     ? `<div class="signature-section">
-        <div class="signature-label">Authorized Signature</div>
+        <div class="signature-label">Authorized signature</div>
         <div class="signature-drawing">${buildSignatureSvg(branding.signatureData)}</div>
         ${branding.contactName ? `<div class="signature-name">${escapeHtml(branding.contactName)}</div>` : ''}
         ${branding.companyName ? `<div class="signature-company">${escapeHtml(branding.companyName)}</div>` : ''}
         <div class="signature-date">Date: ${now}</div>
       </div>`
     : `<div class="signature-section">
-        <div class="signature-label">Authorized Signature</div>
+        <div class="signature-label">Authorized signature</div>
         <div class="signature-line"></div>
         ${branding.contactName ? `<div class="signature-name">${escapeHtml(branding.contactName)}</div>` : ''}
         <div class="signature-date">Date: _______________</div>
@@ -852,7 +872,7 @@ export async function generateAndSharePDF(
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `${project.name} Estimate`,
+          dialogTitle: `${project.name} estimate`,
           UTI: 'com.adobe.pdf',
         });
       } else {
@@ -862,7 +882,7 @@ export async function generateAndSharePDF(
     } else {
       await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
-        dialogTitle: `${project.name} Estimate`,
+        dialogTitle: `${project.name} estimate`,
         UTI: 'com.adobe.pdf',
       });
     }
@@ -898,11 +918,11 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
     subtitle: co.description || undefined,
     meta: [
       { label: 'Date', value: now },
-      { label: 'Status', value: D.escHtml(co.status.replace(/_/g, ' ')) },
+      { label: 'Status', value: D.escHtml(pdfCoStatusLabel(co.status)) },
       ...(co.scheduleImpactDays ? [{ label: 'Schedule impact', value: `${co.scheduleImpactDays} day${co.scheduleImpactDays === 1 ? '' : 's'}` }] : []),
     ],
   });
-  const statusBadge = `<div style="margin-bottom:18px">${D.pdfPill(co.status.replace(/_/g, ' '), pillKind)}</div>`;
+  const statusBadge = `<div style="margin-bottom:18px">${D.pdfPill(pdfCoStatusLabel(co.status), pillKind)}</div>`;
   const reasonHtml = co.reason
     ? `<div style="background:${D.PDF_PALETTE.cream2};border:1px solid ${D.PDF_PALETTE.bone2};border-radius:12px;padding:14px 18px;margin-bottom:20px"><div style="font-size:9px;font-weight:700;color:${D.PDF_PALETTE.textMuted};letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Reason</div><div style="font-size:13px;color:${D.PDF_PALETTE.text};line-height:1.55">${D.escHtml(co.reason)}</div></div>`
     : '';
@@ -919,7 +939,7 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
       { header: 'Item', align: 'left', width: '38%' },
       { header: 'Qty', align: 'right' },
       { header: 'Unit', align: 'left' },
-      { header: 'Unit Price', align: 'right' },
+      { header: 'Unit price', align: 'right' },
       { header: 'Total', align: 'right' },
     ],
     lineRows,
@@ -997,7 +1017,7 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
   // other PDF MAGE ID generates. See utils/pdfDesign.ts for the helpers.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
-  const termsLabel = inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+  const termsLabel = pdfPaymentTermsLabel(inv.paymentTerms);
   // MONEY-F5 / MONEY-F6: the PDF must show the SAME amounts as the covering
   // email and the Pay button. Retention the contract holds back is subtracted
   // BEFORE the payable figure, and the balance is computed by the same helper
@@ -1039,7 +1059,7 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
       { header: 'Item', align: 'left', width: '38%' },
       { header: 'Qty', align: 'right' },
       { header: 'Unit', align: 'left' },
-      { header: 'Unit Price', align: 'right' },
+      { header: 'Unit price', align: 'right' },
       { header: 'Total', align: 'right' },
     ],
     lineRows,
@@ -1066,7 +1086,7 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
     ${totalsRows}
     <div style="height:1.5px;background:${D.PDF_PALETTE.ink};margin:8px 0"></div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
-      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">${hasRetention ? 'Net payable this invoice' : 'Total Due'}</span>
+      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">${hasRetention ? 'Net payable this invoice' : 'Total due'}</span>
       <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:700;color:${D.PDF_PALETTE.amber};letter-spacing:-0.012em">${D.fmtMoney(netPayable, { decimals: 2 })}</span>
     </div>
     ${inv.amountPaid > 0 ? `
@@ -1280,7 +1300,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
           { header: 'Company', align: 'left' },
           { header: 'Headcount', align: 'right' },
           { header: 'Hours', align: 'right' },
-          { header: 'Man-Hours', align: 'right' },
+          { header: 'Man-hours', align: 'right' },
         ],
         dfr.manpower.map(m => [
           `<span style="font-weight:600">${D.escHtml(m.trade)}</span>`,
@@ -1302,7 +1322,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
       `<div style="${blockStyle}">${dfr.materialsDelivered.map(m => `&middot; ${D.escHtml(m)}`).join('<br/>')}</div>`
     : '';
   const issuesHtml = dfr.issuesAndDelays
-    ? D.pdfSectionHeader('Issues & delays') +
+    ? D.pdfSectionHeader('Issues and delays') +
       `<div style="${issueStyle}">${D.escHtml(dfr.issuesAndDelays)}</div>`
     : '';
 
@@ -1311,7 +1331,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
   const yesNo = (v: boolean | undefined) => (v ? 'Yes' : 'No');
   const incidentHtml = inc?.hasIncident
     ? D.pdfSectionHeader('Incident') + `<div style="${issueStyle}">${[
-        `<strong>Severity:</strong> ${D.escHtml((inc.severity ?? 'not recorded').replace(/_/g, ' '))}`,
+        `<strong>Severity:</strong> ${D.escHtml(pdfIncidentSeverityLabel(inc.severity))}`,
         extras?.incidentClassification ? `<strong>Classification:</strong> ${D.escHtml(extras.incidentClassification)}` : '',
         `<strong>Injury reported:</strong> ${yesNo(inc.injuriesReported)} &middot; <strong>Medical treatment beyond first aid:</strong> ${yesNo(inc.medicalTreatment)} &middot; <strong>OSHA recordable:</strong> ${yesNo(inc.oshaRecordable)}`,
         inc.description ? `<strong>What happened:</strong> ${D.escHtml(inc.description)}` : '',
@@ -1363,7 +1383,7 @@ export function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: 
     : '';
 
   return D.pdfShell({
-    title: `Daily field report — ${project.name} — ${reportDate}`,
+    title: `Daily field report · ${project.name} · ${reportDate}`,
     branding,
     bodyHtml:
       headerHtml + titleHtml + weatherStats + manpowerHtml + workHtml + materialsHtml + issuesHtml + incidentHtml + photosHtml +
@@ -1406,7 +1426,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
           ${branding.email ? `<div class="info-item"><span class="info-label">Email</span><span>${escapeHtml(branding.email)}</span></div>` : ''}
           ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
         </div></div>`
-    : `<div class="company-header"><div class="company-name">RFI Log</div></div>`;
+    : `<div class="company-header"><div class="company-name">RFI log</div></div>`;
 
   // sort: open + overdue first, then open, then answered, then closed/void; tiebreak by RFI number desc.
   const today = new Date();
@@ -1445,13 +1465,13 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
 
   const tableRows = sorted.map((r, i) => {
     const isOverdue = r.status === 'open' && isPastDue(r);
-    const statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
+    const statusLabel = pdfRfiStatusLabel(r.status);
     return `<tr class="${i % 2 === 0 ? 'alt' : ''}">
       <td style="text-align:center;font-weight:700">#${r.number}</td>
       <td style="text-align:left;font-weight:500">${escapeHtml(r.subject)}</td>
       <td style="text-align:left">${escapeHtml(r.assignedTo || '—')}</td>
       <td style="text-align:center">${formatRfiDate(r.dateSubmitted)}</td>
-      <td style="text-align:center;${isOverdue ? 'color:#FF3B30;font-weight:700' : ''}">${formatRfiDate(r.dateRequired)}${isOverdue ? ' ⚠' : ''}</td>
+      <td style="text-align:center;${isOverdue ? 'color:#FF3B30;font-weight:700' : ''}">${formatRfiDate(r.dateRequired)}${isOverdue ? ' (overdue)' : ''}</td>
       <td style="text-align:center"><span class="status-pill status-${r.status}">${statusLabel}</span></td>
     </tr>`;
   }).join('');
@@ -1461,16 +1481,16 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
     return `<div class="rfi-card${isOverdue ? ' overdue' : ''}">
       <div class="rfi-card-head">
         <div class="rfi-card-title"><span class="rfi-num">RFI #${r.number}</span> ${escapeHtml(r.subject)}</div>
-        <span class="status-pill status-${r.status}">${r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
+        <span class="status-pill status-${r.status}">${pdfRfiStatusLabel(r.status)}</span>
       </div>
       <div class="rfi-meta-grid">
-        ${r.submittedBy ? `<div><span>Submitted By</span><strong>${escapeHtml(r.submittedBy)}</strong></div>` : ''}
-        ${r.assignedTo ? `<div><span>Assigned To</span><strong>${escapeHtml(r.assignedTo)}</strong></div>` : ''}
+        ${r.submittedBy ? `<div><span>Submitted by</span><strong>${escapeHtml(r.submittedBy)}</strong></div>` : ''}
+        ${r.assignedTo ? `<div><span>Assigned to</span><strong>${escapeHtml(r.assignedTo)}</strong></div>` : ''}
         <div><span>Submitted</span><strong>${formatRfiDate(r.dateSubmitted)}</strong></div>
         <div><span>Required</span><strong style="${isOverdue ? 'color:#FF3B30' : ''}">${formatRfiDate(r.dateRequired)}</strong></div>
         ${r.dateResponded ? `<div><span>Responded</span><strong>${formatRfiDate(r.dateResponded)}</strong></div>` : ''}
-        <div><span>Priority</span><strong style="${r.priority === 'urgent' ? 'color:#FF3B30' : r.priority === 'normal' ? 'color:#1A6B3C' : 'color:#888'}">${r.priority.charAt(0).toUpperCase() + r.priority.slice(1)}</strong></div>
-        ${r.linkedDrawing ? `<div><span>Linked Drawing</span><strong>${escapeHtml(r.linkedDrawing)}</strong></div>` : ''}
+        <div><span>Priority</span><strong style="${r.priority === 'urgent' ? 'color:#FF3B30' : r.priority === 'normal' ? 'color:#1A6B3C' : 'color:#888'}">${pdfRfiPriorityLabel(r.priority)}</strong></div>
+        ${r.linkedDrawing ? `<div><span>Linked sheet</span><strong>${escapeHtml(r.linkedDrawing)}</strong></div>` : ''}
       </div>
       <div class="rfi-section">
         <div class="rfi-section-label">Question</div>
@@ -1527,7 +1547,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
   </style></head><body>
   ${companyBlock}
   <div class="doc-header">
-    <div class="doc-title">RFI Log</div>
+    <div class="doc-title">RFI log</div>
     <div class="doc-meta">Project: ${escapeHtml(project.name)}${project.location ? ` &middot; ${escapeHtml(project.location)}` : ''}</div>
     <div class="doc-meta">Generated: ${now}</div>
   </div>
@@ -1548,7 +1568,7 @@ function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBrandin
     <h2>Detail</h2>
     ${detailCards}
   `}
-  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}RFI Log &middot; ${escapeHtml(project.name)} &middot; ${now}</div>
+  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}RFI log &middot; ${escapeHtml(project.name)} &middot; ${now}</div>
 </body></html>`;
 }
 
@@ -1572,7 +1592,7 @@ export async function generateRFILogPDF(
 ): Promise<void> {
   console.log('[PDF] Generating RFI Log PDF, count:', rfis.length);
   const html = buildRFILogHtml(rfis, project, branding);
-  await shareHtml(html, `${project.name} - RFI Log`);
+  await shareHtml(html, `${project.name} · RFI log`);
 }
 
 export async function generateChangeOrderPDFUri(
@@ -1646,7 +1666,7 @@ function buildSignatureBlock(label: string, sig: ContractSignature | undefined):
  *  copy — the seal covers the record, not an e-signature. */
 function sealStatement(homeowner: ContractSignature | undefined): string {
   if (homeowner?.method === 'paper') {
-    return 'The homeowner signed a printed copy on paper; the contractor recorded that signature in MAGE ID, which sealed this record.';
+    return 'The owner signed a printed copy on paper. The contractor recorded that signature in MAGE ID, which sealed this record.';
   }
   return 'This document was electronically signed and sealed via MAGE ID.';
 }
@@ -1742,8 +1762,8 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
 
   const bodyHtml = `
     ${pdfHeader(branding)}
-    <h1 style="font-family:'Fraunces',Georgia,serif;font-size:26px;margin:6px 0 2px">Construction Contract</h1>
-    <div style="font-size:12px;color:${PDF_PALETTE.text2};margin-bottom:6px">Status: SIGNED · Sealed ${escHtml(sealedAt)}</div>
+    <h1 style="font-family:'Fraunces',Georgia,serif;font-size:26px;margin:6px 0 2px">Construction contract</h1>
+    <div style="font-size:12px;color:${PDF_PALETTE.text2};margin-bottom:6px">Status: Signed · Sealed ${escHtml(sealedAt)}</div>
     ${scopeText ? `
       <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:18px 0 8px">Scope</h2>
       <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};white-space:pre-wrap">${escHtml(scopeText)}</div>` : ''}
@@ -1756,7 +1776,7 @@ function buildContractHtml(contract: ProjectContract, project: Project, branding
     <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Signatures</h2>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:260px">${buildSignatureBlock('General contractor', contract.gcSignature)}</div>
-      <div style="flex:1;min-width:260px">${buildSignatureBlock('Homeowner', contract.homeownerSignature)}</div>
+      <div style="flex:1;min-width:260px">${buildSignatureBlock('Owner', contract.homeownerSignature)}</div>
     </div>
     <div style="margin-top:18px;padding:10px 12px;border:1px solid ${PDF_PALETTE.bone};border-radius:6px;background:#FAFAF7;font-size:11px;color:${PDF_PALETTE.text2}">
       ${escHtml(sealStatement(contract.homeownerSignature))} The cryptographic hash recorded with this contract makes any subsequent byte-level change detectable. Sealed at ${escHtml(sealedAt)}.
@@ -1815,7 +1835,7 @@ export async function generateChangeOrderPDF(
 ): Promise<void> {
   console.log('[PDF] Generating CO PDF:', co.id);
   const html = buildChangeOrderHtml(co, project, branding);
-  await shareHtml(html, `${project.name} - CO #${co.number}`);
+  await shareHtml(html, `${project.name} · CO #${co.number}`);
 }
 
 export async function generateInvoicePDF(
@@ -1823,7 +1843,7 @@ export async function generateInvoicePDF(
 ): Promise<void> {
   console.log('[PDF] Generating Invoice PDF:', inv.id);
   const html = buildInvoiceHtml(inv, project, branding);
-  await shareHtml(html, `${project.name} - Invoice #${inv.number}`);
+  await shareHtml(html, `${project.name} · Invoice #${inv.number}`);
 }
 
 export async function generateDFRPDF(
@@ -1831,7 +1851,7 @@ export async function generateDFRPDF(
 ): Promise<void> {
   console.log('[PDF] Generating DFR PDF:', dfr.id);
   const html = buildDFRHtml(dfr, project, branding, extras);
-  await shareHtml(html, `${project.name} - Daily Report`);
+  await shareHtml(html, `${project.name} · Daily report`);
 }
 
 async function shareHtml(html: string, title: string, method?: 'share' | 'email', recipient?: string, message?: string): Promise<void> {
@@ -1843,7 +1863,7 @@ async function shareHtml(html: string, title: string, method?: 'share' | 'email'
     const { uri } = await Print.printToFileAsync({ html, base64: false });
     if (method === 'email' && recipient) {
       const subject = encodeURIComponent(title);
-      const body = encodeURIComponent(message || `Please find attached: ${title}`);
+      const body = encodeURIComponent(message || `Attached: ${title}`);
       const mailUrl = `mailto:${recipient}?subject=${subject}&body=${body}`;
       const { openURL } = await import('expo-linking');
       await openURL(mailUrl).catch(() => {});
@@ -1974,8 +1994,17 @@ function statusColor(status: string): string {
   }
 }
 
+const SUBMITTAL_STATUS_PDF_LABEL: Record<string, string> = {
+  pending: 'Pending',
+  in_review: 'In review',
+  approved: 'Approved',
+  approved_as_noted: 'Approved as noted',
+  revise_resubmit: 'Revise and resubmit',
+  rejected: 'Rejected',
+};
+
 function statusLabel(status: string): string {
-  return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return SUBMITTAL_STATUS_PDF_LABEL[status] ?? 'Status not set';
 }
 
 function buildSubmittalHtml(s: Submittal, project: Project, branding: CompanyBranding): string {
@@ -2040,14 +2069,14 @@ function buildSubmittalHtml(s: Submittal, project: Project, branding: CompanyBra
 
   <div class="doc-card">
     <div class="doc-row"><span class="doc-label">Title</span><span class="doc-value">${escapeHtml(s.title)}</span></div>
-    <div class="doc-row"><span class="doc-label">Spec Section</span><span class="doc-value">${escapeHtml(s.specSection || '—')}</span></div>
-    <div class="doc-row"><span class="doc-label">Submitted By</span><span class="doc-value">${escapeHtml(s.submittedBy || '—')}</span></div>
+    <div class="doc-row"><span class="doc-label">Spec section</span><span class="doc-value">${escapeHtml(s.specSection || '—')}</span></div>
+    <div class="doc-row"><span class="doc-label">Submitted by</span><span class="doc-value">${escapeHtml(s.submittedBy || '—')}</span></div>
     <div class="doc-row"><span class="doc-label">Submitted</span><span class="doc-value">${submittedDate}</span></div>
-    <div class="doc-row"><span class="doc-label">Required By</span><span class="doc-value">${requiredDate}</span></div>
-    <div class="doc-row"><span class="doc-label">Current Status</span><span class="status-pill" style="background:${statusColor(s.currentStatus)}22;color:${statusColor(s.currentStatus)};">${statusLabel(s.currentStatus)}</span></div>
+    <div class="doc-row"><span class="doc-label">Required by</span><span class="doc-value">${requiredDate}</span></div>
+    <div class="doc-row"><span class="doc-label">Current status</span><span class="status-pill" style="background:${statusColor(s.currentStatus)}22;color:${statusColor(s.currentStatus)};">${statusLabel(s.currentStatus)}</span></div>
   </div>
 
-  <h2>Review Cycles (${s.reviewCycles.length})</h2>
+  <h2>Review cycles (${s.reviewCycles.length})</h2>
   <table>
     <thead>
       <tr>
@@ -2093,7 +2122,7 @@ export async function generateSubmittalPDF(
 ): Promise<void> {
   console.log('[PDF] Generating Submittal PDF, id:', submittal.id);
   const html = buildSubmittalHtml(submittal, project, branding);
-  await shareHtml(html, `${project.name} - Submittal #${submittal.number}`);
+  await shareHtml(html, `${project.name} · Submittal #${submittal.number}`);
 }
 
 export function buildSubmittalEmailHtml(opts: {
@@ -2121,8 +2150,8 @@ export function buildSubmittalEmailHtml(opts: {
   const { companyName, recipientName, projectName, submittalNumber, submittalTitle, specSection, status, message, contactName, contactEmail, contactPhone, replyPortalUrl } = opts;
   const attached = (opts.attachmentCount ?? 0) > 0;
   const fallbackIntro = attached
-    ? 'Please review the attached submittal and reply with your action code when ready.'
-    : 'Please review the submittal details below and reply with your action code when ready.';
+    ? 'Review the attached submittal and reply with your action code.'
+    : 'Review the submittal details below and reply with your action code.';
   return `
 <!DOCTYPE html>
 <html>
@@ -2141,15 +2170,15 @@ export function buildSubmittalEmailHtml(opts: {
           ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${escapeHtml(recipientName)},</p>` : ''}
           ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${escapeHtml(message)}</p>` : `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${fallbackIntro}</p>`}
           <div style="background:#f9fafb;border-radius:8px;padding:14px 18px;margin:20px 0;">
-            <p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Current Status</p>
+            <p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Current status</p>
             <p style="margin:6px 0 0;color:${statusColor(status)};font-size:16px;font-weight:700;">${statusLabel(status)}</p>
           </div>
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
             <tr><td style="padding:18px 20px;">
               <p style="margin:0 0 8px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Action codes</p>
               <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#16a34a;">Approved</strong> &middot; proceed as submitted</p>
-              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#0891b2;">Approved as Noted</strong> &middot; proceed with the noted comments</p>
-              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#d97706;">Revise &amp; Resubmit</strong> &middot; revise per comments and re-submit</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#0891b2;">Approved as noted</strong> &middot; proceed with the noted comments</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#d97706;">Revise and resubmit</strong> &middot; revise per comments and resubmit</p>
               <p style="margin:0;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#dc2626;">Rejected</strong> &middot; not in compliance with contract documents</p>
             </td></tr>
           </table>
@@ -2157,7 +2186,7 @@ export function buildSubmittalEmailHtml(opts: {
           <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 12px;">
             <tr><td align="center">
               <a href="${escapeHtml(replyPortalUrl)}" target="_blank" style="display:inline-block;background:#FF6A1A;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 32px;border-radius:12px;box-shadow:0 6px 18px rgba(255,106,26,0.35);letter-spacing:0.2px;">
-                Open Review Portal &rarr;
+                Open review form &rarr;
               </a>
             </td></tr>
             <tr><td align="center" style="padding-top:8px;">
@@ -2206,12 +2235,12 @@ function buildFieldTicketHtml(
 
   const headerHtml = pdfHeader(branding);
   const titleHtml = pdfTitle({
-    eyebrow: 'Time & materials field ticket',
+    eyebrow: 'T&M ticket',
     title: `${label} — ${project.name}`,
     subtitle: `Work performed ${worked}`,
     meta: [
       { label: 'Project', value: project.location || project.name },
-      { label: 'Status', value: auth ? 'Signed on site' : 'UNSIGNED — not authorized' },
+      { label: 'Status', value: auth ? 'Signed on site' : 'Not signed or authorized' },
       { label: 'Amount', value: fmtMoney(totals.billableTotal) },
     ],
   });
@@ -2233,7 +2262,7 @@ function buildFieldTicketHtml(
   const laborHtml = (ticket.labor ?? []).length > 0
     ? pdfSectionHeaderLocal('Labor') + pdfTable(
         [
-          { header: 'Worker', align: 'left', width: '34%' },
+          { header: 'Crew member', align: 'left', width: '34%' },
           { header: 'Trade', align: 'left' },
           { header: 'Hours', align: 'right' },
           { header: 'Rate', align: 'right' },
@@ -2298,7 +2327,7 @@ function buildFieldTicketHtml(
       ${totalsRow('Total', fmtMoney(totals.billableTotal), true)}
     </table>` +
     (totals.unpricedRowCount > 0
-      ? `<div style="${blockStyle}">${totals.unpricedRowCount} line item(s) are recorded without a rate and are shown as TBD. Hours and quantities above are what was signed for; pricing follows under the contract's T&M rates.</div>`
+      ? `<div style="${blockStyle}">${totals.unpricedRowCount} ${totals.unpricedRowCount === 1 ? 'line item is' : 'line items are'} recorded without a rate and shown as TBD. Hours and quantities above are what was signed for; pricing follows under the contract's T&M rates.</div>`
       : '');
 
   // Rates priced in the office AFTER the rep signed print right above his
@@ -2326,12 +2355,12 @@ function buildFieldTicketHtml(
       </div>`
     : pdfSectionHeaderLocal('Authorized on site') +
       `<div style="border:1px dashed ${PDF_PALETTE.error};padding:16px;border-radius:12px;margin-bottom:14px;color:${PDF_PALETTE.error};font-size:13px;font-weight:600">
-         UNSIGNED — this ticket has not been authorized and is not billable.
+         Not signed. This ticket has not been authorized and is not billable.
        </div>`;
 
   const photosHtml = (ticket.photos ?? []).length > 0
     ? pdfSectionHeaderLocal('Photos') +
-      `<div style="${blockStyle}">${(ticket.photos ?? []).length} photo(s) attached — see the digital copy for full resolution.</div>`
+      `<div style="${blockStyle}">${(ticket.photos ?? []).length} ${(ticket.photos ?? []).length === 1 ? 'photo' : 'photos'} attached. See the digital copy for full resolution.</div>`
     : '';
 
   return pdfShell({
@@ -2371,5 +2400,5 @@ export async function generateFieldTicketPDF(
   const html = buildFieldTicketHtml(ticket, project, branding);
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const C = require('@/utils/fieldTicketCore') as typeof import('@/utils/fieldTicketCore');
-  await shareHtml(html, `${project.name} - ${C.fieldTicketLabel(ticket.number)}`);
+  await shareHtml(html, `${project.name} · ${C.fieldTicketLabel(ticket.number)}`);
 }

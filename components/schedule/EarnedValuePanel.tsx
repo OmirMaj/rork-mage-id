@@ -84,7 +84,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             <DollarSign size={14} color={"#FF6A1A"} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tileLabel}>Planned vs. Earned</Text>
+            <Text style={styles.tileLabel}>Planned vs. earned</Text>
             <Text style={styles.tileSub}>
               {formatMoneyCompact(snapshot.totalEarnedValue)} earned · {formatMoneyCompact(snapshot.totalPlannedValue)} planned
             </Text>
@@ -111,7 +111,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
             </View>
 
             <Text style={styles.modalSubtitle}>
-              Planned Value is what your budget says you should have earned by today. Earned Value is what you&apos;ve actually completed (% × cost).
+              Planned value is what your budget says you should have earned by today. Earned value is what you&apos;ve completed (% × cost).
             </Text>
 
             {/* KPI tiles */}
@@ -139,7 +139,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                   <SpiIcon size={14} color={TONE_COLOR[spiTone]} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.indexLabel}>Schedule Performance</Text>
+                  <Text style={styles.indexLabel}>Schedule performance</Text>
                   <Text style={[styles.indexValue, { color: TONE_COLOR[spiTone] }]}>
                     SPI {snapshot.spi.toFixed(2)}
                   </Text>
@@ -161,7 +161,7 @@ function EarnedValuePanelImpl({ snapshot, tasks, variant = 'card' }: EarnedValue
                     <CpiIcon size={14} color={TONE_COLOR[cpiTone]} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.indexLabel}>Cost Performance</Text>
+                    <Text style={styles.indexLabel}>Cost performance</Text>
                     <Text style={[styles.indexValue, { color: TONE_COLOR[cpiTone] }]}>
                       CPI {snapshot.cpi.toFixed(2)}
                     </Text>

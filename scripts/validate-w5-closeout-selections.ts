@@ -140,7 +140,7 @@ responders.rpc.gc_choose_selection = () => ({ data: null, error: { message: 'Typ
 c = await eng.chooseSelectionOptionDetailed('c1', 'o3');
 ok('offline → refuses with the reason, nothing queued',
   c.ok === false && c.reason === 'offline' && c.message === eng.CHOOSE_OFFLINE_MESSAGE && queueCalls.length === 0, JSON.stringify(c));
-ok('the refusal says why: the homeowner may be picking right now', /homeowner may be picking in the portal right now/.test(eng.CHOOSE_OFFLINE_MESSAGE));
+ok('the refusal says why: the client may be picking right now', /client may be picking in the portal right now/.test(eng.CHOOSE_OFFLINE_MESSAGE));
 reset();
 rpcThrows = new TypeError('Failed to fetch');
 c = await eng.chooseSelectionOptionDetailed('c1', 'o3');

@@ -336,7 +336,7 @@ function ListView(props: {
                     {isActive && (
                       <View style={styles.activeChip}>
                         <Check size={10} color={themeColors.accent} strokeWidth={3} />
-                        <Text style={styles.activeChipText}>ACTIVE</Text>
+                        <Text style={styles.activeChipText}>Active</Text>
                       </View>
                     )}
                   </View>
@@ -396,14 +396,14 @@ function CaptureView(props: {
       <Text style={styles.helper}>
         {props.isRename
           ? 'Update the name and optional note. The snapshot itself stays unchanged.'
-          : `Snapshot the plan now (${props.taskCount} tasks). Add a note explaining why this baseline was locked in — "Signed contract", "Approved permit set rev 2", etc.`}
+          : `Snapshot the plan now (${props.taskCount} tasks). Add a note on why this baseline was locked, such as "Signed contract" or "Approved permit set rev 2".`}
       </Text>
 
       <Text style={styles.fieldLabel}>Name</Text>
       <TextInput
         value={props.draftName}
         onChangeText={props.onChangeName}
-        placeholder="v1, Signed, Approved rev 2…"
+        placeholder="e.g. Signed contract"
         placeholderTextColor={themeColors.textMuted}
         style={styles.input}
         autoFocus
@@ -480,7 +480,7 @@ function ComparePicker(props: {
             onPress={() => setCompareB(null)}
           >
             <Text style={styles.pickerRowName}>Today&apos;s plan</Text>
-            <Text style={styles.pickerRowMeta}>working tasks</Text>
+            <Text style={styles.pickerRowMeta}>Working tasks</Text>
           </TouchableOpacity>
         )}
         {[...baselines].reverse().map(b => {
@@ -656,6 +656,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: t.accent,
     letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
   },
   baselineMeta: {
     fontSize: Type.caption2.fontSize,

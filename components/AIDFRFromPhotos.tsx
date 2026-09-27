@@ -13,6 +13,7 @@ import type { ProjectPhoto, DailyFieldReport } from '@/types';
 import { generateDFRFromPhotos } from '@/utils/voiceDFRParser';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   projectName: string;
@@ -79,7 +80,7 @@ export default React.memo(function AIDFRFromPhotos({
       // normal, and the narrative stays blank — no way to tell a dropped signal
       // from a tier cap from a dead feature (audit 2026-09-07, ai-features).
       console.warn('[AIDFRFromPhotos] generation failed', err);
-      setError(`Couldn't draft from those photos. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      setError(describeError(err, { action: 'draft from those photos' }).body);
     } finally {
       setLoading(false);
     }
@@ -98,7 +99,7 @@ export default React.memo(function AIDFRFromPhotos({
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Draft from today&apos;s photos</Text>
           <Text style={styles.subtitle}>
-            Pick what you want to include — we&apos;ll write the work narrative for you.
+            Pick the photos to include. MAGE drafts the work narrative from them.
           </Text>
         </View>
         <Text style={styles.count}>{selected.size}/{sortedPhotos.length}</Text>
@@ -159,7 +160,7 @@ export default React.memo(function AIDFRFromPhotos({
             ? 'Drafting from photos…'
             : error
               ? 'Try again'
-              : `Generate from ${selected.size} photo${selected.size === 1 ? '' : 's'}`}
+              : `Draft from ${selected.size} photo${selected.size === 1 ? '' : 's'}`}
         </Text>
       </TouchableOpacity>
     </View>

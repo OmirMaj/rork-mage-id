@@ -224,7 +224,7 @@
   // ── The states a person can land in, each with something they can do ──────
   function showState(kind, title, paras) {
     var badge = kind === 'ok' ? 'badge-ok' : kind === 'wait' ? 'badge-wait' : 'badge-error';
-    var glyph = kind === 'ok' ? '✓' : kind === 'wait' ? '•' : '!';
+    var glyph = kind === 'ok' ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-0.12em"><path d="M20 6 9 17l-5-5"/></svg>' : kind === 'wait' ? '•' : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg>';
     root.innerHTML =
       '<div class="state-wrap"><div class="state-card">' +
         '<div class="state-badge ' + badge + '">' + glyph + '</div>' +

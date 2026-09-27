@@ -54,8 +54,8 @@ export default function JobDetailScreen() {
   if (!HIRE_ENABLED) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Job Details' }} />
-        <View style={styles.center}><Text style={styles.errorText}>Direct Hire is coming soon — the hiring marketplace isn&apos;t available yet.</Text></View>
+        <Stack.Screen options={{ title: 'Job post' }} />
+        <View style={styles.center}><Text style={styles.errorText}>Direct hire isn&apos;t open yet. Job posts open when the hiring marketplace launches.</Text></View>
       </View>
     );
   }
@@ -63,7 +63,7 @@ export default function JobDetailScreen() {
   if (!job) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Job Details' }} />
+        <Stack.Screen options={{ title: 'Job post' }} />
         <View style={styles.center}><Text style={styles.errorText}>Job not found</Text></View>
       </View>
     );
@@ -73,7 +73,7 @@ export default function JobDetailScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     applyToJob(job.id);
     setApplied(true);
-    showAlert('Applied!', 'Your application has been submitted.');
+    showAlert('Application sent', 'Your application was sent.');
   };
 
   const handleMessage = () => {
@@ -89,7 +89,7 @@ export default function JobDetailScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
-        title: 'Job Details',
+        title: 'Job post',
         headerStyle: { backgroundColor: themeColors.bg },
         headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
@@ -132,7 +132,7 @@ export default function JobDetailScreen() {
           </View>
           <View style={styles.statCard}>
             <Clock size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
-            <Text style={styles.statLabel}>Start Date</Text>
+            <Text style={styles.statLabel}>Start date</Text>
             <Text style={styles.statValue}>{job.startDate}</Text>
           </View>
         </View>
@@ -144,7 +144,7 @@ export default function JobDetailScreen() {
 
         {job.requiredLicenses.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Required Licenses & Certifications</Text>
+            <Text style={styles.sectionTitle}>Required licenses and certifications</Text>
             {job.requiredLicenses.map((lic, i) => (
               <View key={i} style={styles.licenseItem}>
                 <Award size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -155,10 +155,10 @@ export default function JobDetailScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Matching Workers</Text>
-          <Text style={styles.sectionSubtitle}>Available workers matching this trade</Text>
+          <Text style={styles.sectionTitle}>Matching crew members</Text>
+          <Text style={styles.sectionSubtitle}>Available crew members in this trade</Text>
           {matchingWorkers.length === 0 ? (
-            <Text style={styles.noResults}>No matching workers at this time</Text>
+            <Text style={styles.noResults}>No matching crew members right now</Text>
           ) : (
             matchingWorkers.map(w => (
               <TouchableOpacity
@@ -190,11 +190,11 @@ export default function JobDetailScreen() {
             disabled={applied}
           >
             <Send size={16} color="#FFF" strokeWidth={1.75} />
-            <Text style={styles.applyBtnText}>{applied ? 'Applied' : 'Apply Now'}</Text>
+            <Text style={styles.applyBtnText}>{applied ? 'Applied' : 'Apply'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.messageBtn} onPress={handleMessage}>
             <Building2 size={16} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={styles.messageBtnText}>Message Company</Text>
+            <Text style={styles.messageBtnText}>Message company</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

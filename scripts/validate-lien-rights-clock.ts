@@ -111,8 +111,8 @@ console.log('\n── the card and the module source');
 {
   const card = read('components/invoice/LienClockCard.tsx');
   assert(/confirm with your attorney/.test(card), 'card says "confirm with your attorney"');
-  assert(/A public job/.test(card), 'card carries the public-job qualifier');
-  assert(/dailyReportsLoaded/.test(card) && /Reading your daily log/.test(card), 'card waits for dailyReportsLoaded');
+  assert(/A public project/.test(card), 'card carries the public-project qualifier');
+  assert(/dailyReportsLoaded/.test(card) && /Reading your daily reports/.test(card), 'card waits for dailyReportsLoaded');
   assert(!/you are entitled|guaranteed/i.test(card), 'card never says "you are entitled" / "guaranteed"');
   assert(/testID="lienclock-card"/.test(card), "card root testID 'lienclock-card'");
   const lib = read('utils/lienRightsClock.ts');

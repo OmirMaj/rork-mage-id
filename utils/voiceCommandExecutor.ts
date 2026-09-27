@@ -290,14 +290,14 @@ export function executeVoiceCommand(
     case 'weather_check': {
       return {
         success: true,
-        message: parsed.text || 'Processing your question...',
+        message: parsed.text || 'Reading your question…',
       };
     }
 
     case 'daily_report': {
       return {
         success: true,
-        message: 'Generating daily report from your update...',
+        message: 'Drafting the daily report from your update…',
       };
     }
 

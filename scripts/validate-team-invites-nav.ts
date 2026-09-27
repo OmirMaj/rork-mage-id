@@ -159,9 +159,9 @@ console.log('\n#95 / #177 / #176 the team roster:');
   ok('no revoke fired straight from a tap', !/onPress=\{\(\) => revoke\.mutate/.test(cm));
   const rr = cm.slice(at(cm, 'const requestRevoke = useCallback('), at(cm, 'const copyRowLink = useCallback('));
   ok('requestRevoke confirms first (Cancel + destructive Remove)',
-    /showAlert\(\s*`Remove \$\{c\.email\} from this job\?`/.test(rr) && /\{ text: 'Cancel', style: 'cancel' \}/.test(rr) && /text: 'Remove',\s*style: 'destructive'/.test(rr));
+    /showAlert\(\s*`Remove \$\{c\.email\} from this project\?`/.test(rr) && /\{ text: 'Cancel', style: 'cancel' \}/.test(rr) && /text: 'Remove',\s*style: 'destructive'/.test(rr));
   ok('…and the revoke runs only from the dialog', at(rr, "text: 'Remove'") < at(rr, 'revoke.mutate('));
-  ok('a failed revoke says they STILL have access', /onError:[\s\S]{0,200}They still have access to this job\./.test(rr));
+  ok('a failed revoke says they STILL have access', /onError:[\s\S]{0,200}They still have access to this project\./.test(rr));
   ok('the trash button is labelled "Remove <email>", has hitSlop and a testID',
     /accessibilityLabel=\{`Remove \$\{c\.email\}`\}/.test(cm) && /onPress=\{\(\) => requestRevoke\(c\)\}[\s\S]{0,120}hitSlop=\{10\}/.test(cm) && /testID=\{`collab-revoke-\$\{c\.id\}`\}/.test(cm));
   ok('the row shows a spinner while ITS revoke is pending, and disables the others',

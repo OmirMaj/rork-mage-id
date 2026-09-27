@@ -68,8 +68,8 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
           <Crown size={14} color="#FF6A1A" strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.upgradeTitle}>Takeoffs are a Pro feature</Text>
-          <Text style={styles.muted}>Tap to upgrade and start running AI takeoffs.</Text>
+          <Text style={styles.upgradeTitle}>Takeoffs are on the Pro plan</Text>
+          <Text style={styles.muted}>Tap to see plans.</Text>
         </View>
       </TouchableOpacity>
     );
@@ -108,7 +108,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
           <Text style={[styles.subtitle, exceeds && { color: Colors.errorDark }]}>
             {pendingPages != null
               ? exceeds
-                ? `Only ${remaining} of ${cap} pages left — won't fit.`
+                ? `Only ${remaining} of ${cap} pages left. This file won't fit.`
                 : `Uses ${willUse} of ${remaining} remaining (${cap} ${tier ?? ''} cap)`
               : `${used} of ${cap} pages used · ${remaining} remaining`}
           </Text>
@@ -128,7 +128,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
         <View style={styles.exceedRow}>
           <TouchableOpacity onPress={onUpgrade} style={styles.upgradePill} activeOpacity={0.85}>
             <TrendingUp size={12} color={themeColors.surface} strokeWidth={1.75} />
-            <Text style={styles.upgradePillText}>Upgrade plan</Text>
+            <Text style={styles.upgradePillText}>See plans</Text>
           </TouchableOpacity>
         </View>
       )}

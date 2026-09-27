@@ -18,6 +18,7 @@ import { Type } from '@/constants/typography';
 import { neutralInk, cardSurface } from '@/components/ui';
 import { Motion, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { classifyError, describeError, rawErrorMessage } from '@/utils/errorCopy';
 import {
   AuthSubmitButton, FieldRing, Slot, useLaunchEntrance, useLaunchTarget, usePressSpring,
 } from '@/components/auth/authMotion';
@@ -33,6 +34,38 @@ let _LocalAuthentication: typeof import('expo-local-authentication') | null = nu
 // server-side regex in AuthContext.sendMagicLink; the backend remains the
 // authoritative validator.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** The sign-in failure as a sentence. The two answers a person can act on
+ *  (wrong password, unconfirmed email) are named; everything else goes
+ *  through describeError so no raw auth text reaches the screen. */
+function signInErrorText(err: unknown): string {
+  const raw = rawErrorMessage(err);
+  if (/invalid login credentials/i.test(raw)) {
+    return "That email and password don't match. Check them, or email yourself a sign-in link.";
+  }
+  if (/email not confirmed/i.test(raw)) {
+    return 'Confirm your email first. Open the link we sent to your inbox.';
+  }
+  return describeError(err, { action: 'sign you in' }).body;
+}
+
+// reader-sentence:start
+/** The server's own sentence when it reads as one written for a person
+ *  ("Too many sign-in requests. Wait a few minutes and try again."), else
+ *  null so the caller shows describeError copy. A reader sentence ends with a
+ *  period, runs at least four words, and carries no status code, identifier
+ *  or transport wording ("Invalid email.", "Could not create invite (502)",
+ *  "projectId … required", "Edge Function returned a non-2xx status code"). */
+function readerSentence(raw: string): string | null {
+  const s = raw.trim();
+  if (!/^[A-Za-z0-9]/.test(s) || !s.endsWith('.')) return null;
+  if (s.split(/\s+/).length < 4) return null;
+  const words = s.replace(/\S+@\S+/g, '');
+  if (/[a-z][A-Z]/.test(words)) return null;
+  if (/\(\s*(?:HTTP\s*)?\d{3}\s*\)|\b(?:edge function|non-2xx|status code|json|fetch|undefined|null)\b|error:/i.test(words)) return null;
+  return s;
+}
+// reader-sentence:end
 
 // The wordmark while the splash's own "MAGE ID" is still flying onto it.
 const HIDDEN = { opacity: 0 } as const;
@@ -241,8 +274,8 @@ export default function LoginScreen() {
   const handleBiometricLogin = useCallback(async () => {
     if (!hasStoredCredentials) {
       showAlert(
-        'No Stored Credentials',
-        'Please log in with your email and password first. After a successful login with "Remember me" enabled, you can use biometrics next time.'
+        'Sign in with your password first',
+        'Sign in with your email and password with "Remember me" on. After that, you can use Face ID or Touch ID.'
       );
       return;
     }
@@ -258,8 +291,8 @@ export default function LoginScreen() {
       goAfterSignIn();
     } catch (err) {
       console.log('[Login] Biometric auth failed:', err);
-      const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
-      showAlert('Authentication Failed', msg);
+      console.warn('[Login] biometric sign-in failed:', rawErrorMessage(err));
+      showAlert("Couldn't sign in", 'Face ID or Touch ID did not confirm. Sign in with your password instead.');
     } finally {
       localSignInRef.current = false;
       setIsBiometricLoading(false);
@@ -296,8 +329,8 @@ export default function LoginScreen() {
       setSignedIn(true);
       goAfterSignIn();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
-      setError(message);
+      console.warn('[Login] sign-in failed:', rawErrorMessage(err));
+      setError(signInErrorText(err));
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -344,7 +377,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Google login failed:', err);
       if (isUserCancel(err)) return;
-      setError("Couldn't sign in with Google. Please try again.");
+      setError("Couldn't sign in with Google. Try again.");
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -372,7 +405,7 @@ export default function LoginScreen() {
     } catch (err) {
       console.log('[Login] Apple login failed:', err);
       if (isUserCancel(err)) return;
-      setError("Couldn't sign in with Apple. Please try again.");
+      setError("Couldn't sign in with Apple. Try again.");
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -395,7 +428,7 @@ export default function LoginScreen() {
     }
     if (!EMAIL_REGEX.test(email.trim())) {
       setEmailDanger(true);
-      setError('That email address looks off — please double-check it.');
+      setError('That email address looks off. Check it and try again.');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -407,8 +440,13 @@ export default function LoginScreen() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'magic_link_requested' });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not send link. Try again.';
-      setError(msg);
+      // The auth-magic-link function answers in sentences written for the
+      // reader (rate limit, bad address; AuthContext passes them through).
+      // Only text that reads as such a sentence is shown (readerSentence);
+      // a transport failure or a terse server note gets describeError copy.
+      console.warn('[Login] sign-in link failed:', rawErrorMessage(err));
+      setError((classifyError(err) === 'unknown' ? readerSentence(rawErrorMessage(err)) : null)
+        ?? describeError(err, { action: 'send the sign-in link' }).body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsMagicLinkLoading(false);
@@ -439,7 +477,7 @@ export default function LoginScreen() {
         </View>
 
         <Slot style={entrance.slot(1)}>
-          <Text style={styles.heroEyebrow}>WELCOME BACK</Text>
+          <Text style={styles.heroEyebrow}>Welcome back</Text>
         </Slot>
         <Slot style={entrance.slot(2)}>
           <Text style={styles.heroLine}>
@@ -676,7 +714,7 @@ export default function LoginScreen() {
               <Animated.View style={press.style}>
                 <AuthSubmitButton
                   phase={submitPhase}
-                  label="Sign In"
+                  label="Sign in"
                   trailing={<ArrowRight size={18} color={Colors.textOnAccent} strokeWidth={2.5} />}
                   style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
                   textStyle={styles.loginButtonText}
@@ -704,25 +742,26 @@ export default function LoginScreen() {
             style={styles.forgotButton}
             onPress={async () => {
               if (!email.trim()) {
-                showAlert('Enter Email', 'Please enter your email address first, then tap Forgot Password.');
+                showAlert('Add your email', 'Enter your email address, then tap Forgot password.');
                 return;
               }
               if (!EMAIL_REGEX.test(email.trim())) {
-                showAlert('Check Your Email', 'That email address looks off — please double-check it.');
+                showAlert('Check your email address', 'That email address looks off. Check it and try again.');
                 return;
               }
               try {
                 await resetPassword(email.trim());
-                showAlert('Check Your Email', 'A password reset link has been sent to ' + email.trim());
+                showAlert('Check your email', 'A password reset link was sent to ' + email.trim() + '.');
               } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : 'Failed to send reset email';
-                showAlert('Error', msg);
+                console.warn('[Login] reset email failed:', rawErrorMessage(err));
+                const copy = describeError(err, { action: 'send the password reset email' });
+                showAlert(copy.title, copy.body);
               }
             }}
             testID="login-forgot"
           >
             <KeyRound size={14} color={themeColors.accent} strokeWidth={1.8} />
-            <Text style={styles.forgotText}>Forgot Password?</Text>
+            <Text style={styles.forgotText}>Forgot password?</Text>
           </TouchableOpacity>
 
           <View style={styles.signupRow}>
@@ -731,7 +770,7 @@ export default function LoginScreen() {
               onPress={() => router.push(signupHrefForInvite(inviteToken) as never)}
               testID="login-go-signup"
             >
-              <Text style={styles.signupLink}>Create Account</Text>
+              <Text style={styles.signupLink}>Create account</Text>
             </TouchableOpacity>
           </View>
           </Slot>

@@ -327,8 +327,8 @@ ok('#32 ?inviteSubId opens the renewal for an approved / lapsed packet', /if \(e
 ok('#111 Needs changes / Reject open an email with the note and the sub\'s link',
   /void emailDecision\(updated, 'needs_changes', note\)/.test(pm) && /void emailDecision\(updated, 'rejected', note\)/.test(pm)
   && /prequalInviteUrl\(packet\.inviteToken\)/.test(pm) && /mailto:\$\{to\}\?subject=/.test(pm));
-ok('#111 the GC is told what actually went out', /It is not sent until you tap Send there/.test(pm) && /Status saved — no email went out/.test(pm)
-  && /Saved — but the sub has not been told/.test(pm));
+ok('#111 the GC is told what actually went out', /It is not sent until you tap Send there/.test(pm) && /Status saved, not emailed/.test(pm)
+  && /Saved, but the sub hasn’t been told/.test(pm));
 ok('#111 the note can be resent', />Resend note to the sub</.test(pm) && /onResendNote=\{handleResendNote\}/.test(pm));
 ok('the list re-reads on focus and on pull', /useFocusEffect\(useCallback\(/.test(pm) && /invalidateQueries\(\{ queryKey: \['prequalPackets', user\?\.id\] \}\)/.test(pm)
   && /refreshControl=\{<RefreshControl/.test(pm));
@@ -339,7 +339,7 @@ ok('the list re-reads on focus and on pull', /useFocusEffect\(useCallback\(/.tes
 console.log('\napp/prequal-form.tsx:');
 const pf = live('app/prequal-form.tsx');
 ok('#111 the GC\'s decision and note are shown to the sub',
-  /\{needsChanges \? 'The GC asked for changes' : 'Not approved'\}/.test(pf) && /<Text style=\{styles\.decisionNote\}>\{packet\.reviewerNotes\}<\/Text>/.test(pf));
+  /\{needsChanges \? `\$\{gcName \|\| 'Your contractor'\} asked for changes` : 'Not approved'\}/.test(pf) && /<Text style=\{styles\.decisionNote\}>\{packet\.reviewerNotes\}<\/Text>/.test(pf));
 ok('#111 a needs-changes packet is resubmitted with a Resubmit button', /needsChanges \? 'Resubmit'/.test(pf));
 ok('#111 a rejected packet has no Submit button, and the copy matches the server',
   /\) : rejected \? \(/.test(pf) && /can’t be resubmitted from this link/.test(pf));

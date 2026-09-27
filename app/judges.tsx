@@ -50,6 +50,7 @@ import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { resolveTargetMargin } from '@/utils/judges/targetMargin';
 import { MARKUP_CHOICES, marginOf } from '@/utils/estimateMarkup';
 import { ChipRail, desktopCta, segmentedDesktop } from '@/components/ui';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -170,7 +171,7 @@ function JudgesInner() {
       };
       const drafted = await draftLinesFromScope(answers);
       if (!drafted) {
-        setError("Couldn't read that scope — add a bit more detail and try again.");
+        setError("Couldn't read that scope. Add more detail and try again.");
         return;
       }
       const timelineWindow = buildTimelineWindow(timelineWeeks);
@@ -212,7 +213,8 @@ function JudgesInner() {
       // has both, recording it is strictly harmful.
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong — please try again.');
+      console.warn('[judges] scoring failed:', rawErrorMessage(e));
+      setError(describeError(e, { action: 'score this bid' }).body);
     } finally {
       setLoading(false);
     }
@@ -275,7 +277,8 @@ function JudgesInner() {
       } catch { /* G4 */ }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong — please try again.');
+      console.warn('[judges] scoring failed:', rawErrorMessage(e));
+      setError(describeError(e, { action: 'score this bid' }).body);
     } finally {
       setLoading(false);
     }
@@ -298,7 +301,7 @@ function JudgesInner() {
       return;
     }
     if (!target.linkedEstimate) {
-      setError(`${target.name} has no estimate yet — build one first, then score it here.`);
+      setError(`${target.name} has no estimate yet. Build one first, then score it here.`);
       return;
     }
     void handlePickProject(routeProjectId);
@@ -315,7 +318,7 @@ function JudgesInner() {
   }, [recordMarkupDecision]);
   const markupRow = markupUnset ? (
     <View style={styles.markupWrap}>
-      <Text style={styles.fieldLabel}>Your markup — not set. Bid Advisor scores the job at it.</Text>
+      <Text style={styles.fieldLabel}>Your markup is not set. The bid advisor scores the project at it.</Text>
       <View style={styles.qualityRow}>
         {MARKUP_CHOICES.map(m => (
           <TouchableOpacity
@@ -364,10 +367,10 @@ function JudgesInner() {
             <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
+            <Text style={styles.headerEyebrow}>Bid advisor · MAGE ID</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>Verdict</Text>
           </View>
-          <TouchableOpacity onPress={handleReset} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Judge another">
+          <TouchableOpacity onPress={handleReset} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Score another bid">
             <Scale size={18} color={t.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -377,7 +380,7 @@ function JudgesInner() {
         >
           <VerdictCard result={result} marginSource={marginLabel} />
           <TouchableOpacity style={[styles.resetBtn, isDesktop && desktopCta]} onPress={handleReset} activeOpacity={0.85}>
-            <Text style={styles.resetBtnText}>Judge another</Text>
+            <Text style={styles.resetBtnText}>Score another bid</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -394,7 +397,7 @@ function JudgesInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Bid Advisor · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Bid advisor · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Should I bid this?</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -408,7 +411,7 @@ function JudgesInner() {
           activeOpacity={0.8}
         >
           <Scale size={14} color={mode === 'describe' ? Colors.textOnAccent : t.textSecondary} strokeWidth={1.75} />
-          <Text style={[styles.modeBtnText, mode === 'describe' && styles.modeBtnTextActive]}>Describe job</Text>
+          <Text style={[styles.modeBtnText, mode === 'describe' && styles.modeBtnTextActive]}>Describe project</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.modeBtn, isDesktop && segmentedDesktop.segment, mode === 'pick' && styles.modeBtnActive]}
@@ -462,7 +465,7 @@ function JudgesInner() {
             </ChipRail>
             {projectType === 'other' ? (
               <>
-                <Text style={styles.fieldLabel}>Describe the job</Text>
+                <Text style={styles.fieldLabel}>Describe the project</Text>
                 <TextInput
                   style={styles.input}
                   value={projectTypeOther}
@@ -532,7 +535,7 @@ function JudgesInner() {
                 : <Scale size={16} color={Colors.textOnAccent} strokeWidth={2} />
               }
               <Text style={styles.judgeBtnText}>
-                {loading ? 'Judging this job…' : 'Judge this job'}
+                {loading ? 'Scoring this bid…' : 'Score this bid'}
               </Text>
             </TouchableOpacity>
           </>
@@ -545,7 +548,7 @@ function JudgesInner() {
             {markupRow}
 
             {/* Optional timeline for capacity analysis */}
-            <Text style={styles.fieldLabel}>Timeline (weeks) — optional, enables capacity check</Text>
+            <Text style={styles.fieldLabel}>Timeline in weeks (optional, adds a capacity check)</Text>
             <TextInput
               style={styles.input}
               value={timelineWeeks}
@@ -558,7 +561,7 @@ function JudgesInner() {
 
             {projectsWithEstimate.length === 0 ? (
               <View style={styles.emptyWrap}>
-                <Text style={styles.emptyText}>No projects with estimates yet — create an estimate first and come back.</Text>
+                <Text style={styles.emptyText}>No projects with estimates yet. Create an estimate, then score it here.</Text>
               </View>
             ) : (
               projectsWithEstimate.map(p => {

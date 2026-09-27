@@ -70,7 +70,7 @@ const SCREEN_MARKER = 'When will money come in?';
  *  the screen the capture shows being pushed under the sheet. Pushed without a
  *  projectId, so what it shows is its project picker; that is still its own
  *  copy and nothing else in the tree renders it. */
-const PUSHED_MARKER = 'Budget Dashboard tracks earned value (CPI / SPI) for one project at a time.';
+const PUSHED_MARKER = 'The budget dashboard tracks earned value (CPI / SPI) for one project at a time.';
 /** CashFlowSetup step titles. Step 0 is what a fresh open shows; step 1 is
  *  where the round-trip below leaves the wizard. */
 const STEP_0_TITLE = 'Current Bank Balance';

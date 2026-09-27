@@ -308,7 +308,7 @@ serve(async (req) => {
   }
   if (globalBucket - 1 >= GLOBAL_RECIPIENTS_PER_HOUR) {
     console.error(`[send-email] global hourly recipient ceiling hit (${GLOBAL_RECIPIENTS_PER_HOUR}/h)`);
-    return jsonResponse({ success: false, error: "Email sending is temporarily paused — please try again in an hour.", code: "rate_limited" }, 429);
+    return jsonResponse({ success: false, error: "Email sending is paused for now. Try again in an hour.", code: "rate_limited" }, 429);
   }
 
   // Force server-derived FROM + reply-to. Caller's body.from / body.fromCompanyName / body.replyTo are IGNORED.

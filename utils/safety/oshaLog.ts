@@ -517,7 +517,7 @@ export function buildOsha300Html(rows: Osha300Row[], est: OshaEstablishment, sum
 <body>
   <header>
     <div>
-      <div class="brand">MAGE Safety · OSHA Form 300</div>
+      <div class="brand">MAGE ID · OSHA Form 300</div>
       <h1>${esc(est.name)}</h1>
     </div>
     <div class="meta">
@@ -528,8 +528,8 @@ export function buildOsha300Html(rows: Osha300Row[], est: OshaEstablishment, sum
   </header>
   <table>
     <thead><tr>
-      <th>Case</th><th>Employee</th><th>Job Title</th><th>Date</th><th>Location</th>
-      <th>Description</th><th>Classification</th><th>Days Away</th><th>Days Restr.</th><th>Type</th>
+      <th>Case</th><th>Employee</th><th>Job title</th><th>Date</th><th>Location</th>
+      <th>Description</th><th>Classification</th><th>Days away</th><th>Days restr.</th><th>Type</th>
     </tr></thead>
     <tbody>${body}</tbody>
     <tfoot><tr class="totals">

@@ -136,7 +136,7 @@ check("permits are owner-only, disabled with 'Permits are managed by the project
   && /\{blocked \? <Text style=\{styles\.caption\}>\{PERMIT_OWNER_ONLY_TEXT\}<\/Text> : null\}/.test(cta));
 check('the permit add asks first, with the Applied text',
   cta.includes("'Add this permit to your tracker? It starts as Applied in the tracker. Update the status and date when you actually file.'")
-  && /showAlert\('Add to Permits', PERMIT_CONFIRM_TEXT,/.test(cta));
+  && /showAlert\('Add to permits', PERMIT_CONFIRM_TEXT,/.test(cta));
 check('a permit is built by permitDraftFromCodeItem and written through addPermit',
   /addPermit\(\s*permitDraftFromCodeItem\(\{/.test(cta));
 check("'Schedule via Roadmap' opens the roadmap mode, with its caption, and records nothing",
@@ -213,8 +213,8 @@ check('the sheet shows record.disclaimer and record.recallNote verbatim, and whe
   sheet.includes('{record.disclaimer}') && sheet.includes('{record.recallNote}')
   && sheet.includes('>{CODE_CHECKS_CAPTION[syncState]}</Text>')
   && /const syncState = useCodeCheckSyncState\(recordProp\.projectId\);/.test(sheet));
-check("the sheet shows 'Sent from this job: …' and the grounding chip",
-  sheet.includes('`Sent from this job: ${') && sheet.includes('{g.chipLabel}'));
+check("the sheet shows 'Sent from this project: …' and the grounding chip",
+  sheet.includes('`Sent from this project: ${') && sheet.includes('{g.chipLabel}'));
 check('the sheet reads the live record by id, falling back to the prop',
   /const record = checks\.find\(\(c\) => c\.id === recordProp\.id\) \?\? recordProp;/.test(sheet));
 check("the sheet's root testID is codethread-saved-sheet, with a ChevronLeft back",

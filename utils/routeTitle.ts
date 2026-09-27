@@ -192,7 +192,8 @@ export function pathToDocumentTitle(pathname: string): string | null {
   // Common nested patterns.
   if (path.startsWith('/discover/')) {
     const seg = path.replace('/discover/', '');
-    return seg.charAt(0).toUpperCase() + seg.slice(1);
+    const DISCOVER_TITLES: Record<string, string> = { tools: 'Tools', bids: 'Public bids', companies: 'Companies', hire: 'Direct hire', estimate: 'Estimator', schedule: 'Schedule' };
+    return DISCOVER_TITLES[seg] ?? seg.replace(/^[a-z]/, (c) => c.toUpperCase());
   }
   if (path.startsWith('/materials/')) return 'Materials';
   if (path.startsWith('/equipment/')) return 'Equipment';

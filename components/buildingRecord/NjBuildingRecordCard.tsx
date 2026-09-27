@@ -75,7 +75,7 @@ export function NjBuildingRecordCard({
     case 'no_address':
       body = (
         <View style={styles.stack}>
-          <Text style={styles.muted}>{"The state's permit data is kept by tax lot. MAGE needs the job's street address to find it."}</Text>
+          <Text style={styles.muted}>{"The state's permit data is kept by tax lot. MAGE needs the project's street address to find it."}</Text>
           <Button
             label="Add a street address to look up this lot"
             onPress={() => {}}
@@ -111,7 +111,7 @@ export function NjBuildingRecordCard({
     case 'confirm':
       body = (
         <View style={styles.stack}>
-          <Text style={styles.headline}>Which tax lot is the job?</Text>
+          <Text style={styles.headline}>Which tax lot is the project on?</Text>
           {nj.candidates.map((c, i) => (
             <TouchableOpacity
               key={c.pin ?? `${c.muniCode}-${c.block}-${c.lot}-${c.qualifier ?? ''}`}
@@ -124,7 +124,7 @@ export function NjBuildingRecordCard({
               <Text style={styles.candidateText}>{njCandidateText(c)}</Text>
             </TouchableOpacity>
           ))}
-          <Text style={styles.muted}>{"None of these? Check the job's street address."}</Text>
+          <Text style={styles.muted}>{"None of these? Check the project's street address."}</Text>
         </View>
       );
       break;

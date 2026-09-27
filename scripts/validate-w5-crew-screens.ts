@@ -61,16 +61,16 @@ ok('Edit details saves name / trades / phone / email through updateCrewMember',
 ok('name required like handleAdd', /if \(!name\) \{ showAlert\('Name required'\); return; \}/.test(crew));
 ok('a claimed worker\'s contact fields are locked with the reason',
   /const contactLocked = !!member\?\.claimedByUserId && member\.claimedByUserId !== auth\.user\?\.id;/.test(crew)
-  && /He manages his contact details now/.test(crew) && /editable=\{!contactLocked\}/.test(crew));
+  && /They claimed their profile, so they manage their phone, email and trades\./.test(crew) && /editable=\{!contactLocked\}/.test(crew));
 ok('Active/Inactive switch writes status', /updateCrewMember\(member\.id, \{ status: active \? 'active' : 'inactive' \}\);/.test(crew)
-  && /testID="crew-active-switch"/.test(crew) && /Inactive workers drop off Clock In and cert pickers; their shifts and certs stay\./.test(crew));
+  && /testID="crew-active-switch"/.test(crew) && /Inactive crew members drop off Clock In and cert pickers\. Their shifts and certs stay\./.test(crew));
 ok('the read-only status pill is gone', !/styles\.statusPill/.test(crew));
 ok('inactive workers sorted last', /sortedMembers\.map\(m =>/.test(crew) && /a\.status === 'inactive' \? 1 : 0\) - \(b\.status === 'inactive' \? 1 : 0\)/.test(crew));
-ok('"Email needed" offers Add email → the editor, email focused',
-  /showAlert\('Email needed'[\s\S]{0,200}\{ text: 'Add email', onPress: \(\) => openEditor\(true\) \}/.test(crew)
+ok('"Add an email" offers Add email → the editor, email focused',
+  /showAlert\('Add an email'[\s\S]{0,200}\{ text: 'Add email', onPress: \(\) => openEditor\(true\) \}/.test(crew)
   && /autoFocus=\{focusEmail && !contactLocked\}/.test(crew));
 ok('Delete suggests Mark inactive first', /text: 'Mark inactive', onPress: \(\) => handleSetActive\(false\)/.test(crew)
-  && /mark him inactive instead/.test(crew));
+  && /mark them inactive instead/.test(crew));
 
 console.log('\n#72 the invite');
 ok('the invite passes the member id', /sendClaimInvite\(member\.email, token, member\.id\)/.test(crew));
@@ -95,7 +95,7 @@ ok('done renders his profile inline', /import \{ ClaimedWorkerSelfView \} from '
   && /crewMembers\.filter\(m => m\.claimedByUserId === user\.id\)/.test(claim));
 ok('"Go to app" on done is the secondary "Set up your own MAGE account"', /Set up your own MAGE account/.test(claim));
 ok('the /sub-profile "every contractor" link is gone (#74, #113 carry)', !/sub-profile/.test(claim) && !/every contractor/.test(claim));
-ok('ClaimedWorkerSelfView is exported', /export function ClaimedWorkerSelfView\(/.test(crew) && /\{!embedded && <Stack\.Screen options=\{\{ title: 'My Profile' \}\} \/>\}/.test(crew));
+ok('ClaimedWorkerSelfView is exported', /export function ClaimedWorkerSelfView\(/.test(crew) && /\{!embedded && <Stack\.Screen options=\{\{ title: 'My profile' \}\} \/>\}/.test(crew));
 
 console.log('\n#165/#166/#167 ID scan and certs');
 ok('Re-scan ID is always rendered', /\{member\.idScannedAt \|\| member\.idMaskedLast4 \? 'Re-scan ID' : 'Scan ID'\}/.test(crew)
@@ -116,7 +116,7 @@ ok('unreadable cert expiry → Check date (danger)', /check_date: 'Check date'/.
   && /crewCertRowStatus\(cert\.expiresDate, certExpiryStatus\(cert\.expiresDate, today\)\)/.test(crew));
 
 console.log('\n#170 / #124');
-ok('Direct Hire copy follows HIRE_ENABLED', /HIRE_ENABLED\s*\?\s*'Controls whether your profile can appear in the hiring marketplace\.'\s*:\s*'Direct Hire isn\\u2019t live yet\. Turn this on to be listed when it opens\.'/.test(crew));
+ok('Direct Hire copy follows HIRE_ENABLED', /HIRE_ENABLED\s*\?\s*'Controls whether your profile can appear in the hiring marketplace\.'\s*:\s*'Direct hire isn\\u2019t open yet\. Turn this on to be listed when it opens\.'/.test(crew));
 ok('scan caps / plan gate go to /paywall, no retry',
   /if \(code === 'monthly_cap_reached' \|\| code === 'tier_required'\) \{\s*closeScan\(\);[\s\S]{0,300}router\.push\('\/paywall'\)/.test(crew));
 ok('crewScan throws through edgeFunctionError', (read('utils/crewScan.ts').match(/throw await edgeFunctionError\(error,/g) ?? []).length >= 4);

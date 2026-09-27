@@ -125,8 +125,8 @@ console.log('\n── honest copy (Phase 0, 2026-09-23) ──');
   ok('no on-screen claim of a permanent / owner-kept / cross-contractor record',
     !/permanent record|yours to keep|belongs to (you|the owner)|survives across contractors|travels with the home/i.test(visible),
     (visible.match(/permanent record|yours to keep|belongs to (you|the owner)|survives across contractors|travels with the home/i) ?? [''])[0]);
-  ok('the screen says what it is: compiled from the GC\'s jobs, shared as a copy',
-    /Compiled from your jobs at this address\. Share sends your client a copy\./.test(visible));
+  ok('the screen says what it is: compiled from the GC\'s projects, shared as a copy',
+    /Compiled from your projects at this address\. Share sends your client a copy\./.test(visible));
   ok('the empty state says the record fills from the GC\'s records, ready to share as a copy',
     /from your records, ready to share with your client as a copy/.test(visible.replace(/\s+/g, ' ')));
   const header = raw.split('\n').slice(0, 25).join('\n');

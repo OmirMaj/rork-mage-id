@@ -68,6 +68,7 @@ import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Layout, Shadow, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { TASK_STATUS_LABEL } from '@/utils/statusLabels';
 import PredecessorPicker, { type PredecessorLink, type PredecessorCandidate } from '@/components/schedule/PredecessorPicker';
 
 /** GridPane's container border (each side). The split's leading columns fit inside it. */
@@ -97,7 +98,7 @@ const FROZEN_KEYS: ColumnKey[] = ['rowNum', 'wbs', 'name'];
 const COLUMNS: ColumnDef[] = [
   { key: 'rowNum',       label: '#',              width: 40,  align: 'center', kind: 'readonly' },
   { key: 'wbs',          label: 'WBS',            width: 70,  align: 'left',   kind: 'readonly' },
-  { key: 'name',         label: 'Task Name',      width: 240, align: 'left',   kind: 'text' },
+  { key: 'name',         label: 'Task name',      width: 240, align: 'left',   kind: 'text' },
   { key: 'duration',     label: 'Dur.',           width: 62,  align: 'right',  kind: 'number' },
   { key: 'start',        label: 'Start',          width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'finish',       label: 'Finish',         width: 88,  align: 'left',   kind: 'readonly' },
@@ -1571,7 +1572,7 @@ export default function GridPane({
           {onBulkAskAI && (
             <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnAI]} onPress={runBulkAskAI} activeOpacity={0.7}>
               <MageAIMark size={12} color="#fff" />
-              <Text style={[styles.bulkBtnText, { color: '#fff' }]}>Ask AI</Text>
+              <Text style={[styles.bulkBtnText, { color: '#fff' }]}>Describe a change</Text>
             </TouchableOpacity>
           )}
           {onBulkShiftDays && (
@@ -1669,7 +1670,7 @@ export default function GridPane({
             })}
             {showExtendedColumns && (
               <View style={[styles.headerCell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
-                <Text style={styles.headerText}>PHASE</Text>
+                <Text style={styles.headerText}>Phase</Text>
               </View>
             )}
           </View>
@@ -1768,7 +1769,7 @@ export default function GridPane({
                 ref={ghostRef}
                 value={ghostDraft}
                 onChangeText={setGhostDraft}
-                placeholder="＋  Type a task name…"
+                placeholder="＋  Type a task name"
                 placeholderTextColor={themeColors.textSecondary}
                 style={styles.ghostInput}
                 onFocus={() => { ghostFocusedRef.current = true; }}
@@ -2130,7 +2131,7 @@ function statusChip(status: TaskStatus, t: ThemeColors): { bg: string; fg: strin
     case 'on_hold':
       return { bg: t.warningSoft, fg: t.warningLabel, label: 'Hold', Icon: Pause };
     default:
-      return { bg: t.neutralSoft, fg: t.textMuted, label: 'Not Started', Icon: Circle };
+      return { bg: t.neutralSoft, fg: t.textMuted, label: TASK_STATUS_LABEL.not_started, Icon: Circle };
   }
 }
 

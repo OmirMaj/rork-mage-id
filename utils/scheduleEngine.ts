@@ -2,6 +2,7 @@ import type { ScheduleTask, DependencyLink, ProjectSchedule, ScheduleRiskItem, S
 import { PHASE_PALETTE, PHASE_FALLBACK } from '@/constants/colors';
 import { generateUUID } from '@/utils/generateId';
 import { isWorkingDayOfWeek } from '@/utils/cpm';
+import { taskStatusLabel } from '@/utils/statusLabels';
 
 export const PHASE_OPTIONS = [
   'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
@@ -211,12 +212,7 @@ export function getTaskDateRange(
 }
 
 export function getStatusLabel(status: ScheduleTask['status']): string {
-  switch (status) {
-    case 'done': return 'Complete';
-    case 'in_progress': return 'In Progress';
-    case 'on_hold': return 'On Hold';
-    default: return 'Not Started';
-  }
+  return taskStatusLabel(status);
 }
 
 export function getStatusColor(status: ScheduleTask['status']): string {

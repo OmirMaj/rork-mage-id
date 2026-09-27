@@ -86,7 +86,7 @@ describe('real provider stack', () => {
     });
     await settle();
 
-    expect(textOf(tree.toJSON())).toContain('Something went wrong');
+    expect(textOf(tree.toJSON())).toContain('This screen hit an error');
   });
 
   it('detects a crash the ErrorBoundary swallowed, and names the route', async () => {

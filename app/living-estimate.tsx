@@ -123,16 +123,16 @@ function LivingEstimateInner() {
 
   if (!project) {
     if (!projectsLoaded) {
-      return <View style={{ flex: 1, backgroundColor: t.bg }} testID="living-estimate-loading-projects"><Stack.Screen options={{ title: 'Living Estimate' }} /></View>;
+      return <View style={{ flex: 1, backgroundColor: t.bg }} testID="living-estimate-loading-projects"><Stack.Screen options={{ title: 'Living estimate' }} /></View>;
     }
     return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <Stack.Screen options={{ title: 'Living Estimate' }} />
+        <Stack.Screen options={{ title: 'Living estimate' }} />
         {noEstimateAnywhere ? (
           <EmptyState
             icon={<Activity size={36} color={t.accent} strokeWidth={1.6} />}
             title="No estimate yet"
-            message="The Living Estimate recomputes your projected margin as change orders, buyout, and actual costs land. None of your projects has an estimate with lines yet. To see one:"
+            message="The living estimate recomputes your projected margin as change orders, buyout and actual costs land. None of your projects has an estimate with lines yet. To see one:"
             steps={[
               'Build an estimate with markup so there is a margin to track.',
               'Approve a change order or log a sub commitment and watch it move.',
@@ -145,7 +145,7 @@ function LivingEstimateInner() {
             {candidates.length > 0 && (
               <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
                 <EstimateJobPicker
-                  label="Track another job"
+                  label="Track another project"
                   jobs={candidates}
                   selectedId={projectId}
                   onPick={(id) => router.setParams({ projectId: id })}
@@ -156,7 +156,7 @@ function LivingEstimateInner() {
             <EmptyState
               icon={<Activity size={36} color={t.accent} strokeWidth={1.6} />}
               title="Project not found"
-              message={'This link points to a project that isn\u2019t on this device any more. Pick a job above, or go back.'}
+              message={'This link points to a project that isn\u2019t on this device any more. Pick a project above, or go back.'}
               actionLabel="Back"
               onAction={() => router.back()}
             />
@@ -185,7 +185,7 @@ function LivingEstimateInner() {
           <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>Living Estimate · MAGE ID</Text>
+          <Text style={styles.headerEyebrow}>Living estimate · MAGE ID</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <View style={styles.headerBtn} />
@@ -226,7 +226,7 @@ function LivingEstimateInner() {
               onPress={() => router.push({ pathname: '/job-costing', params: { projectId: project.id } } as any)}
               activeOpacity={0.85}
             >
-              <Text style={styles.basisBtnText}>Open Job Costing</Text>
+              <Text style={styles.basisBtnText}>Open job costing</Text>
               <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
@@ -359,7 +359,7 @@ function LivingEstimateInner() {
               onPress={() => router.push({ pathname: '/job-costing', params: { projectId: project.id } } as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.linkRowText}>Open Job Costing for phase detail</Text>
+              <Text style={styles.linkRowText}>Open job costing for phase detail</Text>
               <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </>

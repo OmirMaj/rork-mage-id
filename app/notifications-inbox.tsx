@@ -73,8 +73,8 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
   bid_question_answered: { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Bid Q&A' },
 
   // Brain
-  morning_brief:         { icon: <Sunrise       size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Morning Brief' },
-  week_close:            { icon: <CalendarCheck size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Friday Close' },
+  morning_brief:         { icon: <Sunrise       size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Morning brief' },
+  week_close:            { icon: <CalendarCheck size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Friday close' },
 };
 
 function fmtAgo(iso: string): string {
@@ -181,7 +181,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const homeowner = (p.homeowner_name as string) || 'your client';
       return {
         title: `Closeout binder delivered`,
-        body: `${homeowner === 'there' ? 'The homeowner' : homeowner} now has the full closeout for ${projectName}.`,
+        body: `${homeowner === 'there' ? 'The client' : homeowner} now has the full closeout for ${projectName}.`,
       };
     }
     case 'sub_invoice_submitted': {
@@ -192,7 +192,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         title: num
           ? `${submitter} submitted invoice #${num}`
           : `${submitter} submitted an invoice`,
-        body: amount ? `${amount} — pending your review` : 'Pending your review.',
+        body: amount ? `${amount} · waiting on your review` : 'Waiting on your review.',
       };
     }
     // Wave 5 (CONTRACT 8). notify stores the facts it re-read from the source
@@ -235,7 +235,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         title: num
           ? `Invoice #${num} ${status}`
           : `Invoice ${status}`,
-        body: 'Sub has been notified by email.',
+        body: 'The sub was notified by email.',
       };
     }
     case 'nearby_rfp_posted': {
@@ -256,7 +256,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const value = fmtMoney(p.contract_value);
       return {
         title: `You won the bid for ${winnerProject}`,
-        body: value ? `${value} contract value` : `Open the project to see drawings and start the kickoff.`,
+        body: value ? `${value} contract value` : `Open the project to see the plans and start the kickoff.`,
       };
     }
     case 'bid_question_asked': {
@@ -264,7 +264,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const q = String(p.question || '').slice(0, 140);
       return {
         title: `${asker} asked a question on your RFP`,
-        body: q ? `"${q}"` : 'Tap to answer — every bidder will see it.',
+        body: q ? `"${q}"` : 'Tap to answer. Every bidder sees it.',
       };
     }
     case 'bid_question_answered': {
@@ -275,7 +275,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       };
     }
     case 'lead_received': {
-      const who = (p.name as string) || 'A homeowner';
+      const who = (p.name as string) || 'Someone';
       const kind = (p.project_type as string) || 'a project';
       const phone = (p.phone as string) || '';
       return {
@@ -298,7 +298,7 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
       const amt = fmtMoneyExact(p.amount);
       return {
         title: `${amt ? `A ${amt} payment` : 'A payment'} failed${num ? ` on Invoice ${num}` : ''}`,
-        body: `Nothing was credited — the invoice is still open. ${projectName}`,
+        body: `Nothing was credited. The invoice is still open. ${projectName}`,
       };
     }
     case 'field_report_filed': {
@@ -343,12 +343,11 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
         body: typeof p.body === 'string' ? p.body.slice(0, 160) : '',
       };
     default:
-      // Unknown / new event type — fall back to a humanized version of
-      // the event_type so the user never sees "selection_chosen" raw.
+      // Unknown / new event type: the label map's entry when there is one,
+      // otherwise a plain title. Never the raw or machine-humanized
+      // event_type ("selection_chosen" / "Selection chosen").
       return {
-        title: item.eventType
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (c) => c.toUpperCase()),
+        title: EVENT_META[item.eventType]?.label ?? 'New notification',
         body: '',
       };
   }
@@ -516,7 +515,7 @@ export default function NotificationsInboxScreen() {
           ) : null
         }
         renderItem={({ item }) => {
-          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={themeColors.text} strokeWidth={1.75} />, tint: themeColors.bg, label: item.eventType };
+          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={themeColors.text} strokeWidth={1.75} />, tint: themeColors.bg, label: 'Notification' };
           const summary = summarize(item);
           const isUnread = !item.readAt;
           return (

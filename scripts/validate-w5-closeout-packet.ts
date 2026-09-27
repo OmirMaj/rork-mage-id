@@ -96,24 +96,24 @@ const section = (title: string) => {
 };
 
 console.log('\n#140 money to the cent:');
-const fin = section('Financial Summary');
+const fin = section('Financial summary');
 ok('the original contract prints cents', fin.includes('$250,000.37'), fin.slice(0, 400));
 ok('a positive CO total prints +$x.xx and a credit nets exactly (1,234.56 − 500.10)', fin.includes('+$734.46'), fin);
 ok('the final contract value foots to the cent', fin.includes('$250,734.83'));
 ok('no whole-dollar rounding anywhere in the summary', !/\$\d{1,3}(,\d{3})*<\/td>/.test(fin), fin);
-const coSec = section('Approved Change Orders');
+const coSec = section('Approved change orders');
 ok('a negative CO prints as -$500.10', coSec.includes('-$500.10'), coSec);
 
 console.log('\n#140 billed = non-draft invoices:');
-ok('Total Invoiced counts only billed invoices "(1)" and excludes the draft',
-  fin.includes('Total Invoiced (1)') && fin.includes('$10,000.25') && !fin.includes('12,480'), fin);
-const reg = section('Invoice Register');
+ok('Total invoiced counts only billed invoices "(1)" and excludes the draft',
+  fin.includes('Total invoiced (1)') && fin.includes('$10,000.25') && !fin.includes('12,480'), fin);
+const reg = section('Invoice register');
 ok('the register leaves the draft out', reg.length > 0 && !reg.includes('pill-draft') && !reg.includes('12,480.37'), reg);
 
 console.log('\n#140 calendar days print as the day they name:');
 ok('a bare CO date 2026-04-01 prints Apr 1, not Mar 31', coSec.includes('Apr 1, 2026') && !coSec.includes('Mar 31, 2026'), coSec);
 ok('a bare issue date 2026-03-05 prints Mar 5', reg.includes('Mar 5, 2026') && !reg.includes('Mar 4, 2026'));
-const warr = section('Active Warranties');
+const warr = section('Active warranties');
 ok('warranty start / end print their own days', warr.includes('Jun 15, 2026') && warr.includes('Jun 15, 2027') && !warr.includes('Jun 14'), warr);
 
 console.log('\n#140 warranties in force by date, claims included:');

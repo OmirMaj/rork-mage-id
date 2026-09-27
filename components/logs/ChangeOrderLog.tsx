@@ -6,7 +6,7 @@
 // Nothing here writes; the record pane is the change-order screen's own
 // editor. The line grid (Grid | Cards) is wave 6d — the editor keeps its cards.
 // Until changeOrdersLoaded the empty table says "Loading change orders…",
-// never "No change orders on this job yet" (wave 6d, lane V3).
+// never "No change orders on this project yet" (wave 6d, lane V3).
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
@@ -163,12 +163,12 @@ export function ChangeOrderLog({ projectId, openId, detail }: ChangeOrderLogProp
             <EmptyState
               icon={<ClipboardList size={28} color={t.accent} />}
               title="Loading change orders…"
-              message="This job's change orders appear here once they load."
+              message="This project's change orders appear here once they load."
             />
           ) : (
             <EmptyState
               icon={<ClipboardList size={28} color={t.accent} />}
-              title={all.length === 0 ? 'No change orders on this job yet' : 'Nothing under this filter'}
+              title={all.length === 0 ? 'No change orders on this project yet' : 'Nothing under this filter'}
               message={all.length === 0 ? 'Log added scope, the price, and who approved it.' : 'Pick another chip, or All.'}
               actionLabel="New change order"
               onAction={newCo}

@@ -125,7 +125,7 @@ describe('NJ building record', () => {
     await press(screen.getByTestId('njrecord-lookup'));
     expect(njCalls()[0]?.body).toEqual({ mode: 'nj_resolve', text: LOOKUP_TEXT, lat: null, lon: null });
 
-    expect(screen.getByText('Which tax lot is the job?')).toBeTruthy();
+    expect(screen.getByText('Which tax lot is the project on?')).toBeTruthy();
     expect(screen.getByText('Block 199 Lot 1 · 94 WASHINGTON ST · Hoboken City')).toBeTruthy();
     expect(within(screen.getByTestId('njrecord-candidate-1')).getByText(/\(near the address — confirm it's your lot\)$/)).toBeTruthy();
     // Even the one address match waits for his tap.

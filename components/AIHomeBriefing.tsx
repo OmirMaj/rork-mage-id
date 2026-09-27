@@ -21,6 +21,7 @@ import type { Project, Invoice } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   projects: Project[];
@@ -117,7 +118,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       // Say what failed, in the card. A briefing that silently doesn't appear
       // is indistinguishable from "nothing needs your attention".
       console.log('[AI Briefing] Failed:', err);
-      setError(`Couldn't build today's briefing. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      setError(describeError(err, { action: "build today's briefing" }).body);
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +147,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MageAIMark size={14} color={themeColors.accent} />
-            <Text style={styles.headerTitle}>MAGE Brain · Daily Briefing</Text>
+            <Text style={styles.headerTitle}>Daily briefing</Text>
           </View>
         </View>
         <Animated.View style={[styles.skeletonLine, { opacity: shimmerOpacity }]} />
@@ -165,13 +166,13 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         onPress={() => void fetchBriefing()}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Run today's AI daily briefing"
+        accessibilityLabel="Build today's briefing"
         testID="home-briefing-run"
       >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MageAIMark size={14} color={themeColors.accent} />
-            <Text style={styles.headerTitle}>MAGE Brain · Daily Briefing</Text>
+            <Text style={styles.headerTitle}>Daily briefing</Text>
           </View>
           <Text style={styles.usageText}>{usageText}</Text>
         </View>
@@ -182,7 +183,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
           </View>
         ) : null}
         <Text style={styles.runPrompt}>
-          {error ? 'Tap to try again.' : 'Tap to read today across all your jobs. Uses one AI call.'}
+          {error ? 'Tap to try again.' : 'Tap to read today across all your projects. Uses one AI call.'}
         </Text>
       </TouchableOpacity>
     );
@@ -193,9 +194,9 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MageAIMark size={14} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>MAGE Brain · Daily Briefing</Text>
+          <Text style={styles.headerTitle}>Daily briefing</Text>
         </View>
-        <Text style={styles.aiLabel}>AI-generated</Text>
+        <Text style={styles.aiLabel}>AI draft</Text>
       </View>
 
       {error ? (
@@ -251,7 +252,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
             style={styles.viewFullBtn}
             activeOpacity={0.7}
           >
-            <Text style={styles.viewFullText}>View Full Analysis</Text>
+            <Text style={styles.viewFullText}>View full analysis</Text>
             <ChevronRight size={14} color={Colors.primary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : <View />}

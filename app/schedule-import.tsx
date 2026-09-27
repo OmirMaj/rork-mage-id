@@ -47,6 +47,7 @@ import { nailIt, oops } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
 import { edgeFunctionError, aiRefusalKind } from '@/utils/edgeError';
 import { showAiRefusal } from '@/utils/quotaPrecheck';
+import { describeError } from '@/utils/errorCopy';
 import type {
   ScheduleImportResult, ScheduleImportField, ProjectResource, ProjectSchedule, ScheduleScenario,
 } from '@/types';
@@ -175,7 +176,8 @@ export default function ScheduleImportScreen() {
       if (aiRefusalKind(err) === 'hourly') {
         showAlert('Hourly limit reached', refusal ?? '');
       } else if (!refusal) {
-        showAlert('Could not read that schedule', err instanceof Error ? err.message : 'Please try again.');
+        const copy = describeError(err, { action: 'read that schedule' });
+        showAlert("Couldn't read that schedule", copy.body);
       }
     } finally {
       setBusy(false);
@@ -204,7 +206,7 @@ export default function ScheduleImportScreen() {
       const backupScenario: ScheduleScenario = {
         id: `scn-import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: `Before import — ${new Date().toLocaleDateString()}`,
-        note: 'Auto-saved before a schedule import replaced the plan. Tap Restore to bring it back.',
+        note: 'Saved before a schedule import replaced the plan. Tap Restore to bring it back.',
         createdAt: new Date().toISOString(),
         // Deep-clone tasks + their nested link arrays so the backup is immune
         // to any later mutation of the live schedule.
@@ -270,7 +272,7 @@ export default function ScheduleImportScreen() {
 
     updateProject(proj.id, { schedule: nextSchedule });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    nailIt(`Imported ${mappedTasks.length} task(s) into the schedule.`);
+    nailIt(`Imported ${mappedTasks.length} ${mappedTasks.length === 1 ? 'task' : 'tasks'}`);
     router.back();
   }, [updateProject, router]);
 
@@ -286,7 +288,7 @@ export default function ScheduleImportScreen() {
         workingDaysPerWeek,
       });
       if (mappedTasks.length === 0) {
-        oops('No named tasks to import.');
+        oops('No named tasks to import');
         return;
       }
 
@@ -305,7 +307,7 @@ export default function ScheduleImportScreen() {
       // and flag when the import is materially smaller (a common sign of a
       // mis-mapped or partial export).
       const shrinkNote = existingCount > 0 && mappedTasks.length < existingCount
-        ? ` The import has fewer tasks (${mappedTasks.length}) than your current plan (${existingCount}) — double-check the mapping.`
+        ? ` The import has fewer tasks (${mappedTasks.length}) than your current plan (${existingCount}). Check the mapping.`
         : '';
       const replaceLine =
         `This replaces your existing ${existingCount} task${existingCount === 1 ? '' : 's'} with ${mappedTasks.length} imported task${mappedTasks.length === 1 ? '' : 's'}.${shrinkNote}\n\nYour current plan is saved as a restore point first (Saved plans → Restore).`;
@@ -316,7 +318,7 @@ export default function ScheduleImportScreen() {
         // `runCpm` now also emits `dangling_link` (a dependency pointing at a
         // task that is not in the set), which is neither — so the noun has to
         // be the general one or the count contradicts the label.
-        const conflictLine = `${cpm.conflicts.length} scheduling conflict(s) were found. You can import anyway and fix them in Schedule Pro.`;
+        const conflictLine = `${cpm.conflicts.length} scheduling ${cpm.conflicts.length === 1 ? 'conflict was' : 'conflicts were'} found. You can import anyway and fix them in Schedule Pro.`;
         showAlert(
           existingCount > 0 ? 'Replace schedule with conflicts?' : 'Schedule has conflicts',
           existingCount > 0 ? `${replaceLine}\n\n${conflictLine}` : conflictLine,
@@ -352,7 +354,8 @@ export default function ScheduleImportScreen() {
       commit();
     } catch (err) {
       console.error('[ScheduleImport] import failed', err);
-      showAlert('Import failed', err instanceof Error ? err.message : 'Please try again.');
+      const copy = describeError(err, { action: 'import the schedule' });
+      showAlert(copy.title, copy.body);
     } finally {
       setImporting(false);
     }
@@ -362,16 +365,16 @@ export default function ScheduleImportScreen() {
   if (!allowed) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <TopBar title="Import Schedule" onBack={() => router.back()} styles={styles} color={themeColors.text} />
+        <TopBar title="Import schedule" onBack={() => router.back()} styles={styles} color={themeColors.text} />
         <View style={styles.lockWrap}>
           <View style={styles.lockIcon}><Lock size={26} color={themeColors.accent} strokeWidth={1.75} /></View>
-          <Text style={styles.lockTitle}>Schedule import is a Pro feature</Text>
+          <Text style={styles.lockTitle}>Schedule import is on the Pro plan</Text>
           <Text style={styles.lockSub}>
-            Bring your Excel or MS Project schedules straight into Schedule Pro — with dependencies,
-            durations and constraints mapped automatically.
+            Bring Excel or MS Project schedules into Schedule Pro, with dependencies,
+            durations and constraints mapped for you.
           </Text>
           <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/paywall' as never)} activeOpacity={0.85}>
-            <Text style={styles.upgradeBtnText}>See Pro plans</Text>
+            <Text style={styles.upgradeBtnText}>See plans</Text>
             <ArrowRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
@@ -383,22 +386,22 @@ export default function ScheduleImportScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <TopBar title="Import Schedule" onBack={() => router.back()} styles={styles} color={themeColors.text} />
+      <TopBar title="Import schedule" onBack={() => router.back()} styles={styles} color={themeColors.text} />
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={styles.heroIcon}><FileInput size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.heroTitle}>Import a schedule</Text>
           <Text style={styles.heroSub}>
             Bring in an Excel (.xlsx) or MS Project (.xml) schedule. Tasks, durations, dependencies
-            and constraints are mapped into Schedule Pro. Your current plan is saved as a restore
-            point first, so you can bring it back anytime.
+            and constraints are mapped into Schedule Pro, and your current plan is saved as a restore
+            point first.
           </Text>
         </View>
 
         {!isSupabaseConfigured && (
           <View style={styles.hintCard}>
             <AlertTriangle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-            <Text style={styles.hintText}>Import needs a network connection — you appear to be offline.</Text>
+            <Text style={styles.hintText}>Import needs a connection. You&apos;re offline.</Text>
           </View>
         )}
 
@@ -437,7 +440,7 @@ export default function ScheduleImportScreen() {
             {/* Warnings */}
             {result.warnings.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>HEADS UP</Text>
+                <Text style={styles.sectionLabel}>Check before importing</Text>
                 <View style={styles.card}>
                   {result.warnings.map((w, i) => (
                     <View key={`${w.code}-${i}`} style={[styles.warnRow, i === result.warnings.length - 1 && { borderBottomWidth: 0 }]}>
@@ -452,7 +455,7 @@ export default function ScheduleImportScreen() {
             {/* Detected columns (Excel only) */}
             {isXlsx && detectedColumns.length > 0 && (
               <>
-                <Text style={styles.sectionLabel}>DETECTED COLUMNS</Text>
+                <Text style={styles.sectionLabel}>Detected columns</Text>
                 <View style={styles.card}>
                   {detectedColumns.map((d, i) => (
                     <View key={d.label} style={[styles.mapRow, i === detectedColumns.length - 1 && { borderBottomWidth: 0 }]}>
@@ -467,8 +470,8 @@ export default function ScheduleImportScreen() {
                 <View style={styles.hintCard}>
                   <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.hintText}>
-                    Columns were auto-detected. Review the preview below — if anything looks off,
-                    rename the headers in Excel (Task, Duration, Start, Predecessors…) and re-import.
+                    Columns were detected from the headers. If the preview looks off, rename the headers
+                    in Excel (Task, Duration, Start, Predecessors) and import again.
                   </Text>
                 </View>
               </>
@@ -476,8 +479,8 @@ export default function ScheduleImportScreen() {
 
             {/* Preview */}
             <Text style={styles.sectionLabel}>
-              PREVIEW · {importableCount} task{importableCount === 1 ? '' : 's'}
-              {result.truncated ? ' (truncated)' : ''}
+              Preview · {importableCount} task{importableCount === 1 ? '' : 's'}
+              {result.truncated ? ' (first rows only)' : ''}
             </Text>
             <View style={styles.card}>
               {previewRows.length === 0 ? (
@@ -488,7 +491,7 @@ export default function ScheduleImportScreen() {
                 <View key={r.sourceId} style={[styles.previewRow, i === previewRows.length - 1 && { borderBottomWidth: 0 }]}>
                   {r.title
                     ? <Text style={styles.previewTitle} numberOfLines={1}>{r.title}</Text>
-                    : <Text style={[styles.previewTitle, styles.previewMuted]}>(no name)</Text>}
+                    : <Text style={[styles.previewTitle, styles.previewMuted]}>No name</Text>}
                   <View style={styles.previewMetaRow}>
                     {r.rawDuration ? (
                       <View style={styles.previewMetaItem}>
@@ -497,7 +500,7 @@ export default function ScheduleImportScreen() {
                       </View>
                     ) : null}
                     {r.rawStart ? <Text style={styles.previewMeta}>{r.rawStart}</Text> : null}
-                    {r.rawPredecessors ? <Text style={styles.previewMeta}>pred {r.rawPredecessors}</Text> : null}
+                    {r.rawPredecessors ? <Text style={styles.previewMeta}>Predecessors {r.rawPredecessors}</Text> : null}
                   </View>
                 </View>
               ))}
@@ -529,8 +532,8 @@ export default function ScheduleImportScreen() {
             <View style={styles.roBadge}>
               <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.roBadgeText}>
-                Your current schedule is saved as a restore point before the import replaces it —
-                bring it back anytime from Saved plans → Restore.
+                Your current schedule is saved as a restore point before the import replaces it.
+                Bring it back from Saved plans → Restore.
               </Text>
             </View>
           </>
@@ -611,6 +614,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sectionLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
     letterSpacing: 0.8, marginBottom: 8, marginTop: 4,
+
+    textTransform: 'uppercase' as const,
+
   },
   card: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line,

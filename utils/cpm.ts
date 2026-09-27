@@ -42,6 +42,11 @@
 import type { ScheduleTask, DependencyLink, AnchorType } from '@/types';
 import { toCalendarDayString } from '@/utils/calendarDate';
 
+/** `3 tasks` / `1 task` for the user-facing conflict and leveling messages. */
+function countOf(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -715,7 +720,7 @@ export function detectDanglingLinks(tasks: ScheduleTask[]): CpmConflict[] {
     const unique = [...new Set(missing)];
     out.push({
       kind: 'dangling_link',
-      message: `"${task.title}" depends on ${unique.length} task(s) that are no longer in this schedule, so ${unique.length === 1 ? 'that link is' : 'those links are'} being ignored.`,
+      message: `"${task.title}" depends on ${countOf(unique.length, 'task')} that ${unique.length === 1 ? 'is' : 'are'} no longer in this schedule, so ${unique.length === 1 ? 'that link is' : 'those links are'} being ignored.`,
       taskIds: [task.id],
       detail: { missingPredecessorIds: unique },
     });
@@ -769,7 +774,7 @@ export function detectCycles(tasks: ScheduleTask[]): CpmConflict[] {
       if (cycle) {
         conflicts.push({
           kind: 'cycle',
-          message: `Dependency cycle detected through ${cycle.length} task(s). Remove one of the links to continue.`,
+          message: `Dependency loop found through ${countOf(cycle.length, 'task')}. Remove one of the links to continue.`,
           taskIds: cycle,
           detail: { cycle },
         });
@@ -1460,8 +1465,8 @@ function levelResources(ctx: LevelingContext): { leveled: Map<string, number>; c
           conflicts.push({
             kind: projectImpact ? 'resource_delayed_project' : 'resource_overallocation',
             message: projectImpact
-              ? `${delayedTask.title}: delayed ${delayDays} working day(s) to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}" — that is more than its ${delayedFloat} day(s) of float, so the project end date moves.`
-              : `${delayedTask.title}: delayed ${delayDays} working day(s) to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}" (uses ${delayDays} of its ${delayedFloat} day(s) of float).`,
+              ? `${delayedTask.title}: delayed ${delayDays} working day(s) to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}". That's more than its ${countOf(delayedFloat, 'day')} of float, so the project end date moves.`
+              : `${delayedTask.title}: delayed ${delayDays} working day(s) to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}" (uses ${delayDays} of its ${countOf(delayedFloat, 'day')} of float).`,
             taskIds: [delayedId, delayThis ? busyTaskId! : task.id],
             detail: {
               resource: resKey,
@@ -1739,7 +1744,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
     );
     if (clamp.esExact !== undefined && fwdRow?.hasIncomingLink && fwdRow.depEs > clamp.esExact) {
       violations.push(
-        `the work feeding it cannot start until ${workingGap(clamp.esExact, fwdRow.depEs)} working day(s) after the must-start-on date — the pin wins, so the plan shows work overlapping its own predecessors`,
+        `the work feeding it can't start until ${workingGap(clamp.esExact, fwdRow.depEs)} working day(s) after the must-start-on date. The pin wins, so the plan shows work overlapping its own predecessors`,
       );
     }
     if (clamp.efExact !== undefined) {
@@ -1759,7 +1764,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
       // (c) Anything else that still lands off the anchor.
       if (fwdRow?.hasIncomingLink && fwdRow.depEf > clamp.efExact) {
         violations.push(
-          `the work feeding it cannot finish until ${workingGap(clamp.efExact, fwdRow.depEf)} working day(s) after the must-finish-on date — the pin wins, so the plan shows work overlapping its own predecessors`,
+          `the work feeding it can't finish until ${workingGap(clamp.efExact, fwdRow.depEf)} working day(s) after the must-finish-on date. The pin wins, so the plan shows work overlapping its own predecessors`,
         );
       } else if (r.ef !== clamp.efExact) {
         violations.push(
@@ -2192,7 +2197,7 @@ export function detectStartDayBasis(
       );
     } else if (d === calendarExpectation) {
       calendarEvidence.push(
-        `"${t.title}" starts on day ${calendarExpectation}, the day after "${pred.title}" ends on the calendar — ${calendarExpectation - ordinalExpectation} day(s) past its working-day slot.`,
+        `"${t.title}" starts on day ${calendarExpectation}, the day after "${pred.title}" ends on the calendar, ${countOf(calendarExpectation - ordinalExpectation, 'day')} past its working-day slot.`,
       );
       corroborating.add(t.id);
     } else {

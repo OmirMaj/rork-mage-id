@@ -53,14 +53,14 @@ export default function ProjectFilesScreen() {
           <AlertTriangle size={28} color={Colors.warningLabel} strokeWidth={1.75} />
           <Text style={styles.notFoundTitle}>Project not found</Text>
           <Text style={styles.notFoundBody}>
-            This project link may be expired or you may not have access. Open the
+            This project link may have expired, or you may not have access. Open the
             Projects tab to pick another one.
           </Text>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() => router.replace('/(tabs)/(home)' as never)}
           >
-            <Text style={styles.primaryBtnText}>Open Projects</Text>
+            <Text style={styles.primaryBtnText}>Open projects</Text>
           </TouchableOpacity>
         </View>
       </View>

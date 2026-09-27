@@ -51,12 +51,23 @@ import {
   formatBytes,
   PROJECT_FILE_MAX_BYTES,
   PROJECT_FILE_TOO_LARGE,
+  PROJECT_FILE_DELETE_REFUSED,
+  PROJECT_FILE_DELETE_UNCONFIRMED,
+  ProjectFileEmptyError,
   type ProjectFile,
 } from '@/utils/projectFiles';
 import { readFileBytes } from '@/utils/fileBytes';
-import { openSavedDocument } from '@/utils/projectDocuments';
+import { openSavedDocument, OPEN_DOCUMENT_NO_LINK } from '@/utils/projectDocuments';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
 import { showAlert } from '@/utils/alert';
+import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+
+/** uploadProjectFile's own sentences (utils/projectFiles.ts), shown as written. */
+const UPLOAD_AUTHORED: ReadonlySet<string> = new Set([
+  'Sign in to upload files.',
+  'That file is empty.',
+  PROJECT_FILE_TOO_LARGE,
+]);
 
 /** The read-failure sentence, shared by the grid banner and the folder view. */
 const LOAD_FAILED = "Couldn't load files — no signal or the server didn't answer.";
@@ -169,7 +180,12 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       await refreshFiles();
       await refreshCounts();
     } catch (err) {
-      showAlert('Upload failed', err instanceof Error ? err.message : String(err));
+      console.warn('[ProjectFilesBrowser] upload failed', rawErrorMessage(err));
+      // Authored sentences from uploadProjectFile already say what to do; pass them through.
+      const msg = err instanceof Error ? err.message : '';
+      if (UPLOAD_AUTHORED.has(msg) || err instanceof ProjectFileEmptyError) { showAlert('Upload failed', msg); return; }
+      const copy = describeError(err, { action: 'upload the file' });
+      showAlert(copy.title, copy.body);
     } finally {
       setUploading(false);
     }
@@ -183,7 +199,9 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       const fresh = await resolveProjectFileUrl(file.path);
       await openSavedDocument(/^https?:\/\//i.test(fresh) ? fresh : file.publicUrl);
     } catch (err) {
-      showAlert("Couldn't open file", err instanceof Error ? err.message : String(err));
+      console.warn('[ProjectFilesBrowser] open failed', rawErrorMessage(err));
+      const noLink = err instanceof Error && err.message === OPEN_DOCUMENT_NO_LINK;
+      showAlert("Couldn't open the file", noLink ? OPEN_DOCUMENT_NO_LINK : describeError(err, { action: 'open the file' }).body);
     }
   }, []);
 
@@ -206,7 +224,11 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
               await refreshFiles();
               await refreshCounts();
             } catch (err) {
-              showAlert('Delete failed', err instanceof Error ? err.message : String(err));
+              console.warn('[ProjectFilesBrowser] delete failed', rawErrorMessage(err));
+              const msg = err instanceof Error ? err.message : '';
+              if (msg === PROJECT_FILE_DELETE_REFUSED || msg === PROJECT_FILE_DELETE_UNCONFIRMED) { showAlert('Delete failed', msg); return; }
+              const copy = describeError(err, { action: 'delete the file' });
+              showAlert(copy.title, copy.body);
             }
           },
         },
@@ -224,7 +246,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.folderEyebrow}>FOLDER</Text>
+            <Text style={styles.folderEyebrow}>Folder</Text>
             <Text style={styles.folderTitle}>{folder?.label ?? activeFolder}</Text>
           </View>
           <TouchableOpacity
@@ -265,9 +287,8 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             <FolderOpen size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyFolderTitle}>No files in this folder yet</Text>
             <Text style={styles.emptyFolderBody}>
-              Upload contracts, signed PDFs, photos, or anything else you want stored
-              alongside this project. Files here are private to people on this project —
-              to get one to the homeowner or a sub, open it and send it to them.
+              Upload contracts, signed PDFs, photos or anything else for this project.
+              Files here are private to people on this project. To get one to the client or a sub, open it and send it.
             </Text>
             <TouchableOpacity
               style={[styles.uploadBtn, { marginTop: 16, paddingHorizontal: 18, paddingVertical: 12 }]}
@@ -330,11 +351,11 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       {projectName && (
         <Text style={styles.projectName}>{projectName}</Text>
       )}
-      <Text style={styles.gridTitle}>Project Files</Text>
+      <Text style={styles.gridTitle}>Project files</Text>
       <Text style={styles.gridSub}>
-        Files for this project, private to the people on it. Auto-saved daily
-        reports land here, plus anything you upload — contracts, signed PDFs,
-        inspection photos, permits.
+        Files for this project, private to the people on it. Saved daily
+        reports land here, plus anything you upload: contracts, signed PDFs,
+        inspection photos and permits.
       </Text>
       {countsFailed && !loadingCounts && (
         <View style={styles.failBanner} testID="project-files-load-failed">

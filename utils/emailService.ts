@@ -152,7 +152,7 @@ async function fileUriToAttachment(uri: string): Promise<{ filename: string; con
  */
 async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<SendEmailResponse> {
   if (!isSupabaseConfigured) {
-    return { success: false, outcome: 'failed', error: 'Email service not configured (Supabase missing)' };
+    return { success: false, outcome: 'failed', error: "Email isn't set up in this version of the app." };
   }
 
   // Encode attachments in parallel — typical invoice is 1-2 files so this is fast.
@@ -187,12 +187,12 @@ async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<Se
 
     if (error) {
       console.error('[EmailService] Edge function error:', error);
-      return { success: false, outcome: 'failed', error: error.message || 'Failed to send email' };
+      return { success: false, outcome: 'failed', error: "The email didn't send. Check your connection and try again." };
     }
 
     const result = data as { success?: boolean; id?: string; error?: string } | null;
     if (!result?.success) {
-      return { success: false, outcome: 'failed', error: result?.error || 'Email send failed' };
+      return { success: false, outcome: 'failed', error: result?.error || "The email didn't send. Try again." };
     }
     console.log('[EmailService] Sent via Resend, id:', result.id);
     return { success: true, outcome: 'sent', id: result.id, attachmentsDropped };
@@ -336,7 +336,7 @@ export async function sendEmailNative(params: {
     const isAvailable = await MailComposer.isAvailableAsync();
     if (!isAvailable) {
       console.log('[EmailService] Native mail not available on this device');
-      return { success: false, error: 'No email app configured on this device. Please set up an email account in your device settings.' };
+      return { success: false, error: 'No email app is set up on this device. Add an email account in your device settings.' };
     }
 
     const result = await MailComposer.composeAsync({
@@ -359,7 +359,7 @@ export async function sendEmailNative(params: {
       // fall into the `else` below and report success, so a saved draft marked
       // the invoice 'sent' and started the dunning clock.
       console.log('[EmailService] Email saved to drafts, not sent');
-      return { success: false, error: 'Saved to your Drafts — it has not been sent yet.' };
+      return { success: false, error: "Saved to your drafts. It hasn't been sent yet." };
     } else {
       // UNDETERMINED. Android's mail intent never reports back, so this is the
       // normal Android result and must stay a success or every Android send
@@ -369,7 +369,7 @@ export async function sendEmailNative(params: {
     }
   } catch (err) {
     console.error('[EmailService] Native mail error:', err);
-    return { success: false, error: 'Failed to open email composer' };
+    return { success: false, error: "Couldn't open your email app." };
   }
 }
 
@@ -421,7 +421,7 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
         return {
           success: false,
           outcome: 'failed',
-          error: resendResult.error || 'Could not send the email, and this browser would not open your mail app.',
+          error: resendResult.error || "The email didn't send, and this browser couldn't open your mail app.",
           attachmentsDropped: attachmentCount,
         };
       }
@@ -438,7 +438,7 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
       return {
         success: false,
         outcome: 'failed',
-        error: resendResult.error || 'No email app configured on this device. Please set up an email account in Settings, or use the Share option instead.',
+        error: resendResult.error || 'No email app is set up on this device. Add an email account in Settings, or use Share instead.',
       };
     }
 
@@ -458,7 +458,7 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
       return {
         success: false,
         outcome: 'composer_opened',
-        error: 'Saved to your Drafts — it has not been sent yet.',
+        error: "Saved to your drafts. It hasn't been sent yet.",
       };
     }
     // SENT, or UNDETERMINED (the normal Android result — the mail intent never
@@ -467,7 +467,7 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
     return { success: true, outcome: 'sent' };
   } catch (err) {
     console.error('[EmailService] Composer fallback failed too:', err);
-    return { success: false, outcome: 'failed', error: resendResult.error || 'Failed to send email' };
+    return { success: false, outcome: 'failed', error: resendResult.error || "The email didn't send. Try again." };
   }
 }
 
@@ -495,16 +495,15 @@ export function buildWelcomeEmailHtml(opts: {
   } = opts;
 
   const features = [
-    { icon: '🏗', title: 'Estimates that calculate themselves', body: 'Live material pricing, regional cost adjustments, AI quick estimates from a photo.' },
-    { icon: '📋', title: 'Daily field reports in 60 seconds', body: 'Voice-record what happened on site; AI parses weather, manpower, work performed, issues.' },
-    { icon: '💰', title: 'Get paid in-app', body: `One-tap Pay button on every invoice. ${PAYOUT_TIMING_SHORT}.` },
-    { icon: '📐', title: 'Plans, RFIs, COs, submittals', body: 'Full document workflow on your phone. Auto-export RFI logs and closeout packets to PDF.' },
-    { icon: '📊', title: 'Cash flow forecaster', body: 'See when you\'ll be in the red weeks before it happens. No more A/R blindsides.' },
+    { title: 'Estimates from your own prices', body: 'Live material pricing, regional cost adjustments and AI quick estimates from a photo.' },
+    { title: 'Daily reports by voice', body: 'Say what happened on site. MAGE drafts the weather, manpower, work performed and issues.' },
+    { title: 'Get paid in the app', body: `A Pay button on every invoice. ${PAYOUT_TIMING_SHORT}.` },
+    { title: 'Plans, RFIs, change orders and submittals', body: 'The full document workflow on your phone. Export RFI logs and closeout packets to PDF.' },
+    { title: 'Cash-flow forecast', body: 'See a cash shortfall weeks before it happens.' },
   ];
   const featuresHtml = features.map(f => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;">
       <tr>
-        <td valign="top" style="padding-right:14px;font-size:20px;line-height:1;">${f.icon}</td>
         <td valign="top">
           <p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#0B0D10;letter-spacing:-0.2px;">${f.title}</p>
           <p style="margin:0;font-size:13px;color:#4A5159;line-height:1.5;">${f.body}</p>
@@ -516,20 +515,20 @@ export function buildWelcomeEmailHtml(opts: {
     ${featuresHtml}
     ${emailDivider()}
     <p style="margin:0 0 8px;color:#4A5159;font-size:14px;line-height:1.55;">
-      <strong>Get the full experience on mobile.</strong> The app is where you'll spend most of your day — voice reports, photos with GPS, in-app payments — all offline-first.
+      <strong>Most of the work happens on your phone.</strong> Voice reports, photos with GPS and in-app payments all work offline.
     </p>
     <p style="margin:18px 0 0;color:#4A5159;font-size:13px;line-height:1.55;">
       On Android? <a href="${androidAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">Google Play</a> &middot; or <a href="${webAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">use the web app</a>.
     </p>
     <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">
-      Stuck on anything? Reply to this email or write <a href="mailto:${supportEmail}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">${supportEmail}</a> — a real person reads every message.
+      Questions? Reply to this email or write <a href="mailto:${supportEmail}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">${supportEmail}</a>. A person reads every message.
     </p>`;
 
   return wrapEmailHtml({
     preheader: 'Your MAGE ID account is live. Here\'s what you can do today.',
     eyebrow: 'Welcome',
     title: recipientName ? `Welcome, ${recipientName}.` : 'Welcome.',
-    subtitle: 'Your MAGE ID account is live — the operating system for general contractors. Here\'s what you can do right now.',
+    subtitle: 'Your MAGE ID account is live. Here\'s what you can do right now.',
     bodyHtml,
     cta: { label: 'Open in App Store', href: iosAppUrl },
     companyName: 'MAGE ID',
@@ -584,7 +583,7 @@ export function buildInvoiceEmailHtml(opts: {
     ? `
     ${sampleInvoiceBannerHtml()}
     ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
-    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">On a real job this is what your client receives, with a live Pay button where the specimen is below.</p>'}
+    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">On a real project this is what your client receives, with a live Pay button where the specimen is below.</p>'}
     ${emailStatCard(stats)}
     ${samplePaySpecimenHtml(totalDue)}
   `
@@ -695,11 +694,11 @@ export function buildChangeOrderEmailHtml(opts: {
 
   return wrapEmailHtml({
     preheader: `Change order #${coNumber} for ${projectName}: ${formattedHeadline}${hasTax ? ' incl. tax' : ''}.`,
-    eyebrow: `Change Order #${coNumber}`,
+    eyebrow: `Change order #${coNumber}`,
     title: `${formattedHeadline} change request`,
     subtitle: `Change order #${coNumber} for ${projectName}.`,
     bodyHtml,
-    cta: portalUrl ? { label: 'Review & sign change order', href: portalUrl } : undefined,
+    cta: portalUrl ? { label: 'Review and sign change order', href: portalUrl } : undefined,
     companyName,
     project: { name: projectName },
     contactName, contactEmail,
@@ -748,7 +747,7 @@ export function buildPortalInviteEmailHtml(opts: {
     `
     : `
       ${emailStatRow('Project', projectName)}
-      ${emailStatRow('Live updates for', 'Progress, photos, invoices & messages')}
+      ${emailStatRow('Live updates for', 'Progress, photos, invoices and messages')}
     `;
 
   const bodyHtml = `
@@ -784,10 +783,10 @@ export function buildPortalInviteEmailHtml(opts: {
   `;
 
   return wrapEmailHtml({
-    preheader: `Live progress, photos, invoices & messages for ${projectName} — open anytime from any device.`,
-    eyebrow: 'Project Portal',
+    preheader: `Live progress, photos, invoices and messages for ${projectName}. Open it anytime, from any device.`,
+    eyebrow: 'Project portal',
     title: projectName,
-    subtitle: `Live updates from ${companyName} — anytime, from any device.`,
+    subtitle: `Live updates from ${companyName}, anytime and from any device.`,
     bodyHtml,
     cta: { label: 'Open my portal', href: portalUrl },
     companyName,
@@ -914,7 +913,7 @@ export function buildDailyReportEmailHtml(opts: {
 
   const bodyHtml = `
     ${recipientName ? `<p style="margin:0 0 14px;">Hi ${escapeHtml(recipientName)},</p>` : ''}
-    ${message ? emailQuote(message) : `<p style="margin:0 0 6px;">${escapeHtml(isToday ? "Today's field report is below." : `The field report for ${formatted} is below.`)}</p>`}
+    ${message ? emailQuote(message) : `<p style="margin:0 0 6px;">${escapeHtml(isToday ? "Today's daily report is below." : `The daily report for ${formatted} is below.`)}</p>`}
     ${emailStatCard(`
       ${emailStatRow('Weather', escapeHtml(weatherLine))}
       ${emailStatRow('Manpower', escapeHtml(plural(totalManpower, 'worker')))}
@@ -923,16 +922,16 @@ export function buildDailyReportEmailHtml(opts: {
     ${crewHtml}
     ${workPerformed ? heading('Work performed') + text(workPerformed) : ''}
     ${materialsHtml}
-    ${issuesAndDelays ? heading('Issues & delays', '#C2410C') + text(issuesAndDelays) : ''}
+    ${issuesAndDelays ? heading('Issues and delays', '#C2410C') + text(issuesAndDelays) : ''}
     ${incidentHtml}
     ${photosLine}
   `;
 
   return wrapEmailHtml({
-    preheader: `${formatted} · ${weatherLine} · ${plural(totalManpower, 'worker')} · ${totalManHours} man-hours.`,
-    eyebrow: 'Daily Field Report',
+    preheader: `${formatted} · ${weatherLine} · ${plural(totalManpower, 'crew member')} · ${totalManHours} man-hours.`,
+    eyebrow: 'Daily report',
     title: formatted,
-    subtitle: isToday ? `Today's report for ${projectName}.` : `Field report for ${projectName}.`,
+    subtitle: isToday ? `Today's report for ${projectName}.` : `Daily report for ${projectName}.`,
     bodyHtml,
     cta: filedPdfUrl ? { label: 'Open the full report (PDF)', href: filedPdfUrl } : undefined,
     companyName,
@@ -1035,6 +1034,9 @@ export function buildGenericDocumentEmailHtml(opts: {
 
 // ─── RFI email (sent to architect / engineer for response) ──────────
 //
+/** RFI priority as the email prints it (the stored value stays lower case). */
+const RFI_PRIORITY_LABEL: Record<string, string> = { urgent: 'Urgent', high: 'High', normal: 'Normal', low: 'Low' };
+
 // Frames the RFI as a request for information, with priority + due
 // date prominent so a busy architect can triage at a glance.
 //
@@ -1074,25 +1076,25 @@ export function buildRFIEmailHtml(opts: {
   const formattedDue = calendarDayStart(dateRequired)?.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) ?? '';
 
   const stats: string[] = [];
-  stats.push(emailStatRow('Priority', (priority || 'normal').toUpperCase(), { valueColor: priorityAccent }));
+  stats.push(emailStatRow('Priority', RFI_PRIORITY_LABEL[priority || 'normal'] ?? 'Normal', { valueColor: priorityAccent }));
   if (formattedDue) stats.push(emailStatRow('Response needed by', formattedDue, { emphasize: priority === 'urgent' }));
   if (submittedBy) stats.push(emailStatRow('Submitted by', submittedBy));
   if (linkedDrawing) stats.push(emailStatRow('Linked drawing', linkedDrawing));
 
   const bodyHtml = `
     ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
-    ${message ? `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;">${message}</p>` : '<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;">We need your input on the question below — please reply at your convenience.</p>'}
+    ${message ? `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;">${message}</p>` : '<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;">Your answer is needed on the question below.</p>'}
     <p style="margin:14px 0 6px;font-weight:700;color:#0B0D10;">Question</p>
     ${emailQuote(question)}
     ${emailStatCard(stats.join(''))}
     <p style="margin:0;padding:12px 14px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;color:#0B0D10;font-size:13px;line-height:1.55;">
-      <strong>${replyPortalUrl ? 'Two ways to respond:' : 'How to respond:'}</strong> ${replyPortalUrl ? 'tap the button above for a one-tap response form, or simply reply to this email.' : 'simply reply to this email.'} Either way, your response is filed against RFI #${rfiNumber}.
+      <strong>${replyPortalUrl ? 'Two ways to respond:' : 'How to respond:'}</strong> ${replyPortalUrl ? 'tap the button above for a response form, or reply to this email.' : 'reply to this email.'} Either way, your response is filed against RFI #${rfiNumber}.
     </p>
   `;
 
   return wrapEmailHtml({
     preheader: `RFI #${rfiNumber}: ${subject}${formattedDue ? ` — needed by ${formattedDue}` : ''}.`,
-    eyebrow: `RFI #${rfiNumber} · ${(priority || 'normal').toUpperCase()}`,
+    eyebrow: `RFI #${rfiNumber} · ${RFI_PRIORITY_LABEL[priority || 'normal'] ?? 'Normal'}`,
     title: subject,
     subtitle: `Request for information on ${projectName}.`,
     accent: priorityAccent,

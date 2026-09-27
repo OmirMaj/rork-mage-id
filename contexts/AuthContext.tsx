@@ -844,7 +844,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           setSession(null);
           setUser(null);
           setIsAuthenticated(false);
-          setSessionExpiredReason('Your session expired — please sign in again.');
+          setSessionExpiredReason('Your session expired. Sign in again.');
           queryClient.clear();
         } finally {
           expiringRef.current = false;
@@ -1153,7 +1153,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       }
 
       if (!data.user) {
-        throw new Error('Signup succeeded but no user returned. Check your email for verification.');
+        throw new Error('Your account was created. Check your email to confirm it.');
       }
 
       // #72: with email confirmation on, Supabase answers signUp for an address
@@ -1224,24 +1224,24 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const loginWithBiometrics = useCallback(async () => {
     if (Platform.OS === 'web') {
-      throw new Error('Biometric login is not available on web.');
+      throw new Error('Biometric sign-in isn’t available on the web.');
     }
 
     const creds = await getStoredCredentials();
     if (!creds) {
-      throw new Error('No stored credentials found. Please log in with email/password first.');
+      throw new Error('No saved sign-in on this device. Sign in with your email and password first.');
     }
 
     const LocalAuth = await import('expo-local-authentication');
     const result = await LocalAuth.authenticateAsync({
       promptMessage: 'Sign in to MAGE ID',
       cancelLabel: 'Cancel',
-      fallbackLabel: 'Use Password',
+      fallbackLabel: 'Use password',
       disableDeviceFallback: false,
     });
 
     if (!result.success) {
-      throw new Error('Biometric authentication cancelled or failed.');
+      throw new Error('Biometric sign-in was cancelled or didn’t match.');
     }
 
     return login(creds.email, creds.password, true);
@@ -1474,7 +1474,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed) throw new Error('Enter your email address.');
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (!EMAIL_REGEX.test(trimmed)) throw new Error('That email address looks off — please double-check.');
+    if (!EMAIL_REGEX.test(trimmed)) throw new Error('That email address looks off. Check it and try again.');
     // Do NOT log `trimmed` (or any other raw identifier) here. Nothing in this
     // app strips console calls from a release bundle — there is no
     // babel-plugin-transform-remove-console in babel.config.js and no
@@ -1507,7 +1507,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       throw await edgeFunctionError(error, "Couldn't send the sign-in link. Try again.");
     }
     if (!data?.ok) {
-      const msg = data?.error ?? 'Could not send sign-in email. Please try again.';
+      const msg = data?.error ?? 'Couldn’t send the sign-in email. Try again.';
       console.log('[Auth] Magic link edge function returned error:', msg);
       throw new Error(msg);
     }
@@ -1719,7 +1719,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       return false;
     } catch (err) {
       console.error('[Auth] Google sign-in error:', err);
-      showAlert('Sign In Failed', 'Could not sign in with Google. Please try again.');
+      showAlert('Couldn’t sign in', 'Google sign-in didn’t finish. Try again.');
       throw err;
     }
   }, [beginSignIn, completeSignIn]);
@@ -1738,7 +1738,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       if (Platform.OS === 'ios') {
         const isAvailable = await AppleAuthentication.isAvailableAsync();
         if (!isAvailable) {
-          throw new Error('Apple Sign-In is not available on this device.');
+          throw new Error('Sign in with Apple isn’t available on this device.');
         }
         // Apple requires a SHA256 hash of a random nonce. We generate
         // one, hash it, send the hash to Apple, and pass the raw nonce
@@ -1839,7 +1839,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return false;
       }
       console.error('[Auth] Apple sign-in error:', err);
-      showAlert('Sign In Failed', 'Could not sign in with Apple. Please try again.');
+      showAlert('Couldn’t sign in', 'Apple sign-in didn’t finish. Try again.');
       throw err;
     }
   }, [beginSignIn, completeSignIn]);

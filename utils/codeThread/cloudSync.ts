@@ -41,7 +41,7 @@ export type CodeCheckSyncVerdict = 'ok' | 'local' | 'seat' | 'seat_unknown';
  *  for this job succeeded. */
 export const CODE_CHECKS_CAPTION: Record<CodeCheckSyncState, string> = {
   local: 'Saved on this device until you sign out.',
-  seat: 'Saved on this device — your seat on this job can’t save code checks to the account.',
+  seat: 'Saved on this device. Your seat on this project can’t save code checks to the account.',
   syncing: 'Saved on this device — checking your account…',
   synced: 'Saved to your account — on every device you sign in to.',
   offline: 'Saved on this device — it syncs to your account when you’re back online.',

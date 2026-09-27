@@ -47,7 +47,7 @@ function confidenceColor(conf: number, t: ReturnType<typeof useTheme>['colors'])
   return conf >= 80 ? t.success : conf >= 60 ? t.accent : t.warningLabel;
 }
 
-export function BrainCard({ confidence, label = 'MAGE Brain', ground, lead, children, style, testID }: BrainCardProps) {
+export function BrainCard({ confidence, label = 'MAGE', ground, lead, children, style, testID }: BrainCardProps) {
   const { colors: t } = useTheme();
   const hasConf = typeof confidence === 'number' && Number.isFinite(confidence);
   const conf = hasConf ? Math.max(0, Math.min(100, Math.round(confidence as number))) : 0;
@@ -86,7 +86,7 @@ export function BrainCard({ confidence, label = 'MAGE Brain', ground, lead, chil
 /** BrainBadge — the minimal "this is the Brain" marker: the mark + the name,
  *  for section headers and list rows where a full card is too heavy. Keeps the
  *  name+icon pairing identical to BrainCard so they read as one system. */
-export function BrainBadge({ label = 'MAGE Brain', color, style }: { label?: string; color?: string; style?: StyleProp<ViewStyle> }) {
+export function BrainBadge({ label = 'MAGE', color, style }: { label?: string; color?: string; style?: StyleProp<ViewStyle> }) {
   const { colors: t } = useTheme();
   const tint = color ?? t.accent;
   return (

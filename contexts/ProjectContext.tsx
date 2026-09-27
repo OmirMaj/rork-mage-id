@@ -103,6 +103,7 @@ import {
 import { useProjectsFocusRefetch } from '@/hooks/useProjectsFocusRefetch';
 import { withActiveBaselineId } from '@/utils/scheduleOps';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 import { sendLocalNotification } from '@/utils/notifications';
 import { isPortalOwner, syncPortalSnapshotLite, type PortalLiteSyncInput } from '@/utils/portalLiteSync';
 import {
@@ -7495,9 +7496,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   };
 
   const itemTypeLabel: Record<SendableItemKind, string> = {
-    change_order: 'Change Order', invoice: 'Invoice', aia_pay_app: 'AIA Pay Application',
-    rfi: 'RFI', submittal: 'Submittal',
-    daily_report: 'Daily Report', photo: 'Photo', selection: 'Selection', warranty: 'Warranty',
+    change_order: 'change order', invoice: 'invoice', aia_pay_app: 'AIA pay application',
+    rfi: 'RFI', submittal: 'submittal',
+    daily_report: 'daily report', photo: 'photo', selection: 'selection', warranty: 'warranty',
   };
 
   const tableForKind: Record<SendableItemKind, string> = {
@@ -7723,7 +7724,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           portal_id: portalId,
           project_id: projectId,
           author_type: 'gc',
-          body: `📋 New ${itemTypeLabel[kind]} from your builder. Tap to review.`,
+          body: `New ${itemTypeLabel[kind]} from your contractor. Tap to review.`,
           created_at: new Date().toISOString(),
         });
       }
@@ -7763,7 +7764,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           portal_id: portalId,
           project_id: projectId,
           author_type: 'gc',
-          body: `Your builder removed a previously shared ${itemTypeLabel[kind]} — please disregard.`,
+          body: `Your contractor removed a shared ${itemTypeLabel[kind]}. You can ignore it.`,
           created_at: new Date().toISOString(),
         });
       }
@@ -7865,7 +7866,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         const n = counts[k]!;
         parts.push(`${n} ${itemTypeLabel[k]}${n === 1 ? '' : 's'}`);
       }
-      const body = `${sent} new update${sent === 1 ? '' : 's'} from your builder: ${parts.join(', ')}`;
+      const body = `${sent} new update${sent === 1 ? '' : 's'} from your contractor: ${parts.join(', ')}`;
       void writePortalMessage({
         portal_id: portalId,
         project_id: projectId,
@@ -9018,7 +9019,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       });
       if (error) {
         if (looksLikeNetworkFailure(error.message)) return viaQueue();
-        return revert(`The server refused it: ${error.message}`);
+        console.warn('[submittals] review cycle refused:', error.message);
+        return revert(describeError(error, { action: 'add the review cycle' }).body);
       }
       const res = (data ?? {}) as { success?: boolean; cycle_number?: number; error?: string; status?: string };
       if (res.success === false && res.error === 'already_closed') {
@@ -9050,7 +9052,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (looksLikeNetworkFailure(msg)) return viaQueue();
-      return revert(`It could not be sent: ${msg}`);
+      return revert(describeError(err, { action: 'send the review cycle' }).body);
     }
   }, [canSync, saveSubmittalsMutation, submittalMutableRow, queryClient, userId]);
 
@@ -10422,7 +10424,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const memory = revokedSweepLists;
     forgetProjectsLocally(ids);
     const reasonFor = (pid: string) => (leftByMeRef.current.has(pid)
-      ? `You left ${(names.get(pid) ?? '').trim() || 'this job'}, so this change was not sent`
+      ? `You left ${(names.get(pid) ?? '').trim() || 'this project'}, so this change was not sent`
       : noLongerHaveAccessReason(names.get(pid)));
     return (async () => {
       const childProject = await childProjectMapFromListsAndCaches(memory, ids);
@@ -10505,7 +10507,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // His own job (or one with no owner stamp — his unsynced create) is never
     // "left": that is a delete, with its server write.
     if (!p.ownerUserId || p.ownerUserId === userId) {
-      return { ok: false, reason: 'This is your job, so you cannot leave it — delete it instead.' };
+      return { ok: false, reason: 'This is your project, so you can’t leave it. Delete it instead.' };
     }
     leftByMeRef.current.add(id);
     revokedSweepRef.current.set(id, p.name ?? '');
@@ -10537,14 +10539,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const ids = new Set(names.keys());
     const toldIds = [...ids].filter(pid => !leftByMeRef.current.has(pid));
     const jobs = toldIds.map(pid => (names.get(pid) ?? '').trim()).filter(Boolean);
-    const which = jobs.length === 0 ? (toldIds.length === 1 ? 'a job' : `${toldIds.length} jobs`) : jobs.join(', ');
+    const which = jobs.length === 0 ? (toldIds.length === 1 ? 'a project' : `${toldIds.length} projects`) : jobs.join(', ');
     // The copy names every way it can happen, not a guess: leftByMeRef knows
     // only THIS device's Leave, so on his other devices a job he left himself
     // arrives here too — and the server does not tell the loader who ended
     // the membership.
     const tell = (unsent: number) => toldIds.length > 0 && showAlert(
-      'No longer on a job',
-      `You no longer have access to ${which} — you left it, its owner removed you, or it was deleted — so it has left this phone.`
+      'No longer on a project',
+      `You no longer have access to ${which}. You left it, its owner removed you, or it was deleted, so it has left this phone.`
         + (unsent > 0 ? ` ${unsent} change${unsent === 1 ? '' : 's'} you had not synced for it could not be sent.` : ''),
     );
     sweepRevokedJobs(ids, names).then(tell, (err) => {

@@ -37,6 +37,7 @@ import { showAlert } from '@/utils/alert';
 import { shareText } from '@/utils/shareText';
 import { deliverTextFile, openPrintWindowOrThrow, printHtmlDocument, pdfFailureMessage } from '@/utils/platformFile';
 import { formatCalendarDay } from '@/utils/calendarDate';
+import { describeError } from '@/utils/errorCopy';
 import {
   buildInsuranceAudit, auditGcPaymentsFromReceipts, requestMessageFor, toCsv, toPdfHtml, formatCents,
   STATUS_LABEL, EXEMPTION_NOTE, AUDIT_SOURCES_NOTE, type CoverageStatus, type AuditSubRow, type AuditPayment,
@@ -159,8 +160,8 @@ export default function InsuranceAuditScreen() {
   const sendDraft = useCallback(async (s: AuditSubRow) => {
     const message = drafts[s.subcontractorId] ?? requestMessageFor(s, s.needsCertificate, gcName);
     const outcome = await shareText({ message, title: "Workers' comp certificate" });
-    if (outcome === 'copied') showAlert('Copied', 'Sharing is not available here, so the message is on your clipboard — paste it into a text or email.');
-    else if (outcome === 'failed') showAlert('Could not open sharing', message);
+    if (outcome === 'copied') showAlert('Message copied', "Sharing isn't available here, so the message is on your clipboard. Paste it into a text or email.");
+    else if (outcome === 'failed') showAlert("Couldn't open sharing", message);
   }, [drafts, gcName]);
 
   const fileStem = `insurance-audit-${period.start}-to-${period.end}`;
@@ -174,7 +175,8 @@ export default function InsuranceAuditScreen() {
         await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Insurance audit CSV' });
       }
     } catch (err) {
-      showAlert('Export failed', (err as Error)?.message ?? 'Could not build the CSV.');
+      const copy = describeError(err, { action: 'build the CSV' });
+      showAlert('Export failed', copy.body);
     } finally {
       setBusy(null);
     }
@@ -184,7 +186,7 @@ export default function InsuranceAuditScreen() {
     const html = toPdfHtml(audit, settings?.branding, gcName);
     if (Platform.OS === 'web') {
       // Synchronously inside the tap, or the browser treats it as a pop-up.
-      try { openPrintWindowOrThrow(html); } catch (err) { showAlert('PDF not opened', pdfFailureMessage(err, 'Could not open the PDF.')); }
+      try { openPrintWindowOrThrow(html); } catch (err) { showAlert('PDF not opened', pdfFailureMessage(err, "Couldn't open the PDF.")); }
       return;
     }
     setBusy('pdf');
@@ -194,7 +196,7 @@ export default function InsuranceAuditScreen() {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Insurance audit PDF', UTI: 'com.adobe.pdf' });
       }
     } catch (err) {
-      showAlert('PDF failed', pdfFailureMessage(err, 'Could not build the PDF.'));
+      showAlert('PDF failed', pdfFailureMessage(err, "Couldn't build the PDF."));
     } finally {
       setBusy(null);
     }
@@ -374,8 +376,8 @@ function SubCard({ s, draft, onOpenDraft, onEditDraft, onSend, styles, t }: {
               accessibilityLabel={`Message to ${s.name}`}
               testID={`insaudit-draft-${s.subcontractorId}`}
             />
-            {!s.phone && !s.email ? <Text style={styles.muted}>No phone or email on file — the share sheet opens so you can pick how to send it.</Text> : null}
-            <Button label="Send…" variant="primary" size="sm" onPress={onSend} iconLeft={<Send size={13} color="#FFF" strokeWidth={1.75} />} testID={`insaudit-send-${s.subcontractorId}`} />
+            {!s.phone && !s.email ? <Text style={styles.muted}>No phone or email on file. The share sheet opens so you can pick how to send it.</Text> : null}
+            <Button label="Share message" variant="primary" size="sm" onPress={onSend} iconLeft={<Send size={13} color="#FFF" strokeWidth={1.75} />} testID={`insaudit-send-${s.subcontractorId}`} />
           </View>
         )
       ) : null}

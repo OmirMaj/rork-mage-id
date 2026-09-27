@@ -222,7 +222,7 @@ ok('award-rfp forwards homeowner_email to the rfp_awarded email',
   const at = notifySrc.indexOf("case 'rfp_awarded':");
   const rfpCase = at >= 0 ? notifySrc.slice(at, notifySrc.indexOf('\n    case ', at + 10)) : '';
   ok('rfp_awarded tells the contractor to publish the portal and send the link',
-    /open portal setup to publish it and send them the link/.test(rfpCase)
+    /[Oo]pen portal setup to publish it and send them the link/.test(rfpCase)
     && /publish their portal and send the link to/.test(rfpCase)
     && !/live portal between the two of you/.test(rfpCase)
     && !/kickoff message/.test(rfpCase));
@@ -237,7 +237,7 @@ ok('the award screen says the contractor will send the portal link, to the email
 ok('both award alerts name only what award_rfp carried (built from the RFP header)',
   /select\('id,user_id,title,status,awarded_response_id,photo_urls,drawing_urls'\)/.test(review) && /supabase\.rpc\('get_rfp_private'/.test(review)
   && (review.match(/awardCarriedItems\(rfp \?\? \{\}/g) ?? []).length >= 2
-  && /'Awarded!',\s*`\$\{company\} has been notified\. \$\{carried\.charAt\(0\)/.test(review)
+&& /'Project awarded',\s*`\$\{company\} has been notified\. \$\{carried\.charAt\(0\)/.test(review)
   && !/your address, photos, any drawings/i.test(review));
 const carriedNone = joinItems(awardCarriedItems({ address_line: '', photo_urls: [], drawing_urls: null }, null));
 ok('no street address, no photos, no drawings, no price → only "your city" is claimed',
@@ -264,7 +264,7 @@ ok('the Suppliers screen opens no mail/phone/web link to a mock supplier',
 ok('no "Request Quote" and no "Sent via MAGE ID" email body',
   !/Request Quote/i.test(mkt) && !/Sent via MAGE ID/.test(mkt));
 ok('the banner no longer says to "tap Contact", and says every row is made up',
-  !/Contact&quot; to reach out/.test(mkt) && /Every supplier, price and stock level here is a made-up example/.test(mkt));
+  !/Contact&quot; to reach out/.test(mkt) && /Every supplier, price and stock level here is an example\. None of them is a real business/.test(mkt));
 ok('mock star ratings and "Featured" badges are not rendered',
   !/renderStars\(/.test(mkt) && !/>Featured</.test(mkt));
 
@@ -366,9 +366,9 @@ console.log('\nPhase 0 — the geocoder hit is labelled as a map hit, never as v
     ok(`${f}: no shield or "verified" wherever the address flag is shown`, bad.length === 0, bad[0]);
   }
   const detail = code(read('app/rfp-detail.tsx'));
-  ok('rfp-detail says ADDRESS FOUND ON MAP / ADDRESS NOT ON MAP',
-    detail.includes('ADDRESS FOUND ON MAP') && detail.includes('ADDRESS NOT ON MAP')
-    && !detail.includes('ADDRESS VERIFIED') && !detail.includes('UNVERIFIED ADDRESS'));
+  ok('rfp-detail says Address found on map / Address not on map',
+    detail.includes('Address found on map') && detail.includes('Address not on map')
+    && !/address verified/i.test(detail) && !/unverified address/i.test(detail));
   const postSrc = code(read('app/post-rfp.tsx'));
   // The button itself keeps the word "Verify": the iOS location purpose
   // string in app.json names it, and changing that needs a native build
