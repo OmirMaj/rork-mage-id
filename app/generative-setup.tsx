@@ -37,7 +37,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { describeError } from '@/utils/errorCopy';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 
 export default function GenerativeSetupScreen() {
   const router = useRouter();
@@ -152,7 +152,7 @@ function GenerativeSetupInner() {
             await recordAIUsage('smart', 'scheduleBuilder');
           } catch (e) {
             console.warn('[generative-setup] schedule failed:', e instanceof Error ? e.message : e);
-            scheduleError = describeError(e, { action: 'build the draft schedule' }).body;
+            scheduleError = ownSentence(e) ?? describeError(e, { action: 'build the draft schedule' }).body;
           }
         }
       }

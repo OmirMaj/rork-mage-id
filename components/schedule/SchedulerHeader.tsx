@@ -280,7 +280,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   verdictChipDot: { width: 8, height: 8, borderRadius: Tokens.radius.full },
   verdictChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, maxWidth: 240 },
   kpi: { gap: 2 },
-  kpiLabel: { fontSize: 9, color: t.textSecondary, letterSpacing: 0.8, fontWeight: '700' },
+  kpiLabel: { fontSize: 9, color: t.textSecondary, letterSpacing: 0.8, fontWeight: '700', textTransform: 'uppercase' },
   kpiValue: { fontSize: 14, color: t.text, fontWeight: '600' },
   kpiWithDonut: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   spacer: { flex: 1 },

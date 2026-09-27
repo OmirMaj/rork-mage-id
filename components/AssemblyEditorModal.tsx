@@ -241,7 +241,7 @@ function AssemblyEditorModalImpl({
               <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.title}>
-              {isEditing ? 'Edit Assembly' : 'New Assembly'}
+              {isEditing ? 'Edit assembly' : 'New assembly'}
             </Text>
             <TouchableOpacity
               onPress={onClose}
@@ -266,7 +266,7 @@ function AssemblyEditorModalImpl({
                 value={name}
                 onChangeText={v => { setName(v); setError(null); }}
                 style={styles.input}
-                placeholder="e.g. Frame Interior Wall (2x4)"
+                placeholder="e.g. Frame interior wall (2x4)"
                 placeholderTextColor={themeColors.textMuted}
                 returnKeyType="next"
               />
@@ -364,7 +364,7 @@ function AssemblyEditorModalImpl({
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.subLabel}>Waste %</Text>
+                      <Text style={styles.subLabel}>Waste factor</Text>
                       <TextInput
                         value={mat.wasteFactor}
                         onChangeText={v => { updateMaterial(idx, 'wasteFactor', v); setError(null); }}

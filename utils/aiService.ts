@@ -618,7 +618,7 @@ Be specific with task names. Include inspections and mobilization/demobilization
       try {
         parsed = JSON.parse(cleaned.trim());
       } catch {
-        throw new Error('Could not parse AI schedule response. Please try again.');
+        throw new Error('Couldn’t read the generated schedule. Try again.');
       }
     }
   }
@@ -1343,8 +1343,8 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
     // estimated, so there is nothing to be 30% confident about. The warning
     // below is the honest signal; a confidence meter on a stub is fabricated
     // precision about a fabricated estimate.
-    warnings: ['AI estimate unavailable — this is a placeholder. Please edit with actual quantities and pricing.'],
-    savingsTips: ['Get at least 3 contractor bids', 'Buy materials in bulk where possible'],
+    warnings: ['Couldn’t generate the estimate. These are placeholder rows. Edit them with your real quantities and pricing.'],
+    savingsTips: ['Get at least 3 sub bids', 'Buy materials in bulk where possible'],
   };
 
   // Build a more informative warning when we fall back to the stub. Pre-fix
@@ -1352,17 +1352,17 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
   // a token cutoff, a safety block, a network issue, or just a flaky model
   // moment. Now we tell them what happened + suggest a fix.
   const stubWithReason = (reasonCode: string | undefined, errMsg: string | undefined): AIQuickEstimateResult => {
-    let why = 'AI is having a moment — this is a placeholder.';
+    let why = 'Couldn’t generate the estimate. These are placeholder rows.';
     if (reasonCode === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg ?? '')) {
-      why = 'AI ran out of room before finishing — try a shorter scope description, or fewer line items.';
+      why = 'The estimate stopped before it finished. Try a shorter scope description or fewer line items.';
     } else if (reasonCode === 'SAFETY') {
-      why = 'AI refused this request (safety filter). Try rephrasing the description.';
+      why = 'A safety filter blocked this description. Try rephrasing it.';
     } else if (reasonCode === 'RECITATION') {
-      why = 'AI refused this request (looked too close to its training data). Try paraphrasing.';
+      why = 'This description couldn’t be processed. Try rewording it.';
     } else if (errMsg?.includes('timed out')) {
-      why = 'AI took too long to respond. Tap Generate again — it usually works on the second try.';
+      why = 'The estimate took too long. Tap Generate again.';
     } else if (errMsg?.includes('reach AI')) {
-      why = 'Could not reach the AI server. Check your connection and retry.';
+      why = 'Couldn’t reach MAGE. Check your connection and try again.';
     }
     return {
       ...stub,

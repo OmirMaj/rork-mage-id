@@ -284,7 +284,7 @@ export default function CloseoutBinderScreen() {
         // bake that claims a rebuild that did not reach Ask Your Home.
         showAlert(
           'Ask Your Home not updated',
-          `The home records could not be indexed${indexStatus.reason ? ` (${indexStatus.reason})` : ''}, so the passport was left as it was. Check your connection and tap Generate again.`,
+          `The home records could not be indexed${indexStatus.reason ? ` (${indexStatus.reason})` : ''}, so the passport was left as it was. Check your connection and try again.`,
         );
         return;
       }
@@ -832,7 +832,7 @@ export default function CloseoutBinderScreen() {
               && (passportBaked.sharing?.supplierNames !== ownerSharing.supplierNames
                 || passportBaked.sharing?.tradeContacts !== ownerSharing.tradeContacts) && (
               <Text style={styles.emptyHint}>
-                Your Home Passport was built under different settings. Ask Your Home already follows these; re-generate it below so the pre-answered FAQ does too.
+                Your Home Passport was built under different settings. Ask Your Home already follows these; rebuild it below so the pre-answered FAQ does too.
               </Text>
             )}
           </View>
@@ -852,7 +852,7 @@ export default function CloseoutBinderScreen() {
               </View>
               {passportBaked ? (
                 <Text style={styles.emptyHint}>
-                  Generated {formattedAt(passportBaked.generatedAt)} — {passportBaked.summary.docCount} records indexed, {passportBaked.faq.length} questions pre-answered. Re-generate after editing selections, warranties, or contacts.
+                  Generated {formattedAt(passportBaked.generatedAt)} — {passportBaked.summary.docCount} records indexed, {passportBaked.faq.length} questions pre-answered. Rebuild after editing selections, warranties or contacts.
                 </Text>
               ) : (
                 <Text style={styles.emptyHint}>

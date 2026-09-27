@@ -303,10 +303,10 @@ export default function SummaryScreen() {
           message="Your daily briefing rolls up today's schedule, this week, money, and what needs you — across every project. To populate it:"
           steps={[
             'Open the Projects tab from the sidebar.',
-            'Tap + New Project (or Try a sample project) to spin one up.',
+            'Tap New project, or Try a sample project.',
             'Come back here once you have estimates, invoices, or a schedule flowing.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -374,8 +374,8 @@ export default function SummaryScreen() {
       activeOpacity={0.75}
     >
       <Briefcase size={16} color={themeColors.accent} />
-      <Text style={styles.businessStripText}>Your Business</Text>
-      <Text style={styles.businessStripSub}>margins · pipeline · clients · weather</Text>
+      <Text style={styles.businessStripText}>Your business</Text>
+      <Text style={styles.businessStripSub}>Margins · pipeline · clients · weather</Text>
       <ChevronRight size={14} color={themeColors.textSecondary} />
     </TouchableOpacity>
   );

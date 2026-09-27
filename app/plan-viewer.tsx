@@ -1296,7 +1296,7 @@ function PlanViewerScreenInner({ role }: { role: PlanRole }) {
               </TouchableOpacity>
             </View>
             <Text style={styles.emptyHint}>
-              What{"\u2019"}s the real distance between those two points? Pick something dimensioned on the sheet \u2014 a known wall length or grid line.
+              What{"\u2019"}s the real distance between those two points? Pick something dimensioned on the sheet, like a known wall length or grid line.
             </Text>
             <View style={styles.distanceRow}>
               <TextInput

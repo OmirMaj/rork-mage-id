@@ -322,8 +322,8 @@ describe('lane P2 — the phone is unchanged (golden)', () => {
     expect(screen.getByText('AI usage')).toBeTruthy();
     if (owner) expect(screen.getByText('Developer (owner only)')).toBeTruthy();
     else expect(screen.queryByText('Developer (owner only)')).toBeNull();
-    if (role === 'property_manager') expect(screen.queryByText('ESTIMATE DEFAULTS')).toBeNull();
-    else expect(screen.getByText('ESTIMATE DEFAULTS')).toBeTruthy();
+    if (role === 'property_manager') expect(screen.queryByText('Estimate defaults')).toBeNull();
+    else expect(screen.getByText('Estimate defaults')).toBeTruthy();
     expect(fingerprint(name, tree.toJSON())).toMatchSnapshot();
   });
 

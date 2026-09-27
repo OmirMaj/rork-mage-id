@@ -65,7 +65,7 @@ const LAYOUT_LABEL: Record<GanttPaneMode, string> = {
   split: 'Split',
   gantt: 'Gantt',
   lanes: 'Lanes',
-  living: 'Living Plan',
+  living: 'Living plan',
 };
 
 /** What the Pro toolbar can ask of the Timeline tab (lane DB's toolbar). */

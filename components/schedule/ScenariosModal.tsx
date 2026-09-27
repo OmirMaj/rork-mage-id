@@ -242,8 +242,8 @@ export default function ScenariosModal({
           <View style={styles.helpCard}>
             <GitBranch size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.helpText}>
-              Save a frozen copy of the plan — before a big change, a re-sequence or
-              an import — so you can look back at it or restore it later. A saved
+              Save a frozen copy of the plan before a big change, a re-sequence or
+              an import, so you can look back at it or restore it later. A saved
               plan can{"'"}t be edited: every change goes to the live plan.
             </Text>
           </View>

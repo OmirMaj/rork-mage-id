@@ -45,7 +45,7 @@ eq('a leveled map with only zero-deltas → empty', summarizeLeveling(tasks, new
   eq('  …and says whether the move eats the finish date',
     withReasons.shifts.some(s2 => s2.pushesFinish === true), true);
   eq('  …and the reason is in WORKING days, not raw ones',
-    withReasons.shifts.every(s2 => /working day\(s\)/.test(s2.reason ?? '')), true);
+    withReasons.shifts.every(s2 => /working days?\b/.test(s2.reason ?? '')), true);
   eq('omitting the conflicts still works, it just says nothing',
     bare.shifts.every(s2 => s2.reason === undefined), true);
 }

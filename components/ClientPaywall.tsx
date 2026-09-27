@@ -120,8 +120,8 @@ const PRO_BENEFITS = [
 const PM_BENEFITS = [
   'Everything in Pro, plus:',
   'Multi-property dashboard',
-  'Team seats for your staff',
-  'Bulk-post recurring maintenance jobs',
+  'Team access for your staff',
+  'Bulk-post recurring maintenance projects',
   'Aggregate spend reporting',
   'Priority support',
 ];
@@ -181,7 +181,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
       }
     } catch (err) {
       console.warn('[ClientPaywall] pay-per-post failed:', err);
-      showAlert('Checkout unavailable', 'Could not start payment. Please try again.');
+      showAlert('Checkout unavailable', 'Couldn\'t start payment. Try again.');
     } finally {
       setBusy(null);
     }
@@ -216,7 +216,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             onPress={onClose}
             hitSlop={10}
             accessibilityRole="button"
-            accessibilityLabel="Close paywall"
+            accessibilityLabel="Close"
             style={styles.closeBtn}
             testID="client-paywall-close"
           >
@@ -226,7 +226,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             <Text style={styles.eyebrow}>
               {mode === 'rfp-post'
                 ? 'To post your project'
-                : feature ? `To unlock ${feature}` : 'To manage your project'}
+                : feature ? `To use ${feature}` : 'To manage your project'}
             </Text>
           </View>
         </View>
@@ -245,7 +245,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
               ? (RFP_PAID_POST_ENABLED
                   ? 'Post a single project for a one-time fee, or subscribe to post unlimited projects and manage them all from one dashboard.'
                   : 'Subscribe to post unlimited projects and manage them all from one dashboard, with a free trial.')
-              : 'A subscription unlocks milestone payments, document storage, and ongoing management for every project you award.'}
+              : 'A subscription adds milestone payments, document storage and ongoing management for every project you award.'}
           </Text>
 
           {/* ── Per-post option (rfp-post mode only) ──────────────────────
@@ -263,7 +263,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                 <View style={{ flex: 1 }}>
                   <Text style={styles.perPostTitle}>Pay per project</Text>
                   <Text style={styles.perPostSubtitle}>
-                    Best for a single renovation or one-off job
+                    Best for a single renovation or one-off project
                   </Text>
                 </View>
                 <Text style={styles.perPostPrice}>
@@ -291,7 +291,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
           {mode === 'rfp-post' && RFP_PAID_POST_ENABLED && (
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR SUBSCRIBE</Text>
+              <Text style={styles.dividerText}>Or subscribe</Text>
               <View style={styles.dividerLine} />
             </View>
           )}
@@ -303,7 +303,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
               feel safe to tap. */}
           <View style={[styles.subCard, styles.subCardFeatured]}>
             <View style={styles.subCardTag}>
-              <Text style={styles.subCardTagText}>MOST POPULAR</Text>
+              <Text style={styles.subCardTagText}>Most popular</Text>
             </View>
             <View style={styles.subCardHead}>
               <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
@@ -312,7 +312,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
               <View style={{ flex: 1 }}>
                 <Text style={[styles.subCardTitle, { color: '#FFF' }]}>Pro</Text>
                 <Text style={[styles.subCardSubtitle, { color: 'rgba(255,255,255,0.78)' }]}>
-                  For individual landlords & flippers
+                  For individual landlords and flippers
                 </Text>
               </View>
               <View style={styles.subCardPriceWrap}>
@@ -362,7 +362,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                 <Briefcase size={18} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.subCardTitle}>Property Manager</Text>
+                <Text style={styles.subCardTitle}>Property manager</Text>
                 <Text style={styles.subCardSubtitle}>
                   For PMs, REITs, and multi-property owners
                 </Text>
@@ -542,6 +542,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700',
     color: t.textMuted,
     letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
 
   // ── Subscription cards ────────────────────────────────────────────
@@ -577,6 +578,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.8,
     color: t.accent,
+    textTransform: 'uppercase',
   },
   subCardHead: {
     flexDirection: 'row',

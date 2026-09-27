@@ -120,7 +120,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Pick a sample project</Text>
             <Text style={styles.subtitle}>
-              Both load instantly. Wipe anytime from Settings → Reset, or tap Delete on the project tile.
+              Each loads right away. Remove one later from Settings → Reset, or tap Delete on its project tile.
             </Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} testID="demo-picker-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -189,8 +189,8 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
           })}
 
           <Text style={styles.disclaimer}>
-            Sample projects are local-only. They don&apos;t consume any of your monthly AI quota.
-            Both prepend &quot;Sample —&quot; in the project name so you can never confuse them with real work.
+            Sample projects stay on this device and don&apos;t use any of your monthly AI allowance.
+            Each name starts with &quot;Sample —&quot; so it never mixes with real work.
           </Text>
         </ScrollView>
       </View>

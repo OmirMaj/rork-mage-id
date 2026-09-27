@@ -554,7 +554,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                         ]
                       }
                     >
-                      Bid Confidence 
+                      Bid confidence 
                     </Text>
                     <Text
                       style={
@@ -721,10 +721,11 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 "fontSize": 12,
                 "letterSpacing": 1.4,
                 "lineHeight": 16,
+                "textTransform": "uppercase",
               }
             }
           >
-            PROJECTED MARGIN
+            Projected margin
           </Text>
           <View
             style={
@@ -845,6 +846,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                     "letterSpacing": 1,
                     "lineHeight": 16,
                     "marginLeft": 8,
+                    "textTransform": "uppercase",
                   },
                   {
                     "color": "#0F7A69",
@@ -852,7 +854,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 ]
               }
             >
-              HEALTHY
+              Healthy
             </Text>
           </View>
           <Text
@@ -896,10 +898,11 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                     "fontSize": 12,
                     "letterSpacing": 1.2,
                     "lineHeight": 16,
+                    "textTransform": "uppercase",
                   }
                 }
               >
-                MARGIN RISK
+                Margin risk
               </Text>
               <Text
                 style={
@@ -14525,7 +14528,7 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                 }
               }
             >
-              AI Project Report
+              Generate status report
             </Text>
           </View>
         </View>

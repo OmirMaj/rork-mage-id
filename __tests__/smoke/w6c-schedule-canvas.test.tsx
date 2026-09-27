@@ -332,7 +332,7 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     // The controlled view is the Timeline split, with no local layout bar and
     // no Gantt toolbar (its zoom / Fit / Today come through ganttRef).
     expect(r.queryByTestId('gantt-split-grid')).not.toBeNull();
-    expect(r.queryByText('Living Plan')).toBeNull();
+    expect(r.queryByText('Living plan')).toBeNull();
     expect(r.queryByText('Fit')).toBeNull();
     // The colour toggle moved to the 24 px footer strip.
     expect(r.queryByTestId('gantt-colormode-trade')).not.toBeNull();
@@ -384,8 +384,10 @@ describe('desktop 1512 × 945 web: the wave-6c canvas props', () => {
     const hostParent = (n: Node) => { let p = n.parent; while (p && typeof p.type !== 'string') p = p.parent; return p; };
     const hosts = (r.UNSAFE_root as unknown as { findAll: (f: (n: Node) => boolean) => Node[] })
       .findAll((n) => typeof n.type === 'string');
-    // The pill: the host View around the 'TODAY' text (a full-height line sits beside it).
-    const pill = hostParent(r.getByText('TODAY') as unknown as Node)!;
+    // The pill: the host View around the 'Today' text (a full-height line sits beside it).
+    // The pill's text is the one its style uppercases; the toolbar's Today button is not.
+    const todayText = r.getAllByText('Today').find((n) => (flat((n as unknown as Node).props.style) as Record<string, unknown>).textTransform === 'uppercase');
+    const pill = hostParent(todayText as unknown as Node)!;
     const canvas = hostParent(pill);
     const line = hosts.find((n) => hostParent(n) === canvas && flat(n.props.style).bottom === 0 && flat(n.props.style).width === 1.5)!;
     // The Gantt's day header: the one sticky child of that same stacking parent.

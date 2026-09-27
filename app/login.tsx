@@ -18,7 +18,7 @@ import { Type } from '@/constants/typography';
 import { neutralInk, cardSurface } from '@/components/ui';
 import { Motion, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { classifyError, describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { classifyError, describeError, rawErrorMessage, readerSentence } from '@/utils/errorCopy';
 import {
   AuthSubmitButton, FieldRing, Slot, useLaunchEntrance, useLaunchTarget, usePressSpring,
 } from '@/components/auth/authMotion';
@@ -49,23 +49,6 @@ function signInErrorText(err: unknown): string {
   return describeError(err, { action: 'sign you in' }).body;
 }
 
-// reader-sentence:start
-/** The server's own sentence when it reads as one written for a person
- *  ("Too many sign-in requests. Wait a few minutes and try again."), else
- *  null so the caller shows describeError copy. A reader sentence ends with a
- *  period, runs at least four words, and carries no status code, identifier
- *  or transport wording ("Invalid email.", "Could not create invite (502)",
- *  "projectId … required", "Edge Function returned a non-2xx status code"). */
-function readerSentence(raw: string): string | null {
-  const s = raw.trim();
-  if (!/^[A-Za-z0-9]/.test(s) || !s.endsWith('.')) return null;
-  if (s.split(/\s+/).length < 4) return null;
-  const words = s.replace(/\S+@\S+/g, '');
-  if (/[a-z][A-Z]/.test(words)) return null;
-  if (/\(\s*(?:HTTP\s*)?\d{3}\s*\)|\b(?:edge function|non-2xx|status code|json|fetch|undefined|null)\b|error:/i.test(words)) return null;
-  return s;
-}
-// reader-sentence:end
 
 // The wordmark while the splash's own "MAGE ID" is still flying onto it.
 const HIDDEN = { opacity: 0 } as const;
@@ -307,7 +290,7 @@ export default function LoginScreen() {
     if (emailEmpty || passwordEmpty) {
       setEmailDanger(emailEmpty);
       setPasswordDanger(passwordEmpty);
-      setError('Please fill in all fields');
+      setError('Fill in every field.');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -838,6 +821,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     letterSpacing: 2.5,
     marginBottom: 12,
     zIndex: 1,
+    textTransform: 'uppercase' as const,
   },
   heroLine: {
     fontSize: 36,

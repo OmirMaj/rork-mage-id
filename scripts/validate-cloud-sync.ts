@@ -353,7 +353,7 @@ async function main() {
     ok(`${name}: local / seat / failed / refused never claim the account`,
       (['local', 'seat', 'failed', 'refused'] as const).every((s) => !/saved to your account/i.test(map[s])));
     ok(`${name}: the refused line says 'only'`, /\bonly\b/.test(map.refused));
-    ok(`${name}: the seat line names the seat`, /\bseat\b/i.test(map.seat));
+    ok(`${name}: the seat line names the role (VOICE: role, never seat)`, /\brole\b/i.test(map.seat) && !/\bseat\b/i.test(map.seat));
   }
   ok("the device-only code-check line is still 'Saved on this device until you sign out.'",
     CODE_CHECKS_CAPTION.local === 'Saved on this device until you sign out.');

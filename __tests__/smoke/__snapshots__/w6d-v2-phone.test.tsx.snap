@@ -3,14 +3,14 @@
 exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) LivingFloorPlan (GC, editable) 1`] = `
 {
   "lines": 63,
-  "sha256": "e395ba914d26370991ceb85f7ab91d4f8309744d1c045ad2f242569df7be242b",
+  "sha256": "dfae1ce74591031d56bb99a043ff80cfcdc60b44987c0fe501e8aa3df7ad764f",
 }
 `;
 
 exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) PlanZoneEditor (both sheets rendered, the zone sheet opened on Kitchen) 1`] = `
 {
   "lines": 84,
-  "sha256": "b6935d50cc0a9e444864b01784f8c01913ccf79c1ab438565ff6370bfb63db21",
+  "sha256": "727c81b84765d15deb3d3f5f421f409092d6d493d68568724d4443b858963951",
 }
 `;
 
@@ -31,6 +31,6 @@ exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) SchedulerMe
 exports[`lane V2 — the phone is unchanged (golden, 390 × 844 iOS) TaskInspector (embedded false), the trade picker opened through its button 1`] = `
 {
   "lines": 254,
-  "sha256": "ab96ae86a39802ab63dd2221c6bb26eda11fb37681227abf70428043d8bd0064",
+  "sha256": "495cb0a7b7133f62952e1680096a9deef0a25ecf847f62a583f0a4443a29423c",
 }
 `;

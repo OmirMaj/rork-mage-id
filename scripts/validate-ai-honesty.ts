@@ -328,7 +328,7 @@ console.log('\nsource assertions:');
     /computeCalibration\(\{ projects, commitments \}\)/.test(panel) && /\n\s*calibration,\n/.test(panel),
     'a grounding parameter nothing passes is the same ungrounded panel with extra code');
   ok('the panel carries a grounding chip naming what the score was measured against',
-    /groundingChip/.test(panel) && /not an industry average/.test(panel) && /No finished jobs measured yet/.test(panel));
+    /groundingChip/.test(panel) && /not an industry average/.test(panel) && /No finished projects measured yet/.test(panel));
 }
 
 // ── Plan Review cites the ADOPTED edition, not "general IRC/IBC" ──────────

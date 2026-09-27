@@ -199,7 +199,7 @@ async function main() {
     ok('owner / editor / field may file', cw('owner') && cw('editor') && cw('field'));
     ok('viewer may not', cw('viewer') === false);
     ok('null / undefined (own job, no project picked) may file', cw(null) && cw(undefined));
-    ok('the viewer reason names the seat and who to ask', wb('viewer') === 'You have view access to this job. Filing needs a field or editor seat — ask the project owner.', String(wb('viewer')));
+    ok('the viewer reason names the role and who to ask', wb('viewer') === 'You have view access to this project. Filing needs Field or Editor access. Ask the project owner.', String(wb('viewer')));
     ok('no reason for a seat that may file', [ 'owner', 'editor', 'field', null, undefined ].every((x) => wb(x) === null));
     ok('FEATURE_ROLES unchanged: a viewer still READS RFIs / punch / photos', collab.collaboratorMayAccess('viewer', 'rfis_submittals') && collab.collaboratorMayAccess('viewer', 'punch_list_closeout') && collab.collaboratorMayAccess('viewer', 'photo_documentation'));
   }

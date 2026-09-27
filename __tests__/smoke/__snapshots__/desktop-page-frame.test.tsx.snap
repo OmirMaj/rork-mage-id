@@ -252,7 +252,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /accept
                                         },
                                         {
                                           "children": [
-                                            "You've been invited to collaborate",
+                                            "You're invited to a project",
                                           ],
                                           "props": {
                                             "style": {
@@ -266,7 +266,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /accept
                                         },
                                         {
                                           "children": [
-                                            "Sign in or create a free account with the address this invite was sent to. You'll come straight back here to accept — and if you lose this page, the invite also waits on your Home screen.",
+                                            "Sign in or create a free account with the address this invite was sent to. You'll come straight back here to accept. If you lose this page, the invite also waits on your Home screen.",
                                           ],
                                           "props": {
                                             "style": {
@@ -1121,7 +1121,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /reset-
                                             },
                                             {
                                               "children": [
-                                                "Set New Password",
+                                                "Set a new password",
                                               ],
                                               "props": {
                                                 "style": {
@@ -1152,7 +1152,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /reset-
                                               "children": [
                                                 {
                                                   "children": [
-                                                    "New Password",
+                                                    "New password",
                                                   ],
                                                   "props": {
                                                     "style": {
@@ -1275,7 +1275,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /reset-
                                                       "props": {
                                                         "autoCapitalize": "none",
                                                         "onChangeText": [Function],
-                                                        "placeholder": "Minimum 6 characters",
+                                                        "placeholder": "At least 8 characters",
                                                         "placeholderTextColor": "rgba(43,48,56,0.72)",
                                                         "secureTextEntry": true,
                                                         "selectionColor": "#2F6B3A",
@@ -1318,7 +1318,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /reset-
                                               "children": [
                                                 {
                                                   "children": [
-                                                    "Confirm Password",
+                                                    "Confirm password",
                                                   ],
                                                   "props": {
                                                     "style": {
@@ -1485,7 +1485,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /reset-
                                               "children": [
                                                 {
                                                   "children": [
-                                                    "Update Password",
+                                                    "Update password",
                                                   ],
                                                   "props": {
                                                     "style": {
@@ -1638,7 +1638,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /reset-
                                               "children": [
                                                 {
                                                   "children": [
-                                                    "Back to Login",
+                                                    "Back to sign in",
                                                   ],
                                                   "props": {
                                                     "style": {
@@ -3137,7 +3137,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                               "children": [
                                                                                                 {
                                                                                                   "children": [
-                                                                                                    "ENTERPRISE",
+                                                                                                    "Enterprise",
                                                                                                   ],
                                                                                                   "props": {
                                                                                                     "style": {
@@ -3497,7 +3497,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "ACCOUNT TYPE",
+                                                                                    "Account type",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -3843,7 +3843,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "AI USAGE",
+                                                                                    "AI usage",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -4778,7 +4778,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "LOCATION & UNITS",
+                                                                                    "Location and units",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -4964,7 +4964,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                     },
                                                                                     {
                                                                                       "children": [
-                                                                                        "US average — no market adjustment. Type a city and state (e.g. Houston, TX) or pick a market on the Materials tab. Saves when you leave the field.",
+                                                                                        "US average, no market adjustment. Type a city and state (for example Houston, TX) or pick a market on the Materials tab. Saves when you leave the field.",
                                                                                       ],
                                                                                       "props": {
                                                                                         "style": {
@@ -5630,7 +5630,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "ESTIMATE DEFAULTS",
+                                                                                    "Estimate defaults",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -5809,7 +5809,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Sales Tax Rate",
+                                                                                            "Sales tax rate",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -6006,7 +6006,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Contingency Rate",
+                                                                                            "Contingency rate",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -6210,7 +6210,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "PDF NAMING",
+                                                                                    "PDF naming",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -6228,7 +6228,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Automatically name all PDFs with a custom format and sequential numbering.",
+                                                                                    "Name every PDF with your own format and a running number.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -6416,7 +6416,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Auto-Name PDFs",
+                                                                                            "Auto-name PDFs",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -6502,7 +6502,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "APP THEME",
+                                                                                    "App theme",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -6520,7 +6520,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Sets the accent color across the app — buttons, links, chips and highlights. Each swatch is a tone that hue actually resolves to in the theme you are in. A few screens still show the MAGE brand colour.",
+                                                                                    "Sets the accent color for buttons, links, chips and highlights. Each swatch shows how that color looks in your current theme. A few screens still show the MAGE brand color.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -6566,7 +6566,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                 },
                                                                                                 {
                                                                                                   "children": [
-                                                                                                    "MAGE Green",
+                                                                                                    "MAGE green",
                                                                                                   ],
                                                                                                   "props": {
                                                                                                     "style": {
@@ -6726,7 +6726,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                 },
                                                                                                 {
                                                                                                   "children": [
-                                                                                                    "Ocean Blue",
+                                                                                                    "Ocean blue",
                                                                                                   ],
                                                                                                   "props": {
                                                                                                     "style": {
@@ -7293,7 +7293,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "SECURITY",
+                                                                                    "Security",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -7554,7 +7554,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "App lock isn’t built yet. Face ID sign-in is on the login screen.",
+                                                                                                "App lock isn’t available yet. Face ID sign-in is on the sign-in screen.",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -7595,7 +7595,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "App lock. App lock isn’t built yet. Face ID sign-in is on the login screen.",
+                                                                                        "accessibilityLabel": "App lock. App lock isn’t available yet. Face ID sign-in is on the sign-in screen.",
                                                                                         "accessibilityRole": "switch",
                                                                                         "accessibilityState": {
                                                                                           "checked": false,
@@ -7630,7 +7630,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "NOTIFICATIONS",
+                                                                                    "Notifications",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -7781,7 +7781,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "Pick which portal events ping your phone vs. email",
+                                                                                                "Choose which portal events reach your phone or your email",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -7853,7 +7853,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "PAYMENTS",
+                                                                                    "Payments",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -8390,7 +8390,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "INTEGRATIONS",
+                                                                                    "Integrations",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -8408,7 +8408,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Connect third-party services. QuickBooks Online syncs your invoices, payments, and customers in real time.",
+                                                                                    "Connect other services. QuickBooks Online syncs your invoices, payments and clients.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -8578,7 +8578,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "Status unavailable — tap to retry",
+                                                                                                "Status unavailable · Tap to retry",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -8728,7 +8728,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "PROJECT PAGES & VERIFICATION",
+                                                                                    "Project pages and verification",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -8746,7 +8746,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Publish a finished job as a public portfolio page you can link from your website or send to a prospect.",
+                                                                                    "Publish a finished project as a public portfolio page you can link from your website or send to a prospect.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -9289,7 +9289,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "YOUR COSTS",
+                                                                                    "Your costs",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -9463,7 +9463,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Seed your rates",
+                                                                                                "Add your rates",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -9754,7 +9754,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Cost database",
+                                                                                            "Cost history",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -9896,7 +9896,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "CONTACTS & EMAIL",
+                                                                                    "Contacts and email",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -10175,7 +10175,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "YOUR DATA",
+                                                                                    "Your data",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -10193,7 +10193,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Your data is yours. Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV — no lock-in, ever.",
+                                                                                    "Export your projects, invoices, change orders, pay apps, RFIs, daily reports and photo records (links valid 24h) to JSON or CSV.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -11112,7 +11112,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "SUPPLIER MARKETPLACE",
+                                                                                    "Supplier marketplace",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -11130,7 +11130,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Register as a supplier to list your materials on the MAGE ID Marketplace and sell directly to contractors.",
+                                                                                    "Register as a supplier to list your materials on the MAGE ID marketplace and sell directly to contractors.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -11330,7 +11330,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Register as Supplier",
+                                                                                                "Register as a supplier",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -11491,7 +11491,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "SUBSCRIPTION PLAN",
+                                                                                    "Subscription plan",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -11509,7 +11509,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "You're on Enterprise — our top plan. Thanks for building with MAGE.",
+                                                                                    "You're on Enterprise, the top plan.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -11951,7 +11951,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Basic schedule maker",
+                                                                                                        "Basic schedule builder",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -12052,7 +12052,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Daily field reports",
+                                                                                                        "Daily reports",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -12276,7 +12276,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Not on Free: AI estimates, cash flow, change orders + invoicing, AIA-style G702/G703, plan viewer, RFIs + submittals",
+                                                                                                        "Not on Free: AI estimates, cash flow, change orders and invoicing, AIA-style G702/G703, plan viewer, RFIs and submittals",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -12804,7 +12804,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "AI Cost Estimator",
+                                                                                                        "AI cost estimator",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -12905,7 +12905,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Cash Flow Forecaster & Budget Health",
+                                                                                                        "Cash-flow forecast and budget health",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -13006,7 +13006,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Schedule Maker with Gantt & PDF export",
+                                                                                                        "Schedule builder with Gantt and PDF export",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -13107,7 +13107,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Change Orders & Invoicing",
+                                                                                                        "Change orders and invoicing",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -13309,7 +13309,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Plan Viewer, sheet pins & markup",
+                                                                                                        "Plan viewer, sheet pins and markup",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -13410,7 +13410,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "RFIs & Submittals",
+                                                                                                        "RFIs and submittals",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -13511,7 +13511,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Client Portal for your customers",
+                                                                                                        "Client portal for your clients",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -13612,7 +13612,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Photo documentation & AI Photo Triage",
+                                                                                                        "Photo documentation and AI photo triage",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -13713,7 +13713,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Lien Waivers",
+                                                                                                        "Lien waivers",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -14227,7 +14227,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Subcontractor management",
+                                                                                                        "Sub management",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -14328,7 +14328,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Punch List & Closeout packets",
+                                                                                                        "Punch list and closeout packets",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -14530,7 +14530,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Crew profiles & certifications",
+                                                                                                        "Crew profiles and certifications",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -14631,7 +14631,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "WIP reporting & full Budget Dashboard",
+                                                                                                        "WIP reporting and full budget dashboard",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -15035,7 +15035,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Bid Advisor (take / hold / walk)",
+                                                                                                        "Bid advisor (take, hold or walk)",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -15136,7 +15136,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Track Record — it grades its own calls",
+                                                                                                        "Track record: how each forecast turned out",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -15676,7 +15676,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Highest AI usage caps",
+                                                                                                        "Highest AI usage limits",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -15979,7 +15979,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "4500 text-AI calls/mo",
+                                                                                                        "4,500 text AI calls/mo",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -16080,7 +16080,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                                     },
                                                                                                     {
                                                                                                       "children": [
-                                                                                                        "Priority queue on heavy AI",
+                                                                                                        "Priority queue on heavy AI requests",
                                                                                                       ],
                                                                                                       "props": {
                                                                                                         "style": {
@@ -16406,7 +16406,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "Email help@mageid.app to change or cancel — nothing is deleted",
+                                                                                                "Email help@mageid.app to change or cancel. Nothing is deleted.",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -16559,7 +16559,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "HELP & SUPPORT",
+                                                                                    "Help and support",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -16784,7 +16784,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Tutorials — practise on a sample job",
+                                                                                        "accessibilityLabel": "Tutorials. Practice on a sample project.",
                                                                                         "accessibilityRole": "button",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -16928,7 +16928,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Contact Support",
+                                                                                            "Contact support",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -20123,7 +20123,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "ABOUT",
+                                                                                    "About",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -20298,7 +20298,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "Construction estimator with real-time pricing & bulk discounts.",
+                                                                                                "Estimating, scheduling, billing and field reports for general contractors.",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -20518,7 +20518,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "LEGAL",
+                                                                                    "Legal",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -20653,7 +20653,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Privacy Policy",
+                                                                                            "Privacy policy",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -20743,7 +20743,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Privacy Policy",
+                                                                                        "accessibilityLabel": "Privacy policy",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -20975,7 +20975,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Terms of Service",
+                                                                                            "Terms of service",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -21065,7 +21065,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Terms of Service",
+                                                                                        "accessibilityLabel": "Terms of service",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -21231,7 +21231,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                         {
                                                                                           "children": [
-                                                                                            "Do Not Sell My Info (CA)",
+                                                                                            "Do not sell my info (CA)",
                                                                                           ],
                                                                                           "props": {
                                                                                             "style": {
@@ -21321,7 +21321,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                         },
                                                                                       ],
                                                                                       "props": {
-                                                                                        "accessibilityLabel": "Do Not Sell or Share My Personal Information",
+                                                                                        "accessibilityLabel": "Do not sell or share my personal information",
                                                                                         "accessibilityRole": "link",
                                                                                         "accessibilityState": {
                                                                                           "busy": undefined,
@@ -21375,7 +21375,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "DANGER ZONE",
+                                                                                    "Danger zone",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -21598,7 +21598,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                             },
                                                                                             {
                                                                                               "children": [
-                                                                                                "Clears MAGE ID's saved copy on this device. Your jobs stay on your account and reload.",
+                                                                                                "Clears MAGE ID's saved copy on this device. Your projects stay on your account and reload.",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -21812,7 +21812,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                           "children": [
                                                                                             {
                                                                                               "children": [
-                                                                                                "Delete Account",
+                                                                                                "Delete account",
                                                                                               ],
                                                                                               "props": {
                                                                                                 "style": {
@@ -21899,7 +21899,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                                                 },
                                                                                 {
                                                                                   "children": [
-                                                                                    "Both actions are permanent and cannot be undone.",
+                                                                                    "Deleting your account can't be undone.",
                                                                                   ],
                                                                                   "props": {
                                                                                     "style": {
@@ -23253,7 +23253,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                     },
                                                     {
                                                       "children": [
-                                                        "Your Projects",
+                                                        "Projects",
                                                       ],
                                                       "props": {
                                                         "numberOfLines": 1,
@@ -23272,8 +23272,8 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /settin
                                                     },
                                                   ],
                                                   "props": {
-                                                    "accessibilityLabel": "Your Projects, tab, 2 of 4",
-                                                    "accessibilityLargeContentTitle": "Your Projects",
+                                                    "accessibilityLabel": "Projects, tab, 2 of 4",
+                                                    "accessibilityLargeContentTitle": "Projects",
                                                     "accessibilityShowsLargeContentViewer": true,
                                                     "accessibilityState": {
                                                       "busy": undefined,
@@ -25762,7 +25762,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                     },
                                                     {
                                                       "children": [
-                                                        "or with email",
+                                                        "Or with email",
                                                       ],
                                                       "props": {
                                                         "style": {
@@ -25802,7 +25802,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                       "children": [
                                                         {
                                                           "children": [
-                                                            "Full Name",
+                                                            "Full name",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -25925,7 +25925,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                                 "onChangeText": [Function],
                                                                 "onFocus": [Function],
                                                                 "onSubmitEditing": [Function],
-                                                                "placeholder": "John Doe",
+                                                                "placeholder": "Dana Ruiz",
                                                                 "placeholderTextColor": "rgba(43,48,56,0.72)",
                                                                 "returnKeyType": "next",
                                                                 "style": {
@@ -26262,7 +26262,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                                 "onChangeText": [Function],
                                                                 "onFocus": [Function],
                                                                 "onSubmitEditing": [Function],
-                                                                "placeholder": "Min 8 characters",
+                                                                "placeholder": "At least 8 characters",
                                                                 "placeholderTextColor": "rgba(43,48,56,0.72)",
                                                                 "returnKeyType": "go",
                                                                 "secureTextEntry": true,
@@ -26450,7 +26450,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                       "children": [
                                                         {
                                                           "children": [
-                                                            "Create Account",
+                                                            "Create account",
                                                           ],
                                                           "props": {
                                                             "style": {
@@ -26681,7 +26681,7 @@ exports[`phone equality at 390 native (snapshots recorded from 6065b326) /signup
                                                       "children": [
                                                         {
                                                           "children": [
-                                                            "Sign In",
+                                                            "Sign in",
                                                           ],
                                                           "props": {
                                                             "style": {

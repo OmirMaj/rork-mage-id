@@ -27,6 +27,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 
 interface BidScoringInput {
   id: string;
@@ -56,10 +57,10 @@ function scoreColor(score: number, t: ThemeColors): string {
 }
 
 function scoreLabel(score: number): string {
-  if (score >= 85) return 'Strong Fit — Go';
-  if (score >= 65) return 'Good Fit — Likely Go';
-  if (score >= 45) return 'Partial Fit — Review';
-  return 'Weak Fit — No-Go';
+  if (score >= 85) return 'Strong fit · Go';
+  if (score >= 65) return 'Good fit · Likely go';
+  if (score >= 45) return 'Partial fit · Review';
+  return 'Weak fit · No-go';
 }
 
 function goNoGo(score: number): 'go' | 'review' | 'no_go' {
@@ -183,7 +184,8 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       } catch { /* G4 */ }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
-      setError(err?.message || 'Failed to score bid');
+      console.warn('[AI Bid] scoring failed:', err);
+      setError(ownSentence(err) ?? describeError(err, { action: 'score this bid' }).body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -206,11 +208,11 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <MageAIMark size={18} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>AI Go/No-Go Analysis</Text>
+            <Text style={styles.title}>Go/no-go analysis</Text>
             <Text style={styles.subtitle}>
               {profileReady
-                ? 'Score this bid against your company profile in seconds.'
-                : 'Set up a quick company profile and get personalized bid scoring.'}
+                ? 'Score this bid against your company profile.'
+                : 'Set up a short company profile to score bids against it.'}
             </Text>
           </View>
         </View>
@@ -227,7 +229,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <>
               <MageAIMark size={15} color="#FFF" />
               <Text style={styles.runBtnText}>
-                {profileReady ? 'Run Go/No-Go Score' : 'Set Up & Score'}
+                {profileReady ? 'Score this bid' : 'Set up and score'}
               </Text>
             </>
           )}
@@ -256,12 +258,12 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       <View style={[styles.container, { borderColor: "#C84038" + '40' }]} testID={testID}>
         <View style={styles.heroRow}>
           <AlertTriangle size={18} color={"#C84038"} strokeWidth={1.75} />
-          <Text style={[styles.title, { color: "#C84038" }]}>Scoring Failed</Text>
+          <Text style={[styles.title, { color: "#C84038" }]}>Couldn&apos;t score this bid</Text>
         </View>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.runBtn} onPress={() => void runScore(true)} activeOpacity={0.85}>
           <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
-          <Text style={styles.runBtnText}>Retry</Text>
+          <Text style={styles.runBtnText}>Try again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -281,13 +283,13 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
           <MageAIMark size={18} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>AI Go/No-Go Analysis</Text>
+          <Text style={styles.title}>Go/no-go analysis</Text>
           <Text style={styles.subtitle}>Cached · tap refresh to re-score</Text>
         </View>
-        <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Refresh">
+        <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Score again">
           <RefreshCw size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Settings">
+        <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Edit company profile">
           <Settings size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
@@ -378,7 +380,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
         <View style={[styles.section, { backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.card, padding: 12 }]}>
           <View style={styles.sectionHeader}>
             <TrendingUp size={14} color={themeColors.accent} strokeWidth={1.75} />
-            <Text style={[styles.sectionTitle, { color: themeColors.accentLabel }]}>Bid Strategy</Text>
+            <Text style={[styles.sectionTitle, { color: themeColors.accentLabel }]}>Bid strategy</Text>
           </View>
           <Text style={styles.strategyText}>{score.bidStrategy}</Text>
         </View>

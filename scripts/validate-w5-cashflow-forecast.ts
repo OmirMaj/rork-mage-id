@@ -224,7 +224,7 @@ console.log('\n  #107 weeks are local calendar days');
   const screen = read('app/cash-flow.tsx');
   check('the danger rows and the week-detail header render through formatCalendarDay',
     /Week \{dw\.weekNumber\} · \{formatCalendarDay\(dw\.weekDate, /.test(screen) &&
-    /DETAIL · \{formatCalendarDay\(selectedWeekData\.weekStart, /.test(screen) &&
+    /detail · \{formatCalendarDay\(selectedWeekData\.weekStart, /.test(screen) &&
     !/new Date\(dw\.weekDate\)/.test(screen) && !/new Date\(selectedWeekData\.weekStart\)/.test(screen));
   const engine = read('utils/cashFlowEngine.ts');
   check('the engine stores toCalendarDayString, never the UTC date part',
@@ -299,7 +299,7 @@ console.log('\n  #110 a submitted CO never moves the balance');
     /\{badge\.label\}<\/Text>[\s\S]{0,300}\+\{formatCurrency\(item\.amount\)\}/.test(screen));
   check('...and list pending COs apart, saying their week is assumed',
     /\{\(selectedWeekData\.pendingCoItems \?\? \[\]\)\.length > 0 && \(/.test(screen) &&
-    /If approved — not in the balance/.test(screen) && /assumes the owner approves within 3 weeks/.test(screen));
+    /If approved \(not in the balance\)/.test(screen) && /assumes the client approves within 3 weeks/.test(screen));
   check('Sources no longer counts approved COs',
     !/c\.status === 'approved'/.test(screen) && /return inv \+ exp;/.test(screen));
 }

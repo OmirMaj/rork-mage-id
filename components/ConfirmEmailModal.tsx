@@ -41,6 +41,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useRiseOnOpen } from '@/components/ui/motion';
 import { useSheetDialogScope, useSheetFrame } from '@/components/ui/Sheet';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 
 interface ConfirmEmailModalProps {
   visible: boolean;
@@ -130,16 +131,19 @@ export default function ConfirmEmailModal({
       await resendConfirmation(email);
       setResentAt(Date.now());
       setStatusKind('success');
-      setStatusMessage('Sent — check your inbox again.');
+      setStatusMessage('Sent. Check your inbox again.');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : 'Could not resend. Try again in a minute.';
+      const raw = rawErrorMessage(err);
+      console.warn('[ConfirmEmailModal] resend failed:', raw);
       // Supabase returns a clearer message when the account is already confirmed.
+      const own = ownSentence(err);
+      const copy = describeError(err, { action: 'resend the confirmation email' });
       const msg = raw.toLowerCase().includes('already')
         ? 'This email is already confirmed. You can sign in now.'
-        : raw;
+        : own ?? `${copy.title}. ${copy.body}`;
       setStatusKind('error');
       setStatusMessage(msg);
       if (Platform.OS !== 'web') {
@@ -206,7 +210,7 @@ export default function ConfirmEmailModal({
             />
             <Tip
               Icon={Shield}
-              title="Check Spam / Promotions"
+              title="Check spam and promotions"
               body="If you don't see it in a minute, it may have landed in Spam, Promotions, or Updates."
             />
             <Tip

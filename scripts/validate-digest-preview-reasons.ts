@@ -78,7 +78,7 @@ console.log('\nthe Email switch turn-ON is order-proof against the migration');
     /const kind = resumeDigestErrorKind\(error as RpcErrorLike\);\s*if \(kind === 'missing_function'\) \{\s*updateDigest\(\{ channels: \{ email: true, in_app: digestInAppOn \} \}\);\s*return;\s*\}/.test(ns));
   ok('…network and refusal get their own words',
     /const copy = kind === 'network' \? RESUME_NETWORK_COPY : resumeRefusedCopy\(error as RpcErrorLike\);\s*showAlert\(copy\.title, copy\.message\);/.test(ns)
-      && !/'We could not reach the server\. Check your connection and try again\.'/.test(ns));
+      && !ns.includes(RESUME_NETWORK_COPY.message) && !/'We could not reach the server\. Check your connection and try again\.'/.test(ns));
   ok('the preview alert comes from morningPreviewCopy, not a sent/no-projects ternary',
     /const copy = morningPreviewCopy\(data as \{ sent\?: unknown; reason\?: unknown \} \| null(?:, [^)]*)?\);\s*showAlert\(copy\.title, copy\.message\);/.test(ns)
       && !/sent \? 'Preview sent' : 'No projects to digest'/.test(ns));

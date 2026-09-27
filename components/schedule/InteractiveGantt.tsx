@@ -62,6 +62,7 @@ import { asBuiltVariance, ganttLogFinishPatch, ganttLogStartPatch, todaySchedule
 import { actualCalendarDay } from '@/utils/scheduleOps';
 import { toCalendarDayString } from '@/utils/calendarDate';
 import { colorForTask as canonicalColorForTask, statusColorForTask, statusColor, statusLabel, STATUS_KEYS, barLabelColorFor, type GanttColorMode } from '@/utils/scheduleColors';
+import { taskStatusLabel } from '@/utils/statusLabels';
 import { useGanttColorMode } from '@/hooks/useGanttColorMode';
 import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
@@ -1732,7 +1733,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     {/* Task 6: spec §7.1 pill — white bg, 1px #fecaca border, #ef4444 text.
                         Text is "TODAY" only (no date suffix) to keep the pill compact;
                         the line itself gives positional context. */}
-                    <Text style={styles.todayLabelText}>TODAY</Text>
+                    <Text style={styles.todayLabelText}>Today</Text>
                   </View>
                 </>
               )}
@@ -2088,10 +2089,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const depCount = (t.dependencyLinks?.length ?? t.dependencies.length ?? 0);
                 const progressPct = Math.max(0, Math.min(100, t.progress ?? 0));
                 const accent = bar.isCritical ? themeColors.danger : themeColors.accent;
-                const statusLabel = t.status === 'done' ? 'Complete'
-                  : t.status === 'in_progress' ? 'In Progress'
-                  : t.status === 'on_hold' ? 'On Hold'
-                  : 'Not started';
+                const statusLabel = taskStatusLabel(t.status);
                 return (
                   <View
                     style={[styles.hoverCard, { left: tipX, top: tipY, width: cardWidth }]}
@@ -3196,6 +3194,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: '#ef4444',
     fontWeight: '700',
     letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
 
   barLabel: {

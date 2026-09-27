@@ -496,7 +496,7 @@ export function buildWelcomeEmailHtml(opts: {
   } = opts;
 
   const features = [
-    { title: 'Estimates from your own prices', body: 'Live material pricing, regional cost adjustments and AI quick estimates from a photo.' },
+    { title: 'Estimates from your own prices', body: 'Regional material list prices, local cost adjustments and AI quick estimates from a photo.' },
     { title: 'Daily reports by voice', body: 'Say what happened on site. MAGE drafts the weather, manpower, work performed and issues.' },
     { title: 'Get paid in the app', body: `A Pay button on every invoice. ${PAYOUT_TIMING_SHORT}.` },
     { title: 'Plans, RFIs, change orders and submittals', body: 'The full document workflow on your phone. Export RFI logs and closeout packets to PDF.' },

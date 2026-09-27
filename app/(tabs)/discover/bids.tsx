@@ -65,6 +65,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 // SUPA-H1: how old the feed is, said on screen ('Not checked' when unknown).
 import { bidsFeedFreshness } from '@/utils/bidsFreshness';
+import { describeError } from '@/utils/errorCopy';
 
 interface CachedBid {
   id: string;
@@ -205,7 +206,7 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
             </View>
           ) : (
             <View style={styles.openBadge}>
-              <Text style={styles.openBadgeText}>OPEN</Text>
+              <Text style={styles.openBadgeText}>Open</Text>
             </View>
           )}
           {bid.isConstruction && (
@@ -345,7 +346,9 @@ export default function CachedBidsScreen() {
         .limit(2000);
       if (error) {
         console.log('[CachedBids] supabase error:', error.message);
-        throw new Error(`The bids feed couldn't be read: ${error.message}`);
+        // Raw text and code ride on the error for describeError to classify;
+        // the screen shows its sentence, never this message.
+        throw Object.assign(new Error(error.message), { code: error.code });
       }
       return (data ?? []) as CachedBid[];
     },
@@ -526,7 +529,7 @@ export default function CachedBidsScreen() {
             <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Public Bids</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Public bids</Text>
             <Text style={styles.headerSubtitle}>
               {filteredCount === totalCount
                 ? `${totalCount.toLocaleString()} active`
@@ -549,7 +552,7 @@ export default function CachedBidsScreen() {
         {freshness.stale && (
           <View style={styles.locNotice} testID="bids-stale-notice">
             <Text style={styles.locNoticeText}>
-              {`This feed was last refreshed ${freshness.label.replace('Updated ', '')}. Deadlines and open status may be out of date — check SAM.gov before you bid.`}
+              {`This feed was last refreshed ${freshness.label.replace('Updated ', '')}. Deadlines and open status may be out of date, so check SAM.gov before you bid.`}
             </Text>
           </View>
         )}
@@ -792,7 +795,7 @@ export default function CachedBidsScreen() {
         <View style={styles.loadingContainer}>
           <AlertCircle size={40} color="#D32F2F" strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>Couldn't load bids</Text>
-          <Text style={styles.emptySubtitle}>{bidsQueryError.message}</Text>
+          <Text style={styles.emptySubtitle}>{describeError(bidsQueryError, { action: 'load the bids feed' }).body}</Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -823,8 +826,8 @@ export default function CachedBidsScreen() {
                   // currently says rather than a label it may not be wearing.
                   ? `Near me needs your location before it can measure anything. Tap ${locationControlLabel(locStatus, false, LOCATION_PLATFORM)} above, or switch to All US, City or State.`
                   : totalCount > 0
-                    ? `${totalCount.toLocaleString()} bids in the cache. Loosen your filters to see more.`
-                    : 'The SAM.gov sync is still warming up. Pull to refresh.'}
+                    ? `${totalCount.toLocaleString()} ${totalCount === 1 ? 'bid' : 'bids'} in the feed. Loosen your filters to see more.`
+                    : "The SAM.gov feed hasn't loaded any bids yet. Pull to refresh."}
               </Text>
               <TouchableOpacity onPress={clearAllFilters} style={styles.retryButton}>
                 <Text style={styles.retryButtonText}>Clear all filters</Text>
@@ -921,7 +924,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   setAsideBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
   setAsideText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#1E5128', letterSpacing: 0.2 },
   openBadge: { backgroundColor: Colors.infoLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
-  openBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6 },
+  openBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6, textTransform: 'uppercase' as const },
   constructionBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#FFF4E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs,

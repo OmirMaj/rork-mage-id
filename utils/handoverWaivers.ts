@@ -196,7 +196,7 @@ export function jobInvoiceHandoverState(
   }
   const newest = byNumber[byNumber.length - 1];
   if (newest.status === 'draft') {
-    return { status: 'open', detail: `Invoice #${newest.number} is still a draft. Send it`, targetInvoiceId: newest.id };
+    return { status: 'open', detail: `Invoice #${newest.number} is still a draft. Send it.`, targetInvoiceId: newest.id };
   }
   const drafts = byNumber.filter((i) => i.status === 'draft');
   if (drafts.length > 0) {
@@ -204,7 +204,7 @@ export function jobInvoiceHandoverState(
     // full" while it sits there; send it or delete it.
     return {
       status: 'partial',
-      detail: `Invoice #${drafts[0].number} is still a draft. Send it or delete it before handover`,
+      detail: `Invoice #${drafts[0].number} is still a draft. Send it or delete it before handover.`,
       targetInvoiceId: drafts[0].id,
     };
   }
@@ -212,7 +212,7 @@ export function jobInvoiceHandoverState(
   if (heldCents > 0) {
     return {
       status: 'partial',
-      detail: `All invoices paid · ${money(heldCents / 100)} retainage still held. Bill the release before handover`,
+      detail: `All invoices paid · ${money(heldCents / 100)} retainage still held. Bill the release before handover.`,
       targetInvoiceId: newest.id,
     };
   }

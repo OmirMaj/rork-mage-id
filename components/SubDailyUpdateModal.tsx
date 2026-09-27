@@ -149,7 +149,7 @@ function SubDailyUpdateModalImpl({
       };
       await onSubmit(update);
       // Compose + open a notification reply so the GC sees this immediately.
-      const subject = `[Daily Update] ${projectName} — ${task.title} — ${update.progressPercent}% (${subName})`;
+      const subject = `Daily update · ${projectName} · ${task.title} · ${update.progressPercent}% · ${subName}`;
       const lines = [
         `Hi${gcName ? ' ' + gcName : ''},`,
         '',
@@ -159,7 +159,7 @@ function SubDailyUpdateModalImpl({
         update.hoursWorked != null ? `  • Hours: ${update.hoursWorked}` : null,
         update.crewCount != null ? `  • Crew: ${update.crewCount}` : null,
         update.notes ? `  • Notes: ${update.notes}` : null,
-        update.blocker ? `  !! BLOCKER: ${update.blocker}` : null,
+        update.blocker ? `  • Blocker: ${update.blocker}` : null,
         '',
         `— ${subName}`,
         '',
@@ -306,7 +306,7 @@ function SubDailyUpdateModalImpl({
               />
               {blocker.trim() && (
                 <Text style={styles.blockerHint}>
-                  We&apos;ll flag this on the GC&apos;s dashboard with high priority.
+                  This shows on your contractor&apos;s dashboard as high priority.
                 </Text>
               )}
             </View>
@@ -321,7 +321,7 @@ function SubDailyUpdateModalImpl({
                     <TouchableOpacity
                       style={styles.photoRemove}
                       onPress={() => handleRemovePhoto(i)}
-                      hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete">
+                      hitSlop={6} accessibilityRole="button" accessibilityLabel="Remove photo">
                       <Trash2 size={11} color="#FFF" strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
@@ -332,7 +332,7 @@ function SubDailyUpdateModalImpl({
                   activeOpacity={0.85}
                 >
                   <Camera size={18} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
+                  <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Camera'}</Text>
                 </TouchableOpacity>
                 {Platform.OS !== 'web' && (
                   <TouchableOpacity
@@ -365,7 +365,7 @@ function SubDailyUpdateModalImpl({
             >
               <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>
-                {busy ? 'Sending…' : (gcEmail ? 'Save + email GC' : gcPhone ? 'Save + text GC' : 'Save')}
+                {busy ? 'Sending…' : (gcEmail ? 'Save and email' : gcPhone ? 'Save and text' : 'Save')}
               </Text>
               {gcEmail
                 ? <Mail size={12} color="rgba(255,255,255,0.85)" strokeWidth={1.75} />

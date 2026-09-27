@@ -26,6 +26,7 @@ import type { RenderedPlanPage } from '@/utils/pdfRenderClient';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 interface RelatedRow {
   category: 'walls' | 'floorAreas' | 'doors' | 'windows' | 'finishes' | 'fixtures' | 'bulkMaterials';
@@ -100,22 +101,22 @@ function TakeoffPageInspectorImpl({
     }
     for (const d of takeoff.doors) {
       if (d.sourcePages.includes(activePage)) {
-        out.push({ category: 'doors', title: d.mark ? `${d.mark} — ${d.description}` : d.description, quantity: d.count, unit: 'EA', confidence: d.confidence });
+        out.push({ category: 'doors', title: d.mark ? `${d.mark} · ${d.description}` : d.description, quantity: d.count, unit: 'EA', confidence: d.confidence });
       }
     }
     for (const w of takeoff.windows) {
       if (w.sourcePages.includes(activePage)) {
-        out.push({ category: 'windows', title: w.mark ? `${w.mark} — ${w.description}` : w.description, quantity: w.count, unit: 'EA', confidence: w.confidence });
+        out.push({ category: 'windows', title: w.mark ? `${w.mark} · ${w.description}` : w.description, quantity: w.count, unit: 'EA', confidence: w.confidence });
       }
     }
     for (const f of takeoff.finishes) {
       if (f.sourcePages.includes(activePage)) {
-        out.push({ category: 'finishes', title: f.code ? `${f.code} — ${f.description}` : f.description, quantity: f.quantity, unit: f.unit.toUpperCase(), confidence: f.confidence });
+        out.push({ category: 'finishes', title: f.code ? `${f.code} · ${f.description}` : f.description, quantity: f.quantity, unit: f.unit.toUpperCase(), confidence: f.confidence });
       }
     }
     for (const x of takeoff.fixtures) {
       if (x.sourcePages.includes(activePage)) {
-        out.push({ category: 'fixtures', title: x.mark ? `${x.mark} — ${x.description}` : x.description, quantity: x.count, unit: 'EA', confidence: x.confidence });
+        out.push({ category: 'fixtures', title: x.mark ? `${x.mark} · ${x.description}` : x.description, quantity: x.count, unit: 'EA', confidence: x.confidence });
       }
     }
     for (const b of takeoff.bulkMaterials) {
@@ -158,7 +159,7 @@ function TakeoffPageInspectorImpl({
           <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              Page {activePage}{drawingMeta ? ` · ${drawingMeta.type}` : ''}
+              Sheet {activePage}{drawingMeta ? ` · ${drawingMeta.type}` : ''}
             </Text>
             {drawingMeta?.scope ? (
               <Text style={styles.headerSubtitle} numberOfLines={1}>{drawingMeta.scope}</Text>
@@ -202,7 +203,7 @@ function TakeoffPageInspectorImpl({
                 ) : (
                   <View style={styles.imageLoading}>
                     <ActivityIndicator size="small" color={themeColors.accent} />
-                    <Text style={styles.imageLoadingText}>No render available for this page.</Text>
+                    <Text style={styles.imageLoadingText}>No image for this sheet.</Text>
                   </View>
                 )}
               </ScrollView>
@@ -214,13 +215,13 @@ function TakeoffPageInspectorImpl({
                 <TouchableOpacity
                   style={[styles.pageNav, styles.pageNavLeft]}
                   onPress={() => goPage(-1)}
-                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous sheet">
                   <ChevronLeft size={20} color="#FFF" strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.pageNav, styles.pageNavRight]}
                   onPress={() => goPage(1)}
-                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Open">
+                  hitSlop={8} accessibilityRole="button" accessibilityLabel="Next sheet">
                   <ChevronRight size={20} color="#FFF" strokeWidth={1.75} />
                 </TouchableOpacity>
                 <View style={styles.pagePill}>
@@ -235,15 +236,15 @@ function TakeoffPageInspectorImpl({
           {/* Sidebar — related takeoff rows from this page */}
           <View style={[styles.sidebar, isWide && styles.sidebarWide]}>
             <Text style={styles.sidebarTitle}>
-              From this page ({relatedRows.length})
+              From this sheet ({relatedRows.length})
             </Text>
             <Text style={styles.sidebarHelper}>
-              Every quantity the AI extracted from page {activePage}.
+              Every quantity MAGE read from sheet {activePage}.
             </Text>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.sidebarScroll}>
               {relatedRows.length === 0 && (
                 <Text style={styles.sidebarEmpty}>
-                  Nothing was extracted from this page.
+                  Nothing was read from this sheet.
                 </Text>
               )}
               {relatedRows.map((r, idx) => {
@@ -260,7 +261,7 @@ function TakeoffPageInspectorImpl({
                       <View style={styles.sidebarRowMeta}>
                         <Text style={styles.sidebarRowQty}>{formatNum(r.quantity)} {r.unit}</Text>
                         <View style={[styles.sidebarRowPill, { backgroundColor: confColor + '15' }]}>
-                          <Text style={[styles.sidebarRowPillText, { color: confColor }]}>{r.confidence}</Text>
+                          <Text style={[styles.sidebarRowPillText, { color: confColor }]}>{humanizeEnum(r.confidence)}</Text>
                         </View>
                       </View>
                     </View>

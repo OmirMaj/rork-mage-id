@@ -634,7 +634,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Was a pulsing green `liveDot` + "LIVE PRICING" in success green. Muted and
   // static: this is a book, not a feed, and the colour said otherwise.
   provenanceRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  provenanceLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8 },
+  provenanceLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const },
   refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.accent + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   // Cart pill — solid-accent button shown only when the cart has items, so
   // it carries weight when present. Taps to the Estimate tab.
@@ -727,7 +727,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   locationMultiplier: { backgroundColor: t.accent + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   multiplierText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent },
   locationPicker: { marginHorizontal: 16, marginBottom: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: t.line },
-  pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' as const },
   pickerScroll: { flexDirection: 'row', marginBottom: 4 },
   pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.bg, marginRight: 6, alignItems: 'center' },
   pickerChipActive: { backgroundColor: t.accentFill },

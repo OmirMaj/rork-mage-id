@@ -42,6 +42,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { sendEmail } from '@/utils/emailService';
+import { describeError } from '@/utils/errorCopy';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -82,7 +83,7 @@ export default function GetVerifiedScreen() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Trust & credibility</Text>
+          <Text style={styles.eyebrow}>Trust and credibility</Text>
           <Text style={styles.title}>Get verified</Text>
         </View>
       </View>
@@ -181,7 +182,7 @@ function GetVerifiedForm() {
     // but it no longer decides which statute his bids follow.
     const addressState = splitLocationText(saved?.address ?? '').state;
     if (addressState && addressState !== code) {
-      notes.push(`Bids now follow ${code}\u2019s licence rules, not ${addressState} from your company address.`);
+      notes.push(`Bids now follow ${code}\u2019s license rules, not ${addressState} from your company address.`);
     }
     setProfileNote(notes.length ? notes.join(' ') : null);
 
@@ -225,7 +226,7 @@ function GetVerifiedForm() {
       setSubmitted(true);
     } catch (e) {
       console.warn('[get-verified] submit failed', e);
-      setError(e instanceof Error ? e.message : 'Could not submit. Try again.');
+      setError(describeError(e, { action: 'send your verification request', keptLocally: true }).body);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSubmitting(false);
@@ -238,7 +239,7 @@ function GetVerifiedForm() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.successWrap}>
           <View style={styles.successIcon}><CheckCircle2 size={40} color={themeColors.success} strokeWidth={1.75} /></View>
-          <Text style={styles.successTitle}>Request submitted</Text>
+          <Text style={styles.successTitle}>Request sent</Text>
           <Text style={styles.successBody}>
             Our team will review your license and verify your account, usually within 1–2 business days.
             Once verified, you&apos;ll be eligible for &quot;Verified pros only&quot; projects.
@@ -261,7 +262,7 @@ function GetVerifiedForm() {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Trust & credibility</Text>
+          <Text style={styles.eyebrow}>Trust and credibility</Text>
           <Text style={styles.title}>Get verified</Text>
         </View>
       </View>
@@ -275,8 +276,8 @@ function GetVerifiedForm() {
         <View style={styles.pitch}>
           <View style={styles.pitchIcon}><ShieldCheck size={20} color={themeColors.success} strokeWidth={1.75} /></View>
           <Text style={styles.pitchText}>
-            Verified pros win more work. Homeowners can post projects open only to verified
-            contractors — submit your license and we&apos;ll review it.
+            Verified pros win more work: clients can post projects open only to verified
+            contractors. Submit your license and we&apos;ll review it.
           </Text>
         </View>
 
@@ -332,7 +333,7 @@ function GetVerifiedForm() {
               nothing reads it yet (no reminder, no bid check), and the
               profile has no field for licence type — so say exactly that. */}
           <Text style={[styles.helper, { marginTop: 6, marginBottom: 0 }]}>
-            The expiration date is saved to your company profile. License type goes to our reviewer only. MAGE does not remind you before your license expires yet.
+            The expiration date is saved to your company profile; license type goes to our reviewer only. MAGE doesn&apos;t remind you before your license expires yet.
           </Text>
         </View>
 
@@ -373,7 +374,7 @@ function GetVerifiedForm() {
           ) : (
             <>
               <Send size={16} color="#FFF" strokeWidth={1.75} />
-              <Text style={styles.submitBtnText}>Submit for verification</Text>
+              <Text style={styles.submitBtnText}>Request verification</Text>
             </>
           )}
         </TouchableOpacity>

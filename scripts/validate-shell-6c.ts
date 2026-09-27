@@ -311,7 +311,7 @@ console.log('\n3. source pins');
   const settings = read('app/(tabs)/settings/index.tsx');
   const OPEN = "{userRole !== 'property_manager' && (<>";
   const CLOSE = '</>)}';
-  for (const header of ['ESTIMATE DEFAULTS', 'PDF NAMING', 'YOUR COSTS', 'SUPPLIER MARKETPLACE']) {
+  for (const header of ['Estimate defaults', 'PDF naming', 'Your costs', 'Supplier marketplace']) {
     const at = settings.indexOf(`<Text style={styles.sectionHeader}>${header}</Text>`);
     const open = settings.lastIndexOf(OPEN, at);
     const closeBefore = settings.lastIndexOf(CLOSE, at);

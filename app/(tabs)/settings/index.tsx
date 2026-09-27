@@ -1308,7 +1308,7 @@ export default function SettingsScreen() {
             gate, not a desktop one — contractor, client and 'both' unchanged. */}
         {userRole !== 'property_manager' && (<>
         <SettingsSection id="estimate-defaults">
-        <Text style={styles.sectionHeader}>ESTIMATE DEFAULTS</Text>
+        <Text style={styles.sectionHeader}>Estimate defaults</Text>
         <Text style={styles.sectionSubtext}>
           Sales tax is applied to invoices and change orders. Contingency is added to every AI estimate at this percentage of the line items.
         </Text>
@@ -1389,7 +1389,7 @@ export default function SettingsScreen() {
 
         {userRole !== 'property_manager' && (<>
         <SettingsSection id="pdf-naming">
-        <Text style={styles.sectionHeader}>PDF NAMING</Text>
+        <Text style={styles.sectionHeader}>PDF naming</Text>
         <Text style={styles.sectionSubtext}>
           Name every PDF with your own format and a running number.
         </Text>
@@ -1837,7 +1837,7 @@ export default function SettingsScreen() {
             veteran's day-one estimate was a beginner's. Seeding lets them bring
             the rates they already know; the book keeps them tagged as stated
             (not measured) until a closed job proves them out. */}
-        <Text style={styles.sectionHeader}>YOUR COSTS</Text>
+        <Text style={styles.sectionHeader}>Your costs</Text>
         <Text style={styles.sectionSubtext}>
           Bring the rates you already know so estimates price from your numbers on day one.
         </Text>
@@ -1978,7 +1978,7 @@ export default function SettingsScreen() {
 
         {userRole !== 'property_manager' && (<>
         <SettingsSection id="supplier-marketplace">
-        <Text style={styles.sectionHeader}>SUPPLIER MARKETPLACE</Text>
+        <Text style={styles.sectionHeader}>Supplier marketplace</Text>
         <Text style={styles.sectionSubtext}>
           Register as a supplier to list your materials on the MAGE ID marketplace and sell directly to contractors.
         </Text>

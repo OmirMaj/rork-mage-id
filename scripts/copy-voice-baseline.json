@@ -17,13 +17,6 @@
       "R15": 3,
       "R17": 1
     },
-    "app/(tabs)/discover/companies.tsx": {
-      "R10": 2
-    },
-    "app/(tabs)/discover/hire.tsx": {
-      "R05": 1,
-      "R10": 1
-    },
     "app/(tabs)/discover/tools.tsx": {
       "R05": 2,
       "R06": 1,
@@ -31,44 +24,11 @@
       "R17": 1,
       "R19": 1
     },
-    "app/(tabs)/estimate/full.tsx": {
-      "R01": 2,
-      "R02": 1,
-      "R03": 1,
-      "R08": 7,
-      "R10": 2,
-      "R15": 8,
-      "R16": 2
-    },
-    "app/(tabs)/materials/[category].tsx": {
-      "R01": 1,
-      "R08": 1,
-      "R15": 1
-    },
-    "app/(tabs)/schedule/index.tsx": {
-      "R01": 4,
-      "R05": 1,
-      "R15": 7,
-      "R16": 1
-    },
-    "app/(tabs)/settings/index.tsx": {
-      "R10": 4
-    },
     "app/(tabs)/summary/index.tsx": {
-      "R11": 1,
-      "R16": 1
-    },
-    "app/_layout.tsx": {
-      "R15": 6
-    },
-    "app/ai-punch.tsx": {
-      "R15": 2
+      "R11": 1
     },
     "app/aia-pay-app.tsx": {
-      "R14": 3,
-      "R15": 12,
-      "R16": 1,
-      "R17": 1
+      "R16": 1
     },
     "app/area-takeoff.tsx": {
       "R15": 1,
@@ -83,12 +43,6 @@
     "app/buyout.tsx": {
       "R16": 3
     },
-    "app/cash-flow.tsx": {
-      "R01": 1,
-      "R10": 2,
-      "R14": 3,
-      "R15": 7
-    },
     "app/change-order.tsx": {
       "R01": 3,
       "R07": 1,
@@ -101,37 +55,11 @@
       "R15": 6,
       "R17": 1
     },
-    "app/client-messages.tsx": {
-      "R13": 2
-    },
     "app/client-update.tsx": {
       "R09": 1
     },
-    "app/client-view.tsx": {
-      "R01": 2,
-      "R05": 1,
-      "R08": 5,
-      "R09": 1,
-      "R11": 3,
-      "R15": 3
-    },
     "app/closeout-binder.tsx": {
       "R15": 3
-    },
-    "app/coi-vault.tsx": {
-      "R17": 1
-    },
-    "app/company-profile.tsx": {
-      "R08": 1,
-      "R10": 4,
-      "R15": 2
-    },
-    "app/compare-drawings.tsx": {
-      "R07": 1,
-      "R09": 3,
-      "R10": 4,
-      "R14": 1,
-      "R17": 1
     },
     "app/contract.tsx": {
       "R01": 1,
@@ -164,11 +92,6 @@
     "app/deliveries.tsx": {
       "R01": 1
     },
-    "app/equipment-detail.tsx": {
-      "R01": 1,
-      "R08": 2,
-      "R15": 1
-    },
     "app/estimate-accuracy.tsx": {
       "R16": 1
     },
@@ -183,21 +106,6 @@
       "R14": 1,
       "R15": 2
     },
-    "app/extract-submittals.tsx": {
-      "R09": 3,
-      "R10": 3,
-      "R16": 2
-    },
-    "app/field-ticket.tsx": {
-      "R10": 4,
-      "R13": 2,
-      "R14": 3,
-      "R15": 1
-    },
-    "app/get-verified.tsx": {
-      "R09": 1,
-      "R19": 1
-    },
     "app/invoice.tsx": {
       "R07": 1,
       "R08": 4,
@@ -208,21 +116,9 @@
       "R17": 1,
       "R19": 1
     },
-    "app/lead-detail.tsx": {
-      "R01": 2,
-      "R15": 1,
-      "R19": 2
-    },
     "app/lien-waivers.tsx": {
       "R09": 1,
       "R14": 4
-    },
-    "app/login.tsx": {
-      "R08": 1
-    },
-    "app/oac-meeting.tsx": {
-      "R01": 1,
-      "R09": 3
     },
     "app/onboarding.tsx": {
       "R16": 1
@@ -232,14 +128,6 @@
     },
     "app/paywall.tsx": {
       "R16": 5
-    },
-    "app/photo-annotator.tsx": {
-      "R01": 1,
-      "R14": 1
-    },
-    "app/plan-intelligence.tsx": {
-      "R09": 1,
-      "R16": 2
     },
     "app/project-detail.tsx": {
       "R01": 2,
@@ -259,10 +147,6 @@
       "R14": 7,
       "R15": 5,
       "R16": 1
-    },
-    "app/punch-walk.tsx": {
-      "R14": 9,
-      "R15": 2
     },
     "app/quick-quote.tsx": {
       "R16": 1
@@ -299,27 +183,11 @@
       "R12": 1,
       "R14": 2
     },
-    "app/schedule-pro.tsx": {
-      "R02": 1,
-      "R05": 1,
-      "R09": 1,
-      "R10": 1,
-      "R17": 1
-    },
     "app/schedule-wizard.tsx": {
       "R09": 1
     },
-    "app/scope-sheet.tsx": {
-      "R16": 1
-    },
     "app/selections.tsx": {
       "R09": 1
-    },
-    "app/shared-schedule.tsx": {
-      "R01": 1
-    },
-    "app/signup.tsx": {
-      "R08": 1
     },
     "app/smart-proposal.tsx": {
       "R17": 1
@@ -327,12 +195,6 @@
     "app/sub-portal-setup.tsx": {
       "R05": 1,
       "R12": 1
-    },
-    "app/submittal.tsx": {
-      "R01": 1,
-      "R08": 4,
-      "R14": 1,
-      "R15": 5
     },
     "app/takeoff-estimate.tsx": {
       "R10": 1,
@@ -349,73 +211,11 @@
     "app/weekly-snapshot.tsx": {
       "R16": 2
     },
-    "app/wip-report.tsx": {
-      "R14": 1
-    },
-    "components/AIBidScorecard.tsx": {
-      "R09": 1,
-      "R15": 4
-    },
-    "components/AIBidScorer.tsx": {
-      "R15": 1
-    },
-    "components/AIEquipmentAdvice.tsx": {
-      "R01": 1,
-      "R10": 1,
-      "R15": 1
-    },
-    "components/AIEstimateValidator.tsx": {
-      "R01": 2,
-      "R14": 1,
-      "R15": 4
-    },
     "components/AIInvoicePredictor.tsx": {
       "R09": 1
     },
-    "components/AIProjectReport.tsx": {
-      "R01": 1,
-      "R15": 2
-    },
-    "components/AIQuickEstimate.tsx": {
-      "R01": 1,
-      "R15": 4
-    },
     "components/AIScheduleRisk.tsx": {
       "R09": 1
-    },
-    "components/AISubEvaluator.tsx": {
-      "R01": 1,
-      "R15": 3
-    },
-    "components/AIWeeklySummary.tsx": {
-      "R01": 1,
-      "R02": 1,
-      "R10": 8,
-      "R15": 1
-    },
-    "components/BrandSplash.tsx": {
-      "R10": 1
-    },
-    "components/CashFlowSetup.tsx": {
-      "R03": 1,
-      "R15": 4
-    },
-    "components/ClientDocumentAskSheet.tsx": {
-      "R19": 1
-    },
-    "components/ClientPaywall.tsx": {
-      "R05": 2,
-      "R08": 1,
-      "R10": 2
-    },
-    "components/CodeCheckLoader.tsx": {
-      "R10": 1
-    },
-    "components/ConfirmEmailModal.tsx": {
-      "R15": 1
-    },
-    "components/CraneLoader.tsx": {
-      "R10": 1
     },
     "components/CreateMenu.tsx": {
       "R01": 1,
@@ -429,19 +229,6 @@
       "R10": 1,
       "R15": 2
     },
-    "components/EstimateComparison.tsx": {
-      "R09": 2,
-      "R15": 2
-    },
-    "components/EstimateLoadingOverlay.tsx": {
-      "R10": 1
-    },
-    "components/InstantBidProposalModal.tsx": {
-      "R10": 1
-    },
-    "components/MaterialAIEstimateModal.tsx": {
-      "R01": 1
-    },
     "components/NextStepHero.tsx": {
       "R05": 1,
       "R10": 1
@@ -450,55 +237,20 @@
       "R15": 1,
       "R16": 2
     },
-    "components/ProductivityCalculator.tsx": {
-      "R01": 1
-    },
     "components/ProjectCard.tsx": {
       "R11": 1
     },
-    "components/ProjectHero.tsx": {
-      "R10": 4
-    },
-    "components/RFITriageModal.tsx": {
-      "R01": 1,
-      "R10": 5,
-      "R13": 1
-    },
-    "components/ReferralPrompt.tsx": {
-      "R03": 1
-    },
     "components/SquareFootEstimator.tsx": {
-      "R15": 2,
       "R16": 1
     },
     "components/UniversalMicButton.tsx": {
-      "R01": 2,
-      "R05": 1,
-      "R14": 1
-    },
-    "components/VoiceCommandModal.tsx": {
-      "R01": 1,
-      "R03": 1,
-      "R18": 1
+      "R05": 1
     },
     "components/codeThread/ProjectCodeChecksCard.tsx": {
       "R14": 1
     },
-    "components/desktop/JobSwitcher.tsx": {
-      "R01": 1
-    },
-    "components/punch/PunchExportSheet.tsx": {
-      "R10": 3,
-      "R13": 1
-    },
     "components/schedule/InteractiveGantt.tsx": {
       "R16": 2
-    },
-    "components/schedule/PredecessorPicker.tsx": {
-      "R17": 1
-    },
-    "components/schedule/ScenariosModal.tsx": {
-      "R17": 1
     },
     "components/schedule/TodayView.tsx": {
       "R15": 1

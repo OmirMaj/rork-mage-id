@@ -91,17 +91,17 @@ export const PERMIT_TYPE_INFO: Record<string, { label: string; color: string }> 
   // IBC Chapter 17 special inspection — distinct color so it stands out
   // in the permit list. Subcategory (concrete / masonry / etc.) is shown
   // as a chip on the card when present.
-  special_inspection: { label: 'Special Inspection', color: '#3949AB' },
+  special_inspection: { label: 'Special inspection', color: '#3949AB' },
   // Occupied-building approvals. These are permits in every sense that
   // matters to a schedule — something is submitted, somebody reviews it, and
   // work cannot start until it comes back — but none of them are issued by
   // the AHJ, so they share a warmer family of colors to read as a distinct
   // group in the list.
-  hot_work: { label: 'Hot Work', color: '#EF6C00' },
-  shutdown: { label: 'System Shutdown', color: '#AD1457' },
-  after_hours: { label: 'After-Hours Work', color: '#4527A0' },
-  landlord_approval: { label: 'Landlord Approval', color: '#00695C' },
-  elevator_dock: { label: 'Elevator / Dock', color: '#37474F' },
+  hot_work: { label: 'Hot work', color: '#EF6C00' },
+  shutdown: { label: 'System shutdown', color: '#AD1457' },
+  after_hours: { label: 'After-hours work', color: '#4527A0' },
+  landlord_approval: { label: 'Landlord approval', color: '#00695C' },
+  elevator_dock: { label: 'Elevator or dock', color: '#37474F' },
   other: { label: 'Other', color: '#546E7A' },
 };
 
@@ -110,10 +110,10 @@ export const PERMIT_TYPE_INFO: Record<string, { label: string; color: string }> 
 // they typically appear on a project (soils first, then concrete/masonry/steel,
 // then fire-resistive). Matches the SpecialInspectionCategory union.
 export const SPECIAL_INSPECTION_LABELS: Record<string, string> = {
-  soils:             'Soils & foundation',
-  concrete:          'Concrete (placement & strength)',
+  soils:             'Soils and foundation',
+  concrete:          'Concrete (placement and strength)',
   masonry:           'Masonry',
-  structural_steel:  'Structural steel (welding & bolting)',
+  structural_steel:  'Structural steel (welding and bolting)',
   cold_formed_steel: 'Cold-formed steel framing',
   wood:              'Wood (glulam, trusses, mass timber)',
   fire_resistive:    'Fire-resistive construction',
@@ -124,11 +124,11 @@ export const SPECIAL_INSPECTION_LABELS: Record<string, string> = {
 
 export const PERMIT_STATUS_INFO: Record<string, { label: string; color: string; bgColor: string }> = {
   applied: { label: 'Applied', color: '#1565C0', bgColor: '#E3F2FD' },
-  under_review: { label: 'Under Review', color: '#E65100', bgColor: '#FFF3E0' },
+  under_review: { label: 'Under review', color: '#E65100', bgColor: '#FFF3E0' },
   approved: { label: 'Approved', color: '#2E7D32', bgColor: '#E8F5E9' },
   denied: { label: 'Denied', color: '#C62828', bgColor: '#FFEBEE' },
   expired: { label: 'Expired', color: '#546E7A', bgColor: '#ECEFF1' },
-  inspection_scheduled: { label: 'Inspection Scheduled', color: '#6A1B9A', bgColor: '#F3E5F5' },
+  inspection_scheduled: { label: 'Inspection scheduled', color: '#6A1B9A', bgColor: '#F3E5F5' },
   inspection_passed: { label: 'Passed', color: '#2E7D32', bgColor: '#E8F5E9' },
   inspection_failed: { label: 'Failed', color: '#C62828', bgColor: '#FFEBEE' },
 };

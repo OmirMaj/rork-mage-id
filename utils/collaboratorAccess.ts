@@ -191,14 +191,14 @@ export function resolveClockGate(args: {
 }): ClockGate {
   const { hasProject, stampedRole, ownTierAllows, live } = args;
   if (!hasProject) return { kind: 'ok' };
-  const business: ClockGate = { kind: 'blocked', reason: 'Clocking crew in on your own jobs needs Business.' };
+  const business: ClockGate = { kind: 'blocked', reason: 'Clocking in crew on your own projects is on the Business plan.' };
   const viewer: ClockGate = { kind: 'blocked', reason: 'Clocking crew in on this job needs a field or editor seat. You have view access.' };
   if (stampedRole == null || stampedRole === 'owner') return ownTierAllows ? { kind: 'ok' } : business;
   if (live.isLoading || live.isError) {
     if (stampedRole === 'field' || stampedRole === 'editor') return { kind: 'ok' };
     return live.isLoading ? { kind: 'loading' } : { kind: 'error' };
   }
-  if (live.role === null) return { kind: 'blocked', reason: 'You no longer have access to this job, so you cannot clock crew in on it.' };
+  if (live.role === null) return { kind: 'blocked', reason: "You no longer have access to this project, so you can't clock in crew on it." };
   if (resolveProjectAccess(ownTierAllows, live.role, 'crew_time_tracking')) return { kind: 'ok' };
   return live.role === 'viewer' ? viewer : business;
 }
@@ -216,7 +216,7 @@ export function resolveClockGate(args: {
 
 /** The copy every blocked create/save control shows (and its alert says). */
 export const PROJECT_RECORD_VIEWER_BLOCK =
-  'You have view access to this job. Filing needs a field or editor seat — ask the project owner.';
+  'You have view access to this project. Filing needs Field or Editor access. Ask the project owner.';
 
 /**
  * May this seat create or save records on the job? Owner, editor and field:

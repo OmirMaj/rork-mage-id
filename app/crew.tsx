@@ -39,7 +39,7 @@ import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { edgeErrorCode } from '@/utils/edgeError';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAlert, type AlertButton } from '@/utils/alert';
-import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 import { desktopField, useIsDesktop, useIsDesktopWeb } from '@/components/ui/desktop';
 import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui';
 import { useSplitRecord } from '@/components/desktop/SplitView';
@@ -574,8 +574,11 @@ function CrewScreenInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[crew] invite failed', rawErrorMessage(e));
+      // The server's refusal ("This crew member has already claimed the
+      // profile.") is the reason; retrying won't change it.
+      const own = ownSentence(e);
       const copy = describeError(e, { action: 'send the invite' });
-      showAlert(copy.title, copy.body);
+      showAlert(own ? 'Couldn\u2019t send the invite' : copy.title, own ?? copy.body);
     }
   }, [member, startClaimInvite, openEditor]);
 

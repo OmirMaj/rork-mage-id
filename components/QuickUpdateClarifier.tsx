@@ -333,7 +333,7 @@ export default function QuickUpdateClarifier({
                         </Text>
                         {isCandidate && !active && (
                           <View style={styles.didYouMeanBadge}>
-                            <Text style={styles.didYouMeanText}>match</Text>
+                            <Text style={styles.didYouMeanText}>Match</Text>
                           </View>
                         )}
                       </View>

@@ -19,6 +19,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 
 interface Props {
   projectType: string;
@@ -92,7 +93,8 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       // way to tell a dropped connection from a dead feature (audit
       // 2026-09-07, ai-features).
       console.error('[AI Estimate] Validation failed:', err);
-      setError(`Couldn't review this estimate. ${err instanceof Error && err.message ? err.message : 'Tap to retry.'}`);
+      const own = ownSentence(err);
+      setError(own ? `Couldn't review this estimate. ${own}` : describeError(err, { action: 'review this estimate' }).body);
     } finally {
       setIsLoading(false);
     }
@@ -108,7 +110,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
             <Search size={16} color={themeColors.accent} strokeWidth={1.75} />
           )}
           <Text style={styles.triggerText}>
-            {isLoading ? 'Validating...' : error ? 'Retry AI Validate Estimate' : 'AI Validate Estimate'}
+            {isLoading ? 'Reviewing estimate…' : error ? 'Try again' : 'Review this estimate'}
           </Text>
           <MageAIMark size={14} color={themeColors.accent} />
         </TouchableOpacity>
@@ -135,7 +137,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
           <MageAIMark size={16} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>AI Estimate Review</Text>
+          <Text style={styles.headerTitle}>Estimate review</Text>
         </View>
         {score !== undefined ? (
           <View style={[styles.scoreBadge, { backgroundColor: `${scoreColor}15` }]} testID="estimate-review-score">
@@ -164,7 +166,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
 
           {(result.missingItems ?? []).length > 0 && (
             <View style={styles.missingSection}>
-              <Text style={styles.missingTitle}>Potentially Missing Items:</Text>
+              <Text style={styles.missingTitle}>Possibly missing items</Text>
               {(result.missingItems ?? []).map((item, idx) => (
                 <Text key={idx} style={styles.missingItem}>• {item}</Text>
               ))}
@@ -180,8 +182,8 @@ export default React.memo(function AIEstimateValidator(props: Props) {
               jobs, or says plainly that it has none of his history yet. */}
           <Text style={styles.groundingChip}>
             {calibration.hasData
-              ? `Scored against your own ${calibration.summary.totalJobs} finished ${calibration.summary.totalJobs === 1 ? 'job' : 'jobs'} across ${calibration.summary.categoryCount} measured ${calibration.summary.categoryCount === 1 ? 'category' : 'categories'}, not an industry average.`
-              : 'No finished jobs measured yet, so this is a general sanity check — not a read on how YOUR jobs land. It gets specific once a job closes out with actuals.'}
+              ? `Scored against your own ${calibration.summary.totalJobs} finished ${calibration.summary.totalJobs === 1 ? 'project' : 'projects'} across ${calibration.summary.categoryCount} measured ${calibration.summary.categoryCount === 1 ? 'category' : 'categories'}, not an industry average.`
+              : 'No finished projects measured yet, so this is a general check, not a read on how your projects land. It gets specific once a project closes out with actuals.'}
           </Text>
 
           {error ? (
@@ -193,7 +195,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
 
           <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
             {isLoading ? <Spinner tone="accent" /> : null}
-            <Text style={styles.revalidateText}>{isLoading ? 'Re-validating...' : 'Re-validate'}</Text>
+            <Text style={styles.revalidateText}>{isLoading ? 'Reviewing again…' : 'Review again'}</Text>
           </TouchableOpacity>
         </>
       )}

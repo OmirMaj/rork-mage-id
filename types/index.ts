@@ -1432,9 +1432,9 @@ export const THEME_PRESETS: { id: string; label: string; primary: string; accent
   // green at boot (app/_layout.tsx only applies a saved colour that is still a
   // preset) — the nearest thing to what they chose — instead of being silently
   // repainted.
-  { id: 'mage', label: 'MAGE Green', primary: '#2F6B3A', accent: '#3D9A4E' },
+  { id: 'mage', label: 'MAGE green', primary: '#2F6B3A', accent: '#3D9A4E' },
   { id: 'walnut', label: 'Walnut', primary: '#634E36', accent: '#8B6D4C' },
-  { id: 'ocean', label: 'Ocean Blue', primary: '#0A5EB0', accent: '#FF6B35' },
+  { id: 'ocean', label: 'Ocean blue', primary: '#0A5EB0', accent: '#FF6B35' },
   { id: 'slate', label: 'Slate', primary: '#3D4F5F', accent: '#E8A838' },
   { id: 'charcoal', label: 'Charcoal', primary: '#2C2C2E', accent: '#FF453A' },
   { id: 'terracotta', label: 'Terracotta', primary: '#B5562A', accent: '#2D8A4E' },

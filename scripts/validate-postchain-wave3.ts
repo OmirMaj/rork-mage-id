@@ -107,7 +107,7 @@ console.log('\n#41 only the project owner turns work into a change order');
   ok('the Bill it button is off with the reason shown', /disabled=\{!gate\.canConvert \|\| !!convertBlockReason\}/.test(ft) && /testID="ticket-convert-owner-only">\{convertBlockReason\}/.test(ft));
   const mic = read('components/UniversalMicButton.tsx');
   const coBranch = mic.slice(mic.indexOf("} else if (parsed.kind === 'co') {"), mic.indexOf('ctx.addChangeOrder({'));
-  ok('a voice CO on a job he was invited to is refused before ctx.addChangeOrder', /if \(proj\.myRole\) \{[\s\S]*Your GC creates change orders on this job[\s\S]*return;/.test(coBranch));
+  ok('a voice CO on a job he was invited to is refused before ctx.addChangeOrder', /if \(proj\.myRole\) \{[\s\S]*Your GC creates change orders on this project[\s\S]*return;/.test(coBranch));
 }
 
 // ── #37 place deferred CO days from the CO screen ───────────────────────────

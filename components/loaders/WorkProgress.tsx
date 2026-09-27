@@ -252,7 +252,7 @@ export default function WorkProgress({
           <View style={styles.actions}>
             {onBackground ? (
               <Button
-                label="Keep working — we'll notify you when it's ready"
+                label="Keep working"
                 variant="ghost"
                 size="sm"
                 onPress={onBackground}
@@ -267,7 +267,7 @@ export default function WorkProgress({
 
         {hasFacts ? (
           <Animated.View style={[styles.factWrap, { opacity: factFade }]}>
-            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>WHILE WE WORK</Text>
+            <Text style={[Type.monoCaption, styles.factEyebrow, { color: colors.textMuted }]}>While you wait</Text>
             <Text style={[Type.footnote, styles.factText, { color: colors.textSecondary }]}>{facts![wrapIndex(factIdx, facts!.length)]}</Text>
           </Animated.View>
         ) : null}
@@ -295,6 +295,6 @@ const styles = StyleSheet.create({
   stepLabel: { flex: 1 },
   actions: { marginTop: 20, alignItems: 'center', gap: 4 },
   factWrap: { marginTop: 28, alignItems: 'center', minHeight: 60, maxWidth: 340 },
-  factEyebrow: { letterSpacing: 1.4, marginBottom: 8 },
+  factEyebrow: { letterSpacing: 1.4, marginBottom: 8, textTransform: 'uppercase' },
   factText: { textAlign: 'center' },
 });

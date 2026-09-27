@@ -148,14 +148,14 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
               onPress={handleOpenTutorials}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Tutorials — practise on a sample job"
+              accessibilityLabel="Tutorials: practice on a sample project"
               testID="help-fab-tutorial"
             >
               <View style={[styles.rowIcon, { backgroundColor: Colors.warning + '14' }]}>
                 <BookOpen size={16} color={Colors.warningLabel} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Tutorials — practise on a sample job</Text>
+                <Text style={styles.rowTitle}>Tutorials: practice on a sample project</Text>
                 <Text style={styles.rowSub}>Do the real thing once, on a sample. Each under a minute.</Text>
               </View>
             </TouchableOpacity>

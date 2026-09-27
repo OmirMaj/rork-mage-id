@@ -65,7 +65,7 @@ console.log('\n#139 final invoice row reads the whole job:');
   ], TODAY);
   ok('every invoice paid but retention held → partial, never done', retention.status === 'partial', JSON.stringify(retention));
   ok('…with the held amount and "bill the release before handover"',
-    retention.detail === 'All invoices paid · $10,000.00 retainage still held. Bill the release before handover', retention.detail);
+    retention.detail === 'All invoices paid · $10,000.00 retainage still held. Bill the release before handover.', retention.detail);
   ok('…and never "paid in full"', !/paid in full/.test(retention.detail));
 
   const released = jobInvoiceHandoverState([
@@ -82,8 +82,8 @@ console.log('\n#139 final invoice row reads the whole job:');
     jobInvoiceHandoverState([], TODAY).status === 'open'
     && jobInvoiceHandoverState([], TODAY).detail.startsWith('No invoices yet'));
   const topDraft = jobInvoiceHandoverState([inv({ number: 1, status: 'paid', amountPaid: 10_000 }), inv({ number: 2, status: 'draft' })], TODAY);
-  ok('newest invoice still a draft → open "…is still a draft. Send it"',
-    topDraft.status === 'open' && topDraft.detail === 'Invoice #2 is still a draft. Send it' && topDraft.targetInvoiceId === 'inv-2', JSON.stringify(topDraft));
+  ok('newest invoice still a draft → open "…is still a draft. Send it."',
+    topDraft.status === 'open' && topDraft.detail === 'Invoice #2 is still a draft. Send it.' && topDraft.targetInvoiceId === 'inv-2', JSON.stringify(topDraft));
   const oldDraft = jobInvoiceHandoverState([inv({ number: 1, status: 'draft' }), inv({ number: 2, status: 'paid', amountPaid: 10_000 })], TODAY);
   ok('an earlier unsent draft keeps it partial, not done', oldDraft.status === 'partial' && /#1 is still a draft/.test(oldDraft.detail), JSON.stringify(oldDraft));
   ok('a draft is never counted as open money',

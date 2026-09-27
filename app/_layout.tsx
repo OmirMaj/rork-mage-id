@@ -937,13 +937,13 @@ function RootLayoutNav() {
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
-      <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
-      <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling', headerShown: false }} />
-      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer', headerShown: false }} />
-      <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal', headerShown: false }} />
-      <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt', headerShown: false }} />
+      <Stack.Screen name="buyout-package" options={{ title: 'Bid package' }} />
+      <Stack.Screen name="bid-leveling" options={{ title: 'Bid leveling', headerShown: false }} />
+      <Stack.Screen name="win-optimizer" options={{ title: 'Win optimizer', headerShown: false }} />
+      <Stack.Screen name="smart-proposal" options={{ title: 'Smart proposal', headerShown: false }} />
+      <Stack.Screen name="material-receipt" options={{ title: 'Material receipt', headerShown: false }} />
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner', headerShown: false }} />
-      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence', headerShown: false }} />
+      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan intelligence', headerShown: false }} />
       {/* gestureEnabled:false — the wizard holds an unsaved multi-task draft.
           A swipe-down (iOS) discarded it with no prompt; the in-app back
           button's confirm can't intercept the gesture. */}
@@ -956,12 +956,12 @@ function RootLayoutNav() {
       {/* AI tool doors render their own ToolHeader chrome (sim-audit #5) —
           headerShown:false here so the default RN header never flashes in. */}
       <Stack.Screen name="ai-punch" options={{ headerShown: false }} />
-      <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />
+      <Stack.Screen name="photo-triage" options={{ title: 'Photo triage' }} />
       <Stack.Screen name="extract-submittals" options={{ headerShown: false }} />
       <Stack.Screen name="compare-drawings" options={{ headerShown: false }} />
-      <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC Export' }} />
-      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance Audit Pack', headerShown: false }} />
-      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's Lineup", headerShown: false }} />
+      <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC export' }} />
+      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance audit pack', headerShown: false }} />
+      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's lineup", headerShown: false }} />
       <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
         name="login"
@@ -1001,7 +1001,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="project-detail"
         options={{
-          title: "Project Details",
+          title: "Project details",
           ...headerTitled,
         }}
       />
@@ -1025,7 +1025,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="bill-from-estimate"
         options={{
-          title: "Bill from Estimate",
+          title: "Bill from estimate",
           ...headerTitled,
         }}
       />
@@ -1036,26 +1036,26 @@ function RootLayoutNav() {
       <Stack.Screen
         name="daily-report"
         options={{
-          title: "Daily Report",
+          title: "Daily report",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="punch-list"
         options={{
-          title: "Punch List",
+          title: "Punch list",
           ...headerTitled,
         }}
       />
       <Stack.Screen name="safety" options={{ title: 'Safety' }} />
       <Stack.Screen name="safety-jha" options={{ title: 'JHAs' }} />
-      <Stack.Screen name="safety-toolbox" options={{ title: 'Toolbox Talks' }} />
+      <Stack.Screen name="safety-toolbox" options={{ title: 'Toolbox talks' }} />
       <Stack.Screen name="safety-incidents" options={{ title: 'Incidents' }} />
-      <Stack.Screen name="safety-hazards" options={{ title: 'Hazard Log' }} />
+      <Stack.Screen name="safety-hazards" options={{ title: 'Hazard log' }} />
       <Stack.Screen name="safety-inspections" options={{ title: 'Inspections' }} />
       <Stack.Screen name="safety-certifications" options={{ title: 'Certifications' }} />
-      <Stack.Screen name="safety-forms" options={{ title: 'Forms Library' }} />
-      <Stack.Screen name="safety-osha" options={{ title: 'OSHA 300 Log' }} />
+      <Stack.Screen name="safety-forms" options={{ title: 'Forms library' }} />
+      <Stack.Screen name="safety-osha" options={{ title: 'OSHA 300 log' }} />
       <Stack.Screen
         name="punch-walk"
         options={{ headerShown: false }}
@@ -1071,14 +1071,14 @@ function RootLayoutNav() {
       <Stack.Screen
         name="retention"
         options={{
-          title: "Retention",
+          title: "Retainage",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="payment-predictions"
         options={{
-          title: "Payment Forecast",
+          title: "Payment forecast",
           ...headerTitled,
         }}
       />
@@ -1129,25 +1129,25 @@ function RootLayoutNav() {
       <Stack.Screen
         name="oac-meeting"
         options={{
-          title: "OAC Meetings",
+          title: "OAC meetings",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="coi-vault"
         options={{
-          title: "COI Vault",
+          title: "COI vault",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="budget-dashboard"
         options={{
-          title: "Budget Dashboard",
+          title: "Budget dashboard",
           ...headerTitled,
         }}
       />
-      <Stack.Screen name="wip-report" options={{ title: 'WIP Report', headerShown: false }} />
+      <Stack.Screen name="wip-report" options={{ title: 'WIP report', headerShown: false }} />
       {/* Construction News (founder request 2026-09-22): publisher feed
           headlines, merged by the construction-news edge function. Doors:
           the Discover ▸ Tools tile and the desktop sidebar's WORKSPACE row. */}
@@ -1180,7 +1180,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="sub-scorecard"
-        options={{ title: 'Sub Scorecard' }}
+        options={{ title: 'Sub scorecard' }}
       />
       <Stack.Screen
         name="buyout-scope-gap"
@@ -1192,7 +1192,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="estimate-scorecard"
-        options={{ headerShown: false, title: 'Estimate Scorecard' }}
+        options={{ headerShown: false, title: 'Estimate scorecard' }}
       />
       <Stack.Screen
         name="deliveries"
@@ -1200,7 +1200,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="building-access"
-        options={{ headerShown: false, title: 'Building Access' }}
+        options={{ headerShown: false, title: 'Building access' }}
       />
       <Stack.Screen
         name="estimate-confidence"
@@ -1208,7 +1208,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="estimate-calibration"
-        options={{ title: 'Estimate Calibration', headerShown: false }}
+        options={{ title: 'Estimate calibration', headerShown: false }}
       />
       <Stack.Screen
         name="cost-database"
@@ -1267,7 +1267,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="sub-portal-setup"
         options={{
-          title: "Sub Portal",
+          title: "Sub portal",
           ...headerChrome,
         }}
       />
@@ -1278,7 +1278,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="public-profile-setup"
         options={{
-          title: "Public Profile",
+          title: "Public profile",
           ...headerChrome,
         }}
       />
@@ -1383,14 +1383,14 @@ function RootLayoutNav() {
       <Stack.Screen
         name="bid-detail"
         options={{
-          title: "Bid Details",
+          title: "Bid details",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="post-bid"
         options={{
-          title: "Post a Bid",
+          title: "Post a bid",
           ...headerTitled,
         }}
       />
@@ -1404,28 +1404,28 @@ function RootLayoutNav() {
       <Stack.Screen
         name="company-profile"
         options={{
-          title: "Company Profile",
+          title: "Company profile",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="job-detail"
         options={{
-          title: "Job Details",
+          title: "Job details",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="worker-detail"
         options={{
-          title: "Worker Profile",
+          title: "Crew member profile",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="post-job"
         options={{
-          title: "Post a Job",
+          title: "Post a job",
           ...headerTitled,
         }}
       />
@@ -1439,7 +1439,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="cash-flow"
         options={{
-          title: "Cash Flow",
+          title: "Cash flow",
           ...headerTitled,
         }}
       />
@@ -1453,7 +1453,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="time-tracking"
         options={{
-          title: "Time Tracking",
+          title: "Time tracking",
           ...headerTitled,
         }}
       />
@@ -1474,7 +1474,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="weekly-snapshot"
         options={{
-          title: "This Week",
+          title: "This week",
           ...headerTitled,
         }}
       />
@@ -1495,49 +1495,49 @@ function RootLayoutNav() {
       <Stack.Screen
         name="qbo-review"
         options={{
-          title: "QuickBooks Costs",
+          title: "QuickBooks costs",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="integrations/qbo/callback"
         options={{
-          title: "QuickBooks Connection",
+          title: "QuickBooks connection",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="dev-seeder"
         options={{
-          title: "Demo Seeder",
+          title: "Demo seeder",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="dev-flagship-seeder"
         options={{
-          title: "Flagship Seeder",
+          title: "Flagship seeder",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="dev-ar-measure"
         options={{
-          title: "AR Measure (dev)",
+          title: "AR measure (dev)",
           headerShown: false,
         }}
       />
       <Stack.Screen
         name="report-inbox"
         options={{
-          title: "Report Inbox",
+          title: "Report inbox",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="profit-leak-history"
         options={{
-          title: "Profit Leak History",
+          title: "Profit leak history",
           headerShown: false,
         }}
       />
@@ -1551,21 +1551,21 @@ function RootLayoutNav() {
       <Stack.Screen
         name="aia-pay-app"
         options={{
-          title: "AIA Pay Application",
+          title: "Pay app",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="data-export"
         options={{
-          title: "Export My Data",
+          title: "Export my data",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="scope-sheet"
         options={{
-          title: "Scope Sheet",
+          title: "Scope sheet",
           ...headerTitled,
         }}
       />
@@ -1579,14 +1579,14 @@ function RootLayoutNav() {
       <Stack.Screen
         name="data-import"
         options={{
-          title: "Import Data",
+          title: "Import data",
           ...headerTitled,
         }}
       />
       <Stack.Screen
         name="client-update"
         options={{
-          title: "Weekly Client Update",
+          title: "Weekly client update",
           ...headerTitled,
         }}
       />
@@ -1605,7 +1605,7 @@ function RootLayoutNav() {
       <Stack.Screen
         name="estimate-wizard"
         options={{
-          title: "Quick Estimate",
+          title: "Quick estimate",
           presentation: "modal",
           gestureEnabled: false,
           ...headerTitled,
@@ -1628,7 +1628,7 @@ function RootLayoutNav() {
           nothing flips. win-optimizer and the other self-headed tool screens
           carry the same headerShown:false on their own lines above;
           scripts/validate-static-header-hidden.ts keeps the two in step. */}
-      <Stack.Screen name="client-view" options={{ title: 'Client Portal', headerShown: false }} />
+      <Stack.Screen name="client-view" options={{ title: 'Client portal', headerShown: false }} />
         </Stack>
       </View>
       </NavThemeProvider>

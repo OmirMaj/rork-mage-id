@@ -422,7 +422,7 @@ export function scheduleWritePathForRole(role: string | null | undefined): Sched
  *  two refusals cannot drift. `null` = this role may write it. */
 export const SCHEDULE_NOT_SAVED_TITLE = 'Schedule not saved';
 export const SCHEDULE_WRITE_FIELD_REASON =
-  'Field access saves task progress, status, notes and actual start/finish — from Quick Field Update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
+  'Field access saves task progress, status, notes and actual start/finish — from Quick field update on Home, or the Schedule tab on your phone. Building, accepting or replacing a whole schedule needs editor access from the project owner.';
 export const SCHEDULE_WRITE_VIEWER_REASON =
   'You have view-only access to this project, so a new schedule is not saved. Ask the project owner for field or editor access.';
 export function scheduleWriteBlockedReason(path: ScheduleWritePath): string | null {

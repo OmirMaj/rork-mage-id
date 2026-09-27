@@ -16,7 +16,7 @@ import type { Project, LinkedEstimate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 
 interface AIAutoScheduleButtonProps {
   project: Project;
@@ -69,8 +69,9 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
     } catch (err: any) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       console.warn('[AIAutoScheduleButton] build failed', rawErrorMessage(err));
+      const own = ownSentence(err);
       const copy = describeError(err, { action: 'build the schedule from this estimate' });
-      showAlert(copy.title, copy.body);
+      showAlert(own ? "Couldn't build the schedule" : copy.title, own ?? copy.body);
     } finally {
       setLoading(false);
     }

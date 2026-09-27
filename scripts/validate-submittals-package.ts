@@ -278,7 +278,7 @@ console.log('\nscreen wiring');
   ok('#59 the saved alert counts the rows left out as already in the log', /already in the log/.test(ex));
   ok('#60 save builds rows from extractedSubmittal (no upload-day + N)', /extractedSubmittal\(\{/.test(ex) && !/dueRelativeDays \* 24 \* 60 \* 60 \* 1000/.test(ex) && !/submittedDate: today\.toISOString\(\)/.test(ex));
   ok('#60 the date comes from the schedule', /deriveSubmittalRequiredDate\(\{ schedule: project\.schedule, trade: item\.trade, leadDays: item\.dueRelativeDays \}\)/.test(ex));
-  ok('#60 the lead is labelled as an AI estimate', /estimated lead \(AI\)/.test(ex));
+  ok('#60 the lead is labelled as an AI estimate', /-day lead \(AI estimate\)/.test(ex));
   ok('#57 the save alert no longer promises a missing attach control and says nothing was sent',
     /none sent yet/.test(ex) && /attach the product data and send it for review/.test(ex));
 

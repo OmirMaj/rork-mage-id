@@ -1626,11 +1626,11 @@ console.log('\nwhat the homeowner is shown (MONEY-PAID-DRAFT-1, MONEY-CONTRACT-1
     resolveContractSum(proj, undefined).source, 'estimate');
   ok('…and the screen only asserts an ABSENCE when it could actually check',
     /const contractWasChecked = !isSnapshotMode && !!localProject\?\.id && contractQ\.isSuccess;/.test(portal)
-    && /contractWasChecked\s*\n?\s*\?\s*'Original Contract is the accepted estimate total — no signed agreement is on file/
+    && /contractWasChecked\s*\n?\s*\?\s*'Original contract is the accepted estimate total\. No signed agreement is on file/
       .test(portal),
     'the "no signed agreement" sentence must be behind contractWasChecked');
   ok('…and otherwise points the homeowner at the document that governs',
-    /open it under Documents/.test(portal));
+    /Open it under Documents/.test(portal));
 
   const contractScreen = read('app/contract.tsx');
   ok('the contract screen finally knows change orders exist',

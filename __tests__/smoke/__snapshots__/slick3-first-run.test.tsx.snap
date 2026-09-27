@@ -3,13 +3,13 @@
 exports[`slick-3 first run golden (390 × 844 iOS) (a) persona-select, no role yet 1`] = `
 {
   "lines": 395,
-  "sha256": "a0bb7551131be301924982663dcefa6b2e0d1fbebeb8287a88629372b524d6e4",
+  "sha256": "b1cf295ecc3ab6ccd372f0aeb2033c3ed29a3a6093e5bee11586322c93e6be84",
 }
 `;
 
 exports[`slick-3 first run golden (390 × 844 iOS) (b) onboarding, the splash step 1`] = `
 {
   "lines": 332,
-  "sha256": "ed45f667823730e411f31ea8c83bec6eb3196b4886bceca339616d210f81c4ab",
+  "sha256": "b2ccfdf06cbfd6a17aec7ccafc8cc4919432b2569d433f6cdafdef2e8bc154f2",
 }
 `;

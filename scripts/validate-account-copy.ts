@@ -32,7 +32,7 @@
 // Pure: reads source text and imports two pure modules. Run:
 //   bun run scripts/validate-account-copy.ts
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { FEATURE_CONFIG } from '../utils/aiRateLimiterCore';
 import { previewSeat, countSeats } from '../utils/seatModel';
@@ -160,20 +160,29 @@ console.log('\n7. server sentences pass through only when written for a person')
     const b = src.indexOf('// reader-sentence:end');
     return a >= 0 && b > a ? src.slice(a, b) : '';
   };
-  const login = grab('app/login.tsx');
-  const collab = grab('components/collaborators/CollaboratorsManager.tsx');
-  ok('app/login.tsx has the readerSentence block', login.includes('function readerSentence('));
-  ok('CollaboratorsManager has the same readerSentence block', login !== '' && login === collab);
+  // One copy, in utils/errorCopy.ts (pure, no imports): login, the invite
+  // form and every screen that shows a thrown sentence (ownSentence) read it
+  // from there, so the rule can't drift between screens.
+  const lib = grab('utils/errorCopy.ts');
+  const loginSrc = read('app/login.tsx');
+  const collabSrc = read('components/collaborators/CollaboratorsManager.tsx');
+  const importsIt = (src: string) => /import \{[^}]*\breaderSentence\b[^}]*\} from '@\/utils\/errorCopy'/.test(src);
+  ok('utils/errorCopy.ts has the one readerSentence block', lib.includes('export function readerSentence('));
+  ok('login and CollaboratorsManager import it, with no local copy', importsIt(loginSrc) && importsIt(collabSrc) && !loginSrc.includes('function readerSentence(') && !collabSrc.includes('function readerSentence('));
+  ok('ownSentence gates the pass-through on an unclassified error', /export function ownSentence\(err: unknown\): string \| null \{\s*return classifyError\(err\) === 'unknown' \? readerSentence\(rawErrorMessage\(err\)\) : null;/.test(read('utils/errorCopy.ts')));
+  const ownSites = ['app/crew.tsx', 'app/schedule-import.tsx', 'app/reset-password.tsx', 'components/AIAutoScheduleButton.tsx', 'app/schedule-review.tsx', 'app/generative-setup.tsx'];
+  const missing = ownSites.filter(f => !/\bownSentence\(/.test(read(f)));
+  ok('the six screens whose failures carry a written reason show it through ownSentence', missing.length === 0, missing);
   ok('login shows the magic-link error only through readerSentence', /readerSentence\(rawErrorMessage\(err\)\)/.test(read('app/login.tsx')) && !/\?\s*rawErrorMessage\(err\)/.test(read('app/login.tsx')));
   ok('the invite error shows only through readerSentence', /readerSentence\(rawErrorMessage\(invite\.error\)\)/.test(read('components/collaborators/CollaboratorsManager.tsx')) && !/\?\s*rawErrorMessage\(invite\.error\)/.test(read('components/collaborators/CollaboratorsManager.tsx')));
-  const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(login);
+  const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(lib.replace('export function readerSentence(', 'function readerSentence('));
   const readerSentence = new Function(`${js}; return readerSentence;`)() as (raw: string) => string | null;
   const shown = [
     'Too many sign-in requests. Wait a few minutes and try again.',
     "Couldn't create the sign-in link. Try again.",
     'Couldn’t send the sign-in email. Try again.',
     'That email address looks off. Check it and try again.',
-    "dana.smith@x.com is already on this job. To change what they can see, use the role buttons on their row.",
+    "dana.smith@x.com is already on this project. To change what they can see, use the role buttons on their row.",
     'Your plan includes 2 team seats and 2 are in use. Upgrade for more, or invite them as Field — field access is always free.',
   ];
   const hidden = [
@@ -210,23 +219,25 @@ console.log('\n7. server sentences pass through only when written for a person')
 // ── 8. no escape sequences in bare JSX text ─────────────────────────────────
 console.log('\n8. no \\uXXXX escape in bare JSX text');
 {
-  const files = [
-    'app/(tabs)/settings/_layout.tsx', 'app/(tabs)/settings/appearance.tsx', 'app/(tabs)/settings/index.tsx',
-    'app/accept-invite.tsx', 'app/client-outbox.tsx', 'app/client-portal-setup.tsx', 'app/client-update.tsx',
-    'app/closeout-binder.tsx', 'app/handover.tsx', 'app/home-passport.tsx', 'app/login.tsx',
-    'app/onboarding-paywall.tsx', 'app/onboarding.tsx', 'app/paywall.tsx', 'app/persona-select.tsx',
-    'app/reset-password.tsx', 'app/selections.tsx', 'app/shared-estimate.tsx', 'app/signup.tsx',
-    'app/warranty-walk.tsx', 'components/ClientHome.tsx', 'components/Paywall.tsx',
-    'components/QboSuccessCheckmark.tsx', 'components/SendPortalLinkModal.tsx', 'components/SignaturePad.tsx',
-    'components/WarrantyWalkBanner.tsx', 'components/collaborators/CollaboratorsManager.tsx',
-    'components/collaborators/PendingInvitesCard.tsx', 'components/passport/HomePassportCard.tsx',
-    'components/passport/PassportSection.tsx', 'components/settings/SettingsPanes.tsx',
-  ];
+  // Every screen and component, not only this lane's 31 (integration review:
+  // plan-viewer and company-profile printed "\u2014" / "\u2019" literally). An
+  // escape is bare JSX text when, left of it on its line, every quote and
+  // backtick is closed and every { is closed: nothing JS is open around it.
+  const walk = (dir: string): string[] => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(`${dir}/${e.name}`) : e.name.endsWith('.tsx') ? [`${dir}/${e.name}`] : []);
+  const files = [...walk('app'), ...walk('components')];
   const hits: string[] = [];
   for (const f of files) {
     read(f).split('\n').forEach((line, i) => {
-      // A line with no quote, backtick or regex slash on it is JSX text.
-      if (/\\u[0-9a-fA-F]{4}/.test(line) && !/['"`\/]/.test(line)) hits.push(`${f}:${i + 1}: ${line.trim()}`);
+      const t = line.trim();
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('{/*')) return;
+      for (const m of line.matchAll(/\\u[0-9a-fA-F]{4}/g)) {
+        const pre = line.slice(0, m.index);
+        const odd = (q: string) => (pre.split(q).length - 1) % 2 === 1;
+        if (odd("'") || odd('"') || odd('`')) continue;
+        if ((pre.match(/\{/g) ?? []).length > (pre.match(/\}/g) ?? []).length) continue;
+        hits.push(`${f}:${i + 1}: ${t}`);
+      }
     });
   }
   ok('no bare JSX text line carries a \\uXXXX escape', hits.length === 0, hits);

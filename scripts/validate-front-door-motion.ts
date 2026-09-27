@@ -330,8 +330,8 @@ const SECTIONS: Section[] = [
         ok(`${f}: the banner is wrapped in Slot with a fade that is null at rest (useSwapFade)`,
           /const bannerFade = useSwapFade\(errorMessage\);/.test(s)
           && /<Slot style=\{bannerFade\}>\s*<View style=\{styles\.errorBanner\}>/.test(s));
-        ok(`${f}: "Please fill in all fields" tints each EMPTY field (danger FieldRing)`,
-          /setEmailDanger\(emailEmpty\);[\s\S]{0,120}setError\('Please fill in all fields'\)/.test(s)
+        ok(`${f}: "Fill in every field." tints each EMPTY field (danger FieldRing)`,
+          /setEmailDanger\(emailEmpty\);[\s\S]{0,120}setError\('Fill in every field\.'\)/.test(s)
           && /tone=\{emailDanger \? 'danger' : 'accent'\}/.test(s) && /tone=\{passwordDanger \? 'danger' : 'accent'\}/.test(s));
         ok(`${f}: an edit of a tinted field clears its tint`,
           /if \(emailDanger\) setEmailDanger\(false\);/.test(s) && /if \(passwordDanger\) setPasswordDanger\(false\);/.test(s));

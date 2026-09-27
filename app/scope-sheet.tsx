@@ -285,7 +285,7 @@ export default function ScopeSheetScreen() {
                           <View style={[styles.riskChip, item.risk === 'high' ? styles.riskHigh : styles.riskMed]}>
                             <AlertTriangle size={9} color={item.risk === 'high' ? t.danger : t.accent} strokeWidth={1.75} />
                             <Text style={[styles.riskText, { color: item.risk === 'high' ? t.danger : t.accent }]}>
-                              {item.risk === 'high' ? 'dispute risk' : 'confirm'}
+                              {item.risk === 'high' ? 'Dispute risk' : 'Confirm'}
                             </Text>
                           </View>
                         ) : null}

@@ -190,7 +190,7 @@ ok('onboarding: startTutorial appears once (no other auto-start)', (ob.match(/st
 
 // Every other door: routes to the hub or starts with its own entry name.
 const help = code(read('components/HelpFab.tsx'));
-ok('HelpFab: row says Tutorials — practise on a sample job', help.includes('Tutorials — practise on a sample job'));
+ok('HelpFab: row says Tutorials: practice on a sample project', help.includes('Tutorials: practice on a sample project'));
 ok('HelpFab: no AsyncStorage seen-flag dance left', !/AsyncStorage/.test(help));
 const brain = code(read('components/brain/BrainSurface.tsx'));
 ok("BrainSurface: the Help row pushes '/tutorials'", /router\.push\('\/tutorials'\)/.test(brain));

@@ -429,8 +429,8 @@ function COIVaultInner() {
           <MageCOI size={36} color={themeColors.textMuted} />
           <Text style={styles.emptyTitle}>No COIs yet</Text>
           <Text style={styles.emptyBody}>
-            Upload the sub&apos;s Certificate of Insurance — a photo or the carrier&apos;s PDF — then record
-            each policy&apos;s expiry from it so you&apos;re reminded before it lapses. Anything MAGE ID reads
+            Upload the sub&apos;s certificate of insurance, as a photo or the carrier&apos;s PDF, and record
+            each policy&apos;s expiry so you&apos;re reminded before it lapses. Anything MAGE ID reads
             off the certificate stays unconfirmed until you check it.
           </Text>
         </View>

@@ -175,7 +175,12 @@ console.log('\nviews:');
 {
   ok('primary views', eq(PRIMARY_VIEWS, ['split', 'gantt', 'list', 'board', 'overview']));
   ok('more views', eq(MORE_VIEWS, ['workload', 'lanes', 'living', 'calendar']));
-  ok("calendar is labelled 'Calendar · soon'", VIEW_LABEL.calendar === 'Calendar · soon');
+  // VOICE.md: no "soon" in a label. The calendar view is still the not-built
+  // stub (TabComingSoon), and that stub is what says so.
+  ok("calendar is labelled 'Calendar', and opens the stub that says it isn't built",
+    VIEW_LABEL.calendar === 'Calendar'
+      && /if \(key === 'calendar'\) \{\s*return \(\s*<TabComingSoon\b/.test(code('components/schedule/SchedulerTabShell.tsx')));
+  ok("living is labelled 'Living plan' (sentence case, as on the phone)", VIEW_LABEL.living === 'Living plan');
   ok('split / gantt / lanes / living are timeline layouts', (['split', 'gantt', 'lanes', 'living'] as const).every((v) => eq(viewToTab(v), { tab: 'timeline', layout: v })));
   ok('list / board / overview / workload / calendar are their own tabs', (['list', 'board', 'overview', 'workload', 'calendar'] as const).every((v) => eq(viewToTab(v), { tab: v })));
 }

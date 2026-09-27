@@ -517,7 +517,7 @@ export default function QuickFieldUpdate() {
         <View style={styles.titleIconWrap}>
           <MageAIMark size={14} color={themeColors.accent} />
         </View>
-        <Text style={styles.title}>Quick Field Update</Text>
+        <Text style={styles.title}>Quick field update</Text>
       </View>
 
       <TouchableOpacity
@@ -632,7 +632,7 @@ export default function QuickFieldUpdate() {
       >
         <Pressable style={[styles.pickerOverlay, fPick.overlay]} onPress={() => setShowPicker(false)}>
           <Pressable style={[styles.pickerCard, fPick.card]} onPress={() => undefined}>
-            <Text style={styles.pickerTitle}>Target Project</Text>
+            <Text style={styles.pickerTitle}>Project</Text>
             {projectsWithSchedule.map((p) => {
               const isSelected = p.id === (selectedProject?.id ?? '');
               return (
@@ -655,7 +655,7 @@ export default function QuickFieldUpdate() {
                     {p.name}
                   </Text>
                   <Text style={styles.pickerRowMeta}>
-                    {p.schedule?.tasks.length ?? 0} tasks
+                    {p.schedule?.tasks.length ?? 0} {(p.schedule?.tasks.length ?? 0) === 1 ? 'task' : 'tasks'}
                   </Text>
                 </TouchableOpacity>
               );

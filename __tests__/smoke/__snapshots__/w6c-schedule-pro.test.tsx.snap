@@ -3,56 +3,56 @@
 exports[`lane DB — golden (recorded on the untouched base) /copilot?capabilityId=schedule at 390 (CopilotShell, no autoSubmitSeed) 1`] = `
 {
   "lines": 71,
-  "sha256": "d2f469531a7790e9f6ee4aa8151088a321d461948f2516ffb3450e3301a5bb63",
+  "sha256": "47db3d5d18d258de5c25ab24faedf7672448f14eb0f678ca0ff837c97b28688b",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule at 390 with the "Tell me what to change" sheet open (ScheduleEditPanel, modal) 1`] = `
 {
   "lines": 739,
-  "sha256": "9908f8edd45271f741d4e9c181e725681c723c3f3d1c500346d1c7cf6a9fe6ab",
+  "sha256": "d79a44c85f3bc3a9c58c347950b124ba31296cd0225f1539f6e43a3815bb724f",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule-pro at native 1000 × 700 (the legacy branch) 1`] = `
 {
   "lines": 400,
-  "sha256": "f8ef92f1ea165a5b673259ee429f2959450b5adebd87e59e4aa1a6089a740932",
+  "sha256": "3b89431a4296f40c4e0f324928670d89cbfbeec65be40891999e8102b0b2189c",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) /schedule-pro?projectId at 390 iOS: the narrow gate 1`] = `
 {
   "lines": 49,
-  "sha256": "4af3aa3b57c5f83e560c562a206234f926a6b0df1ea2bc68c232ae94e01556bb",
+  "sha256": "d868aa1c80a3239777fbba2eef670fe444806be5049684e23f106836c2515b87",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) EarnedValuePanel card + its sheet 1`] = `
 {
   "lines": 132,
-  "sha256": "a31420e714bcc28be8bca79d01c51fad5e7f635decd42dc9f350d2c88fd4359c",
+  "sha256": "335c626ff7a610cd11d03f55f6dc878eba54585056e1e59343f5f10ce8aab2de",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) ScheduleShareSheet, open (full and by trade) 1`] = `
 {
   "lines": 53,
-  "sha256": "ceafa62848b1f8010ed0ac38193d7686504ac94d2398c5478f0cf507e79373f6",
+  "sha256": "8218a77c64a7f113a2eacb973026220a5a2ab70bbbf48f94757c6a831ab27693",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) ScheduleShareSheet, open (full and by trade) 2`] = `
 {
   "lines": 88,
-  "sha256": "cd1ef4ad870a623d69b0c61bf16cbf95d4bec2bbd562466768713bec3afefeb4",
+  "sha256": "6312006955ecb1db0340925fc917f83a1e435b20430502d5a0f9388f14b27bc1",
 }
 `;
 
 exports[`lane DB — golden (recorded on the untouched base) components at 390 (every sheet rendered) SubUpdatesPanel card + its sheet 1`] = `
 {
   "lines": 118,
-  "sha256": "fc97f7ebdbb08bcd10f3c4e46f1132bc883986dbcd4a8b7eefcc2de0f6afbf59",
+  "sha256": "e751e96730c6e089e8069064dcb2c558ca67268277c551a8a06ac191d388bf10",
 }
 `;
 

@@ -116,6 +116,17 @@ const CONTACT_LOG_COPY: Record<ContactKind, { title: string; touch: string }> = 
 };
 // <<< lead-contact-log
 
+/** Activity kinds as a person reads them (the chips, the badge, the log box). */
+const TOUCH_KIND_LABEL: Record<LeadTouchKind, string> = {
+  call: 'Call',
+  text: 'Text',
+  email: 'Email',
+  meeting: 'Meeting',
+  site_visit: 'Site visit',
+  voicemail: 'Voicemail',
+  note: 'Note',
+};
+
 // >>> lead-open-gate (pure; scripts/validate-records-open-before-load.ts evaluates this block)
 /**
  * Whether /lead-detail?leadId= may mount its form yet. Every field is seeded
@@ -405,7 +416,7 @@ function LeadDetailEditor() {
     if (!existing) return;
     showAlert(
       'Convert to project?',
-      `This will mark "${existing.name}" as Won and create a new project carrying over the contact info, scope, and budget.`,
+      `Marks "${existing.name}" as won and creates a project with its contact info, scope and budget.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -436,7 +447,7 @@ function LeadDetailEditor() {
     if (!existing) return;
     showAlert(
       'Delete this lead?',
-      'This cannot be undone.',
+      "This can't be undone.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -570,7 +581,7 @@ function LeadDetailEditor() {
             {existing && stage !== 'won' && stage !== 'lost' && (
               <TouchableOpacity style={styles.proposalBtn} onPress={() => setShowProposal(true)} activeOpacity={0.85} testID="lead-draft-proposal">
                 <MageAIMark size={16} color="#FFF" />
-                <Text style={styles.proposalBtnText}>Draft Instant Bid proposal</Text>
+                <Text style={styles.proposalBtnText}>Draft instant bid proposal</Text>
                 <MageAIMark size={13} color="#FFF" />
               </TouchableOpacity>
             )}
@@ -598,7 +609,7 @@ function LeadDetailEditor() {
           <View style={styles.section}>
             <InlineVoiceFill
               title={isNew ? 'Capture this lead' : 'Update this lead'}
-              contextLine={isNew ? 'Speak the way the homeowner described it' : `for ${existing?.name}`}
+              contextLine={isNew ? 'Speak the way the client described it' : `for ${existing?.name}`}
               buttonLabel={isNew ? 'Fill lead by voice' : 'Add detail by voice'}
               suggestions={[
                 'John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand budget, spring',
@@ -628,7 +639,7 @@ function LeadDetailEditor() {
           {/* Fields */}
           <View style={styles.section}>
             <Text style={styles.fieldLabel}>Name *</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Homeowner name" placeholderTextColor={themeColors.textMuted} />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Client name" placeholderTextColor={themeColors.textMuted} />
 
             <Text style={styles.fieldLabel}>Phone</Text>
             <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 555-1234" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
@@ -640,10 +651,10 @@ function LeadDetailEditor() {
             <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="123 Main St, City" placeholderTextColor={themeColors.textMuted} />
 
             <Text style={styles.fieldLabel}>Project type</Text>
-            <TextInput style={styles.input} value={projectType} onChangeText={setProjectType} placeholder="Kitchen remodel, bathroom, ADU…" placeholderTextColor={themeColors.textMuted} />
+            <TextInput style={styles.input} value={projectType} onChangeText={setProjectType} placeholder="Kitchen remodel, bathroom, ADU" placeholderTextColor={themeColors.textMuted} />
 
             <Text style={styles.fieldLabel}>Scope notes</Text>
-            <TextInput style={[styles.input, styles.multilineInput]} value={scope} onChangeText={setScope} placeholder="Anything specific the homeowner mentioned" placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
+            <TextInput style={[styles.input, styles.multilineInput]} value={scope} onChangeText={setScope} placeholder="Anything specific the client mentioned" placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
             {/* QUOTE-PERSIST-1 (audit 2026-09-07): what YOU quoted, beside what
                 THEY said they'd spend. The two are different numbers and the
@@ -707,7 +718,7 @@ function LeadDetailEditor() {
               <View style={styles.touchKindRow}>
                 {(['call','text','email','meeting','site_visit','voicemail','note'] as LeadTouchKind[]).map(k => (
                   <TouchableOpacity key={k} style={[styles.chipSmall, touchKind === k && styles.chipSmallActive]} onPress={() => setTouchKind(k)}>
-                    <Text style={[styles.chipSmallText, touchKind === k && styles.chipSmallTextActive]}>{k.replace('_',' ')}</Text>
+                    <Text style={[styles.chipSmallText, touchKind === k && styles.chipSmallTextActive]}>{TOUCH_KIND_LABEL[k]}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -716,7 +727,7 @@ function LeadDetailEditor() {
                   style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   value={touchBody}
                   onChangeText={setTouchBody}
-                  placeholder={`Log a ${touchKind.replace('_',' ')}…`}
+                  placeholder={`Log ${touchKind === 'email' ? 'an' : 'a'} ${TOUCH_KIND_LABEL[touchKind].toLowerCase()}`}
                   placeholderTextColor={themeColors.textMuted}
                 />
                 <TouchableOpacity style={styles.touchVoiceBtn} onPress={() => setVoiceLogOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Record">
@@ -733,12 +744,12 @@ function LeadDetailEditor() {
               </View>
               <View style={styles.touchList}>
                 {(existing.touches ?? []).length === 0 ? (
-                  <Text style={styles.emptyText}>No activity yet. Log your first call / text above.</Text>
+                  <Text style={styles.emptyText}>No activity yet. Log your first call or text above.</Text>
                 ) : (
                   (existing.touches ?? []).map(t => (
                     <View key={t.id} style={styles.touchRow}>
                       <View style={styles.touchKindBadge}>
-                        <Text style={styles.touchKindBadgeText}>{t.kind.replace('_',' ')}</Text>
+                        <Text style={styles.touchKindBadgeText}>{TOUCH_KIND_LABEL[t.kind] ?? t.kind}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.touchBody}>{t.body}</Text>
@@ -772,7 +783,7 @@ function LeadDetailEditor() {
           visible={voiceLogOpen}
           onClose={() => setVoiceLogOpen(false)}
           onTranscriptReady={handleVoiceLogTouch}
-          title={`Log ${touchKind.replace('_',' ')}`}
+          title={`Log ${TOUCH_KIND_LABEL[touchKind].toLowerCase()}`}
           contextLine={existing ? `for ${existing.name}` : undefined}
           suggestions={[
             'Called, left a voicemail asking when they want to walk the site',
@@ -810,7 +821,7 @@ function LeadDetailEditor() {
             <View style={[styles.lostModalCard, fLost.card]}>
               <Text style={styles.lostModalTitle}>Why did this one go cold?</Text>
               <Text style={styles.lostModalSubtitle}>
-                One tap. We'll roll it into "why are we losing deals" reports later — won't ask you again.
+                One tap. The reason is saved with this lead, and you won&apos;t be asked again.
               </Text>
               <View style={styles.lostReasonChips}>
                 {LOST_REASONS.map(r => (

@@ -132,12 +132,12 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
     }
   }, [list.length, close]);
 
-  const label = activeProject?.name ?? 'Pick a job';
+  const label = activeProject?.name ?? 'Pick a project';
 
   // Section headers are derived from the list order, so they can never
   // disagree with it: recent ids first, then in-progress, then the rest.
   const sectionFor = (p: Project) =>
-    recentSet.has(p.id) ? 'RECENT' : p.status === 'in_progress' ? 'IN PROGRESS' : 'OTHER JOBS';
+    recentSet.has(p.id) ? 'Recent' : p.status === 'in_progress' ? 'In progress' : 'Other projects';
 
   // The popover drops in (web CSS; null on native and under Reduce Motion).
   // It renders only while open, so nothing changes at rest.
@@ -154,7 +154,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
         onPress={open ? close : openPopover}
         style={(s) => [styles.trigger, (s as { hovered?: boolean }).hovered && styles.triggerHovered]}
         accessibilityRole="button"
-        accessibilityLabel={activeProject ? `Current job: ${activeProject.name}. Switch job` : 'Pick a job'}
+        accessibilityLabel={activeProject ? `Current project: ${activeProject.name}. Switch project` : 'Pick a project'}
         accessibilityState={{ expanded: open }}
         testID="job-switcher"
       >
@@ -168,7 +168,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
       </Pressable>
 
       <Modal visible={open} transparent animationType="none" onRequestClose={close}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close job switcher" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close project switcher" />
         <View
           style={drop ? [styles.popover, popoverPlace, drop] : [styles.popover, popoverPlace]}
           testID="job-switcher-popover"
@@ -178,19 +178,19 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
             onChangeText={(v) => { setQuery(v); setHighlight(0); }}
             onKeyPress={onKeyPress}
             onSubmitEditing={() => { const p = list[highlight]; if (p) pick(p.id); }}
-            placeholder="Find a job…"
+            placeholder="Find a project"
             placeholderTextColor={t.textMuted}
             autoFocus
             style={styles.input}
-            accessibilityLabel="Filter jobs"
+            accessibilityLabel="Filter projects"
             testID="job-switcher-filter"
           />
           <ScrollView style={{ maxHeight: POPOVER_MAX_LIST }} keyboardShouldPersistTaps="handled">
             {list.length === 0 ? (
               <Text style={styles.empty}>
                 {query.trim()
-                  ? `No open job matches "${query.trim()}".`
-                  : 'No open jobs yet. Closed and sample jobs stay on the Projects page.'}
+                  ? `No open project matches "${query.trim()}".`
+                  : 'No open projects yet. Closed and sample projects stay on the Projects page.'}
               </Text>
             ) : list.map((p, i) => {
               const header = i === 0 || sectionFor(list[i - 1]) !== sectionFor(p) ? sectionFor(p) : null;
@@ -203,7 +203,7 @@ export function JobSwitcher({ hrefForJob }: JobSwitcherProps) {
                     onPress={close}
                     selected={isActive}
                     style={(s) => [styles.row, (i === highlight || s.hovered) && styles.rowHighlighted]}
-                    accessibilityLabel={`${p.name}, ${STATUS_LABEL[p.status]}${isActive ? ', current job' : ''}`}
+                    accessibilityLabel={`${p.name}, ${STATUS_LABEL[p.status]}${isActive ? ', current project' : ''}`}
                     testID={`job-switcher-row-${p.id}`}
                   >
                     <View style={[styles.dot, { backgroundColor: statusDot(t, p.status) }]} />
@@ -262,7 +262,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg, color: t.text, fontSize: Type.bodyCompact.fontSize,
   },
   section: {
-    fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: t.textMuted,
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: t.textMuted, textTransform: 'uppercase',
     paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4,
   },
   row: {

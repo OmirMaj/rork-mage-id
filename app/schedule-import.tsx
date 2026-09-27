@@ -47,7 +47,7 @@ import { nailIt, oops } from '@/components/animations/NailItToast';
 import { showAlert } from '@/utils/alert';
 import { edgeFunctionError, aiRefusalKind } from '@/utils/edgeError';
 import { showAiRefusal } from '@/utils/quotaPrecheck';
-import { describeError } from '@/utils/errorCopy';
+import { describeError, ownSentence } from '@/utils/errorCopy';
 import type {
   ScheduleImportResult, ScheduleImportField, ProjectResource, ProjectSchedule, ScheduleScenario,
 } from '@/types';
@@ -176,8 +176,10 @@ export default function ScheduleImportScreen() {
       if (aiRefusalKind(err) === 'hourly') {
         showAlert('Hourly limit reached', refusal ?? '');
       } else if (!refusal) {
+        // The importer's own refusal ("File too large (12 MB). Trim the
+        // schedule or split it before importing.") says what to change.
         const copy = describeError(err, { action: 'read that schedule' });
-        showAlert("Couldn't read that schedule", copy.body);
+        showAlert("Couldn't read that schedule", ownSentence(err) ?? copy.body);
       }
     } finally {
       setBusy(false);

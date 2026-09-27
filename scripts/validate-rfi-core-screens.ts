@@ -276,7 +276,7 @@ console.log('\nsubmittal screen wiring');
   ok('#55 a title edit sends only what changed', /changedFields\(submittalFormValuesOf\(base\), formValues\)/.test(SUB) && !/updateSubmittal\(existingSubmittal\.id, \{\s*title: title\.trim\(\),\s*specSection/.test(SUB));
   ok('#147 the manual cycle takes the days he entered, never now()', /sentDate: newCycleSent,/.test(SUB) && !/sentDate: new Date\(\)\.toISOString\(\),\s*reviewer: newReviewer/.test(SUB));
   ok('#147 the manual cycle is validated (Returned required for a stamp)', /manualCycleProblem\(\{/.test(SUB));
-  ok('#147 an unknown Sent day says "not recorded"', /cycleDayLabel\(cycle\.sentDate\) \?\? 'not recorded'/.test(SUB));
+  ok('#147 an unknown Sent day says "Not recorded"', /cycleDayLabel\(cycle\.sentDate\) \?\? 'Not recorded'/.test(SUB));
   ok('#147 "pending" is not a review outcome in the cycle form', /CYCLE_STATUSES(\.filter\([^)]*\))?\.map/.test(SUB) && !/'pending', 'in_review', 'approved'/.test(SUB.slice(SUB.indexOf('const CYCLE_STATUSES'), SUB.indexOf('const CYCLE_STATUSES') + 120)));
   ok('#148 email / PDF / portal wait for the server number', /subject: `Submittal #\$\{subNumber\}/.test(SUB) && /number: numberInfo\.number/.test(SUB) && /sendBlockReason\(\{ isDirty, numberHold \}\)/.test(SUB));
   const subSend = SUB.slice(SUB.indexOf('const handleSendEmail'), SUB.indexOf('const scheduleTasks'));
@@ -292,7 +292,7 @@ console.log('\nsubmittal screen wiring');
     && /sentDate: openCycle\.sentDate,/.test(addCycle));
   ok('…refuses "in review" as the answer, and the form says it closes Cycle N',
     /if \(newCycleStatus === 'in_review'\) \{/.test(addCycle)
-    && /This closes Cycle \{openCycleNo\}/.test(SUB)
+    && /This closes cycle \{openCycleNo\}/.test(SUB)
     && /CYCLE_STATUSES\.filter\(st => !openCycle \|\| st !== 'in_review'\)/.test(SUB));
   ok('…and the old interim block is gone', !/manualCycleBlockedReason/.test(SUB) && !/cycleBlock/.test(SUB));
   ok('gating contract via useProjectAccess', /useProjectAccess\(gateProjectId\)/.test(SUB) && /useProjectRoleState\(gateProjectId\)/.test(SUB) && /\n  if \(!canAccess\('rfis_submittals'\)\) \{\n    return collaboratorWait \?\? \(/.test(SUB));

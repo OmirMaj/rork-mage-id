@@ -110,7 +110,7 @@ export function clientViewMoneyFigures(input: {
     segments = [
       { key: 'paid', label: 'Paid', amount: paid, pct: paidPct },
       { key: 'due', label: 'Due now', amount: due, pct: duePct },
-      { key: 'retention', label: 'Retention held', amount: held, pct: Math.max(0, 100 - paidPct - duePct) },
+      { key: 'retention', label: 'Retainage held', amount: held, pct: Math.max(0, 100 - paidPct - duePct) },
     ];
   }
 

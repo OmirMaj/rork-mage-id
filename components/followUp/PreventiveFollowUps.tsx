@@ -80,7 +80,7 @@ const RULE_ICON: Record<string, typeof ShieldAlert> = {
  * every task on two real schedules forward a day, every day.
  */
 const MISSING_COPY: Partial<Record<FollowUpReads, string>> = {
-  subcontractors: 'the subcontractor roster has not loaded',
+  subcontractors: 'the sub roster has not loaded',
   tasks: 'the schedule has not loaded',
   scheduleStartDate: 'the schedule has no start date, so "before they start" has nothing to compare against',
   commitments: 'contracts and POs have not loaded',
@@ -208,7 +208,7 @@ export function PreventiveFollowUps({
       </View>
       <Text style={styles.sectionSub}>
         {items.length > 0
-          ? `${items.length} ${items.length === 1 ? 'thing is' : 'things are'} heading for trouble on a job you have not been told about yet. Nobody is late — that is the point.`
+          ? `${items.length} ${items.length === 1 ? 'thing is' : 'things are'} heading for trouble. Nobody is late yet, so the fixes are still cheap.`
           : 'Nothing here is heading for trouble. These checks look ahead of the late list, so an empty section means the cheap fixes are still cheap.'}
       </Text>
 
@@ -221,8 +221,8 @@ export function PreventiveFollowUps({
           {loading
             ? 'Still loading your subs, schedules and contracts — nothing has been checked yet.'
             : jobCount === 0
-              ? 'No open jobs to check. These run on jobs that are not finished or closed.'
-              : `Checked ${checkedCount} of ${totalChecks} ${totalChecks === 1 ? 'check' : 'checks'} across ${jobCount} open ${jobCount === 1 ? 'job' : 'jobs'}.`}
+              ? 'No open projects to check. These checks run on projects that aren’t finished or closed.'
+              : `Checked ${checkedCount} of ${totalChecks} ${totalChecks === 1 ? 'check' : 'checks'} across ${jobCount} open ${jobCount === 1 ? 'project' : 'projects'}.`}
           {sourceFailed
             ? ' MAGE could not be reached on the last read, so this ran on your local copy and may be incomplete.'
             : ''}
@@ -246,8 +246,8 @@ export function PreventiveFollowUps({
           <Info size={12} color={t.textMuted} strokeWidth={2} />
           <Text style={styles.groundingText}>
             {unassignedTaskCount} scheduled {unassignedTaskCount === 1 ? 'task has' : 'tasks have'} no
-            subcontractor assigned. Both checks join through that field, so those
-            {unassignedTaskCount === 1 ? ' tasks are' : ' tasks are'} invisible to them until a sub is picked.
+            sub assigned. These checks can’t see
+            {unassignedTaskCount === 1 ? ' that task' : ' those tasks'} until a sub is picked.
           </Text>
         </View>
       )}

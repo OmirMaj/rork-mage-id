@@ -261,7 +261,7 @@ export default function SignupScreen() {
       setNameDanger(nameEmpty);
       setEmailDanger(emailEmpty);
       setPasswordDanger(passwordEmpty);
-      setError('Please fill in all fields');
+      setError('Fill in every field.');
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }

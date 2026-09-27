@@ -15,7 +15,7 @@ import { Type } from '@/constants/typography';
 import { Tokens, Layout } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { showAlert } from '@/utils/alert';
-import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 
 export default function ResetPasswordScreen() {
   const { colors: themeColors } = useTheme();
@@ -105,8 +105,11 @@ export default function ResetPasswordScreen() {
       }, 2000);
     } catch (err: unknown) {
       console.warn('[ResetPassword] update failed:', rawErrorMessage(err));
+      // Supabase's own sentence ("New password should be different from the
+      // old password.") names what to change; show it when it reads as one.
+      const own = ownSentence(err);
       const copy = describeError(err, { action: 'update your password' });
-      showAlert(copy.title, copy.body);
+      showAlert(own ? "Couldn't update your password" : copy.title, own ?? copy.body);
     } finally {
       setIsSubmitting(false);
     }

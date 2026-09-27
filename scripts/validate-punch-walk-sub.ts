@@ -49,8 +49,8 @@ console.log('\napp/punch-walk.tsx:');
     /const proposedSub = walkProposedSub\(subChoice, draft\.trade, subs, projectId\);/.test(walk)
     && /const sub = walkProposedSub\(subChoice, draft\.trade, subs, projectId\);/.test(walk));
   check("no match saves '' — never the trade word", /assignedSub: sub\?\.companyName \?\? '',/.test(walk) && !/\?\? draft\.trade/.test(walk));
-  check('the card shows the proposed sub, or says there is none', /`→ \$\{proposedSub\.companyName\} \(on this job\)`/.test(walk)
-    && /No \$\{draft\.trade === 'General' \? '' : `\$\{draft\.trade\} `\}sub on this job/.test(walk)
+  check('the card shows the proposed sub, or says there is none', /`→ \$\{proposedSub\.companyName\} \(on this project\)`/.test(walk)
+    && /No \$\{draft\.trade === 'General' \? '' : `\$\{draft\.trade\} `\}sub on this project/.test(walk)
     && /`Trade: \$\{draft\.trade\} — GC to assign`/.test(walk));
   check('tap to change or clear: a picker of on-job subs plus "No sub"',
     /setSubChoice\(\{ mode: 'none' \}\)/.test(walk) && /setSubChoice\(\{ mode: 'picked', sub: s \}\)/.test(walk)

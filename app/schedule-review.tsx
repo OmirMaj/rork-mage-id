@@ -51,7 +51,7 @@ import { computePreApplyPlan, type PreApplyDecision } from '@/utils/pace/preAppl
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { showAlert } from '@/utils/alert';
 import { useProjectRole } from '@/hooks/useProjectRole';
-import { describeError, rawErrorMessage } from '@/utils/errorCopy';
+import { describeError, ownSentence, rawErrorMessage } from '@/utils/errorCopy';
 import {
   scheduleWriteBlockedReason as scheduleWriteBlockedReasonFor, scheduleWritePathForRole,
 } from '@/utils/fieldScheduleUpdate';
@@ -413,8 +413,9 @@ export default function ScheduleReviewScreen() {
       await recordAIUsage('smart', 'scheduleBuilder');
     } catch (e) {
       console.warn('[ScheduleReview] regenerate failed', rawErrorMessage(e));
+      const own = ownSentence(e);
       const copy = describeError(e, { action: 'rebuild the schedule', keptLocally: true });
-      showAlert('Couldn\'t rebuild', copy.body);
+      showAlert('Couldn\'t rebuild', own ? `${own} Your current draft is unchanged.` : copy.body);
     } finally {
       setRegenerating(false);
     }

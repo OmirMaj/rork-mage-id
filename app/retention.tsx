@@ -338,7 +338,7 @@ export default function RetentionScreen() {
       <FeatureExplainerSheet
         visible={explainerOpen}
         onClose={() => setExplainerOpen(false)}
-        term="Retention (Retainage)"
+        term="Retainage"
         definition={
           'Retainage is the share of every progress payment the client keeps back (commonly 5% or 10%) '
           + 'until the project is substantially complete and the punch list is cleared. It is your money, '
@@ -783,14 +783,14 @@ export default function RetentionScreen() {
                         <Text style={styles.previewWarn}>
                           {plan.skipped.filter(s => s.reason === 'no_work_value').length === 1 ? '1 invoice holds' : `${plan.skipped.filter(s => s.reason === 'no_work_value').length} invoices hold`} a
                           retainage dollar figure with no work value to take a percentage of, so a percentage
-                          target can’t change it. Use the $ amount mode, or release it from the invoice.
+                          target can’t change {plan.skipped.filter(s => s.reason === 'no_work_value').length === 1 ? 'it' : 'them'}. Use the $ amount mode, or release {plan.skipped.filter(s => s.reason === 'no_work_value').length === 1 ? 'it from the invoice' : 'them from the invoices'}.
                         </Text>
                       )}
                       {plan.skipped.some(s => s.reason === 'no_percentage_basis') && (
                         <Text style={styles.previewWarn}>
                           {plan.skipped.filter(s => s.reason === 'no_percentage_basis').length === 1 ? '1 invoice holds' : `${plan.skipped.filter(s => s.reason === 'no_percentage_basis').length} invoices hold`}
                           a fixed dollar amount rather than a percentage, so a percentage target can’t
-                          step it. Use the $ amount mode, or release it from the invoice.
+                          step {plan.skipped.filter(s => s.reason === 'no_percentage_basis').length === 1 ? 'it' : 'them'}. Use the $ amount mode, or release {plan.skipped.filter(s => s.reason === 'no_percentage_basis').length === 1 ? 'it from the invoice' : 'them from the invoices'}.
                         </Text>
                       )}
                     </View>

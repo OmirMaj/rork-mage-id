@@ -109,7 +109,7 @@ function WeatherReschedulePromptImpl({
           onPress={() => setShowDetail(true)}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={`${conflicts.length} weather-sensitive task${conflicts.length === 1 ? '' : 's'} hit bad weather — review`}
+          accessibilityLabel={`Review ${conflicts.length} weather-sensitive task${conflicts.length === 1 ? '' : 's'} hit by bad weather`}
           testID="weather-chip"
         >
           <CloudRain size={12} color={themeColors.warningLabel} strokeWidth={1.75} />
@@ -249,6 +249,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bannerProvenance: {
     fontSize: Type.caption2.fontSize, fontWeight: '800',
     color: Colors.warningDark, letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   bannerTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
   bannerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14 },

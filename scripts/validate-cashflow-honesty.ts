@@ -540,8 +540,8 @@ console.log('\n  6. the label says what the number is');
   }
 
   const screen = read('app/cash-flow.tsx');
-  check('the summary tile is labelled Net Cash Change',
-    screen.includes('>Net Cash Change<'),
+  check('the summary tile is labelled Net cash change',
+    screen.includes('>Net cash change<'),
     'the tile that shows totalIncome − totalExpenses must name the number');
   check('...and says in one line what it does not include',
     /Not profit\s*—\s*excludes unbilled work/.test(screen));

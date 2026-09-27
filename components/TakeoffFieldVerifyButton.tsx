@@ -91,7 +91,7 @@ function TakeoffFieldVerifyButtonImpl({
     if (Platform.OS === 'web') {
       showAlert(
         'Mobile-only feature',
-        'Field verification needs the device camera + GPS. Use the iOS or Android app on site.',
+        'Field verification needs the device camera and GPS. Use the iOS or Android app on site.',
       );
       return;
     }

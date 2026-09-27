@@ -280,7 +280,7 @@ const companies = code(read('app/(tabs)/discover/companies.tsx'));
 ok('Companies no longer calls Google rows firms "publishing public profiles"',
   !/publishing public profiles/.test(companies) && !/as more companies join/.test(companies));
 ok('each Companies row is labelled a public Google listing, not a member',
-  /Public business listing \(Google\) · not a MAGE ID member/.test(companies) && /Google reviews/.test(companies));
+  /Public business listing \(Google\) · not a MAGE ID member/.test(companies) && /Google \{[^}]*=== 1 \? 'review' : 'reviews'\}/.test(companies));
 ok('the dead Call/Website buttons are replaced by a Google Maps link on place_id',
   !/tel:\$\{/.test(companies) && /query_place_id=/.test(companies));
 

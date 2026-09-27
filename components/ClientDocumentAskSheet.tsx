@@ -98,7 +98,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                     hitSlop={10}
                     style={styles.closeBtn}
                     accessibilityRole="button"
-                    accessibilityLabel="Close — nothing is sent"
+                    accessibilityLabel="Close without sending"
                     testID="ask-close"
                   >
                     <X size={18} color={colors.textMuted} strokeWidth={1.9} />
@@ -114,7 +114,7 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                       style={styles.input}
                       value={draft.companyName}
                       onChangeText={(v) => onChangeDraft({ companyName: v })}
-                      placeholder="Your company, as the homeowner should see it"
+                      placeholder="Your company, as your client should see it"
                       placeholderTextColor={colors.textMuted}
                       autoCapitalize="words"
                       testID="ask-identity-company"
@@ -123,18 +123,18 @@ export default function ClientDocumentAskSheet(props: ClientDocumentAskSheetProp
                     {identityGap?.rule ? (
                       <>
                         <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
-                          {identityGap.rule.authority} licence number
+                          {identityGap.rule.authority} license number
                         </Text>
                         <TextInput
                           style={styles.input}
                           value={draft.licenseNumber}
                           onChangeText={(v) => onChangeDraft({ licenseNumber: v })}
-                          placeholder="Licence number"
+                          placeholder="License number"
                           placeholderTextColor={colors.textMuted}
                           autoCapitalize="characters"
                           autoCorrect={false}
                           testID="ask-identity-licence"
-                          accessibilityLabel={`${identityGap.rule.authority} licence number`}
+                          accessibilityLabel={`${identityGap.rule.authority} license number`}
                         />
                         <Text style={styles.citation}>{identityGap.rule.citation}</Text>
                       </>

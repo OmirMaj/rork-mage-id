@@ -134,7 +134,7 @@ export function executeVoiceCommand(
       updateFunctions.handleProgressUpdate(task, 100);
       return {
         success: true,
-        message: `Marked "${task.title}" as complete ✅`,
+        message: `Marked "${task.title}" complete`,
         undoAction: () => updateFunctions.handleProgressUpdate(task, prevProgress),
       };
     }
@@ -208,7 +208,7 @@ export function executeVoiceCommand(
       }
       const task = matches[0];
       if (!updateFunctions.onRescheduleTask) {
-        return { success: false, message: 'Reschedule not wired in this view.' };
+        return { success: false, message: "Voice can't move tasks on this screen. Open the schedule to move it." };
       }
       const prevStartDay = task.startDay;
       const prevDuration = task.durationDays;
@@ -233,7 +233,7 @@ export function executeVoiceCommand(
       // No usable date/value — fall through. Caller can prompt for a date.
       return {
         success: false,
-        message: `Tell me how many days to move "${task.title}" — e.g. "push it by 3 days".`,
+        message: `How many days should "${task.title}" move? For example, "push it by 3 days".`,
         needsClarification: true,
       };
       void prevDuration;
@@ -254,13 +254,13 @@ export function executeVoiceCommand(
       }
       const task = matches[0];
       if (!updateFunctions.onAssignCrew) {
-        return { success: false, message: 'Crew assignment not wired in this view.' };
+        return { success: false, message: "Voice can't assign crews on this screen. Open the schedule to assign one." };
       }
       const crew = parsed.crewName?.trim();
       if (!crew) {
         return {
           success: false,
-          message: `Tell me which crew — e.g. "assign Volt Bros to electrical rough".`,
+          message: `Which crew? For example, "assign Volt Bros to electrical rough".`,
           needsClarification: true,
         };
       }
@@ -280,7 +280,7 @@ export function executeVoiceCommand(
       // either uses the form or speaks more details.
       return {
         success: false,
-        message: 'New tasks need a phase + duration. Open the schedule and tap +.',
+        message: 'New tasks need a phase and a duration. Open the schedule and tap +.',
         needsClarification: true,
       };
     }
@@ -305,7 +305,7 @@ export function executeVoiceCommand(
     default:
       return {
         success: false,
-        message: parsed.clarification || "I didn't understand that. Try again?",
+        message: parsed.clarification || "MAGE couldn't match that to your schedule. Try saying it another way.",
       };
   }
 }

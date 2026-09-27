@@ -44,8 +44,7 @@ export default function ReferralPrompt({
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const who = companyName ? companyName : 'I';
     const message =
-      `${who === 'I' ? "I've" : who + ' has'} been winning more jobs with MAGE ID — ` +
-      `it drafts professional bids in seconds and keeps every project organized. ` +
+      `${who === 'I' ? "I've" : who + ' has'} been using MAGE ID for estimates, bids and project tracking. ` +
       `Worth a look if you run a construction business: ${APP_LINK}`;
     try {
       await shareText({ message, url: APP_LINK });
@@ -65,10 +64,9 @@ export default function ReferralPrompt({
           </TouchableOpacity>
 
           <View style={styles.iconWrap}><PartyPopper size={32} color={colors.accent} strokeWidth={1.75} /></View>
-          <Text style={styles.title}>Nice win!{jobName ? ` ${jobName}` : ''}</Text>
+          <Text style={styles.title}>Project won{jobName ? ` · ${jobName}` : ''}</Text>
           <Text style={styles.body}>
-            Know another contractor who could use an edge like this? Most of our
-            best users come from a referral — takes 10 seconds.
+            Know another contractor who could use MAGE ID? Send them a link.
           </Text>
 
           <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85} testID="referral-share">

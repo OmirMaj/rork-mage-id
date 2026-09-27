@@ -172,7 +172,7 @@ describe('lane B1 — money dashboards on desktop web (1512 × 945)', () => {
     await desk(`/cash-flow?${P}`);
     expect(screen.getByTestId('dashboard-columns-row')).toBeTruthy();
     const rail = screen.getByTestId('dashboard-columns-rail');
-    expect(texts(rail.children as unknown).join(' ')).toMatch(/Monthly Expenses/);
+    expect(texts(rail.children as unknown).join(' ')).toMatch(/Monthly expenses/);
   });
 
   it('job-costing: KPI strip, main | rail, and the two tables', async () => {

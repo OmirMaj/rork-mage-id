@@ -1572,7 +1572,7 @@ function WipReportScreenInner() {
                           // landed genuinely IS the two-source floor and keeps
                           // saying so.
                           ? (r.sources?.costToDate === 'recorded_actual_cost'
-                            ? ' · every cost recorded on this job — tap for the breakdown'
+                            ? ' · every cost recorded on this project — tap for the breakdown'
                             : ' · subs paid + material receipts only — tap to add your own crews')
                           : rowCost && rowCost.committedFloor > 0
                             ? ` — nothing paid out yet, though ${money(rowCost.committedFloor)} is signed. Tap to enter what this project has cost you.`

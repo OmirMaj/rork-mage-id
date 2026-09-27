@@ -910,10 +910,10 @@ console.log('\nITEM 22 — payment terms on the wizard, its PDF, and where he ch
     openTag(profileSrc, 'company-payment-terms').includes("onPress={() => gate.edit('terms')}"));
   ok('the Workmanship warranty row opens it for the warranty',
     openTag(profileSrc, 'company-warranty').includes("onPress={() => gate.edit('warranty')}"));
-  const howIdx = profileSrc.indexOf('>HOW YOU GET PAID<');
-  ok('HOW YOU GET PAID sits after COMPANY BRANDING and before COMPANY LOGO',
-    howIdx > profileSrc.indexOf('>COMPANY BRANDING<') && howIdx < profileSrc.indexOf('>COMPANY LOGO<')
-    && profileSrc.indexOf('testID="company-warranty"') < profileSrc.indexOf('>COMPANY LOGO<'));
+  const howIdx = profileSrc.indexOf('>How you get paid<');
+  ok('How you get paid sits after Company branding and before Company logo',
+    howIdx > profileSrc.indexOf('>Company branding<') && howIdx < profileSrc.indexOf('>Company logo<')
+    && profileSrc.indexOf('testID="company-warranty"') < profileSrc.indexOf('>Company logo<'));
   ok('Company Profile renders the sheet once',
     (profileSrc.match(/<ClientDocumentAskSheet \{\.\.\.gate\.sheet\} \/>/g) ?? []).length === 1);
   ok('the branding Save and the logo/signature autoSave never carry the terms',

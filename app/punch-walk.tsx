@@ -988,7 +988,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
   const listStake = isPunch
     ? (clientSeesPunch
         ? 'Your client sees this list in their portal.'
-        : 'The formal list your client walks. Their portal punch list is off for this job.')
+        : 'The formal list your client walks. This project’s client portal doesn’t show the punch list.')
     : 'Internal. Never shown to your client.';
   const sessionPunchCount = session.filter(c => c.listType === 'punch').length;
   const sessionCrewCount = session.length - sessionPunchCount;
@@ -1038,7 +1038,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           {/* The eyebrow names the ACTIVE list, in its own ink, so the list is
               readable even with the card scrolled off screen. */}
           <Text style={[styles.headerEyebrow, { color: listInk }]}>
-            {`Walk Mode · ${pinFirst ? 'Pin first · ' : ''}${isPunch ? 'Punch list' : 'Crew list'}`}
+            {`Walk mode · ${pinFirst ? 'Pin first · ' : ''}${isPunch ? 'Punch list' : 'Crew list'}`}
           </Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
         </View>
@@ -1182,7 +1182,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                     onPress={() => setShowAllLocations(true)}
                     activeOpacity={0.85}
                     accessibilityRole="button"
-                    accessibilityLabel={`Show all ${locationOptions.length} rooms on this job`}
+                    accessibilityLabel={`Show all ${locationOptions.length} rooms on this project`}
                     testID="walk-location-all"
                   >
                     <Text style={styles.locChipAllText}>All {locationOptions.length}</Text>
@@ -1194,7 +1194,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               // No punch items yet and no analysed plans. Say what will fix it
               // rather than showing an empty strip that looks broken.
               <Text style={styles.chipRailEmpty}>
-                No rooms on this job yet {'—'} type one below and it becomes a one-tap chip.
+                No rooms on this project yet {'—'} type one below and it becomes a one-tap chip.
               </Text>
             )}
 
@@ -1294,15 +1294,15 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
             >
               <Text style={[styles.subLineText, !proposedSub && styles.subLineMuted]} numberOfLines={2}>
                 {projectSubs.isLoading
-                  ? (projectSubs.isOwner ? 'Checking your subs…' : 'Loading your GC’s subs on this job…')
+                  ? (projectSubs.isOwner ? 'Checking your subs…' : 'Loading your GC’s subs on this project…')
                   : projectSubs.isError
-                    ? 'Couldn’t load the subs on this job — tap to retry. Saves unassigned.'
+                    ? 'Couldn’t load subs. Tap to retry. The item saves unassigned.'
                     : proposedSub
-                      ? `→ ${proposedSub.companyName} (on this job)`
+                      ? `→ ${proposedSub.companyName} (on this project)`
                       : subChoice.mode === 'none'
-                        ? 'No sub — saves unassigned'
+                        ? 'No sub · Saves unassigned'
                         : projectSubs.isOwner
-                          ? `No ${draft.trade === 'General' ? '' : `${draft.trade} `}sub on this job`
+                          ? `No ${draft.trade === 'General' ? '' : `${draft.trade} `}sub on this project`
                           : `Trade: ${draft.trade} — GC to assign`}
               </Text>
               {!projectSubs.isLoading && !projectSubs.isError ? (
@@ -1441,7 +1441,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           >
             <MapPinPlus size={14} color={pinFirst ? themeColors.accentLabel : themeColors.textMuted} strokeWidth={2} />
             <Text style={[styles.pinFirstToggleText, pinFirst && { color: themeColors.accentLabel }]}>
-              {pinFirst ? 'Pin first: on — tap the plan before the photo' : 'Pin first: off — photo, then pin'}
+              {pinFirst ? 'Pin first is on: tap the plan before the photo' : 'Pin first is off: photo, then pin'}
             </Text>
           </TouchableOpacity>
 
@@ -1456,8 +1456,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           >
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.aiPunchBtnTitle}>AI Punch from Photos</Text>
-              <Text style={styles.aiPunchBtnSub}>Take a few photos, AI builds the punch list</Text>
+              <Text style={styles.aiPunchBtnTitle}>Punch from photos</Text>
+              <Text style={styles.aiPunchBtnSub}>Take a few photos. MAGE drafts the punch items.</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
@@ -1473,7 +1473,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
           >
             <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.aiPunchBtnTitle}>AI Photo Triage</Text>
+              <Text style={styles.aiPunchBtnTitle}>Photo triage</Text>
               <Text style={styles.aiPunchBtnSub}>Mixed batch — sorts to punch, RFI, daily report, progress</Text>
             </View>
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
@@ -1539,7 +1539,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 {pinFirst
                   ? 'Tap where the item is on the plan, take its photo, then say what\u2019s wrong. Save and the plan comes back for the next one. '
                   : ''}
-                Tap the mic below and say what you see. Walk mode is built for capturing 30 items in 10 minutes — don{'\u2019'}t worry about getting the trade or priority right, you can fix them later from the punch list screen.
+                Tap the mic below and say what you see. Fix the trade or priority later from the punch list.
               </Text>
             </View>
           )}
@@ -1619,7 +1619,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
                 onPress={() => { setSubChoice({ mode: 'none' }); setShowSubPicker(false); }}
                 testID="walk-sub-none"
               >
-                <Text style={styles.tradeOptionText}>{projectSubs.isOwner ? 'No sub — leave unassigned' : 'No sub — the GC assigns it'}</Text>
+                <Text style={styles.tradeOptionText}>{projectSubs.isOwner ? 'No sub (leave unassigned)' : 'No sub (your GC assigns it)'}</Text>
                 {!proposedSub && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
               </TouchableOpacity>
               {subsOnJob.map(s => (
@@ -1636,8 +1636,8 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
               {subsOnJob.length === 0 ? (
                 <Text style={styles.subPickerEmpty}>
                   {projectSubs.isOwner
-                    ? 'No subs are assigned to this job yet. Add them to the job under Subs, then they show here.'
-                    : 'Your GC has no subs assigned to this job yet. The item saves unassigned and your GC assigns it.'}
+                    ? 'No subs are assigned to this project yet. Add them under Subs, then they show here.'
+                    : 'Your GC has no subs assigned to this project yet. The item saves unassigned and your GC assigns it.'}
                 </Text>
               ) : null}
             </ScrollView>
@@ -1652,7 +1652,7 @@ function WalkInner({ projectName, projectId, initialList, initialStart, projectS
         <View style={[styles.modalOverlay, fRooms.overlay]}>
           <View style={[styles.modalSheet, fRooms.card]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Rooms on this job</Text>
+              <Text style={styles.modalTitle}>Rooms on this project</Text>
               <TouchableOpacity onPress={() => setShowAllLocations(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -1739,7 +1739,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
+          <Text style={styles.headerEyebrow}>Walk mode · Punch</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>Pick a project</Text>
         </View>
       </View>

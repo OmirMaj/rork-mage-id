@@ -320,8 +320,12 @@ ok('the marker uses palette tokens, not a fresh hex',
 ok('the marker uses the CloudOff lucide icon (no emoji)',
   /CloudOff/.test(noticeCode) && /lucide-react-native/.test(noticeCode));
 ok('the marker headline is unmissable copy',
-  SIMULATED_WEATHER_HEADLINE === 'SIMULATED WEATHER — NOT A FORECAST',
+  SIMULATED_WEATHER_HEADLINE === 'Simulated weather. Not a forecast.',
   `got "${SIMULATED_WEATHER_HEADLINE}"`);
+// Sentence case in the source (docs/VOICE.md §3); the banner title style
+// shouts it, so it still reads as a warning headline, never as body copy.
+ok('the banner title style uppercases the headline',
+  /simBannerTitle:\s*\{[^}]*textTransform:\s*'uppercase'/.test(noticeCode));
 ok('the marker does not import weatherService (no cycle, structural props)',
   !/weatherService/.test(noticeCode));
 
@@ -504,6 +508,9 @@ const prompt = read('components/schedule/WeatherReschedulePrompt.tsx');
 ok('WeatherReschedulePrompt marks a simulated conflict',
   /hasSimulatedDays\(/.test(prompt) && /SIMULATED_WEATHER_HEADLINE/.test(prompt),
   '"N tasks hit bad weather" is a claim about reality');
+ok('both reschedule surfaces uppercase the headline by style',
+  /provenanceTitle:\s*\{[^}]*textTransform:\s*'uppercase'/.test(modal)
+    && /bannerProvenance:\s*\{[^}]*textTransform:\s*'uppercase'/.test(prompt));
 
 // schedule-pro.tsx is the ONLY writer of weatherDelayLog. If it stays on the
 // simulator the log can never fill even with a key set — the feature would be

@@ -1465,8 +1465,8 @@ function levelResources(ctx: LevelingContext): { leveled: Map<string, number>; c
           conflicts.push({
             kind: projectImpact ? 'resource_delayed_project' : 'resource_overallocation',
             message: projectImpact
-              ? `${delayedTask.title}: delayed ${delayDays} working day(s) to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}". That's more than its ${countOf(delayedFloat, 'day')} of float, so the project end date moves.`
-              : `${delayedTask.title}: delayed ${delayDays} working day(s) to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}" (uses ${delayDays} of its ${countOf(delayedFloat, 'day')} of float).`,
+              ? `${delayedTask.title}: delayed ${countOf(delayDays, 'working day')} to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}". That's more than its ${countOf(delayedFloat, 'day')} of float, so the project end date moves.`
+              : `${delayedTask.title}: delayed ${countOf(delayDays, 'working day')} to free up "${delayedTask.crew || delayedTask.assignedSubName || resKey.replace(/^(sub|crew|res):/, '')}" (uses ${delayDays} of its ${countOf(delayedFloat, 'day')} of float).`,
             taskIds: [delayedId, delayThis ? busyTaskId! : task.id],
             detail: {
               resource: resKey,
@@ -1744,7 +1744,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
     );
     if (clamp.esExact !== undefined && fwdRow?.hasIncomingLink && fwdRow.depEs > clamp.esExact) {
       violations.push(
-        `the work feeding it can't start until ${workingGap(clamp.esExact, fwdRow.depEs)} working day(s) after the must-start-on date. The pin wins, so the plan shows work overlapping its own predecessors`,
+        `the work feeding it can't start until ${countOf(workingGap(clamp.esExact, fwdRow.depEs), 'working day')} after the must-start-on date. The pin wins, so the plan shows work overlapping its own predecessors`,
       );
     }
     if (clamp.efExact !== undefined) {
@@ -1764,7 +1764,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
       // (c) Anything else that still lands off the anchor.
       if (fwdRow?.hasIncomingLink && fwdRow.depEf > clamp.efExact) {
         violations.push(
-          `the work feeding it can't finish until ${workingGap(clamp.efExact, fwdRow.depEf)} working day(s) after the must-finish-on date. The pin wins, so the plan shows work overlapping its own predecessors`,
+          `the work feeding it can't finish until ${countOf(workingGap(clamp.efExact, fwdRow.depEf), 'working day')} after the must-finish-on date. The pin wins, so the plan shows work overlapping its own predecessors`,
         );
       } else if (r.ef !== clamp.efExact) {
         violations.push(

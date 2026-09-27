@@ -24,6 +24,7 @@ import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { describeError } from '@/utils/errorCopy';
 
 interface Props {
   sub: Subcontractor;
@@ -83,7 +84,8 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.log('[AI Sub] Evaluation failed:', err);
-      showAlert('AI Error', 'Could not evaluate this subcontractor. Try again.');
+      const copy = describeError(err, { action: 'evaluate this sub' });
+      showAlert(copy.title, copy.body);
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +99,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         ) : (
           <MageAIMark size={16} color={themeColors.accent} />
         )}
-        <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Evaluate Sub'}</Text>
+        <Text style={styles.triggerText}>{isLoading ? 'Evaluating this sub…' : 'Evaluate this sub'}</Text>
       </TouchableOpacity>
     );
   }
@@ -106,8 +108,8 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
         <MageAIMark size={12} color={themeColors.accent} />
-        <Text style={styles.headerTitle}>AI Sub Evaluation</Text>
-        <Text style={styles.aiTag}>AI-generated</Text>
+        <Text style={styles.headerTitle}>Sub evaluation</Text>
+        <Text style={styles.aiTag}>AI draft</Text>
       </View>
       {grounding ? (
         <View style={styles.readChip} testID="ai-sub-read-chip">
@@ -132,7 +134,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         </View>
       ) : null}
 
-      <Text style={styles.sectionLabel}>Questions to Ask</Text>
+      <Text style={styles.sectionLabel}>Questions to ask</Text>
       {(result.questionsToAsk ?? []).map((q, idx) => (
         <View key={idx} style={styles.questionRow}>
           <HelpCircle size={12} color={"#1565C0"} strokeWidth={1.75} />
@@ -140,12 +142,12 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         </View>
       ))}
 
-      <Text style={styles.sectionLabel}>Your Rate ({sub.trade})</Text>
+      <Text style={styles.sectionLabel}>Your rate ({sub.trade})</Text>
       {yourRate ? (
         <View style={styles.rateRow}>
           <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.rateValue}>${yourRate.toLocaleString('en-US', { maximumFractionDigits: 2 })}/hr</Text>
-          <Text style={styles.rateNote}>your loaded self-perform rate — a comparison point, not a market benchmark</Text>
+          <Text style={styles.rateNote}>Your loaded self-perform rate. A comparison point, not a market benchmark.</Text>
         </View>
       ) : (
         <TouchableOpacity
@@ -157,14 +159,14 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         >
           <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.rateNote}>
-            No loaded rate set for {sub.trade}. MAGE won&apos;t invent one — set yours under Time Tracking → Labor rates and it shows here.
+            No loaded rate set for {sub.trade}. Set yours under Time tracking → Labor rates and it shows here.
           </Text>
         </TouchableOpacity>
       )}
 
       {(result.redFlags ?? []).length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Red Flags to Watch</Text>
+          <Text style={styles.sectionLabel}>Red flags to watch</Text>
           {(result.redFlags ?? []).map((flag, idx) => (
             <View key={idx} style={styles.flagRow}>
               <AlertTriangle size={12} color={"#C84038"} strokeWidth={1.75} />

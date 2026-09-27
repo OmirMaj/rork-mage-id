@@ -1288,7 +1288,7 @@ for (const claim of ['Measured on', 'Measured average', 'actually cost you', 'co
 ok('…and says instead that nothing has been paid against it',
   /not yet what you\s*\n?\s*paid/.test(contractedBody) && /Nothing settled yet/.test(contractedBody));
 ok('…while the measured branch still DOES make that claim (so the test is not vacuous)',
-  /Measured on \{model\.jobCount\} closed job/.test(chipSrc) && /Measured average/.test(chipSrc));
+  /Measured on \{model\.jobCount\} closed project/.test(chipSrc) && /Measured average/.test(chipSrc));
 // The seeded branch must be reached by tone too, or a future basis added to
 // 'earned' falls through into the measured copy exactly as 'contracted' did.
 ok('the seeded body is gated on its tone as well, not on provenance alone',

@@ -76,7 +76,7 @@ import { useAccountSeats } from '@/hooks/useAccountSeats';
 import { isBillableSeat } from '@/utils/seatModel';
 import type { ProjectCollaborator } from '@/types';
 import { showAlert } from '@/utils/alert';
-import { describeError, classifyError, rawErrorMessage } from '@/utils/errorCopy';
+import { describeError, classifyError, rawErrorMessage, readerSentence } from '@/utils/errorCopy';
 import { Button } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -89,30 +89,13 @@ function emailsIn(v: unknown): string[] {
   return v.split(/[\s,;<>"'()]+/).map((x) => x.trim().toLowerCase()).filter((x) => x.includes('@'));
 }
 
-// reader-sentence:start
-/** The server's own sentence when it reads as one written for a person
- *  ("Too many sign-in requests. Wait a few minutes and try again."), else
- *  null so the caller shows describeError copy. A reader sentence ends with a
- *  period, runs at least four words, and carries no status code, identifier
- *  or transport wording ("Invalid email.", "Could not create invite (502)",
- *  "projectId … required", "Edge Function returned a non-2xx status code"). */
-function readerSentence(raw: string): string | null {
-  const s = raw.trim();
-  if (!/^[A-Za-z0-9]/.test(s) || !s.endsWith('.')) return null;
-  if (s.split(/\s+/).length < 4) return null;
-  const words = s.replace(/\S+@\S+/g, '');
-  if (/[a-z][A-Z]/.test(words)) return null;
-  if (/\(\s*(?:HTTP\s*)?\d{3}\s*\)|\b(?:edge function|non-2xx|status code|json|fetch|undefined|null)\b|error:/i.test(words)) return null;
-  return s;
-}
-// reader-sentence:end
 
 type ClientSource = 'primary_contact' | 'portal_invite' | 'bill_to';
 /** Where this job records its client — the same three places project-invite reads. */
 const CLIENT_SOURCE_LINES: Record<ClientSource, string> = {
-  primary_contact: 'is the client contact on this job',
-  portal_invite: "is invited to this job's client portal",
-  bill_to: "is the address this job's invoices are billed to",
+  primary_contact: 'is the client contact on this project',
+  portal_invite: "is invited to this project's client portal",
+  bill_to: "is the address this project's invoices are billed to",
 };
 
 /** The server's is_client sentence always carries this phrase; unwrap() in
@@ -166,7 +149,7 @@ export function CollaboratorsManager({ projectId, onOpenClientPortal }: {
   }, [projectId, getProject, getInvoicesForProject]);
   const clientSource = useMemo(() => clientSourceFor(email), [clientSourceFor, email]);
   const clientReason = clientSource
-    ? `${email.trim()} ${CLIENT_SOURCE_LINES[clientSource]}. Collaborators can see the job's costs, margins and labour, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`
+    ? `${email.trim()} ${CLIENT_SOURCE_LINES[clientSource]}. Team members can see the project's costs, margins and labor, so a client can't be added here in any role. Share the client portal with them instead: it shows only the sections you switch on.`
     : null;
   // The guard runs at invite, accept and promotion. A seat taken BEFORE the
   // address was recorded as this job's client (the GC invited first, then
