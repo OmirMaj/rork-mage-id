@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform,
+  type StyleProp, type ViewStyle,
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,14 +54,35 @@ import type { CompanyBranding } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { segmentedDesktop, useIsDesktop } from '@/components/ui';
+import { ActionBar, TileGrid, segmentedDesktop, useIsDesktop, useIsDesktopWeb } from '@/components/ui';
+import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
+import { ToolbarActions, type ToolbarAction } from '@/components/desktop/ToolbarActions';
+import { printToolbarAction } from '@/components/desktop/printAction';
+import { routeHref } from '@/components/desktop/RowLink';
+import {
+  agingCells, agingFooter, marginCellText, profitCells, profitFooter, reportsWipCells, reportsWipFooter,
+} from '@/utils/dashboardTables';
 
 type Tab = 'wip' | 'profit' | 'aging';
+
+/** Why the header's Print / Export CSV are blocked on the WIP tab of a plan
+ *  without WIP reporting. The page itself shows the Paywall there, and the
+ *  bottom export bar is not drawn at all; the desktop header's actions stay
+ *  visible and say why, as every blocked button in this app does. */
+const WIP_LOCKED_REASON =
+  'The WIP schedule is part of the Business plan, so it cannot be printed or exported on this one. '
+  + 'Profit and A/R Aging stay open on your plan.';
 
 export default function ReportsScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop: the tab row becomes a left-aligned segmented control and the
+  // header carries Print / Export CSV (a native tablet may show them too — its
+  // press is the share sheet, already correct). Desktop WEB only: the hero
+  // duplicating the title goes (structure, never on a phone or native).
+  const isDesktop = useIsDesktop();
+  const isDesktopWeb = useIsDesktopWeb();
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
@@ -310,6 +332,30 @@ export default function ReportsScreen() {
   // renders, so the Business-only deliverable stays behind the gate.
   const wipLocked = tab === 'wip' && !wipUnlocked;
 
+  // THE HEADER'S PRINT AND EXPORT CSV (desktop — contract D18). Object form:
+  // the bottom bar keeps the one JSX press per export handler that
+  // validate-wip's pinButton counts. Print runs the same PDF path as that bar
+  // (on the web: the print preview), synchronously inside the click so the
+  // pop-up keeps its user activation. Export CSV is left out on Profit, which
+  // ships no CSV. A blocked action stays visible and says why.
+  const toolbarBlockedReason = nothingToExport ? blockedReason : (wipLocked ? WIP_LOCKED_REASON : null);
+  const toolbar = useMemo((): ToolbarAction[] => [
+    printToolbarAction({
+      onPrint: () => { void handleSharePdf(); },
+      blockedReason: toolbarBlockedReason,
+      testID: 'reports-print',
+    }),
+    ...(tab === 'profit' ? [] : [{
+      key: 'csv',
+      label: 'Export CSV',
+      icon: FileSpreadsheet,
+      onPress: () => { void handleCopyCsv(); },
+      disabled: !!toolbarBlockedReason,
+      disabledReason: toolbarBlockedReason,
+      testID: 'reports-toolbar-csv',
+    }]),
+  ], [handleSharePdf, handleCopyCsv, toolbarBlockedReason, tab]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -322,10 +368,11 @@ export default function ReportsScreen() {
           <Text style={styles.eyebrow}>Financial Reports</Text>
           <Text style={styles.title}>Bank-Ready Reports</Text>
         </View>
+        {isDesktop && <ToolbarActions actions={toolbar} testID="reports-toolbar" />}
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabRow}>
+      <View style={[styles.tabRow, isDesktop && segmentedDesktop.container]}>
         <TabBtn label="WIP"      icon={ClipboardList} active={tab === 'wip'}    onPress={() => setTab('wip')} />
         <TabBtn label="Profit"   icon={TrendingUp}    active={tab === 'profit'} onPress={() => setTab('profit')} />
         <TabBtn label="A/R Aging" icon={AlertTriangle} active={tab === 'aging'}  onPress={() => setTab('aging')} />
@@ -333,7 +380,10 @@ export default function ReportsScreen() {
 
       <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
         {/* Centered icon-circle hero — matches the new design language so
-            Reports reads as a sibling of the AI-feature screens. */}
+            Reports reads as a sibling of the AI-feature screens. On desktop
+            web it only repeated the header's title above the report, so it
+            goes there. */}
+        {isDesktopWeb ? null : (
         <View style={styles.reportsHero}>
           <View style={styles.reportsHeroIcon}>
             <TrendingUp size={26} color={themeColors.accent} strokeWidth={1.75} />
@@ -343,6 +393,7 @@ export default function ReportsScreen() {
             WIP, profit margin, and A/R aging — auto-compiled across every project. Export to CSV or PDF in one tap.
           </Text>
         </View>
+        )}
 
         {tab === 'wip' && !wipLocked && <WIPView    report={wip} sharedJobCount={sharedJobCount} />}
         {tab === 'profit'               && <ProfitView profit={profit} sharedJobCount={sharedJobCountAll} />}
@@ -374,7 +425,7 @@ export default function ReportsScreen() {
 
       {/* Action bar — hidden on the locked WIP tab so no WIP export leaks. */}
       {!wipLocked && (
-      <View style={[styles.actionBarWrap, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.actionBarWrap, { paddingBottom: insets.bottom + 12 }]} {...(Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}>
       {/* A blocked button says why, VISIBLY — the repo's own pattern
           (app/cash-flow.tsx:1157). The empty guard lives inside the tab body
           and these controls live out here, so without this line the buttons
@@ -382,7 +433,7 @@ export default function ReportsScreen() {
       {nothingToExport ? (
         <Text style={styles.blockedNote} testID="reports-export-blocked">{blockedReason}</Text>
       ) : null}
-      <View style={styles.actionBar}>
+      <ActionBar style={styles.actionBar} width="dashboard">
         {tab !== 'profit' && (
           <TouchableOpacity
             style={[styles.actionBtnSecondary, nothingToExport && styles.actionBtnBlocked]}
@@ -423,7 +474,7 @@ export default function ReportsScreen() {
             </>
           )}
         </TouchableOpacity>
-      </View>
+      </ActionBar>
       </View>
       )}
     </View>
@@ -468,12 +519,56 @@ function reportExclusionLine(
   return parts.length ? `Not on this report: ${parts.join('; ')}.` : '';
 }
 
+type WIPReportRow = ReturnType<typeof computeWIPReport>['rows'][number];
+
 function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof computeWIPReport>; sharedJobCount: number }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const exclusion = reportExclusionLine(
     sharedJobCount, report.excluded?.unsigned ?? 0, report.excluded?.unsignedContract ?? 0,
   );
+  // Desktop: the WIP schedule as a table. Every cell is the engine field the
+  // row card and the CSV print (utils/dashboardTables.reportsWipCells); the
+  // totals row is the CSV's own TOTAL line (reportsWipFooter), never a sum of
+  // the visible rows. A margin cell goes through marginCellText only.
+  const wipColumns: DataTableColumn<WIPReportRow>[] = [
+    { key: 'job', label: 'Job', flex: 1, minWidth: 180, sortValue: (r) => r.projectName, value: (r) => r.projectName },
+    { key: 'contract', label: 'Revised contract', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).contract, value: (r) => formatMoney(reportsWipCells(r).contract) },
+    { key: 'estFinal', label: 'Est. final cost', width: 110, numeric: true, hideBelow: 1050, sortValue: (r) => reportsWipCells(r).estFinal, value: (r) => formatMoney(reportsWipCells(r).estFinal) },
+    {
+      key: 'costToDate', label: 'Cost to date', width: 110, numeric: true,
+      sortValue: (r) => reportsWipCells(r).costToDate,
+      // Unknown prints '—' (the table's own unknown cell), never $0.
+      value: (r) => { const c = reportsWipCells(r).costToDate; return c == null ? null : formatMoney(c); },
+    },
+    { key: 'pct', label: '% complete', width: 64, numeric: true, sortValue: (r) => reportsWipCells(r).pctComplete, value: (r) => `${reportsWipCells(r).pctComplete.toFixed(0)}%` },
+    { key: 'earned', label: 'Earned', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).earned, value: (r) => formatMoney(reportsWipCells(r).earned) },
+    { key: 'billed', label: 'Billed', width: 110, numeric: true, sortValue: (r) => reportsWipCells(r).billed, value: (r) => formatMoney(reportsWipCells(r).billed) },
+    {
+      key: 'billing', label: 'Billing', width: 130, numeric: true,
+      sortValue: (r) => { const b = reportsWipCells(r).billing; return b.kind === 'over' ? b.amount : b.kind === 'under' ? -b.amount : 0; },
+      render: (r) => {
+        const b = reportsWipCells(r).billing;
+        return (
+          <Text style={[styles.tableCellText, b.kind === 'even' && { color: themeColors.textMuted }]} numberOfLines={1}>
+            {b.kind === 'over' ? `Over ${formatMoney(b.amount)}` : b.kind === 'under' ? `Under ${formatMoney(b.amount)}` : 'On earned value'}
+          </Text>
+        );
+      },
+    },
+    { key: 'retainage', label: 'Retainage', width: 100, numeric: true, hideBelow: 1150, sortValue: (r) => reportsWipCells(r).retainage, value: (r) => formatMoney(reportsWipCells(r).retainage) },
+    {
+      key: 'margin', label: 'Margin', width: 80, numeric: true,
+      sortValue: (r) => reportsWipCells(r).margin,
+      render: (r) => {
+        const m = reportsWipCells(r).margin;
+        return m == null
+          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>no cost basis</Text>
+          : <Text style={[styles.tableCellText, marginTextTone(m, themeColors)]} numberOfLines={1}>{marginCellText(m)}</Text>;
+      },
+    },
+  ];
+  const wipFoot = reportsWipFooter(report.totals);
   if (report.rows.length === 0) {
     return (
       <>
@@ -489,7 +584,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
         <View style={styles.summaryHead}>
           <Text style={styles.summaryEyebrow}>WIP TOTAL — {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
         </View>
-        <View style={styles.summaryGrid}>
+        <TileGrid preset="kpi" phoneStyle={styles.summaryGrid}>
           <SummaryStat label="Revised contract" value={formatMoney(report.totals.revisedContract)} accent={themeColors.text} />
           <SummaryStat label="Billed"            value={formatMoney(report.totals.billedToDate)} accent={themeColors.text} />
           <SummaryStat label="Retainage held"    value={formatMoney(report.totals.retainageHeld)} accent={Colors.warning} />
@@ -507,7 +602,7 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
             value={formatMoney(report.totals.measurableProjectedProfit)}
             accent={report.totals.measurableProjectedProfit >= 0 ? themeColors.success : themeColors.danger}
           />
-        </View>
+        </TileGrid>
         {/* …and the exclusion is NAMED. Suppressing a figure without saying it
             was suppressed is its own quiet lie, and both exports already carry
             this sentence. */}
@@ -529,7 +624,33 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
         {exclusion ? <Text style={styles.basisLine} testID="wip-excluded">{exclusion}</Text> : null}
       </View>
 
-      {report.rows.map(r => (
+      <DataTable
+        tableId="reports-wip"
+        testID="reports-wip"
+        columns={wipColumns}
+        rows={report.rows}
+        rowKey={(r) => r.projectId}
+        footerTotals={{
+          job: 'Total',
+          contract: formatMoney(wipFoot.revisedContract),
+          estFinal: formatMoney(wipFoot.estimatedFinalCost),
+          costToDate: formatMoney(wipFoot.costToDate),
+          earned: formatMoney(wipFoot.earnedRevenue),
+          billed: formatMoney(wipFoot.billedToDate),
+          // Over and under each on their own line, as the CSV's two columns —
+          // a WIP total never nets one against the other.
+          billing: (
+            <View style={styles.tableCellEnd}>
+              {wipFoot.overbilled > 0 ? <Text style={styles.tableFootText}>{`Over ${formatMoney(wipFoot.overbilled)}`}</Text> : null}
+              {wipFoot.unbilled > 0 ? <Text style={styles.tableFootText}>{`Under ${formatMoney(wipFoot.unbilled)}`}</Text> : null}
+              {wipFoot.overbilled > 0 || wipFoot.unbilled > 0 ? null : <Text style={[styles.tableFootText, { color: themeColors.textMuted }]}>On earned value</Text>}
+            </View>
+          ),
+          retainage: formatMoney(wipFoot.retainageHeld),
+          // Struck on the measurable jobs, like the CSV TOTAL; unmeasured → '—'.
+          margin: wipFoot.measurable ? marginCellText(wipFoot.projectedMargin) : null,
+        }}
+        renderCard={r => (
         <View key={r.projectId} style={styles.row}>
           <View style={styles.rowHead}>
             <Text style={styles.rowTitle} numberOfLines={1}>{r.projectName}</Text>
@@ -595,17 +716,62 @@ function WIPView({ report, sharedJobCount }: { report: ReturnType<typeof compute
             </Text>
           )}
         </View>
-      ))}
+        )}
+      />
     </>
   );
 }
 
 // ─── Profit view ─────────────────────────────────────────────────────
 
+type ProfitReportRow = ReturnType<typeof computeProfitReport>['rows'][number];
+
+/** The health dot's word, from the band legend above the rows. */
+const HEALTH_WORD: Record<ProfitReportRow['health'], string> = { green: 'Good', yellow: 'Watch', red: 'Risk' };
+
 function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof computeProfitReport>; sharedJobCount: number }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const exclusion = reportExclusionLine(sharedJobCount, profit.excluded.unsigned, profit.excluded.unsignedContract);
+  // Desktop: the running margins as a table (utils/dashboardTables.profitCells).
+  // Its totals are the two headline figures only — profit and margin, both
+  // struck on the measurable jobs. Revenue carries no total on purpose.
+  const profitColumns: DataTableColumn<ProfitReportRow>[] = [
+    {
+      key: 'job', label: 'Job', flex: 1, minWidth: 180, sortValue: (r) => r.projectName,
+      render: (r) => (
+        <View style={styles.tableJobCell}>
+          <View style={[styles.healthDot, healthTone(r.health, themeColors)]} />
+          <Text style={styles.tableJobText} numberOfLines={1}>{r.projectName}</Text>
+        </View>
+      ),
+    },
+    { key: 'revenue', label: 'Revenue', width: 110, numeric: true, sortValue: (r) => profitCells(r).revenue, value: (r) => formatMoney(profitCells(r).revenue) },
+    { key: 'costToDate', label: 'Cost to date', width: 110, numeric: true, sortValue: (r) => profitCells(r).costToDate, value: (r) => formatMoney(profitCells(r).costToDate) },
+    { key: 'estFinal', label: 'Est. final cost', width: 110, numeric: true, sortValue: (r) => profitCells(r).estFinal, value: (r) => formatMoney(profitCells(r).estFinal) },
+    {
+      key: 'projectedProfit', label: 'Projected profit', width: 120, numeric: true,
+      sortValue: (r) => profitCells(r).profit,
+      render: (r) => {
+        const p = profitCells(r).profit;
+        return p == null
+          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]}>—</Text>
+          : <Text style={[styles.tableCellText, { color: p >= 0 ? themeColors.success : themeColors.danger }]} numberOfLines={1}>{formatMoney(p)}</Text>;
+      },
+    },
+    {
+      key: 'margin', label: 'Margin', width: 80, numeric: true,
+      sortValue: (r) => profitCells(r).margin,
+      render: (r) => {
+        const m = profitCells(r).margin;
+        return m == null
+          ? <Text style={[styles.tableCellText, { color: themeColors.textMuted }]} numberOfLines={1}>no cost basis</Text>
+          : <Text style={[styles.tableCellText, marginTextTone(m, themeColors)]} numberOfLines={1}>{marginCellText(m)}</Text>;
+      },
+    },
+    { key: 'health', label: 'Health', width: 90, sortValue: (r) => r.health, value: (r) => HEALTH_WORD[profitCells(r).health] },
+  ];
+  const profitFoot = profitFooter(profit);
   if (profit.rows.length === 0) {
     return (
       <>
@@ -645,7 +811,18 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
         <Band color={themeColors.danger}   label=" < 5% (risk)" />
       </View>
 
-      {profit.rows.map(r => (
+      <DataTable
+        tableId="reports-profit"
+        testID="reports-profit"
+        columns={profitColumns}
+        rows={profit.rows}
+        rowKey={(r) => r.projectId}
+        footerTotals={{
+          job: 'Portfolio',
+          projectedProfit: profitFoot.projectedProfit == null ? null : formatMoney(profitFoot.projectedProfit),
+          margin: profitFoot.margin == null ? null : marginCellText(profitFoot.margin),
+        }}
+        renderCard={r => (
         <View key={r.projectId} style={styles.row}>
           <View style={styles.rowHead}>
             <View style={[styles.healthDot, healthTone(r.health, themeColors)]} />
@@ -683,7 +860,8 @@ function ProfitView({ profit, sharedJobCount }: { profit: ReturnType<typeof comp
             </Text>
           )}
         </View>
-      ))}
+        )}
+      />
     </>
   );
 }
@@ -697,6 +875,48 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Desktop: the open invoices as a worklist table (utils/dashboardTables.
+  // agingCells — the card's own words and inks). Each row is a real link to
+  // its invoice (Cmd-click opens a new tab); a plain click opens it in place,
+  // through the same callback the card uses.
+  const agingColumns: DataTableColumn<ARAgingReport['rows'][number]>[] = [
+    { key: 'invoiceNumber', label: 'Invoice #', width: 70, sortValue: (r) => agingCells(r).invoiceNumber, value: (r) => `#${agingCells(r).invoiceNumber}` },
+    { key: 'job', label: 'Job', flex: 1, minWidth: 160, sortValue: (r) => agingCells(r).job, value: (r) => agingCells(r).job },
+    { key: 'issued', label: 'Issued', width: 96, hideBelow: 1100, sortValue: (r) => agingCells(r).issued, value: (r) => new Date(r.issueDate).toLocaleDateString() },
+    { key: 'due', label: 'Due', width: 96, sortValue: (r) => agingCells(r).due, value: (r) => new Date(r.dueDate).toLocaleDateString() },
+    { key: 'total', label: 'Total', width: 110, numeric: true, sortValue: (r) => agingCells(r).total, value: (r) => formatMoney(agingCells(r).total) },
+    { key: 'paid', label: 'Paid', width: 110, numeric: true, hideBelow: 1050, sortValue: (r) => agingCells(r).paid, value: (r) => formatMoney(agingCells(r).paid) },
+    { key: 'retainage', label: 'Retainage', width: 100, numeric: true, sortValue: (r) => agingCells(r).retainage, value: (r) => formatMoney(agingCells(r).retainage) },
+    {
+      key: 'outstanding', label: 'Outstanding', width: 120, numeric: true,
+      sortValue: (r) => agingCells(r).outstanding,
+      render: (r) => {
+        const c = agingCells(r);
+        return (
+          <Text
+            style={[styles.tableCellText, c.late && { color: themeColors.danger }, c.retainageOnly && { color: themeColors.textMuted }]}
+            numberOfLines={1}
+          >
+            {formatMoney(c.outstanding)}
+          </Text>
+        );
+      },
+    },
+    { key: 'daysPastDue', label: 'Days past due', width: 72, numeric: true, sortValue: (r) => agingCells(r).daysPastDue, value: (r) => agingCells(r).daysPastDue },
+    {
+      key: 'bucket', label: 'Bucket', width: 110,
+      render: (r) => {
+        const c = agingCells(r);
+        const pill = c.bucketTone === 'muted' ? styles.bucketPillMuted : c.bucketTone === 'warn' ? styles.bucketPillWarn : styles.bucketPillBad;
+        return (
+          <View style={[styles.bucketPill, pill]}>
+            <Text style={styles.bucketPillText} numberOfLines={1}>{c.bucketWord}</Text>
+          </View>
+        );
+      },
+    },
+  ];
+  const agingFoot = agingFooter(report.totals);
   if (report.rows.length === 0) {
     // "Every invoice is fully paid. Nice work." was printed on an account with
     // NO invoices at all — a success verdict computed from absent data, on the
@@ -745,7 +965,21 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
         </View>
       </View>
 
-      {report.rows.map(r => {
+      <DataTable
+        tableId="reports-aging"
+        testID="reports-aging"
+        columns={agingColumns}
+        rows={report.rows}
+        rowKey={(r) => r.invoiceId}
+        onRowOpen={onOpenInvoice}
+        getRowHref={(r) => routeHref('/invoice', { projectId: r.projectId, invoiceId: r.invoiceId })}
+        defaultSort={{ key: 'daysPastDue', dir: 'desc' }}
+        footerTotals={{
+          job: 'Total',
+          retainage: formatMoney(agingFoot.retainage),
+          outstanding: formatMoney(agingFoot.outstanding),
+        }}
+        renderCard={r => {
         const isRetainageOnly = r.outstanding <= 0.5;
         // Danger ink only for money that is actually LATE. A current balance is
         // not in danger, and a retainage-only row owes nothing collectible.
@@ -794,7 +1028,8 @@ function AgingView({ report, anyIssued, onOpenInvoice }: {
             </View>
           </TouchableOpacity>
         );
-      })}
+        }}
+      />
     </>
   );
 }
@@ -833,11 +1068,13 @@ function CostBasisLine(
   );
 }
 
-function SummaryStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function SummaryStat({ label, value, accent, style }: { label: string; value: string; accent?: string; style?: StyleProp<ViewStyle> }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // `style` is what TileGrid clones onto each tile on desktop (the computed
+  // column width); undefined on a phone, so the tile is today's 47% item.
   return (
-    <View style={styles.summaryStatItem}>
+    <View style={[styles.summaryStatItem, style]}>
       <Text style={styles.summaryStatLabel}>{label}</Text>
       <Text style={[styles.summaryStatValue, accent ? { color: accent } : null]}>{value}</Text>
     </View>
@@ -1041,4 +1278,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.28, shadowRadius: 10, elevation: 4,
   },
   actionBtnPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+
+  // The desktop tables' own cells (drawn only inside a desktop DataTable).
+  tableCellText: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontVariant: ['tabular-nums'], textAlign: 'right' },
+  tableFootText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, fontVariant: ['tabular-nums'], textAlign: 'right' },
+  tableCellEnd: { alignItems: 'flex-end', gap: 2 },
+  tableJobCell: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
+  tableJobText: { fontSize: Type.bodyCompact.fontSize, color: t.text, flexShrink: 1 },
 });

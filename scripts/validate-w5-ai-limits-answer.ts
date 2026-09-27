@@ -93,7 +93,7 @@ ok('mageAI: errorCode?: string added (CONTRACT 9)', /\n\s*errorCode\?: string;/.
 ok('mageAI: 429 carries the relay body.code', /errorKind: 'monthly_cap',\s*\n\s*errorCode: errorCode \?\? 'monthly_cap'/.test(mage));
 ok('mageAI: body.code read from the error body', /const errorCode = typeof errBody\?\.code === 'string' \? errBody\.code : undefined;/.test(mage));
 
-const ask = read('app/ask.tsx');
+const ask = read('components/brain/AskConversation.tsx');
 ok('ask: turn stores errorKind + errorCode', /errorKind: res\.errorKind,\s*\n\s*errorCode: res\.errorCode,/.test(ask));
 ok('ask: See plans only for monthly cap on Free/Pro, never the hourly limit',
   /t\.errorKind === 'monthly_cap' && t\.errorCode !== 'hourly_limit' && \(tier === 'free' \|\| tier === 'pro'\)/.test(ask));

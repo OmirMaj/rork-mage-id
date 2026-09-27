@@ -41,6 +41,12 @@ import { Layout, Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSidebarRail } from '@/hooks/useSidebarRail';
 import { webMotion } from '@/components/ui/motion';
+import { useJobRowCounts } from '@/hooks/useJobRowCounts';
+import type { CountedRow, RowCount } from '@/utils/sidebarCounts';
+import { RailHoverPill, RAIL, RAIL_PILL_HEIGHT, RAIL_PILL_LEFT } from '@/components/sidebar/RailHoverPill';
+import { SidebarActionRequiredRow } from '@/components/sidebar/SidebarActionRequiredRow';
+import { useAskDock } from '@/hooks/useAskDock';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
 
 interface NavItem {
   key: string;
@@ -77,6 +83,10 @@ interface NavItem {
    *  Undefined only for rows with no registry entry (Direct Hire, Messages —
    *  both HIRE_ENABLED-gated and filtered out below). */
   feature?: FeatureId;
+  /** Desktop web (wave 6d): the row toggles this shell dock beside the page
+   *  instead of navigating — 'ask' = the Ask MAGE dock (⌘J). `route` stays the
+   *  destination everywhere else (native desktop, and the parity greps). */
+  dock?: 'ask';
 }
 
 // ─── Information architecture (wave 6b, 2026-09-23) ───────────────────────
@@ -105,9 +115,12 @@ interface NavItem {
 // here — scripts/validate-nav-coverage.ts pins the full route list — it is the
 // ORDER that changed, not the reach.
 //
-// Live counts beside RFIs / COs / punch items are wave 6c. Until they are
-// computed from the same getters the project screens use, the rows show no
-// number at all rather than a wrong one.
+// Live counts (wave 6d, d6r K3): RFIs, Submittals, Change Orders and Punch
+// List carry the open count of the log they open — the SAME chip counters
+// (utils/sidebarCounts, proven equal by validate-nav-coverage), with a red dot
+// for overdue RFIs / late submittals. A row whose source has not loaded, has
+// failed, or has nothing open still shows no number at all rather than a wrong
+// one: never a 0, never a guess.
 //
 // This rail is one of four rendered nav surfaces; utils/featureRegistry.ts is
 // the source they all name. A row owns its label, icon and section (rail
@@ -178,7 +191,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'summary',           label: 'Summary',          icon: MageSummary,     route: '/(tabs)/summary',                  section: 'WORKSPACE', feature: 'summary' },
   { key: 'waiting-on',        label: 'Waiting on Others', icon: Inbox,          route: '/waiting-on',                       section: 'WORKSPACE', feature: 'waiting-on' },
   { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,      route: '/portfolio-margin',                 section: 'WORKSPACE', feature: 'margin-board' },
-  { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE', feature: 'ask-mage' },
+  { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE', feature: 'ask-mage', dock: 'ask' },
   // "Inbox" is the notifications inbox (app/notifications-inbox.tsx) — the
   // place things addressed to you land. It moved up from ACCOUNT because it is
   // work, not settings.
@@ -324,32 +337,95 @@ const JOB_TOOL_ROUTES: ReadonlyMap<string, Route> = new Map<string, Route>([
 ]);
 
 // The rail paints its own dark ground in BOTH themes (self-darkening chrome,
-// scripts/validate-theme-baking.ts), so its inks are white alphas rather than
-// theme tokens. The one themed fill is the active row (colors.accentFill).
-const RAIL = {
-  ground: '#1C1C1E',
-  ink: '#FFFFFF',
-  label: 'rgba(255,255,255,0.6)',
-  dim: 'rgba(255,255,255,0.45)',
-  muted: 'rgba(255,255,255,0.3)',
-  hover: 'rgba(255,255,255,0.06)',
-  rule: 'rgba(255,255,255,0.06)',
-} as const;
+// scripts/validate-theme-baking.ts): RAIL (white-alpha inks, not theme tokens)
+// lives beside the hover pill in components/sidebar/RailHoverPill.tsx, so the
+// rail, its pill and the Action Required row paint from one palette.
 
 interface DesktopSidebarProps {
   width: number;
 }
 
-/** A native tooltip on web: RN-web forwards no `title` prop, so the attribute
- *  is set on the DOM node (and mirrored in data-title for tests). Native gets
- *  a plain View; the label is on the control's accessibilityLabel either way. */
-function RailTip({ label, children }: { label: string; children: React.ReactNode }) {
+/** A hovered / focused rail square in VIEWPORT px (its getBoundingClientRect),
+ *  plus the rail container's left edge — the pill is portalled to
+ *  document.body with position: fixed (see RailHoverPill). */
+type RailHover = (label: string | null, rect?: { top: number; height: number; railLeft: number }) => void;
+/** The slice of a DOM node RailTip touches (RN-web refs are the DOM node). */
+type RailDomNode = {
+  addEventListener?: (type: string, fn: () => void) => void;
+  removeEventListener?: (type: string, fn: () => void) => void;
+  getBoundingClientRect?: () => { top: number; left: number; height: number };
+};
+
+/** Measure a control's top edge in window px (RN-web: async, from its DOM
+ *  rect), then continue — so CreateMenu opens once, already at its anchor.
+ *  A node that cannot be measured continues with null (the menu centres). */
+function measureTop(ref: React.RefObject<View | null>, then: (y: number | null) => void): void {
+  const node = ref.current;
+  if (!node || typeof node.measureInWindow !== 'function') { then(null); return; }
+  node.measureInWindow((_x, y) => then(Number.isFinite(y) ? y : null));
+}
+
+/** A counted row's badge data, looked up by NavItem key (undefined for rows
+ *  that carry no count). */
+type JobCounts = Partial<Record<CountedRow, RowCount>>;
+function countOf(counts: JobCounts | undefined, key: string): RowCount | undefined {
+  return counts ? (counts as Partial<Record<string, RowCount>>)[key] : undefined;
+}
+
+/** Runs useJobRowCounts ONLY where the THIS JOB rows render (contract D16):
+ *  a render-prop child, so the sidebar's own hook list never changes. */
+function JobRowCounts({ jobId, children }: { jobId: string | null; children: (counts: JobCounts) => React.ReactNode }) {
+  const counts = useJobRowCounts(jobId);
+  return <>{children(counts)}</>;
+}
+
+/** The collapsed rail's label (wave 6d): on web, hovering or focusing the
+ *  square reports its rect to the sidebar, which draws the instant
+ *  RailHoverPill beside it. There is deliberately NO native `title` tooltip any
+ *  more — it arrived a second late and would show on top of the pill. The
+ *  label stays in data-title (for tests) and on the control's
+ *  accessibilityLabel. Native gets a plain View and no listeners. */
+function RailTip({ label, children, onHover, containerRef }: {
+  label: string;
+  children: React.ReactNode;
+  onHover?: RailHover;
+  containerRef?: React.RefObject<View | null>;
+}) {
   const ref = useRef<View>(null);
+  const labelRef = useRef(label);
+  const showing = useRef(false);
+  const report = useCallback(() => {
+    const node = ref.current as unknown as RailDomNode | null;
+    const r = node?.getBoundingClientRect?.();
+    if (!onHover || !r) return;
+    const c = (containerRef?.current as unknown as RailDomNode | null)?.getBoundingClientRect?.();
+    onHover(labelRef.current, { top: r.top, height: r.height, railLeft: c?.left ?? 0 });
+  }, [onHover, containerRef]);
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const node = ref.current as unknown as { setAttribute?: (k: string, v: string) => void } | null;
-    node?.setAttribute?.('title', label);
-  }, [label]);
+    if (Platform.OS !== 'web' || !onHover) return;
+    const node = ref.current as unknown as RailDomNode | null;
+    if (!node?.addEventListener || !node.removeEventListener) return;
+    const enter = () => { showing.current = true; report(); };
+    const leave = () => { showing.current = false; onHover(null); };
+    node.addEventListener('mouseenter', enter);
+    node.addEventListener('focusin', enter);
+    node.addEventListener('mouseleave', leave);
+    node.addEventListener('focusout', leave);
+    return () => {
+      node.removeEventListener?.('mouseenter', enter);
+      node.removeEventListener?.('focusin', enter);
+      node.removeEventListener?.('mouseleave', leave);
+      node.removeEventListener?.('focusout', leave);
+      // A square that unmounts under the pointer (a route change drops the
+      // Overview square) never fires mouseleave: clear its pill here.
+      if (showing.current) { showing.current = false; onHover(null); }
+    };
+  }, [onHover, report]);
+  // The label changed while its pill is up (a count moved): re-read it.
+  useEffect(() => {
+    labelRef.current = label;
+    if (showing.current) report();
+  }, [label, report]);
   return (
     <View
       ref={ref}
@@ -373,10 +449,29 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const { userRole, projects } = useCoreData();
   const { activeProjectId, activeProject, recentProjectIds } = useActiveProject();
   const [createOpen, setCreateOpen] = useState(false);
+  // Where CreateMenu's desktop popover opens (wave 6d): beside the '+' that
+  // opened it — the sidebar's right edge + Layout.menu.offset, at the button's
+  // top. null = centred (CreateMenu's own default).
+  const [createAnchor, setCreateAnchor] = useState<{ x: number; y: number } | null>(null);
+  const newRef = useRef<View>(null);
+  const railNewRef = useRef<View>(null);
   // The 64 px icon rail (wave 6c): canvas routes (Schedule Pro, the plan
   // viewer) default to it, Cmd/Ctrl+Backslash or the header button toggles
   // it, remembered per kind of route (utils/sidebarRail).
   const { collapsed, toggle: toggleRail } = useSidebarRail();
+  // The collapsed rail's instant hover label (wave 6d): the hovered square's
+  // label and rect, relative to the rail container (railRef). Cleared whenever
+  // the rail expands or collapses — the square it pointed at is gone.
+  const railRef = useRef<View>(null);
+  const [hoverTip, setHoverTip] = useState<{ label: string; top: number; height: number; railLeft: number } | null>(null);
+  const onRailHover = useCallback<RailHover>((label, rect) => {
+    setHoverTip(label !== null && rect ? { label, top: rect.top, height: rect.height, railLeft: rect.railLeft } : null);
+  }, []);
+  useEffect(() => { setHoverTip(null); }, [collapsed]);
+  // Browser-only behaviour (the Ask dock toggle, the Action Required dock row)
+  // sits behind useIsDesktopWeb(); native desktop keeps today's rows.
+  const isDesktopWeb = useIsDesktopWeb();
+  const { toggleAsk, isAskOpen } = useAskDock();
 
   // Mirror the tab bar's isMinimalPersona (app/(tabs)/_layout.tsx): both
   // client AND property_manager get the minimal nav. Previously the sidebar
@@ -475,7 +570,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     active ? { backgroundColor: colors.accentFill } : s.hovered ? styles.navItemHovered : null,
   ], [colors.accentFill]);
 
-  const renderNavItem = useCallback((item: NavItem, dimmed = false) => {
+  const renderNavItem = useCallback((item: NavItem, dimmed = false, count?: RowCount) => {
     const active = isActiveRoute(pathname, item);
     const Icon = item.icon;
     // Gate read from the registry, never from a field on the row — see NavItem.
@@ -486,6 +581,47 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     const locked = !asProfile && !!requires && !canAccess(requires);
     const label = asProfile ? 'My Profile' : item.label;
     const baseColor = dimmed ? RAIL.dim : RAIL.label;
+    // The live count (wave 6d) — only from useJobRowCounts via <JobRowCounts>,
+    // and never beside a lock badge.
+    const pill = !locked ? count : undefined;
+
+    // Ask MAGE on desktop web (wave 6d): a ⌘J toggle for the dock beside the
+    // page, not a link away from it. Lit while the dock is really drawn (or on
+    // the /ask page itself, where the dock is suppressed).
+    if (item.dock && isDesktopWeb) {
+      const lit = isAskOpen || active;
+      return (
+        <Pressable
+          key={item.key}
+          style={(s) => rowStyle(lit)(s as RowLinkState)}
+          onPress={toggleAsk}
+          testID="sidebar-ask-mage"
+          accessibilityRole="button"
+          accessibilityLabel="Ask MAGE, opens beside the page"
+          accessibilityState={{ expanded: isAskOpen }}
+          // RN-web reads aria-expanded, not accessibilityState.
+          aria-expanded={isAskOpen}
+        >
+          {(state) => {
+            const hovered = (state as RowLinkState).hovered;
+            return (
+              <>
+                <Icon size={16} color={lit || hovered ? RAIL.ink : baseColor} strokeWidth={lit ? 2.2 : 1.8} />
+                <Text
+                  style={[styles.navLabel, lit && styles.navLabelActive, hovered && !lit && styles.navLabelHovered]}
+                  numberOfLines={1}
+                >
+                  {label}
+                </Text>
+                <View style={styles.kbdWrap}>
+                  <Text style={styles.kbd}>⌘J</Text>
+                </View>
+              </>
+            );
+          }}
+        </Pressable>
+      );
+    }
 
     return (
       <RowLink
@@ -494,7 +630,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         style={rowStyle(active)}
         selected={active}
         testID={`sidebar-${item.key}`}
-        accessibilityLabel={`${label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
+        accessibilityLabel={`${label}${locked ? ' (requires upgrade)' : ''}${pill ? `, ${pill.label}` : ''}${active ? ', current page' : ''}`}
       >
         {({ hovered }: RowLinkState) => (
           <>
@@ -519,37 +655,75 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                 <Lock size={10} color="rgba(255,255,255,0.55)" strokeWidth={2.2} />
               </View>
             )}
+            {pill && (
+              <View style={styles.countPill} testID={`sidebar-count-${item.key}`}>
+                {pill.alert > 0 ? <View style={[styles.countDot, { backgroundColor: colors.danger }]} testID={`sidebar-count-dot-${item.key}`} /> : null}
+                <Text style={styles.countPillLabel}>{pill.pill}</Text>
+              </View>
+            )}
           </>
         )}
       </RowLink>
     );
-  }, [pathname, canAccess, claimedCrewWorker, hrefFor, rowStyle]);
+  }, [pathname, canAccess, claimedCrewWorker, hrefFor, rowStyle, colors.danger, isDesktopWeb, isAskOpen, toggleAsk]);
 
-  /** The collapsed rail's square: the icon alone, the label in the a11y
-   *  label and the web tooltip. Same href, gate and active state as the row. */
-  const renderRailItem = useCallback((item: NavItem) => {
+  /** The collapsed rail's square: the icon alone, the label (with its live
+   *  count) in the a11y label and the instant hover pill. Same href, gate and
+   *  active state as the row; a 6 px red dot when the count has an alert. */
+  const renderRailItem = useCallback((item: NavItem, count?: RowCount) => {
     const active = isActiveRoute(pathname, item);
     const Icon = item.icon;
     const requires = item.feature ? featureFor(item.feature).requires : undefined;
     const asProfile = item.feature === 'crew' && claimedCrewWorker && !!requires && !canAccess(requires);
     const locked = !asProfile && !!requires && !canAccess(requires);
     const label = asProfile ? 'My Profile' : item.label;
+    const pill = !locked ? count : undefined;
+    if (item.dock && isDesktopWeb) {
+      return (
+        <RailTip key={item.key} label={`${label} (⌘J)`} onHover={onRailHover} containerRef={railRef}>
+          <Pressable
+            style={(s) => railRowStyle(isAskOpen || active)(s as RowLinkState)}
+            onPress={toggleAsk}
+            testID="sidebar-ask-mage"
+            accessibilityRole="button"
+            accessibilityLabel="Ask MAGE, opens beside the page"
+            accessibilityState={{ expanded: isAskOpen }}
+            // RN-web reads aria-expanded, not accessibilityState.
+            aria-expanded={isAskOpen}
+          >
+            {(state) => (
+              <Icon size={18} color={isAskOpen || active || (state as RowLinkState).hovered ? RAIL.ink : RAIL.label} strokeWidth={isAskOpen || active ? 2.2 : 1.8} />
+            )}
+          </Pressable>
+        </RailTip>
+      );
+    }
     return (
-      <RailTip key={item.key} label={`${label}${locked ? ' (requires upgrade)' : ''}`}>
+      <RailTip
+        key={item.key}
+        label={`${label}${locked ? ' (requires upgrade)' : ''}${pill ? ` · ${pill.label}` : ''}`}
+        onHover={onRailHover}
+        containerRef={railRef}
+      >
         <RowLink
           href={hrefFor(item)}
           style={railRowStyle(active)}
           selected={active}
           testID={`sidebar-${item.key}`}
-          accessibilityLabel={`${label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
+          accessibilityLabel={`${label}${locked ? ' (requires upgrade)' : ''}${pill ? `, ${pill.label}` : ''}${active ? ', current page' : ''}`}
         >
           {({ hovered }: RowLinkState) => (
-            <Icon size={18} color={active || hovered ? RAIL.ink : RAIL.label} strokeWidth={active ? 2.2 : 1.8} />
+            <>
+              <Icon size={18} color={active || hovered ? RAIL.ink : RAIL.label} strokeWidth={active ? 2.2 : 1.8} />
+              {pill && pill.alert > 0 ? (
+                <View style={[styles.railCountDot, { backgroundColor: colors.danger }]} testID={`sidebar-rail-dot-${item.key}`} />
+              ) : null}
+            </>
           )}
         </RowLink>
       </RailTip>
     );
-  }, [pathname, canAccess, claimedCrewWorker, hrefFor, railRowStyle]);
+  }, [pathname, canAccess, claimedCrewWorker, hrefFor, railRowStyle, onRailHover, colors.danger, isDesktopWeb, isAskOpen, toggleAsk]);
 
   // Group chevrons glide (slicker pass): a toggle the GC has pressed renders
   // one chevron that rotates; an untouched one — the rail at rest, every
@@ -591,6 +765,8 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     <CreateMenu
       visible={createOpen}
       onClose={() => setCreateOpen(false)}
+      anchor={createAnchor ?? undefined}
+      activeJob={!!jobId}
       // "Project" opens Home's own create sheet (?openCreate=1, consumed by
       // app/(tabs)/(home)/index.tsx) — one create-project flow, not two.
       onCreateProject={() => {
@@ -610,6 +786,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     const jobInitial = activeProject?.name?.trim().charAt(0).toUpperCase() || null;
     return (
       <View
+        ref={railRef}
         style={[styles.container, styles.containerRail, { width, paddingTop: insets.top + 10, paddingBottom: insets.bottom + 10 }]}
         accessibilityRole={Platform.OS === 'web' ? ('navigation' as never) : undefined}
         accessibilityLabel="Primary navigation"
@@ -620,7 +797,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
           </View>
         </View>
 
-        <RailTip label="Search (⌘K)">
+        <RailTip label="Search (⌘K)" onHover={onRailHover} containerRef={railRef}>
           <Pressable
             style={(s) => [styles.railItem, (s as RowLinkState).hovered && styles.navItemHovered]}
             onPress={openSearch}
@@ -633,10 +810,14 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         </RailTip>
 
         {!isMinimalPersona && (
-          <RailTip label="New">
+          <RailTip label="New" onHover={onRailHover} containerRef={railRef}>
             <Pressable
+              ref={railNewRef}
               style={(s) => [styles.railItem, (s as RowLinkState).hovered && styles.navItemHovered]}
-              onPress={() => setCreateOpen(true)}
+              onPress={() => measureTop(railNewRef, (y) => {
+                setCreateAnchor(y === null ? null : { x: Layout.sidebar.rail + Layout.menu.offset, y });
+                setCreateOpen(true);
+              })}
               testID="sidebar-new"
               accessibilityRole="button"
               accessibilityLabel="New: create a project, estimate, RFI, invoice or anything else"
@@ -647,7 +828,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         )}
 
         {!isMinimalPersona && jobInitial && (
-          <RailTip label={`${activeProject?.name ?? 'This job'}: expand to switch jobs`}>
+          <RailTip label={`${activeProject?.name ?? 'This job'}: expand to switch jobs`} onHover={onRailHover} containerRef={railRef}>
             <Pressable
               style={[styles.jobChip, { backgroundColor: colors.accentFill }]}
               onPress={toggleRail}
@@ -666,7 +847,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
           ) : (
             <>
               {activeProjectId ? (
-                <RailTip label="Overview">
+                <RailTip label="Overview" onHover={onRailHover} containerRef={railRef}>
                   <RowLink
                     href={routeHref('/project-detail', { id: activeProjectId })}
                     style={railRowStyle(overviewActive)}
@@ -680,7 +861,9 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                   </RowLink>
                 </RailTip>
               ) : null}
-              {itemsIn(JOB_SECTION).map(item => renderRailItem(item))}
+              <JobRowCounts jobId={jobId}>
+                {counts => itemsIn(JOB_SECTION).map(item => renderRailItem(item, countOf(counts, item.key)))}
+              </JobRowCounts>
               <View style={styles.railDivider} />
               {itemsIn(WORKSPACE_SECTION).map(item => renderRailItem(item))}
             </>
@@ -689,8 +872,13 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
 
         <View style={styles.accountSection}>
           <View style={styles.footerDivider} />
+          {!isMinimalPersona && isDesktopWeb && (
+            <RailTip label="Action Required" onHover={onRailHover} containerRef={railRef}>
+              <SidebarActionRequiredRow collapsed />
+            </RailTip>
+          )}
           {settingsItem ? renderRailItem(settingsItem) : null}
-          <RailTip label="Expand sidebar (⌘\)">
+          <RailTip label="Expand sidebar (⌘\)" onHover={onRailHover} containerRef={railRef}>
             <Pressable
               style={(s) => [styles.railItem, (s as RowLinkState).hovered && styles.navItemHovered]}
               onPress={toggleRail}
@@ -704,6 +892,18 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         </View>
 
         {createMenu}
+
+        {/* The hover label — LAST child, outside the nav ScrollView (which
+            clips at 64 px), centred on the hovered square. On web it is
+            portalled to document.body (fixed, viewport px): inside the
+            sidebar the page View would paint over it. */}
+        {hoverTip && (
+          <RailHoverPill
+            label={hoverTip.label}
+            top={hoverTip.top + hoverTip.height / 2 - RAIL_PILL_HEIGHT / 2}
+            left={hoverTip.railLeft + RAIL_PILL_LEFT}
+          />
+        )}
       </View>
     );
   }
@@ -750,17 +950,26 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
 
       {!isMinimalPersona && (
         <View style={styles.topBlock}>
-          <JobSwitcher hrefForJob={hrefForJob} />
-          <Pressable
-            style={(s) => [styles.navItem, styles.newItem, (s as RowLinkState).hovered && styles.navItemHovered]}
-            onPress={() => setCreateOpen(true)}
-            testID="sidebar-new"
-            accessibilityRole="button"
-            accessibilityLabel="New: create a project, estimate, RFI, invoice or anything else"
-          >
-            <Plus size={16} color={RAIL.ink} strokeWidth={2} />
-            <Text style={[styles.navLabel, styles.navLabelHovered]}>New</Text>
-          </Pressable>
+          {/* The job switcher and '+ New' share one row (wave 6d): the '+'
+              opens CreateMenu beside the sidebar, for the job in the switcher. */}
+          <View style={styles.topBlockRow}>
+            <View style={styles.jobSwitcherSlot}>
+              <JobSwitcher hrefForJob={hrefForJob} />
+            </View>
+            <Pressable
+              ref={newRef}
+              style={(s) => [styles.newButton, (s as RowLinkState).hovered && styles.newButtonHovered]}
+              onPress={() => measureTop(newRef, (y) => {
+                setCreateAnchor(y === null ? null : { x: width + Layout.menu.offset, y });
+                setCreateOpen(true);
+              })}
+              testID="sidebar-new"
+              accessibilityRole="button"
+              accessibilityLabel="New: create a project, estimate, RFI, invoice or anything else"
+            >
+              <Plus size={16} color={RAIL.ink} strokeWidth={2} />
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -798,7 +1007,9 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                   )}
                 </RowLink>
               ) : null}
-              {itemsIn(JOB_SECTION).map(item => renderNavItem(item))}
+              <JobRowCounts jobId={jobId}>
+                {counts => itemsIn(JOB_SECTION).map(item => renderNavItem(item, false, countOf(counts, item.key)))}
+              </JobRowCounts>
               {renderToggle(MORE_TOGGLE, 'More for this job', moreOpen, MORE_JOB_SECTIONS)}
               {moreOpen && MORE_JOB_SECTIONS.map(sub => (
                 <View key={sub} style={styles.subGroup}>
@@ -863,6 +1074,9 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       {accountItems.length > 0 && (
         <View style={styles.accountSection}>
           <View style={styles.footerDivider} />
+          {/* Action Required (wave 6d): the attention list, opened in the dock
+              beside the page — first in the footer, above the account rows. */}
+          {!isMinimalPersona && isDesktopWeb && <SidebarActionRequiredRow />}
           {accountItems.map(item => renderNavItem(item, true))}
         </View>
       )}
@@ -1055,8 +1269,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: RAIL.rule,
   },
-  newItem: {
-    marginTop: 2,
+  topBlockRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+  },
+  jobSwitcherSlot: {
+    flex: 1,
+    minWidth: 0,
+  },
+  // '+ New' beside the job switcher: a 40×40 square, level with its trigger.
+  newButton: {
+    width: Layout.control.md,
+    height: Layout.control.md,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: RAIL.hover,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginLeft: Layout.rowGap,
+  },
+  newButtonHovered: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   kbdWrap: {
     marginLeft: 'auto' as const,
@@ -1094,6 +1326,38 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: 'rgba(255,255,255,0.15)',
     marginTop: 2,
+  },
+  // The THIS JOB count pill (wave 6d): RAIL constants, never a themed surface.
+  countPill: {
+    marginLeft: 'auto' as const,
+    flexDirection: 'row' as const,
+    gap: 4,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  countPillLabel: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: RAIL.label,
+  },
+  countDot: {
+    width: 6,
+    height: 6,
+    borderRadius: Tokens.radius.full,
+  },
+  // The collapsed rail's alert dot, top-right of the 40 px square.
+  railCountDot: {
+    position: 'absolute' as const,
+    top: 6,
+    right: 6,
+    width: 6,
+    height: 6,
+    borderRadius: Tokens.radius.full,
   },
   lockBadge: {
     marginLeft: 'auto' as const,

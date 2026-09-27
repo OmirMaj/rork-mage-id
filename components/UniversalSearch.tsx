@@ -60,6 +60,8 @@ import { Tokens } from '@/constants/designTokens';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
 import { useReducedMotion, webMotion } from '@/components/ui';
+import { useAskDock } from '@/hooks/useAskDock';
+import CommandPalette from '@/components/search/CommandPalette';
 
 // ---------------------------------------------------------------------------
 // Storage
@@ -182,6 +184,8 @@ export default function UniversalSearch() {
   const desktopWeb = useIsDesktopWeb();
   // Read as state so the pop-in class follows a Reduce Motion toggle.
   const reduceMotion = useReducedMotion();
+  // Desktop web: Ask MAGE docks beside the page instead of replacing it.
+  const { openAsk } = useAskDock();
 
   // MAGE Brain quick actions — the surface does more than navigate: ask it
   // (chat), speak to it (voice capture), get help. Close the search sheet
@@ -189,8 +193,9 @@ export default function UniversalSearch() {
   // 350ms guard the nav handlers use).
   const handleAskMage = useCallback(() => {
     closeSearch();
+    if (desktopWeb) { openAsk(); return; }
     setTimeout(() => router.push('/ask'), Platform.OS === 'ios' ? 350 : 0);
-  }, [closeSearch, router]);
+  }, [closeSearch, router, desktopWeb, openAsk]);
   const handleVoice = useCallback(() => {
     closeSearch();
     setTimeout(() => openVoice(), Platform.OS === 'ios' ? 350 : 0);
@@ -354,6 +359,33 @@ export default function UniversalSearch() {
   // Desktop web (Cmd+K): the palette fades and pops in instead of sliding up
   // from the bottom of a 945 px window. The phone is unchanged.
   const popIn = desktopWeb && !reduceMotion ? webMotion('popIn') : null;
+
+  // Desktop web (wave 6d restore, K2): Cmd+K is the command palette — lanes
+  // for jobs, creating, Ask, destinations and records, driven by the arrow
+  // keys. After every hook above, so crossing 900 px never changes the hook
+  // count; the phone sheet below is untouched.
+  if (desktopWeb) return <CommandPalette
+    isOpen={isOpen}
+    onClose={closeSearch}
+    query={query}
+    setQuery={setQuery}
+    inputRef={inputRef}
+    tier={tier}
+    records={KIND_ORDER.flatMap(kind => grouped[kind] ?? [])}
+    isSearching={isSearching}
+    recent={recent}
+    onFeature={handleFeaturePress}
+    onResult={handleResultPress}
+    onRecent={handleRecentPress}
+    onRan={(q) => { void persistRecent(q); }}
+    onVoice={handleVoice}
+    onHelp={handleHelp}
+    canAccess={canAccess}
+    requiredTierFor={requiredTierFor}
+    featureIcon={FEATURE_ICON}
+    kindIcon={KIND_ICON}
+    kindLabel={KIND_LABEL}
+  />;
 
   return (
     <Modal

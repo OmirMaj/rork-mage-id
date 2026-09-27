@@ -86,7 +86,8 @@ import DailyLogCard from '@/components/home/DailyLogCard';
 import { showAlert } from '@/utils/alert';
 // Wave 6c, lane F — the desktop portfolio. Everything below renders only on the
 // desktop branch or appends a style that is null on a phone.
-import { useShellDock } from '@/components/desktop/ShellDock';
+import { useShellDock, ATTENTION_DOCK_ID } from '@/components/desktop/ShellDock';
+import { useAskDock } from '@/hooks/useAskDock';
 import { NoticeStrip, type Notice } from '@/components/desktop/NoticeStrip';
 import { FormGrid, FormField } from '@/components/desktop/FormGrid';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -162,6 +163,9 @@ export default function HomeScreen() {
   // Browser-only behaviour (Enter-to-create in the New Project fields) is
   // gated on desktop WEB: isDesktop is also true on a >= 1024 native window.
   const desktopWeb = useIsDesktopWeb();
+  // Desktop web: Ask MAGE docks beside Home instead of replacing it.
+  const isDesktopWeb = desktopWeb;
+  const { openAsk } = useAskDock();
   // Use the dense ProjectRow at tablet+ widths. On phone we keep the
   // ProjectCard pattern — stacked metas read better on narrow screens.
   const useDenseRows = !responsive.isPhone;
@@ -176,12 +180,17 @@ export default function HomeScreen() {
     // that question, so it has to know which (audit 2026-09-07).
     sourceFailed, retryRemoteReads,
   } = projectCtx;
-  // ONE rule for "is the action rail up" — lane S's actionRailVisible, the
-  // same call the tabs layout makes to mount it (Home index, window >= 1280,
-  // not a client or property manager, the shell dock empty). While it is up
-  // the rail IS the attention list, so this screen leaves the inline Smart
-  // Inbox (and, on desktop, Brain Watch, Ready to Bill, the daily-log card and
-  // the warranty banner) out instead of drawing the same list twice.
+  // ONE rule for "is the attention list on screen elsewhere (rail or
+  // docked)". The rail: lane S's actionRailVisible, the same call the tabs
+  // layout makes to mount it (Home index, window >= 1280, not a client or
+  // property manager, the shell dock empty). Docked: the sidebar's Action
+  // Required row put the same list in the shell dock ('attention', not hidden
+  // by Cmd+J). Either way this screen leaves the inline Smart Inbox (and, on
+  // desktop, Brain Watch, Ready to Bill, the daily-log card and the warranty
+  // banner) out instead of drawing the same list twice. (D9 named exception 1:
+  // the docked list reads useBrainWatch, which has no loaded flag — it can
+  // undercount before its sources load exactly as the rail and these cards
+  // do; nothing here claims more.) The phone's NOOP dock has id null.
   const dock = useShellDock();
   const railShowing = actionRailVisible({
     isDesktop: responsive.isDesktop,
@@ -189,7 +198,7 @@ export default function HomeScreen() {
     segments: ['(tabs)', '(home)'],
     userRole,
     dockOpen: dock.content != null,
-  });
+  }) || (dock.id === ATTENTION_DOCK_ID && !dock.hidden);
   const { user } = useAuth();
   // "Try a sample project" — un-gated as of the explainability refresh.
   // Original design had this owner-only because we worried users would
@@ -421,6 +430,11 @@ export default function HomeScreen() {
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [showNextStepModal, setShowNextStepModal] = useState(false);
   const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
+  // Desktop web: where the portfolio table's ⋯ was pressed — the action menu
+  // opens as a popover there. Kept WITH the ref it was pressed for, so a menu
+  // opened any other way (a long press, a card) gets the centred sheet and
+  // never a stale point.
+  const [actionAnchor, setActionAnchor] = useState<{ ref: EntityRef; at: { x: number; y: number } } | null>(null);
 
   // The Outstanding total used to anchor a stat tile up top — we kept the
   // computation reachable to other places that may inspect state via the
@@ -795,7 +809,7 @@ export default function HomeScreen() {
     // the home AI section; opens the /ask chat.
     askMage: (
       <TouchableOpacity
-        onPress={() => router.push('/ask' as never)}
+        onPress={() => { if (isDesktopWeb) { openAsk(); return; } router.push('/ask' as never); }}
         activeOpacity={0.85}
         testID="home-ask-mage"
         style={[{
@@ -868,7 +882,7 @@ export default function HomeScreen() {
         )}
       </View>
     ),
-  }), [projects, invoices, tier, showAIBriefing, themeColors, router, responsive.isDesktop, styles]);
+  }), [projects, invoices, tier, showAIBriefing, themeColors, router, responsive.isDesktop, styles, isDesktopWeb, openAsk]);
 
   const projectsFooterExtras = useMemo(() => {
     if (projects.length === 0) return null;
@@ -1111,7 +1125,11 @@ export default function HomeScreen() {
           burnByProject={burnByProject}
           highlightId={justCreatedId}
           onOpenProject={handleProjectPress}
-          onOpenActions={(p) => setActionSheetRef({ kind: 'project', id: p.id, label: p.name })}
+          onOpenActions={(p, a) => {
+            const ref: EntityRef = { kind: 'project', id: p.id, label: p.name };
+            setActionSheetRef(ref);
+            setActionAnchor(a ? { ref, at: a } : null);
+          }}
           stageChips={
             <SegmentedControl<StatusFilter>
               // Lifecycle order, in utils/projectStage's words. The keys are
@@ -1815,7 +1833,8 @@ export default function HomeScreen() {
 
       <EntityActionSheet
         entityRef={actionSheetRef}
-        onClose={() => setActionSheetRef(null)}
+        anchor={actionAnchor && actionAnchor.ref === actionSheetRef ? actionAnchor.at : null}
+        onClose={() => { setActionSheetRef(null); setActionAnchor(null); }}
         // The one verb the handler below performs. The sheet shows no mutating
         // verb that nobody handles, so naming it here is what makes it appear.
         callerVerbs={actionSheetRef?.kind === 'project' ? ['duplicate'] : []}

@@ -17,6 +17,12 @@ import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { ChipRail, useIsDesktopWeb, useSheetFrame } from '@/components/ui';
+import { DashboardColumns } from '@/components/desktop/DashboardColumns';
+import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
+import { ToolbarActions, type ToolbarAction } from '@/components/desktop/ToolbarActions';
+import { printToolbarAction } from '@/components/desktop/printAction';
+import { wipCostSourceTag, wipScheduleCells, wipScheduleFooter } from '@/utils/dashboardTables';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -1084,6 +1090,135 @@ function WipReportScreenInner() {
     catch (err) { showAlert('Export failed', pdfFailureMessage(err, 'Could not generate the WIP PDF.')); }
   }, [exportPeriod, settings]);
 
+  // THE HEADER'S PRINT AND EXPORT CSV (desktop only — contract D18). OBJECT
+  // form, never a second JSX press prop naming an export handler:
+  // validate-wip's pinButton holds each export handler to exactly one on-page
+  // button, the one in the Periods card, and that one stays. Built here rather than beside
+  // `canExport` because it closes over the two handlers above. A blocked
+  // action stays visible and says why (the same NOTHING_TO_REPORT the in-page
+  // buttons carry); the press is synchronous, so the PDF's pop-up keeps the
+  // click's user activation on the web.
+  const toolbar = useMemo((): ToolbarAction[] => [
+    printToolbarAction({
+      onPrint: () => { void handleExportPdf(); },
+      blockedReason: canExport ? null : NOTHING_TO_REPORT,
+      testID: 'wip-print',
+    }),
+    {
+      key: 'csv',
+      label: 'Export CSV',
+      icon: FileSpreadsheet,
+      onPress: () => { void handleExportCsv(); },
+      disabled: !canExport,
+      disabledReason: canExport ? null : NOTHING_TO_REPORT,
+      testID: 'wip-toolbar-csv',
+    },
+  ], [handleExportPdf, handleExportCsv, canExport]);
+
+  /**
+   * One row's watch flags — the per-row derivation the phone list has always
+   * run, moved out of the map verbatim so the desktop table reads the same
+   * answer (a pure refactor: the phone row calls it exactly where the inline
+   * code sat).
+   */
+  const rowFlagState = (r: WipSnapshotRowWithSources) => {
+    const prior = comparisonPeriod?.rows.find((pr) => pr.projectId === r.projectId)?.output;
+    // The schedule cross-check only means anything against TODAY's
+    // schedule, so it is passed for live rows only — a frozen March row
+    // compared to June's progress would flag a divergence that did not
+    // exist in March.
+    const evm = viewingFrozen
+      ? undefined
+      : (() => {
+        const sched = schedulePercentByProject.get(r.projectId);
+        return sched == null ? undefined : { schedulePercent: sched };
+      })();
+    const flags = flagWipRow(r.output, prior, evm);
+    const rowCost = viewingFrozen ? undefined : costBases.get(r.projectId);
+    // A LOSS JOB IS THE FLAG. `anticipatedLoss` was excluded from this
+    // expression, so the one condition the engine treats as an
+    // accounting event — the full ASC 605-35 provision — was the one
+    // condition the list did not mark, and the only place it appeared
+    // was inside a per-project modal the GC reading the list never
+    // opens.
+    const flagged = r.output.anticipatedLoss
+      || flags.profitFade || flags.billingSwing || flags.scheduleDivergence;
+    return { rowCost, flagged };
+  };
+
+  // ── Desktop web: the projects TABLE (the phone keeps its rows) ──────────
+  // Every cell is the engine field the phone row prints, through
+  // utils/dashboardTables (contract D8); the totals row is computeWipPortfolio's
+  // own figures — the Portfolio card's — never a sum of the visible rows.
+  const isDesktopWeb = useIsDesktopWeb();
+  // The drill-in: a centred 720 card on desktop web; the phone's bottom sheet
+  // is unchanged (every frame style is null there). NO primary hotkey: its
+  // cost-to-complete commit path is door-pinned by validate-money-basis-parity.
+  const fDrill = useSheetFrame('wide', { visible: drillProjectId !== null, animationType: 'slide' });
+  const projectColumns: DataTableColumn<WipSnapshotRowWithSources>[] = [
+    {
+      key: 'job', label: 'Job', flex: 1, minWidth: 200, sortValue: (r) => r.projectName,
+      render: (r) => (
+        <View style={styles.projectNameRow}>
+          <Text style={styles.projectName} numberOfLines={1}>{r.projectName}</Text>
+          {r.output.anticipatedLoss ? <Text style={styles.lossTag}>LOSS JOB</Text> : null}
+          {rowFlagState(r).flagged ? <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} /> : null}
+        </View>
+      ),
+    },
+    { key: 'contract', label: 'Contract', width: 110, numeric: true, sortValue: (r) => wipScheduleCells(r).contract, value: (r) => money(wipScheduleCells(r).contract) },
+    { key: 'estCost', label: 'Est. cost at completion', width: 120, numeric: true, hideBelow: 1150, sortValue: (r) => wipScheduleCells(r).estCost, value: (r) => money(wipScheduleCells(r).estCost) },
+    {
+      key: 'costToDate', label: 'Cost to date', width: 150, numeric: true, sortValue: (r) => wipScheduleCells(r).costToDate,
+      render: (r) => (
+        <View style={styles.tableCellEnd}>
+          <Text style={styles.tableMoney} numberOfLines={1}>{money(wipScheduleCells(r).costToDate)}</Text>
+          <Text style={styles.muted} numberOfLines={1}>
+            {wipCostSourceTag(r.sources, r.input.costToDate, rowFlagState(r).rowCost?.committedFloor, money)}
+          </Text>
+        </View>
+      ),
+    },
+    { key: 'pct', label: '% complete', width: 72, numeric: true, sortValue: (r) => wipScheduleCells(r).pctComplete, value: (r) => pct(wipScheduleCells(r).pctComplete) },
+    { key: 'earned', label: 'Earned', width: 110, numeric: true, hideBelow: 1050, sortValue: (r) => wipScheduleCells(r).earned, value: (r) => money(wipScheduleCells(r).earned) },
+    { key: 'billed', label: 'Billed', width: 110, numeric: true, sortValue: (r) => wipScheduleCells(r).billed, value: (r) => money(wipScheduleCells(r).billed) },
+    {
+      key: 'billing', label: 'Over/Under', width: 130, numeric: true,
+      sortValue: (r) => {
+        const b = wipScheduleCells(r).billing;
+        return b.kind === 'over' ? b.amount : b.kind === 'under' ? -b.amount : null;
+      },
+      render: (r) => {
+        const b = wipScheduleCells(r).billing;
+        return (
+          <Text style={[b.kind === 'over' ? styles.over : b.kind === 'under' ? styles.under : styles.muted, styles.tableCellEndText]} numberOfLines={1}>
+            {b.kind === 'over' ? `Over ${money(b.amount)}` : b.kind === 'under' ? `Under ${money(b.amount)}` : '—'}
+          </Text>
+        );
+      },
+    },
+  ];
+  const scheduleFooter = wipScheduleFooter(displayPortfolio);
+  const projectFooter: Record<string, React.ReactNode> = {
+    job: 'Portfolio total',
+    contract: money(scheduleFooter.contract),
+    estCost: money(scheduleFooter.estCost),
+    costToDate: money(scheduleFooter.costToDate),
+    earned: money(scheduleFooter.earned),
+    billed: money(scheduleFooter.billed),
+    // Over and Under each stand on their own line, as on the Portfolio card —
+    // a WIP total never nets one against the other. No cell at all when the
+    // book carries neither.
+    ...(scheduleFooter.over > 0 || scheduleFooter.under > 0 ? {
+      billing: (
+        <View style={styles.tableCellEnd} testID="wip-projects-footer-billing">
+          {scheduleFooter.over > 0 ? <Text style={[styles.over, styles.tableCellEndText]}>{`Over ${money(scheduleFooter.over)}`}</Text> : null}
+          {scheduleFooter.under > 0 ? <Text style={[styles.under, styles.tableCellEndText]}>{`Under ${money(scheduleFooter.under)}`}</Text> : null}
+        </View>
+      ),
+    } : null),
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -1095,6 +1230,8 @@ function WipReportScreenInner() {
           <Text style={styles.eyebrow}>Financial Reporting</Text>
           <Text style={styles.title}>WIP Report</Text>
         </View>
+        {/* Print and Export CSV one click from the header, on a desk (D18). */}
+        {isDesktop && <ToolbarActions actions={toolbar} testID="wip-toolbar" />}
         {/* Audit 2026-09-07 ("Worth doing" #22): this screen printed
             Overbilling in red and Underbilling in blue with no legend and no
             definition, to residential GCs who have never seen a WIP schedule —
@@ -1131,9 +1268,15 @@ function WipReportScreenInner() {
         ]}
       />
 
-      <ScrollView {...fabScroll} contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }, isDesktop && styles.contentDesktop]}>
-        {/* Portfolio totals */}
-        <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+      <ScrollView {...fabScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
+        {/* Desktop web: Portfolio (main) beside Periods (rail), the projects
+            table full width below. The phone renders the three cards in
+            today's order — portfolio, periods, projects — because that IS
+            DashboardColumns' phone concatenation (kpis, main, rail, below). */}
+        <DashboardColumns
+        main={(
+        /* Portfolio totals */
+        <View style={styles.card}>
           <Text style={styles.sectionTitle}>Portfolio</Text>
           {/* Seven zeros above two Export buttons read as a measured position,
               not as an empty account — and the screen's own "No active
@@ -1246,11 +1389,12 @@ function WipReportScreenInner() {
             </>
           )}
         </View>
-
-        {/* Period selector */}
-        <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+        )}
+        rail={(
+        /* Period selector */
+        <View style={styles.card}>
           <Text style={styles.sectionTitle}>Periods</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          <ChipRail contentContainerStyle={{ gap: 8 }}>
             <TouchableOpacity
               style={[styles.periodChip, selectedPeriodId === null && styles.periodChipActive]}
               onPress={() => setSelectedPeriodId(null)}>
@@ -1264,7 +1408,7 @@ function WipReportScreenInner() {
                 <Text style={styles.periodChipText}>{p.periodEndDate}</Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </ChipRail>
           {/* PERIOD END — pickable, and defaulted to the close a contractor is
               actually working on. Every monthly close happens days after the
               month ends; before this there was no way to produce a March 31 WIP
@@ -1345,9 +1489,10 @@ function WipReportScreenInner() {
             </View>
           ) : null}
         </View>
-
-        {/* Per-project rows (live) */}
-        <View style={[styles.card, isDesktop && styles.cardFullDesktop]}>
+        )}
+        below={(
+        /* Per-project rows (live) */
+        <View style={[styles.card, isDesktopWeb && styles.cardPlainDesktop]}>
           <Text style={styles.sectionTitle}>Projects</Text>
           {/* The two colours below carry the whole meaning of this table, and
               until now nothing on the screen said what they meant. */}
@@ -1376,28 +1521,21 @@ function WipReportScreenInner() {
           ) : null}
           {displayRows.length === 0 ? (
             <Text style={styles.muted}>{viewingFrozen ? 'This period has no projects on it.' : 'No active projects.'}</Text>
+          ) : isDesktopWeb ? (
+            // A frozen period's rows open nothing, exactly as the phone rows
+            // are disabled on one.
+            <DataTable
+              tableId="wip-projects"
+              testID="wip-projects"
+              columns={projectColumns}
+              rows={displayRows}
+              rowKey={(r) => r.projectId}
+              onRowOpen={viewingFrozen ? undefined : (r) => openDrill(r.projectId)}
+              renderCard={() => null}
+              footerTotals={projectFooter}
+            />
           ) : displayRows.map((r) => {
-            const prior = comparisonPeriod?.rows.find((pr) => pr.projectId === r.projectId)?.output;
-            // The schedule cross-check only means anything against TODAY's
-            // schedule, so it is passed for live rows only — a frozen March row
-            // compared to June's progress would flag a divergence that did not
-            // exist in March.
-            const evm = viewingFrozen
-              ? undefined
-              : (() => {
-                const sched = schedulePercentByProject.get(r.projectId);
-                return sched == null ? undefined : { schedulePercent: sched };
-              })();
-            const flags = flagWipRow(r.output, prior, evm);
-            const rowCost = viewingFrozen ? undefined : costBases.get(r.projectId);
-            // A LOSS JOB IS THE FLAG. `anticipatedLoss` was excluded from this
-            // expression, so the one condition the engine treats as an
-            // accounting event — the full ASC 605-35 provision — was the one
-            // condition the list did not mark, and the only place it appeared
-            // was inside a per-project modal the GC reading the list never
-            // opens.
-            const flagged = r.output.anticipatedLoss
-              || flags.profitFade || flags.billingSwing || flags.scheduleDivergence;
+            const { rowCost, flagged } = rowFlagState(r);
             return (
               <TouchableOpacity
                 key={r.projectId}
@@ -1464,13 +1602,15 @@ function WipReportScreenInner() {
             );
           })}
         </View>
+        )}
+        />
       </ScrollView>
 
       {/* Per-project drill-in modal */}
-      <Modal visible={drillProjectId !== null} transparent animationType="slide" onRequestClose={closeDrill}>
+      <Modal visible={drillProjectId !== null} transparent animationType={fDrill.animationType} onRequestClose={closeDrill}>
         <View style={styles.modalOverlay}>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }} keyboardShouldPersistTaps="handled">
-            <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ flexGrow: 1, justifyContent: 'flex-end' }, fDrill.scrollContent]} keyboardShouldPersistTaps="handled">
+            <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }, fDrill.card]}>
               <View style={styles.formHeader}>
                 <Text style={styles.formTitle}>{drillProject?.name ?? 'Project'}</Text>
                 <TouchableOpacity onPress={closeDrill} accessibilityRole="button" accessibilityLabel="Close">
@@ -1698,16 +1838,17 @@ function Row({ label, value, styles }: { label: string; value: string; styles: R
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
-  // WIP is a financial table — wide on desktop.
-  // Desktop: Portfolio + Periods sit side by side and the Projects table spans
-  // the full row, instead of three cards stacked in a narrow middle column.
-  contentDesktop: {
-    width: '100%', maxWidth: 1400, alignSelf: 'center' as const,
-    flexDirection: 'row' as const, flexWrap: 'wrap' as const,
-    alignItems: 'flex-start' as const, gap: 16,
-  },
-  cardDesktop: { flexGrow: 1, flexBasis: 420, marginBottom: 0 },
-  cardFullDesktop: { flexBasis: '100%' as const, marginBottom: 0 },
+  // Desktop web: the Projects card holds a DataTable, which draws its own
+  // surface — so the card paints none (no second frame around the table).
+  // Portfolio + Periods sit side by side through DashboardColumns, and the
+  // page frame caps the column; nothing here sets a page width.
+  cardPlainDesktop: { backgroundColor: 'transparent', borderWidth: 0, padding: 0 },
+  // The desktop table's own cells (rendered only inside the desktop-web
+  // DataTable): money right-aligned in tabular figures, a provenance line
+  // under it.
+  tableCellEnd: { alignItems: 'flex-end' as const, gap: 2 },
+  tableCellEndText: { textAlign: 'right' as const },
+  tableMoney: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontVariant: ['tabular-nums'] },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingBottom: 12,

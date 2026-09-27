@@ -1273,7 +1273,7 @@ console.log('\na contract with no cost basis is unmeasurable on both:');
   const FACTS = readFileSync(join(ROOT, 'utils', 'oneMind', 'factBlocks.ts'), 'utf8');
   eq('…and so does the One Mind fact bundle',
     /aiaPayApps: bundle\.aiaPayApps/.test(FACTS), true);
-  const ASK = readFileSync(join(ROOT, 'app', 'ask.tsx'), 'utf8');
+  const ASK = readFileSync(join(ROOT, 'components', 'brain', 'AskConversation.tsx'), 'utf8');
   eq('…which is fed them by the screen that builds it',
     /^\s*aiaPayApps,$/m.test(ASK), true);
 }

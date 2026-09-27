@@ -46,6 +46,16 @@
 //     Their rows are the SAME builders and targets the Home cards use
 //     (buildReadyToBill, buildDailyLogGaps, getUpcomingWarrantyWalks).
 // One ScrollView holds the whole body so the sections scroll together.
+//
+// WAVE 6d restore (d6r, lane K1) — variant 'dock'. The same list renders inside
+// the desktop shell's right dock (components/desktop/ShellDock, id
+// ATTENTION_DOCK_ID), opened from the sidebar's Action Required row on ANY
+// page, so the GC can work down it beside the page it sends him to. In the
+// dock it fills the panel (no fixed 300 width, no left rule — SidePanel draws
+// its own), SidePanel's header already says 'Action Required', so the list
+// leads with 'Needs you now', and every 'See all' closes the dock as it lands
+// on /attention — that page IS the list, it must not show twice. The rail
+// variant is unchanged.
 // ============================================================================
 
 import React, { useCallback, useMemo } from 'react';
@@ -58,11 +68,12 @@ import { useCoreData, useDocsData, useProjects } from '@/contexts/ProjectContext
 import { rfiAttention, submittalAttention } from '@/utils/brainWatch';
 import type { AttentionItem, AttnSeverity } from '@/utils/brainWatch';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { RowLink, routeHref } from '@/components/desktop/RowLink';
+import { useShellDock } from '@/components/desktop/ShellDock';
 import { buildReadyToBill } from '@/utils/draftedRevenue';
 import { formatMoney } from '@/utils/formatters';
 import { getUpcomingWarrantyWalks, warrantyWalkTitle } from '@/utils/warrantyWalks';
@@ -90,11 +101,19 @@ const UNREACHABLE_LINE =
 
 interface Props {
   width?: number;
+  /** 'rail' (default): Home's 300 px column. 'dock': inside the shell's right
+   *  dock — fills the panel, and 'See all' closes the dock. */
+  variant?: 'rail' | 'dock';
 }
 
-const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_WIDTH }: Props) {
+const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_WIDTH, variant = 'rail' }: Props) {
   const { items, sourceFailed } = useBrainWatch();
   const router = useRouter();
+  const dock = useShellDock();
+  const docked = variant === 'dock';
+  // 'See all' lands on /attention, which IS this list: close the dock as it
+  // goes (spread, so the rail's RowLinks carry exactly the props they did).
+  const seeAllPress = docked ? dock.close : undefined;
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -144,10 +163,20 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
   }, [router]);
 
   return (
-    <View style={[styles.rail, { width }]} testID="desktop-action-rail" {...PRINT_HIDE}>
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+    <View
+      style={[styles.rail, variant === 'dock' ? styles.railDock : { width }]}
+      testID={docked ? 'desktop-action-dock' : 'desktop-action-rail'}
+      {...PRINT_HIDE}
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, variant === 'dock' && styles.scrollContentDock]}
+      >
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Action Required</Text>
+          {variant === 'dock'
+            ? <Text style={styles.dockLead}>Needs you now</Text>
+            : <Text style={styles.headerTitle}>Action Required</Text>}
           {items.length > 0 ? (
             <View style={styles.countPill}>
               <Text style={styles.countPillText}>{items.length}</Text>
@@ -221,6 +250,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
                 href={routeHref('/attention')}
                 accessibilityLabel={`See all ${items.length} items that need attention`}
                 testID="rail-see-all"
+                {...(seeAllPress ? { onPress: seeAllPress } : null)}
               >
                 <Text style={styles.moreText}>See all {items.length}</Text>
               </RowLink>
@@ -235,6 +265,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
             view="bill"
             testID="rail-section-bill"
             styles={styles}
+            onSeeAll={seeAllPress}
           >
             {billSection.shown.map(row => (
               <TouchableOpacity
@@ -258,7 +289,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
         ) : null}
 
         {logSection.shown.length > 0 ? (
-          <RailSection title="DAILY-LOG GAPS" total={logGaps.length} view="logs" testID="rail-section-logs" styles={styles}>
+          <RailSection title="DAILY-LOG GAPS" total={logGaps.length} view="logs" testID="rail-section-logs" styles={styles} onSeeAll={seeAllPress}>
             {logSection.shown.map(row => (
               <TouchableOpacity
                 key={row.projectId}
@@ -280,7 +311,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
         ) : null}
 
         {walkSection.shown.length > 0 ? (
-          <RailSection title="WARRANTY WALKS" total={walks.length} view="warranty" testID="rail-section-warranty" styles={styles}>
+          <RailSection title="WARRANTY WALKS" total={walks.length} view="warranty" testID="rail-section-warranty" styles={styles} onSeeAll={seeAllPress}>
             {walkSection.shown.map(a => (
               <TouchableOpacity
                 key={a.project.id}
@@ -311,12 +342,14 @@ type Styles = ReturnType<typeof makeStyles>;
 
 /** One rail section: a 13 px caption header, its rows, and 'See all N' to its
  *  /attention view when it holds more than it shows. */
-function RailSection({ title, total, view, testID, styles, children }: {
+function RailSection({ title, total, view, testID, styles, onSeeAll, children }: {
   title: string;
   total: number;
   view: 'bill' | 'logs' | 'warranty';
   testID: string;
   styles: Styles;
+  /** The dock variant closes the dock as 'See all' lands on /attention. */
+  onSeeAll?: () => void;
   children: React.ReactNode;
 }) {
   const shown = React.Children.count(children);
@@ -330,6 +363,7 @@ function RailSection({ title, total, view, testID, styles, children }: {
             href={routeHref('/attention', { view })}
             accessibilityLabel={`See all ${total}`}
             testID={`${testID}-see-all`}
+            {...(onSeeAll ? { onPress: onSeeAll } : null)}
           >
             <Text style={styles.moreText}>See all {total}</Text>
           </RowLink>
@@ -345,6 +379,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: t.line,
   },
+  // Inside the dock: fill the panel; SidePanel already draws the left rule.
+  railDock: { flex: 1, borderLeftWidth: 0 },
   scroll: {
     flex: 1,
   },
@@ -353,6 +389,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 16,
   },
+  scrollContentDock: { paddingTop: Layout.cardPad },
   section: {
     marginTop: 20,
   },
@@ -375,6 +412,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.text,
     letterSpacing: -0.1,
+    flex: 1,
+  },
+  // The dock's lead line under SidePanel's 'Action Required' header.
+  dockLead: {
+    ...Type.footnoteEmphasized,
+    color: t.textSecondary,
     flex: 1,
   },
   countPill: {

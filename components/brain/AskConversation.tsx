@@ -1,0 +1,883 @@
+// components/brain/AskConversation.tsx — "Ask MAGE anything", powered by One Mind.
+//
+// One question in, one fused answer out. The engine (utils/oneMind/*) routes
+// the question (project-scoped vs business-wide — deterministic, no AI),
+// assembles fact blocks from EVERY engine the app runs — business records,
+// live margin, margin risk, schedule health, pace book, RFI latency, brain
+// watch, cash flow, the four portfolio engines, the brain's own accuracy
+// report and open leak flags — and answers with citations. Each cited block
+// renders as a tappable chip that drills into the real screen behind it.
+//
+// This component is just the chat shell: bundle assembly, metering (askMage —
+// the established AIFeature pattern), and the citation-chip UI.
+//
+// Two variants (wave 6d restore, d6r lane K1). 'page' is the /ask screen
+// (app/ask.tsx renders it) and draws exactly the tree that screen always drew.
+// 'panel' renders inside the desktop shell's 440 px right dock
+// (components/desktop/ShellDock, opened by hooks/useAskDock) so the GC can
+// look at the schedule WHILE he asks about it: no Stack.Screen (it would
+// retitle whatever route sits under the dock), no brand header (SidePanel
+// draws 'Ask MAGE' and the X), no safe-area padding, a vertical Recent list,
+// and the anchor follows the job he is working on (ActiveProjectContext).
+// On desktop web Enter sends and Shift+Enter keeps the newline, in both.
+//
+// Opened from a job's own screen, the Brain FAB forwards that job
+// (?projectId=) and the conversation is ANCHORED to it: the header says
+// "Answering for <job>" (tap to clear), the starters name the job, and a
+// question that names no project is answered for it — see applyAnchorScope
+// (audit #36). A blocked answer (monthly / hourly cap, signed out) carries
+// the one action that fixes it (audit #119).
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
+  ActivityIndicator, Platform, KeyboardAvoidingView, Animated, Easing, Keyboard,
+  type NativeSyntheticEvent, type TextInputKeyPressEventData,
+} from 'react-native';
+import { Stack, useRouter, useSegments, type Href } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  ChevronRight, ArrowUp, AlertTriangle, Search, X, Clock, DollarSign, CalendarClock,
+  Mic, Gauge, Users, Wallet, TrendingUp, Sparkles, Mail, Briefcase, LogIn, type LucideIcon,
+} from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
+import VoiceCaptureModal from '@/components/VoiceCaptureModal';
+import RFITriageModal from '@/components/RFITriageModal';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useSearch } from '@/contexts/SearchContext';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useSafety } from '@/contexts/SafetyContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useBidResponsesPortfolio } from '@/hooks/useBidResponsesPortfolio';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples, useLaborRates, useTimeEntriesMirror } from '@/hooks/useLaborRates';
+import type { JobCostActualSources } from '@/utils/jobCostEngine';
+import { checkAILimit, recordAIUsage, nextAiResetLabel } from '@/utils/aiRateLimiter';
+import { localDateISO } from '@/utils/brief/composeBrief';
+import { askOneMind, type OneMindCitation } from '@/utils/oneMind/answer';
+import { type OneMindBundle, isColdStart } from '@/utils/oneMind/factBlocks';
+import { resolveStarters, ONBOARDING_STARTERS, type Starter, type StarterIcon } from '@/utils/resolveStarters';
+import { followupsForRefs } from '@/utils/oneMind/followupMapping';
+import { DEMO_ANSWERS } from '@/utils/oneMind/demoColdStart';
+import { loadAskThreads, saveAskThread, type AskThread } from '@/utils/askHistory';
+import { loadAllConstraints } from '@/hooks/useLastPlanner';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import type { Constraint } from '@/utils/lastPlanner';
+import { Type } from '@/constants/typography';
+import { Layout, Tokens } from '@/constants/designTokens';
+import { useIsDesktopWeb } from '@/components/ui/desktop';
+import { useActiveProject } from '@/contexts/ActiveProjectContext';
+
+interface Turn {
+  role: 'user' | 'assistant';
+  text: string;
+  error?: boolean;
+  citations?: OneMindCitation[];
+  /** Why the answer failed (OneMindAnswer.errorKind / errorCode) — drives the
+   *  See plans / Sign in action under a blocked turn. */
+  errorKind?: string;
+  errorCode?: string;
+}
+
+/**
+ * The one action that fixes a blocked answer, or null.
+ *
+ *   monthly cap on Free / Pro → 'plans'  (a bigger plan lifts it)
+ *   hourly limit             → null     (waiting an hour does; the relay's own
+ *                                        sentence says so — never a paywall)
+ *   signed out / expired     → 'signin'
+ */
+function blockedAction(t: Turn, tier: string): 'plans' | 'signin' | null {
+  if (t.errorKind === 'unauthenticated') return 'signin';
+  if (t.errorKind === 'monthly_cap' && t.errorCode !== 'hourly_limit' && (tier === 'free' || tier === 'pro')) {
+    return 'plans';
+  }
+  return null;
+}
+
+// Starter icon KEY -> Lucide component. Keys come from utils/resolveStarters so
+// that pure data module carries no component dependency.
+const STARTER_ICON: Record<StarterIcon, LucideIcon> = {
+  clock: Clock, dollar: DollarSign, alert: AlertTriangle, calendar: CalendarClock,
+  gauge: Gauge, users: Users, wallet: Wallet, trending: TrendingUp, sparkle: Sparkles,
+};
+
+export interface AskConversationProps {
+  /** 'page' = the /ask screen (today's tree); 'panel' = inside the desktop dock. */
+  variant: 'page' | 'panel';
+  /** A question to auto-ask once the data has hydrated (copilot-hub handoff). */
+  seed?: string;
+  /** The screen Ask was opened from — tunes the starters. */
+  screen?: string;
+  /** The page's ?projectId= anchor. The panel anchors to the active job instead. */
+  anchorProjectId?: string | null;
+  /** Panel only: start a new docked conversation. Passed in by hooks/useAskDock
+   *  (never imported here), so the two files do not require each other. With
+   *  none, the panel shows no 'New chat'. */
+  onNewChat?: () => void;
+}
+
+/** The Recent list in the dock: a vertical list, at most this many rows (the
+ *  page keeps its horizontal strip). */
+const PANEL_RECENT_MAX = 4;
+
+export function AskConversation(props: AskConversationProps) {
+  const { seed } = props;
+  const panel = props.variant === 'panel';
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { openSearch } = useSearch();
+  const isDesktopWeb = useIsDesktopWeb();
+  // The dock follows the job he is working on; the page reads ?projectId=.
+  // (`?.`: a mount outside ActiveProjectProvider — a test — anchors nothing.)
+  const activeProjectId = useActiveProject()?.activeProjectId ?? null;
+  const anchorParam = props.variant === 'panel' ? activeProjectId : props.anchorProjectId;
+  // The dock outlives route changes; with no explicit screen it tunes its
+  // starters to the route under it when it opened.
+  const segments = useSegments();
+  const cleanedSegments = segments.map(s => s.replace(/[()]/g, '')).filter(Boolean);
+  const screen = panel ? (props.screen ?? cleanedSegments[cleanedSegments.length - 1]) : props.screen;
+
+  // Gentle breathing on the empty-state mark — the same "alive assistant"
+  // language as the Brain FAB. Native driver, subtle.
+  const breathe = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(breathe, { toValue: 1.05, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [breathe]);
+
+  // Search is a pageSheet modal and so is this screen. Dismiss ask first, then
+  // present search — the same close-then-open timing the Brain FAB used for its
+  // voice/help sheets, so search animates in cleanly instead of stacking.
+  const openSearchFromAsk = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // Desktop web: search is a palette over the shell — nothing to dismiss
+    // first, and backing out of /ask would drop him somewhere else.
+    if (isDesktopWeb) { openSearch(); return; }
+    router.back();
+    setTimeout(() => openSearch(), 350);
+  }, [router, openSearch, isDesktopWeb]);
+
+  // Close the page. Desktop web: a direct /ask link has no history to go back
+  // to, so it lands on Home instead of doing nothing.
+  const closeAsk = useCallback(() => {
+    if (isDesktopWeb) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/(home)');
+      return;
+    }
+    router.back();
+  }, [router, isDesktopWeb]);
+
+  const {
+    projects, invoices, leads, changeOrders, rfis,
+    commitments, dailyReports, permits, submittals, punchItems, aiaPayApps,
+    equipment, subcontractors,
+    projectsLoaded,
+  } = useProjects();
+  const safety = useSafety();
+  const { tier } = useSubscription();
+  const { bidResponses } = useBidResponsesPortfolio();
+  const { receipts } = useMaterialReceipts();
+  const laborSamples = useLaborCostSamples();
+  // The seven cost streams Job Costing prices. Without them the MARGIN and RISK
+  // blocks are built on subcontracts alone — and they SAY so — so a self-perform
+  // job's crew overrun never reaches the answer (audit round 2, #16).
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates, overtimeMultiplier, overtimeRule } = useLaborRates();
+  const costSources = useMemo<JobCostActualSources>(() => ({
+    receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors,
+  }), [receipts, timeEntries, laborRates, overtimeMultiplier, overtimeRule, equipment, permits, subcontractors]);
+  const [allConstraints, setAllConstraints] = useState<Record<string, Constraint[]>>({});
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
+  const bundle = useMemo<OneMindBundle>(() => {
+    // Local calendar day, not toISOString() (UTC flips the date for evening
+    // hours west of Greenwich) — same discipline as the Morning Brief.
+    const todayISO = localDateISO(new Date());
+    return {
+      projects, commitments, changeOrders, invoices,
+      rfis, leads, dailyReports, permits, submittals, punchItems,
+      expiringCertifications: safety.expiringCertifications(todayISO) as OneMindBundle['expiringCertifications'],
+      bidResponses,
+      // buildPipelineHorizon reads them for billed-to-date; without them a GC
+      // billing through G702/G703 shows a backlog overstated by everything he
+      // has already billed.
+      aiaPayApps,
+      receipts,
+      costSources,
+      laborSamples,
+      constraints: allConstraints,
+      // The pipeline horizon's backlog is this company's own jobs only.
+      userId,
+    };
+  }, [
+    projects, commitments, changeOrders, invoices, rfis, leads, dailyReports,
+    permits, submittals, punchItems, safety, bidResponses, aiaPayApps, receipts, costSources, laborSamples,
+    allConstraints, userId,
+  ]);
+
+  // The anchored job (from the Brain FAB on a job screen). Resolved against the
+  // user's own projects, so a stale or foreign id anchors nothing. Clearing it
+  // turns the rest of the conversation business-wide.
+  const [anchorCleared, setAnchorCleared] = useState(false);
+  // In the dock the anchor follows the active job: switching jobs re-anchors
+  // even after "All jobs" was tapped for the previous one.
+  useEffect(() => {
+    if (panel) setAnchorCleared(false);
+  }, [anchorParam, panel]);
+  const anchorProject = useMemo(
+    () => (!anchorCleared && typeof anchorParam === 'string' && anchorParam
+      ? projects.find(p => p.id === anchorParam) ?? null
+      : null),
+    [anchorCleared, anchorParam, projects],
+  );
+  const anchorProjectId = anchorProject?.id ?? null;
+
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [rfiOpen, setRfiOpen] = useState(false);
+  const [recentThreads, setRecentThreads] = useState<AskThread[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
+  // Stable id for THIS conversation, so history save upserts one thread/session.
+  const sessionId = useRef(String(Date.now())).current;
+
+  // Prior turns for multi-turn continuity, without re-creating `ask` per turn.
+  const turnsRef = useRef<Turn[]>([]);
+  turnsRef.current = turns;
+
+  const ask = useCallback(async (question: string) => {
+    const q = question.trim();
+    if (!q || busy) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // Cold-start onboarding: answer the canned demo prompts instantly and
+    // entirely client-side — no model call, no metering, no network.
+    const demo = isColdStart(bundle) ? DEMO_ANSWERS[q] : undefined;
+    if (demo) {
+      setDraft('');
+      setTurns(prev => [
+        ...prev,
+        { role: 'user', text: q },
+        { role: 'assistant', text: demo.answer, citations: demo.citations },
+      ]);
+      return;
+    }
+    const prior = turnsRef.current.map(t => ({ role: t.role, text: t.text }));
+    setDraft('');
+    setTurns(prev => [...prev, { role: 'user', text: q }]);
+    setBusy(true);
+    // Let the user message paint before we scroll.
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    try {
+      // Smart-tier call — meter it like every other call site (client-side
+      // daily caps per CLAUDE.md; the relay only sees the feature id).
+      const limit = await checkAILimit(tier, 'smart', 'askMage');
+      if (!limit.allowed) {
+        const canUpgrade = tier === 'free' || tier === 'pro';
+        setTurns(prev => [...prev, {
+          role: 'assistant',
+          text: limit.message ?? (canUpgrade
+            ? "You've hit today's advanced AI limit. Upgrade to keep asking MAGE — opening your plan options now."
+            // The allowance rolls at 00:00 UTC — often later TODAY (audit #123).
+            : `You've used today's advanced AI calls. ${nextAiResetLabel().daily}.`),
+          error: true,
+        }]);
+        // Convert at the moment of intent instead of dead-ending: send
+        // upgradeable tiers to the paywall so they can lift the cap right now.
+        if (canUpgrade) router.push('/paywall');
+        return;
+      }
+      const res = await askOneMind(q, prior, bundle, { anchorProjectId });
+      // Count only answers that actually hit the model — cold-start and
+      // verbatim-fallback answers report usedAI: false and cost nothing.
+      if (res.usedAI) {
+        void recordAIUsage('smart', 'askMage');
+      }
+      setTurns(prev => [...prev, {
+        role: 'assistant',
+        text: res.answer,
+        error: !!res.errorKind,
+        citations: res.citations,
+        errorKind: res.errorKind,
+        errorCode: res.errorCode,
+      }]);
+    } finally {
+      setBusy(false);
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    }
+  }, [busy, bundle, tier, router, anchorProjectId]);
+
+  // Desktop web: Enter sends, Shift+Enter keeps the newline. Preventing the
+  // default also stops react-native-web's own submit-and-blur, so the cursor
+  // stays in the composer for the next question.
+  const onComposerKey = useCallback((e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    const ne = e.nativeEvent as TextInputKeyPressEventData & { shiftKey?: boolean; isComposing?: boolean };
+    if (ne.key === 'Enter' && !ne.shiftKey && !ne.isComposing) {
+      e.preventDefault();
+      void ask(draft);
+    }
+  }, [ask, draft]);
+
+  // Load saved threads for the Recent strip on mount.
+  useEffect(() => { void loadAskThreads().then(setRecentThreads); }, []);
+
+  // Load Last Planner constraints (all projects) so project-scoped answers can
+  // include the readiness lookahead. Through the hook's shared loader, which
+  // merges the cloud copy — so a fresh device or a re-sign-in sees constraints
+  // without first opening the Last Planner. Absent -> readiness just skips.
+  useEffect(() => {
+    let cancelled = false;
+    void loadAllConstraints(queryClient, userId).then(c => { if (!cancelled) setAllConstraints(c); });
+    return () => { cancelled = true; };
+  }, [queryClient, userId]);
+
+  // Persist a completed Q&A thread (upsert by session id) so it can be recalled
+  // for free from the Recent strip. Only save once an assistant turn has landed.
+  useEffect(() => {
+    const last = turns[turns.length - 1];
+    if (last && last.role === 'assistant') {
+      void saveAskThread(sessionId, turns, Date.now()).then(setRecentThreads);
+    }
+  }, [turns, sessionId]);
+
+  // Copilot-hub handoff: arrive with ?seed=<question> and auto-ask it once —
+  // but only after the project data has hydrated. Firing against a
+  // pre-hydration (empty) bundle hit One Mind's cold-start short-circuit and
+  // told users with plenty of data "you have no data", with no retry. The
+  // projectsLoaded gate re-runs this effect when hydration lands, so the
+  // seed still fires exactly once.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !projectsLoaded) return;
+    if (typeof seed === 'string' && seed.trim() && turnsRef.current.length === 0) {
+      seededRef.current = true;
+      void ask(seed);
+    }
+  }, [seed, ask, projectsLoaded]);
+
+  const openCitation = useCallback((c: OneMindCitation) => {
+    if (!c.drillIn) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // drillIn.pathname is typed against the router (FactBlockDrillIn.pathname:
+    // Route), so a dead route fails tsc at the block that declares it. The
+    // Href cast here only bridges the pathname UNION into push's overloads —
+    // it cannot smuggle an unknown route past the compiler the way the old
+    // `as never` did.
+    router.push({ pathname: c.drillIn.pathname, params: c.drillIn.params } as Href);
+  }, [router]);
+
+  const empty = turns.length === 0;
+  const cold = isColdStart(bundle);
+  // Starters adapt to context: onboarding demos when there's no data yet,
+  // otherwise the set tuned to the screen the user opened Ask from.
+  const starters = useMemo<Starter[]>(
+    () => (cold ? ONBOARDING_STARTERS : resolveStarters(screen, anchorProject?.name)),
+    [cold, screen, anchorProject?.name],
+  );
+
+  // ── The conversation body — the same for the page and the dock ──────────
+
+  // The page's Recent strip is a horizontal rail; the dock's is a short
+  // vertical list (440 px holds ~2 cards across, and a mouse cannot swipe a
+  // hidden-scrollbar rail).
+  const recentStrip = panel ? (
+    recentThreads.length > 0 && (
+      <View style={styles.recentWrap}>
+        <Text style={styles.recentLabel}>RECENT</Text>
+        {recentThreads.slice(0, PANEL_RECENT_MAX).map(thread => {
+          const firstQ = thread.turns.find(x => x.role === 'user')?.text ?? 'Conversation';
+          return (
+            <TouchableOpacity
+              key={thread.id}
+              style={styles.recentItemPanel}
+              onPress={() => setTurns(thread.turns as Turn[])}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Open the earlier conversation: ${firstQ}`}
+              testID="ask-recent"
+            >
+              <Clock size={13} color={themeColors.textMuted} strokeWidth={2} />
+              <Text style={styles.recentText} numberOfLines={1}>{firstQ}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    )
+  ) : (
+    recentThreads.length > 0 && (
+      <View style={styles.recentWrap}>
+        <Text style={styles.recentLabel}>RECENT</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
+          {recentThreads.map(thread => {
+            const firstQ = thread.turns.find(x => x.role === 'user')?.text ?? 'Conversation';
+            return (
+              <TouchableOpacity
+                key={thread.id}
+                style={styles.recentCard}
+                onPress={() => setTurns(thread.turns as Turn[])}
+                activeOpacity={0.85}
+                testID="ask-recent"
+              >
+                <Clock size={13} color={themeColors.textMuted} strokeWidth={2} />
+                <Text style={styles.recentText} numberOfLines={2}>{firstQ}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    )
+  );
+
+  const messages = empty ? (
+    <View style={styles.emptyWrap}>
+      <Animated.View style={[styles.halo, { transform: [{ scale: breathe }] }]}>
+        <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+        <MageAIMark size={28} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
+      </Animated.View>
+      <Text style={styles.emptyTitle}>What can I help with?</Text>
+      <Text style={styles.emptyBody}>
+        {anchorProject
+          ? `Ask about ${anchorProject.name} — its money, schedule, RFIs. Say "all jobs" to ask across the business. Every answer cites where it came from.`
+          : 'Ask about your money, schedules, leads — anything across your jobs. Every answer cites where it came from.'}
+      </Text>
+      <View style={styles.suggestions}>
+        {starters.map(({ q, icon }) => {
+          const Icon = STARTER_ICON[icon];
+          return (
+            <TouchableOpacity
+              key={q}
+              style={styles.suggestion}
+              onPress={() => ask(q)}
+              activeOpacity={0.85}
+              testID="ask-suggestion"
+            >
+              <Icon size={17} color={themeColors.accent} strokeWidth={2} />
+              <Text style={styles.suggestionText}>{q}</Text>
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {!cold && projects.length > 0 && (
+        <TouchableOpacity
+          style={styles.toolRow}
+          onPress={() => setRfiOpen(true)}
+          activeOpacity={0.85}
+          testID="ask-rfi-triage"
+        >
+          <Mail size={16} color={themeColors.accent} strokeWidth={2} />
+          <Text style={styles.toolText}>Turn an email into an RFI</Text>
+          <ChevronRight size={15} color={themeColors.textMuted} strokeWidth={2} />
+        </TouchableOpacity>
+      )}
+      {recentStrip}
+    </View>
+  ) : (
+    turns.map((t, i) => (
+      <View key={i}>
+        <View
+          style={[styles.bubbleRow, t.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}
+        >
+          {t.role === 'assistant' && t.error && (
+            <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
+          )}
+          <View style={[styles.bubble, t.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
+            <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>
+          </View>
+        </View>
+        {t.role === 'assistant' && (() => {
+          const action = blockedAction(t, tier);
+          if (!action) return null;
+          return (
+            <TouchableOpacity
+              style={styles.blockedAction}
+              onPress={() => router.push(action === 'plans' ? '/paywall' : '/login')}
+              activeOpacity={0.85}
+              testID={action === 'plans' ? 'ask-see-plans' : 'ask-sign-in'}
+            >
+              {action === 'plans'
+                ? <Sparkles size={14} color={themeColors.accent} strokeWidth={2} />
+                : <LogIn size={14} color={themeColors.accent} strokeWidth={2} />}
+              <Text style={styles.blockedActionText}>{action === 'plans' ? 'See plans' : 'Sign in'}</Text>
+              <ChevronRight size={13} color={themeColors.accent} strokeWidth={2} />
+            </TouchableOpacity>
+          );
+        })()}
+        {t.role === 'assistant' && !!t.citations?.length && (
+          <View style={styles.citationRow}>
+            {t.citations.map(c => (
+              <TouchableOpacity
+                key={c.ref}
+                style={styles.citationChip}
+                onPress={() => openCitation(c)}
+                disabled={!c.drillIn}
+                activeOpacity={0.8}
+                testID={`ask-citation-${c.ref}`}
+              >
+                <Text style={styles.citationText}>{c.domain}</Text>
+                {c.drillIn && <ChevronRight size={12} color={themeColors.accent} strokeWidth={2.2} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        {t.role === 'assistant' && i === turns.length - 1 && !busy &&
+          followupsForRefs((t.citations ?? []).map(c => c.ref)).length > 0 && (
+          <View style={styles.followupRow}>
+            {followupsForRefs((t.citations ?? []).map(c => c.ref)).map(f => (
+              <TouchableOpacity
+                key={f}
+                style={styles.followupChip}
+                onPress={() => ask(f)}
+                activeOpacity={0.85}
+                testID="ask-followup"
+              >
+                <Text style={styles.followupText}>{f}</Text>
+                <ChevronRight size={13} color={themeColors.textSecondary} strokeWidth={2} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    ))
+  );
+
+  const thinking = busy && (
+    <View style={[styles.bubbleRow, styles.bubbleRowAi]}>
+      <View style={[styles.bubble, styles.bubbleAi, styles.thinking]}>
+        <ActivityIndicator size="small" color={themeColors.accent} />
+        <Text style={styles.thinkingText}>Reading your data…</Text>
+      </View>
+    </View>
+  );
+
+  // The composer row. Only its bottom padding differs: the page clears the
+  // home indicator, the dock sits on the panel's own padding.
+  const inputBar = (
+    <View style={[styles.inputBar, panel ? styles.inputBarPanel : { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <TouchableOpacity
+        style={styles.micBtn}
+        onPress={() => { Keyboard.dismiss(); setVoiceOpen(true); }}
+        accessibilityLabel="Ask by voice"
+        testID="ask-mic"
+      >
+        <Mic size={20} color={themeColors.textMuted} strokeWidth={2} />
+      </TouchableOpacity>
+      <TextInput
+        style={styles.input}
+        value={draft}
+        onChangeText={setDraft}
+        placeholder="Ask anything…"
+        placeholderTextColor={themeColors.textMuted}
+        multiline
+        onSubmitEditing={() => ask(draft)}
+        blurOnSubmit
+        testID="ask-input"
+        {...(isDesktopWeb ? { onKeyPress: onComposerKey } : null)}
+      />
+      <TouchableOpacity
+        style={[styles.send, (busy || !draft.trim()) && styles.sendDim]}
+        onPress={() => ask(draft)}
+        disabled={busy || !draft.trim()}
+        accessibilityLabel="Send"
+        testID="ask-send"
+      >
+        <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+        {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <ArrowUp size={18} color={Colors.textOnAccent} strokeWidth={2.6} />}
+      </TouchableOpacity>
+    </View>
+  );
+
+  const sheets = (
+    <>
+      <VoiceCaptureModal
+        visible={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onTranscriptReady={(t) => { setVoiceOpen(false); void ask(t); }}
+        title="Ask by voice"
+        contextLine="Speak your question — I'll answer from your jobs."
+        suggestions={starters.map(s => s.q)}
+      />
+
+      <RFITriageModal visible={rfiOpen} onClose={() => setRfiOpen(false)} />
+    </>
+  );
+
+  // ── Panel: inside the desktop dock ──────────────────────────────────────
+  // SidePanel draws the 'Ask MAGE' title and the X; the dock outlives route
+  // changes, so there is no Stack.Screen here (it would retitle the route
+  // under the dock). Citations, See plans and Sign in still router.push: the
+  // page column navigates and the dock stays open beside it.
+  if (panel) {
+    return (
+      <View style={styles.panelRoot} testID="ask-panel">
+        {(anchorProject || !empty) && (
+          <View style={styles.anchorRow} testID="ask-anchor">
+            {anchorProject ? (
+              <>
+                <Briefcase size={14} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.anchorText} numberOfLines={1}>
+                  Answering for {anchorProject.name}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setAnchorCleared(true)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all jobs`}
+                  testID="ask-anchor-clear"
+                >
+                  <Text style={styles.anchorClear}>All jobs</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={styles.anchorText} numberOfLines={1}>Answering across all your jobs</Text>
+            )}
+            {!empty && props.onNewChat && (
+              <TouchableOpacity
+                onPress={props.onNewChat}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Start a new conversation"
+                testID="ask-new-chat"
+              >
+                <Text style={styles.anchorClear}>New chat</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.panelScrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages}
+          {thinking}
+        </ScrollView>
+        {inputBar}
+        {sheets}
+      </View>
+    );
+  }
+
+  // ── Page: the /ask screen — exactly the tree it always drew ─────────────
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {props.variant === 'page' && <Stack.Screen options={{ headerShown: false }} />}
+
+      {/* Header — brand left, search + close right */}
+      <View style={styles.header}>
+        <View style={styles.brand}>
+          <View style={styles.brandMark}>
+            <LinearGradient colors={[themeColors.accentHot, themeColors.accentFill]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+            <MageAIMark size={15} color={Colors.textOnAccent} accentColor={Colors.textOnAccent} />
+          </View>
+          <Text style={styles.brandName}>MAGE</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.iconBtn} onPress={openSearchFromAsk} hitSlop={6} accessibilityLabel="Search" testID="ask-search">
+            <Search size={18} color={themeColors.textMuted} strokeWidth={2} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={closeAsk} hitSlop={6} accessibilityLabel="Close" testID="ask-close">
+            <X size={18} color={themeColors.textMuted} strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Grounding chip: which job this conversation answers for. */}
+      {anchorProject && (
+        <View style={styles.anchorRow} testID="ask-anchor">
+          <Briefcase size={14} color={themeColors.accent} strokeWidth={2} />
+          <Text style={styles.anchorText} numberOfLines={1}>
+            Answering for {anchorProject.name}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setAnchorCleared(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Stop answering for ${anchorProject.name} and ask about all jobs`}
+            testID="ask-anchor-clear"
+          >
+            <Text style={styles.anchorClear}>All jobs</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={insets.top}
+      >
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages}
+          {thinking}
+        </ScrollView>
+
+        {/* Input bar */}
+        {inputBar}
+      </KeyboardAvoidingView>
+
+      {sheets}
+    </View>
+  );
+}
+
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: t.line,
+  },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brandMark: {
+    width: 28, height: 28, borderRadius: Tokens.radius.md, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
+  },
+  brandName: { fontSize: Type.headline.fontSize, fontWeight: '800', color: t.text, letterSpacing: 0.3 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconBtn: {
+    width: 34, height: 34, borderRadius: Tokens.radius.md,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  anchorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderBottomWidth: 1, borderBottomColor: t.line, backgroundColor: t.surface,
+  },
+  anchorText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  anchorClear: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
+
+  blockedAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: -4, marginBottom: 14,
+    borderWidth: 1, borderColor: t.accent + '2E', backgroundColor: t.accent + '10',
+    borderRadius: Tokens.radius.full, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  blockedActionText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
+
+  emptyWrap: { alignItems: 'flex-start', paddingTop: 28, paddingHorizontal: 8 },
+  halo: {
+    width: 58, height: 58, borderRadius: Tokens.radius.lg, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 16, elevation: 8,
+  },
+  emptyTitle: { ...Type.serifTitle, color: t.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19, marginTop: 8, maxWidth: 320 },
+  suggestions: { gap: 9, marginTop: 22, alignSelf: 'stretch' },
+  suggestion: {
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 14,
+    borderWidth: 1, borderColor: t.line,
+  },
+  suggestionText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
+  // Secondary "tool" affordance under the starters — reads as an action, not a
+  // suggestion (dashed border, muted).
+  toolRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, alignSelf: 'stretch',
+    borderWidth: 1, borderColor: t.line, borderStyle: 'dashed', borderRadius: Tokens.radius.lg,
+    paddingHorizontal: 14, paddingVertical: 13,
+  },
+  toolText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.textSecondary },
+
+  bubbleRow: { flexDirection: 'row', marginBottom: 12, maxWidth: '100%' },
+  bubbleRowUser: { justifyContent: 'flex-end' },
+  bubbleRowAi: { justifyContent: 'flex-start' },
+  bubble: { borderRadius: Tokens.radius.lg, paddingHorizontal: 14, paddingVertical: 11, maxWidth: '88%' },
+  bubbleUser: { backgroundColor: t.accentFill, borderBottomRightRadius: Tokens.radius.xs },
+  bubbleAi: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderBottomLeftRadius: Tokens.radius.xs },
+  bubbleUserText: { color: Colors.textOnAccent, fontSize: Type.subhead.fontSize, lineHeight: 21 },
+  bubbleAiText: { color: t.text, fontSize: Type.subhead.fontSize, lineHeight: 21 },
+
+  citationRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+    marginTop: -6, marginBottom: 12, maxWidth: '88%',
+  },
+  citationChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: t.accent + '10', borderWidth: 1, borderColor: t.accent + '2E',
+    borderRadius: Tokens.radius.full, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  citationText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
+
+  thinking: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  thinkingText: { color: t.textMuted, fontSize: Type.footnote.fontSize, fontStyle: 'italic' },
+
+  inputBar: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
+    paddingHorizontal: 12, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.bg,
+  },
+  input: {
+    flex: 1, maxHeight: 120, minHeight: 44,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.xl,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
+  },
+  send: {
+    width: 44, height: 44, borderRadius: Tokens.radius.full, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6,
+  },
+  sendDim: { opacity: 0.45 },
+  micBtn: {
+    width: 44, height: 44, borderRadius: Tokens.radius.full,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // Recent-threads strip in the empty state — recall a past answer for free.
+  recentWrap: { marginTop: 22, alignSelf: 'stretch' },
+  recentLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, letterSpacing: 1, marginBottom: 10 },
+  recentRow: { gap: 9, paddingRight: 8 },
+  recentCard: {
+    width: 152, flexDirection: 'row', alignItems: 'flex-start', gap: 7,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.lg, paddingHorizontal: 12, paddingVertical: 11,
+  },
+  recentText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
+
+  // Follow-up chips under the latest answer — surface-colored to stay distinct
+  // from the accent-tinted citation chips.
+  followupRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: -2, marginBottom: 14 },
+  followupChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.full, paddingHorizontal: 11, paddingVertical: 7,
+  },
+  followupText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
+
+  // ── Panel (the desktop dock) ──
+  panelRoot: { flex: 1 },
+  panelScrollContent: { padding: Layout.cardPad },
+  inputBarPanel: { paddingBottom: Layout.cardPad },
+  // One Recent row in the dock: a hairline list, not a card (440 px).
+  recentItemPanel: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    minHeight: Layout.control.row, paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
+  },
+});

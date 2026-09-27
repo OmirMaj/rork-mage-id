@@ -73,7 +73,7 @@ if (!ZONE) {
     ['app/(tabs)/construction-ai/index.tsx', /Resets at midnight|Resets on the 1st/],
     ['components/AIHomeBriefing.tsx', /resets at midnight/i],
     ['components/AIInvoicePredictor.tsx', /reset at midnight/i],
-    ['app/ask.tsx', /Try again tomorrow/],
+    ['components/brain/AskConversation.tsx', /Try again tomorrow/],
     ['app/project-memory.tsx', /Try again tomorrow/],
   ];
   for (const [file, bad] of sites) {

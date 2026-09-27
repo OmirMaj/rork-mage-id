@@ -53,8 +53,11 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
-import { cardSurface } from '@/components/ui';
+import { Layout, Tokens } from '@/constants/designTokens';
+import {
+  cardSurface, SheetOverlay, SheetScrim, useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey,
+} from '@/components/ui';
+import { DashboardColumns } from '@/components/desktop/DashboardColumns';
 import { showAlert } from '@/utils/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -1036,6 +1039,28 @@ export default function BuyoutPackageScreen() {
     );
   }, [pkg, deleteBidPackage, router]);
 
+  // ── Desktop (wave 6d, d6r B3) ───────────────────────────────────
+  // The five sheets become centred cards over a scrim on desktop web instead
+  // of opaque full-window pages; the page puts the hero and the bids beside a
+  // 360 rail. On the phone the frames' styles are null, the hotkeys register
+  // nothing and each Modal keeps its pageSheet. Placed after the handlers and
+  // above the early return (hooks run unconditionally).
+  const isDesktop = useIsDesktop();
+  const isDesktopWeb = useIsDesktopWeb();
+  const fAddBid = useSheetFrame('form', { visible: showAddBid, animationType: 'slide' });
+  useSheetPrimaryHotkey(showAddBid, handleAddBid);
+  const fAmount = useSheetFrame('dialog', { visible: !!amountEditBidId, animationType: 'slide' });
+  useSheetPrimaryHotkey(!!amountEditBidId, handleSaveAmount);
+  // The invite sheet's primary EMAILS the subs: Cmd+Enter only, never Cmd+S
+  // (a habitual "save" must not send an RFQ). The dialog still swallows
+  // Cmd+S, so the browser's "Save page as…" never opens over it.
+  const fInvite = useSheetFrame('form', { visible: showInvite, animationType: 'slide' });
+  useSheetPrimaryHotkey(showInvite, handleSendInvites, { saveKey: false });
+  const fScope = useSheetFrame('wide', { visible: showScopeEdit, animationType: 'slide' });
+  useSheetPrimaryHotkey(showScopeEdit, handleSaveScope);
+  // No single primary: each roster row is its own choice.
+  const fLink = useSheetFrame('form', { visible: !!linkTargetBidId, animationType: 'slide' });
+
   if (!pkg) {
     return (
       <>
@@ -1105,668 +1130,696 @@ export default function BuyoutPackageScreen() {
   })();
   const stale = daysSinceOpened != null && daysSinceOpened >= 14 && pkg.status !== 'awarded';
 
+  // ── The page's sections (wave 6d, d6r B3) ─────────────────────
+  // Moved verbatim out of the ScrollView so desktop web can arrange them in
+  // two columns. The phone renders them in exactly today's order below.
+  // (`bids` and `invites` already name the package's data, so those two
+  // sections are bidsSection / invitesSection.)
+  // Hero card with status + budget
+  const hero = (
+    <View style={styles.hero}>
+      <View style={styles.heroTopRow}>
+        <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[pkg.status] + '22', borderColor: STATUS_COLORS[pkg.status] + '60' }]}>
+          <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[pkg.status] }]} />
+          <Text style={[styles.statusPillText, { color: STATUS_COLORS[pkg.status] }]}>{BID_PACKAGE_STATUS_LABELS[pkg.status]}</Text>
+        </View>
+        {!!pkg.phase && <Text style={styles.heroPhase}>{pkg.phase}</Text>}
+      </View>
+      <Text style={styles.heroName}>{pkg.name}</Text>
+      <View style={styles.heroBudgetRow}>
+        <View style={styles.heroBudgetCell}>
+          <Text style={styles.heroBudgetLabel}>{sellBasis ? 'Budget (includes markup)' : 'Budget at cost'}</Text>
+          <Text style={styles.heroBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
+        </View>
+        {sellBasis ? (
+          <View style={styles.heroBudgetCell}>
+            <Text style={styles.heroBudgetLabel}>Buyout savings</Text>
+            <Text style={[styles.heroBudgetValue, { color: Colors.warningLabel }]}>Review</Text>
+          </View>
+        ) : heroSavings != null ? (
+          <View style={styles.heroBudgetCell}>
+            <Text style={styles.heroBudgetLabel}>Buyout {heroSavings >= 0 ? 'savings' : 'overrun'}</Text>
+            <Text style={[styles.heroBudgetValue, { color: heroSavings >= 0 ? themeColors.success : themeColors.danger }]}>
+              {heroSavings >= 0 ? '+' : ''}{formatMoney(heroSavings)}
+            </Text>
+            {heroUncovered > 0 ? (
+              <Text style={styles.heroBudgetLabel}>{formatMoney(heroUncovered)} excluded scope (est. at award)</Text>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.heroBudgetCell}>
+            <Text style={styles.heroBudgetLabel}>Bids received</Text>
+            <Text style={styles.heroBudgetValue}>{bids.length}</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  // #11: a budget stored at SELL makes his own markup read as buyout
+  // savings (and, on the client PDF, as "Bulk Savings"). Withheld
+  // everywhere until he fixes it — one tap to the cost figure.
+  const sellBasisWarning = sellBasis && (
+    <View style={styles.section}>
+      <View style={styles.warningCard}>
+        <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.warningTitle}>Budget includes markup — review</Text>
+          <Text style={styles.warningBody}>
+            This package was budgeted at the estimate&apos;s sell price ({formatMoney(pkg.estimateBudget)}), so a sub who bids your cost would show your own markup as buyout savings — and that figure would print on the client&apos;s estimate as Bulk Savings. Savings are hidden until the budget is at cost{costBudget != null ? ` (${formatMoney(costBudget)} for its linked lines)` : ''}.
+          </Text>
+          {costBudget != null && (
+            <TouchableOpacity
+              style={styles.warningActionBtn}
+              onPress={() => showAlert(
+                'Set the budget to cost?',
+                `${formatMoney(pkg.estimateBudget)} → ${formatMoney(costBudget)}, the cost of the ${pkg.linkedEstimateItemIds.length} estimate line${pkg.linkedEstimateItemIds.length === 1 ? '' : 's'} this package covers, before your markup. Buyout savings are then measured against what the work costs you.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Set to cost', style: 'default', onPress: () => updateBidPackage(pkg.id, { estimateBudget: costBudget }) },
+                ],
+              )}
+              activeOpacity={0.85}
+              testID="budget-to-cost"
+            >
+              <Text style={styles.warningActionText}>Set the budget to cost · {formatMoney(costBudget)}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+
+  // Industry-standard warning band (allowance + coverage + stale)
+  const warningBand = (allowanceItems.length > 0 || lowCoverage || stale) && (
+    <View style={styles.section}>
+      {allowanceItems.length > 0 && pkg.status !== 'awarded' && (
+        <View style={[styles.warningCard, { backgroundColor: '#0D6CB112', borderLeftColor: '#0D6CB1' }]}>
+          <AlertTriangle size={14} color="#0D6CB1" strokeWidth={1.75} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.warningTitle}>Contains {allowanceItems.length} allowance item{allowanceItems.length === 1 ? '' : 's'}</Text>
+            <Text style={styles.warningBody}>
+              {allowanceItems.slice(0, 3).map(i => i.name).join(', ')}
+              {allowanceItems.length > 3 ? ` +${allowanceItems.length - 3} more` : ''}.
+              Awarding this package locks them to firm price in the estimate and client portal.
+            </Text>
+          </View>
+        </View>
+      )}
+      {lowCoverage && (
+        <View style={styles.warningCard}>
+          <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.warningTitle}>Coverage risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
+            <Text style={styles.warningBody}>
+              Industry best practice is 3+ qualified bids per package.
+              {coverage.awaiting > 0
+                ? ` ${coverage.awaiting} invited sub${coverage.awaiting === 1 ? ' hasn’t' : 's haven’t'} answered yet — chase them, or invite more.`
+                : ' Invite more subs before awarding.'}
+            </Text>
+            {/* Same gate as the section button below — a second door
+                into the invite sheet must not walk around the scope
+                check, or the coverage warning becomes the way to send
+                a scope-less RFQ. */}
+            <TouchableOpacity
+              style={[styles.warningActionBtn, !scopeText && styles.inviteBtnBlocked]}
+              onPress={() => { if (scopeText) setShowInvite(true); }}
+              disabled={!scopeText}
+              activeOpacity={0.85}
+              testID="coverage-invite-subs"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !scopeText }}
+              accessibilityLabel={scopeText
+                ? 'Invite subs to bid'
+                : 'Invite subs to bid — unavailable until this package has a scope of work'}
+            >
+              <Mail size={13} color={scopeText ? Colors.warningLabel : themeColors.textMuted} strokeWidth={1.75} />
+              <Text style={[styles.warningActionText, !scopeText && { color: themeColors.textMuted }]}>
+                {scopeText ? 'Invite subs to bid' : 'Write the scope first, then invite'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      {stale && (
+        <View style={styles.warningCard}>
+          <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.warningTitle}>Stale package · {daysSinceOpened} days open</Text>
+            <Text style={styles.warningBody}>Material pricing windows are typically 30 days. Award soon or re-bid to avoid expired numbers.</Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+
+  // Scope of work — the only thing the bidder is told about the job.
+  // Shown ABOVE the invite section on purpose: it has to be written
+  // before the invitation means anything, and the send button below
+  // is disabled until it is.
+  // …and the run-leveling CTA that follows it on the phone.
+  const scope = (
+    <>
+      <View style={styles.section}>
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>Scope of work</Text>
+          <Text style={styles.sectionSub}>{scopeText ? 'What the subs are pricing' : 'Not written yet'}</Text>
+        </View>
+        {scopeText ? (
+          <View style={styles.scopeCard}>
+            <Text style={styles.scopeText}>{scopeText}</Text>
+            <TouchableOpacity
+              style={styles.scopeEditBtn}
+              onPress={() => { setScopeDraft(scopeText); setShowScopeEdit(true); }}
+              activeOpacity={0.85}
+              testID="scope-edit"
+            >
+              <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.scopeEditText}>Edit the scope</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.scopeCard}>
+            <Text style={styles.scopeEmptyText}>
+              {canGenerateScope(packageItems)
+                ? `This package covers ${packageItems.length} estimate line${packageItems.length === 1 ? '' : 's'}. Write them out as a scope and the sub knows what he is pricing — quantities and units only, never your carry.`
+                : 'Nothing is linked to this package from the estimate, so there is nothing to generate from. Type the scope yourself — without it the invitation asks the sub to price a name and an address, and the bid page tells him to phone you.'}
+            </Text>
+            <View style={styles.scopeBtnRow}>
+              {canGenerateScope(packageItems) && (
+                <TouchableOpacity
+                  style={styles.scopeGenBtn}
+                  onPress={handleGenerateScope}
+                  activeOpacity={0.85}
+                  testID="scope-generate"
+                >
+                  <FileText size={14} color="#FFF" strokeWidth={1.75} />
+                  <Text style={styles.scopeGenText}>Write it from the estimate items</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.scopeEditBtn}
+                onPress={() => { setScopeDraft(''); setShowScopeEdit(true); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.scopeEditText}>Type it</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Run-leveling CTA when 2+ bids and not awarded */}
+      {pkg.status !== 'awarded' && bids.length >= 2 && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.levelBtn}
+            onPress={handleLevel}
+            disabled={leveling}
+            activeOpacity={0.85}
+          >
+            {leveling ? (
+              <>
+                <ActivityIndicator size="small" color="#FFF" />
+                <Text style={styles.levelBtnText}>AI is leveling these bids…</Text>
+              </>
+            ) : (
+              <>
+                <MageAIMark size={16} color="#FFF" />
+                <Text style={styles.levelBtnText}>{levelingResult ? 'Re-run AI leveling' : 'Run AI leveling'}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.levelLinkBtn}
+            onPress={() => router.push({ pathname: '/bid-leveling', params: { packageId: pkg.id } })}
+            activeOpacity={0.85}
+          >
+            <Scale size={15} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.levelLinkBtnText}>Open leveling board</Text>
+            <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.levelLinkBtn}
+            onPress={() => router.push({ pathname: '/judges', params: { projectId: pkg.projectId } } as never)}
+            activeOpacity={0.85}
+          >
+            <Briefcase size={15} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.levelLinkBtnText}>Score with Bid Advisor</Text>
+            <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
+          </TouchableOpacity>
+          {!!levelingResult?.summary && (
+            <View style={styles.levelingSummary}>
+              <View style={styles.levelingSummaryHead}>
+                <MageAIMark size={14} color={themeColors.accent} />
+                <Text style={styles.levelingSummaryHeadText}>AI leveling summary</Text>
+              </View>
+              <Text style={styles.levelingSummaryBody}>{levelingResult.summary}</Text>
+              {!!levelingResult.recommendedWinnerReason && (
+                <View style={styles.recommendation}>
+                  <Trophy size={14} color={themeColors.success} strokeWidth={1.75} />
+                  <Text style={styles.recommendationText}>{levelingResult.recommendedWinnerReason}</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+    </>
+  );
+
+  // Invitations out. This is what makes "send the RFQ to more subs"
+  // an action rather than a scolding: the sub opens a link, sees the
+  // scope, and types a number that lands in the matrix below.
+  const invitesSection = pkg.status !== 'awarded' && (
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>Invited to bid</Text>
+        <Text style={styles.sectionSub}>
+          {invitesFailed && invites.length === 0
+            ? 'Not loaded'
+            : coverage.invited === 0 ? 'Nobody invited yet' : `${coverage.responded} of ${coverage.invited} responded`}
+        </Text>
+      </View>
+
+      {invitesFailed && (
+        <View style={[styles.warningCard, { marginBottom: 8 }]}>
+          <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
+          <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>
+            Couldn&apos;t reach the server to check your invitations, so this list may be out of date — it is not a claim that nobody was invited.
+          </Text>
+        </View>
+      )}
+
+      {/* When the number is wanted. Shown here because this is the
+          section he chases from; the invite email and the sub's bid
+          page print the same day (#99). */}
+      <View style={styles.dueRow}>
+        <Clock
+          size={Type.caption1.fontSize}
+          color={dueState === 'overdue' ? themeColors.danger : dueState === 'none' ? themeColors.textMuted : themeColors.accent}
+          strokeWidth={2}
+        />
+        <Text style={[styles.dueRowText, dueState === 'overdue' && { color: themeColors.danger, fontWeight: '700' }]}>
+          {pkg.dueDate
+            ? `${bidDueLabel(pkg.dueDate, Date.now())} · ${formatCalendarDay(pkg.dueDate, { weekday: 'short', month: 'short', day: 'numeric' })}`
+            : 'No bid date on this package — nothing here can tell you it is late.'}
+        </Text>
+      </View>
+
+      {!!deliveredNote && (
+        <View style={[styles.warningCard, { marginBottom: 8, backgroundColor: themeColors.success + '14', borderLeftColor: themeColors.success }]}>
+          <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
+          <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>{deliveredNote}</Text>
+        </View>
+      )}
+
+      {invites.length === 0 ? (
+        !invitesFailed && (
+          <View style={styles.emptyBids}>
+            <Text style={styles.emptyBidsText}>
+              Email the subs a link. They see this package&apos;s scope — not your budget — and type their number straight into the matrix below. No account, no app, nothing for you to re-key.
+            </Text>
+          </View>
+        )
+      ) : (
+        invites.map(inv => {
+          const state = inviteState(inv, Date.now());
+          // Only hex tokens get an alpha suffix here — `textMuted` and
+          // `line` are rgba() in both themes, and concatenating '1A'
+          // onto those produces an invalid color, so the lapsed pill
+          // uses flat surface tokens instead of a tint.
+          const tone = state === 'responded' ? themeColors.success : Colors.warningLabel;
+          const pillStyle = state === 'expired'
+            ? { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.line }
+            : { backgroundColor: tone + '1A', borderColor: tone + '55' };
+          const pillInk = state === 'expired' ? themeColors.textMuted : tone;
+          const sentDay = fmtInviteDay(inv.createdAt);
+          const expiryDay = fmtInviteDay(inv.expiresAt);
+          // The bid this invite produced was deleted (trigger
+          // trg_bid_package_bids_clear_invite, #92): the link stays
+          // closed, so the way back is a fresh invite.
+          const bidGone = state === 'responded' && (inv.status === 'bid_deleted' || !inv.bidId);
+          const unmailedWhy = !inv.localOnly && state === 'awaiting'
+            ? (notEmailed[inv.id] ?? inv.notEmailedReason)
+            : undefined;
+          return (
+            <View key={inv.id} style={styles.inviteCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inviteWho} numberOfLines={1}>{inv.subName || inv.subEmail}</Text>
+                <Text style={styles.inviteMeta} numberOfLines={2}>
+                  {inv.localOnly
+                    ? 'On this phone — will email when it uploads'
+                    : <>
+                        {sentDay ? `Sent ${sentDay}` : 'Sent'}
+                        {remindedIds.includes(inv.id) ? ' · re-sent just now' : ''}
+                        {state === 'awaiting' && expiryDay ? ` · link good through ${expiryDay}` : ''}
+                        {state === 'responded' && !bidGone ? ' · their number is in the matrix below' : ''}
+                        {bidGone ? ' · their bid was deleted — re-invite them for a new number' : ''}
+                      </>}
+                </Text>
+                {!!unmailedWhy && (
+                  <Text style={[styles.inviteMeta, { color: Colors.warningLabel, fontWeight: '700' }]} numberOfLines={2}>
+                    {unmailedWhy === 'suppressed_unsubscribed'
+                      ? 'Not emailed — they unsubscribed from invitation emails. Copy the link and text it.'
+                      : NOT_EMAILED_ROW}
+                  </Text>
+                )}
+                {/* An invite filed against a roster sub is what gives
+                    the resulting bid a scorecard, a commitment that
+                    knows who it is with, and a sub portal. Saying which
+                    ones are anonymous is how he notices. */}
+                {!inv.subcontractorId && (
+                  <Text style={styles.inviteMeta} numberOfLines={1}>Not on your roster — bids back from here arrive unlinked</Text>
+                )}
+              </View>
+              <View style={[styles.invitePill, pillStyle]}>
+                <Text style={[styles.invitePillText, { color: pillInk }]}>{inv.localOnly ? 'Not uploaded' : inviteStateLabel(state)}</Text>
+              </View>
+              {/* A pending invite's link answers bid_invite_denied until
+                  it uploads — no copy button to hand out a dead link. */}
+              {state !== 'responded' && !inv.localOnly && (
+                <TouchableOpacity
+                  onPress={() => { void handleCopyInviteLink(inv); }}
+                  hitSlop={10}
+                  style={styles.inviteCopyBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Copy the bid link for ${inv.subEmail}`}
+                >
+                  <Copy size={15} color={themeColors.accent} strokeWidth={1.75} />
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })
+      )}
+
+      <TouchableOpacity
+        style={[styles.inviteBtn, !scopeText && styles.inviteBtnBlocked]}
+        onPress={() => { if (scopeText) setShowInvite(true); }}
+        disabled={!scopeText}
+        activeOpacity={0.85}
+        testID="invite-subs-to-bid"
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !scopeText }}
+        accessibilityLabel={scopeText
+          ? 'Invite subs to bid'
+          : 'Invite subs to bid — unavailable until this package has a scope of work'}
+      >
+        <Mail size={15} color={scopeText ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
+        <Text style={[styles.inviteBtnText, !scopeText && { color: themeColors.textMuted }]}>
+          {invites.length === 0 ? 'Invite subs to bid' : 'Invite more subs'}
+        </Text>
+        {scopeText && <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />}
+      </TouchableOpacity>
+      {/* A blocked button says why, and says what unblocks it. */}
+      {!scopeText && (
+        <Text style={styles.inviteBlockedWhy}>
+          No scope written yet. An invitation without one asks the sub to price a name and an address — and the bid page tells him to email you for the details, which is the phone call this replaces. Write the scope above and this turns on.
+        </Text>
+      )}
+
+      {/* Chase. The banner used to tell him to do this and offer no way. */}
+      {remindable.length > 0 && (
+        <TouchableOpacity
+          style={[styles.remindBtn, reminding && { opacity: 0.6 }]}
+          onPress={() => { void handleRemind(); }}
+          disabled={reminding}
+          activeOpacity={0.85}
+          testID="invite-remind"
+        >
+          {reminding ? (
+            <ActivityIndicator size="small" color={themeColors.text} />
+          ) : (
+            <Send size={14} color={themeColors.text} strokeWidth={1.75} />
+          )}
+          <Text style={styles.remindBtnText}>
+            {reminding
+              ? 'Sending…'
+              : `Re-send to the ${remindable.length} who ${remindable.length === 1 ? 'has' : 'have'}n't answered`}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  // Bid leveling matrix
+  const bidsSection = (
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>Bids</Text>
+        <Text style={styles.sectionSub}>{bids.length === 0 ? 'Add the first bid' : `${bids.length} received`}</Text>
+      </View>
+
+      {sortedBids.length === 0 ? (
+        <View style={styles.emptyBids}>
+          <Text style={styles.emptyBidsText}>
+            Tap "Add by voice" or "Add by hand" to log incoming sub bids. MAGE ID will compare them apples-to-apples and recommend a winner.
+          </Text>
+        </View>
+      ) : (
+        sortedBids.map((bid, i) => {
+          const priced = bidAmountOf(bid) != null;
+          const total = bid.amount + (bid.normalizedAdjustment ?? 0);
+          const vsBudget = pkg.estimateBudget - total;
+          const isWinner = winningBidId === bid.id;
+          // Never a bid with no amount, and only when two PRICED bids compete.
+          const isLowest = priced && i === 0 && pricedBids.length > 1;
+          const outlier = isOutlier(bid);
+          const filedBySub = invitedBidIds.has(bid.id);
+          const isAwardedBid = bid.status === 'awarded' || pkg.awardedBidId === bid.id;
+          // The sub's own number is his to change (call him); an awarded
+          // bid's amount is the commitment's now.
+          const canEditAmount = !filedBySub && !isAwardedBid;
+          return (
+            <View key={bid.id} style={[styles.bidCard, isWinner && styles.bidCardWinner, bid.status === 'awarded' && styles.bidCardAwarded, outlier && styles.bidCardOutlier]}>
+              <View style={styles.bidHead}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.bidNameRow}>
+                    <Text style={styles.bidVendor} numberOfLines={1}>{bid.vendorName ?? 'Subcontractor'}</Text>
+                    {isWinner && (
+                      <View style={styles.winnerBadge}>
+                        <Trophy size={10} color="#FFF" strokeWidth={1.75} />
+                        <Text style={styles.winnerBadgeText}>AI PICK</Text>
+                      </View>
+                    )}
+                    {isLowest && !isWinner && (
+                      <View style={styles.lowestBadge}>
+                        <Text style={styles.lowestBadgeText}>LOWEST</Text>
+                      </View>
+                    )}
+                    {bid.status === 'awarded' && (
+                      <View style={styles.awardedBadge}>
+                        <CheckCircle2 size={10} color="#FFF" strokeWidth={1.75} />
+                        <Text style={styles.awardedBadgeText}>AWARDED</Text>
+                      </View>
+                    )}
+                    {invitedBidIds.has(bid.id) && (
+                      <View style={styles.invitedBadge}>
+                        <Text style={styles.invitedBadgeText}>SUB-ENTERED</Text>
+                      </View>
+                    )}
+                    {outlier && (
+                      <View style={styles.outlierBadge}>
+                        <AlertTriangle size={10} color="#FFF" strokeWidth={1.75} />
+                        <Text style={styles.outlierBadgeText}>
+                          {outlier.kind === 'low' ? `${outlier.pct.toFixed(0)}% LOW` : `${outlier.pct.toFixed(0)}% HIGH`}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {outlier && (
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
+                      <AlertTriangle size={Type.caption2.fontSize} color={Colors.warningLabel} strokeWidth={2} style={{ marginTop: 1 }} />
+                      <Text style={[styles.outlierHint, { flex: 1 }]}>
+                        {outlier.kind === 'low'
+                          ? 'Significantly below the median — review for missing scope before awarding.'
+                          : 'Significantly above the median — sub may have priced in protection or unfamiliarity.'}
+                      </Text>
+                    </View>
+                  )}
+                  {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteBid(bid, filedBySub)} hitSlop={10} style={styles.bidDelete} accessibilityRole="button" accessibilityLabel={`Delete ${bid.vendorName ?? 'this'} bid`} testID={`delete-bid-${bid.id}`}>
+                  <Trash2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.bidAmountsRow}>
+                <TouchableOpacity
+                  style={styles.bidAmountCell}
+                  onPress={() => { if (canEditAmount) { setAmountDraft(priced ? String(bid.amount) : ''); setAmountEditBidId(bid.id); } }}
+                  disabled={!canEditAmount}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={canEditAmount ? `Edit the amount of ${bid.vendorName ?? 'this'} bid` : undefined}
+                  testID={`bid-amount-${bid.id}`}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.bidAmountLabel}>Bid</Text>
+                    {canEditAmount && <Pencil size={10} color={themeColors.textMuted} strokeWidth={2} />}
+                  </View>
+                  <Text style={[styles.bidAmountValue, !priced && { color: themeColors.danger }]}>
+                    {priced ? formatMoney(bid.amount) : 'No amount'}
+                  </Text>
+                </TouchableOpacity>
+                {bid.normalizedAdjustment != null && bid.normalizedAdjustment !== 0 && (
+                  <View style={styles.bidAmountCell}>
+                    <Text style={styles.bidAmountLabel}>Adj.</Text>
+                    <Text style={[styles.bidAmountValue, { color: bid.normalizedAdjustment > 0 ? Colors.warning : themeColors.success }]}>
+                      {bid.normalizedAdjustment > 0 ? '+' : ''}{formatMoney(bid.normalizedAdjustment)}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.bidAmountCell}>
+                  <Text style={[styles.bidAmountLabel, { color: themeColors.text, fontWeight: '700' }]}>Leveled total</Text>
+                  <Text style={[styles.bidAmountValueTotal, { color: !priced ? themeColors.textMuted : vsBudget >= 0 ? themeColors.success : themeColors.danger }]}>
+                    {priced ? formatMoney(total) : '—'}
+                  </Text>
+                </View>
+              </View>
+
+              {!!bid.includes && (
+                <View style={styles.bidScopeBlock}>
+                  <Text style={styles.bidScopeLabel}>Includes</Text>
+                  <Text style={styles.bidScopeText}>{bid.includes}</Text>
+                </View>
+              )}
+              {!!bid.excludes && (
+                <View style={[styles.bidScopeBlock, { backgroundColor: themeColors.danger + '0F', borderLeftColor: themeColors.danger }]}>
+                  <Text style={[styles.bidScopeLabel, { color: themeColors.danger }]}>Excludes</Text>
+                  <Text style={styles.bidScopeText}>{bid.excludes}</Text>
+                </View>
+              )}
+              {!!bid.normalizedAdjustmentReason && (
+                <View style={styles.adjReason}>
+                  <MageAIMark size={11} color={themeColors.accent} />
+                  <Text style={styles.adjReasonText}>{bid.normalizedAdjustmentReason}</Text>
+                </View>
+              )}
+
+              {pkg.status !== 'awarded' && (priced ? (
+                <TouchableOpacity style={styles.awardBtn} onPress={() => handleAward(bid)} activeOpacity={0.85}>
+                  <Trophy size={14} color="#FFF" strokeWidth={1.75} />
+                  <Text style={styles.awardBtnText}>Award · {formatMoney(total)}</Text>
+                  <ArrowRight size={14} color="#FFF" strokeWidth={1.75} />
+                </TouchableOpacity>
+              ) : (
+                // No Award on a bid that can't be awarded — the reason
+                // and the fix instead (#95).
+                <TouchableOpacity
+                  style={styles.needsAmountBtn}
+                  onPress={() => { setAmountDraft(''); setAmountEditBidId(bid.id); }}
+                  activeOpacity={0.85}
+                  testID={`needs-amount-${bid.id}`}
+                >
+                  <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
+                  <Text style={[styles.needsAmountText, { color: themeColors.danger }]}>Needs an amount — tap to add it</Text>
+                </TouchableOpacity>
+              ))}
+              {/* Who this bid is actually FROM, as a record rather than a
+                  name. Without the link the award creates a commitment
+                  that names a company and references nobody: no
+                  scorecard, no compliance check, and no sub portal
+                  (app/sub-portals.tsx skips commitments with no
+                  subcontractorId), so invoices and payment go back to
+                  email and text. */}
+              {bid.subcontractorId ? (
+                <View style={styles.bidSubLink}>
+                  <Text style={styles.bidSubLinkText} numberOfLines={2}>
+                    {linkNotes[bid.id]
+                      ?? `Linked to ${getSubcontractor(bid.subcontractorId)?.companyName ?? 'a sub on your roster'}.`}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.subScorecardBtn}
+                    onPress={() => router.push({ pathname: '/sub-scorecard', params: { subId: bid.subcontractorId } } as never)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.subScorecardBtnText}>See this sub&apos;s scorecard →</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.bidLinkBtn}
+                  onPress={() => setLinkTargetBidId(bid.id)}
+                  activeOpacity={0.85}
+                  testID={`link-bid-${bid.id}`}
+                >
+                  <Link2 size={13} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.bidLinkBtnText}>Link this bid to a sub</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+
+  // Quick action: open the awarded commitment
+  const awardedLink = pkg.status === 'awarded' && pkg.awardedCommitmentId && (
+    <View style={styles.section}>
+      <TouchableOpacity
+        style={styles.openCommitmentBtn}
+        onPress={() => router.push({ pathname: '/project-detail' as never, params: { id: pkg.projectId } as never })}
+        activeOpacity={0.85}
+      >
+        <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
+        <Text style={styles.openCommitmentText}>Open project · view this commitment</Text>
+        <ChevronUp size={16} color={themeColors.accent} style={{ transform: [{ rotate: '90deg' }] }} strokeWidth={1.75} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Generate A401 subcontract — available once the package is
+  // awarded. Pre-fills from the awarded bid + project + GC
+  // branding. The PDF is the GC's deliverable to the sub for
+  // countersignature before NTP.
+  const a401 = pkg.status === 'awarded' && pkg.awardedBidId && (
+    <View style={styles.section}>
+      <TouchableOpacity
+        style={styles.openCommitmentBtn}
+        onPress={handleGenerateSubcontract}
+        activeOpacity={0.85}
+        testID="generate-a401"
+      >
+        <FileDown size={16} color={themeColors.accent} strokeWidth={1.75} />
+        <Text style={styles.openCommitmentText}>Generate A401-style subcontract PDF</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Delete package
+  const deletePkg = (
+    <View style={styles.section}>
+      <TouchableOpacity onPress={handleDeletePackage} style={styles.deletePkgBtn} activeOpacity={0.7}>
+        <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+        <Text style={styles.deletePkgText}>Delete this package</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <>
       <Stack.Screen options={{ title: pkg.name, headerLargeTitle: false }} />
       <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
         <ScrollView {...fabScroll} contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}>
-          {/* Hero card with status + budget */}
-          <View style={styles.hero}>
-            <View style={styles.heroTopRow}>
-              <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[pkg.status] + '22', borderColor: STATUS_COLORS[pkg.status] + '60' }]}>
-                <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[pkg.status] }]} />
-                <Text style={[styles.statusPillText, { color: STATUS_COLORS[pkg.status] }]}>{BID_PACKAGE_STATUS_LABELS[pkg.status]}</Text>
-              </View>
-              {!!pkg.phase && <Text style={styles.heroPhase}>{pkg.phase}</Text>}
-            </View>
-            <Text style={styles.heroName}>{pkg.name}</Text>
-            <View style={styles.heroBudgetRow}>
-              <View style={styles.heroBudgetCell}>
-                <Text style={styles.heroBudgetLabel}>{sellBasis ? 'Budget (includes markup)' : 'Budget at cost'}</Text>
-                <Text style={styles.heroBudgetValue}>{formatMoney(pkg.estimateBudget)}</Text>
-              </View>
-              {sellBasis ? (
-                <View style={styles.heroBudgetCell}>
-                  <Text style={styles.heroBudgetLabel}>Buyout savings</Text>
-                  <Text style={[styles.heroBudgetValue, { color: Colors.warningLabel }]}>Review</Text>
-                </View>
-              ) : heroSavings != null ? (
-                <View style={styles.heroBudgetCell}>
-                  <Text style={styles.heroBudgetLabel}>Buyout {heroSavings >= 0 ? 'savings' : 'overrun'}</Text>
-                  <Text style={[styles.heroBudgetValue, { color: heroSavings >= 0 ? themeColors.success : themeColors.danger }]}>
-                    {heroSavings >= 0 ? '+' : ''}{formatMoney(heroSavings)}
-                  </Text>
-                  {heroUncovered > 0 ? (
-                    <Text style={styles.heroBudgetLabel}>{formatMoney(heroUncovered)} excluded scope (est. at award)</Text>
-                  ) : null}
-                </View>
-              ) : (
-                <View style={styles.heroBudgetCell}>
-                  <Text style={styles.heroBudgetLabel}>Bids received</Text>
-                  <Text style={styles.heroBudgetValue}>{bids.length}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* #11: a budget stored at SELL makes his own markup read as buyout
-              savings (and, on the client PDF, as "Bulk Savings"). Withheld
-              everywhere until he fixes it — one tap to the cost figure. */}
-          {sellBasis && (
-            <View style={styles.section}>
-              <View style={styles.warningCard}>
-                <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.warningTitle}>Budget includes markup — review</Text>
-                  <Text style={styles.warningBody}>
-                    This package was budgeted at the estimate&apos;s sell price ({formatMoney(pkg.estimateBudget)}), so a sub who bids your cost would show your own markup as buyout savings — and that figure would print on the client&apos;s estimate as Bulk Savings. Savings are hidden until the budget is at cost{costBudget != null ? ` (${formatMoney(costBudget)} for its linked lines)` : ''}.
-                  </Text>
-                  {costBudget != null && (
-                    <TouchableOpacity
-                      style={styles.warningActionBtn}
-                      onPress={() => showAlert(
-                        'Set the budget to cost?',
-                        `${formatMoney(pkg.estimateBudget)} → ${formatMoney(costBudget)}, the cost of the ${pkg.linkedEstimateItemIds.length} estimate line${pkg.linkedEstimateItemIds.length === 1 ? '' : 's'} this package covers, before your markup. Buyout savings are then measured against what the work costs you.`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Set to cost', style: 'default', onPress: () => updateBidPackage(pkg.id, { estimateBudget: costBudget }) },
-                        ],
-                      )}
-                      activeOpacity={0.85}
-                      testID="budget-to-cost"
-                    >
-                      <Text style={styles.warningActionText}>Set the budget to cost · {formatMoney(costBudget)}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>
+          {isDesktopWeb ? (
+            // Desktop web: hero and the bids on the left, the scope and the
+            // invitations on a 360 rail. The bid cards stay cards — an editable
+            // leveling grid needs its own money review.
+            <DashboardColumns
+              main={<>{hero}{sellBasisWarning}{warningBand}{bidsSection}{awardedLink}{a401}</>}
+              rail={<>{scope}{invitesSection}{deletePkg}</>}
+            />
+          ) : (
+            <>{hero}{sellBasisWarning}{warningBand}{scope}{invitesSection}{bidsSection}{awardedLink}{a401}{deletePkg}</>
           )}
-
-          {/* Industry-standard warning band (allowance + coverage + stale) */}
-          {(allowanceItems.length > 0 || lowCoverage || stale) && (
-            <View style={styles.section}>
-              {allowanceItems.length > 0 && pkg.status !== 'awarded' && (
-                <View style={[styles.warningCard, { backgroundColor: '#0D6CB112', borderLeftColor: '#0D6CB1' }]}>
-                  <AlertTriangle size={14} color="#0D6CB1" strokeWidth={1.75} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.warningTitle}>Contains {allowanceItems.length} allowance item{allowanceItems.length === 1 ? '' : 's'}</Text>
-                    <Text style={styles.warningBody}>
-                      {allowanceItems.slice(0, 3).map(i => i.name).join(', ')}
-                      {allowanceItems.length > 3 ? ` +${allowanceItems.length - 3} more` : ''}.
-                      Awarding this package locks them to firm price in the estimate and client portal.
-                    </Text>
-                  </View>
-                </View>
-              )}
-              {lowCoverage && (
-                <View style={styles.warningCard}>
-                  <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.warningTitle}>Coverage risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
-                    <Text style={styles.warningBody}>
-                      Industry best practice is 3+ qualified bids per package.
-                      {coverage.awaiting > 0
-                        ? ` ${coverage.awaiting} invited sub${coverage.awaiting === 1 ? ' hasn’t' : 's haven’t'} answered yet — chase them, or invite more.`
-                        : ' Invite more subs before awarding.'}
-                    </Text>
-                    {/* Same gate as the section button below — a second door
-                        into the invite sheet must not walk around the scope
-                        check, or the coverage warning becomes the way to send
-                        a scope-less RFQ. */}
-                    <TouchableOpacity
-                      style={[styles.warningActionBtn, !scopeText && styles.inviteBtnBlocked]}
-                      onPress={() => { if (scopeText) setShowInvite(true); }}
-                      disabled={!scopeText}
-                      activeOpacity={0.85}
-                      testID="coverage-invite-subs"
-                      accessibilityRole="button"
-                      accessibilityState={{ disabled: !scopeText }}
-                      accessibilityLabel={scopeText
-                        ? 'Invite subs to bid'
-                        : 'Invite subs to bid — unavailable until this package has a scope of work'}
-                    >
-                      <Mail size={13} color={scopeText ? Colors.warningLabel : themeColors.textMuted} strokeWidth={1.75} />
-                      <Text style={[styles.warningActionText, !scopeText && { color: themeColors.textMuted }]}>
-                        {scopeText ? 'Invite subs to bid' : 'Write the scope first, then invite'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-              {stale && (
-                <View style={styles.warningCard}>
-                  <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.warningTitle}>Stale package · {daysSinceOpened} days open</Text>
-                    <Text style={styles.warningBody}>Material pricing windows are typically 30 days. Award soon or re-bid to avoid expired numbers.</Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Scope of work — the only thing the bidder is told about the job.
-              Shown ABOVE the invite section on purpose: it has to be written
-              before the invitation means anything, and the send button below
-              is disabled until it is. */}
-          <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Scope of work</Text>
-              <Text style={styles.sectionSub}>{scopeText ? 'What the subs are pricing' : 'Not written yet'}</Text>
-            </View>
-            {scopeText ? (
-              <View style={styles.scopeCard}>
-                <Text style={styles.scopeText}>{scopeText}</Text>
-                <TouchableOpacity
-                  style={styles.scopeEditBtn}
-                  onPress={() => { setScopeDraft(scopeText); setShowScopeEdit(true); }}
-                  activeOpacity={0.85}
-                  testID="scope-edit"
-                >
-                  <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.scopeEditText}>Edit the scope</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.scopeCard}>
-                <Text style={styles.scopeEmptyText}>
-                  {canGenerateScope(packageItems)
-                    ? `This package covers ${packageItems.length} estimate line${packageItems.length === 1 ? '' : 's'}. Write them out as a scope and the sub knows what he is pricing — quantities and units only, never your carry.`
-                    : 'Nothing is linked to this package from the estimate, so there is nothing to generate from. Type the scope yourself — without it the invitation asks the sub to price a name and an address, and the bid page tells him to phone you.'}
-                </Text>
-                <View style={styles.scopeBtnRow}>
-                  {canGenerateScope(packageItems) && (
-                    <TouchableOpacity
-                      style={styles.scopeGenBtn}
-                      onPress={handleGenerateScope}
-                      activeOpacity={0.85}
-                      testID="scope-generate"
-                    >
-                      <FileText size={14} color="#FFF" strokeWidth={1.75} />
-                      <Text style={styles.scopeGenText}>Write it from the estimate items</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={styles.scopeEditBtn}
-                    onPress={() => { setScopeDraft(''); setShowScopeEdit(true); }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.scopeEditText}>Type it</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Run-leveling CTA when 2+ bids and not awarded */}
-          {pkg.status !== 'awarded' && bids.length >= 2 && (
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={styles.levelBtn}
-                onPress={handleLevel}
-                disabled={leveling}
-                activeOpacity={0.85}
-              >
-                {leveling ? (
-                  <>
-                    <ActivityIndicator size="small" color="#FFF" />
-                    <Text style={styles.levelBtnText}>AI is leveling these bids…</Text>
-                  </>
-                ) : (
-                  <>
-                    <MageAIMark size={16} color="#FFF" />
-                    <Text style={styles.levelBtnText}>{levelingResult ? 'Re-run AI leveling' : 'Run AI leveling'}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.levelLinkBtn}
-                onPress={() => router.push({ pathname: '/bid-leveling', params: { packageId: pkg.id } })}
-                activeOpacity={0.85}
-              >
-                <Scale size={15} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.levelLinkBtnText}>Open leveling board</Text>
-                <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.levelLinkBtn}
-                onPress={() => router.push({ pathname: '/judges', params: { projectId: pkg.projectId } } as never)}
-                activeOpacity={0.85}
-              >
-                <Briefcase size={15} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.levelLinkBtnText}>Score with Bid Advisor</Text>
-                <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
-              </TouchableOpacity>
-              {!!levelingResult?.summary && (
-                <View style={styles.levelingSummary}>
-                  <View style={styles.levelingSummaryHead}>
-                    <MageAIMark size={14} color={themeColors.accent} />
-                    <Text style={styles.levelingSummaryHeadText}>AI leveling summary</Text>
-                  </View>
-                  <Text style={styles.levelingSummaryBody}>{levelingResult.summary}</Text>
-                  {!!levelingResult.recommendedWinnerReason && (
-                    <View style={styles.recommendation}>
-                      <Trophy size={14} color={themeColors.success} strokeWidth={1.75} />
-                      <Text style={styles.recommendationText}>{levelingResult.recommendedWinnerReason}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Invitations out. This is what makes "send the RFQ to more subs"
-              an action rather than a scolding: the sub opens a link, sees the
-              scope, and types a number that lands in the matrix below. */}
-          {pkg.status !== 'awarded' && (
-            <View style={styles.section}>
-              <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>Invited to bid</Text>
-                <Text style={styles.sectionSub}>
-                  {invitesFailed && invites.length === 0
-                    ? 'Not loaded'
-                    : coverage.invited === 0 ? 'Nobody invited yet' : `${coverage.responded} of ${coverage.invited} responded`}
-                </Text>
-              </View>
-
-              {invitesFailed && (
-                <View style={[styles.warningCard, { marginBottom: 8 }]}>
-                  <AlertTriangle size={14} color={Colors.warningLabel} strokeWidth={1.75} />
-                  <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>
-                    Couldn&apos;t reach the server to check your invitations, so this list may be out of date — it is not a claim that nobody was invited.
-                  </Text>
-                </View>
-              )}
-
-              {/* When the number is wanted. Shown here because this is the
-                  section he chases from; the invite email and the sub's bid
-                  page print the same day (#99). */}
-              <View style={styles.dueRow}>
-                <Clock
-                  size={Type.caption1.fontSize}
-                  color={dueState === 'overdue' ? themeColors.danger : dueState === 'none' ? themeColors.textMuted : themeColors.accent}
-                  strokeWidth={2}
-                />
-                <Text style={[styles.dueRowText, dueState === 'overdue' && { color: themeColors.danger, fontWeight: '700' }]}>
-                  {pkg.dueDate
-                    ? `${bidDueLabel(pkg.dueDate, Date.now())} · ${formatCalendarDay(pkg.dueDate, { weekday: 'short', month: 'short', day: 'numeric' })}`
-                    : 'No bid date on this package — nothing here can tell you it is late.'}
-                </Text>
-              </View>
-
-              {!!deliveredNote && (
-                <View style={[styles.warningCard, { marginBottom: 8, backgroundColor: themeColors.success + '14', borderLeftColor: themeColors.success }]}>
-                  <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
-                  <Text style={[styles.warningBody, { flex: 1, marginTop: 0 }]}>{deliveredNote}</Text>
-                </View>
-              )}
-
-              {invites.length === 0 ? (
-                !invitesFailed && (
-                  <View style={styles.emptyBids}>
-                    <Text style={styles.emptyBidsText}>
-                      Email the subs a link. They see this package&apos;s scope — not your budget — and type their number straight into the matrix below. No account, no app, nothing for you to re-key.
-                    </Text>
-                  </View>
-                )
-              ) : (
-                invites.map(inv => {
-                  const state = inviteState(inv, Date.now());
-                  // Only hex tokens get an alpha suffix here — `textMuted` and
-                  // `line` are rgba() in both themes, and concatenating '1A'
-                  // onto those produces an invalid color, so the lapsed pill
-                  // uses flat surface tokens instead of a tint.
-                  const tone = state === 'responded' ? themeColors.success : Colors.warningLabel;
-                  const pillStyle = state === 'expired'
-                    ? { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.line }
-                    : { backgroundColor: tone + '1A', borderColor: tone + '55' };
-                  const pillInk = state === 'expired' ? themeColors.textMuted : tone;
-                  const sentDay = fmtInviteDay(inv.createdAt);
-                  const expiryDay = fmtInviteDay(inv.expiresAt);
-                  // The bid this invite produced was deleted (trigger
-                  // trg_bid_package_bids_clear_invite, #92): the link stays
-                  // closed, so the way back is a fresh invite.
-                  const bidGone = state === 'responded' && (inv.status === 'bid_deleted' || !inv.bidId);
-                  const unmailedWhy = !inv.localOnly && state === 'awaiting'
-                    ? (notEmailed[inv.id] ?? inv.notEmailedReason)
-                    : undefined;
-                  return (
-                    <View key={inv.id} style={styles.inviteCard}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.inviteWho} numberOfLines={1}>{inv.subName || inv.subEmail}</Text>
-                        <Text style={styles.inviteMeta} numberOfLines={2}>
-                          {inv.localOnly
-                            ? 'On this phone — will email when it uploads'
-                            : <>
-                                {sentDay ? `Sent ${sentDay}` : 'Sent'}
-                                {remindedIds.includes(inv.id) ? ' · re-sent just now' : ''}
-                                {state === 'awaiting' && expiryDay ? ` · link good through ${expiryDay}` : ''}
-                                {state === 'responded' && !bidGone ? ' · their number is in the matrix below' : ''}
-                                {bidGone ? ' · their bid was deleted — re-invite them for a new number' : ''}
-                              </>}
-                        </Text>
-                        {!!unmailedWhy && (
-                          <Text style={[styles.inviteMeta, { color: Colors.warningLabel, fontWeight: '700' }]} numberOfLines={2}>
-                            {unmailedWhy === 'suppressed_unsubscribed'
-                              ? 'Not emailed — they unsubscribed from invitation emails. Copy the link and text it.'
-                              : NOT_EMAILED_ROW}
-                          </Text>
-                        )}
-                        {/* An invite filed against a roster sub is what gives
-                            the resulting bid a scorecard, a commitment that
-                            knows who it is with, and a sub portal. Saying which
-                            ones are anonymous is how he notices. */}
-                        {!inv.subcontractorId && (
-                          <Text style={styles.inviteMeta} numberOfLines={1}>Not on your roster — bids back from here arrive unlinked</Text>
-                        )}
-                      </View>
-                      <View style={[styles.invitePill, pillStyle]}>
-                        <Text style={[styles.invitePillText, { color: pillInk }]}>{inv.localOnly ? 'Not uploaded' : inviteStateLabel(state)}</Text>
-                      </View>
-                      {/* A pending invite's link answers bid_invite_denied until
-                          it uploads — no copy button to hand out a dead link. */}
-                      {state !== 'responded' && !inv.localOnly && (
-                        <TouchableOpacity
-                          onPress={() => { void handleCopyInviteLink(inv); }}
-                          hitSlop={10}
-                          style={styles.inviteCopyBtn}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Copy the bid link for ${inv.subEmail}`}
-                        >
-                          <Copy size={15} color={themeColors.accent} strokeWidth={1.75} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  );
-                })
-              )}
-
-              <TouchableOpacity
-                style={[styles.inviteBtn, !scopeText && styles.inviteBtnBlocked]}
-                onPress={() => { if (scopeText) setShowInvite(true); }}
-                disabled={!scopeText}
-                activeOpacity={0.85}
-                testID="invite-subs-to-bid"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !scopeText }}
-                accessibilityLabel={scopeText
-                  ? 'Invite subs to bid'
-                  : 'Invite subs to bid — unavailable until this package has a scope of work'}
-              >
-                <Mail size={15} color={scopeText ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={[styles.inviteBtnText, !scopeText && { color: themeColors.textMuted }]}>
-                  {invites.length === 0 ? 'Invite subs to bid' : 'Invite more subs'}
-                </Text>
-                {scopeText && <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />}
-              </TouchableOpacity>
-              {/* A blocked button says why, and says what unblocks it. */}
-              {!scopeText && (
-                <Text style={styles.inviteBlockedWhy}>
-                  No scope written yet. An invitation without one asks the sub to price a name and an address — and the bid page tells him to email you for the details, which is the phone call this replaces. Write the scope above and this turns on.
-                </Text>
-              )}
-
-              {/* Chase. The banner used to tell him to do this and offer no way. */}
-              {remindable.length > 0 && (
-                <TouchableOpacity
-                  style={[styles.remindBtn, reminding && { opacity: 0.6 }]}
-                  onPress={() => { void handleRemind(); }}
-                  disabled={reminding}
-                  activeOpacity={0.85}
-                  testID="invite-remind"
-                >
-                  {reminding ? (
-                    <ActivityIndicator size="small" color={themeColors.text} />
-                  ) : (
-                    <Send size={14} color={themeColors.text} strokeWidth={1.75} />
-                  )}
-                  <Text style={styles.remindBtnText}>
-                    {reminding
-                      ? 'Sending…'
-                      : `Re-send to the ${remindable.length} who ${remindable.length === 1 ? 'has' : 'have'}n't answered`}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          {/* Bid leveling matrix */}
-          <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Bids</Text>
-              <Text style={styles.sectionSub}>{bids.length === 0 ? 'Add the first bid' : `${bids.length} received`}</Text>
-            </View>
-
-            {sortedBids.length === 0 ? (
-              <View style={styles.emptyBids}>
-                <Text style={styles.emptyBidsText}>
-                  Tap "Add by voice" or "Add by hand" to log incoming sub bids. MAGE ID will compare them apples-to-apples and recommend a winner.
-                </Text>
-              </View>
-            ) : (
-              sortedBids.map((bid, i) => {
-                const priced = bidAmountOf(bid) != null;
-                const total = bid.amount + (bid.normalizedAdjustment ?? 0);
-                const vsBudget = pkg.estimateBudget - total;
-                const isWinner = winningBidId === bid.id;
-                // Never a bid with no amount, and only when two PRICED bids compete.
-                const isLowest = priced && i === 0 && pricedBids.length > 1;
-                const outlier = isOutlier(bid);
-                const filedBySub = invitedBidIds.has(bid.id);
-                const isAwardedBid = bid.status === 'awarded' || pkg.awardedBidId === bid.id;
-                // The sub's own number is his to change (call him); an awarded
-                // bid's amount is the commitment's now.
-                const canEditAmount = !filedBySub && !isAwardedBid;
-                return (
-                  <View key={bid.id} style={[styles.bidCard, isWinner && styles.bidCardWinner, bid.status === 'awarded' && styles.bidCardAwarded, outlier && styles.bidCardOutlier]}>
-                    <View style={styles.bidHead}>
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.bidNameRow}>
-                          <Text style={styles.bidVendor} numberOfLines={1}>{bid.vendorName ?? 'Subcontractor'}</Text>
-                          {isWinner && (
-                            <View style={styles.winnerBadge}>
-                              <Trophy size={10} color="#FFF" strokeWidth={1.75} />
-                              <Text style={styles.winnerBadgeText}>AI PICK</Text>
-                            </View>
-                          )}
-                          {isLowest && !isWinner && (
-                            <View style={styles.lowestBadge}>
-                              <Text style={styles.lowestBadgeText}>LOWEST</Text>
-                            </View>
-                          )}
-                          {bid.status === 'awarded' && (
-                            <View style={styles.awardedBadge}>
-                              <CheckCircle2 size={10} color="#FFF" strokeWidth={1.75} />
-                              <Text style={styles.awardedBadgeText}>AWARDED</Text>
-                            </View>
-                          )}
-                          {invitedBidIds.has(bid.id) && (
-                            <View style={styles.invitedBadge}>
-                              <Text style={styles.invitedBadgeText}>SUB-ENTERED</Text>
-                            </View>
-                          )}
-                          {outlier && (
-                            <View style={styles.outlierBadge}>
-                              <AlertTriangle size={10} color="#FFF" strokeWidth={1.75} />
-                              <Text style={styles.outlierBadgeText}>
-                                {outlier.kind === 'low' ? `${outlier.pct.toFixed(0)}% LOW` : `${outlier.pct.toFixed(0)}% HIGH`}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        {outlier && (
-                          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
-                            <AlertTriangle size={Type.caption2.fontSize} color={Colors.warningLabel} strokeWidth={2} style={{ marginTop: 1 }} />
-                            <Text style={[styles.outlierHint, { flex: 1 }]}>
-                              {outlier.kind === 'low'
-                                ? 'Significantly below the median — review for missing scope before awarding.'
-                                : 'Significantly above the median — sub may have priced in protection or unfamiliarity.'}
-                            </Text>
-                          </View>
-                        )}
-                        {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
-                      </View>
-                      <TouchableOpacity onPress={() => handleDeleteBid(bid, filedBySub)} hitSlop={10} style={styles.bidDelete} accessibilityRole="button" accessibilityLabel={`Delete ${bid.vendorName ?? 'this'} bid`} testID={`delete-bid-${bid.id}`}>
-                        <Trash2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.bidAmountsRow}>
-                      <TouchableOpacity
-                        style={styles.bidAmountCell}
-                        onPress={() => { if (canEditAmount) { setAmountDraft(priced ? String(bid.amount) : ''); setAmountEditBidId(bid.id); } }}
-                        disabled={!canEditAmount}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={canEditAmount ? `Edit the amount of ${bid.vendorName ?? 'this'} bid` : undefined}
-                        testID={`bid-amount-${bid.id}`}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                          <Text style={styles.bidAmountLabel}>Bid</Text>
-                          {canEditAmount && <Pencil size={10} color={themeColors.textMuted} strokeWidth={2} />}
-                        </View>
-                        <Text style={[styles.bidAmountValue, !priced && { color: themeColors.danger }]}>
-                          {priced ? formatMoney(bid.amount) : 'No amount'}
-                        </Text>
-                      </TouchableOpacity>
-                      {bid.normalizedAdjustment != null && bid.normalizedAdjustment !== 0 && (
-                        <View style={styles.bidAmountCell}>
-                          <Text style={styles.bidAmountLabel}>Adj.</Text>
-                          <Text style={[styles.bidAmountValue, { color: bid.normalizedAdjustment > 0 ? Colors.warning : themeColors.success }]}>
-                            {bid.normalizedAdjustment > 0 ? '+' : ''}{formatMoney(bid.normalizedAdjustment)}
-                          </Text>
-                        </View>
-                      )}
-                      <View style={styles.bidAmountCell}>
-                        <Text style={[styles.bidAmountLabel, { color: themeColors.text, fontWeight: '700' }]}>Leveled total</Text>
-                        <Text style={[styles.bidAmountValueTotal, { color: !priced ? themeColors.textMuted : vsBudget >= 0 ? themeColors.success : themeColors.danger }]}>
-                          {priced ? formatMoney(total) : '—'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {!!bid.includes && (
-                      <View style={styles.bidScopeBlock}>
-                        <Text style={styles.bidScopeLabel}>Includes</Text>
-                        <Text style={styles.bidScopeText}>{bid.includes}</Text>
-                      </View>
-                    )}
-                    {!!bid.excludes && (
-                      <View style={[styles.bidScopeBlock, { backgroundColor: themeColors.danger + '0F', borderLeftColor: themeColors.danger }]}>
-                        <Text style={[styles.bidScopeLabel, { color: themeColors.danger }]}>Excludes</Text>
-                        <Text style={styles.bidScopeText}>{bid.excludes}</Text>
-                      </View>
-                    )}
-                    {!!bid.normalizedAdjustmentReason && (
-                      <View style={styles.adjReason}>
-                        <MageAIMark size={11} color={themeColors.accent} />
-                        <Text style={styles.adjReasonText}>{bid.normalizedAdjustmentReason}</Text>
-                      </View>
-                    )}
-
-                    {pkg.status !== 'awarded' && (priced ? (
-                      <TouchableOpacity style={styles.awardBtn} onPress={() => handleAward(bid)} activeOpacity={0.85}>
-                        <Trophy size={14} color="#FFF" strokeWidth={1.75} />
-                        <Text style={styles.awardBtnText}>Award · {formatMoney(total)}</Text>
-                        <ArrowRight size={14} color="#FFF" strokeWidth={1.75} />
-                      </TouchableOpacity>
-                    ) : (
-                      // No Award on a bid that can't be awarded — the reason
-                      // and the fix instead (#95).
-                      <TouchableOpacity
-                        style={styles.needsAmountBtn}
-                        onPress={() => { setAmountDraft(''); setAmountEditBidId(bid.id); }}
-                        activeOpacity={0.85}
-                        testID={`needs-amount-${bid.id}`}
-                      >
-                        <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
-                        <Text style={[styles.needsAmountText, { color: themeColors.danger }]}>Needs an amount — tap to add it</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {/* Who this bid is actually FROM, as a record rather than a
-                        name. Without the link the award creates a commitment
-                        that names a company and references nobody: no
-                        scorecard, no compliance check, and no sub portal
-                        (app/sub-portals.tsx skips commitments with no
-                        subcontractorId), so invoices and payment go back to
-                        email and text. */}
-                    {bid.subcontractorId ? (
-                      <View style={styles.bidSubLink}>
-                        <Text style={styles.bidSubLinkText} numberOfLines={2}>
-                          {linkNotes[bid.id]
-                            ?? `Linked to ${getSubcontractor(bid.subcontractorId)?.companyName ?? 'a sub on your roster'}.`}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.subScorecardBtn}
-                          onPress={() => router.push({ pathname: '/sub-scorecard', params: { subId: bid.subcontractorId } } as never)}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={styles.subScorecardBtnText}>See this sub&apos;s scorecard →</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.bidLinkBtn}
-                        onPress={() => setLinkTargetBidId(bid.id)}
-                        activeOpacity={0.85}
-                        testID={`link-bid-${bid.id}`}
-                      >
-                        <Link2 size={13} color={themeColors.accent} strokeWidth={1.75} />
-                        <Text style={styles.bidLinkBtnText}>Link this bid to a sub</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })
-            )}
-          </View>
-
-          {/* Quick action: open the awarded commitment */}
-          {pkg.status === 'awarded' && pkg.awardedCommitmentId && (
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={styles.openCommitmentBtn}
-                onPress={() => router.push({ pathname: '/project-detail' as never, params: { id: pkg.projectId } as never })}
-                activeOpacity={0.85}
-              >
-                <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.openCommitmentText}>Open project · view this commitment</Text>
-                <ChevronUp size={16} color={themeColors.accent} style={{ transform: [{ rotate: '90deg' }] }} strokeWidth={1.75} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Generate A401 subcontract — available once the package is
-              awarded. Pre-fills from the awarded bid + project + GC
-              branding. The PDF is the GC's deliverable to the sub for
-              countersignature before NTP. */}
-          {pkg.status === 'awarded' && pkg.awardedBidId && (
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={styles.openCommitmentBtn}
-                onPress={handleGenerateSubcontract}
-                activeOpacity={0.85}
-                testID="generate-a401"
-              >
-                <FileDown size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.openCommitmentText}>Generate A401-style subcontract PDF</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Delete package */}
-          <View style={styles.section}>
-            <TouchableOpacity onPress={handleDeletePackage} style={styles.deletePkgBtn} activeOpacity={0.7}>
-              <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-              <Text style={styles.deletePkgText}>Delete this package</Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
 
         {/* Add-bid FAB row */}
         {pkg.status !== 'awarded' && (
-          <View style={[styles.fabRow, { bottom: insets.bottom + 18 }]}>
+          <View style={[styles.fabRow, { bottom: insets.bottom + 18 }, isDesktop && styles.fabRowDesktop]}>
             <TouchableOpacity style={styles.fabSecondary} onPress={() => setShowAddBid(true)} activeOpacity={0.85}>
               <Plus size={16} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.fabSecondaryText}>Add by hand</Text>
@@ -1795,8 +1848,10 @@ export default function BuyoutPackageScreen() {
         />
 
         {/* Add-bid modal */}
-        <Modal visible={showAddBid} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setShowAddBid(false); setAddBidNote(null); }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+        <Modal visible={showAddBid} animationType={fAddBid.animationType} presentationStyle={fAddBid.isDesktop ? undefined : 'pageSheet'} transparent={fAddBid.isDesktop || undefined} onRequestClose={() => { setShowAddBid(false); setAddBidNote(null); }}>
+          <SheetOverlay frame={fAddBid}>
+          <SheetScrim frame={fAddBid} onPress={() => { setShowAddBid(false); setAddBidNote(null); }} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fAddBid.card, fAddBid.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Log a bid</Text>
               <TouchableOpacity onPress={() => { setShowAddBid(false); setAddBidNote(null); }} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -1828,12 +1883,15 @@ export default function BuyoutPackageScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
+          </SheetOverlay>
         </Modal>
 
         {/* Fix a bid's amount (#95) — the card's only edit. The sub's own
             number is not editable here; a GC-keyed or voice bid is. */}
-        <Modal visible={!!amountEditBidId} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAmountEditBidId(null)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+        <Modal visible={!!amountEditBidId} animationType={fAmount.animationType} presentationStyle={fAmount.isDesktop ? undefined : 'pageSheet'} transparent={fAmount.isDesktop || undefined} onRequestClose={() => setAmountEditBidId(null)}>
+          <SheetOverlay frame={fAmount}>
+          <SheetScrim frame={fAmount} onPress={() => setAmountEditBidId(null)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fAmount.card, fAmount.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>
                 {`Amount · ${bids.find(b => b.id === amountEditBidId)?.vendorName ?? 'this bid'}`}
@@ -1862,11 +1920,14 @@ export default function BuyoutPackageScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
+          </SheetOverlay>
         </Modal>
 
         {/* Invite-subs modal */}
-        <Modal visible={showInvite} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowInvite(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+        <Modal visible={showInvite} animationType={fInvite.animationType} presentationStyle={fInvite.isDesktop ? undefined : 'pageSheet'} transparent={fInvite.isDesktop || undefined} onRequestClose={() => setShowInvite(false)}>
+          <SheetOverlay frame={fInvite}>
+          <SheetScrim frame={fInvite} onPress={() => setShowInvite(false)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fInvite.card, fInvite.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Invite subs to bid</Text>
               <TouchableOpacity onPress={() => setShowInvite(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -1987,13 +2048,16 @@ export default function BuyoutPackageScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
+          </SheetOverlay>
         </Modal>
 
         {/* Scope editor. The generated text is a seed, not a lock — a GC who
             wants to add "coordinate with the ceiling grid before rough-in"
             types it here and the sub reads it on the bid page. */}
-        <Modal visible={showScopeEdit} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowScopeEdit(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+        <Modal visible={showScopeEdit} animationType={fScope.animationType} presentationStyle={fScope.isDesktop ? undefined : 'pageSheet'} transparent={fScope.isDesktop || undefined} onRequestClose={() => setShowScopeEdit(false)}>
+          <SheetOverlay frame={fScope}>
+          <SheetScrim frame={fScope} onPress={() => setShowScopeEdit(false)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fScope.card, fScope.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Scope of work</Text>
               <TouchableOpacity onPress={() => setShowScopeEdit(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -2031,14 +2095,17 @@ export default function BuyoutPackageScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
+          </SheetOverlay>
         </Modal>
 
         {/* Link an anonymous bid back to the roster. This is the control the
             award dialog points at: until the bid carries a subcontractorId the
             commitment it creates cannot be given a sub portal and teaches the
             scorecard nothing. */}
-        <Modal visible={!!linkTargetBidId} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setLinkTargetBidId(null)}>
-          <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
+        <Modal visible={!!linkTargetBidId} animationType={fLink.animationType} presentationStyle={fLink.isDesktop ? undefined : 'pageSheet'} transparent={fLink.isDesktop || undefined} onRequestClose={() => setLinkTargetBidId(null)}>
+          <SheetOverlay frame={fLink}>
+          <SheetScrim frame={fLink} onPress={() => setLinkTargetBidId(null)} />
+          <View style={[{ flex: 1, backgroundColor: themeColors.bg }, fLink.card, fLink.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Who sent this bid?</Text>
               <TouchableOpacity onPress={() => setLinkTargetBidId(null)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -2091,6 +2158,7 @@ export default function BuyoutPackageScreen() {
               </TouchableOpacity>
             </ScrollView>
           </View>
+          </SheetOverlay>
         </Modal>
       </View>
     </>
@@ -2274,6 +2342,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   deletePkgText: { fontSize: Type.footnote.fontSize, color: t.danger, fontWeight: '600' as const },
 
   fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 8 },
+  // Desktop: the FAB row sits at the right, capped at the full-width button
+  // max. `left: 'auto'`, not undefined — react-native-web keeps the earlier
+  // `left: 16` for an undefined (or null) override, which with a fixed width
+  // pins the row to the LEFT edge and ignores `right`.
+  fabRowDesktop: { left: 'auto', right: Layout.gutter, width: Layout.button.fullWidthMax },
+  // Desktop: a centred sheet card sizes to its content, up to the frame's 85%
+  // max height (the body scrolls past that). Without it the phone's flex: 1
+  // grows every card to 85% of the window, so a one-field dialog is a tall
+  // box with its button stranded at the bottom. No surface here: the frame
+  // card already paints it.
+  sheetCardDesktop: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', overflow: 'hidden' },
   fabSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line },
   fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
   fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },

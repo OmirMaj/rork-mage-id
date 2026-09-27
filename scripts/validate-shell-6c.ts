@@ -43,7 +43,12 @@ import {
 } from '../utils/sidebarRail';
 import { DESKTOP_SHELL_EXEMPT } from '../utils/desktopPage';
 import { isAppStorageKey } from '../utils/localCacheKeys';
-import { parseCombo } from '../hooks/useHotkeys';
+import { isReservedCombo, parseCombo } from '../hooks/useHotkeys';
+// d6r K1 (the keyboard shell's chords — pure, bun-loadable).
+import { G_CHORDS, RESERVED_SINGLE_KEYS, chordTarget, chordsFor, type ShellChord } from '../utils/shellChords';
+import { jobScopedTarget } from '../utils/activeProject';
+import { featureFor } from '../utils/featureRegistry';
+import { scheduleDestination } from '../utils/scheduleRoute';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
@@ -331,8 +336,11 @@ console.log('\n3. source pins');
   ok('UniversalSearch: useSheetDialogScope(isOpen) with its other hooks',
     /const \{ isOpen, closeSearch, openVoice, openHelp \} = useSearch\(\);/.test(search) && /useSheetDialogScope\(isOpen\);/.test(search));
   const dock = code(read('components/desktop/ShellDock.tsx'));
-  ok('ShellDockHost renders only on desktop WEB (useIsDesktopWeb)',
-    /const desktopWeb = useIsDesktopWeb\(\);/.test(dock) && /if \(!desktopWeb \|\| !visible \|\| content == null\) return null;/.test(dock));
+  // d6r K1: the host no longer unmounts on an exempt route (!visible) — the
+  // docked content stays MOUNTED (SidePanel keepMounted) and is only not drawn.
+  ok('ShellDockHost renders only on desktop WEB (useIsDesktopWeb), keeping docked content mounted',
+    /const desktopWeb = useIsDesktopWeb\(\);/.test(dock) && /if \(!desktopWeb \|\| content == null\) return null;/.test(dock)
+    && /keepMounted/.test(dock));
   const panel = code(read('components/desktop/SidePanel.tsx'));
   ok("SidePanel: a web landmark (role 'complementary') keeping its accessibilityLabel",
     /role=\{Platform\.OS === 'web' \? 'complementary' : undefined\}/.test(panel) && /accessibilityLabel=\{title\}/.test(panel));
@@ -421,6 +429,248 @@ console.log('\nCmd+S never sends, signs, releases or approves (integration revie
   }
   ok(`no send / sign / release / approve / share / paid / certify / dispatch / record primary still takes Cmd+S (${calls} calls read)`,
     calls > 0 && loose.length === 0, loose.join('\n     '));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keyboard shell');
+// ─────────────────────────────────────────────────────────────────────────────
+// Wave 6d restore, lane K1. Ask MAGE moves into a 440 px dock beside the page
+// (components/brain/AskConversation variant 'panel', hooks/useAskDock), the
+// dock grows the API that needs (id / hidden / show / toggle / showing /
+// canShow, keepMounted, the S4 canvas overlay), and the desktop web app gets
+// a keyboard shell ('?' sheet, 13 g-chords, Cmd+J). Pure rules run for real;
+// the wiring no pure test can reach is pinned in its own file.
+
+// ── 1. utils/shellChords — the 13 chords ────────────────────────────────────
+{
+  const combos = G_CHORDS.map((c) => c.combo);
+  ok('K1 13 chords, every combo unique', G_CHORDS.length === 13 && new Set(combos).size === 13, combos.join(', '));
+  ok('K1 every chord parses as two plain steps, g then a letter, none browser-reserved',
+    G_CHORDS.every((c) => {
+      const steps = parseCombo(c.combo);
+      return steps.length === 2 && steps[0].key === 'g' && steps.every((st) => !st.mod && !st.alt)
+        && /^[a-z]$/.test(steps[1].key) && !isReservedCombo(c.combo);
+    }));
+  ok("K1 'g j' and 'g k' stay unbound (j / k move DataTable rows)", !combos.includes('g j') && !combos.includes('g k'));
+  ok('K1 no chord starts with, or uses, a key DataTable owns (j, k, x, /)',
+    G_CHORDS.every((c) => parseCombo(c.combo).every((st) => !RESERVED_SINGLE_KEYS.includes(st.key))));
+  const expected: Record<string, string> = {
+    'g h': 'Projects', 'g b': 'Summary', 'g o': 'Job overview', 'g s': 'Schedule', 'g d': 'Daily reports',
+    'g r': 'RFIs', 'g u': 'Submittals', 'g c': 'Change orders', 'g i': 'Invoices', 'g p': 'Punch list',
+    'g w': 'Waiting on others', 'g n': 'Inbox', 'g a': 'Action required',
+  };
+  ok('K1 the chord letters and labels are the approved set (D5)',
+    eq(Object.fromEntries(G_CHORDS.map((c) => [c.combo, c.label])), expected));
+
+  // A job tool goes where the sidebar row goes: jobScopedTarget over the
+  // registry's projectScoped (DesktopSidebar hrefFor), and the chord's route
+  // is the sidebar NAV_ITEMS literal for the same feature.
+  const sidebar = read('components/DesktopSidebar.tsx');
+  const navRoute = (feature: string): string | null => {
+    for (const line of sidebar.split('\n')) {
+      if (!new RegExp(`feature: '${feature}'`).test(line)) continue;
+      const m = /route: '([^']+)'/.exec(line);
+      if (m && /section: 'THIS JOB'/.test(line)) return m[1];
+    }
+    return null;
+  };
+  const jobTools = G_CHORDS.filter((c): c is ShellChord & { target: { kind: 'job-tool' } } => c.target.kind === 'job-tool');
+  ok('K1 six job-tool chords (daily reports, RFIs, submittals, COs, invoices, punch)', jobTools.length === 6);
+  for (const c of jobTools) {
+    const t = c.target as { kind: 'job-tool'; feature: Parameters<typeof featureFor>[0]; route: string };
+    const want = jobScopedTarget(t.route, { projectScoped: featureFor(t.feature).projectScoped === true, activeProjectId: 'p1' });
+    const got = chordTarget(c, { activeProjectId: 'p1', schedule: { canPro: false, proFits: false } });
+    ok(`K1 ${c.combo} (${c.label}) with a job = jobScopedTarget over featureFor('${t.feature}').projectScoped`,
+      eq(got, want) && eq(got.params, { projectId: 'p1' }), JSON.stringify(got));
+    ok(`K1 ${c.combo} route is the sidebar's THIS JOB row for '${t.feature}'`, navRoute(t.feature) === t.route,
+      `sidebar ${navRoute(t.feature)} vs chord ${t.route}`);
+  }
+  const sched = G_CHORDS.find((c) => c.target.kind === 'schedule');
+  ok('K1 exactly one schedule chord (g s)', !!sched && sched.combo === 'g s');
+  if (sched) {
+    for (const canPro of [true, false]) for (const proFits of [true, false]) {
+      const want = scheduleDestination({ projectId: 'p1', webDesktop: true, canPro, proFits }, 42);
+      const got = chordTarget(sched, { activeProjectId: 'p1', schedule: { canPro, proFits } }, 42);
+      ok(`K1 g s = scheduleDestination (canPro ${canPro}, proFits ${proFits}) — C6`,
+        got.pathname === want.pathname && eq(got.params, want.params), JSON.stringify(got));
+    }
+  }
+  const overview = G_CHORDS.find((c) => c.target.kind === 'overview');
+  ok('K1 g o opens the job\'s overview (/project-detail?id)', !!overview
+    && eq(chordTarget(overview, { activeProjectId: 'p1', schedule: { canPro: true, proFits: true } }), { pathname: '/project-detail', params: { id: 'p1' } }));
+  const bare = G_CHORDS.map((c) => chordTarget(c, { activeProjectId: null, schedule: { canPro: true, proFits: true } }));
+  ok('K1 with no job every chord is a bare route (the screen\'s own picker asks)', bare.every((t) => t.params === undefined),
+    JSON.stringify(bare.filter((t) => t.params)));
+  ok('K1 with no job g s is the schedule on-ramp and g o is Home',
+    !!sched && chordTarget(sched, { activeProjectId: null, schedule: { canPro: true, proFits: true } }).pathname === '/(tabs)/discover/schedule'
+    && !!overview && chordTarget(overview, { activeProjectId: null, schedule: { canPro: true, proFits: true } }).pathname === '/(tabs)/(home)');
+  ok('K1 a client and a property manager get only Projects and Inbox; a contractor all 13',
+    eq(chordsFor('client').map((c) => c.combo), ['g h', 'g n']) && eq(chordsFor('property_manager').map((c) => c.combo), ['g h', 'g n'])
+    && chordsFor('contractor').length === 13 && chordsFor(null).length === 13);
+
+  // No page may bind 'g' or '?' on its own (R7): they are the shell's.
+  const walkSrc = (dir: string): string[] => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walkSrc(`${dir}/${e.name}`) : /\.tsx?$/.test(e.name) ? [`${dir}/${e.name}`] : []);
+  const stolen: string[] = [];
+  for (const f of [...walkSrc('app'), ...walkSrc('components'), ...walkSrc('hooks')]) {
+    if (f === 'components/desktop/ShellHotkeys.tsx') continue;
+    const src = code(read(f));
+    if (/combo:\s*'(?:g|\?|question)'/.test(src)) stolen.push(f);
+  }
+  ok("K1 no other file binds a plain 'g' or '?' (the shell's chord lead and sheet key)", stolen.length === 0, stolen.join(', '));
+}
+
+// ── 2. The dock API (components/desktop/ShellDock.tsx) ───────────────────────
+{
+  const dock = code(read('components/desktop/ShellDock.tsx'));
+  ok("K1 ShellDock exports ASK_DOCK_ID = 'ask' and ATTENTION_DOCK_ID = 'attention'",
+    /export const ASK_DOCK_ID = 'ask';/.test(dock) && /export const ATTENTION_DOCK_ID = 'attention';/.test(dock));
+  const api = /export interface ShellDockApi \{([\s\S]*?)\n\}/.exec(dock)?.[1] ?? '';
+  ok('K1 ShellDockApi = content, id, hidden, open, close, toggle, show, showing, canShow',
+    ['content: React.ReactNode | null;', 'id: string | null;', 'hidden: boolean;', 'open(node: React.ReactNode, opts?: ShellDockOptions): void;',
+      'close(): void;', 'toggle(): void;', 'show(): void;', 'showing: boolean;', 'canShow(id: string): boolean;'].every((f) => api.includes(f)), api);
+  ok('K1 ShellDockOptions carries an id', /export interface ShellDockOptions \{[\s\S]*?id\?: string;[\s\S]*?\n\}/.test(dock));
+  ok('K1 the NOOP default is empty, not hidden, hostless (showing false, canShow false)',
+    /const NOOP: ShellDockState = \{\s*content: null, options: \{\}, hidden: false, host: null,/.test(dock));
+  ok('K1 useShellDock returns every API field (showing / canShow from the host record)',
+    /showing: hostVisible && content != null && !hidden && !\(suppressId != null && id === suppressId\),/.test(dock)
+    && /canShow: \(target: string\) => hostVisible && suppressId !== target,/.test(dock)
+    && /\bid,\s*\n\s*hidden,\s*\n\s*open,\s*\n\s*close,\s*\n\s*toggle,\s*\n\s*show,/.test(dock));
+  ok('K1 the host record travels on a SEPARATE internal context (not on ShellDockApi)',
+    /const ShellDockHostContext = createContext</.test(dock) && !/setHost/.test(api));
+  const host = /export function ShellDockHost\([\s\S]*$/.exec(dock)?.[0] ?? '';
+  const early = host.indexOf('if (!desktopWeb || content == null) return null;');
+  ok("K1 ShellDockHost writes the host record in an effect ABOVE its early return, and clears it on unmount",
+    early > 0 && host.indexOf('useEffect(() => { setHost({ visible: hostVisible, suppressId }); }') > 0
+    && host.indexOf('useEffect(() => { setHost({ visible: hostVisible, suppressId }); }') < early
+    && host.indexOf('useEffect(() => () => setHost(null), [setHost]);') > 0 && host.indexOf('useEffect(() => () => setHost(null), [setHost]);') < early
+    && /const hostVisible = desktopWeb && visible;/.test(host));
+  ok('K1 the provider writes the host record only when it differs (no render loop)',
+    /setHostState\(\(prev\) => \(sameHost\(prev, next\) \? prev : next\)\)/.test(dock));
+  ok('K1 ShellDockHost keeps docked content mounted: open = visible, not hidden, not suppressed; keepMounted',
+    /const suppressedNow = suppressId != null && options\.id === suppressId;/.test(host)
+    && /open=\{visible && !hidden && !suppressedNow\}/.test(host) && /\n\s*keepMounted\n/.test(host));
+  ok('K1 r3: the host binds its Cmd+J toggle ONLY where the docked content can show (a conditional spread)',
+    /\{\.\.\.\(visible && !suppressedNow \? \{ onToggle: toggle \} : null\)\}/.test(host) && !/onToggle=\{toggle\}/.test(host));
+  ok('K1 S4: on a canvas route (isCanvasRoute) the dock overlays — overlayBelow = +Infinity, else the default',
+    /const segments = useSegments\(\);/.test(host) && /const canvas = isCanvasRoute\(segments\[0\]\);/.test(host)
+    && /overlayBelow=\{canvas \? Number\.POSITIVE_INFINITY : undefined\}/.test(host));
+}
+
+// ── 3. SidePanel keepMounted (components/desktop/SidePanel.tsx) ──────────────
+{
+  const panel = code(read('components/desktop/SidePanel.tsx'));
+  ok('K1 SidePanel: keepMounted?: boolean (default false)', /keepMounted\?: boolean;/.test(panel) && /keepMounted = false,/.test(panel));
+  ok('K1 SidePanel: closed returns null only WITHOUT keepMounted', /if \(!open && !keepMounted\) return null;/.test(panel) && !/if \(!open\) return null;/.test(panel));
+  ok('K1 SidePanel: BOTH slide branches end with `!open && styles.hidden` (display none)',
+    /\? \[styles\.panel, \{ width \}, overlay \? styles\.overlay : null, style, slide, !open && styles\.hidden\]/.test(panel)
+    && /: \[styles\.panel, \{ width \}, overlay \? styles\.overlay : null, style, !open && styles\.hidden\]/.test(panel)
+    && /hidden: \{ display: 'none' \},/.test(panel));
+  ok('K1 SidePanel: a hidden panel drops its DOM id and hears no Esc (enabled: open)',
+    /\{\.\.\.\(open \? null : \{ nativeID: undefined \}\)\}/.test(panel)
+    && /\{ combo: 'escape', label: `Close \$\{title\}`, group: 'Panel', enabled: open, handler: onClose, when: escWhen \}/.test(panel));
+}
+
+// ── 4. Ask moves into AskConversation; the page is a thin wrapper ────────────
+{
+  const page = read('app/ask.tsx');
+  ok('K1 app/ask.tsx renders <AskConversation variant="page"> and is under 60 lines',
+    /<AskConversation\s+variant="page"/.test(code(page)) && page.split('\n').length < 60);
+  const ac = code(read('components/brain/AskConversation.tsx'));
+  ok('K1 AskConversation exports the component with variant page | panel',
+    /export function AskConversation\(props: AskConversationProps\)/.test(ac) && /variant: 'page' \| 'panel';/.test(ac));
+  const stackAt = ac.indexOf('<Stack.Screen');
+  ok("K1 AskConversation's only <Stack.Screen sits behind variant === 'page'",
+    (ac.match(/<Stack\.Screen/g) ?? []).length === 1 && ac.slice(Math.max(0, stackAt - 30), stackAt).includes("props.variant === 'page' && "));
+  const panelStart = ac.indexOf('if (panel) {');
+  const panelEnd = ac.indexOf('<View style={[styles.container, { paddingTop: insets.top }]}>', panelStart);
+  const panelBranch = panelStart > 0 && panelEnd > panelStart ? ac.slice(panelStart, panelEnd) : '';
+  ok('K1 the panel branch draws no Stack.Screen, no brand header, no KeyboardAvoidingView, no safe-area padding',
+    panelBranch.length > 0 && !/<Stack\.Screen|styles\.header\b|<KeyboardAvoidingView|insets\./.test(panelBranch));
+  ok('K1 the panel anchors to the active job; the page to ?projectId',
+    /const anchorParam = props\.variant === 'panel' \? activeProjectId : props\.anchorProjectId;/.test(ac));
+  ok('K1 the dock\'s Recent list is vertical (no horizontal rail), at most PANEL_RECENT_MAX rows',
+    /recentThreads\.slice\(0, PANEL_RECENT_MAX\)/.test(ac) && (ac.match(/showsHorizontalScrollIndicator=\{false\}/g) ?? []).length === 1);
+  ok('K1 the composer: Enter sends on desktop web through a SPREAD onKeyPress; Shift+Enter keeps the newline',
+    /\{\.\.\.\(isDesktopWeb \? \{ onKeyPress: onComposerKey \} : null\)\}/.test(ac)
+    && /if \(ne\.key === 'Enter' && !ne\.shiftKey && !ne\.isComposing\) \{\s*e\.preventDefault\(\);\s*void ask\(draft\);/.test(ac));
+  ok("K1 the panel's 'New chat' is the onNewChat prop (shown only when passed)", /\{!empty && props\.onNewChat && \(\s*<TouchableOpacity\s+onPress=\{props\.onNewChat\}/.test(panelBranch));
+  ok('K1 AskConversation never imports useAskDock (no require cycle with the hook that docks it)', !/from '@\/hooks\/useAskDock'/.test(ac));
+}
+
+// ── 5. hooks/useAskDock ──────────────────────────────────────────────────────
+{
+  const hook = code(read('hooks/useAskDock.tsx'));
+  ok('K1 useAskDock docks only where the host can show Ask; elsewhere the /ask page (typed, no cast)',
+    /if \(!isDesktopWeb \|\| !dock\.canShow\(ASK_DOCK_ID\)\) \{/.test(hook) && /router\.push\(\{ pathname: '\/ask', params \}\);/.test(hook)
+    && !/as never|as any/.test(hook));
+  ok("K1 useAskDock does nothing on /ask itself (the page IS Ask)", /const onAskPage = \(segments\[0\] as string \| undefined\) === 'ask';/.test(hook)
+    && /if \(onAskPage\) return;/.test(hook));
+  ok('K1 useAskDock re-shows a docked Ask unless a seed or a fresh chat is asked for',
+    /if \(dock\.id === ASK_DOCK_ID && !opts\?\.seed && !opts\?\.fresh\) \{\s*dock\.show\(\);/.test(hook));
+  ok("K1 useAskDock docks <AskConversation variant=\"panel\"> under ASK_DOCK_ID, 'Ask MAGE', SIDE_PANEL_DEFAULT, keyed per chat",
+    /<AskConversation\s+key=\{`ask-\$\{askSeq\}`\}\s+variant="panel"/.test(hook)
+    && /onNewChat=\{\(\) => openAskRef\.current\(\{ fresh: true \}\)\}/.test(hook) && /openAskRef\.current = openAsk;/.test(hook)
+    && /\{ id: ASK_DOCK_ID, title: 'Ask MAGE', width: SIDE_PANEL_DEFAULT \}/.test(hook));
+  ok('K1 isAskOpen = the dock is SHOWING Ask', /const isAskOpen = dock\.showing && dock\.id === ASK_DOCK_ID;/.test(hook));
+}
+
+// ── 6. BrainFab ──────────────────────────────────────────────────────────────
+{
+  const fab = code(read('components/brain/BrainFab.tsx'));
+  const press = /const handlePress = useCallback\(\(\) => \{([\s\S]*?)\n\s*\}, \[/.exec(fab)?.[1] ?? '';
+  ok('K1 BrainFab: desktop web opens the Ask dock BEFORE the pinned phone push',
+    press.indexOf('if (isDesktopWeb) { openAsk({ screen, projectId: projectId ?? undefined }); return; }') > 0
+    && press.indexOf('if (isDesktopWeb) { openAsk(') < press.indexOf('router.push('));
+  ok('K1 r3: BrainFab hides while a dock is SHOWING (not "while something is docked")',
+    /if \(isDesktopWeb && dock\.showing\) return null;/.test(fab) && !/dock\.content != null && !dock\.hidden/.test(fab)
+    && fab.indexOf('if (isDesktopWeb && dock.showing) return null;') > fab.indexOf("if (HIDDEN_ROOTS.has("));
+  ok("K1 r2: BrainFab's print tag is gated on isDesktopWeb, never Platform.OS === 'web'",
+    /\{\.\.\.\(isDesktopWeb \? \(\{ dataSet: \{ print: 'hide' \} \} as object\) : null\)\}/.test(fab)
+    && !/Platform\.OS === 'web' \? \(\{ dataSet/.test(fab));
+  const coach = fab.indexOf('const coachUp = useTutorialCoachVisible();');
+  ok('K1 BrainFab: the new hooks sit above coachUp (the tutorial pin stays adjacent)',
+    coach > 0 && fab.indexOf('const isDesktopWeb = useIsDesktopWeb();') < coach && fab.indexOf('const { openAsk } = useAskDock();') < coach
+    && /const coachUp = useTutorialCoachVisible\(\);\s*const hidden = fabStateHidden \|\| coachUp;/.test(fab));
+}
+
+// ── 7. DesktopActionRail variant 'dock' ──────────────────────────────────────
+{
+  const rail = code(read('components/DesktopActionRail.tsx'));
+  ok("K1 DesktopActionRail: variant?: 'rail' | 'dock' (default rail), RAIL_WIDTH stays 300",
+    /variant\?: 'rail' \| 'dock';/.test(rail) && /variant = 'rail' \}: Props\)/.test(rail) && /export const RAIL_WIDTH = 300;/.test(rail));
+  ok('K1 the dock variant fills the panel and leads with "Needs you now"; the rail keeps its width and title',
+    /style=\{\[styles\.rail, variant === 'dock' \? styles\.railDock : \{ width \}\]\}/.test(rail)
+    && /railDock: \{ flex: 1, borderLeftWidth: 0 \},/.test(rail)
+    && /variant === 'dock'\s*\? <Text style=\{styles\.dockLead\}>Needs you now<\/Text>\s*: <Text style=\{styles\.headerTitle\}>Action Required<\/Text>/.test(rail));
+  ok("K1 every 'See all' closes the dock in the dock variant (spread — the rail's RowLinks are unchanged)",
+    /const seeAllPress = docked \? dock\.close : undefined;/.test(rail)
+    && (rail.match(/onSeeAll=\{seeAllPress\}/g) ?? []).length === 3
+    && /testID="rail-see-all"\s*\{\.\.\.\(seeAllPress \? \{ onPress: seeAllPress \} : null\)\}/.test(rail)
+    && /\{\.\.\.\(onSeeAll \? \{ onPress: onSeeAll \} : null\)\}/.test(rail));
+}
+
+// ── 8. ShellHotkeys + ShortcutSheet ──────────────────────────────────────────
+{
+  const keys = code(read('components/desktop/ShellHotkeys.tsx'));
+  ok('K1 ShellHotkeys renders null (and runs no hooks) off desktop web',
+    /export function ShellHotkeys\(\) \{\s*const isDesktopWeb = useIsDesktopWeb\(\);\s*return isDesktopWeb \? <SignedInGate \/> : null;\s*\}/.test(keys));
+  ok('K1 ShellHotkeys runs only once someone is signed in with a role (no chords or ? sheet on /login, /signup, onboarding)',
+    /function SignedInGate\(\) \{\s*const \{ userRole \} = useCoreData\(\);\s*return userRole \? <DesktopShellHotkeys \/> : null;\s*\}/.test(keys));
+  ok("K1 ShellHotkeys: Cmd+K is LISTED without a handler (the root listener owns it)", /\{ combo: 'mod\+k', label: 'Search', group: 'App' \},/.test(keys));
+  ok('K1 r3: Cmd+J opens Ask only on an EMPTY dock the host can show Ask in',
+    /when: \(\) => dock\.content == null && dock\.canShow\(ASK_DOCK_ID\),/.test(keys) && /combo: 'mod\+j', label: 'Ask MAGE', group: 'App',/.test(keys));
+  ok("K1 ShellHotkeys: '?' opens the sheet; the chords go through chordTarget + routeHref at GLOBAL scope",
+    /\{ combo: '\?', label: 'Keyboard shortcuts', group: 'App', handler: openShortcutSheet \}/.test(keys)
+    && /router\.push\(routeHref\(t\.pathname, t\.params\)\)/.test(keys) && /useHotkeys\(bindings, \{ scope: 'global' \}\);/.test(keys)
+    && /chordsFor\(userRole\)/.test(keys));
+  const sheet = code(read('components/desktop/ShortcutSheet.tsx'));
+  ok('K1 ShortcutSheet: a <Sheet size="form"> that snapshots hotkeys.list() on open (never a live store)',
+    /<Sheet size="form" title="Keyboard shortcuts"/.test(sheet) && /if \(visible\) setRows\(hotkeys\.list\(\)\);/.test(sheet)
+    && !/useSyncExternalStore\([^)]*hotkeys/.test(sheet));
+  ok('K1 ShortcutSheet: dialog-scope and disabled rows are left out; App, Go to, Navigation lead',
+    /if \(r\.scope === 'dialog' \|\| !r\.enabled\) continue;/.test(sheet) && /const GROUP_ORDER = \['App', 'Go to', 'Navigation'\];/.test(sheet));
+  ok('K1 ShortcutSheet: the key cap is surfaceAlt (not a counted surface card)', /kbd: \{\s*backgroundColor: t\.surfaceAlt,/.test(sheet));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
