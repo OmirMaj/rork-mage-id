@@ -33,7 +33,7 @@ import {
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
   Clock, Scale, MessageCircleQuestion, CalendarClock, Check, XCircle,
-  ExternalLink, Landmark, ClipboardList, FileQuestion, Quote,
+  ExternalLink, Landmark, ClipboardList, FileQuestion, Quote, Camera,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -111,6 +111,10 @@ import { DraftQuestionButton } from '@/components/buildingRecord/DraftQuestionBu
 import { inspectionResultToScheduleWork, type InspectionResultWork } from '@/utils/automation/inspectionResultToScheduleWork';
 import { InspectionResultReviewSheet } from '@/components/automation/InspectionResultReviewSheet';
 import { HiddenTabBackLink } from '@/components/HiddenTabBackLink';
+import VoiceRecorder from '@/components/VoiceRecorder';
+import CodeLookSheet from '@/components/codeLook/CodeLookSheet';
+import * as ImagePicker from 'expo-image-picker';
+import { readParam } from '@/utils/uxRoutes';
 import { useSafety } from '@/contexts/SafetyContext';
 import { generateUUID } from '@/utils/generateId';
 import { todayCalendarDay } from '@/utils/calendarDate';
@@ -584,6 +588,37 @@ function ConstructionAIScreenInner() {
   const { addHazard, hazards } = useSafety();
 
   const codeCheckProject = codeCheckProjectId ? projects.find((p) => p.id === codeCheckProjectId) ?? null : null;
+
+  // ── UX wave B7: doors for an inspection ──────────────────────────────
+  // Opened from a job's record (a projectId or a source on the route): the
+  // Bid Advisor card is not in the way, and Back names the job and returns to
+  // it. The plain Tools entry is unchanged.
+  const routeJobId = readParam(params.projectId);
+  const fromRecord = !!routeJobId || !!readParam(params.source);
+  const routeJob = routeJobId ? projects.find((p) => p.id === routeJobId) ?? null : null;
+  const backLabel = routeJob ? routeJob.name : 'Tools';
+  const backHref = routeJob ? `/project-detail?id=${encodeURIComponent(routeJob.id)}` : '/(tabs)/discover/tools';
+  // "Check a photo": the camera, then the shipped Photo Code Look on it. It
+  // needs a job (the look is grounded on the job's jurisdiction); with none
+  // linked the button says so instead of opening.
+  const [photoLookUri, setPhotoLookUri] = useState<string | null>(null);
+  const checkAPhoto = useCallback(async () => {
+    if (!codeCheckProject) return;
+    try {
+      let res: ImagePicker.ImagePickerResult;
+      if (Platform.OS === 'web') {
+        res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
+      } else {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { showAlert('Camera access needed', 'Allow camera access in Settings to check a photo.'); return; }
+        res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
+      }
+      if (res.canceled || !res.assets[0]?.uri) return;
+      setPhotoLookUri(res.assets[0].uri);
+    } catch (e) {
+      showAlert('Couldn\u2019t open the camera', String((e as Error)?.message ?? e));
+    }
+  }, [codeCheckProject]);
   // The NYC building record for the LINKED job (null project → unsupported, no
   // network). Its summary goes into the prompt only once it is 'ready'; a NYC
   // job whose record was not read is saved as 'not checked', never as clean.
@@ -1597,8 +1632,8 @@ Never invent a section number you are unsure of — leave section empty and desc
             modes share; each mode draws its own hero inside its own ScrollView,
             so putting it in one of those would hide it in the other two. */}
         <HiddenTabBackLink
-          label="Tools"
-          href="/(tabs)/discover/tools"
+          label={backLabel}
+          href={backHref}
           style={styles.backToTools}
           testID="construction-ai-back-to-tools"
         />
@@ -1660,7 +1695,10 @@ Never invent a section number you are unsure of — leave section empty and desc
               </Text>
             </View>
 
-            {/* Bid Advisor shortcut — Business tool that lives on its own screen */}
+            {/* Bid Advisor shortcut — Business tool that lives on its own screen.
+                UX wave B7: not from a job's record (the inspector is standing
+                there; "should I bid this" is in the way). */}
+            {!fromRecord ? (
             <TouchableOpacity
               style={styles.bidAdvisorCard}
               onPress={() => router.push('/judges')}
@@ -1681,6 +1719,7 @@ Never invent a section number you are unsure of — leave section empty and desc
               </View>
               <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
+            ) : null}
 
             {/* Optional project link — auto-fills location + scope */}
             {projects.length > 0 && (
@@ -1869,6 +1908,32 @@ Never invent a section number you are unsure of — leave section empty and desc
               textAlignVertical="top"
               testID="code-check-scenario"
             />
+            {/* UX wave B7: dictate it while the inspector talks (phone only —
+                the web recorder is disabled; the desk types). */}
+            {Platform.OS !== 'web' ? (
+              <VoiceRecorder
+                title="Describe the work"
+                contextLine={codeCheckProject ? `Code check for ${codeCheckProject.name}` : undefined}
+                suggestions={[
+                  'Inspector wants to see the fire blocking at the new soffit before we close it up',
+                  'Basement bathroom, new drain line tied into the existing stack',
+                ]}
+                onTranscriptReady={(t) => onChangeScenario(scenario.trim() ? `${scenario.trim()} ${t.trim()}` : t.trim())}
+              />
+            ) : null}
+            <TouchableOpacity
+              style={[styles.photoCheckBtn, !codeCheckProject && styles.runBtnDisabled]}
+              onPress={() => { void checkAPhoto(); }}
+              disabled={!codeCheckProject}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !codeCheckProject }}
+              accessibilityHint={codeCheckProject ? undefined : 'Link a job above to check a photo'}
+              testID="code-check-photo"
+            >
+              <Camera size={16} color={themeColors.accentLabel} strokeWidth={1.75} />
+              <Text style={styles.photoCheckText}>{codeCheckProject ? 'Check a photo' : 'Check a photo · link a job above first'}</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.runBtn, !canSubmit && styles.runBtnDisabled]}
@@ -2393,6 +2458,16 @@ Never invent a section number you are unsure of — leave section empty and desc
         ) : null}
       </KeyboardAvoidingView>
 
+      {/* UX wave B7: "Check a photo" — the shipped Photo Code Look, on the
+          job this check is linked to. */}
+      {photoLookUri && codeCheckProject ? (
+        <CodeLookSheet
+          visible
+          onClose={() => setPhotoLookUri(null)}
+          project={codeCheckProject}
+          photoUri={photoLookUri}
+        />
+      ) : null}
       <LoadingModal visible={loading} subject={addressLine.trim() || undefined} />
       <RoadmapLoadingModal visible={roadmapLoading} subject={addressLine.trim() || undefined} />
       <ResultModal
@@ -3531,6 +3606,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14,
   },
   runBtnDisabled: { opacity: 0.5 },
+  // UX wave B7 — the "Check a photo" door (glove-sized, no new surface card).
+  photoCheckBtn: {
+    marginTop: 12, minHeight: 48, flexDirection: 'row' as const, alignItems: 'center' as const,
+    justifyContent: 'center' as const, gap: 8, borderRadius: Tokens.radius.lg,
+    borderWidth: 1, borderColor: themeColors.line, backgroundColor: themeColors.bg,
+  },
+  photoCheckText: { color: themeColors.accentLabel, fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   runBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
   quotaText: {
     fontSize: Type.caption1.fontSize, color: themeColors.textMuted, textAlign: 'center' as const,

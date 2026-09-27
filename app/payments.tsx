@@ -8,7 +8,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import * as Haptics from 'expo-haptics';
 import {
   CreditCard, ArrowDownRight,
-  Clock, Check, XCircle, Send, RefreshCw,
+  Clock, Check, XCircle, Send, RefreshCw, BellRing, Lock,
 } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -18,11 +18,12 @@ import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
 import { invoiceOutstanding, pendingRetentionHeld } from '@/utils/invoiceBilling';
 import { estimateNetAfterFees, platformFeeLabel, STRIPE_CARD_PROCESSING } from '@/utils/platformFees';
 import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Layout } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { paymentReceivedAt } from '@/utils/billingFlowCore';
@@ -38,6 +39,14 @@ import {
   paymentsArBuckets, paymentsFooter, paymentAppliedLabel, paymentFeeCell, paymentNetCell,
   invoiceCountLabel, PAYMENTS_CSV_COLUMNS,
 } from '@/utils/paymentsDesk';
+import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
+import { remindInvoice, confirmViaAlert, type RemindOutcome } from '@/utils/remindInvoice';
+import {
+  overdueRemindRows, remindAllConfirm, remindGate, remindAllRows, remindLockedCopy, type OverdueRemindRow, type RemindGate,
+} from '@/utils/nextBillableMilestone';
+import { nailIt } from '@/components/animations/NailItToast';
+import { Button } from '@/components/ui/Button';
 
 function feeScheduleLabel(tier: string): string {
   return `${platformFeeLabel(tier)} + ${STRIPE_CARD_PROCESSING.percent}% + ${STRIPE_CARD_PROCESSING.fixedCents}¢`;
@@ -428,6 +437,52 @@ function PaymentCard({ payment, onPress }: { payment: PaymentRow; onPress: () =>
   );
 }
 
+/** One overdue invoice on /payments. Its Remind reads the job's own access
+ *  (useProjectAccess, as the desktop dock's RailAttentionRow): the invoicing
+ *  plan gate, and no button at all on a job shared WITH him (remindGate). */
+function OverdueRemindLine({ row, line, busy, disabled, onRemind, styles, lockColor }: {
+  row: OverdueRemindRow;
+  line: string;
+  busy: boolean;
+  disabled: boolean;
+  onRemind: (gate: RemindGate) => void;
+  styles: ReturnType<typeof makeStyles>;
+  lockColor: string;
+}) {
+  const access = useProjectAccess(row.projectId);
+  const gate = remindGate(row, access.canAccess('change_orders_invoicing'));
+  return (
+    <View style={styles.overdueRow} testID={`payments-overdue-${row.invoiceId}`}>
+      <TouchableOpacity
+        style={{ flex: 1 }}
+        onPress={() => router.push({ pathname: '/invoice', params: { projectId: row.projectId, invoiceId: row.invoiceId } })}
+        accessibilityRole="button"
+        accessibilityLabel={`Invoice ${row.number}, ${row.projectName}, ${row.daysLate} days late. Open`}
+      >
+        <Text style={styles.overdueRowTitle} numberOfLines={1}>
+          {`#${row.number} · ${row.projectName}`}
+        </Text>
+        <Text style={styles.overdueRowSub} numberOfLines={2}>
+          {gate === 'hidden'
+            ? `${row.daysLate} day${row.daysLate === 1 ? '' : 's'} late · shared job, the owner sends reminders`
+            : `${row.daysLate} day${row.daysLate === 1 ? '' : 's'} late · ${line}`}
+        </Text>
+      </TouchableOpacity>
+      {gate !== 'hidden' && (
+        <Button
+          label="Remind"
+          variant="secondary"
+          iconLeft={gate === 'locked' ? <Lock size={14} color={lockColor} strokeWidth={1.75} /> : undefined}
+          onPress={() => onRemind(gate)}
+          loading={busy}
+          disabled={disabled}
+          testID={`payments-remind-${row.invoiceId}`}
+        />
+      )}
+    </View>
+  );
+}
+
 export default function PaymentsScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -435,8 +490,8 @@ export default function PaymentsScreen() {
   // Scrolling down slides the global Brain FAB away so it stops covering
   // row content (iOS visual audit 2026-08-16, defect #5).
   const fabScroll = useBrainFabScroll();
-  const { projects, invoices, contacts } = useProjects();
-  const { tier } = useTierAccess();
+  const { projects, invoices, contacts, updateInvoice } = useProjects();
+  const { tier, canAccess, requiredTierFor } = useTierAccess();
   const [selectedTab, setSelectedTab] = useState<'all' | 'pending' | 'completed'>('all');
 
   // Derive the whole feed from real invoice data. Recomputes cheaply — the
@@ -509,8 +564,10 @@ export default function PaymentsScreen() {
         params: { projectId: target.projectId, invoiceId: target.id },
       });
     };
+    // C2: the rest are no longer "collect from each project" — the Overdue
+    // list on this screen reminds every late client in one tap.
     const othersNote = outstanding.length > 1
-      ? ` It's the oldest of ${outstanding.length} outstanding invoices — collect the rest from each project.`
+      ? ` It's the oldest of ${outstanding.length} outstanding invoices.`
       : '';
     showAlert(
       'Collect oldest unpaid',
@@ -521,6 +578,94 @@ export default function PaymentsScreen() {
       ],
     );
   }, [invoices, projects]);
+
+  // ── C2: chase late invoices from the list ────────────────────────────────
+  // Overdue is getEffectiveInvoiceStatus's answer (the invoice screen's own
+  // definition). Every send goes through utils/remindInvoice — the sample
+  // refusal, the QuickBooks-closed question, the server's no_recipient / too-
+  // soon skips and the marker mirror are the invoice screen's, word for word.
+  const overdueRows = useMemo<OverdueRemindRow[]>(() => overdueRemindRows(
+    invoices.filter(inv => getEffectiveInvoiceStatus(inv) === 'overdue'),
+    projects,
+    Date.now(),
+  ), [invoices, projects]);
+  // The dock's gates, on this door too: no Remind on a job shared WITH him
+  // (the owner bills that client), and a locked Remind that explains the plan
+  // when his plan does not send invoices. Each row reads its job's access
+  // (OverdueRemindLine → useProjectAccess, as the dock's RailAttentionRow).
+  // Shared rows are left out of Remind all's count, its confirm and its loop,
+  // so Remind all covers only his own jobs, where the project-aware answer IS
+  // his own plan (resolveProjectAccess: an owner has no seat grant).
+  const canRemindAll = canAccess('change_orders_invoicing');
+  const sendableRows = useMemo(() => remindAllRows(overdueRows), [overdueRows]);
+  const explainRemindLocked = useCallback(() => {
+    const copy = remindLockedCopy(requiredTierFor('change_orders_invoicing'));
+    showAlert(copy.title, copy.message, [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'See plans', onPress: () => router.push('/paywall') },
+    ]);
+  }, [requiredTierFor]);
+  const [remindState, setRemindState] = useState<Record<string, { busy?: boolean; outcome?: RemindOutcome }>>({});
+  const [remindingAll, setRemindingAll] = useState(false);
+  const remindOne = useCallback(async (row: OverdueRemindRow): Promise<RemindOutcome> => {
+    const inv = invoices.find(i => i.id === row.invoiceId);
+    const out = await remindInvoice(
+      {
+        invoiceId: row.invoiceId,
+        projectName: row.projectName,
+        qboError: inv?.qboError,
+        lastReminderMs: row.lastSentMs,
+      },
+      {
+        send: sendInvoiceReminderNow,
+        confirm: confirmViaAlert(showAlert),
+        onSendStart: () => setRemindState(prev => ({ ...prev, [row.invoiceId]: { busy: true } })),
+      },
+    );
+    if (out.patch) updateInvoice(row.invoiceId, out.patch);
+    setRemindState(prev => ({ ...prev, [row.invoiceId]: { busy: false, outcome: out } }));
+    return out;
+  }, [invoices, updateInvoice]);
+  const handleRemindOne = useCallback(async (row: OverdueRemindRow, gate: RemindGate) => {
+    if (gate === 'hidden') return;
+    if (gate === 'locked') { explainRemindLocked(); return; }
+    if (remindingAll || remindState[row.invoiceId]?.busy) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const out = await remindOne(row);
+    if (out.kind === 'sent') nailIt(out.message);
+    else if (out.kind !== 'cancelled') showAlert(out.title, out.message);
+  }, [remindOne, remindingAll, remindState, explainRemindLocked]);
+  const handleRemindAll = useCallback(() => {
+    if (remindingAll || sendableRows.length === 0) return;
+    if (!canRemindAll) { explainRemindLocked(); return; }
+    const rows = sendableRows;
+    const ask = remindAllConfirm(rows);
+    showAlert(ask.title, ask.message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: ask.confirmLabel,
+        onPress: () => {
+          void (async () => {
+            setRemindingAll(true);
+            let sent = 0;
+            try {
+              // One after another: each outcome lands on its own row, and a
+              // QuickBooks-closed invoice still asks its own question.
+              for (const row of rows) {
+                const out = await remindOne(row);
+                if (out.kind === 'sent') sent += 1;
+              }
+            } finally {
+              setRemindingAll(false);
+            }
+            const notSent = rows.length - sent;
+            if (notSent === 0) nailIt(`${sent} reminder${sent === 1 ? '' : 's'} sent`);
+            else showAlert(`${sent} of ${rows.length} sent`, `${notSent} did not go out — each row below says why.`);
+          })();
+        },
+      },
+    ]);
+  }, [sendableRows, remindOne, remindingAll, canRemindAll, explainRemindLocked]);
 
   const isDesktop = useIsDesktop();
   const isDesktopWeb = useIsDesktopWeb();
@@ -721,6 +866,48 @@ export default function PaymentsScreen() {
           <Text style={styles.sendButtonText}>Collect Oldest Unpaid</Text>
         </TouchableOpacity>
 
+        {overdueRows.length > 0 && (
+          <View style={[styles.overdueGroup, isDesktop && styles.overdueGroupDesktop]} testID="payments-overdue-group">
+            <View style={styles.overdueHead}>
+              <BellRing size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
+              <Text style={styles.overdueTitle}>
+                {`${overdueRows.length} invoice${overdueRows.length === 1 ? '' : 's'} overdue`}
+              </Text>
+              {sendableRows.length > 1 && (
+                <Button
+                  label={remindingAll ? 'Sending…' : `Remind all ${sendableRows.length}`}
+                  iconLeft={canRemindAll ? undefined : <Lock size={14} color={themeColors.textSecondary} strokeWidth={1.75} />}
+                  onPress={handleRemindAll}
+                  loading={remindingAll}
+                  disabled={remindingAll}
+                  testID="payments-remind-all"
+                />
+              )}
+            </View>
+            {overdueRows.map(row => {
+              const st = remindState[row.invoiceId];
+              // A send reads back as reminderSentLabel once the marker lands
+              // (the patch above); every other outcome says why, in the
+              // invoice screen's words.
+              const line = st?.outcome && st.outcome.kind !== 'cancelled' && st.outcome.kind !== 'sent'
+                ? st.outcome.message
+                : row.sentLabel ?? (st?.outcome?.kind === 'sent' ? st.outcome.message : 'Not reminded yet');
+              return (
+                <OverdueRemindLine
+                  key={row.invoiceId}
+                  row={row}
+                  line={line}
+                  busy={!!st?.busy}
+                  disabled={remindingAll || !!st?.busy}
+                  onRemind={(gate) => { void handleRemindOne(row, gate); }}
+                  styles={styles}
+                  lockColor={themeColors.textSecondary}
+                />
+              );
+            })}
+          </View>
+        )}
+
         {/* role "button" + a selected state, not "tab": React Navigation's own
             bottom bar carries a FIXME saying role 'tab' does not behave as
             expected on iOS, and this segmented control is the same shape. The
@@ -870,6 +1057,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     elevation: 3,
   },
   sendButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
+  overdueGroup: { marginHorizontal: 16, marginTop: -8, marginBottom: 20, gap: 10 },
+  // A View, so the prose width is set here; desktopProse is typed for Text.
+  overdueGroupDesktop: { maxWidth: Layout.prose },
+  overdueHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  overdueTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.dangerLabel },
+  overdueRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line },
+  overdueRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  overdueRowSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
   tabRow: {
     flexDirection: 'row',
     marginHorizontal: 16,

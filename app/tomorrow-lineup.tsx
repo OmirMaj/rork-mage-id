@@ -2,15 +2,21 @@
 //
 // Reads the job's schedule, deliveries, building access slots and permit
 // inspections (utils/tomorrowLineup) and drafts each sub's message. Every draft
-// is editable, and nothing leaves the phone until he taps that sub's Send — the
-// same share path Last Planner's crew dispatch uses (shareText, with the text
-// shown to copy if sharing is unavailable). Nothing sends in the background.
+// is editable, and nothing leaves the phone until he taps that sub's Send.
+// UX wave B4: Send opens Messages ADDRESSED to the sub with the whole text
+// (utils/lineupTexts → Lane 0's smsUrl); a sub with no phone gets the share
+// sheet (shareText, with the text shown to copy if sharing is unavailable).
+// "Text all N" steps through the subs one at a time. A row then reads
+// "Opened in Messages" — never "Sent": iOS gives no signal that he pressed
+// Send, and nothing here records the lineup as delivered. On web the screen
+// asks "Did you send it?" first (work-order.tsx's pattern). Nothing sends in
+// the background.
 //
 // Gated on 'schedule_gantt_pdf' — the key Last Planner (its door) checks —
 // through useProjectAccess, so a collaborator's grant on the job counts.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarDays, Send, AlertTriangle } from 'lucide-react-native';
@@ -18,7 +24,7 @@ import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brain
 import { Card, Button, ScreenHeader } from '@/components/ui';
 import Paywall from '@/components/Paywall';
 import DatePickerModal from '@/components/DatePickerModal';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -30,6 +36,9 @@ import { showAlert } from '@/utils/alert';
 import { shareText } from '@/utils/shareText';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import { buildLineup, nextWorkingDay, lineupHeadline, type LineupSub } from '@/utils/tomorrowLineup';
+import {
+  lineupSendRoute, lineupRowStatusLabel, queueAfter, queueBanner, textAllLabel, NO_PHONE_NOTE, type LineupRowStatus,
+} from '@/utils/lineupTexts';
 import { armLineupReminder, disarmLineupReminder, isLineupReminderArmed, lineupReminderCopy } from '@/utils/lineupReminder';
 
 export default function TomorrowLineupScreen() {
@@ -84,15 +93,72 @@ function TomorrowLineupInner() {
   }) : null), [project, date, subcontractors, commitments, deliveries, accessReservations, permits, now]);
 
   const draftKey = (s: LineupSub) => `${projectId}:${date}:${s.sub.id}`;
-  const send = useCallback(async (s: LineupSub, message: string) => {
+  // What each row says after its Send (keyed like the drafts). Never "Sent".
+  const [rowStatus, setRowStatus] = useState<Record<string, LineupRowStatus>>({});
+  const markRow = useCallback((key: string, st: LineupRowStatus) => setRowStatus(r => ({ ...r, [key]: st })), []);
+
+  const shareFallback = useCallback(async (s: LineupSub, message: string, key: string) => {
     try {
       const outcome = await shareText({ message, title: `Lineup — ${s.sub.name}` });
       if (outcome === 'copied') showAlert('Copied', 'Sharing is not available here, so the message is on your clipboard — paste it into a text or email.');
       else if (outcome === 'failed') showAlert('Send manually', message);
+      else markRow(key, 'shared');
     } catch {
       showAlert('Send manually', message);
     }
-  }, []);
+  }, [markRow]);
+
+  const send = useCallback(async (s: LineupSub, message: string, key: string) => {
+    const route = lineupSendRoute(s.sub, message, Platform.OS);
+    if (route.kind === 'share') { await shareFallback(s, message, key); return; }
+    try {
+      await Linking.openURL(route.url);
+      // On web openURL resolves even with no sms: handler behind it (a desk
+      // PC with no Messages app), so "it opened" proves nothing — ask.
+      if (Platform.OS === 'web') {
+        showAlert(
+          'Did you send it?',
+          `MAGE can't see your messages. Mark it only once the text has actually gone to ${s.sub.name}.`,
+          [
+            { text: 'Not sent', style: 'cancel', onPress: () => markRow(key, 'not_sent') },
+            { text: 'Sent', onPress: () => markRow(key, 'marked_sent') },
+          ],
+        );
+        return;
+      }
+      markRow(key, 'opened');
+    } catch {
+      // Messages would not open: the share sheet still gets it out.
+      await shareFallback(s, message, key);
+    }
+  }, [shareFallback, markRow]);
+
+  // "Text all N": one sub at a time. iOS opens one Messages sheet per tap, so
+  // after each he comes back to this list and taps the next — the banner
+  // names who is next. Nothing is sent without his tap on each.
+  const [queue, setQueue] = useState<string[]>([]);
+  const [queueTotal, setQueueTotal] = useState(0);
+  const sendQueued = useCallback((id: string) => {
+    const s = lineup?.perSub.find(x => x.sub.id === id);
+    setQueue(q => queueAfter(q, id));
+    if (!s) return;
+    const key = draftKey(s);
+    void send(s, drafts[key] ?? s.message, key);
+  // draftKey reads projectId and date, both in the deps through lineup.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineup, drafts, send]);
+  const startTextAll = useCallback(() => {
+    const ids = (lineup?.perSub ?? []).map(x => x.sub.id);
+    if (ids.length === 0) return;
+    setQueueTotal(ids.length);
+    setQueue(ids);
+    sendQueued(ids[0]);
+  }, [lineup, sendQueued]);
+  // A job or day switch drops the queue and the row labels: they belonged to
+  // the other lineup.
+  useEffect(() => { setQueue([]); setRowStatus({}); }, [projectId, date]);
+  const nameOf = useCallback((id: string) => lineup?.perSub.find(x => x.sub.id === id)?.sub.name ?? 'the next sub', [lineup]);
+  const banner = queueBanner(queue, queueTotal, nameOf);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]} testID="lineup-screen">
@@ -137,15 +203,39 @@ function TomorrowLineupInner() {
               <Card style={styles.card} testID="lineup-summary"><Text style={styles.summary}>{lineup.summary}</Text></Card>
             ) : null}
 
+            {lineup.perSub.length > 1 ? (
+              <Button
+                label={textAllLabel(lineup.perSub.length)}
+                onPress={startTextAll}
+                iconLeft={<Send size={15} color={Colors.textOnAccent} strokeWidth={1.75} />}
+                testID="lineup-text-all"
+                fullWidth
+              />
+            ) : null}
+            {banner ? (
+              <Card style={styles.card} testID="lineup-queue">
+                <Text style={styles.subName}>{banner}</Text>
+                <View style={styles.row}>
+                  <Button label="Text next" onPress={() => sendQueued(queue[0])} testID="lineup-queue-next" containerStyle={styles.flexBtn} />
+                  <Button label="Stop" variant="secondary" onPress={() => setQueue([])} testID="lineup-queue-stop" containerStyle={styles.flexBtn} />
+                </View>
+              </Card>
+            ) : null}
+
             {lineup.perSub.map(s => {
               const key = draftKey(s);
               const text = drafts[key] ?? s.message;
+              const statusLabel = lineupRowStatusLabel(rowStatus[key]);
+              const route = lineupSendRoute(s.sub, text, Platform.OS);
               return (
                 <Card key={s.sub.id} style={styles.card} testID={`lineup-sub-${s.sub.id}`}>
                   <Text style={styles.subName}>{s.sub.name}</Text>
                   <Text style={styles.muted}>
                     {s.noContact ? 'No phone or email on file — Send opens the share sheet so you can pick how.' : [s.sub.phone, s.sub.email].filter(Boolean).join(' · ')}
                   </Text>
+                  {!s.noContact && route.kind === 'share' ? (
+                    <Text style={styles.muted} testID={`lineup-no-phone-${s.sub.id}`}>{NO_PHONE_NOTE}</Text>
+                  ) : null}
                   <TextInput
                     value={text}
                     onChangeText={(v) => setDrafts(d => ({ ...d, [key]: v }))}
@@ -154,7 +244,14 @@ function TomorrowLineupInner() {
                     accessibilityLabel={`Message to ${s.sub.name}`}
                     testID={`lineup-draft-${s.sub.id}`}
                   />
-                  <Button label="Send…" size="sm" onPress={() => { void send(s, text); }} iconLeft={<Send size={13} color="#FFF" strokeWidth={1.75} />} testID={`lineup-send-${s.sub.id}`} />
+                  <Button
+                    label={route.kind === 'sms' ? `Text ${s.sub.name}` : 'Send…'}
+                    onPress={() => { void send(s, text, key); }}
+                    iconLeft={<Send size={15} color={Colors.textOnAccent} strokeWidth={1.75} />}
+                    testID={`lineup-send-${s.sub.id}`}
+                    fullWidth
+                  />
+                  {statusLabel ? <Text style={styles.statusLine} testID={`lineup-status-${s.sub.id}`}>{statusLabel}</Text> : null}
                 </Card>
               );
             })}
@@ -275,5 +372,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   reminderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   reminderLabel: { ...Type.footnote, fontWeight: '700', color: t.text, flex: 1 },
   reminderStatus: { ...Type.caption1, color: t.warningLabel, lineHeight: 17 },
+  // UX wave B4: sends are the md Button (the 48 pt touch target), full width.
+  flexBtn: { flex: 1 },
+  statusLine: { ...Type.caption1, fontWeight: '700', color: t.textSecondary },
   draftInput: { ...Type.footnote, color: t.text, minHeight: 96, padding: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt, textAlignVertical: 'top' },
 });

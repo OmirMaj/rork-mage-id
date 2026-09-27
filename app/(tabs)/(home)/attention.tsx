@@ -12,9 +12,11 @@
 //   bill     — utils/draftedRevenue buildReadyToBill (ReadyToBillCard)
 //   logs     — utils/portfolio/attentionRows buildDailyLogGaps (DailyLogCard)
 //   warranty — utils/warrantyWalks getUpcomingWarrantyWalks (WarrantyWalkBanner)
-// The 'needs' view keeps the rail's three empty states word for word: a failed
-// read is not "all caught up", and an overdue RFI or submittal (outside the
-// canonical scan) routes to /waiting-on instead of being swallowed.
+// The 'needs' view keeps the rail's empty states word for word: a failed read
+// is not "all caught up". UX A7: overdue RFIs and stale submittals are IN the
+// canonical set now (hooks/useBrainWatch), so they are rows here — the
+// side-count that only held back the all-clear line is gone, and the header
+// count equals the row count.
 //
 // It lives in the Home tab's stack (headerShown false there), so it draws its
 // own PageHeader and a Back row when there is somewhere to go back to. On
@@ -35,7 +37,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CheckCircle2, ChevronLeft, ChevronRight, CloudOff, MessageSquareWarning } from 'lucide-react-native';
+import { CheckCircle2, ChevronLeft, ChevronRight, CloudOff } from 'lucide-react-native';
 import PageHeader from '@/components/PageHeader';
 import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
 import { routeHref } from '@/components/desktop/RowLink';
@@ -45,14 +47,14 @@ import { layoutNext } from '@/components/ui/motion';
 import { Tokens } from '@/constants/designTokens';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { useProjects } from '@/contexts/ProjectContext';
-import { rfiAttention, submittalAttention, type AttentionItem, type AttnKind, type AttnSeverity } from '@/utils/brainWatch';
+import type { AttentionItem, AttnKind, AttnSeverity } from '@/utils/brainWatch';
 import { buildReadyToBill, type DraftedCORow } from '@/utils/draftedRevenue';
 import { getUpcomingWarrantyWalks, warrantyWalkTitle, type WarrantyWalkAlert } from '@/utils/warrantyWalks';
 import { resolveWarrantyMonths } from '@/utils/paymentTerms';
 import { formatMoney } from '@/utils/formatters';
 import { formatCalendarDay } from '@/utils/calendarDate';
 import {
-  buildDailyLogGaps, dailyLogGapLine, dailyLogGapTarget, parseAttentionView,
+  buildDailyLogGaps, dailyLogGapLine, dailyLogGapTarget, dailyLogVoiceDraft, parseAttentionView,
   type AttentionView, type DailyLogGapRow,
 } from '@/utils/portfolio/attentionRows';
 import { Type } from '@/constants/typography';
@@ -130,24 +132,17 @@ export default function AttentionScreen() {
   const [severity, setSeverity] = useState<SeverityFilter>('all');
 
   const { items, sourceFailed } = useBrainWatch();
-  const { projects, rfis, submittals, changeOrders, dailyReports, settings, projectsLoaded, changeOrdersLoaded, dailyReportsLoaded } = useProjects();
+  const { projects, changeOrders, dailyReports, settings, projectsLoaded, changeOrdersLoaded, dailyReportsLoaded } = useProjects();
   const { isDesktop } = useResponsiveLayout();
   // Desktop only: the phone render must not change by one node.
   const billLoading = isDesktop && !(projectsLoaded && changeOrdersLoaded);
   const logsLoading = isDesktop && !(projectsLoaded && dailyReportsLoaded);
 
-  // The rail's inline check, kept inline as the rail keeps it: RFIs and
-  // submittals the canonical set does not count gate the all-clear sentence.
-  const outsideTheScan = useMemo(() => {
-    const nowMs = Date.now();
-    let n = 0;
-    for (const project of projects) {
-      if (project.status === 'closed' || project.status === 'completed') continue;
-      n += rfiAttention(project, rfis, nowMs).length;
-      n += submittalAttention(project, submittals, nowMs).length;
-    }
-    return n;
-  }, [projects, rfis, submittals]);
+  // UX A7: rows someone else is holding (an RFI, a submittal, the CO rollup).
+  const chaseable = useMemo(
+    () => items.filter((i) => i.kind === 'rfi' || i.kind === 'submittal' || i.kind === 'changeOrder').length,
+    [items],
+  );
 
   // Job order first, so the table's stable severity sort breaks ties by job.
   const needsRows = useMemo(
@@ -212,7 +207,10 @@ export default function AttentionScreen() {
       label: 'Today filed?',
       width: 128,
       sortValue: (r) => (r.c.todayExpected && !r.c.todayFiled ? 0 : 1),
-      value: (r) => (r.c.todayExpected ? (r.c.todayFiled ? 'Yes' : 'No') : 'Not a work day'),
+      // UX A5: a day with only a voice note is not filed — and not "No".
+      value: (r) => (r.c.todayExpected
+        ? (r.c.todayFiled ? 'Yes' : dailyLogVoiceDraft(r)?.date === r.c.today ? 'Voice note only' : 'No')
+        : 'Not a work day'),
     },
     { key: 'missing', label: 'Days missing', width: 128, numeric: true, sortValue: (r) => r.c.missedDays, value: (r) => r.c.missedDays },
   ], []);
@@ -269,23 +267,6 @@ export default function AttentionScreen() {
           <Text style={[styles.emptyTitle, { color: t.warningLabel }]}>{UNREACHABLE_LINE}</Text>
           <Text style={styles.emptySubtitle}>Nothing cached needs attention; the live read failed.</Text>
         </View>
-      ) : outsideTheScan > 0 ? (
-        <TouchableOpacity
-          style={styles.empty}
-          onPress={() => router.push('/waiting-on')}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Open Waiting On"
-          testID="attention-partial-clear"
-        >
-          <MessageSquareWarning size={22} color={t.warningLabel} strokeWidth={1.8} />
-          <Text style={[styles.emptyTitle, { color: t.warningLabel }]}>
-            {outsideTheScan === 1 ? '1 reply is overdue' : `${outsideTheScan} replies are overdue`}
-          </Text>
-          <Text style={styles.emptySubtitle}>
-            Schedules, invoices, permits and certs are clear. RFIs and submittals are not — open Waiting On.
-          </Text>
-        </TouchableOpacity>
       ) : (
         <View style={styles.empty} testID="attention-all-clear">
           <CheckCircle2 size={22} color={t.success} strokeWidth={1.8} />
@@ -330,6 +311,24 @@ export default function AttentionScreen() {
           renderCard={(i) => card(i.id, itemText(i), `${i.projectName} · ${SEVERITY_LABEL[i.severity]} · ${KIND_LABEL[i.kind]}`, itemHref(i))}
           testID="attention-table"
         />
+        {/* UX A7: the replies and approvals someone else is holding are rows
+            now; the next step for them is the chase, and every one of them is
+            chased from /waiting-on (the drafted follow-up, the chase log). */}
+        {chaseable > 0 ? (
+          <TouchableOpacity
+            style={styles.chaseLink}
+            onPress={() => router.push('/waiting-on')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Chase ${chaseable === 1 ? 'it' : `all ${chaseable}`} on Waiting On`}
+            testID="attention-open-waiting-on"
+          >
+            <Text style={styles.chaseLinkText}>
+              {chaseable === 1 ? 'Chase it on Waiting On' : `Chase these ${chaseable} on Waiting On`}
+            </Text>
+            <ChevronRight size={14} color={t.accent} strokeWidth={2} />
+          </TouchableOpacity>
+        ) : null}
       </>
     );
   } else if (view === 'bill' && billLoading) {
@@ -466,4 +465,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   emptyTitle: { ...Type.bodyCompact, fontWeight: '600', color: t.text },
   emptySubtitle: { ...Type.caption1, color: t.textSecondary, textAlign: 'center' },
+  chaseLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44, marginTop: Tokens.spacing.sm },
+  chaseLinkText: { ...Type.footnote, fontWeight: '600', color: t.accent },
 });

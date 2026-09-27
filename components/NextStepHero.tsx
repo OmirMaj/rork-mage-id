@@ -36,6 +36,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Receipt, ShieldAlert, MessageSquareWarning,
   ClipboardEdit, Calculator, Send, ChevronRight, PartyPopper,
+  FileSignature, FilePlus2, ShieldCheck,
   type LucideIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -44,7 +45,11 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import type { Project, Invoice, RFI, PrequalPacket, Subcontractor, PunchItem } from '@/types';
+import type { Project, Invoice, RFI, PrequalPacket, Subcontractor, PunchItem, ProjectContract, ChangeOrder } from '@/types';
+import {
+  nextBillableMilestone, estimateNotSent, approvedUnbilledChangeOrders, subPaymentsMissingWaiver,
+  moneyLabel, type SubPaidNoWaiver,
+} from '@/utils/nextBillableMilestone';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { invoiceOutstanding } from '@/utils/invoiceBilling';
 import { computeProjectProgress } from '@/utils/projectProgress';
@@ -71,6 +76,19 @@ export interface NextStepHeroProps {
    * portfolio-wide otherwise.
    */
   scopeToProjectId?: string;
+  /**
+   * C3 (UX wave) — the money chain's states. Each is read ONLY when the
+   * caller passes it AND the hero is scoped to one project; Home passes none
+   * of them and keeps today's card. Contracts are in no context: the job
+   * page passes the active contract it already fetched (portalBadgeContract).
+   *   contract: the job's active contract; `null` = fetched, none on file;
+   *     undefined = not fetched (never read as "none").
+   *   changeOrders: this job's change orders ("CO approved, unbilled").
+   *   subPaidNoWaiver: sub payments the caller found with no release.
+   */
+  contract?: ProjectContract | null;
+  changeOrders?: ChangeOrder[];
+  subPaidNoWaiver?: SubPaidNoWaiver[];
   /** Optional testID prefix for automation. */
   testID?: string;
 }
@@ -95,7 +113,7 @@ export interface NextStep {
 
 /** Compute the next step from current state. Returns null if all clear. */
 export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
-  const { projects, invoices, rfis = [], subs = [], prequalPackets = [], punchItems, scopeToProjectId } = input;
+  const { projects, invoices, rfis = [], subs = [], prequalPackets = [], punchItems, scopeToProjectId, contract, changeOrders, subPaidNoWaiver } = input;
 
   // Exclude the auto-seeded "Sample — …" demo projects from portfolio-wide
   // guidance. Pre-fix the very first thing a new user saw was "Add scope to
@@ -134,6 +152,63 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       // both params are required — invoiceId alone left the screen blank.
       href: { pathname: '/invoice', params: { projectId: first.projectId, invoiceId: first.id } },
     };
+  }
+
+  // 1b–1d. C3 — the next money the chain says is due, scoped to one job and
+  //   only from data the caller actually passed. Amounts come from the
+  //   contract / change order helpers (utils/nextBillableMilestone), never
+  //   from the estimate.
+  const scopedProject = scopeToProjectId ? projScope[0] : undefined;
+  if (scopedProject) {
+    if (contract !== undefined) {
+      // The FINAL row is offered only once the job reads done.
+      const prog = computeProjectProgress(scopedProject);
+      const jobDone = scopedProject.status === 'completed' || (prog.hasSchedule && prog.pct >= 100);
+      const next = nextBillableMilestone({ contract, invoices: invScope, includeFinal: jobDone });
+      if (next) {
+        return {
+          kind: next.kind === 'deposit' ? 'bill_deposit' : 'bill_final',
+          icon: Receipt,
+          tone: 'success',
+          title: next.label,
+          body: next.kind === 'deposit'
+            ? 'The signed contract says the deposit is due on signing. This opens the invoice with the contract\'s amount and terms.'
+            : 'The job reads done and the signed contract\'s final payment has not been billed.',
+          cta: next.label,
+          href: next.href,
+        };
+      }
+    }
+    if (changeOrders) {
+      const unbilled = approvedUnbilledChangeOrders(changeOrders.filter(co => co.projectId === scopedProject.id), invScope);
+      if (unbilled.length > 0) {
+        const first = unbilled[0];
+        return {
+          kind: 'co_unbilled',
+          icon: FilePlus2,
+          tone: 'success',
+          title: `CO #${first.co.number} is approved — ${moneyLabel(first.remaining)} not billed`,
+          body: unbilled.length > 1
+            ? `${unbilled.length} approved change orders have money nobody has invoiced yet.`
+            : 'The client approved it and it is not on an invoice yet.',
+          cta: 'Bill this change order',
+          href: { pathname: '/change-order', params: { coId: first.co.id, projectId: scopedProject.id } },
+        };
+      }
+    }
+    const unwaived = subPaymentsMissingWaiver(subPaidNoWaiver);
+    if (unwaived.length > 0) {
+      const first = unwaived[0];
+      return {
+        kind: 'sub_paid_no_waiver',
+        icon: ShieldCheck,
+        tone: 'warn',
+        title: `${first.subName} was paid — no lien release on file`,
+        body: `${moneyLabel(first.amount)} went out with no waiver back. Collect the release before the next draw.`,
+        cta: 'Get the waiver',
+        href: { pathname: '/lien-waivers', params: { projectId: scopedProject.id } },
+      };
+    }
   }
 
   // 2. Expiring COIs (next 7 days). OSHA Multi-Employer Citation Policy
@@ -217,6 +292,20 @@ export function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       // Route to the project-aware estimate wizard so the new estimate
       // is linked to this project automatically.
       href: { pathname: '/estimate-wizard', params: { projectId: projectNoEstimate.id } },
+    };
+  }
+
+  // 5b. C3 — the estimate is ready and no contract has gone out. Only when
+  //   the job page passed the contract it fetched (null = none on file).
+  if (scopedProject && estimateNotSent(scopedProject, contract)) {
+    return {
+      kind: 'estimate_not_sent',
+      icon: FileSignature,
+      tone: 'accent',
+      title: `Send the proposal for ${scopedProject.name}`,
+      body: 'The estimate is done and no contract has gone to the client yet.',
+      cta: 'Send proposal',
+      href: { pathname: '/contract', params: { projectId: scopedProject.id } },
     };
   }
 

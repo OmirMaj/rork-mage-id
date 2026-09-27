@@ -49,11 +49,23 @@ interface VoiceRecorderProps {
    * voice parser so a single dictation can fill the whole form.
    */
   topicChecklist?: { label: string; hint?: string }[];
+  /**
+   * Optional (UX wave, lane A): the button's words when idle. Defaults to
+   * "Tap to dictate", so every existing caller is unchanged.
+   */
+  label?: string;
+  /**
+   * Optional (UX wave, lane A): drop the button's own card (background,
+   * border, radius, bottom margin) so it can sit as one choice inside a card
+   * the caller draws — the daily report's "Fill it for me" door. Defaults to
+   * false: every existing caller keeps its card.
+   */
+  bare?: boolean;
 }
 
 export default function VoiceRecorder({
   onTranscriptReady, isLoading, isLocked, onLockedPress,
-  title, contextLine, suggestions, topicChecklist,
+  title, contextLine, suggestions, topicChecklist, label, bare = false,
 }: VoiceRecorderProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -70,7 +82,7 @@ export default function VoiceRecorder({
 
   if (Platform.OS === 'web') {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, bare && styles.bare]}>
         <View style={[styles.micBtn, styles.micBtnDisabled]}>
           <MicOff size={20} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
@@ -81,7 +93,7 @@ export default function VoiceRecorder({
 
   if (isLocked) {
     return (
-      <TouchableOpacity style={styles.container} onPress={onLockedPress} activeOpacity={0.7}>
+      <TouchableOpacity style={[styles.container, bare && styles.bare]} onPress={onLockedPress} activeOpacity={0.7}>
         <View style={[styles.micBtn, styles.micBtnLocked]}>
           <Lock size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
@@ -93,7 +105,7 @@ export default function VoiceRecorder({
   return (
     <>
       <TouchableOpacity
-        style={styles.container}
+        style={[styles.container, bare && styles.bare]}
         onPress={handlePress}
         activeOpacity={0.7}
         testID="voice-record-btn"
@@ -102,7 +114,7 @@ export default function VoiceRecorder({
           <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <Text style={styles.label}>
-          {isLoading ? 'Processing…' : 'Tap to dictate'}
+          {isLoading ? 'Processing…' : (label ?? 'Tap to dictate')}
         </Text>
       </TouchableOpacity>
       {/* Tutorial blocker sentinel: the capture sheet is an RN Modal that draws
@@ -133,6 +145,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: t.line,
     marginBottom: 12,
+  },
+  // `bare`: no card of its own (a choice inside the caller's card).
+  bare: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    marginBottom: 0,
   },
   micBtn: {
     width: 44,

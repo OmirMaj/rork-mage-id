@@ -129,6 +129,9 @@ import { getSidebarRail } from '@/utils/sidebarRailStore';
 import { SidePanel } from '@/components/desktop/SidePanel';
 import { RowLink, routeHref } from '@/components/desktop/RowLink';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { clockInHref, photoTriageHref, punchListNewHref, tomorrowLineupHref } from '@/utils/uxRoutes';
+import { showsFieldRow, clientFieldsProblem, editedPrimaryContact } from '@/utils/uxDoors';
+import { rfiLogCounts } from '@/utils/logs/rfiLogRows';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useProjectPulse } from '@/hooks/useProjectPulse';
 import { ProjectWorkspaceHeader } from '@/components/project/ProjectWorkspaceHeader';
@@ -555,6 +558,14 @@ export default function ProjectDetailScreen() {
   // permission below fails closed on it.
   const hubRole = roleState.role ?? pricingRoleFor(project?.myRole ?? null, project?.ownerUserId, authUser?.id);
   const hubPerms = useMemo(() => hubPermissions(hubRole), [hubRole]);
+  // UX wave, Lane D (D2): a LIVE job's phone quick row is the field work —
+  // Daily report, Photo, Punch, Clock in — instead of the office row. Voice is
+  // HELD with A3: the global mic (UniversalMicButton) takes no job and files
+  // to its latched / most-recently-updated project, so a Voice door here could
+  // write the note to a different job.
+  // Draft and estimated jobs keep the office row (showsFieldRow is pure,
+  // proven by scripts/validate-ux-doors.ts). Desktop is untouched.
+  const fieldRow = showsFieldRow(project?.status);
   // #173: the Team count reads the same rows (same react-query key) the Team
   // list below draws, so the two can never disagree — no extra fetch.
   const teamRoster = useProjectCollaborators(project?.id);
@@ -944,6 +955,11 @@ export default function ProjectDetailScreen() {
   // Q6 · his words when the type is Other.
   const [editTypeOther, setEditTypeOther] = useState('');
   const [editSquareFootage, setEditSquareFootage] = useState('');
+  // UX wave, Lane D (D4): the job's client, editable here so an existing job
+  // can gain one. Optional; written through seedClientEverywhere.
+  const [editClientName, setEditClientName] = useState('');
+  const [editClientPhone, setEditClientPhone] = useState('');
+  const [editClientEmail, setEditClientEmail] = useState('');
   // Contract block. Strings while typing; parsed and range-checked on save
   // against CONTRACT_TERM_RANGES — the same bounds as the DB CHECKs, because a
   // CHECK violation is terminal in the offline queue and would take the
@@ -986,6 +1002,9 @@ export default function ProjectDetailScreen() {
     setEditType(project.type);
     setEditTypeOther(project.projectTypeOther ?? '');
     setEditSquareFootage(project.squareFootage > 0 ? project.squareFootage.toString() : '');
+    setEditClientName(project.primaryContact?.name ?? '');
+    setEditClientPhone(project.primaryContact?.phone ?? '');
+    setEditClientEmail(project.primaryContact?.email ?? '');
     setEditContractMode(project.contractMode);
     setEditGmpCap(project.gmpCap != null ? String(project.gmpCap) : '');
     // A stored flat amount with no percent opens on "amount"; everything else
@@ -1204,8 +1223,17 @@ export default function ProjectDetailScreen() {
       showAlert('Describe the job', typeBlock);
       return;
     }
+    // D4: a typed client email / phone that cannot be used is said, not dropped.
+    const clientTyped = { name: editClientName, phone: editClientPhone, email: editClientEmail };
+    const clientProblem = clientFieldsProblem(clientTyped);
+    if (clientProblem) {
+      showAlert('Check the client details', clientProblem);
+      return;
+    }
+    const client = editedPrimaryContact(project?.primaryContact, clientTyped);
     const sqft = parseFloat(editSquareFootage) || 0;
     updateProject(id, {
+      ...(client.changed ? { primaryContact: client.next } : {}),
       name,
       description: editDescription.trim(),
       // Blank = no address. 'United States' geocoded to the Kansas centroid
@@ -1220,7 +1248,7 @@ export default function ProjectDetailScreen() {
     setShowEditModal(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     console.log('[ProjectDetail] Project updated:', id);
-  }, [id, editName, editDescription, editLocation, editType, editTypeOther, editSquareFootage, updateProject, contractAccess, buildContractPatch, project, capGate]);
+  }, [id, editName, editDescription, editLocation, editType, editTypeOther, editSquareFootage, editClientName, editClientPhone, editClientEmail, updateProject, contractAccess, buildContractPatch, project, capGate]);
 
   const branding = useMemo(() => settings.branding ?? {
     companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
@@ -2197,6 +2225,12 @@ export default function ProjectDetailScreen() {
   // submittals, change orders, invoices, daily reports; the punch list).
   const pressTile = useCallback((tile: { key: SectionKey }) => {
     if (deskWeb && isListSection(tile.key)) { router.push(routeHref(LIST_SECTION_ROUTES[tile.key], { projectId: id ?? '' })); return; }
+    // UX wave, Lane D (D2): on a phone the Punch List tile opens the punch
+    // list itself — the section sheet only previewed five rows of it. (The
+    // Daily Reports tile keeps its sheet: on a phone it is the only place the
+    // job's past reports are listed; the field row's Daily report button is
+    // the one-tap way into today's report.)
+    if (!isDesktop && tile.key === 'punchList') { router.push(routeHref('/punch-list', { projectId: id ?? '' })); return; }
     if (tile.key === 'activity') { router.push({ pathname: '/activity-feed' as any, params: { projectId: id } }); return; }
     if (tile.key === 'calendar') { void handleExportCalendar(); return; }
     if (tile.key === 'plans') { router.push({ pathname: '/plans' as any, params: { projectId: id } }); return; }
@@ -2214,7 +2248,7 @@ export default function ProjectDetailScreen() {
     if (tile.key === 'projectFiles') { router.push({ pathname: '/project-files' as any, params: { projectId: id } }); return; }
     if (tile.key === 'scope') { router.push({ pathname: '/project-scope', params: { id } } as never); return; }
     openSection(tile.key);
-  }, [deskWeb, router, id, handleExportCalendar, openSection]);
+  }, [deskWeb, isDesktop, router, id, handleExportCalendar, openSection]);
   // The schedule, from the KPI strip and the overview: the existing push
   // (router.replace + the focus nonce — MobileScheduleScreen otherwise keeps
   // whichever job it last showed). Lane DC sends Pro tiers on desktop web on
@@ -2620,39 +2654,53 @@ export default function ProjectDetailScreen() {
               );
             })()}
 
-            {/* ── Create proposal from estimate ── */}
+            {/* ── Create proposal from estimate ──
+                UX wave, Lane D (D4): no disabled "revision needed" state. The
+                button snapshots the estimate on screen itself (snapshotPatch,
+                'manual' — a no-op when it duplicates the latest revision, so
+                the Revisions list gains one row at most) and opens the
+                contract seeded from THAT revision. Older revisions stay one
+                tap away under "From an older revision…". */}
             {(() => {
-              const versions = (project.estimateVersions ?? [])
+              const versions = project.estimateVersions ?? [];
+              const latest = versions[versions.length - 1];
+              const current = project.linkedEstimate;
+              // Would the button make a new revision? Same test snapshotPatch runs.
+              const makesRevision = snapshotPatch(project, 'manual').estimateVersions !== undefined;
+              // The revisions an older proposal could come from: all of them,
+              // minus the one the button would use when it reuses the latest.
+              const older = (makesRevision ? versions : versions.slice(0, -1))
                 .slice()
                 .sort((a, b) => b.revNumber - a.revNumber); // newest first
-              const hasVersions = versions.length > 0;
-              if (!hasVersions) {
-                return (
-                  <TouchableOpacity
-                    style={[styles.revSaveBtn, { opacity: 0.45 }]}
-                    disabled
-                    activeOpacity={1}
-                    testID="create-proposal-disabled"
-                  >
-                    <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.revSaveBtnText}>Create Proposal — save a revision first</Text>
-                  </TouchableOpacity>
-                );
-              }
               const handleCreateProposal = () => {
-                if (versions.length === 1) {
-                  // Only one revision — skip picker and go straight to it.
-                  router.push({ pathname: '/contract' as any, params: { projectId: id, fromRevision: versions[0].id } });
+                if (!current && !latest) return;
+                // The snapshot is a project write: a seat whose writes would
+                // not land (#92) is told why instead of losing it silently.
+                if (hubPerms.editBlockedReason) {
+                  showAlert("You can't start a proposal on this job", hubPerms.editBlockedReason);
                   return;
                 }
+                const patch = snapshotPatch(project, 'manual');
+                const next = patch.estimateVersions;
+                let revisionId: string | undefined;
+                if (next && next.length > 0) {
+                  updateProject(project.id, patch);
+                  revisionId = next[next.length - 1].id;
+                } else {
+                  revisionId = latest?.id;
+                }
+                if (!revisionId) return;
+                navigateFromTile({ pathname: '/contract', params: { projectId: id, fromRevision: revisionId } });
+              };
+              const handleFromOlder = () => {
                 showAlert(
-                  'Create Proposal',
-                  'Choose a revision to base the proposal on:',
+                  'From an older revision',
+                  'Choose the revision to base the proposal on:',
                   [
-                    ...versions.map(rev => ({
+                    ...older.map(rev => ({
                       text: `Rev ${rev.revNumber} · $${(rev.grandTotal ?? 0).toLocaleString()}${rev.note ? ' · ' + rev.note : ''}`,
                       onPress: () => {
-                        router.push({ pathname: '/contract' as any, params: { projectId: id, fromRevision: rev.id } });
+                        navigateFromTile({ pathname: '/contract', params: { projectId: id, fromRevision: rev.id } });
                       },
                     })),
                     { text: 'Cancel', style: 'cancel' as const },
@@ -2660,15 +2708,32 @@ export default function ProjectDetailScreen() {
                 );
               };
               return (
-                <TouchableOpacity
-                  style={styles.revSaveBtn}
-                  onPress={handleCreateProposal}
-                  activeOpacity={0.7}
-                  testID="create-proposal-btn"
-                >
-                  <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.revSaveBtnText}>Create Proposal from Revision</Text>
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={styles.revSaveBtn}
+                    onPress={handleCreateProposal}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityHint="Saves this estimate as a revision and opens the proposal built from it"
+                    testID="create-proposal-btn"
+                  >
+                    <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.revSaveBtnText}>Create Proposal</Text>
+                  </TouchableOpacity>
+                  {older.length > 0 ? (
+                    <TouchableOpacity
+                      onPress={handleFromOlder}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      style={styles.crossLinkBtn}
+                      testID="create-proposal-older-btn"
+                    >
+                      <Layers size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+                      <Text style={styles.crossLinkText}>From an older revision…</Text>
+                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                    </TouchableOpacity>
+                  ) : null}
+                </>
               );
             })()}
             <ScopeGapsCard mode="project" projectId={project.id} />
@@ -4805,6 +4870,51 @@ export default function ProjectDetailScreen() {
           </View>
         ) : (
         <>
+        {/* UX wave, Lane D (D2): a live job opens on the field work, above
+            the fold on an iPhone — each button pushes the real screen for
+            THIS job (the route contract in utils/uxRoutes). A locked door
+            says what unlocks it and still opens (its screen is the gate). */}
+        {fieldRow ? (() => {
+          const punchLock = lockedTileKeys.has('punchList')
+            ? tileLockReason('punchList', hubRole, requiredTierFor('punch_list_closeout'))
+            : null;
+          const clockLock = lockedTileKeys.has('timeTracking')
+            ? tileLockReason('timeTracking', hubRole, requiredTierFor('subcontractor_management'))
+            : null;
+          // Project-aware, like the lineup row: a collaborator may hold photos
+          // through the job even when his own plan does not.
+          const photoLock = canAccessProject('photo_documentation') ? null : tileLockReason('photos', hubRole, requiredTierFor('photo_documentation'));
+          const actions: { key: string; label: string; Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; lock: string | null; onPress: () => void }[] = [
+            { key: 'daily-report', label: 'Daily report', Icon: ClipboardList, lock: null, onPress: () => router.push(routeHref('/daily-report', { projectId: project.id })) },
+            { key: 'photo', label: 'Photo', Icon: Camera, lock: photoLock, onPress: () => router.push(photoTriageHref(project.id)) },
+            { key: 'punch', label: 'Punch', Icon: CheckSquare, lock: punchLock, onPress: () => router.push(punchListNewHref(project.id)) },
+            { key: 'clock-in', label: 'Clock in', Icon: Clock, lock: clockLock, onPress: () => router.push(clockInHref(project.id)) },
+          ];
+          return (
+            <View style={styles.fieldActionRow} testID="project-field-actions">
+              {actions.map(a => (
+                <TouchableOpacity
+                  key={a.key}
+                  style={[styles.quickActionBtn, styles.fieldActionBtn]}
+                  onPress={a.onPress}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={a.lock ? `${a.label}, locked, ${a.lock}` : a.label}
+                  testID={`project-field-${a.key}-btn`}
+                >
+                  <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                    {a.lock ? <Lock size={16} color={themeColors.textMuted} strokeWidth={2} /> : <a.Icon size={18} color={themeColors.accent} strokeWidth={1.75} />}
+                  </View>
+                  <Text style={styles.fieldActionLabel} numberOfLines={2}>{a.label}</Text>
+                  {a.lock ? <Text style={styles.fieldActionLock} numberOfLines={2}>{a.lock}</Text> : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+          );
+        })() : null}
+        {/* D2: on a live job the projected margin leads, for a role that may
+            see money; everyone else keeps it in its usual place below. */}
+        {fieldRow && canViewFinancials(hubRole) ? <ProjectHero project={project} pulse={pulse} /> : null}
         {/* The hero card unrolls like a blueprint when the project opens. */}
         <BlueprintReveal>
         <View style={styles.heroCard}>
@@ -4931,7 +5041,7 @@ export default function ProjectDetailScreen() {
         {/* Financial pulse — projected margin as the hero number, a margin-risk
             spirit level, and the numbers that move the finish. Renders nothing
             until the project has a margin basis (a budget). */}
-        <ProjectHero project={project} pulse={pulse} />
+        {fieldRow && canViewFinancials(hubRole) ? null : <ProjectHero project={project} pulse={pulse} />}
 
         {/* NextStepHero — scoped to this project. Tells the user the
             single most-important action for this project alone: add
@@ -5026,6 +5136,11 @@ export default function ProjectDetailScreen() {
         </TouchableOpacity>
 
         <View style={styles.quickActions}>
+          {/* D2: a live job's office buttons move off this row — Cash Flow
+              and Forecast into the Money group, This Week into Field Ops
+              (same testIDs, below). Draft and estimated jobs keep the row. */}
+          {!fieldRow && (
+          <>
           <TouchableOpacity
             style={styles.quickActionBtn}
             onPress={() => router.push({ pathname: '/weekly-snapshot' as any, params: { projectId: id } })}
@@ -5115,6 +5230,8 @@ export default function ProjectDetailScreen() {
             </View>
             <Text style={styles.quickActionLabel}>Forecast</Text>
           </TouchableOpacity>
+          </>
+          )}
           <TouchableOpacity
             style={[styles.quickActionBtn, !isDesktop && styles.quickActionBtnFull, generatingCloseout && { opacity: 0.5 }]}
             onPress={handleGenerateCloseoutPacket}
@@ -5206,6 +5323,39 @@ export default function ProjectDetailScreen() {
             );
           };
 
+          // D2: on a live job the collapsed Documentation group says how many
+          // RFIs are open (the RFI log's own Open / Overdue counters), so an
+          // RFI waiting on the architect is not hidden behind a fold.
+          const rfiCounts = fieldRow ? rfiLogCounts(projectRFIs, new Date()) : null;
+          const docsRfiLine = rfiCounts && rfiCounts.open > 0
+            ? `${rfiCounts.open} open RFI${rfiCounts.open === 1 ? '' : 's'}${rfiCounts.overdue > 0 ? `, ${rfiCounts.overdue} overdue` : ''}`
+            : null;
+          // D2: the office buttons a live job's quick row gave up, as rows in
+          // the groups they belong to (same testIDs as the old buttons). Money
+          // rows only for a role that may see money.
+          // Tomorrow's lineup (route contract: /tomorrow-lineup?projectId) is
+          // gated like its screen (schedule_gantt_pdf) — project-aware, since a
+          // collaborator may hold it through the job; locked, it says why.
+          const lineupLock = canAccessProject('schedule_gantt_pdf') ? null : tileLockReason('lineup', hubRole, requiredTierFor('schedule_gantt_pdf'));
+          const movedRows: Record<string, { key: string; label: string; Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; testID: string; lock?: string | null; onPress: () => void }[]> = fieldRow ? {
+            // The office row's create doors move too, so a live job with no
+            // schedule or no estimate can still start one (same testIDs).
+            field: [
+              ...(!project.schedule ? [{ key: 'build-schedule', label: 'Build schedule', Icon: CalendarDays, testID: 'project-create-schedule-btn', onPress: buildSchedule }] : []),
+              { key: 'this-week', label: 'This Week', Icon: CalendarDays, testID: 'project-weekly-snapshot-btn', onPress: () => router.push(routeHref('/weekly-snapshot', { projectId: project.id })) },
+              { key: 'lineup', label: "Tomorrow's lineup", Icon: CalendarClock, testID: 'project-lineup-btn', lock: lineupLock, onPress: () => router.push(tomorrowLineupHref(project.id)) },
+            ],
+            money: hubPerms.showMoney ? [
+              // The office row's one-tap door into the estimate editor moves
+              // too: Estimate when the job has one, Create estimate when not.
+              ...(hasAnyEstimate
+                ? [{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: () => router.replace(routeHref('/(tabs)/estimate/full', { projectId: project.id })) }]
+                : [{ key: 'create-estimate', label: 'Create estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: () => router.push(routeHref('/estimate-wizard', { projectId: project.id })) }]),
+              { key: 'cash-flow', label: 'Cash Flow', Icon: Wallet, testID: 'project-cash-flow-btn', onPress: () => router.push(routeHref('/cash-flow', { projectId: project.id })) },
+              { key: 'forecast', label: 'Payment Forecast', Icon: TrendingDown, testID: 'project-payment-forecast-btn', onPress: () => router.push(routeHref('/payment-predictions', { projectId: project.id })) },
+            ] : [],
+          } : {};
+
           return (
             <View style={styles.sectionGroups}>
               {groups.map(group => {
@@ -5227,6 +5377,9 @@ export default function ProjectDetailScreen() {
                         <GroupIcon size={18} color={group.color} />
                       </View>
                       <Text style={styles.tileGroupHeaderLabel}>{group.label}</Text>
+                      {group.key === 'docs' && collapsed && docsRfiLine ? (
+                        <Text style={styles.tileGroupRfiLine} numberOfLines={1} testID="tile-group-docs-rfis">{docsRfiLine}</Text>
+                      ) : null}
                       {groupCountSum > 0 && (
                         <View style={styles.tileGroupBadge}>
                           <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
@@ -5243,6 +5396,29 @@ export default function ProjectDetailScreen() {
                     {!collapsed && (
                       <View style={[styles.tileGroupBody, layout.isDesktop && styles.tileGroupBodyDesktop]}>
                         {groupTiles.map(renderTile)}
+                        {(movedRows[group.key] ?? []).map(r => (
+                          <TouchableOpacity
+                            key={r.key}
+                            style={styles.sectionTile}
+                            onPress={r.onPress}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel={r.lock ? `${r.label}, locked, ${r.lock}` : r.label}
+                            testID={r.testID}
+                          >
+                            <View style={[styles.sectionTileIcon, { backgroundColor: group.color + '15' }]}>
+                              <r.Icon size={20} color={group.color} strokeWidth={1.75} />
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={styles.sectionTileLabel} numberOfLines={1}>{r.label}</Text>
+                              {r.lock ? (
+                                <Text style={[styles.sectionTileStatus, { color: themeColors.textMuted }]} numberOfLines={1}>{r.lock}</Text>
+                              ) : null}
+                            </View>
+                            {r.lock ? <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 4 }} /> : null}
+                            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                          </TouchableOpacity>
+                        ))}
                       </View>
                     )}
                   </View>
@@ -5726,6 +5902,45 @@ export default function ProjectDetailScreen() {
                   placeholderTextColor={themeColors.textMuted}
                   keyboardType="numeric"
                   testID="edit-sqft-input"
+                />
+
+                {/* D4: the client, entered once on the job. The contract email,
+                    the CO approver, the portal invite and a new invoice's
+                    bill-to are seeded from it (Lane C). Optional. */}
+                <Text style={styles.inviteFieldLabel}>Client name</Text>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={editClientName}
+                  onChangeText={setEditClientName}
+                  placeholder="e.g. Tom Reyes"
+                  placeholderTextColor={themeColors.textMuted}
+                  autoCapitalize="words"
+                  textContentType="name"
+                  testID="edit-client-name-input"
+                />
+                <Text style={styles.inviteFieldLabel}>Client phone</Text>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={editClientPhone}
+                  onChangeText={setEditClientPhone}
+                  placeholder="Optional"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="phone-pad"
+                  textContentType="telephoneNumber"
+                  testID="edit-client-phone-input"
+                />
+                <Text style={styles.inviteFieldLabel}>Client email</Text>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={editClientEmail}
+                  onChangeText={setEditClientEmail}
+                  placeholder="Optional"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="emailAddress"
+                  testID="edit-client-email-input"
                 />
 
                 <Text style={styles.inviteFieldLabel}>Project Type</Text>
@@ -6662,6 +6877,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
   quickActionBtnFull: { flexBasis: '100%' as const },
+  // UX wave, Lane D (D2): a live job's field row — five equal columns, each a
+  // 72 pt gloved-thumb target. Layout only: the surface is quickActionBtn's.
+  fieldActionRow: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 8 },
+  fieldActionBtn: { flexDirection: 'column' as const, justifyContent: 'center' as const, gap: 6, flexBasis: 0, flexGrow: 1, paddingHorizontal: 4, paddingVertical: 10, minHeight: 72 },
+  fieldActionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.text, textAlign: 'center' as const },
+  fieldActionLock: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center' as const },
+  tileGroupRfiLine: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent, flexShrink: 1 },
   // ── Wave 6c desktop workspace (layout only; colours stay on the phone styles) ──
   containerDesktop: { flexDirection: 'row' as const },
   pageDesktop: {

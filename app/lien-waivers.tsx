@@ -54,6 +54,8 @@ import { Tokens } from '@/constants/designTokens';
 import { showAlert, showPrompt } from '@/utils/alert';
 import { formatCalendarDay, todayCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import DatePickerModal from '@/components/DatePickerModal';
+import { waiverSubOptions, waiverAmountSeed, type WaiverSubOption } from '@/utils/nextBillableMilestone';
 import {
   useIsDesktop, useIsDesktopWeb, desktopCta, useSheetFrame, useSheetPrimaryHotkey, StatusPill, type StatusTone,
 } from '@/components/ui';
@@ -397,7 +399,7 @@ function LienWaiversScreenInner() {
     try { await refresh(); } finally { setRefreshing(false); }
   }, [refresh]);
 
-  const handleCreate = useCallback(async (input: { waiverType: LienWaiverType; subName: string; subEmail?: string; throughDate: string; paidAmount: number; notes?: string }) => {
+  const handleCreate = useCallback(async (input: NewWaiverInput) => {
     if (!projectId || !input.subName.trim()) return;
     const res = await createLienWaiverChecked({
       projectId,
@@ -411,8 +413,10 @@ function LienWaiversScreenInner() {
       // Carry through any prefill linkage so the waiver references the
       // source invoice and commitment for downstream reporting.
       invoiceId: prefillSeed?.invoiceId,
-      commitmentId: prefillSeed?.commitmentId,
-      subCompanyId: prefillSeed?.subCompanyId,
+      // C7: a sub picked from "From this job's subs" names its own
+      // commitment and roster id; otherwise the prefill's linkage stands.
+      commitmentId: input.commitmentId ?? prefillSeed?.commitmentId,
+      subCompanyId: input.subCompanyId ?? prefillSeed?.subCompanyId,
     });
     if (res.ok) {
       setWaivers(prev => [res.waiver, ...prev]);
@@ -436,6 +440,12 @@ function LienWaiversScreenInner() {
   const projectCommitments = useMemo(
     () => (projectId ? getCommitmentsForProject(projectId) ?? [] : []),
     [projectId, getCommitmentsForProject],
+  );
+  // C7: the manual form's "From this job's subs" — the subcontracts already
+  // loaded for this job, with the roster sub's email when it names one.
+  const subOptions = useMemo(
+    () => waiverSubOptions(projectCommitments, subcontractors ?? []),
+    [projectCommitments, subcontractors],
   );
 
   /**
@@ -1016,6 +1026,7 @@ function LienWaiversScreenInner() {
         onClose={() => setAddModal(false)}
         onCreate={handleCreate}
         seed={prefillSeed}
+        subOptions={prefillSeed ? [] : subOptions}
       />
     </View>
   );
@@ -1164,10 +1175,25 @@ function WaiverCard({ waiver, exporting, requesting, busy, offline, formLabel, o
   );
 }
 
-function NewWaiverModal({ visible, onClose, onCreate, seed }: {
+interface NewWaiverInput {
+  waiverType: LienWaiverType;
+  subName: string;
+  subEmail?: string;
+  throughDate: string;
+  paidAmount: number;
+  notes?: string;
+  /** Set only when the sub was picked from this job's commitments (C7). */
+  commitmentId?: string;
+  subCompanyId?: string;
+}
+
+function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
   visible: boolean;
   onClose: () => void;
-  onCreate: (input: { waiverType: LienWaiverType; subName: string; subEmail?: string; throughDate: string; paidAmount: number; notes?: string }) => void;
+  onCreate: (input: NewWaiverInput) => void;
+  /** C7: this job's subcontracts. Empty when the form was opened with a
+   *  prefill (the sub is already known). */
+  subOptions?: WaiverSubOption[];
   /** Optional prefill from a "Create lien waiver" CTA on a paid invoice. */
   seed?: { subName?: string; subEmail?: string; paidAmount?: number; throughDate?: string; waiverType?: LienWaiverType; waiverReason?: string } | null;
 }) {
@@ -1178,6 +1204,27 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
   const [subEmail, setSubEmail] = useState('');
   const [throughDate, setThroughDate] = useState(todayCalendarDay()); // UX-F3: local day
   const [amount, setAmount] = useState('');
+  // C7: the through date comes from the picker, never a typed YYYY-MM-DD.
+  const [datePicker, setDatePicker] = useState(false);
+  // C7: the sub picked from this job's commitments, and the line that says
+  // where the amount came from. Editing the name away from the pick drops the
+  // link, so a waiver is never filed against a commitment he typed over.
+  const [picked, setPicked] = useState<WaiverSubOption | null>(null);
+  const [amountNote, setAmountNote] = useState<string | null>(null);
+  // Picking a sub (or switching the type) only rewrites the note under the
+  // amount box (waiverAmountSeed). The box itself is never filled from a pick:
+  // the printed forms treat it as the check this release is for, and the job
+  // records only a running total, so the figure is always his to type.
+  const pickSub = (o: WaiverSubOption) => {
+    setPicked(o);
+    setSubName(o.name);
+    setSubEmail(o.email ?? '');
+    setAmountNote(waiverAmountSeed(o, type).note);
+  };
+  const pickType = (t: LienWaiverType) => {
+    setType(t);
+    if (picked) setAmountNote(waiverAmountSeed(picked, t).note);
+  };
   // The sheet recipe (components/ui/Sheet.tsx): a centred card on desktop, the
   // phone's slide-up sheet unchanged below the gate.
   const f = useSheetFrame('form', { visible, animationType: 'slide' });
@@ -1189,6 +1236,9 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
       setSubEmail(seed?.subEmail ?? '');
       setThroughDate(seed?.throughDate ?? todayCalendarDay());
       setAmount(seed?.paidAmount ? String(seed.paidAmount) : '');
+      setPicked(null);
+      setAmountNote(null);
+      setDatePicker(false);
     }
   }, [visible, seed]);
 
@@ -1208,12 +1258,14 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
       showAlert('Email looks off', 'Either fix the email or leave it blank.');
       return;
     }
+    const link = picked && picked.name === trimmedName ? picked : null;
     onCreate({
       waiverType: type,
       subName: trimmedName,
       subEmail: trimmedEmail || undefined,
       throughDate,
       paidAmount: numericAmount,
+      ...(link ? { commitmentId: link.commitmentId, subCompanyId: link.subCompanyId } : {}),
     });
   };
   // Cmd+Enter / Cmd+S create it: Create is a save (it drafts the waiver; the
@@ -1233,7 +1285,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
               <TouchableOpacity
                 key={t}
                 style={[styles.typeChip, type === t && styles.typeChipActive]}
-                onPress={() => setType(t)}
+                onPress={() => pickType(t)}
               >
                 <Text style={[styles.typeChipText, type === t && styles.typeChipTextActive]}>{WAIVER_LABELS[t].short}</Text>
               </TouchableOpacity>
@@ -1244,11 +1296,31 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
             <Text style={styles.typeHint}>Picked for this payment: {seed.waiverReason}</Text>
           )}
 
+          {subOptions.length > 0 && (
+            <>
+              <Text style={styles.modalLabel}>From this job&apos;s subs</Text>
+              <View style={styles.typeRow} testID="waiver-sub-picker">
+                {subOptions.map(o => (
+                  <TouchableOpacity
+                    key={o.commitmentId}
+                    style={[styles.typeChip, picked?.commitmentId === o.commitmentId && styles.typeChipActive]}
+                    onPress={() => pickSub(o)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use ${o.name}${o.detail ? `, ${o.detail}` : ''}`}
+                    testID={`waiver-sub-${o.commitmentId}`}
+                  >
+                    <Text style={[styles.typeChipText, picked?.commitmentId === o.commitmentId && styles.typeChipTextActive]} numberOfLines={1}>{o.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+
           <Text style={styles.modalLabel}>Subcontractor name *</Text>
           <TextInput
             style={styles.modalInput}
             value={subName}
-            onChangeText={setSubName}
+            onChangeText={(v) => { setSubName(v); if (picked && v.trim() !== picked.name) { setPicked(null); setAmountNote(null); } }}
             placeholder="Hallway Homes LLC"
             placeholderTextColor={themeColors.textMuted}
             autoCapitalize="words"
@@ -1268,13 +1340,15 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
           <View style={styles.modalRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.modalLabel}>Through date</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={throughDate}
-                onChangeText={setThroughDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={themeColors.textMuted}
-              />
+              <TouchableOpacity
+                style={[styles.modalInput, styles.dateField]}
+                onPress={() => setDatePicker(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Through date, ${formatCalendarDay(throughDate)}. Change`}
+                testID="waiver-through-date"
+              >
+                <Text style={styles.dateFieldText}>{formatCalendarDay(throughDate)}</Text>
+              </TouchableOpacity>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.modalLabel}>Paid amount *</Text>
@@ -1288,6 +1362,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
               />
             </View>
           </View>
+          {amountNote ? <Text style={styles.typeHint} testID="waiver-amount-source">{amountNote}</Text> : null}
 
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalCancel} onPress={onClose}>
@@ -1304,6 +1379,16 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
           </View>
         </View>
       </View>
+      {datePicker ? (
+        <DatePickerModal
+          visible
+          value={throughDate}
+          allowFuture
+          title="Paid through"
+          onClose={() => setDatePicker(false)}
+          onChange={(iso) => { setThroughDate(iso.slice(0, 10)); setDatePicker(false); }}
+        />
+      ) : null}
     </Modal>
   );
 }
@@ -1398,6 +1483,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   modalRow: { flexDirection: 'row', gap: 10, marginTop: -4 },
+  dateField: { justifyContent: 'center', minHeight: 44 },
+  dateFieldText: { fontSize: Type.subhead.fontSize, color: t.text },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   typeChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
   typeChipActive: { backgroundColor: t.accent + '15', borderColor: t.accent },

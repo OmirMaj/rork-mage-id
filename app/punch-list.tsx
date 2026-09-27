@@ -81,6 +81,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProjectSubcontractors } from '@/hooks/useProjectSubcontractors';
 import { burstSummary, captureBurst } from '@/components/PhotoCapture';
 import { nailIt } from '@/components/animations/NailItToast';
+import VoiceRecorder from '@/components/VoiceRecorder';
+import { recentPunchLocations } from '@/utils/recentChips';
+import { readFlag } from '@/utils/uxRoutes';
 import { useCountTo } from '@/components/animations/TapeRollNumber';
 import { AnimatedFill } from '@/components/animations/AnimatedFill';
 import { usePlanRooms } from '@/hooks/usePlanRooms';
@@ -861,13 +864,16 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId: paramProjectId, prefillPhotoUri, prefillPhotoId, itemId: focusItemId } = useLocalSearchParams<{
+  const { projectId: paramProjectId, prefillPhotoUri, prefillPhotoId, new: newParam, itemId: focusItemId } = useLocalSearchParams<{
     projectId: string;
     prefillPhotoUri?: string;
     prefillPhotoId?: string;
     /** #51/#54: the item a "ready for review" notification is about. */
     itemId?: string;
+    /** UX wave B2 (Lane 0 route contract): `new=1` opens the Add form. */
+    new?: string;
   }>();
+  const openNew = readFlag(newParam);
   const queryClient = useQueryClient();
   const { projects, getProject, getPunchItemsForProject, addPunchItem, addPunchItems, updatePunchItem, updatePunchItems, deletePunchItem, deletePunchItems, updateProject, subcontractors, projectPhotos, getPlanSheetsForProject, drawingPins, punchItemsLoaded, planSheetsLoaded, getCommitmentsForProject } = useProjects();
   const { user } = useAuth();
@@ -912,6 +918,12 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
       i.location && punchLocationText(i.location) === null ? { ...i, location: '' } : i
     )),
     [projectId, getPunchItemsForProject],
+  );
+
+  // UX wave B2: the last 5 distinct rooms on this job, as chips under Location.
+  const recentLocations = useMemo(
+    () => recentPunchLocations(allItems, projectId, punchLocationText),
+    [allItems, projectId],
   );
 
   // ── Which list is showing ────────────────────────────────────────────────
@@ -1008,6 +1020,14 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // UX wave B2: "+ > Punch item" (new=1) opens the Add form, once, as soon as
+  // the job is known (the list itself stays underneath for Back).
+  const openedNewRef = useRef(false);
+  useEffect(() => {
+    if (!openNew || openedNewRef.current || !project || prefillPhotoUri || prefillPhotoId) return;
+    openedNewRef.current = true;
+    setShowForm(true);
+  }, [openNew, project, prefillPhotoUri, prefillPhotoId]);
 
   // The photo row the prefill points at. `prefillPhotoId` used to be a truthy
   // check and nothing else, so everything the photo already knew was thrown
@@ -2186,7 +2206,9 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
   /** Measured, so the Brain FAB rides above the bulk bar instead of sitting on
    *  its buttons — no per-screen magic number. */
   const [bulkBarHeight, setBulkBarHeight] = useState(0);
-  const fabLift = selectMode ? bulkBarHeight : 0;
+  // UX wave B2: the sticky Add / Walk bar takes the bottom when not selecting.
+  const [addBarHeight, setAddBarHeight] = useState(0);
+  const fabLift = selectMode ? bulkBarHeight : addBarHeight;
   useBrainFabLift(fabLift);
 
   // ── Export (PDF / spreadsheet) ─────────────────────────────────────────
@@ -2808,10 +2830,8 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
   const listFooter = (
     <View>
-      <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item" accessibilityRole="button" accessibilityLabel={activeList === 'punch' ? 'Add punch item' : 'Add crew list item'}>
-        <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
-        <Text style={styles.addItemBtnText}>{activeList === 'punch' ? 'Add Punch Item' : 'Add Crew List Item'}</Text>
-      </TouchableOpacity>
+      {/* UX wave B2: "+ Add" moved to the sticky bar at the bottom of the
+          screen — with 40 items he no longer scrolls to the end to add one. */}
 
       <TouchableOpacity
         style={styles.addItemBtn}
@@ -3047,11 +3067,40 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
 
       <Text style={styles.fieldLabel}>Description *</Text>
       <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
+      {/* UX wave B2: say it instead of typing it (phone only — the web
+          recorder is disabled, the desk types). */}
+      {Platform.OS !== 'web' ? (
+        <VoiceRecorder
+          title="Describe the punch item"
+          contextLine={project?.name ? `for ${project.name}` : undefined}
+          suggestions={[
+            'Touch-up paint at the dining room return',
+            'GFCI outlet by the sink not tripping',
+          ]}
+          onTranscriptReady={(t) => setDescription(prev => (prev.trim() ? `${prev.trim()} ${t.trim()}` : t.trim()))}
+        />
+      ) : null}
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1 }}>
           <Text style={styles.fieldLabel}>Location/Area</Text>
-          <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Kitchen, Room 3B" placeholderTextColor={themeColors.textMuted} />
+          <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Kitchen, Room 3B" placeholderTextColor={themeColors.textMuted} testID="punch-location-input" />
+          {recentLocations.length > 0 ? (
+            <View style={styles.recentLocRow} testID="punch-recent-locations">
+              {recentLocations.map(loc => (
+                <TouchableOpacity
+                  key={loc}
+                  style={[styles.recentLocChip, location.trim().toLowerCase() === loc.toLowerCase() && styles.recentLocChipOn]}
+                  onPress={() => setLocation(loc)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Location ${loc}`}
+                  testID={`punch-recent-location-${loc}`}
+                >
+                  <Text style={styles.recentLocText} numberOfLines={1}>{loc}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.fieldLabel}>Due Date</Text>
@@ -3295,6 +3344,41 @@ function PunchListScreenInner({ ownTier }: { ownTier: boolean }) {
         keyboardShouldPersistTaps="handled"
         testID="punch-list"
       />
+
+      {/* ── Sticky Add / Walk bar (UX wave B2) ─────────────────────────────
+          Always on screen, above the home indicator, so adding the 41st item
+          is one tap from anywhere in the list. The bulk bar replaces it
+          while selecting. */}
+      {!selectMode ? (
+        <View
+          style={[styles.bulkBar, styles.addBar, { paddingBottom: insets.bottom + 12 }]}
+          onLayout={e => setAddBarHeight(e.nativeEvent.layout.height)}
+          testID="punch-add-bar"
+        >
+          <TouchableOpacity
+            style={styles.addBarPrimary}
+            onPress={() => { resetForm(); setShowForm(true); }}
+            activeOpacity={0.85}
+            testID="add-punch-item"
+            accessibilityRole="button"
+            accessibilityLabel={activeList === 'punch' ? 'Add punch item' : 'Add crew list item'}
+          >
+            <Plus size={18} color={Colors.textOnAccent} strokeWidth={2} />
+            <Text style={styles.addBarPrimaryText}>Add</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addBarSecondary}
+            onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '', list: activeList } as never })}
+            activeOpacity={0.85}
+            testID="punch-add-bar-walk"
+            accessibilityRole="button"
+            accessibilityLabel="Walk mode: photo, pin, describe"
+          >
+            <Camera size={18} color={themeColors.accentLabel} strokeWidth={1.75} />
+            <Text style={styles.addBarSecondaryText}>Walk</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <PunchExportSheet
         visible={showExport}
@@ -4225,6 +4309,25 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderTopWidth: 0.5, borderTopColor: themeColors.line,
     gap: 10,
   },
+  // UX wave B2 — the sticky Add / Walk bar (positioned by bulkBar).
+  addBar: { flexDirection: 'row' as const, gap: 10 },
+  addBarPrimary: {
+    flex: 1, minHeight: 50, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
+    borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentFill,
+  },
+  addBarPrimaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
+  addBarSecondary: {
+    flex: 1, minHeight: 50, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
+    borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentSoft,
+  },
+  addBarSecondaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
+  recentLocRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: 6 },
+  recentLocChip: {
+    minHeight: 34, justifyContent: 'center' as const, paddingHorizontal: 10, maxWidth: 160,
+    borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: themeColors.line, backgroundColor: themeColors.bg,
+  },
+  recentLocChipOn: { borderColor: themeColors.accent, backgroundColor: themeColors.accentSoft },
+  recentLocText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.text },
   bulkBarTop: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
   bulkBarCount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
   bulkBarDone: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accent },

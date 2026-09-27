@@ -12,7 +12,7 @@ import {
   Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
   ScanSearch,
-  CalendarClock, ChevronDown, Link2, Minus, ShieldAlert, PenLine,
+  CalendarClock, ChevronDown, Link2, Minus, ShieldAlert, PenLine, Lock,
 } from 'lucide-react-native';
 import { MageAIMark, MageDailyReport } from '@/components/icons';
 import { ToolProjectPicker } from '@/components/ToolScreenChrome';
@@ -52,6 +52,10 @@ import { sampleSendAllowed, sampleSendPlan } from '@/utils/sampleGuard';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
+import {
+  withVoiceOriginCleared, todaysPhotosToAttach, dayPhotoAsReportPhoto, oneTapDayPhotos,
+  dfrLastRecipientKey, parseDfrRecipient, dfrRecipientPrefill, dfrRecipientLine,
+} from '@/utils/dailyLogCompletion';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, LeakScanRecord, SafetyIncident, ScheduleTask } from '@/types';
 import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { scheduleDayNumberFor } from '@/utils/scheduleOps';
@@ -1283,10 +1287,27 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
   const [mpHours, setMpHours] = useState('8');
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [showSendRecipient, setShowSendRecipient] = useState(false);
+  // UX A1: the "From today's photos" choice in the Fill-it-for-me door opens
+  // the photo-draft card below it (closed until he picks it).
+  const [photosDoorOpen, setPhotosDoorOpen] = useState(false);
   const [sendRecipientName, setSendRecipientName] = useState('');
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
+  // UX A2 — who this job's report went to last time, so tomorrow's Send is
+  // one tap. PER DEVICE: it lives in local storage under
+  // mageid_dfr_last_recipient:<projectId> (swept on a tenant switch by the
+  // mageid_ prefix), so the desk does not see a recipient picked on the phone;
+  // settings.dfrRecipients (synced) is the fallback that does travel.
+  const [lastRecipient, setLastRecipient] = useState<ReturnType<typeof parseDfrRecipient>>(null);
+  useEffect(() => {
+    if (!projectId) return;
+    let alive = true;
+    AsyncStorage.getItem(dfrLastRecipientKey(projectId))
+      .then(raw => { if (alive) setLastRecipient(parseDfrRecipient(raw)); })
+      .catch(() => { /* no remembered recipient: the blank sheet, as before */ });
+    return () => { alive = false; };
+  }, [projectId]);
   // Date selection — Procore-style. The DFR's `date` field already
   // exists on the persisted record but the UI used to hardcode "now"
   // every render, making it impossible to log a report for yesterday
@@ -2241,6 +2262,27 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
     setPhotos(prev => prev.filter(p => p.id !== id));
   }, []);
 
+  // UX A1 — "Add today's N job photos". He took the photos on this job today
+  // (the gallery, keyed on the REPORT's day, #61); one tap puts the ones not
+  // already on the report onto it, up to the photo cap. Nothing is attached
+  // without the tap. Same ids as the gallery rows (dayPhotoAsReportPhoto), so
+  // handleSave does not mirror them back as duplicates.
+  // Delivery-ticket photos are never in the one tap (oneTapDayPhotos): the
+  // report goes out to the architect or client, and a supplier's ticket can
+  // carry his pricing. He can still attach one by hand.
+  const oneTapPhotos = useMemo(() => oneTapDayPhotos(todaysProjectPhotos), [todaysProjectPhotos]);
+  const todaysPhotosPlan = useMemo(
+    () => todaysPhotosToAttach(oneTapPhotos, photos, MAX_DFR_PHOTOS, reportCalendarDay === todayCalendarDay() ? "today's" : "that day's"),
+    [oneTapPhotos, photos, reportCalendarDay],
+  );
+  const handleAddTodaysPhotos = useCallback(() => {
+    setPhotos(prev => {
+      const plan = todaysPhotosToAttach(oneTapPhotos, prev, MAX_DFR_PHOTOS);
+      return plan.add.length > 0 ? [...prev, ...plan.add.map((p): DFRPhoto => dayPhotoAsReportPhoto(p))] : prev;
+    });
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [oneTapPhotos]);
+
   // ─── Homeowner summary generation ───
   const handleGenerateHomeownerSummary = useCallback(async () => {
     if (!project) return;
@@ -2984,8 +3026,17 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       }
     }
 
+    // UX A1: photos attached from today's gallery ("Add today's N job photos")
+    // are already gallery rows under the SAME id — mirroring them again would
+    // file a duplicate. Read at save time (the galleryPhotos memo below is
+    // declared after this callback).
+    const inGallery = new Set(getPhotosForProject(projectId).map(g => g.id));
+
     if (savedRecord) {
-      updateDailyReport(savedRecord.id, {
+      // UX A5: saving from the form IS him finishing the report, so a draft
+      // the app made from a voice note (origin 'voice') stops being "voice
+      // note only" and files its day — withVoiceOriginCleared.
+      updateDailyReport(savedRecord.id, withVoiceOriginCleared({
         date: reportDate,  // honor the user-picked date on edit too
         weather,
         manpower,
@@ -3000,7 +3051,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublishedOut,
         leakScan: leakScan ?? undefined,
-      });
+      }));
       // Mirror NEW photos into the project gallery on edit too — previously
       // this only happened in the create branch, so photos added while
       // editing an existing report never reached the gallery. Diff against
@@ -3009,7 +3060,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       // as the create branch below.
       const alreadyMirrored = new Set((savedRecord.photos ?? []).map(p => p.id));
       for (const p of photos) {
-        if (alreadyMirrored.has(p.id)) continue;
+        if (alreadyMirrored.has(p.id) || inGallery.has(p.id)) continue;
         addProjectPhoto({
           id: p.id,
           projectId,
@@ -3066,6 +3117,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       addDailyReport(report);
       // Sync DFR photos into project photo gallery
       for (const p of photos) {
+        if (inGallery.has(p.id)) continue; // UX A1: already a gallery row
         addProjectPhoto({
           id: p.id,
           projectId,
@@ -3101,7 +3153,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       incidentClassInput, incidentClass.daysRestricted, recordability.recordable, linkedIncident,
       addIncident, updateIncident, incidentAuthor, project?.location, liveHoursWarning,
       caseDeletedInLog, stageIncidentPhoto, caseNotYoursReason, classificationKnown,
-      caseLogLoading, fileCaseWhenHydrated, dfrCaseId, savedHadIncident, isProjectOwner, user?.id, filedBy.possessive]);
+      caseLogLoading, fileCaseWhenHydrated, dfrCaseId, savedHadIncident, isProjectOwner, user?.id, filedBy.possessive, getPhotosForProject]);
 
   /**
    * "Log this as a delay event" — hand the register what this screen already
@@ -3286,6 +3338,17 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       setSendRecipientName('');
       setSendRecipientEmail(samplePlan.to ?? '');
       setContactPicked(false);
+    } else if (!sendRecipientEmail.trim() && !contactPicked) {
+      // UX A2: open addressed — "Send to Tom Reyes (tom@arch.com) · Change".
+      // This job's last recipient, else the synced settings.dfrRecipients.
+      // It only fills the sheet; the Send tap still sends. The sample lock
+      // above overrides it.
+      const pre = dfrRecipientPrefill({ last: lastRecipient, settingsRecipients: settings?.dfrRecipients, contacts });
+      if (pre) {
+        setSendRecipientName(pre.name);
+        setSendRecipientEmail(pre.email);
+        setContactPicked(true);
+      }
     }
     // Sending puts the hours in front of the owner as the day's record — ask
     // first while shifts it counted are still open.
@@ -3297,7 +3360,7 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
       return;
     }
     setShowSendRecipient(true);
-  }, [liveHoursWarning, project, user?.email]);
+  }, [liveHoursWarning, project, user?.email, sendRecipientEmail, contactPicked, lastRecipient, settings?.dfrRecipients, contacts]);
 
   // #25: the gallery copies of this project's photos — where the annotator
   // draws markup, keyed by the same id the report's photos carry.
@@ -3557,6 +3620,13 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
         return;
       }
       emailSent = true;
+      // UX A2: remember who got it, for this job, on this device — only after
+      // a real send, never on a sample (it only ever goes to its owner).
+      if (projectId && !sampleSendPlan(project, user?.email).sample) {
+        const remembered = { name: sendRecipientName.trim(), email: sendRecipientEmail.trim() };
+        setLastRecipient(remembered);
+        AsyncStorage.setItem(dfrLastRecipientKey(projectId), JSON.stringify(remembered)).catch(() => {});
+      }
     }
 
     if (fileError) {
@@ -4023,72 +4093,171 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
           keyboardShouldPersistTaps="handled"
         >
           <TutorialScrollAnchor scrollRef={dfrScrollRef}>
+          {/* UX A1 — ONE "Fill it for me" door above the first field, with its
+              choices: say it (dictation), from today's photos, and — when the
+              job has a schedule — from the schedule. A UI merge ONLY: each
+              choice keeps its own call, its own gate / lock and its own
+              metering (the photo draft is a vision call with its own caps and
+              recordAIUsage; it never goes through the text dictation parser).
+              The photo choice opens its picker card below the door. */}
           <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <TutorialTarget id="dfr.voice">
-            <VoiceRecorder
-              onTranscriptReady={async (transcript) => {
-                setVoiceLoading(true);
-                try {
-                  const parsed = await parseDFRFromTranscript(transcript, projectId ?? '', todaysProjectPhotos);
-                  // The shared fill (applyParsedDfr, above): same fields, same
-                  // never-overwrite rule, and metered — this path made an AI call.
-                  await applyParsedDfr(parsed, { metered: true, source: 'mic' });
-                  if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                  console.log('[DFR] Voice auto-fill complete');
-                } catch (err) {
-                  console.log('[DFR] Voice parse error:', err);
-                  showAlert(
-                    'Could not understand the recording',
-                    'The transcription service may be slow or down. Try recording again, or fill in the report by hand.',
-                  );
-                } finally {
-                  setVoiceLoading(false);
-                }
-              }}
-              isLoading={voiceLoading}
-              isLocked={voiceBlocked}
-              onLockedPress={openVoiceUpgrade}
-              title="Dictate today's report"
-              contextLine={project?.name ? `for ${project.name}` : undefined}
-              suggestions={[
-                'Crew arrived at 7:30, framed the back wall, finished around 4 PM',
-                "Joe's Plumbing on site for rough-in — three guys, three hours",
-                'Concrete pour delayed thirty minutes due to rain',
-                'Inspector signed off on electrical rough-in this morning',
-                'Delivered ten sheets of drywall and two doors',
-              ]}
-              // Numbered topic checklist — visible to the GC while
-              // dictating so they cover every section in one pass.
-              // The voice parser will route each topic to the right
-              // field automatically; this is just to prevent skipped
-              // sections in long dictations.
-              topicChecklist={[
-                { label: 'Weather on site', hint: 'temp, conditions, wind — e.g. "55 and clear, light wind"' },
-                { label: 'Crew on site', hint: 'who showed up, how many, what trade — e.g. "4 framers from Smith Construction"' },
-                { label: 'Work performed today', hint: 'concrete tasks completed — be specific' },
-                { label: 'Materials delivered', hint: 'what arrived, from whom — e.g. "20 sheets of drywall from ABC Supply"' },
-                { label: 'Issues, delays, or RFIs', hint: 'anything blocking work or needing attention' },
-                { label: 'Safety incidents', hint: 'only if any — say "no incidents" if clean day' },
-                { label: "Tomorrow's plan", hint: 'what crews and tasks are scheduled (optional)' },
-              ]}
-            />
-            {/* The tutorial's sample note — only while its step is live on the
-                sample job. Labelled as a sample; it makes no AI call. */}
-            {showSampleNote && !isLocked ? (
-              <TouchableOpacity
-                style={voiceStyles.sampleChip}
-                onPress={applySampleNote}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={`Use the sample voice note. ${SAMPLE_NO_CREDITS_LABEL}.`}
-                testID="dfr-sample-note"
-              >
-                <Text style={voiceStyles.sampleChipLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text>
-                <Text style={voiceStyles.sampleChipQuote} numberOfLines={3}>{'“'}{DFR_SAMPLE_NOTE.transcript}{'”'}</Text>
-              </TouchableOpacity>
-            ) : null}
-            </TutorialTarget>
+            <View style={styles.fillDoor} testID="dfr-fill-door">
+              <View style={styles.fillDoorHead}>
+                <MageAIMark size={14} color={themeColors.accent} />
+                <Text style={styles.fillDoorTitle}>Fill it for me</Text>
+              </View>
+              <TutorialTarget id="dfr.voice">
+              <VoiceRecorder
+                onTranscriptReady={async (transcript) => {
+                  setVoiceLoading(true);
+                  try {
+                    const parsed = await parseDFRFromTranscript(transcript, projectId ?? '', todaysProjectPhotos);
+                    // The shared fill (applyParsedDfr, above): same fields, same
+                    // never-overwrite rule, and metered — this path made an AI call.
+                    await applyParsedDfr(parsed, { metered: true, source: 'mic' });
+                    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                    console.log('[DFR] Voice auto-fill complete');
+                  } catch (err) {
+                    console.log('[DFR] Voice parse error:', err);
+                    showAlert(
+                      'Could not understand the recording',
+                      'The transcription service may be slow or down. Try recording again, or fill in the report by hand.',
+                    );
+                  } finally {
+                    setVoiceLoading(false);
+                  }
+                }}
+                isLoading={voiceLoading}
+                isLocked={voiceBlocked}
+                onLockedPress={openVoiceUpgrade}
+                label="Say it — dictate the day"
+                bare
+                title="Dictate today's report"
+                contextLine={project?.name ? `for ${project.name}` : undefined}
+                suggestions={[
+                  'Crew arrived at 7:30, framed the back wall, finished around 4 PM',
+                  "Joe's Plumbing on site for rough-in — three guys, three hours",
+                  'Concrete pour delayed thirty minutes due to rain',
+                  'Inspector signed off on electrical rough-in this morning',
+                  'Delivered ten sheets of drywall and two doors',
+                ]}
+                // Numbered topic checklist — visible to the GC while
+                // dictating so they cover every section in one pass.
+                // The voice parser will route each topic to the right
+                // field automatically; this is just to prevent skipped
+                // sections in long dictations.
+                topicChecklist={[
+                  { label: 'Weather on site', hint: 'temp, conditions, wind — e.g. "55 and clear, light wind"' },
+                  { label: 'Crew on site', hint: 'who showed up, how many, what trade — e.g. "4 framers from Smith Construction"' },
+                  { label: 'Work performed today', hint: 'concrete tasks completed — be specific' },
+                  { label: 'Materials delivered', hint: 'what arrived, from whom — e.g. "20 sheets of drywall from ABC Supply"' },
+                  { label: 'Issues, delays, or RFIs', hint: 'anything blocking work or needing attention' },
+                  { label: 'Safety incidents', hint: 'only if any — say "no incidents" if clean day' },
+                  { label: "Tomorrow's plan", hint: 'what crews and tasks are scheduled (optional)' },
+                ]}
+              />
+              {/* The tutorial's sample note — only while its step is live on the
+                  sample job. Labelled as a sample; it makes no AI call. */}
+              {showSampleNote && !isLocked ? (
+                <TouchableOpacity
+                  style={voiceStyles.sampleChip}
+                  onPress={applySampleNote}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use the sample voice note. ${SAMPLE_NO_CREDITS_LABEL}.`}
+                  testID="dfr-sample-note"
+                >
+                  <Text style={voiceStyles.sampleChipLabel}>{SAMPLE_NO_CREDITS_LABEL}</Text>
+                  <Text style={voiceStyles.sampleChipQuote} numberOfLines={3}>{'“'}{DFR_SAMPLE_NOTE.transcript}{'”'}</Text>
+                </TouchableOpacity>
+              ) : null}
+              </TutorialTarget>
+              {!existingReport && todaysProjectPhotos.length > 0 ? (
+                <TouchableOpacity
+                  style={styles.fillChoice}
+                  onPress={voiceBlocked ? openVoiceUpgrade : () => setPhotosDoorOpen(v => !v)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: photosDoorOpen }}
+                  accessibilityLabel={voiceBlocked
+                    ? 'Draft from today\'s photos. Pro feature, tap to upgrade.'
+                    : `Draft from ${todaysProjectPhotos.length} of today's photos`}
+                  testID="dfr-fill-from-photos"
+                >
+                  <View style={styles.fillChoiceIcon}>
+                    {voiceBlocked
+                      ? <Lock size={18} color={themeColors.textMuted} strokeWidth={1.75} />
+                      : <Camera size={20} color={themeColors.accent} strokeWidth={1.75} />}
+                  </View>
+                  <Text style={voiceBlocked ? styles.fillChoiceLocked : styles.fillChoiceText}>
+                    {voiceBlocked
+                      ? 'From today\'s photos · Pro feature — tap to upgrade'
+                      : `From today's photos · ${todaysProjectPhotos.length}`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {!existingReport && project.schedule && project.schedule.tasks.length > 0 ? (
+                <AIDailyReportGen
+                  projectName={project.name}
+                  tasks={project.schedule.tasks}
+                  reportDay={reportCalendarDay}
+                  weatherStr={dfrAiWeatherStr([weather.conditions, weather.temperature])}
+                  isLocked={voiceBlocked}
+                  onLockedPress={openVoiceUpgrade}
+                  onGenerated={(result: DailyReportGenResult) => {
+                    // #28: never replace what he typed — an empty field takes the
+                    // generated lines, a filled one gets them appended under
+                    // "— From schedule —" (functional updates, so a keystroke that
+                    // lands while the AI call is in flight is kept too).
+                    if (result.workCompleted.length > 0 || result.workInProgress.length > 0) {
+                      const workText = [
+                        ...result.workCompleted.map(w => `[Completed] ${w}`),
+                        ...result.workInProgress.map(w => `[In Progress] ${w}`),
+                      ].join('\n');
+                      setWorkPerformed(prev => dfrAppendGenerated(prev, workText));
+                    }
+                    if (result.issuesAndDelays.length > 0) {
+                      setIssuesAndDelays(prev => dfrAppendGenerated(prev, result.issuesAndDelays.join('\n')));
+                    }
+                    if (result.crewsOnSite.length > 0 && manpower.length === 0) {
+                      const entries: ManpowerEntry[] = result.crewsOnSite.map((c, idx) => ({
+                        id: createId('mp'),
+                        trade: c.trade,
+                        company: '',
+                        headcount: c.count,
+                        hoursWorked: 8,
+                      }));
+                      setManpower(entries);
+                    }
+                    setShowVoiceBanner(true);
+                  }}
+                />
+              ) : null}
+            </View>
           </View>
+
+          {!existingReport && todaysProjectPhotos.length > 0 && photosDoorOpen && (
+            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+              <AIDFRFromPhotos
+                projectName={project.name}
+                weatherStr={dfrAiWeatherStr([weather.conditions, weather.temperature])}
+                photos={todaysProjectPhotos}
+                isLocked={voiceBlocked}
+                onLockedPress={openVoiceUpgrade}
+                onGenerated={(parsed) => {
+                  // Inferred from photos, never read from a weather service —
+                  // so it is not a fetched reading. See DFR-WEATHER-DAY.
+                  if (parsed.weather && !weather.temperature) setWeather({ ...parsed.weather, isManual: true });
+                  if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
+                  if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
+                  if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
+                  if (parsed.issuesAndDelays && !issuesAndDelays) setIssuesAndDelays(parsed.issuesAndDelays);
+                  setShowVoiceBanner(true);
+                  recordAIUsage('fast', 'voiceCapture').then(() => setGateRefresh(n => n + 1));
+                }}
+              />
+            </View>
+          )}
 
           {showVoiceBanner && voiceParsed && (
             <TutorialTarget id="dfr.voicePreview">
@@ -4133,69 +4302,6 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               <Text style={{ flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.info }}>Nothing new picked up — the fields you already had stay as-is.</Text>
               <X size={14} color={themeColors.info} strokeWidth={1.75} />
             </TouchableOpacity>
-          )}
-
-          {!existingReport && todaysProjectPhotos.length > 0 && (
-            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-              <AIDFRFromPhotos
-                projectName={project.name}
-                weatherStr={dfrAiWeatherStr([weather.conditions, weather.temperature])}
-                photos={todaysProjectPhotos}
-                isLocked={voiceBlocked}
-                onLockedPress={openVoiceUpgrade}
-                onGenerated={(parsed) => {
-                  // Inferred from photos, never read from a weather service —
-                  // so it is not a fetched reading. See DFR-WEATHER-DAY.
-                  if (parsed.weather && !weather.temperature) setWeather({ ...parsed.weather, isManual: true });
-                  if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
-                  if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
-                  if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
-                  if (parsed.issuesAndDelays && !issuesAndDelays) setIssuesAndDelays(parsed.issuesAndDelays);
-                  setShowVoiceBanner(true);
-                  recordAIUsage('fast', 'voiceCapture').then(() => setGateRefresh(n => n + 1));
-                }}
-              />
-            </View>
-          )}
-
-          {!existingReport && project.schedule && project.schedule.tasks.length > 0 && (
-            <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
-              <AIDailyReportGen
-                projectName={project.name}
-                tasks={project.schedule.tasks}
-                reportDay={reportCalendarDay}
-                weatherStr={dfrAiWeatherStr([weather.conditions, weather.temperature])}
-                isLocked={voiceBlocked}
-                onLockedPress={openVoiceUpgrade}
-                onGenerated={(result: DailyReportGenResult) => {
-                  // #28: never replace what he typed — an empty field takes the
-                  // generated lines, a filled one gets them appended under
-                  // "— From schedule —" (functional updates, so a keystroke that
-                  // lands while the AI call is in flight is kept too).
-                  if (result.workCompleted.length > 0 || result.workInProgress.length > 0) {
-                    const workText = [
-                      ...result.workCompleted.map(w => `[Completed] ${w}`),
-                      ...result.workInProgress.map(w => `[In Progress] ${w}`),
-                    ].join('\n');
-                    setWorkPerformed(prev => dfrAppendGenerated(prev, workText));
-                  }
-                  if (result.issuesAndDelays.length > 0) {
-                    setIssuesAndDelays(prev => dfrAppendGenerated(prev, result.issuesAndDelays.join('\n')));
-                  }
-                  if (result.crewsOnSite.length > 0 && manpower.length === 0) {
-                    const entries: ManpowerEntry[] = result.crewsOnSite.map((c, idx) => ({
-                      id: createId('mp'),
-                      trade: c.trade,
-                      company: '',
-                      headcount: c.count,
-                      hoursWorked: 8,
-                    }));
-                    setManpower(entries);
-                  }
-                  setShowVoiceBanner(true);
-                }}
-              />
-            </View>
           )}
 
           {sameDayReports.length > 0 && (
@@ -4597,6 +4703,91 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </TutorialTarget>
             ) : (
               <Text style={styles.readOnlyText}>{workPerformed || 'No notes.'}</Text>
+            )}
+          </View>
+
+          {/* UX A1: Photos sits directly under Work Performed — he describes
+              the day and attaches its pictures in one place, instead of
+              scrolling to the very bottom and back up to Submit. */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <ImageIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.sectionTitle}>Photos ({photos.length}/10)</Text>
+            </View>
+            {!isLocked && (
+              <View style={styles.photoActions}>
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
+                    <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.photoBtnText}>Take Photo</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} activeOpacity={0.7}>
+                  <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.photoBtnText}>From Library</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {!isLocked && todaysPhotosPlan.label ? (
+              <TouchableOpacity
+                style={[styles.photoBtn, styles.todaysPhotosBtn]}
+                onPress={handleAddTodaysPhotos}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${todaysPhotosPlan.label}. Attaches ${todaysPhotosPlan.add.length} of the photos you took on this job ${reportCalendarDay === todayCalendarDay() ? 'today' : 'that day'}.`}
+                testID="dfr-add-todays-photos"
+              >
+                <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.photoBtnText}>{todaysPhotosPlan.label}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {photos.length === 0 && (
+              <Text style={styles.emptyText}>No photos attached.</Text>
+            )}
+            {photos.length > 0 && (
+              <View style={styles.photoGrid}>
+                {photos.map((photo) => (
+                  <View key={photo.id} style={styles.photoCard}>
+                    {/* Render the actual captured/library photo. photoCard is a
+                        fixed 80x80 with overflow:hidden, so cover-fit fills the
+                        tile. The capture time sits in a small overlay caption
+                        at the bottom so the GC can still read it at a glance.
+                        #25: a tap opens the markup tool on the photo's project
+                        copy (same id); the filed PDF prints what he draws. */}
+                    <TouchableOpacity
+                      onPress={() => handlePhotoTap(photo.id)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={markedUpPhotoIds.has(photo.id) ? 'Edit markup on this photo' : 'Mark up this photo'}
+                      testID={`dfr-photo-markup-${photo.id}`}
+                    >
+                      <Image
+                        source={{ uri: photo.uri }}
+                        style={styles.photoImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                    {markedUpPhotoIds.has(photo.id) && (
+                      <View style={{ position: 'absolute', top: 4, left: 4, borderRadius: Tokens.radius.full, backgroundColor: themeColors.surface, padding: 3 }} pointerEvents="none">
+                        <PenLine size={11} color={themeColors.accent} strokeWidth={2} />
+                      </View>
+                    )}
+                    <View style={styles.photoTimestampOverlay} pointerEvents="none">
+                      <Text style={styles.photoTimestampOverlayText} numberOfLines={1}>
+                        {new Date(photo.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                    {!isLocked && (
+                      <TouchableOpacity
+                        style={styles.photoRemoveBtn}
+                        onPress={() => handleRemovePhoto(photo.id)}
+                        activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
+                        <X size={12} color={themeColors.danger} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+              </View>
             )}
           </View>
 
@@ -5545,75 +5736,6 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
             )}
           </View>
 
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <ImageIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.sectionTitle}>Photos ({photos.length}/10)</Text>
-            </View>
-            {!isLocked && (
-              <View style={styles.photoActions}>
-                {Platform.OS !== 'web' && (
-                  <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
-                    <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.photoBtnText}>Take Photo</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} activeOpacity={0.7}>
-                  <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.photoBtnText}>From Library</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {photos.length === 0 && (
-              <Text style={styles.emptyText}>No photos attached.</Text>
-            )}
-            {photos.length > 0 && (
-              <View style={styles.photoGrid}>
-                {photos.map((photo) => (
-                  <View key={photo.id} style={styles.photoCard}>
-                    {/* Render the actual captured/library photo. photoCard is a
-                        fixed 80x80 with overflow:hidden, so cover-fit fills the
-                        tile. The capture time sits in a small overlay caption
-                        at the bottom so the GC can still read it at a glance.
-                        #25: a tap opens the markup tool on the photo's project
-                        copy (same id); the filed PDF prints what he draws. */}
-                    <TouchableOpacity
-                      onPress={() => handlePhotoTap(photo.id)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel={markedUpPhotoIds.has(photo.id) ? 'Edit markup on this photo' : 'Mark up this photo'}
-                      testID={`dfr-photo-markup-${photo.id}`}
-                    >
-                      <Image
-                        source={{ uri: photo.uri }}
-                        style={styles.photoImage}
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
-                    {markedUpPhotoIds.has(photo.id) && (
-                      <View style={{ position: 'absolute', top: 4, left: 4, borderRadius: Tokens.radius.full, backgroundColor: themeColors.surface, padding: 3 }} pointerEvents="none">
-                        <PenLine size={11} color={themeColors.accent} strokeWidth={2} />
-                      </View>
-                    )}
-                    <View style={styles.photoTimestampOverlay} pointerEvents="none">
-                      <Text style={styles.photoTimestampOverlayText} numberOfLines={1}>
-                        {new Date(photo.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                    {!isLocked && (
-                      <TouchableOpacity
-                        style={styles.photoRemoveBtn}
-                        onPress={() => handleRemovePhoto(photo.id)}
-                        activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                        <X size={12} color={themeColors.danger} strokeWidth={1.75} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-
           {existingReport && publishAccess.allowed && (
             <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
               <SendToClientButton
@@ -5658,14 +5780,22 @@ function DailyReportInner({ reportId, projectIdOverride }: { reportId?: string; 
               </View>
 
               {contactPicked ? (
-                <View style={styles.selectedRecipientCard}>
+                <View style={styles.selectedRecipientCard} testID="dfr-send-to">
                   <User size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
-                    {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
+                    <Text style={styles.selectedRecipientName}>Send to {sendRecipientName.trim() || sendRecipientEmail}</Text>
+                    {sendRecipientEmail && sendRecipientName.trim() ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
-                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
+                  {/* UX A2: "Change" clears to the blank form, where Pick from
+                      Contacts is — the flow it always had. */}
+                  <TouchableOpacity
+                    onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Change the recipient (now ${dfrRecipientLine({ name: sendRecipientName.trim(), email: sendRecipientEmail })})`}
+                    testID="dfr-send-to-change"
+                  >
+                    <Text style={styles.pickContactText}>Change</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -6499,6 +6629,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   photoActions: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '10', borderWidth: 1, borderColor: themeColors.accent + '20' },
   photoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  // UX A1: the "Fill it for me" door — one card (cardSurface, never a
+  // hand-rolled recipe) holding each AI choice as a row.
+  fillDoor: { ...cardSurface(themeColors, { radius: 'lg', pad: 14 }), marginBottom: 12, gap: 12 },
+  fillDoorHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  fillDoorTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  fillChoice: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, minHeight: 48 },
+  fillChoiceIcon: { width: 44, height: 44, borderRadius: Tokens.radius.full, backgroundColor: themeColors.accentSoft, alignItems: 'center' as const, justifyContent: 'center' as const },
+  fillChoiceText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  fillChoiceLocked: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const },
+  // UX A1: a glove-size (48 pt) full-width row, in photoBtn's own colours.
+  todaysPhotosBtn: { justifyContent: 'center' as const, minHeight: 48, marginBottom: 10 },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   photoCard: { width: 80, height: 80, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
   photoImage: { width: '100%' as const, height: '100%' as const },
@@ -6540,7 +6681,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: themeColors.accent + '25' },
   selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
-  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '10' },
   pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },

@@ -192,7 +192,7 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, skipEntrance = 
         activeOpacity={1}
         testID={`project-card-${project.id}`}
         accessibilityRole="button"
-        accessibilityLabel={`Open project: ${project.name}, status ${statusLabel}`}
+        accessibilityLabel={`Open project: ${project.name}, status ${statusLabel}${showMarginPill ? `, bid margin ${marginPct}%, not actual profit` : ''}`}
       >
         <View style={styles.card}>
           <View style={styles.topRow}>
@@ -217,10 +217,20 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, skipEntrance = 
             </View>
             <View style={styles.statusCol}>
               <Badge tone={statusTone} dot>{statusLabel}</Badge>
+              {/* C8 (UX wave): this is the BID markup over the estimate total,
+                  not profit earned on the job, so it says "Bid GP" and reads
+                  "not actual profit" aloud. Projected margin on Home waits for
+                  a portfolio cost rollup (burnByProject carries no costs). */}
               {showMarginPill && (
-                <Badge tone={marginTone}>
-                  {`GP ${marginPct}%`}
-                </Badge>
+                <View
+                  accessible
+                  accessibilityLabel={`Bid margin ${marginPct}%, not actual profit`}
+                  testID="project-card-bid-gp"
+                >
+                  <Badge tone={marginTone}>
+                    {`Bid GP ${marginPct}%`}
+                  </Badge>
+                </View>
               )}
             </View>
           </View>

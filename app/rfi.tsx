@@ -35,6 +35,10 @@ import { sheetAttachmentFor, attachmentsHaveSheet, pinLocationLine } from '@/uti
 import { rfiEmailAttachments } from '@/utils/rfiSendAttachments';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
+import VoiceRecorder from '@/components/VoiceRecorder';
+import {
+  afterAnswerEdit, afterStatusPick, answeredChipText, KEEP_OPEN_LABEL, RECORD_ANSWER_LABEL,
+} from '@/utils/rfiAnswerDefault';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
@@ -346,6 +350,10 @@ function RFIForm() {
   const [status, setStatus] = useState<RFIStatus>(existingRFI?.status ?? 'open');
   const [linkedDrawing, setLinkedDrawing] = useState(existingRFI?.linkedDrawing ?? '');
   const [response, setResponse] = useState(existingRFI?.response ?? '');
+  // UX wave B3: typing the answer on an OPEN RFI defaults it to Answered (a
+  // chip he can change back); clearing it before saving puts it back to Open.
+  // Rules: utils/rfiAnswerDefault.
+  const [answerFlags, setAnswerFlags] = useState<{ auto: boolean; keepOpen: boolean }>({ auto: false, keepOpen: false });
   // The photo knows what it was a photo OF. Seeding the link from it is what
   // makes the RFI show up on the task it is holding up — and what feeds
   // rfiBlockStatus below, which is otherwise silent on an unlinked RFI.
@@ -387,6 +395,7 @@ function RFIForm() {
     setDateRequired(v.dateRequired); setPriority(v.priority); setStatus(v.status);
     setLinkedDrawing(v.linkedDrawing); setLinkedTaskId(v.linkedTaskId);
     setResponse(v.response); setAttachments(v.attachments);
+    setAnswerFlags({ auto: false, keepOpen: false });
   }, []);
 
   // #55 / #56 (review round 3): adopt a newer copy of the record. The form
@@ -535,16 +544,26 @@ function RFIForm() {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestCitation, setSuggestCitation] = useState<string | null>(null);
   const [suggestError, setSuggestError] = useState<string | null>(null);
-  // Response-field visibility is a LATCH, not a live derivation from the
-  // field's own text: once shown, it stays mounted so select-all-delete
-  // doesn't unmount the TextInput (and dismiss the keyboard) mid-edit.
-  const [responseShown, setResponseShown] = useState<boolean>(() =>
-    !!existingRFI && (
-      existingRFI.status === 'answered' || existingRFI.status === 'closed' || !!existingRFI.response?.trim()
-    ));
-  useEffect(() => {
-    if (status === 'answered' || status === 'closed' || response.trim().length > 0) setResponseShown(true);
-  }, [status, response]);
+  // UX wave B3: the answer box is ALWAYS mounted on a saved RFI (it used to
+  // wait for the status to change). Its visibility no longer derives from the
+  // field's own text, so select-all-delete can never unmount the TextInput
+  // (and dismiss the keyboard) mid-edit — the old latch's intent, kept.
+  const recordStatus = (opened ?? existingRFI)?.status ?? 'open';
+  const onChangeAnswer = useCallback((text: string) => {
+    setResponse(text);
+    const next = afterAnswerEdit({ status, ...answerFlags }, text, recordStatus);
+    if (next.status !== status) setStatus(next.status);
+    if (next.auto !== answerFlags.auto || next.keepOpen !== answerFlags.keepOpen) {
+      setAnswerFlags({ auto: next.auto, keepOpen: next.keepOpen });
+    }
+  }, [status, answerFlags, recordStatus]);
+  /** He chose a status himself — the picker, the pipeline or the chip. */
+  const pickStatus = useCallback((next: RFIStatus) => {
+    const st = afterStatusPick({ status, ...answerFlags }, next);
+    setStatus(st.status);
+    setAnswerFlags({ auto: st.auto, keepOpen: st.keepOpen });
+  }, [status, answerFlags]);
+  const answerChip = answeredChipText({ status, ...answerFlags });
 
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
@@ -1019,7 +1038,6 @@ function RFIForm() {
       }
       if (!res.fromCache) void recordAIUsage('smart', 'projectMemory');
       setResponse(res.answer.trim());
-      setResponseShown(true);
       // Citation honesty: name refs only when retrieval actually MATCHED
       // records. matched=false means the recency fallback fed the model —
       // naming those refs would be fabricated provenance, so show none.
@@ -1124,7 +1142,7 @@ function RFIForm() {
               startedAt={existingRFI.dateSubmitted}
               dueAt={dateRequired || undefined}
               onAdvance={(next) => {
-                setStatus(next);
+                pickStatus(next);
                 if (next === 'answered' && !response) {
                   showAlert(
                     'Mark as answered',
@@ -1287,6 +1305,65 @@ function RFIForm() {
           textAlignVertical="top"
           testID="rfi-question"
         />
+
+        {/* UX wave B3: "Record the answer" sits under the question on every
+            saved RFI — the architect calls, he writes it down, no status
+            change first. A mic on the phone (the web recorder is disabled,
+            the desk types). */}
+        {existingRFI && (
+          <View testID="rfi-answer-block">
+            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>{RECORD_ANSWER_LABEL}</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={response}
+              onChangeText={onChangeAnswer}
+              placeholder="What the architect / engineer said…"
+              placeholderTextColor={themeColors.textMuted}
+              multiline
+              textAlignVertical="top"
+              testID="rfi-answer"
+            />
+            {Platform.OS !== 'web' ? (
+              <VoiceRecorder
+                title="Record the answer"
+                contextLine={project?.name ? `RFI for ${project.name}` : undefined}
+                suggestions={[
+                  'Architect says upsize to a two-ply LVL with a post to the footing',
+                  'Engineer confirmed the footing depth stays at 42 inches',
+                ]}
+                onTranscriptReady={(t) => onChangeAnswer(mergeText(response, t, response.trim() ? 'append' : 'replace-if-empty'))}
+              />
+            ) : null}
+            {answerChip ? (
+              <View style={styles.answerChipRow} testID="rfi-answer-chip">
+                <CheckCircle2 size={14} color={themeColors.successLabel} strokeWidth={1.75} />
+                <Text style={styles.answerChipText}>{answerChip}</Text>
+                <TouchableOpacity onPress={() => pickStatus('open')} hitSlop={8} accessibilityRole="button" testID="rfi-answer-keep-open">
+                  <Text style={styles.answerChipAction}>{KEEP_OPEN_LABEL}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {responseConflict && (
+              <View style={[styles.alertBanner, styles.alertBannerWarn, styles.conflictCard]} testID="rfi-response-conflict">
+                <Text style={styles.alertBannerText}>{RFI_RESPONSE_CONFLICT_REASON}</Text>
+                <Text style={styles.conflictLabel}>Their answer</Text>
+                <Text style={styles.conflictBody}>{responseConflict.theirs}</Text>
+                <View style={styles.conflictActions}>
+                  <Button
+                    label="Keep theirs" size="sm" testID="rfi-conflict-keep-theirs"
+                    // onChangeAnswer re-runs the Answered default on their text; the
+                    // explicit setResponse is what validate-w4-rfi-core-screens pins.
+                    onPress={() => { onChangeAnswer(responseConflict.theirs); setResponse(responseConflict.theirs); setResponseConflict(null); }}
+                  />
+                  <Button
+                    label="Replace with mine" variant="secondary" size="sm" testID="rfi-conflict-use-mine"
+                    onPress={() => setResponseConflict(null)}
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.row}>
           <View style={[styles.halfField, isDesktop && desktopField('md')]}>
@@ -1486,7 +1563,7 @@ function RFIForm() {
                     <TouchableOpacity
                       key={s}
                       style={[styles.pickerOption, status === s && styles.pickerOptionActive, locked && { opacity: 0.45 }]}
-                      onPress={() => { if (locked) return; setStatus(s); setShowStatusPicker(false); }}
+                      onPress={() => { if (locked) return; pickStatus(s); setShowStatusPicker(false); }}
                       disabled={locked}
                       accessibilityState={{ disabled: locked }}
                     >
@@ -1589,38 +1666,6 @@ function RFIForm() {
           // pin's sheet on the RFI, and a sheet with no upload has none.
           <Text style={styles.attachmentNote} testID="rfi-pin-note">{pinNote}</Text>
         ) : null}
-
-        {existingRFI && responseShown && (
-          <>
-            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Response</Text>
-            <TextInput
-              style={[styles.input, styles.multilineInput]}
-              value={response}
-              onChangeText={setResponse}
-              placeholder="Official response..."
-              placeholderTextColor={themeColors.textMuted}
-              multiline
-              textAlignVertical="top"
-            />
-            {responseConflict && (
-              <View style={[styles.alertBanner, styles.alertBannerWarn, styles.conflictCard]} testID="rfi-response-conflict">
-                <Text style={styles.alertBannerText}>{RFI_RESPONSE_CONFLICT_REASON}</Text>
-                <Text style={styles.conflictLabel}>Their answer</Text>
-                <Text style={styles.conflictBody}>{responseConflict.theirs}</Text>
-                <View style={styles.conflictActions}>
-                  <Button
-                    label="Keep theirs" size="sm" testID="rfi-conflict-keep-theirs"
-                    onPress={() => { setResponse(responseConflict.theirs); setResponseConflict(null); }}
-                  />
-                  <Button
-                    label="Replace with mine" variant="secondary" size="sm" testID="rfi-conflict-use-mine"
-                    onPress={() => setResponseConflict(null)}
-                  />
-                </View>
-              </View>
-            )}
-          </>
-        )}
 
         {existingRFI && project ? <RfiScopeCheckCard rfi={existingRFI} project={project} /> : null}
         {/* MAGE suggests — drafts a response from how this project answered
@@ -2168,6 +2213,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   alertBannerWarn: { backgroundColor: Colors.warning + '14', borderColor: Colors.warning + '40' },
   alertBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   conflictCard: { flexDirection: 'column' as const, alignItems: 'stretch' as const, marginHorizontal: 0 },
+  // UX wave B3 — the "Will save as Answered" chip under the answer.
+  answerChipRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginTop: 8, flexWrap: 'wrap' as const },
+  answerChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.successLabel },
+  answerChipAction: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel, paddingVertical: 4 },
   conflictLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   conflictBody: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
   conflictActions: { flexDirection: 'row' as const, gap: 8, flexWrap: 'wrap' as const },

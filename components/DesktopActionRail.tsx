@@ -30,8 +30,25 @@
 // The fix keeps this file's original rule intact: the COUNT PILL and the ROWS
 // are still only the canonical set (that is sim-audit #15 — the rail once ran
 // its own useSmartInbox count under an authoritative "Action Required" title
-// while the badge beside it showed a different number). Only the sentence
-// changes, and the extra categories gate it rather than joining it.
+// while the badge beside it showed a different number).
+//
+// UX wave, lane A (A7): the RFIs and submittals that used to gate only the
+// sentence (a side-count, `outsideTheScan`) are IN the canonical set now
+// (hooks/useBrainWatch), so they are rows here with the count — an overdue RFI
+// to the architect is listed beside the overdue invoice instead of surfacing
+// only after everything else is cleared. And each row can do its job in one
+// click (a trailing button; the row itself still opens the record):
+//   • invoice → "Remind"  (utils/remindInvoice: the invoice screen's own
+//     guards — sample refusal, QuickBooks-closed confirm, the server's
+//     outcome — and its marker mirror);
+//   • RFI / submittal → "Nudge" (utils/chaseNudge: the share sheet, or on the
+//     web a pre-addressed email when the record names an address, logged on
+//     /waiting-on only after "Did you send it?");
+//   • permit inspection → "Prep" (Inspection Ready on the job).
+// Nothing sends without the click. Each button carries its destination's gate:
+// Remind is the invoice screen's (a locked plan shows the button with a lock
+// and says what unlocks it; a job shared with him — a collaborator — gets no
+// Remind, billing the client is the owner's); Nudge is /waiting-on's (none).
 //
 // WAVE 6c (lane F) — THE ONE ATTENTION LIST. At 1512 px Home drew this list
 // twice (the rail AND the Brain Watch card) and '+N more' was plain text that
@@ -58,15 +75,25 @@
 // variant is unchanged.
 // ============================================================================
 
-import React, { useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { CloudOff, ChevronRight, CheckCircle2, MessageSquareWarning } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CloudOff, ChevronRight, CheckCircle2, Lock } from 'lucide-react-native';
 import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { useCoreData, useDocsData, useProjects } from '@/contexts/ProjectContext';
-import { rfiAttention, submittalAttention } from '@/utils/brainWatch';
-import type { AttentionItem, AttnSeverity } from '@/utils/brainWatch';
+import type { AttentionAction, AttentionItem, AttnSeverity } from '@/utils/brainWatch';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { showAlert } from '@/utils/alert';
+import { nailIt } from '@/components/animations/NailItToast';
+import { remindInvoice, confirmViaAlert } from '@/utils/remindInvoice';
+import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
+import { canShare, shareText } from '@/utils/shareText';
+import { buildChaseList } from '@/utils/systemOfAction';
+import {
+  chaseLogId, chaseMailSubject, chaseRecipientEmail, recordChaseToLog, sendNudge,
+} from '@/utils/chaseNudge';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -117,27 +144,17 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  // Gates the "all caught up" sentence only — never the pill, never the rows.
-  // Same contexts and the same pure builders the canonical hook uses, so the two
-  // cannot come to different conclusions about what an overdue RFI is.
   const { projects } = useCoreData();
+  // UX A7: the records behind the Nudge button (the drafted words and the
+  // address come from the RFI / submittal itself).
   const { rfis, submittals } = useDocsData();
-  const outsideTheScan = useMemo(() => {
-    const nowMs = Date.now();
-    let n = 0;
-    for (const project of projects) {
-      if (project.status === 'closed' || project.status === 'completed') continue;
-      n += rfiAttention(project, rfis, nowMs).length;
-      n += submittalAttention(project, submittals, nowMs).length;
-    }
-    return n;
-  }, [projects, rfis, submittals]);
 
   const top = useMemo(() => items.slice(0, 8), [items]);
 
   // The three sections — the same builders the Home cards use, so the rail
   // and the cards it stands in for can never list different rows.
-  const { changeOrders, dailyReports, settings } = useProjects();
+  const { changeOrders, dailyReports, settings, invoices, updateInvoice, contacts, subcontractors } = useProjects();
+  const [busyId, setBusyId] = useState<string | null>(null);
   const ready = useMemo(
     () => buildReadyToBill({ changeOrders, projects, nowMs: Date.now() }),
     [changeOrders, projects],
@@ -161,6 +178,129 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
     if (item.route.params) router.push({ pathname: item.route.pathname, params: item.route.params } as any);
     else router.push(item.route.pathname as any);
   }, [router]);
+
+  // ── UX A7: the one-click jobs ─────────────────────────────────────────────
+
+  /** A locked plan: say what unlocks it, never a dead button. */
+  const explainLocked = useCallback((what: string) => {
+    showAlert(
+      `${what} is on the Pro plan`,
+      `Upgrade to ${what.toLowerCase()} from here. The row still opens the record.`,
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'See plans', onPress: () => router.push('/paywall') },
+      ],
+    );
+  }, [router]);
+
+  /** Which button a row gets, or null. The gates are the destinations'.
+   *  `access` is the row's project-aware access (useProjectAccess, read per
+   *  row by RailAttentionRow): the viewer's tier OR a collaborator seat's
+   *  grant, and his role on that job. */
+  const actionFor = useCallback((item: AttentionItem, access: RowAccess): RailAction | null => {
+    const a: AttentionAction | undefined = item.action;
+    if (!a) return null;
+    const project = projects.find(p => p.id === item.projectId);
+    if (a.kind === 'remind') {
+      // A job shared WITH him: billing the client is the owner's
+      // (invoiceRoleGate's collaborator rule) — no Remind, the row still opens.
+      const role = access.role ?? project?.myRole;
+      if (role === 'editor' || role === 'viewer' || role === 'field') return null;
+      const locked = !access.canAccess('change_orders_invoicing');
+      return {
+        label: 'Remind',
+        locked,
+        run: locked ? () => explainLocked('Sending invoice reminders') : async () => {
+          const inv = invoices.find(i => i.id === a.invoiceId);
+          if (!inv) { showAlert('Invoice not on this device', 'Open it from the invoice list to check it, then try again.'); return; }
+          setBusyId(item.id);
+          try {
+            const lastMs = inv.dunningLastSentAt ? Date.parse(inv.dunningLastSentAt) : null;
+            const out = await remindInvoice(
+              {
+                invoiceId: inv.id,
+                projectName: project?.name ?? item.projectName,
+                qboError: inv.qboError,
+                lastReminderMs: Number.isFinite(lastMs as number) ? lastMs : null,
+              },
+              { send: sendInvoiceReminderNow, confirm: confirmViaAlert(showAlert) },
+            );
+            // The edge function wrote the same markers; echoing them is idempotent.
+            if (out.patch) updateInvoice(inv.id, out.patch);
+            if (out.kind === 'sent') nailIt(out.message);
+            else if (out.kind !== 'cancelled') showAlert(out.title, out.message);
+          } finally {
+            setBusyId(null);
+          }
+        },
+      };
+    }
+    if (a.kind === 'nudge') {
+      // No tier lock: a nudge is the /waiting-on chase (the drafted words out
+      // through the share sheet or a mail client), and /waiting-on chases with
+      // no plan gate. The RFI / submittal record itself stays behind its own
+      // (project-aware) gate when the row opens it.
+      if (a.record === 'rfi') {
+        const rfi = rfis.find(r => r.id === a.recordId);
+        // An RFI that never went out has nobody to nudge — the row opens it to send.
+        if (!rfi || !rfi.dateSubmitted?.trim()) return null;
+        return {
+          label: 'Nudge',
+          locked: false,
+          run: async () => {
+            const chase = buildChaseList({ rfis: [rfi], submittals: [], changeOrders: [], projects: project ? [project] : [], nowMs: Date.now() })
+              .find(c => c.id === rfi.id);
+            const message = chase?.nudge
+              ?? `Following up on RFI #${rfi.number} (${rfi.subject}) for ${project?.name ?? 'the job'} — we still need your answer to keep work moving.`;
+            const via = await sendNudge(
+              {
+                message,
+                to: chaseRecipientEmail({ text: rfi.assignedTo, subId: rfi.assignedSubId }, { contacts, subs: subcontractors }),
+                toName: rfi.assignedTo,
+                subject: chaseMailSubject('rfi', rfi.number, project?.name),
+              },
+              { platform: Platform.OS, shareText, canShare, showAlert, openURL: (u) => Linking.openURL(u) },
+            );
+            if (!via) return;
+            await recordChaseToLog({ id: chaseLogId('rfi', rfi.id), projectId: rfi.projectId, via, message, at: new Date().toISOString() }, AsyncStorage);
+            nailIt(`Chase logged on Waiting On · RFI #${rfi.number}`);
+          },
+        };
+      }
+      const sub = submittals.find(x => x.id === a.recordId);
+      const cycles = sub?.reviewCycles ?? [];
+      const lastCycle = cycles.length > 0 ? cycles[cycles.length - 1] : null;
+      if (!sub || !(lastCycle?.sentDate || sub.submittedDate)) return null;
+      return {
+        label: 'Nudge',
+        locked: false,
+        run: async () => {
+          const chase = buildChaseList({ rfis: [], submittals: [sub], changeOrders: [], projects: project ? [project] : [], nowMs: Date.now() })
+            .find(c => c.id === sub.id);
+          const message = chase?.nudge
+            ?? `Following up on submittal #${sub.number} (${sub.title}) for ${project?.name ?? 'the job'} — can you send back your review?`;
+          const via = await sendNudge(
+            {
+              message,
+              to: chaseRecipientEmail({ text: lastCycle?.reviewer }, { contacts, subs: subcontractors }),
+              toName: lastCycle?.reviewer,
+              subject: chaseMailSubject('submittal', sub.number, project?.name),
+            },
+            { platform: Platform.OS, shareText, canShare, showAlert, openURL: (u) => Linking.openURL(u) },
+          );
+          if (!via) return;
+          await recordChaseToLog({ id: chaseLogId('submittal', sub.id), projectId: sub.projectId, via, message, at: new Date().toISOString() }, AsyncStorage);
+          nailIt(`Chase logged on Waiting On · submittal #${sub.number}`);
+        },
+      };
+    }
+    // prep — Inspection Ready's checklist on the job.
+    return {
+      label: 'Prep',
+      locked: false,
+      run: () => router.push({ pathname: '/project-detail', params: { id: item.projectId, prep: `permit:${a.permitId}` } }),
+    };
+  }, [projects, invoices, updateInvoice, rfis, submittals, contacts, subcontractors, router, explainLocked]);
 
   return (
     <View
@@ -196,28 +336,6 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
               <Text style={[styles.emptyTitle, { color: colors.warningLabel }]}>{UNREACHABLE_LINE}</Text>
               <Text style={styles.emptySubtitle}>Nothing cached needs attention; the live read failed.</Text>
             </View>
-          ) : outsideTheScan > 0 ? (
-            // Open work this column does not count. Named rather than swallowed,
-            // and routed, because at this width there is no Inbox card below to
-            // fall back on.
-            <TouchableOpacity
-              style={styles.emptyState}
-              onPress={() => router.push('/waiting-on' as any)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Open Waiting On"
-              testID="rail-partial-clear"
-            >
-              <View style={styles.emptyIconWrap}>
-                <MessageSquareWarning size={22} color={colors.warningLabel} strokeWidth={1.8} />
-              </View>
-              <Text style={[styles.emptyTitle, { color: colors.warningLabel }]}>
-                {outsideTheScan === 1 ? '1 reply is overdue' : `${outsideTheScan} replies are overdue`}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                Schedules, invoices, permits and certs are clear. RFIs and submittals are not — open Waiting On.
-              </Text>
-            </TouchableOpacity>
           ) : (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconWrap}>
@@ -230,20 +348,15 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
         ) : (
           <View style={styles.listWrap}>
             {top.map(item => (
-              <TouchableOpacity
+              <RailAttentionRow
                 key={item.id}
-                style={styles.row}
-                onPress={() => onRowPress(item)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                testID={`rail-row-${item.id}`}
-              >
-                <View style={[styles.severityDot, { backgroundColor: severityColor(item.severity, colors) }]} />
-                <View style={styles.rowText}>
-                  <Text style={styles.rowTitle} numberOfLines={2}>{item.message}</Text>
-                </View>
-                <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} />
-              </TouchableOpacity>
+                item={item}
+                styles={styles}
+                colors={colors}
+                busy={busyId === item.id}
+                onRowPress={onRowPress}
+                actionFor={actionFor}
+              />
             ))}
             {items.length > top.length && (
               <RowLink
@@ -339,6 +452,82 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
 export default DesktopActionRail;
 
 type Styles = ReturnType<typeof makeStyles>;
+
+/** UX A7 — a row's project-aware access (hooks/useProjectAccess). */
+interface RowAccess {
+  role: string | null | undefined;
+  canAccess: (feature: Parameters<ReturnType<typeof useProjectAccess>['canAccess']>[0]) => boolean;
+}
+interface RailAction { label: string; locked: boolean; run: () => void | Promise<void> }
+
+/**
+ * One canonical row. Its own component so each row can read ITS job's access
+ * (useProjectAccess is per project): the Remind gate is the invoice screen's,
+ * and a plan gate on a shared job is the seat's grant, never only the
+ * viewer's own tier. A row with no action renders exactly the row it always
+ * did; a row with one splits into the row and a trailing button (never a
+ * button inside a button on the web).
+ */
+function RailAttentionRow({ item, styles, colors, busy, onRowPress, actionFor }: {
+  item: AttentionItem;
+  styles: Styles;
+  colors: ThemeColors;
+  busy: boolean;
+  onRowPress: (item: AttentionItem) => void;
+  actionFor: (item: AttentionItem, access: RowAccess) => RailAction | null;
+}) {
+  const access = useProjectAccess(item.projectId);
+  const act = actionFor(item, access);
+  const rowBody = (
+    <>
+      <View style={[styles.severityDot, { backgroundColor: severityColor(item.severity, colors) }]} />
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle} numberOfLines={2}>{item.message}</Text>
+      </View>
+      <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} />
+    </>
+  );
+  if (!act) {
+    return (
+      <TouchableOpacity
+        style={styles.row}
+        onPress={() => onRowPress(item)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        testID={`rail-row-${item.id}`}
+      >
+        {rowBody}
+      </TouchableOpacity>
+    );
+  }
+  return (
+    <View style={styles.rowLine}>
+      <TouchableOpacity
+        style={styles.rowMain}
+        onPress={() => onRowPress(item)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        testID={`rail-row-${item.id}`}
+      >
+        {rowBody}
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.rowAction, (busy || act.locked) && styles.rowActionMuted]}
+        onPress={() => { if (!busy) void act.run(); }}
+        disabled={busy}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={act.locked ? `${act.label} — not on your plan; tap to see why` : `${act.label}: ${item.message}`}
+        testID={`rail-action-${item.id}`}
+      >
+        {act.locked ? <Lock size={11} color={colors.textMuted} strokeWidth={2} /> : null}
+        <Text style={[styles.rowActionText, act.locked && styles.rowActionTextMuted]}>
+          {busy ? 'Sending…' : act.label}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 /** One rail section: a 13 px caption header, its rows, and 'See all N' to its
  *  /attention view when it holds more than it shows. */
@@ -480,6 +669,42 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: t.line,
   },
+  // UX A7: a row with a trailing action — the same line, split in two so the
+  // action is its own button (never a button inside a button on the web).
+  rowLine: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: t.line,
+  },
+  rowMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingVertical: 12,
+    paddingLeft: 14,
+    paddingRight: 6,
+  },
+  rowAction: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    borderRadius: Tokens.radius.full,
+    borderWidth: 1,
+    borderColor: t.accent,
+  },
+  rowActionMuted: { borderColor: t.line },
+  rowActionText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: t.accent,
+  },
+  rowActionTextMuted: { color: t.textMuted },
   severityDot: {
     width: 8,
     height: 8,

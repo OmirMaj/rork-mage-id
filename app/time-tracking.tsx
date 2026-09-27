@@ -51,6 +51,14 @@ import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { useActiveProject } from '@/contexts/ActiveProjectContext';
+import { pickDefaultProjectId, PICK_JOB_FIRST } from '@/utils/defaultProjectId';
+import { readUxDoorParams } from '@/utils/uxRoutes';
+import {
+  toggleCrewPick, toggleAllCrew, livePicks, clockInButton, allCrewChipLabel, splitAlreadyOnClock,
+  batchLapsedText, batchClockOutJobs, batchOutMs, defaultBatchOutText, planBatchClockOut,
+} from '@/utils/crewClockBatch';
+import { nailIt } from '@/components/animations/NailItToast';
 
 /** A shift on the Live list: his own clock-in, or (#63) one his foreman
  *  clocked on a job he OWNS — its one action the owner's close — or (#99) one
@@ -308,8 +316,15 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   // on the job the GC navigated from, not silently on projects[0].
   // #104: the unpriced-labor banners (Job Costing, Living Estimate) also pass
   // openRates=1 and the trade missing a rate, so the sheet opens on it.
-  const { projectId: routeProjectId, openRates: routeOpenRates, rateTrade: routeRateTrade } =
-    useLocalSearchParams<{ projectId?: string; openRates?: string; rateTrade?: string }>();
+  const { projectId: routeProjectId, openRates: routeOpenRates, rateTrade: routeRateTrade, clockIn: routeClockIn } =
+    useLocalSearchParams<{ projectId?: string; openRates?: string; rateTrade?: string; clockIn?: string }>();
+  // UX wave B1: `clockIn=1` (the job page / + menu door) opens the crew sheet.
+  const { openClockIn } = readUxDoorParams({ clockIn: routeClockIn });
+  // The job a clock-in defaults to (utils/defaultProjectId): the route, a real
+  // pick, a recent job — never projects[0] and never the resolver's
+  // "most recently updated in-progress" guess. Hours on the wrong job are a
+  // wrong payroll record nobody notices until the invoice.
+  const { activeProjectId, recentProjectIds } = useActiveProject();
   // Real backend hook (created May 2026 to replace MOCK_TIME_ENTRIES).
   // Data is persisted to AsyncStorage immediately and synced to Supabase
   // `time_entries` table via the offline queue. Cross-device sync works
@@ -388,9 +403,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
   // Keep the selection consistent: when projects load, prefer the deep-linked
-  // routeProjectId if it matches a real project, otherwise default to the
-  // first one. If the user switches accounts (projects array changes identity)
-  // and the previously-selected id is gone, fall back to the same order.
+  // routeProjectId if he can clock crew onto it, otherwise the safe default
+  // (pickDefaultProjectId: a real pick or a recent job). With neither the
+  // selection stays EMPTY and the sheet asks for the job — "Pick the job
+  // first" — instead of filing hours on projects[0]. If the user switches
+  // accounts and the previously-selected id is gone, the same order applies.
   useEffect(() => {
     if (projects.length === 0) {
       if (selectedProjectId !== null) setSelectedProjectId(null);
@@ -399,10 +416,10 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     if (!selectedProjectId || !projects.some(p => p.id === selectedProjectId)) {
       const preferred = (routeProjectId && projects.some(p => p.id === routeProjectId))
         ? routeProjectId
-        : projects[0].id;
-      setSelectedProjectId(preferred);
+        : pickDefaultProjectId({ routeProjectId, activeProjectId, recentProjectIds, projects });
+      if (preferred !== selectedProjectId) setSelectedProjectId(preferred);
     }
-  }, [projects, selectedProjectId, routeProjectId]);
+  }, [projects, selectedProjectId, routeProjectId, activeProjectId, recentProjectIds]);
 
   const selectedProject = useMemo(
     () => projects.find(p => p.id === selectedProjectId) ?? null,
@@ -1056,7 +1073,132 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // screen left open since 7:00 never saw the foreman's 7:05 clock-ins.
     void refreshEntries();
     setShowClockInModal(true);
-  }, [clockInDisabledReason, refreshEntries]);
+    // No job resolved: the picker opens with the sheet, and the button says
+    // "Pick the job first" until he picks one (UX wave B1).
+    if (!selectedProject) setShowProjectPicker(true);
+  }, [clockInDisabledReason, refreshEntries, selectedProject]);
+
+  // UX wave B1: `clockIn=1` opens the crew sheet once, after the jobs load.
+  const openedFromDoorRef = useRef(false);
+  useEffect(() => {
+    if (!openClockIn || openedFromDoorRef.current || allProjects.length === 0 || clockInDisabledReason) return;
+    openedFromDoorRef.current = true;
+    openClockInSheet();
+  }, [openClockIn, allProjects.length, clockInDisabledReason, openClockInSheet]);
+
+  // ── Whole crew at once (UX wave B1) ──────────────────────────────────
+  // The sheet stays open while he ticks names; one "Clock in N" writes one
+  // clock-in per worker through the same store writer as a single tap (the
+  // offline queue behind useTimeEntries). Rules: utils/crewClockBatch.
+  const [crewPicks, setCrewPicks] = useState<string[]>([]);
+  const picked = useMemo(() => livePicks(crewPicks, availableRoster), [crewPicks, availableRoster]);
+  const allPicked = availableRoster.length > 0 && picked.length === availableRoster.length;
+  const batchButton = clockInButton(picked.length, !!selectedProject);
+  // A switch from one job to ANOTHER clears the ticks: a crew picked for one
+  // job is not assumed to be the crew on the next. Picking the first job
+  // (from none) keeps what he already ticked.
+  const prevJobRef = useRef<string | null>(selectedProjectId);
+  useEffect(() => {
+    if (prevJobRef.current && prevJobRef.current !== selectedProjectId) setCrewPicks([]);
+    prevJobRef.current = selectedProjectId;
+  }, [selectedProjectId]);
+
+  const handleBatchClockIn = useCallback(() => {
+    if (clockGate.kind !== 'ok') return;
+    if (!selectedProject) { showAlert(PICK_JOB_FIRST, NO_JOB_REASON); return; }
+    const members = roster.filter(m => picked.includes(m.id));
+    if (members.length === 0) return;
+    // One worker is the single-tap path, unchanged (its own "Clock in again"
+    // and lapsed-card confirms).
+    if (members.length === 1) { setCrewPicks([]); handleClockIn(members[0].id); return; }
+    const project = selectedProject;
+    const { go, note: onClockNote } = splitAlreadyOnClock(members, openShiftByWorker);
+
+    const commit = (list: typeof members) => {
+      if (list.length === 0) {
+        showAlert('Nobody clocked in', onClockNote ?? 'Everyone you ticked was left out.');
+        return;
+      }
+      let made = 0;
+      for (const m of list) {
+        const entry = doClockIn({
+          projectId: project.id,
+          projectName: project.name,
+          workerId: m.id,
+          workerName: m.name,
+          trade: m.trade,
+        });
+        if (!entry) {
+          showAlert('Couldn\u2019t clock in', `${project.name} hasn\u2019t synced to your account yet, so hours can\u2019t be filed against it. Try again once it has.`);
+          break;
+        }
+        made++;
+      }
+      if (made === 0) return;
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCrewPicks([]);
+      setShowClockInModal(false);
+      if (onClockNote) showAlert(`Clocked in ${made} on ${project.name}`, onClockNote);
+      else nailIt(`Clocked in ${made} on ${project.name}`);
+    };
+
+    // Safety #2, per worker, inside the batch: every expired card in the
+    // batch is named in ONE confirm. Never skipped.
+    const lapsed = batchLapsedText(go, certFlagsByMember);
+    if (lapsed) {
+      const rest = go.filter(m => !lapsed.ids.includes(m.id));
+      showAlert('Certification lapsed', lapsed.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: rest.length > 0 ? `Leave them out (${rest.length})` : 'Leave them out', onPress: () => commit(rest) },
+        { text: 'Clock in anyway', style: 'destructive', onPress: () => commit(go) },
+      ]);
+      return;
+    }
+    commit(go);
+  }, [clockGate.kind, selectedProject, roster, picked, handleClockIn, openShiftByWorker, doClockIn, certFlagsByMember]);
+
+  // ── Clock out everyone on a job (UX wave B1) ─────────────────────────
+  // His own open shifts on ONE job, at ONE time he confirms (default now; it
+  // can't be in the future or before any of their clock-ins). Never another
+  // job, never a teammate's row, never a missed clock-out.
+  // The job in view; with none resolved (All jobs, fresh session) one button
+  // per job where he has 2+ open shifts — each names its job, none is guessed.
+  const batchOutJobs = useMemo(
+    () => batchClockOutJobs(entries, viewProjectId ?? selectedProjectId, nowMs, shiftAlertHours)
+      .map(j => ({ ...j, name: allProjects.find(p => p.id === j.projectId)?.name ?? 'this job' })),
+    [entries, viewProjectId, selectedProjectId, nowMs, shiftAlertHours, allProjects],
+  );
+  const [batchOutJobId, setBatchOutJobId] = useState<string | null>(null);
+  const batchOutJobName = useMemo(
+    () => (batchOutJobId ? allProjects.find(p => p.id === batchOutJobId)?.name ?? 'this job' : 'this job'),
+    [batchOutJobId, allProjects],
+  );
+  const [batchOutOpen, setBatchOutOpen] = useState(false);
+  const [batchOutText, setBatchOutText] = useState('');
+  const openBatchOut = useCallback((jobId: string) => {
+    setBatchOutJobId(jobId);
+    setBatchOutText(defaultBatchOutText(Date.now()));
+    setBatchOutOpen(true);
+  }, []);
+  const batchOutPlan = useMemo(() => {
+    if (!batchOutOpen) return null;
+    const now = Date.now();
+    return planBatchClockOut({
+      ownEntries: entries, projectId: batchOutJobId, jobName: batchOutJobName,
+      outMs: batchOutMs(batchOutText, now), nowMs: now, alertHours: shiftAlertHours,
+    });
+  }, [batchOutOpen, entries, batchOutJobId, batchOutJobName, batchOutText, shiftAlertHours]);
+  const handleBatchClockOut = useCallback(() => {
+    if (!batchOutPlan) return;
+    if (batchOutPlan.problem) { showAlert('Check the out time', batchOutPlan.problem); return; }
+    const outIso = new Date(batchOutMs(batchOutText, Date.now())).toISOString();
+    let closed = 0;
+    for (const e of batchOutPlan.targets) if (doClockOut(e.id, outIso)) closed++;
+    setBatchOutOpen(false);
+    if (Platform.OS !== 'web' && closed > 0) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (closed === batchOutPlan.targets.length) nailIt(`Clocked out ${closed} on ${batchOutJobName}`);
+    else showAlert('Some were already clocked out', `${closed} of ${batchOutPlan.targets.length} shifts were ended. The rest had already ended — nothing was changed on them.`);
+  }, [batchOutPlan, batchOutText, doClockOut, batchOutJobName]);
 
   // ── Payroll export (#64, #68, #63, #151) ─────────────────────────────
   // One pay period at a time — this payroll week by default, last week one tap
@@ -1163,6 +1305,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
   const fOut = useSheetFrame('dialog', { visible: outFor !== null, animationType: 'slide', rise: true });
   useSheetPrimaryHotkey(outFor !== null, handleSaveOutTime);
   const fExport = useSheetFrame('form', { visible: showExport, animationType: 'slide', rise: true });
+  const fBatchOut = useSheetFrame('dialog', { visible: batchOutOpen, animationType: 'slide', rise: true });
+  useSheetPrimaryHotkey(batchOutOpen, handleBatchClockOut);
   useSheetPrimaryHotkey(showExport, () => { void handleExportCSV(); });
 
   // History on desktop: one row per finished shift, sortable, searchable; a
@@ -1443,6 +1587,25 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           </View>
         ) : null}
 
+        {/* UX wave B1: the end of the day in one confirm — his own open
+            shifts on this job, at one time he can adjust. */}
+        {selectedTab === 'live' ? batchOutJobs.map((job, i) => (
+          <TouchableOpacity
+            key={job.projectId}
+            style={styles.clockOutAllBtn}
+            onPress={() => openBatchOut(job.projectId)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Clock out everyone on ${job.name}, ${job.count} workers`}
+            testID={i === 0 ? 'time-tracking-clock-out-all' : `time-tracking-clock-out-all-${job.projectId}`}
+          >
+            <Square size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
+            <Text style={styles.clockOutAllText} numberOfLines={1}>
+              Clock out everyone on {job.name} ({job.count})
+            </Text>
+          </TouchableOpacity>
+        )) : null}
+
         {selectedTab === 'live' ? (
           liveRows.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1507,7 +1670,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>Select a crew member to clock in</Text>
+            <Text style={styles.modalSubtitle}>Tick who&apos;s on site, then clock them in together</Text>
 
             {/* Project picker — defaults to the GC's first project but lets
                 them pick another job before clocking the worker in. With no
@@ -1526,10 +1689,11 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.projectPickerLabel}>Project</Text>
-                  <Text style={styles.projectPickerValue} numberOfLines={1}>
-                    {selectedProject?.name ?? 'Pick a job'}
+                  <Text style={styles.projectPickerValue} numberOfLines={1} testID="clock-in-job-name">
+                    {selectedProject?.name ?? PICK_JOB_FIRST}
                   </Text>
                 </View>
+                <Text style={styles.projectPickerChange}>{showProjectPicker ? 'Done' : 'Change'}</Text>
                 <ChevronDown
                   size={16}
                   color={themeColors.textMuted}
@@ -1636,12 +1800,35 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               ) : pullFailed ? (
                 <Text style={styles.memberTrade} testID="clock-in-pull-failed">Couldn&apos;t reach the server to check who your team has on the clock — the list may be out of date.</Text>
               ) : null}
-              {availableRoster.map(member => (
+              {/* UX wave B1: "All N on this job" ticks the whole available
+                  crew; a row tap ticks one. Nothing is written until "Clock
+                  in N" below. */}
+              {availableRoster.length > 1 ? (
+                <TouchableOpacity
+                  style={[styles.allCrewChip, allPicked && styles.allCrewChipOn]}
+                  onPress={() => setCrewPicks(prev => toggleAllCrew(livePicks(prev, availableRoster), availableRoster))}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: allPicked }}
+                  testID="clock-in-all"
+                >
+                  <Users size={16} color={allPicked ? themeColors.accentLabel : themeColors.text} strokeWidth={1.75} />
+                  <Text style={[styles.allCrewChipText, allPicked && { color: themeColors.accentLabel }]}>
+                    {allCrewChipLabel(availableRoster.length, allPicked)}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {availableRoster.map(member => {
+                const on = picked.includes(member.id);
+                return (
                 <TouchableOpacity
                   key={member.id}
                   style={styles.memberRow}
-                  onPress={() => handleClockIn(member.id)}
+                  onPress={() => setCrewPicks(prev => toggleCrewPick(livePicks(prev, availableRoster), member.id))}
                   activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={`${member.name}, ${member.trade}`}
                   testID={`clock-in-member-${member.id}`}
                 >
                   <View style={styles.memberAvatar}>
@@ -1664,9 +1851,12 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                       </View>
                     ) : null}
                   </View>
-                  <Play size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  <View style={[styles.pickBox, on && styles.pickBoxOn]}>
+                    {on ? <Check size={16} color={Colors.textOnAccent} strokeWidth={2.25} /> : null}
+                  </View>
                 </TouchableOpacity>
-              ))}
+                );
+              })}
               {/* Truthful empty states — no fabricated roster. When the GC has
                   no crew on file, point them to where crew is actually added
                   rather than inventing names + pay rates. */}
@@ -1720,6 +1910,28 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               ))}
             </ScrollView>
             )}
+            {/* UX wave B1: the one primary — never enabled without a job and
+                a tick; blocked, it says why. Full width, glove-sized. */}
+            {clockGate.kind === 'ok' && roster.length > 0 ? (
+              <View style={styles.batchFooter}>
+                <TouchableOpacity
+                  style={[styles.clockInButton, styles.batchButton, batchButton.disabled && { opacity: 0.5 }]}
+                  onPress={handleBatchClockIn}
+                  disabled={batchButton.disabled}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: batchButton.disabled }}
+                  accessibilityHint={batchButton.reason ?? undefined}
+                  activeOpacity={0.85}
+                  testID="clock-in-batch"
+                >
+                  <Play size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
+                  <Text style={styles.clockInButtonText}>{batchButton.label}</Text>
+                </TouchableOpacity>
+                {batchButton.reason ? (
+                  <Text style={styles.batchReason} testID="clock-in-batch-reason">{batchButton.reason}</Text>
+                ) : null}
+              </View>
+            ) : null}
           </Animated.View>
         </View>
       </Modal>
@@ -2073,6 +2285,56 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 </TouchableOpacity>
               </>
             ) : null}
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* UX wave B1: clock out everyone on a job — one confirm that names the
+          count and the time, and lets him adjust the time. */}
+      <Modal visible={batchOutOpen} transparent animationType={fBatchOut.animationType} onRequestClose={() => setBatchOutOpen(false)}>
+        <View style={[styles.modalOverlay, fBatchOut.overlay]}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fBatchOut.card, fBatchOut.cardMotion]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} testID="clock-out-all-title">{batchOutPlan?.title ?? 'Clock out'}</Text>
+              <TouchableOpacity onPress={() => setBatchOutOpen(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>{batchOutPlan?.message ?? ''}</Text>
+            <View style={styles.rateRow}>
+              <Text style={styles.rateTradeLabel}>Out at</Text>
+              <View style={styles.rateInputWrap}>
+                <TextInput
+                  style={styles.rateInput}
+                  value={batchOutText}
+                  onChangeText={setBatchOutText}
+                  placeholder="3:30 pm"
+                  placeholderTextColor={themeColors.textMuted}
+                  autoCapitalize="none"
+                  accessibilityLabel="Clock-out time for everyone"
+                  testID="clock-out-all-time"
+                />
+              </View>
+            </View>
+            <View style={styles.otWeekRow}>
+              <TouchableOpacity onPress={() => setBatchOutText(defaultBatchOutText(Date.now()))} style={styles.alertPickerChip} accessibilityRole="button" testID="clock-out-all-now">
+                <Text style={styles.alertPickerChipText}>Now</Text>
+              </TouchableOpacity>
+            </View>
+            {batchOutPlan?.problem ? (
+              <Text style={[styles.correctNoteHint, { color: themeColors.dangerLabel }]} testID="clock-out-all-problem">{batchOutPlan.problem}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.correctSaveBtn, batchOutPlan?.problem ? { opacity: 0.5 } : null]}
+              onPress={handleBatchClockOut}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !!batchOutPlan?.problem }}
+              testID="clock-out-all-save"
+            >
+              <Check size={16} color={Colors.textOnAccent} strokeWidth={2} />
+              <Text style={styles.correctSaveBtnText}>{batchOutPlan && !batchOutPlan.problem ? `Clock out ${batchOutPlan.targets.length}` : 'Clock out'}</Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
       </Modal>
@@ -2466,6 +2728,29 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   projectPickerLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4, textTransform: 'uppercase' as const },
   projectPickerValue: { fontSize: Type.subhead.fontSize, color: t.text, fontWeight: '600' as const, marginTop: 2 },
+  // UX wave B1 — the crew batch. Theme tokens only; no new surface card.
+  projectPickerChange: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  allCrewChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+    minHeight: 44, paddingHorizontal: 14, marginVertical: 6,
+    borderRadius: Tokens.radius.full, borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt,
+  },
+  allCrewChipOn: { borderColor: t.accent, backgroundColor: t.accentSoft },
+  allCrewChipText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  pickBox: {
+    width: 28, height: 28, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: t.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pickBoxOn: { backgroundColor: t.accentFill, borderColor: t.accentFill },
+  batchFooter: { paddingTop: 12, gap: 6 },
+  batchButton: { marginHorizontal: 0, marginBottom: 0, minHeight: 52 },
+  batchReason: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const },
+  clockOutAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 48, marginHorizontal: 16, marginBottom: 10, paddingHorizontal: 14,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.dangerLabel + '40', backgroundColor: t.bg,
+  },
+  clockOutAllText: { flexShrink: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.dangerLabel },
   projectListWrap: {
     backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,

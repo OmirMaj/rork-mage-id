@@ -29,7 +29,7 @@ import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, FileDown,
-  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp, AlertTriangle, Percent,
+  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp, AlertTriangle, Percent, Send,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { BrainCard } from '@/components/brain/BrainCard';
@@ -85,7 +85,8 @@ import {
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Layout, Tokens } from '@/constants/designTokens';
-import { Button, cardSurface } from '@/components/ui';
+import { Button, cardSurface, Card } from '@/components/ui';
+import { proposalFromCurrentEstimate, sendProposalHref, wizardLandingStep, moneyLabel } from '@/utils/nextBillableMilestone';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -246,6 +247,10 @@ function EstimateWizardScreenInner() {
 
   const [step, setStep] = useState<number>(0);
   const [answers, setAnswers] = useState<WizardAnswers>(INITIAL_SCOPE);
+  // C4 (UX wave): opened for a job whose every required answer is already
+  // known, the wizard lands on "Here's what I know" instead of five Nexts.
+  // Otherwise it lands on the first step that still needs an answer.
+  const [summaryMode, setSummaryMode] = useState(false);
   // Why Next is blocked on this step — set when a blocked Next is tapped,
   // cleared on any input/step change. The button is never a silent dead end.
   const [stepHint, setStepHint] = useState<string | null>(null);
@@ -417,6 +422,18 @@ function EstimateWizardScreenInner() {
   // alone cannot drive the label, so the two are set together.
   const [autoLinkParked, setAutoLinkParked] = useState(false);
 
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  // C4: once per job the wizard is opened for — never again mid-edit.
+  const landedForRef = useRef<string | null>(null);
+  const landOn = (seeded: WizardAnswers) => {
+    if (!scopedProject || landedForRef.current === scopedProject.id) return;
+    landedForRef.current = scopedProject.id;
+    const first = wizardLandingStep(seeded, TOTAL_SCOPE_STEPS, stepCanAdvance);
+    if (first === null) setSummaryMode(true);
+    else setStep(first);
+  };
+
   useEffect(() => {
     if (scopedProject?.scope) {
       // Re-opening the wizard for a project that already has scope stamped:
@@ -424,7 +441,9 @@ function EstimateWizardScreenInner() {
       const { updatedAt: _updatedAt, ...rest } = scopedProject.scope;
       // A saved scope with no type answer opens on the job's own type (Q6).
       const typeSeed = (rest.projectType ?? '').trim() ? rest.projectType : scopeAnswerForProject(scopedProject);
-      setAnswers({ ...INITIAL_SCOPE, ...rest, projectType: typeSeed });
+      const seeded = { ...INITIAL_SCOPE, ...rest, projectType: typeSeed };
+      setAnswers(seeded);
+      landOn(seeded);
     } else if (scopedProject) {
       // First time through the wizard for this project — seed from the Project
       // record so the wizard never re-asks what the project already knows.
@@ -441,14 +460,15 @@ function EstimateWizardScreenInner() {
         : 'standard';
       // Skip 'United States' placeholder — the wizard treats blank as unknown
       const seedLocation = location && location !== 'United States' ? location : '';
-      setAnswers((prev) => ({
-        ...prev,
+      const seedPatch: Partial<WizardAnswers> = {
         ...(seedType ? { projectType: seedType } : {}),
         ...(squareFootage && squareFootage > 0 ? { sizeSqft: String(squareFootage) } : {}),
         quality: seedQuality,
         ...(seedLocation ? { location: seedLocation } : {}),
         ...(description ? { scope: description } : {}),
-      }));
+      };
+      setAnswers((prev) => ({ ...prev, ...seedPatch }));
+      landOn({ ...answersRef.current, ...seedPatch });
     }
   }, [scopedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -758,6 +778,36 @@ function EstimateWizardScreenInner() {
       if (runRef.current === runId) setLoading(false);
     }
   }, [answers, groundingFor, costDb, loading, tier, router, projectId, scopedProject, markupPct, markupDecided, commitAutoLink, settings?.contingencyRate]);
+
+  // C4: a job that already has an estimate is asked before it is replaced.
+  // commitAutoLink keeps the outgoing one as a `pre_overwrite` revision, so
+  // the confirm names where it goes; nothing is generated until he says yes.
+  const existingEstimateTotal = projectId && (scopedProject?.linkedEstimate?.items?.length ?? 0) > 0
+    ? scopedProject!.linkedEstimate!.grandTotal ?? 0
+    : null;
+  const replaceLabel = existingEstimateTotal != null ? `Replace the ${moneyLabel(existingEstimateTotal)} estimate` : null;
+  const generateOrConfirm = useCallback((answersOverride?: WizardAnswers) => {
+    if (existingEstimateTotal == null || costResult) { void generate(answersOverride); return; }
+    showAlert(
+      'Replace this job\'s estimate?',
+      `${scopedProject?.name ?? 'This job'} already has a ${moneyLabel(existingEstimateTotal)} estimate. The new one replaces it on the job; the current one is kept in Revisions.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Replace it', style: 'destructive', onPress: () => { void generate(answersOverride); } },
+      ],
+    );
+  }, [existingEstimateTotal, costResult, generate, scopedProject?.name]);
+
+  // C4: the estimate is on the job — hand him the next document. Snapshot
+  // this estimate as a revision, then open the contract seeded from it.
+  const sendProposal = useCallback((id: string) => {
+    const p = getProject(id);
+    if (!p) return;
+    const { patch, fromRevision } = proposalFromCurrentEstimate(p);
+    if (Object.keys(patch).length > 0) updateProject(id, patch);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(sendProposalHref(id, fromRevision));
+  }, [getProject, updateProject, router]);
 
   // Escape hatch for the loading screen. The in-flight fetch is not aborted
   // (the AbortController is internal to mageAI); bumping runRef orphans it,
@@ -1735,7 +1785,30 @@ function EstimateWizardScreenInner() {
             const parkedProject = (!hasProject && autoLinkParked) ? scopedProject : null;
             return (
           <View style={styles.resultActions}>
-            {hasProject ? (
+            {hasProject && !isOnboarding ? (
+              // C4: the estimate is on the job, so the next document is the
+              // proposal. The job itself stays one tap away underneath.
+              <>
+                <TouchableOpacity
+                  style={styles.resultPrimaryBtn}
+                  onPress={() => sendProposal(attachedId!)}
+                  activeOpacity={0.85}
+                  disabled={sharingPdf}
+                  testID="wizard-send-proposal"
+                >
+                  <Send size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
+                  <Text style={styles.resultPrimaryText} numberOfLines={1}>Send proposal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push({ pathname: '/project-detail', params: { id: attachedId! } })}
+                  style={{ paddingVertical: 10, alignItems: 'center' }}
+                  disabled={sharingPdf}
+                  testID="wizard-view-project"
+                >
+                  <Text style={styles.knownMore} numberOfLines={1}>Saved to {attachedProject.name} — open project</Text>
+                </TouchableOpacity>
+              </>
+            ) : hasProject ? (
               <TouchableOpacity
                 style={styles.resultPrimaryBtn}
                 onPress={() => {
@@ -2114,9 +2187,9 @@ function EstimateWizardScreenInner() {
         <EstimateWizardDesktop
           answers={answers}
           set={set}
-          onGenerate={() => generate()}
+          onGenerate={() => generateOrConfirm()}
           loading={loading}
-          generateLabel={`Generate estimate${freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}`}
+          generateLabel={`${replaceLabel ?? 'Generate estimate'}${freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}`}
           onCancel={() => (isOnboarding ? router.replace('/(tabs)/(home)') : safeBack())}
           cancelLabel="Cancel"
           stepHint={stepHint}
@@ -2126,6 +2199,47 @@ function EstimateWizardScreenInner() {
         />
       ) : (
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        {summaryMode ? (
+          // C4: "Here's what I know" — the job already answered every
+          // required question. Each row reopens its step; one button prices it.
+          <ScrollView
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
+            showsVerticalScrollIndicator={false}
+            testID="wizard-summary"
+          >
+            {!!projectId && voiceBanner}
+            <Text style={styles.knownTitle}>Here&apos;s what I know</Text>
+            <Text style={styles.knownSub}>From {scopedProject?.name ?? 'this job'}. Tap anything to change it.</Text>
+            <Card pad="none">
+              {SCOPE_STEPS.slice(0, 5).map((st, i) => {
+                const raw = String(answers[st.key] ?? '').trim();
+                const value = st.key === 'quality'
+                  ? (raw === 'high_end' ? 'High-end' : raw === 'budget' ? 'Budget' : 'Standard')
+                  : st.key === 'sizeSqft' ? `${raw} sq ft` : raw;
+                return (
+                  <TouchableOpacity
+                    key={st.key}
+                    style={[styles.knownRow, i > 0 && styles.knownRowBorder]}
+                    onPress={() => { setSummaryMode(false); setStep(i); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${st.title} ${value}. Change`}
+                    testID={`wizard-summary-${st.key}`}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.knownLabel}>{st.title}</Text>
+                      <Text style={styles.knownValue} numberOfLines={st.key === 'scope' ? 3 : 1}>{value}</Text>
+                    </View>
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                );
+              })}
+            </Card>
+            <TouchableOpacity onPress={() => { setSummaryMode(false); setStep(FIRST_OPTIONAL_STEP); }} style={{ paddingVertical: 14 }} testID="wizard-summary-more">
+              <Text style={styles.knownMore}>Add timeline, special requirements or a budget (optional)</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        ) : (
+        <>
         <View style={styles.progressWrap}>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: progressWidth }]} />
@@ -2142,6 +2256,8 @@ function EstimateWizardScreenInner() {
           {isOnboarding && onboardingBanner}
           <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
         </ScrollView>
+        </>
+        )}
 
         {stepHint ? (
           <View style={styles.stepHintRow}>
@@ -2151,14 +2267,14 @@ function EstimateWizardScreenInner() {
         {/* The steps the model flags optional are now actually skippable. Before
             this, Generate existed only on the last screen, so "optional" meant
             "you still have to tap Next past it". */}
-        {step >= FIRST_OPTIONAL_STEP && step < TOTAL_STEPS - 1 ? (
+        {!summaryMode && step >= FIRST_OPTIONAL_STEP && step < TOTAL_STEPS - 1 ? (
           <View style={styles.optionalRow}>
             <Text style={styles.optionalText}>
               Everything from here on is optional — it sharpens the number, it is not needed
               for one.
             </Text>
             <TouchableOpacity
-              onPress={() => generate()}
+              onPress={() => generateOrConfirm()}
               disabled={loading}
               style={[styles.optionalBtn, loading && styles.primaryBtnDisabled]}
               activeOpacity={0.85}
@@ -2173,7 +2289,7 @@ function EstimateWizardScreenInner() {
         ) : null}
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
-            onPress={step === 0
+            onPress={step === 0 || summaryMode
               // Cancel on the FIRST question used to land on the paywall: the
               // app asked for $29 having shown the contractor nothing at all.
               // Send him into the app instead; the paywall still owns every
@@ -2185,9 +2301,9 @@ function EstimateWizardScreenInner() {
             testID="wizard-back"
           >
             <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
-            <Text style={styles.secondaryText}>{step === 0 ? 'Cancel' : 'Back'}</Text>
+            <Text style={styles.secondaryText}>{step === 0 || summaryMode ? 'Cancel' : 'Back'}</Text>
           </TouchableOpacity>
-          {step < TOTAL_STEPS - 1 ? (
+          {!summaryMode && step < TOTAL_STEPS - 1 ? (
             <TouchableOpacity
               onPress={() => {
                 if (canAdvance) { next(); return; }
@@ -2205,7 +2321,7 @@ function EstimateWizardScreenInner() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              onPress={() => generate()}
+              onPress={() => generateOrConfirm()}
               disabled={loading}
               style={[styles.primaryBtn, styles.footerBtn, loading && styles.primaryBtnDisabled]}
               activeOpacity={0.85}
@@ -2216,8 +2332,8 @@ function EstimateWizardScreenInner() {
               ) : (
                 <>
                   <MageAIMark size={18} color="#FFF" />
-                  <Text style={styles.primaryText}>
-                    Generate Estimate{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
+                  <Text style={styles.primaryText} numberOfLines={1}>
+                    {replaceLabel ?? 'Generate Estimate'}{freeRunsLabel(freeRunsLeft) ? ` · ${freeRunsLabel(freeRunsLeft)}` : ''}
                   </Text>
                 </>
               )}
@@ -2284,6 +2400,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: themeColors.line,
   },
   secondaryText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  knownTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 4 },
+  knownSub: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginBottom: 14 },
+  knownRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 16, paddingVertical: 14, minHeight: 56 },
+  knownRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: themeColors.line },
+  knownLabel: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  knownValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text, marginTop: 2 },
+  knownMore: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent, textAlign: 'center' as const },
   // Result view
   // Branded ink+amber hero card for the estimate total (matches the client
   // proposal aesthetic). BrandBackdrop fills it, so text is light-on-ink.

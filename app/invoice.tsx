@@ -121,6 +121,10 @@ import { unsavedWriteIds, unsavedPaymentAppends, requestSyncSheet, hasUnsavedCha
 import { pendingIdsForTable } from '@/utils/projectContextPure';
 import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
 import { remindInvoice } from '@/utils/remindInvoice';
+import { REMIND_QBO_CLOSED_TITLE, REMIND_QBO_CONFIRM_LABEL, qboClosedConfirmMessage } from '@/utils/remindInvoice';
+import { resolveClientContact } from '@/utils/clientContact';
+import { overdueCardLine } from '@/utils/nextBillableMilestone';
+import { Card } from '@/components/ui/Card';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
 import { qboClosedFlagOf, qboClosedFlagAlertReason } from '@/utils/qboClosedFlag';
@@ -1093,10 +1097,21 @@ function InvoiceInner() {
     return { ok: true, url: res.url, id: res.id };
   }, [resolveStripeAccountId, serverPaymentPending, project?.name, settings.branding?.companyName, tier, updateInvoice, pendingBankMintBlock, existingInvoice?.id]);
 
+  // C2 (UX wave): a new invoice is billed to the job's client when nothing
+  // else names one. Server reminders read bill_to_email, then portal
+  // invites — never primary_contact — so without this seed a client who is
+  // only on the job's contact never gets a reminder. Never invented: no
+  // usable email on file, no bill-to (the Send sheet still asks).
+  const clientBillTo = useMemo<InvoiceBillTo>(() => {
+    const c = resolveClientContact(project, { need: 'email' });
+    return c?.email ? { billToEmail: c.email, ...(c.name ? { billToName: c.name } : {}) } : {};
+  }, [project]);
+
   const buildNewInvoice = useCallback((status: 'draft' | 'sent'): Invoice => {
     const now = new Date().toISOString();
     const dueDate = getDueDate(now, paymentTerms);
-    return {
+    const built: Invoice & InvoiceBillTo = {
+      ...clientBillTo,
       id: createId('inv'),
       number: nextInvoiceNumber,
       projectId: projectId as string,
@@ -1132,7 +1147,8 @@ function InvoiceInner() {
       createdAt: now,
       updatedAt: now,
     };
-  }, [projectId, nextInvoiceNumber, isProgressType, pctValue, paymentTerms, notes, lineItems, subtotal, taxRate, taxAmount, totalDue, retentionPctValue, retentionAmount, milestoneId, contractId]);
+    return built;
+  }, [projectId, nextInvoiceNumber, isProgressType, pctValue, paymentTerms, notes, lineItems, subtotal, taxRate, taxAmount, totalDue, retentionPctValue, retentionAmount, milestoneId, contractId, clientBillTo]);
 
   /**
    * Flip the source milestone to 'invoiced' — called ONLY after addInvoice()
@@ -1280,12 +1296,16 @@ function InvoiceInner() {
     if (!opening || sendRecipientEmail.trim()) return;
     const billTo = existingInvoice as (Invoice & InvoiceBillTo) | null | undefined;
     const invite = (project?.clientPortal?.invites ?? []).find(i => (i.email ?? '').includes('@'));
-    const email = reminderRecipient(billTo?.billToEmail, invite ? [invite] : []);
+    const email = reminderRecipient(billTo?.billToEmail, invite ? [invite] : []) ?? clientBillTo.billToEmail ?? null;
+    // C2: …then the job's client (primaryContact), so a client entered once on
+    // the job is the default here too. Never invented: none → blank.
     if (!email) return;
     setSendRecipientEmail(email);
-    const name = billTo?.billToEmail?.trim() === email ? billTo?.billToName : invite?.name;
+    const name = billTo?.billToEmail?.trim() === email ? billTo?.billToName
+      : invite?.email?.trim() === email ? invite?.name
+        : clientBillTo.billToName;
     if (name && !sendRecipientName.trim()) setSendRecipientName(name);
-  }, [showSendRecipient, sendRecipientEmail, sendRecipientName, existingInvoice, project?.clientPortal?.invites]);
+  }, [showSendRecipient, sendRecipientEmail, sendRecipientName, existingInvoice, project?.clientPortal?.invites, clientBillTo]);
 
   // Sample job: the sheet's recipient is HIS OWN email, read-only, and the
   // portal post is off (and hidden). Re-asserted every time the sheet opens —
@@ -2815,7 +2835,15 @@ function InvoiceInner() {
           <TutorialOfferChip tutorialId="invoice-to-self" projectId={projectId} screenOpened={!existingInvoice} midDraft={percentTouched} />
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>
-              {isProgressType ? 'Progress Bill' : 'Full Invoice'} #{nextInvoiceNumber}
+              {/* C3 (UX wave): "Progress draw" is the create menu's word. A
+                  NEW bill opened from the contract's deposit or final
+                  milestone says so; the trigger is a route param only, so a
+                  saved invoice (reopened from any list) reads "Full Invoice"
+                  rather than guess its kind. */}
+              {isProgressType ? 'Progress draw'
+                : !existingInvoice && milestoneTrigger === 'on_final' ? 'Final bill'
+                  : !existingInvoice && milestoneTrigger === 'on_signing' ? 'Deposit bill'
+                    : 'Full Invoice'} #{nextInvoiceNumber}
             </Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             {existingInvoice && statusColor && (
@@ -2870,6 +2898,52 @@ function InvoiceInner() {
                 }
               />
             </View>
+          )}
+
+          {/* C2 (UX wave): an overdue invoice opens on what to do about it —
+              above the line items, not four cards down. Both buttons are the
+              screen's own paths: the reminder runs handleSendReminder behind
+              the same QuickBooks question and eligibility as the reminder
+              card's button, and Record payment is openRecordPayment. */}
+          {existingInvoice && effectiveStatus === 'overdue' && (
+            <Card style={styles.overdueTopCard} testID="invoice-overdue-card">
+              <Text style={[styles.overdueTopTitle, { color: themeColors.dangerLabel }]}>
+                {overdueCardLine(daysPastDue, reminderState?.lastMs)}
+              </Text>
+              <Text style={[styles.overdueTopSub, { color: themeColors.textSecondary }]}>
+                {`${formatMoney(balanceDue, 2)} still owed on this invoice`}
+              </Text>
+              <View style={styles.overdueTopRow}>
+                <Button
+                  label={sendingReminder ? 'Sending…' : 'Send reminder'}
+                  onPress={() => {
+                    if (!qboClosedFlag) { void handleSendReminder(); return; }
+                    showAlert(REMIND_QBO_CLOSED_TITLE, qboClosedConfirmMessage(qboClosedFlag), [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: REMIND_QBO_CONFIRM_LABEL, onPress: () => { void handleSendReminder(); } },
+                    ]);
+                  }}
+                  disabled={!reminderState?.eligibility.eligible || sendingReminder || isSampleJob}
+                  loading={sendingReminder}
+                  containerStyle={{ flex: 1 }}
+                  testID="invoice-overdue-remind"
+                />
+                {canRecordPayment && (
+                  <Button
+                    label="Record payment"
+                    variant="secondary"
+                    onPress={openRecordPayment}
+                    containerStyle={{ flex: 1 }}
+                    testID="invoice-overdue-record-payment"
+                  />
+                )}
+              </View>
+              {reminderState && !reminderState.eligibility.eligible && reminderState.eligibility.reason ? (
+                <Text style={[styles.overdueTopSub, { color: themeColors.textMuted }]}>
+                  {reminderBlockMessage(reminderState.eligibility.reason, reminderState.lastMs, reminderState.nowMs)}
+                </Text>
+              ) : null}
+            </Card>
           )}
 
           {isProgressType && !isLocked && !anyPreScaledLine && (
@@ -4377,4 +4451,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   reminderBtnDisabled: { opacity: 0.45 },
   reminderBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  overdueTopCard: { marginHorizontal: 20, marginTop: 12, gap: 8 },
+  overdueTopTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
+  overdueTopSub: { fontSize: Type.footnote.fontSize, lineHeight: 18 },
+  overdueTopRow: { flexDirection: 'row' as const, gap: 10, marginTop: 4 },
 });

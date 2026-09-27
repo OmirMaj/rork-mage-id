@@ -43,6 +43,7 @@ import { useSidebarRail } from '@/hooks/useSidebarRail';
 import { webMotion } from '@/components/ui/motion';
 import { useJobRowCounts } from '@/hooks/useJobRowCounts';
 import type { CountedRow, RowCount } from '@/utils/sidebarCounts';
+import { combineRowCounts } from '@/utils/uxDoors';
 import { RailHoverPill, RAIL, RAIL_PILL_HEIGHT, RAIL_PILL_LEFT } from '@/components/sidebar/RailHoverPill';
 import { SidebarActionRequiredRow } from '@/components/sidebar/SidebarActionRequiredRow';
 import { useAskDock } from '@/hooks/useAskDock';
@@ -129,16 +130,25 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   // ── THIS JOB — the daily tools, always expanded. Overview is rendered
   //    separately (it needs the job, and has no registry row).
-  { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        jobRoute: '/(tabs)/schedule', section: 'THIS JOB', feature: 'schedule' },
-  { key: 'daily-report',      label: 'Daily Reports',    icon: MageDailyReport, route: '/daily-report',                     section: 'THIS JOB', feature: 'daily-report' },
-  { key: 'rfi',               label: 'RFIs',             icon: MageRFI,         route: '/rfi',                              section: 'THIS JOB', feature: 'rfi' },
-  { key: 'submittal',         label: 'Submittals',       icon: MageSubmittal,   route: '/submittal',                        section: 'THIS JOB', feature: 'submittal' },
+  //    UX wave, Lane D (D6): ordered the way a small GC's job runs — price
+  //    it, sign it, change it, bill it, then the field — Estimate, Proposal &
+  //    contract, Change Orders, Invoices, Daily Reports, Schedule, Punch
+  //    List. RFIs and Submittals moved to "More for this job" (DOCUMENTS),
+  //    and their live counts came with them: the toggle carries them while
+  //    it is shut, so an overdue RFI is never hidden behind the fold.
+  { key: 'estimate',          label: 'Estimate',         icon: MageEstimate,    route: '/(tabs)/discover/estimate',        jobRoute: '/(tabs)/estimate/full', section: 'THIS JOB', feature: 'estimate' },
+  { key: 'contract',          label: 'Proposal & contract', icon: MageContract, route: '/contract',                         section: 'THIS JOB', feature: 'contract' },
   { key: 'change-order',      label: 'Change Orders',    icon: MageChangeOrder, route: '/change-order',                     section: 'THIS JOB', feature: 'change-order' },
   { key: 'invoice',           label: 'Invoices',         icon: MageInvoice,     route: '/invoice',                          section: 'THIS JOB', feature: 'invoice' },
+  { key: 'daily-report',      label: 'Daily Reports',    icon: MageDailyReport, route: '/daily-report',                     section: 'THIS JOB', feature: 'daily-report' },
+  { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        jobRoute: '/(tabs)/schedule', section: 'THIS JOB', feature: 'schedule' },
   { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'THIS JOB', feature: 'punch-list' },
 
+  // ── More for this job — DOCUMENTS (the two counted logs that left THIS JOB)
+  { key: 'rfi',               label: 'RFIs',             icon: MageRFI,         route: '/rfi',                              section: 'DOCUMENTS', feature: 'rfi' },
+  { key: 'submittal',         label: 'Submittals',       icon: MageSubmittal,   route: '/submittal',                        section: 'DOCUMENTS', feature: 'submittal' },
+
   // ── More for this job — PLANNING
-  { key: 'estimate',          label: 'Estimate',         icon: MageEstimate,    route: '/(tabs)/discover/estimate',        section: 'PLANNING', feature: 'estimate' },
   { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'PLANNING', feature: 'last-planner' },
   { key: 'plans',             label: 'Plans',            icon: MagePlans,       route: '/plans',                            section: 'PLANNING', feature: 'plans' },
   // Ask-your-plans conversational plan search. The gate is ai_estimate_wizard
@@ -175,7 +185,6 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── More for this job — CLIENT
   { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT', feature: 'client-portal' },
-  { key: 'contract',          label: 'Contracts',        icon: MageContract,    route: '/contract',                         section: 'CLIENT', feature: 'contract' },
   // Good/better/best proposals. Its only other inbound link is a tile in
   // app/(tabs)/discover/tools.tsx, which is phone-only, so without this row a
   // paid feature was click-unreachable on the laptop where proposals get written.
@@ -258,7 +267,10 @@ const NAV_ITEMS: NavItem[] = [
 const JOB_SECTION = 'THIS JOB';
 /** The rest of the project tools, behind one saved "More for this job" toggle,
  *  sub-labelled so eight-plus rows stay scannable. */
-const MORE_JOB_SECTIONS = ['PLANNING', 'FIELD OPS', 'FINANCIALS', 'CLIENT'];
+const MORE_JOB_SECTIONS = ['DOCUMENTS', 'PLANNING', 'FIELD OPS', 'FINANCIALS', 'CLIENT'];
+/** The "More for this job" sub-section whose rows carry live counts (D6). The
+ *  collapsed rail shows these two squares only while one carries a count. */
+const COUNTED_MORE_SECTION = 'DOCUMENTS';
 const MORE_TOGGLE = 'MORE FOR THIS JOB';
 /** Always expanded. */
 const WORKSPACE_SECTION = 'WORKSPACE';
@@ -729,7 +741,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   // one chevron that rotates; an untouched one — the rail at rest, every
   // golden — keeps today's Down/Right pair exactly.
   const touchedToggles = useRef(new Set<string>());
-  const renderToggle = (toggle: string, label: string, open: boolean, members: readonly string[]) => (
+  const renderToggle = (toggle: string, label: string, open: boolean, members: readonly string[], count?: RowCount) => (
     <Pressable
       style={styles.sectionHeader}
       onPress={() => {
@@ -742,11 +754,17 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         }
       }}
       accessibilityRole="button"
-      accessibilityLabel={`${label}, ${open ? 'expanded' : 'collapsed'}`}
+      accessibilityLabel={`${label}, ${open ? 'expanded' : 'collapsed'}${count ? `, ${count.label}` : ''}`}
       accessibilityState={{ expanded: open }}
       testID={`sidebar-section-${toggle}`}
     >
       <Text style={styles.sectionLabel}>{label}</Text>
+      {count ? (
+        <View style={[styles.countPill, styles.toggleCountPill]} testID={`sidebar-section-count-${toggle}`}>
+          {count.alert > 0 ? <View style={[styles.countDot, { backgroundColor: colors.danger }]} testID={`sidebar-section-count-dot-${toggle}`} /> : null}
+          <Text style={styles.countPillLabel}>{count.pill}</Text>
+        </View>
+      ) : null}
       {touchedToggles.current.has(toggle) ? (
         <View style={[{ transform: [{ rotate: open ? '0deg' : '-90deg' }] }, webMotion('rotateGlide')]}>
           <ChevronDown size={13} color={RAIL.muted} strokeWidth={2} />
@@ -769,9 +787,11 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       activeJob={!!jobId}
       // "Project" opens Home's own create sheet (?openCreate=1, consumed by
       // app/(tabs)/(home)/index.tsx) — one create-project flow, not two.
-      onCreateProject={() => {
+      // UX wave D1: "+ New job" under Estimate / Schedule adds then=…, and
+      // Home opens that wizard for the new job once it exists.
+      onCreateProject={(then) => {
         setCreateOpen(false);
-        router.push(routeHref('/(tabs)/(home)', { openCreate: '1' }));
+        router.push(routeHref('/(tabs)/(home)', then ? { openCreate: '1', then } : { openCreate: '1' }));
       }}
     />
   );
@@ -862,7 +882,17 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                 </RailTip>
               ) : null}
               <JobRowCounts jobId={jobId}>
-                {counts => itemsIn(JOB_SECTION).map(item => renderRailItem(item, countOf(counts, item.key)))}
+                {counts => (
+                  <>
+                    {itemsIn(JOB_SECTION).map(item => renderRailItem(item, countOf(counts, item.key)))}
+                    {/* D6: RFIs / Submittals left THIS JOB; on the rail their
+                        square returns while it carries a count, so an overdue
+                        RFI keeps its red dot here too. */}
+                    {itemsIn(COUNTED_MORE_SECTION)
+                      .filter(item => countOf(counts, item.key) !== undefined)
+                      .map(item => renderRailItem(item, countOf(counts, item.key)))}
+                  </>
+                )}
               </JobRowCounts>
               <View style={styles.railDivider} />
               {itemsIn(WORKSPACE_SECTION).map(item => renderRailItem(item))}
@@ -1007,16 +1037,23 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                   )}
                 </RowLink>
               ) : null}
+              {/* D6: one count read feeds THIS JOB, the toggle and the
+                  DOCUMENTS rows behind it (RFIs, Submittals). */}
               <JobRowCounts jobId={jobId}>
-                {counts => itemsIn(JOB_SECTION).map(item => renderNavItem(item, false, countOf(counts, item.key)))}
+                {counts => (
+                  <>
+                    {itemsIn(JOB_SECTION).map(item => renderNavItem(item, false, countOf(counts, item.key)))}
+                    {renderToggle(MORE_TOGGLE, 'More for this job', moreOpen, MORE_JOB_SECTIONS,
+                      moreOpen ? undefined : combineRowCounts(itemsIn(COUNTED_MORE_SECTION).map(item => countOf(counts, item.key)), itemsIn(COUNTED_MORE_SECTION).map(item => item.label)))}
+                    {moreOpen && MORE_JOB_SECTIONS.map(sub => (
+                      <View key={sub} style={styles.subGroup}>
+                        <Text style={styles.subLabel}>{sub}</Text>
+                        {itemsIn(sub).map(item => renderNavItem(item, false, sub === COUNTED_MORE_SECTION ? countOf(counts, item.key) : undefined))}
+                      </View>
+                    ))}
+                  </>
+                )}
               </JobRowCounts>
-              {renderToggle(MORE_TOGGLE, 'More for this job', moreOpen, MORE_JOB_SECTIONS)}
-              {moreOpen && MORE_JOB_SECTIONS.map(sub => (
-                <View key={sub} style={styles.subGroup}>
-                  <Text style={styles.subLabel}>{sub}</Text>
-                  {itemsIn(sub).map(item => renderNavItem(item))}
-                </View>
-              ))}
             </View>
 
             <View style={styles.navSection}>
@@ -1340,6 +1377,8 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
+  // D6: the same pill on the "More for this job" toggle, clear of its chevron.
+  toggleCountPill: { marginRight: 6 },
   countPillLabel: {
     fontSize: 10,
     fontWeight: '600' as const,
