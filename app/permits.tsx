@@ -1921,7 +1921,7 @@ function PermitsScreenInner({ scopedProjectId }: { scopedProjectId?: string }) {
  * Fill + foreground for an inspection-result chip.
  *
  * Soft fill with the SATURATED-label foreground in every case, never white on
- * the brand orange (#FF6A1A behind white is 2.87:1 and fails AA). `dangerLabel`
+ * a saturated fill (the retired brand orange gave white 2.87:1). `dangerLabel`
  * / `accentLabel` are the tokens that exist precisely so coloured text on a
  * light wash clears the ratio.
  */

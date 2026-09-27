@@ -128,17 +128,19 @@ export const STATUS_KEYS: readonly TaskStatus[] = [
  * `labelOn` measures both candidates and returns the winner, so it is never
  * worse. Re-measured over the fills InteractiveGantt actually hands it — the
  * theme's success/info, `Colors.statusFills` and `Colors.tradeColors` — it
- * flips four and improves all four: statusFills.not_started #8E9299 3.12→4.70,
- * tradeColors.roofing 3.49→4.21, tradeColors.closeout 3.45→4.25, and the brand
- * amber #FF6A1A — `tradeColors.general`, the fill every un-inferred task lands
- * on in trade mode — 2.87→5.12. That last one is the visible change: a
- * `general` bar's label goes from white to the near-black ink, which is the
- * same trade founder-decision #1 makes everywhere else (keep the hue, fix the
- * type on it).
+ * flipped three and improved all three: statusFills.not_started #8E9299
+ * 3.12→4.70, tradeColors.roofing 3.49→4.21, tradeColors.closeout 3.45→4.25.
+ * (It also flipped the retired brand orange, `tradeColors.general` until the
+ * 2026-09-16 rebrand, from white 2.87 to ink 5.12.)
  *
- * Three fills still cannot clear AA in EITHER colour and no label picker can
- * fix them — statusFills.in_progress #007AFF tops out at 4.02:1, roofing at
- * 4.21 and closeout at 4.25. That is a fill-value problem in
+ * `general` is now the brand-family green #3E8A4B, the fill every un-inferred
+ * task lands on in trade mode. It goes the OTHER way: white measures 4.25:1 on
+ * it and the ink #1F2937 only 3.45:1, so the picker keeps white — the better
+ * of two sub-AA answers.
+ *
+ * So four fills cannot clear AA in EITHER colour and no label picker can fix
+ * them — statusFills.in_progress #007AFF tops out at 4.02:1, roofing at 4.21,
+ * general at 4.25 and closeout at 4.25. That is a fill-value problem in
  * constants/colors.ts, and validate-contrast check 15b records it rather than
  * pretending the palette passes.
  *

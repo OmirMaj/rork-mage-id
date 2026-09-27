@@ -5,8 +5,9 @@
 // they came from the same business. One place for the palette, type,
 // scaffolding, header + footer, stat cards, and money/date formatting.
 //
-// Mirrors the marketing-site palette (ink + amber + cream + Fraunces
-// hero / system body) so the PDFs match what clients see in the portal.
+// Mirrors the brand system (ink + equipment green + concrete + Barlow display /
+// system body — the 2026-09-16 rebrand, which retired orange on cream with a
+// Fraunces serif) so the PDFs match what clients see in the portal.
 //
 // Renderers should compose `pdfShell({ title, eyebrow, bodyHtml, branding })`
 // with their own bodyHtml — that gets the consistent header (logo + company
@@ -14,27 +15,67 @@
 
 import type { CompanyBranding } from '@/types';
 
+// LITERALS, not constants/colors.ts tokens: a PDF is printed and emailed to a
+// client, so it has no theme, no dark mode and must not follow the GC's
+// user-picked app hue. Values are the rebrand system's own, pinned.
+const BRAND = '#2F6B3A';          // BRAND_ACCENT — 6.39:1 on white, 5.44:1 on concrete
+const CONCRETE = '#ECEDE9';       // the light ground (was cream #F4EFE6)
+const SURFACE_ALT = '#E2E4DF';    // surface alt (was bone2 #F1EAD9)
+const HAIRLINE = '#D7DAD4';       // borders (was bone #E8DFCD)
+
 export const PDF_PALETTE = {
   ink: '#0B0D10',
   ink2: '#1A1D22',
-  amber: '#FF6A1A',
-  amberDark: '#E5570F',
-  amberTint: '#FFF1E6',
-  cream: '#F4EFE6',
-  cream2: '#FAF7F0',
+  brand: BRAND,
+  // Brand as emphasised TEXT on a tint or wash — 7.46:1 on brandTint.
+  brandDark: '#24562E',
+  // ~10% brand over white, for callouts.
+  brandTint: '#E9F1EA',
+  // Brand on the INK ground (monogram, eyebrow pill). #2F6B3A is 3.04:1 on
+  // ink; #5DB36E is 7.54:1 — the founder's "logo ID on a dark ground" value.
+  brandOnInk: '#5DB36E',
+  ground: CONCRETE,
+  // Concrete halfway to white — print washes (stat cards, zebra rows) that
+  // must not eat toner or out-shout the table they sit behind.
+  ground2: '#F6F6F4',
   surface: '#FFFFFF',
-  bone: '#E8DFCD',
-  bone2: '#F1EAD9',
+  hairline: HAIRLINE,
+  hairline2: SURFACE_ALT,
   text: '#0B0D10',
   text2: '#4A5159',
   textMuted: '#8B9099',
-  success: '#1E8E4A',
-  successTint: '#E8F5ED',
+  // SUCCESS IS TEAL, not green: green is the brand now, and the old #1E8E4A
+  // sat within ΔE ~10 of it — a "Paid in full" line would read as brand
+  // chrome. #026354 is Colors.successDark, 7.20:1 on white.
+  success: '#026354',
+  successTint: '#E3F1EE',
   warning: '#C26A00',
+  // Warning as small TEXT. `warning` above is 3.92:1 on white (a fill/accent
+  // value); #B84A00 is the app's light warningLabel, 5.23:1.
+  warningInk: '#B84A00',
   warningTint: '#FFF4E0',
   error: '#C0392B',
   errorTint: '#FBEAE7',
+
+  // ── Legacy names ──────────────────────────────────────────────────────
+  // The pre-rebrand keys, kept as ALIASES so the other PDF builders
+  // (closeoutBinderEngine, financialReportPdf, lienWaiverDocument,
+  // purchaseOrderPdf) recolour with this file instead of breaking or staying
+  // orange. New code reads the names above. `amberDark` was used for brand
+  // emphasis in the stat grid, so it maps to brandDark, not the warning ink.
+  amber: BRAND,
+  amberDark: '#24562E',
+  amberTint: '#E9F1EA',
+  cream: CONCRETE,
+  cream2: '#F6F6F4',
+  bone: HAIRLINE,
+  bone2: SURFACE_ALT,
 };
+
+/** The PDF display face. Barlow is loaded by pdfShell's <link>; the fallback
+ *  is a plain grotesque, never a serif — the serif display was half of the
+ *  look the 2026-09-16 rebrand retired. */
+export const PDF_FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 export function escHtml(text: string | number | null | undefined): string {
   if (text == null) return '';
@@ -88,11 +129,11 @@ export function fmtDateShort(iso: string | null | undefined): string {
 
 // Header block — logo (or M monogram fallback) + company name + tagline +
 // contact strip (contact, phone, email, license) wrapped in a centered
-// hero rule. Inverts black-on-cream so the brand reads loud.
+// hero rule.
 export function pdfHeader(branding: CompanyBranding): string {
   const logo = branding.logoUri
     ? `<img src="${escHtml(branding.logoUri)}" alt="" style="max-height:46px;max-width:200px;object-fit:contain;margin-bottom:8px" />`
-    : `<div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:11px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.amber};font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:22px;margin-bottom:8px">${escHtml((branding.companyName || 'M').charAt(0).toUpperCase())}</div>`;
+    : `<div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:11px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.brandOnInk};font-family:${PDF_FONT_DISPLAY};font-weight:800;font-size:22px;margin-bottom:8px">${escHtml((branding.companyName || 'M').charAt(0).toUpperCase())}</div>`;
 
   const contactBits = [
     branding.contactName ? `<span><strong>${escHtml(branding.contactName)}</strong></span>` : '',
@@ -101,65 +142,71 @@ export function pdfHeader(branding: CompanyBranding): string {
     branding.licenseNumber ? `<span>License ${escHtml(branding.licenseNumber)}</span>` : '',
   ].filter(Boolean).join(' &middot; ');
 
-  return `<div style="text-align:center;padding:0 0 24px;border-bottom:1px solid ${PDF_PALETTE.bone};margin-bottom:32px">
+  return `<div style="text-align:center;padding:0 0 24px;border-bottom:1px solid ${PDF_PALETTE.hairline};margin-bottom:32px">
     ${logo}
-    <div style="font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:700;letter-spacing:-0.018em;color:${PDF_PALETTE.text}">${escHtml(branding.companyName || 'MAGE ID')}</div>
+    <div style="font-family:${PDF_FONT_DISPLAY};font-size:24px;font-weight:700;letter-spacing:-0.018em;color:${PDF_PALETTE.text}">${escHtml(branding.companyName || 'MAGE ID')}</div>
     ${branding.tagline ? `<div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:4px;font-style:italic">${escHtml(branding.tagline)}</div>` : ''}
     ${branding.address ? `<div style="font-size:11px;color:${PDF_PALETTE.textMuted};margin-top:6px">${escHtml(branding.address)}</div>` : ''}
     ${contactBits ? `<div style="font-size:11px;color:${PDF_PALETTE.text2};margin-top:6px">${contactBits}</div>` : ''}
   </div>`;
 }
 
-// Title block — eyebrow (uppercase amber pill), big serif title, optional
+// Title block — eyebrow (uppercase green-on-ink pill), big display title, optional
 // subtitle. Sits below the header.
 export function pdfTitle(opts: { eyebrow?: string; title: string; subtitle?: string; meta?: { label: string; value: string }[] }): string {
   const eyebrowHtml = opts.eyebrow
-    ? `<div style="display:inline-block;padding:5px 12px;border-radius:999px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.amber};font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:12px">${escHtml(opts.eyebrow)}</div>`
+    ? `<div style="display:inline-block;padding:5px 12px;border-radius:999px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.brandOnInk};font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:12px">${escHtml(opts.eyebrow)}</div>`
     : '';
   const subtitleHtml = opts.subtitle
     ? `<div style="font-size:13px;color:${PDF_PALETTE.text2};margin-top:6px">${escHtml(opts.subtitle)}</div>`
     : '';
   const metaHtml = opts.meta && opts.meta.length
-    ? `<div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:14px;padding-top:14px;border-top:1px solid ${PDF_PALETTE.bone2}">${opts.meta.map(m => `<div><div style="font-size:9px;color:${PDF_PALETTE.textMuted};font-weight:700;letter-spacing:1px;text-transform:uppercase">${escHtml(m.label)}</div><div style="font-size:13px;font-weight:700;color:${PDF_PALETTE.text};margin-top:2px">${escHtml(m.value)}</div></div>`).join('')}</div>`
+    ? `<div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:14px;padding-top:14px;border-top:1px solid ${PDF_PALETTE.hairline2}">${opts.meta.map(m => `<div><div style="font-size:9px;color:${PDF_PALETTE.textMuted};font-weight:700;letter-spacing:1px;text-transform:uppercase">${escHtml(m.label)}</div><div style="font-size:13px;font-weight:700;color:${PDF_PALETTE.text};margin-top:2px">${escHtml(m.value)}</div></div>`).join('')}</div>`
     : '';
   return `<div style="margin-bottom:28px">
     ${eyebrowHtml}
-    <h1 style="font-family:'Fraunces',Georgia,serif;font-size:28px;font-weight:700;line-height:1.15;letter-spacing:-0.02em;color:${PDF_PALETTE.text};margin:0">${escHtml(opts.title)}</h1>
+    <h1 style="font-family:${PDF_FONT_DISPLAY};font-size:28px;font-weight:700;line-height:1.15;letter-spacing:-0.02em;color:${PDF_PALETTE.text};margin:0">${escHtml(opts.title)}</h1>
     ${subtitleHtml}
     ${metaHtml}
   </div>`;
 }
 
 // Stat card grid — used for AIA totals, project KPIs, etc. Each card
-// has an uppercase label + serif value.
-export function pdfStatGrid(stats: { label: string; value: string; accent?: 'amber' | 'success' | 'error' }[]): string {
-  const tint = (a?: string) => a === 'amber' ? PDF_PALETTE.amberDark
+// has an uppercase label + display value. 'amber' is the legacy spelling of
+// 'brand' and renders identically.
+export function pdfStatGrid(stats: { label: string; value: string; accent?: 'brand' | 'amber' | 'success' | 'error' }[]): string {
+  const tint = (a?: string) => a === 'brand' || a === 'amber' ? PDF_PALETTE.brandDark
     : a === 'success' ? PDF_PALETTE.success
     : a === 'error' ? PDF_PALETTE.error
     : PDF_PALETTE.text;
   return `<table style="width:100%;border-collapse:separate;border-spacing:8px 0;margin-bottom:24px;table-layout:fixed">
-    <tr>${stats.map(s => `<td style="background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone2};border-radius:12px;padding:14px 16px;vertical-align:top">
+    <tr>${stats.map(s => `<td style="background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline2};border-radius:12px;padding:14px 16px;vertical-align:top">
       <div style="font-size:9px;color:${PDF_PALETTE.textMuted};font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${escHtml(s.label)}</div>
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;letter-spacing:-0.012em;color:${tint(s.accent)}">${escHtml(s.value)}</div>
+      <div style="font-family:${PDF_FONT_DISPLAY};font-size:18px;font-weight:700;letter-spacing:-0.012em;color:${tint(s.accent)}">${escHtml(s.value)}</div>
     </td>`).join('')}</tr>
   </table>`;
 }
 
 // Section header — used between blocks within a PDF body.
 export function pdfSectionHeader(label: string): string {
-  return `<div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;letter-spacing:-0.01em;color:${PDF_PALETTE.text};margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(label)}</div>`;
+  return `<div style="font-family:${PDF_FONT_DISPLAY};font-size:16px;font-weight:700;letter-spacing:-0.01em;color:${PDF_PALETTE.text};margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.hairline2}">${escHtml(label)}</div>`;
 }
 
 // Pill — for status badges in the body (Approved / Pending / etc.)
-export function pdfPill(label: string, kind: 'success' | 'warning' | 'error' | 'amber' | 'muted' = 'muted'): string {
+// 'amber' is the legacy spelling of 'brand'. A success pill prefixes a check
+// so the state is never carried by the teal alone.
+export function pdfPill(label: string, kind: 'success' | 'warning' | 'error' | 'brand' | 'amber' | 'muted' = 'muted'): string {
+  const brand = { bg: PDF_PALETTE.brandTint, fg: PDF_PALETTE.brandDark };
   const palette = {
     success: { bg: PDF_PALETTE.successTint, fg: PDF_PALETTE.success },
-    warning: { bg: PDF_PALETTE.warningTint, fg: PDF_PALETTE.warning },
+    warning: { bg: PDF_PALETTE.warningTint, fg: PDF_PALETTE.warningInk },
     error: { bg: PDF_PALETTE.errorTint, fg: PDF_PALETTE.error },
-    amber: { bg: PDF_PALETTE.amberTint, fg: PDF_PALETTE.amberDark },
-    muted: { bg: PDF_PALETTE.bone2, fg: PDF_PALETTE.text2 },
+    brand,
+    amber: brand,
+    muted: { bg: PDF_PALETTE.hairline2, fg: PDF_PALETTE.text2 },
   }[kind];
-  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${palette.bg};color:${palette.fg};font-size:10px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase">${escHtml(label)}</span>`;
+  const text = kind === 'success' ? `&#10003;&nbsp;${escHtml(label)}` : escHtml(label);
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${palette.bg};color:${palette.fg};font-size:10px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase">${text}</span>`;
 }
 
 // Footer — branded sign-off. Always present, so PDFs feel finished.
@@ -167,7 +214,7 @@ export function pdfPill(label: string, kind: 'success' | 'warning' | 'error' | '
 // strip — see PDF_DISCLAIMERS for the per-document copy we use.
 export function pdfFooter(branding: CompanyBranding, extra?: string, disclaimer?: string): string {
   const company = branding.companyName || 'MAGE ID';
-  return `<div style="margin-top:40px;padding-top:16px;border-top:1px solid ${PDF_PALETTE.bone};text-align:center;font-size:10px;color:${PDF_PALETTE.textMuted};line-height:1.6">
+  return `<div style="margin-top:40px;padding-top:16px;border-top:1px solid ${PDF_PALETTE.hairline};text-align:center;font-size:10px;color:${PDF_PALETTE.textMuted};line-height:1.6">
     ${disclaimer ? `<div style="margin-bottom:8px;font-style:italic;font-size:9.5px;color:${PDF_PALETTE.textMuted};max-width:520px;margin-left:auto;margin-right:auto">${escHtml(disclaimer)}</div>` : ''}
     ${extra ? `<div style="margin-bottom:6px">${extra}</div>` : ''}
     <div>${escHtml(company)} &middot; Built with <span style="color:${PDF_PALETTE.text};font-weight:600">MAGE ID</span> &middot; mageid.app</div>
@@ -228,7 +275,7 @@ export function pdfShell(opts: {
 <head>
 <meta charset="utf-8" />
 <title>${escHtml(opts.title)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -257,17 +304,17 @@ ${opts.bodyHtml}
 }
 
 // Generic helper for tables that show line items / SOV / etc.
-// Pass column defs and rows; produces a clean ink-on-cream table.
+// Pass column defs and rows; produces a clean ink-on-concrete table.
 export interface TableColumn {
   header: string;
   align?: 'left' | 'right' | 'center';
   width?: string;
 }
 export function pdfTable(columns: TableColumn[], rows: string[][]): string {
-  const headHtml = columns.map(c => `<th style="text-align:${c.align ?? 'left'};font-size:9px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${PDF_PALETTE.textMuted};padding:10px 8px;border-bottom:2px solid ${PDF_PALETTE.bone};${c.width ? `width:${c.width};` : ''}">${escHtml(c.header)}</th>`).join('');
+  const headHtml = columns.map(c => `<th style="text-align:${c.align ?? 'left'};font-size:9px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${PDF_PALETTE.textMuted};padding:10px 8px;border-bottom:2px solid ${PDF_PALETTE.hairline};${c.width ? `width:${c.width};` : ''}">${escHtml(c.header)}</th>`).join('');
   const bodyHtml = rows.map((row, ri) => {
-    const cells = row.map((cell, ci) => `<td style="text-align:${columns[ci]?.align ?? 'left'};padding:10px 8px;border-bottom:1px solid ${PDF_PALETTE.bone2};font-size:11.5px">${cell}</td>`).join('');
-    const alt = ri % 2 === 1 ? `style="background:${PDF_PALETTE.cream2}"` : '';
+    const cells = row.map((cell, ci) => `<td style="text-align:${columns[ci]?.align ?? 'left'};padding:10px 8px;border-bottom:1px solid ${PDF_PALETTE.hairline2};font-size:11.5px">${cell}</td>`).join('');
+    const alt = ri % 2 === 1 ? `style="background:${PDF_PALETTE.ground2}"` : '';
     return `<tr ${alt}>${cells}</tr>`;
   }).join('');
   return `<table style="margin-bottom:18px"><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`;

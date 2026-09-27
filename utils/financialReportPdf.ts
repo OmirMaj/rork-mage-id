@@ -7,8 +7,7 @@ import * as Sharing from 'expo-sharing';
 import type { CompanyBranding } from '@/types';
 import {
   pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable,
-  escHtml, fmtMoney, fmtDate, PDF_PALETTE,
-} from './pdfDesign';
+  escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_FONT_DISPLAY } from './pdfDesign';
 import type { WIPReport, ARAgingReport , ProfitRow } from './financialReports';
 import { wipRowEarned, wipRowOverbilled, wipRowCostToComplete, wipReportRowHasCostBasis, profitRowHasCostBasis } from './financialReports';
 import type { ReportCsvDocument } from './financialReports';
@@ -121,7 +120,7 @@ function buildWIPHtml(report: WIPReport, branding: CompanyBranding): string {
   });
 
   const totalsRow = [
-    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">PORTFOLIO</div>`,
+    `<div style="font-family:${PDF_FONT_DISPLAY};font-weight:800;font-size:13px">PORTFOLIO</div>`,
     `<span class="num">${fmtMoney(report.totals.contractValue)}</span>`,
     `<span class="num">${fmtMoney(report.totals.approvedChangeOrders)}</span>`,
     `<span class="num">${fmtMoney(report.totals.revisedContract)}</span>`,
@@ -273,7 +272,7 @@ function buildProfitHtml(
   });
 
   const totalRow = [
-    `<div style="font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:13px">PORTFOLIO</div>`,
+    `<div style="font-family:${PDF_FONT_DISPLAY};font-weight:800;font-size:13px">PORTFOLIO</div>`,
     `<span class="num">${fmtMoney(totalRevenue)}</span>`,
     '—',
     '—',
@@ -369,17 +368,17 @@ export function buildARAgingHtml(report: ARAgingReport, branding: CompanyBrandin
       ].map(b => `
         <div style="flex:1;padding:14px 12px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
           <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">${b.label}</div>
-          <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:800;color:${b.color};margin-top:4px">${fmtMoney(b.value)}</div>
+          <div class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:18px;font-weight:800;color:${b.color};margin-top:4px">${fmtMoney(b.value)}</div>
         </div>
       `).join('')}
     </div>
-    <div style="padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.amber};margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline">
+    <div style="padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.brandOnInk};margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline">
       <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:${PDF_PALETTE.cream}">Total Outstanding</div>
-      <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:800">${fmtMoney(report.totals.totalOutstanding, { decimals: 2 })}</div>
+      <div class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:26px;font-weight:800">${fmtMoney(report.totals.totalOutstanding, { decimals: 2 })}</div>
     </div>
     <div style="padding:12px 16px;border-radius:10px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};margin-bottom:18px;display:flex;justify-content:space-between;align-items:baseline">
       <div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:${PDF_PALETTE.text2}">Retainage held (not aged)</div>
-      <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:800;color:${PDF_PALETTE.text}">${fmtMoney(report.totals.retainageHeld, { decimals: 2 })}</div>
+      <div class="num" style="font-family:${PDF_FONT_DISPLAY};font-size:20px;font-weight:800;color:${PDF_PALETTE.text}">${fmtMoney(report.totals.retainageHeld, { decimals: 2 })}</div>
     </div>`;
 
   // To the cent: this is a receivables ledger a lender ties to the books, and

@@ -55,8 +55,8 @@ function createId(_prefix: string): string {
 }
 
 // Grade band → an AA-safe FOREGROUND token. app/sub-scorecard.tsx paints its
-// grade chip with t.accent / t.accentHot, which are the brand hues: #FF6A1A as
-// text is 2.87:1 and fails AA, so it is not copied here. The *Label* tokens
+// grade chip with t.accent / t.accentHot, which are the brand hues — a grade is
+// not a brand action, and accentHot is not a text ink — so it is not copied here. The *Label* tokens
 // are the ones constants/colors.ts engineers to clear 4.5:1 in both themes.
 // A and B share green, C and D share amber — the LETTER carries the grade, the
 // colour carries the band.

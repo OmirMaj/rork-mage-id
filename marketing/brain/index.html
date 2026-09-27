@@ -12,14 +12,14 @@
 <meta property="og:description" content="Every duration, price and verdict goes in a ledger. When the job closes, MAGE grades itself. The misses stay on the board." />
 <meta property="og:url" content="https://mageid.app/brain/" />
 <meta property="og:site_name" content="MAGE ID" />
-<meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+<meta property="og:image" content="https://mageid.app/assets/og-image.png?v=2026-09-16-green" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
-<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+<meta name="twitter:image" content="https://mageid.app/assets/og-image.png?v=2026-09-16-green" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png?v=2026-09-16-green" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png?v=2026-09-16-green" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
 <!-- Structured data: this page answers "how do I know the AI is right?" — the
      question every contractor asks and no vendor answers. Every figure below is
@@ -70,11 +70,11 @@
 
 <style>
   :root{
-    --navy:#0B0D10; --navy-2:#14181D; --amber:#FF6A1A; --amber-hot:#FF8533;
-    --ink:#1B222B; --muted:#5C6875; --line:#E6E0D4; --bg:#FAF7F0; --card:#fff;
-    --good:#1B7F5A; --bad:#B0402B;
+    --navy:#0B0D10; --navy-2:#14181D; --brand:#2F6B3A; --brand-light:#5DB36E;
+    --ink:#1B222B; --muted:#5C6875; --line:#D7DAD4; --bg:#ECEDE9; --card:#fff;
+    --good:#12806E; --bad:#B0402B;
     --sans:'Space Grotesk',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    --serif:'Fraunces',Georgia,serif;
+    --display:'Barlow', 'Helvetica Neue', Arial, system-ui, sans-serif;
     --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -83,37 +83,37 @@
   h1,h2,h3{text-wrap:balance}
 
   /* nav — real cross-links. /costs and /widget previously had none anywhere. */
-  .nav{border-bottom:1px solid var(--line);background:rgba(250,247,240,.92);position:sticky;top:0;z-index:20;backdrop-filter:saturate(140%) blur(8px)}
+  .nav{border-bottom:1px solid var(--line);background:rgba(236,237,233,.92);position:sticky;top:0;z-index:20;backdrop-filter:saturate(140%) blur(8px)}
   .nav .wrap{display:flex;align-items:center;gap:18px;height:58px}
   .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.12em;font-size:12px;text-transform:uppercase;text-decoration:none;color:var(--navy)}
-  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber)}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--brand)}
   .navlinks{display:flex;gap:17px;margin-left:auto;font-size:14px}
   .navlinks a{text-decoration:none;color:var(--muted);font-weight:500}
   .navlinks a:hover,.navlinks a[aria-current]{color:var(--navy)}
   .navcta{background:var(--navy);color:#fff;text-decoration:none;padding:9px 15px;border-radius:9px;font-weight:700;font-size:14px}
-  a:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:4px}
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:4px}
   @media(max-width:760px){.navlinks{display:none}}
 
   section{padding:62px 0}
-  .kick{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);margin-bottom:14px}
-  .hero{padding:74px 0 58px;background:var(--navy);color:#F3EEE5}
-  .hero .kick{color:var(--amber-hot)}
-  h1{font-family:var(--serif);font-size:clamp(33px,5.3vw,57px);line-height:1.07;letter-spacing:-.02em;max-width:15ch;font-weight:600}
-  .hero .sub{font-size:19px;color:#C6C0B5;margin-top:19px;max-width:60ch}
-  .hero .sub b{color:#F3EEE5;font-weight:600}
+  .kick{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--brand);margin-bottom:14px}
+  .hero{padding:74px 0 58px;background:var(--navy);color:#ECEDE9}
+  .hero .kick{color:var(--brand-light)}
+  h1{font-family:var(--display);font-size:clamp(33px,5.3vw,57px);line-height:1.07;letter-spacing:-.02em;max-width:15ch;font-weight:600}
+  .hero .sub{font-size:19px;color:#BFC3BC;margin-top:19px;max-width:60ch}
+  .hero .sub b{color:#ECEDE9;font-weight:600}
   .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
   .btn{text-decoration:none;padding:13px 20px;border-radius:11px;font-weight:700;font-size:15px;display:inline-block}
-  .btn.primary{background:var(--amber);color:#fff}
-  .btn.ghost{border:1.5px solid rgba(243,238,229,.3);color:#F3EEE5}
+  .btn.primary{background:var(--brand);color:#fff}
+  .btn.ghost{border:1.5px solid rgba(236,237,233,.3);color:#ECEDE9}
   .light .btn.ghost{border-color:var(--line);color:var(--navy)}
 
-  h2{font-family:var(--serif);font-size:clamp(25px,3.3vw,37px);line-height:1.14;letter-spacing:-.015em;color:var(--navy-2);max-width:19ch;font-weight:600}
+  h2{font-family:var(--display);font-size:clamp(25px,3.3vw,37px);line-height:1.14;letter-spacing:-.015em;color:var(--navy-2);max-width:19ch;font-weight:600}
   .lede{font-size:17px;color:var(--muted);margin-top:12px;max-width:62ch}
   h3{font-size:16.5px;font-weight:700;color:var(--navy-2);margin-bottom:6px}
 
   .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:16px;margin-top:34px}
   .step{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
-  .step .n{font-family:var(--mono);font-size:11.5px;color:var(--amber);letter-spacing:.1em;margin-bottom:10px}
+  .step .n{font-family:var(--mono);font-size:11.5px;color:var(--brand);letter-spacing:.1em;margin-bottom:10px}
   .step p{font-size:15px;color:var(--muted)}
 
   /* the scoreboard — mirrors the receipt shape in utils/brain/trackRecord.ts:
@@ -130,7 +130,7 @@
   .row .pa i{font-style:normal;color:var(--muted);padding:0 4px}
   .row .note{font-size:12.5px;color:var(--muted);white-space:nowrap;min-width:126px;text-align:right}
   .tag{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
-  .hit{background:rgba(27,127,90,.12);color:var(--good)}
+  .hit{background:rgba(18,128,110,.12);color:var(--good)}
   .miss{background:rgba(176,64,43,.12);color:var(--bad)}
   .tie{background:rgba(92,104,117,.13);color:var(--muted)}
   .board-note{padding:14px 22px;background:var(--bg);font-size:13px;color:var(--muted)}
@@ -151,15 +151,15 @@
   }
 
   .gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:16px;margin-top:30px}
-  .gate{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:14px;padding:20px}
-  .gate .rule{font-family:var(--mono);font-size:11.5px;color:var(--amber);margin-bottom:9px;letter-spacing:.02em}
+  .gate{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:14px;padding:20px}
+  .gate .rule{font-family:var(--mono);font-size:11.5px;color:var(--brand);margin-bottom:9px;letter-spacing:.02em}
   .gate p{font-size:14.5px;color:var(--muted)}
 
-  .band{background:var(--navy);color:#F3EEE5}
-  .band h2{color:#F3EEE5}
-  .band .lede{color:#C6C0B5}
-  .quote{font-family:var(--serif);font-size:clamp(23px,3.1vw,31px);line-height:1.28;color:#F3EEE5;max-width:23ch;font-weight:600}
-  .quote span{color:var(--amber-hot)}
+  .band{background:var(--navy);color:#ECEDE9}
+  .band h2{color:#ECEDE9}
+  .band .lede{color:#BFC3BC}
+  .quote{font-family:var(--display);font-size:clamp(23px,3.1vw,31px);line-height:1.28;color:#ECEDE9;max-width:23ch;font-weight:600}
+  .quote span{color:var(--brand-light)}
 
   .faq{margin-top:26px;max-width:70ch}
   .faq details{border-bottom:1px solid var(--line);padding:15px 0}
@@ -269,7 +269,7 @@
 </div></section>
 
 <section class="band" id="gates"><div class="wrap">
-  <p class="kick" style="color:var(--amber-hot)">Earned autonomy</p>
+  <p class="kick" style="color:var(--brand-light)">Earned autonomy</p>
   <h2>It has to earn the keys.</h2>
   <p class="lede">
     Plenty of software will happily automate your business on day one, on the strength of a

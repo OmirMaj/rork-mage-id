@@ -97,7 +97,7 @@ export function neutralInk(t: Pick<ThemeColors, 'bg'>): string {
  * inventing their own.
  *
  * Before 2026-09-07 they had two different tables and neither cleared AA:
- * TaskInspector painted `in_progress` in the raw brand accent (#FF6A1A, 2.87:1
+ * TaskInspector painted `in_progress` in the raw (then orange) brand accent (2.87:1
  * as text) and `not_started` in the dark theme's grey; the Schedule tab's sheet
  * used `{done:'#34C759', in_progress:'#007AFF', on_hold:'#FF9500',
  * not_started:'#8E8E93'}`, which fails in BOTH directions — 2.22 / 4.02 / 2.20

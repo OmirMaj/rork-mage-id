@@ -502,8 +502,8 @@ function makeStyles(colors: ThemeColors) {
     thinkingText: { ...Type.footnote, color: colors.textMuted },
 
     ask: { gap: Tokens.spacing.sm },
-    // accentLabel (#C44A0F light / #FF6A1A dark) — correct on cream/ink;
-    // accentLight (#FFCC00) was ~1.4:1 on cream = illegible in light mode.
+    // accentLabel (#2C6436 light / #69B979 dark) — AA on concrete and the dark
+    // ground; accentLight (#FFCC00) is ~1.4:1 on a light ground = illegible.
     askEyebrow: { ...Type.monoEyebrow, color: colors.accentLabel },
     question: { ...Type.serifHeadline, color: colors.text },
     grounding: { ...Type.monoLabel, color: colors.textMuted, borderLeftWidth: 2, borderLeftColor: colors.accent, paddingLeft: Tokens.spacing.sm },

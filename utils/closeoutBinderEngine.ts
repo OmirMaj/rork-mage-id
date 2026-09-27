@@ -9,7 +9,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
-  pdfShell, pdfHeader, pdfTitle, pdfFooter, escHtml, fmtMoney, PDF_PALETTE,
+  pdfShell, pdfHeader, pdfTitle, pdfFooter, escHtml, fmtMoney, PDF_PALETTE, PDF_FONT_DISPLAY,
 } from './pdfDesign';
 import type {
   CompanyBranding, Project, Commitment, ProjectPhoto, RFI,
@@ -416,7 +416,7 @@ export function buildBinderHtml(input: BuildBinderInput): string {
 
   const sectionTable = (title: string, columns: string[], rowsHtml: string, emptyMsg: string) => `
     <div class="no-break" style="margin-bottom:24px">
-      <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${PDF_PALETTE.ink};margin:0 0 10px;letter-spacing:-0.3px">${escHtml(title)}</h2>
+      <h2 style="font-family:${PDF_FONT_DISPLAY};font-size:18px;font-weight:700;color:${PDF_PALETTE.ink};margin:0 0 10px;letter-spacing:-0.3px">${escHtml(title)}</h2>
       ${rowsHtml ? `
         <table style="width:100%;border-collapse:collapse;background:${PDF_PALETTE.surface};border:1px solid ${PDF_PALETTE.bone};border-radius:8px;overflow:hidden">
           <thead><tr>${columns.map(c => `<th style="text-align:left;padding:10px 12px;background:${PDF_PALETTE.cream2};font-size:9px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;border-bottom:2px solid ${PDF_PALETTE.bone}">${escHtml(c)}</th>`).join('')}</tr></thead>

@@ -442,7 +442,7 @@ export default function NotificationsInboxScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={"#FF6A1A"} strokeWidth={1.75} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Notifications</Text>
@@ -618,7 +618,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, marginTop: 4 },
   emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
   emptyAction: { marginTop: 6, paddingVertical: 8, paddingHorizontal: 16 },
-  // accentLabel, not accent: this is text, and #FF6A1A is 2.87:1.
+  // accentLabel, not accent: this is text, and accentLabel is the ink solved
+  // to clear AA on every ground and on the accentSoft wash.
   emptyActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accentLabel },
 
   clearAll: {

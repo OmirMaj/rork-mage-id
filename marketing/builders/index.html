@@ -12,21 +12,24 @@
   <link rel="canonical" href="https://mageid.app/builders/" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Construction project — MAGE ID Builder Portfolio" />
 <style>
   :root {
-    --ink: #0B0D10; --ink-2: #1A1D22; --amber: #FF6A1A; --amber-dark: #E5570F;
-    --amber-tint: #FFF1E6; --cream: #F4EFE6; --cream-2: #FAF7F0;
-    --surface: #FFFFFF; --bone: #E8DFCD; --bone-2: #F1EAD9;
+    --ink: #0B0D10; --ink-2: #1A1D22; --brand: #2F6B3A; --brand-dark: #24542D;
+    --brand-tint: #E3ECE4; --ground: #ECEDE9; --ground-2: #F4F5F2;
+    /* #2F6B3A is only 3:1 on --ink, so anything green sitting on an ink panel
+       takes the dark-UI brand instead (6.93:1). */
+    --brand-on-dark: #5DB36E;
+    --surface: #FFFFFF; --bone: #D7DAD4; --bone-2: #E2E4DF;
     --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
     --shadow-sm: 0 1px 2px rgba(11,13,16,0.04), 0 1px 3px rgba(11,13,16,0.06);
     --shadow-md: 0 4px 12px rgba(11,13,16,0.06), 0 2px 4px rgba(11,13,16,0.04);
     --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
     --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
-    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-display: "Barlow", "Helvetica Neue", Arial, system-ui, sans-serif;
     --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
     --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   }
@@ -34,7 +37,7 @@
   html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
   body {
     font-family: var(--ff-sans);
-    background: var(--cream); color: var(--text);
+    background: var(--ground); color: var(--text);
     line-height: 1.55; font-size: 15px; min-height: 100vh;
   }
   .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
@@ -47,8 +50,8 @@
   .hero::before {
     content: ''; position: absolute; inset: 0;
     background:
-      radial-gradient(900px 500px at 92% -10%, rgba(255,106,26,0.20), transparent 60%),
-      radial-gradient(600px 400px at -5% 110%, rgba(255,106,26,0.10), transparent 60%);
+      radial-gradient(900px 500px at 92% -10%, rgba(93,179,110,0.20), transparent 60%),
+      radial-gradient(600px 400px at -5% 110%, rgba(93,179,110,0.10), transparent 60%);
   }
   .hero-photo {
     position: absolute; inset: 0;
@@ -66,28 +69,28 @@
     background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.12);
     display: inline-flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 16px; color: var(--amber);
+    font-weight: 800; font-size: 16px; color: var(--brand-on-dark);
   }
   .brand-name { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.85); }
   .hero-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 11px; font-weight: 700; letter-spacing: 1.6px;
-    color: var(--amber); text-transform: uppercase;
+    color: var(--brand-on-dark); text-transform: uppercase;
     margin-bottom: 14px;
   }
   .hero-eyebrow::before {
     content: ''; width: 28px; height: 2px;
-    background: var(--amber); border-radius: 1px;
+    background: var(--brand-on-dark); border-radius: 1px;
   }
   .hero h1 {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-weight: 700; line-height: 1.04;
     letter-spacing: -0.025em;
     font-size: clamp(34px, 6vw, 64px);
     margin-bottom: 14px;
     max-width: 18ch;
   }
-  .hero h1 em { font-style: normal; color: var(--amber); }
+  .hero h1 em { font-style: normal; color: var(--brand-on-dark); }
   .hero-meta {
     color: rgba(255,255,255,0.72); font-size: 14.5px;
     line-height: 1.55;
@@ -147,7 +150,7 @@
     margin-bottom: 48px;
   }
   .story h2 {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: clamp(24px, 3.4vw, 36px);
     font-weight: 700; letter-spacing: -0.022em; line-height: 1.18;
     margin-bottom: 16px;
@@ -199,17 +202,17 @@
   }
   .testimonial::before {
     content: ''; position: absolute; inset: 0;
-    background: radial-gradient(700px 360px at 95% -20%, rgba(255,106,26,0.22), transparent 60%);
+    background: radial-gradient(700px 360px at 95% -20%, rgba(93,179,110,0.22), transparent 60%);
   }
   .testimonial-inner { position: relative; z-index: 1; max-width: 680px; }
   .testimonial-mark {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 76px; font-weight: 800; line-height: 0.7;
-    color: var(--amber); margin-bottom: 12px;
+    color: var(--brand-on-dark); margin-bottom: 12px;
     height: 36px;
   }
   .testimonial-quote {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: clamp(22px, 2.6vw, 30px);
     font-weight: 500; font-style: normal;
     line-height: 1.35; letter-spacing: -0.01em;
@@ -233,9 +236,9 @@
   }
   .credit-logo {
     width: 56px; height: 56px; border-radius: 14px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 28px; font-weight: 800;
     flex-shrink: 0;
   }
@@ -247,22 +250,22 @@
     text-transform: uppercase; margin-bottom: 4px;
   }
   .credit-name {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 22px; font-weight: 700;
     letter-spacing: -0.018em; margin-bottom: 4px;
   }
   .credit-meta { font-size: 13px; color: var(--text-2); }
-  .credit-meta a { color: var(--amber-dark); text-decoration: none; font-weight: 600; }
+  .credit-meta a { color: var(--brand-dark); text-decoration: none; font-weight: 600; }
   .credit-cta {
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--amber); color: #fff;
+    background: var(--brand); color: #fff;
     padding: 12px 18px; border-radius: 10px;
     text-decoration: none; font-weight: 700; font-size: 14px;
-    box-shadow: 0 8px 24px -6px rgba(255,106,26,0.4);
+    box-shadow: 0 8px 24px -6px rgba(47,107,58,0.4);
     transition: background 0.15s, transform 0.1s;
     white-space: nowrap;
   }
-  .credit-cta:hover { background: var(--amber-dark); }
+  .credit-cta:hover { background: var(--brand-dark); }
   .credit-cta:active { transform: translateY(1px); }
 
   .footer {
@@ -273,7 +276,7 @@
   .footer a { color: var(--text); text-decoration: none; font-weight: 600; }
   .footer-mark {
     width: 22px; height: 22px; border-radius: 6px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     display: inline-flex; align-items: center; justify-content: center;
     font-weight: 800; font-size: 11px;
     vertical-align: middle; margin-right: 6px;
@@ -303,7 +306,7 @@
     border: 1px solid var(--bone-2);
   }
   .fallback-card h1 {
-    font-family: var(--ff-serif); font-size: 26px; font-weight: 700; margin-bottom: 12px;
+    font-family: var(--ff-display); font-size: 26px; font-weight: 700; margin-bottom: 12px;
   }
   .fallback-card p { color: var(--text-2); font-size: 14.5px; margin-bottom: 24px; }
 </style>
@@ -418,7 +421,7 @@
     .lead-hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; }
     .lead-actions { display: flex; gap: 10px; margin-top: 8px; }
     .lead-btn { flex: 1; padding: 13px; border-radius: 10px; border: none; cursor: pointer; font-size: 15px; font-weight: 700; font-family: inherit; }
-    .lead-btn-primary { background: var(--amber, #FF6A1A); color: #fff; }
+    .lead-btn-primary { background: var(--brand, #2F6B3A); color: #fff; }
     .lead-btn-primary:disabled { opacity: .6; cursor: default; }
     .lead-btn-ghost { background: #f0f0f0; color: #333; }
     .lead-msg { font-size: 14px; margin-top: 12px; min-height: 1em; }
@@ -744,6 +747,6 @@
   }
 })();
 </script>
-  <script src="/motion.js" defer></script>
+  <script src="/motion.js?v=2026-09-16-green" defer></script>
 </body>
 </html>

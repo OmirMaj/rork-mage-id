@@ -28,11 +28,16 @@ import { Type } from '@/constants/typography';
  * @react-navigation/native-stack only honours fontFamily / fontSize /
  * fontWeight / color here; lineHeight and letterSpacing are silently dropped,
  * so spreading the whole token would imply precision the platform ignores.
- * No fontWeight: Fraunces_700Bold already carries it, and doubling up makes
+ * No fontWeight: Barlow_600SemiBold already carries it, and doubling up makes
  * the platform synthesise a fake bold over a real one.
+ *
+ * Barlow since the 2026-09-16 rebrand (was Fraunces_700Bold). This one constant
+ * drives the title of EVERY native stack header, so it is the single most
+ * visible piece of the type change — leaving it would have kept every screen
+ * title in the retired serif while the rest of the app moved.
  */
 export const NATIVE_HEADER_TITLE_FACE = {
-  fontFamily: 'Fraunces_700Bold',
+  fontFamily: 'Barlow_600SemiBold',
   fontSize: Type.headline.fontSize,   // 17pt — the native header size
 } as const;
 

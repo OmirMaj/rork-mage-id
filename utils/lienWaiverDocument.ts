@@ -13,8 +13,7 @@
 // codeJurisdiction) and types.
 
 import {
-  pdfShell, pdfHeader, pdfFooter, escHtml, fmtMoney, fmtDate, PDF_PALETTE,
-} from './pdfDesign';
+  pdfShell, pdfHeader, pdfFooter, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_FONT_DISPLAY } from './pdfDesign';
 import {
   statutoryFormFor, isStatutoryWaiverState, GENERIC_FORM_WARNING,
   STATUTE_TEXT_AS_OF, STATUTE_VERIFY_LINE,
@@ -245,7 +244,7 @@ function statutoryBodyHtml(form: StatutoryWaiverForm): string {
   return `
     <div style="text-align:center;margin:24px 0 20px">
       <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:6px">${escHtml(form.stateName)} statutory form · ${escHtml(form.citation)}</div>
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;letter-spacing:-0.4px;color:${PDF_PALETTE.ink};line-height:1.25">${escHtml(form.heading)}</div>
+      <div style="font-family:${PDF_FONT_DISPLAY};font-size:22px;font-weight:700;letter-spacing:-0.4px;color:${PDF_PALETTE.ink};line-height:1.25">${escHtml(form.heading)}</div>
     </div>
     ${substitution}
     ${blocks}
@@ -326,7 +325,7 @@ export function buildLienWaiverHtml(
     <div style="margin-top:36px;padding:20px;background:${PDF_PALETTE.cream2};border:1px solid ${signedByGc ? PDF_PALETTE.warning : PDF_PALETTE.bone};border-radius:12px">
       <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${signedByGc ? PDF_PALETTE.warning : PDF_PALETTE.textMuted};text-transform:uppercase;margin-bottom:6px">${signedByGc ? 'Recorded by the contractor from a signed paper original' : 'Signed by the subcontractor'}</div>
       ${strokes}
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;font-style:italic;color:${PDF_PALETTE.ink};margin-bottom:4px">${escHtml(sig.name)}</div>
+      <div style="font-family:${PDF_FONT_DISPLAY};font-size:22px;font-weight:700;font-style:italic;color:${PDF_PALETTE.ink};margin-bottom:4px">${escHtml(sig.name)}</div>
       <div style="font-size:11px;color:${PDF_PALETTE.textMuted}">${signedByGc ? 'Recorded' : 'Signed'} ${fmtDate(sig.signedAt)} · ${escHtml(waiver.subName)}${signerTitle ? ` · ${escHtml(signerTitle)}` : ''}</div>
       ${signedByGc ? `<div style="font-size:10.5px;color:${PDF_PALETTE.text2};margin-top:8px;line-height:1.55">This is the contractor's record that a signed paper waiver exists. It is not the subcontractor's signature; the paper original is the signed document.</div>` : ''}
     </div>
@@ -343,7 +342,7 @@ export function buildLienWaiverHtml(
   const genericTitleHtml = `
     <div style="text-align:center;margin:24px 0 28px">
       <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:6px">Lien Waiver &amp; Release</div>
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:700;letter-spacing:-0.5px;color:${PDF_PALETTE.ink};line-height:1.2">${escHtml(meta.long)}</div>
+      <div style="font-family:${PDF_FONT_DISPLAY};font-size:26px;font-weight:700;letter-spacing:-0.5px;color:${PDF_PALETTE.ink};line-height:1.2">${escHtml(meta.long)}</div>
     </div>`;
 
   // formatCalendarDay, NOT fmtDate. The through date is a calendar day the

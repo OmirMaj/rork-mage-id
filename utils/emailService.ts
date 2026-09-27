@@ -12,6 +12,7 @@ import {
   escapeHtml,
   fmtMoney,
   fmtMoneyCents,
+  EMAIL_COLORS,
   type UnsubscribeOpts,
 } from '@/utils/emailLayout';
 import { sampleInvoiceBannerHtml, samplePaySpecimenHtml } from '@/utils/invoiceSampleCore';
@@ -519,10 +520,10 @@ export function buildWelcomeEmailHtml(opts: {
       <strong>Get the full experience on mobile.</strong> The app is where you'll spend most of your day — voice reports, photos with GPS, in-app payments — all offline-first.
     </p>
     <p style="margin:18px 0 0;color:#4A5159;font-size:13px;line-height:1.55;">
-      On Android? <a href="${androidAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">Google Play</a> &middot; or <a href="${webAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">use the web app</a>.
+      On Android? <a href="${androidAppUrl}" style="color:${EMAIL_COLORS.brand};text-decoration:none;font-weight:600;">Google Play</a> &middot; or <a href="${webAppUrl}" style="color:${EMAIL_COLORS.brand};text-decoration:none;font-weight:600;">use the web app</a>.
     </p>
     <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">
-      Stuck on anything? Reply to this email or write <a href="mailto:${supportEmail}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">${supportEmail}</a> — a real person reads every message.
+      Stuck on anything? Reply to this email or write <a href="mailto:${supportEmail}" style="color:${EMAIL_COLORS.brand};text-decoration:none;font-weight:600;">${supportEmail}</a> — a real person reads every message.
     </p>`;
 
   return wrapEmailHtml({
@@ -655,7 +656,11 @@ export function buildChangeOrderEmailHtml(opts: {
   // #131: the headline is what the client approves — incl. tax when a tax
   // rate applies. The body lists the pre-tax change and the tax beneath it.
   const headline = hasTax ? totalWithTax : changeAmount;
-  const amountColor = headline >= 0 ? '#C2410C' : '#1E8E4A';
+  // An increase is the attention case (burnt amber, the warning family); a
+  // credit is good news, so it takes the SUCCESS TEAL #026354 (Colors.successDark,
+  // 7.20:1 on white). Not the old #1E8E4A green: since the 2026-09-16 rebrand
+  // green is the brand, and a credit must not read as a brand accent.
+  const amountColor = headline >= 0 ? '#C2410C' : '#026354';
   const formattedHeadline = signed(headline);
 
   const rows: string[] = [
@@ -751,6 +756,10 @@ export function buildPortalInviteEmailHtml(opts: {
       ${emailStatRow('Live updates for', 'Progress, photos, invoices & messages')}
     `;
 
+  // The passcode box is an ATTENTION callout ("keep it private"), so it wears
+  // the warning family — soft #FFF3E0 (Colors.warningLight), dashed #FF9500
+  // (warning), label #B84A00 (warningLabel, 5.23:1 on white) — not the brand.
+  // It used to be the retired brand orange, which read as both at once.
   const bodyHtml = `
     ${recipientName ? `<p style="margin:0 0 14px;font-size:15px;color:#0B0D10;">Hi ${recipientName},</p>` : ''}
     ${welcomeMessage
@@ -763,8 +772,8 @@ export function buildPortalInviteEmailHtml(opts: {
     ${passcode ? `
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:18px 0 0;">
         <tr>
-          <td style="background:#FFF7EE;border:1.5px dashed #FF6A1A;border-radius:12px;padding:16px 18px;">
-            <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.4px;color:#C2410C;text-transform:uppercase;">Passcode required</p>
+          <td style="background:#FFF3E0;border:1.5px dashed #FF9500;border-radius:12px;padding:16px 18px;">
+            <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.4px;color:#B84A00;text-transform:uppercase;">Passcode required</p>
             <p style="margin:0 0 4px;font-family:-apple-system,BlinkMacSystemFont,'SF Mono',Menlo,Consolas,monospace;font-size:22px;font-weight:800;color:#0B0D10;letter-spacing:4px;">${escapeHtml(passcode)}</p>
             <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:12px;color:#4A5159;line-height:1.5;">
               Enter this passcode when prompted. Keep it private — it unlocks every detail your contractor has shared.

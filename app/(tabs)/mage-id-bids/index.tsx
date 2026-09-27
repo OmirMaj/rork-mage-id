@@ -671,7 +671,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   eyebrow: { fontSize: 10, fontWeight: '800' as const, color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' as const },
   // Screen title — Fraunces serif per the type rule in constants/typography.ts
   // (serif for screen titles + numbers that matter, system sans for everything
-  // else). No fontWeight override: Fraunces_700Bold already carries its weight.
+  // else). No fontWeight override: the display face already carries its weight.
   // Pre-fix this was Type.subheadline.fontSize (18px, 800) — literally half the
   // size of every other tab header — then largeTitle/700 sans.
   title: { ...Type.serifHeadline, color: t.text, marginTop: 2 },

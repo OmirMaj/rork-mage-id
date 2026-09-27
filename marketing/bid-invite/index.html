@@ -8,25 +8,29 @@
 <title>Invitation to Bid — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,700;1,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
-  /* Same ink / amber / cream system as /portal and /sub-portal — this page is
-     the third door a person with no MAGE account walks through, and it should
-     look like it belongs to the same company as the other two. */
+  /* Same ink / equipment-green / concrete system as /portal and /sub-portal —
+     this page is the third door a person with no MAGE account walks through,
+     and it should look like it belongs to the same company as the other two.
+     --brand #2F6B3A: 5.44:1 on --concrete, 6.39:1 under white button text.
+     --brand-on-dark #5DB36E: the brand on the --ink hero (#2F6B3A makes 3.0:1).
+     --success is teal so an accepted bid never reads as a brand button.
+     --text-muted darkened to clear 4.5:1 on the concrete ground. */
   :root {
-    --ink: #0B0D10; --ink-2: #1A1D22; --amber: #FF6A1A; --amber-dark: #E5570F;
-    --amber-tint: #FFF1E6; --cream: #F4EFE6; --cream-2: #FAF7F0;
-    --surface: #FFFFFF; --bone: #E8DFCD; --bone-2: #F1EAD9;
-    --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
-    --success: #1E8E4A; --success-tint: #E8F5ED;
+    --ink: #0B0D10; --ink-2: #1A1D22; --brand: #2F6B3A; --brand-dark: #24552D;
+    --brand-on-dark: #5DB36E; --brand-tint: #E3EEE5; --concrete: #ECEDE9;
+    --surface: #FFFFFF; --hairline: #D7DAD4; --surface-alt: #E2E4DF;
+    --text: #0B0D10; --text-2: #4A5159; --text-muted: #5F666E;
+    --success: #12806E; --success-tint: #F2F9F7;
     --warning: #C26A00; --warning-tint: #FFF4E0;
     --error: #C0392B; --error-tint: #FBEAE7;
     --shadow-sm: 0 1px 2px rgba(11,13,16,0.04), 0 1px 3px rgba(11,13,16,0.06);
     --shadow-md: 0 4px 12px rgba(11,13,16,0.06), 0 2px 4px rgba(11,13,16,0.04);
     --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
     --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
-    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-display: "Barlow", "Helvetica Neue", Arial, system-ui, sans-serif;
     --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
     --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   }
@@ -34,7 +38,7 @@
   html { -webkit-font-smoothing: antialiased; }
   body {
     font-family: var(--ff-sans);
-    background: var(--cream); color: var(--text);
+    background: var(--concrete); color: var(--text);
     line-height: 1.55; font-size: 15px; min-height: 100vh;
   }
   .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
@@ -42,22 +46,22 @@
   .hero { background: var(--ink); color: #fff; padding: 26px 20px 56px; position: relative; overflow: hidden; }
   .hero::before {
     content: ''; position: absolute; inset: 0;
-    background: radial-gradient(760px 420px at 92% -20%, rgba(255,106,26,0.22), transparent 62%);
+    background: radial-gradient(760px 420px at 92% -20%, rgba(93,179,110,0.22), transparent 62%);
     pointer-events: none;
   }
   .hero-inner { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; }
   .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
   .brand-mark {
-    width: 34px; height: 34px; border-radius: 10px; background: var(--amber); color: #fff;
+    width: 34px; height: 34px; border-radius: 10px; background: var(--brand); color: #fff;
     display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px;
   }
   .brand-name { font-weight: 600; letter-spacing: 0.02em; font-size: 14px; opacity: 0.85; }
   .hero-eyebrow {
     text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px;
-    font-weight: 700; color: var(--amber); margin-bottom: 10px;
+    font-weight: 700; color: var(--brand-on-dark); margin-bottom: 10px;
   }
-  .hero h1 { font-family: var(--ff-serif); font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
-  .hero h1 em { font-style: italic; color: var(--amber); }
+  .hero h1 { font-family: var(--ff-display); font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+  .hero h1 em { font-style: italic; color: var(--brand-on-dark); }
   .hero-meta { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
   .hero-due {
     margin-top: 16px; display: inline-flex; align-items: center; gap: 8px;
@@ -72,11 +76,11 @@
 
   .container { max-width: 720px; margin: -36px auto 0; padding: 0 20px 56px; position: relative; z-index: 2; }
   .card {
-    background: var(--surface); border: 1px solid var(--bone-2);
+    background: var(--surface); border: 1px solid var(--surface-alt);
     border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
     padding: 22px; margin-bottom: 16px;
   }
-  .card h2 { font-family: var(--ff-serif); font-size: 19px; font-weight: 700; margin-bottom: 6px; }
+  .card h2 { font-family: var(--ff-display); font-size: 19px; font-weight: 700; margin-bottom: 6px; }
   .card .sub { color: var(--text-2); font-size: 13.5px; margin-bottom: 16px; }
   .scope-body { white-space: pre-wrap; color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
   .scope-empty { color: var(--text-muted); font-style: italic; font-size: 14px; }
@@ -86,10 +90,10 @@
   .hint { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
   input[type="text"], textarea {
     width: 100%; padding: 13px 14px; font-family: inherit; font-size: 15px;
-    color: var(--text); background: var(--cream-2);
-    border: 1px solid var(--bone); border-radius: var(--radius-md); outline: none;
+    color: var(--text); background: var(--concrete);
+    border: 1px solid var(--hairline); border-radius: var(--radius-md); outline: none;
   }
-  input[type="text"]:focus, textarea:focus { border-color: var(--amber); background: #fff; }
+  input[type="text"]:focus, textarea:focus { border-color: var(--brand); background: #fff; }
   textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
   .amount-wrap { position: relative; }
   .amount-wrap .dollar {
@@ -100,17 +104,17 @@
 
   .btn {
     width: 100%; padding: 15px; border: none; border-radius: var(--radius-md);
-    background: var(--amber); color: #fff; font-family: inherit;
+    background: var(--brand); color: #fff; font-family: inherit;
     font-size: 15.5px; font-weight: 700; cursor: pointer;
   }
-  .btn:hover { background: var(--amber-dark); }
+  .btn:hover { background: var(--brand-dark); }
   .btn[disabled] { opacity: 0.55; cursor: default; }
   .form-status { min-height: 20px; margin-bottom: 12px; font-size: 13.5px; font-weight: 600; color: var(--error); }
 
   .state-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
   .state-card {
     background: var(--surface); max-width: 460px; width: 100%; text-align: center;
-    border: 1px solid var(--bone-2); border-radius: var(--radius-xl);
+    border: 1px solid var(--surface-alt); border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg); padding: 40px 30px;
   }
   .state-badge {
@@ -120,7 +124,7 @@
   .badge-error { background: var(--error-tint); color: var(--error); }
   .badge-ok { background: var(--success-tint); color: var(--success); }
   .badge-wait { background: var(--warning-tint); color: var(--warning); }
-  .state-card h1 { font-family: var(--ff-serif); font-size: 23px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; }
+  .state-card h1 { font-family: var(--ff-display); font-size: 23px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; }
   .state-card p { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
   .state-card p + p { margin-top: 12px; }
 

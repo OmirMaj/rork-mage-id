@@ -5,11 +5,18 @@
 //
 // Every glyph is a forwardRef accepting LucideProps (+ optional accentColor), so
 // each is a drop-in for a lucide icon — JSX or icon-reference. `color` draws the
-// structure, `accentColor` the amber detail. Stroke 1.75 to match the app.
+// structure, `accentColor` the brand-accent detail. Stroke 1.75 to match the app.
+//
+// The accent default is `Colors.primary`, not a literal: a default parameter is
+// evaluated on every render, and that getter resolves the brand per theme —
+// #2F6B3A on a light ground, #5DB36E on dark, where the light green is 2.80:1 —
+// and follows a user-picked hue. A frozen hex was how the retired orange
+// outlived the rebrand in every tab-bar glyph.
 
 import React from 'react';
 import Svg, { Line, Path, Rect, Circle, Polyline, Polygon } from 'react-native-svg';
 import type { LucideProps } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
 
 export interface MageGlyphProps extends LucideProps {
   accentColor?: string;
@@ -19,7 +26,7 @@ type RenderArgs = { c: string; a: string; w: number };
 
 function glyph(render: (args: RenderArgs) => React.ReactNode) {
   const C = React.forwardRef<React.ComponentRef<typeof Svg>, MageGlyphProps>(
-    ({ size = 24, color = '#0B0D10', accentColor = '#FF6A1A', strokeWidth = 1.75 }, ref) => (
+    ({ size = 24, color = '#0B0D10', accentColor = Colors.primary, strokeWidth = 1.75 }, ref) => (
       <Svg ref={ref} width={size} height={size} viewBox="0 0 24 24" fill="none">
         {render({ c: color as string, a: accentColor, w: Number(strokeWidth) || 1.75 })}
       </Svg>
@@ -44,7 +51,7 @@ export const MageProject = glyph(({ c, w }) => (
   </>
 ));
 
-// Discover — a carpenter's level with an amber bubble (finding true).
+// Discover — a carpenter's level with an accent bubble (finding true).
 export const MageDiscover = glyph(({ c, a, w }) => (
   <>
     <Rect x={2.5} y={8.5} width={19} height={7} rx={1.6} stroke={c} strokeWidth={w} fill="none" {...cap} />
@@ -54,7 +61,7 @@ export const MageDiscover = glyph(({ c, a, w }) => (
   </>
 ));
 
-// Summary — stacked WIP bars rising, amber cap on the tallest.
+// Summary — stacked WIP bars rising, accent cap on the tallest.
 export const MageSummary = glyph(({ c, a, w }) => (
   <>
     <Line x1={3.5} y1={20.5} x2={20.5} y2={20.5} stroke={c} strokeWidth={w} {...cap} />
@@ -91,7 +98,7 @@ export const MageSubmittal = glyph(({ c, a, w }) => (
   </>
 ));
 
-// AIA Pay App — a lined G703 sheet with an amber total row.
+// AIA Pay App — a lined G703 sheet with an accent total row.
 export const MagePayApp = glyph(({ c, a, w }) => (
   <>
     {docFold(c, w)}
@@ -121,7 +128,7 @@ export const MageTakeoff = glyph(({ c, a, w }) => (
   </>
 ));
 
-// Schedule — gantt bars + an amber milestone diamond.
+// Schedule — gantt bars + an accent milestone diamond.
 export const MageSchedule = glyph(({ c, a, w }) => (
   <>
     <Rect x={3.5} y={5.5} width={8} height={2.6} rx={1.3} stroke={c} strokeWidth={w} fill="none" {...cap} />
@@ -131,7 +138,7 @@ export const MageSchedule = glyph(({ c, a, w }) => (
   </>
 ));
 
-// Estimate — a line-item grid with an amber running total.
+// Estimate — a line-item grid with an accent running total.
 export const MageEstimate = glyph(({ c, a, w }) => (
   <>
     <Rect x={4} y={4} width={16} height={16} rx={2} stroke={c} strokeWidth={w} fill="none" {...cap} />
@@ -142,7 +149,7 @@ export const MageEstimate = glyph(({ c, a, w }) => (
   </>
 ));
 
-// Margin / Risk — a gauge needle swung into the amber band.
+// Margin / Risk — a gauge needle swung into the accent band.
 export const MageMargin = glyph(({ c, a, w }) => (
   <>
     <Path d="M4 17 A8 8 0 0 1 20 17" stroke={c} strokeWidth={w} fill="none" {...cap} />
@@ -214,7 +221,7 @@ export const MageInvoice = glyph(({ c, a, w }) => (
   </>
 ));
 
-// Daily Report — a field clipboard with an amber "sun" (weather/the day).
+// Daily Report — a field clipboard with an accent "sun" (weather/the day).
 export const MageDailyReport = glyph(({ c, a, w }) => (
   <>
     <Rect x={5} y={5} width={14} height={16} rx={2} stroke={c} strokeWidth={w} fill="none" {...cap} />

@@ -512,7 +512,7 @@ function AiPunchScreenInner() {
               feels the same surface across the app. */}
           <View style={styles.hero}>
             <View style={styles.heroIconWrap}>
-              <MageAIMark size={28} color={"#FF6A1A"} />
+              <MageAIMark size={28} color={themeColors.accent} />
             </View>
             <Text style={styles.heroTitle}>AI Punch from Photos</Text>
             <Text style={styles.heroSub}>
@@ -530,11 +530,11 @@ function AiPunchScreenInner() {
               <View style={styles.section}>
                 <View style={styles.sourceRow}>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handleTakePhoto} activeOpacity={0.85}>
-                    <Camera size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                    <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.sourceBtnText}>Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handlePickFromCameraRoll} activeOpacity={0.85}>
-                    <ImagePlus size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                    <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.sourceBtnText}>Photo library</Text>
                   </TouchableOpacity>
                 </View>
@@ -618,7 +618,7 @@ function AiPunchScreenInner() {
                   accessibilityRole="button"
                   accessibilityLabel="Pick photos again"
                 >
-                  <ImagePlus size={16} color={"#FF6A1A"} strokeWidth={1.75} />
+                  <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.retryBtnText}>Pick photos again</Text>
                 </TouchableOpacity>
               )}
