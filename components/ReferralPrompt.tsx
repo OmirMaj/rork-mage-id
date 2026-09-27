@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { PartyPopper, Share2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -36,6 +37,8 @@ export default function ReferralPrompt({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Desktop web: a centred card beside the sidebar; all-null on a phone.
+  const fRef = useSheetFrame('dialog', { visible, animationType: 'fade' });
 
   const handleShare = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -54,9 +57,9 @@ export default function ReferralPrompt({
   }, [companyName, onClose]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+    <Modal visible={visible} transparent animationType={fRef.animationType} onRequestClose={onClose}>
+      <View style={[styles.overlay, fRef.overlay]}>
+        <View style={[styles.card, fRef.card]}>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
             <X size={18} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>

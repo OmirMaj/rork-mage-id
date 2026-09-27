@@ -67,7 +67,9 @@ import {
 } from '@react-navigation/native';
 import { DESKTOP_SHELL_EXEMPT } from '@/utils/desktopPage';
 import { renderDesktopPageFrame } from '@/components/desktop/DesktopPageFrame';
-import { ShellDockProvider, ShellDockHost } from '@/components/desktop/ShellDock';
+import { renderDesktopStackHeader } from '@/components/desktop/DesktopStackHeader';
+import { ShellDockProvider, ShellDockHost, ASK_DOCK_ID } from '@/components/desktop/ShellDock';
+import { ShellHotkeys } from '@/components/desktop/ShellHotkeys';
 import { useReducedMotion, webMotion } from '@/components/ui/motion';
 
 // NOTE: the old patchAlertForWeb() monkey-patch is gone. Every call site now
@@ -501,6 +503,9 @@ function pendingLinkQuery(segments: string[], params: Record<string, string | st
 
 /** No extra root-Stack options (phone, native, Reduce Motion). */
 const NO_STACK_MOTION = {};
+/** No header override: native-stack's own header (phone, native — an Android
+ *  tablet at >= 1024 included — and a phone-width browser). */
+const NO_HEADER_OVERRIDE = {} as const;
 
 function RootLayoutNav() {
   const router = useRouter();
@@ -837,6 +842,16 @@ function RootLayoutNav() {
       : NO_STACK_MOTION),
     [desktopWebStack, reduceMotion],
   );
+  // Desktop web: the root Stack's header renders through DesktopStackHeader,
+  // inset to the page column DesktopPageFrame draws below it (d6r Z1); a
+  // 'bleed' route gets inset 0. Gated on the browser: a native Android tablet
+  // (isDesktop at >= 1024) keeps native-stack's own header. Spread AFTER
+  // headerTitleStyle in the <Stack> literal (validate-contrast check 11).
+  const desktopWebHeader = Platform.OS === 'web' && layout.isDesktop;
+  const desktopHeaderOption = React.useMemo(
+    () => (desktopWebHeader ? { header: renderDesktopStackHeader } : NO_HEADER_OVERRIDE),
+    [desktopWebHeader],
+  );
 
   // public/index.html (the SPA template; +html is ignored in single output)
   // paints <body> from a data-theme attribute its inline boot script sets
@@ -899,7 +914,7 @@ function RootLayoutNav() {
           returns the screen untouched everywhere else (utils/desktopPage). */}
       <NavThemeProvider value={navTheme}>
       <View style={{ flex: 1 }} key={`stack-${navNext.generation}`}>
-        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE, ...stackMotion }} screenLayout={renderDesktopPageFrame}>
+        <Stack screenOptions={{ headerBackTitle: "Back", headerTitleStyle: NATIVE_HEADER_TITLE_FACE, ...stackMotion, ...desktopHeaderOption }} screenLayout={renderDesktopPageFrame}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
@@ -1599,8 +1614,10 @@ function RootLayoutNav() {
       </View>
       </NavThemeProvider>
       {/* Right-hand dock slot: 0 px unless something is docked, desktop
-          shell only. Nothing opens it yet (wave 6c moves Ask into it). */}
-      {shellEligible && <ShellDockHost visible={showDesktopShell} />}
+          shell only (Ask MAGE, the Action Required list). On the /ask page
+          the Ask dock is suppressed — hidden but kept mounted — so the page
+          and the dock never show the same conversation twice. */}
+      {shellEligible && <ShellDockHost visible={showDesktopShell} suppressId={topSegment === 'ask' ? ASK_DOCK_ID : null} />}
       {/* Blocks input while the boot reads run, exactly as the full-screen
           loader did, without unmounting what is underneath; shows only if the
           reload is slow, and fades out (components/launch/ReloadVeil). */}
@@ -1637,7 +1654,9 @@ function SearchHotkeyListener() {
     // @ts-ignore
     return () => window.removeEventListener('keydown', handler);
   }, [toggleSearch]);
-  return null;
+  // The desktop keyboard shell ('?' sheet, g-chords, Cmd+J → Ask). Null — and
+  // no hooks — off desktop web, so a phone still renders nothing here.
+  return <ShellHotkeys />;
 }
 
 function ThemeLoader({ children }: { children: React.ReactNode }) {

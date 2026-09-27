@@ -76,8 +76,13 @@ html[data-theme='dark'] :is(a[href],[role='button'],[role='link'],[role='tab'],[
   nav[aria-label='Primary navigation'],
   #mage-shell-dock,
   #mage-sync-pill,
+  [data-testid='brain-fab'],
+  [data-testid='help-fab'],
   [data-print='hide'] {
     display: none !important;
+  }
+  [data-print='fit'] {
+    zoom: var(--mage-print-fit, 1);
   }
 }
     </style>

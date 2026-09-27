@@ -19,6 +19,7 @@ import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -44,6 +45,8 @@ const FUN_FACTS: readonly string[] = CONSTRUCTION_FACTS;
 
 export default function EstimateLoadingOverlay({ visible, title, subtitle, thinkingSteps, onCancel }: Props) {
   const styles = useThemedStyles(makeStyles);
+  // Desktop web: a centred card beside the sidebar; all-null on a phone.
+  const fLoad = useSheetFrame('dialog', { visible, animationType: 'fade' });
   const [factIdx, setFactIdx] = useState(0);
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
@@ -83,13 +86,13 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, think
   return (
     <Modal
       visible={visible}
-      animationType="fade"
+      animationType={fLoad.animationType}
       transparent
       statusBarTranslucent
       onRequestClose={() => { /* not dismissable while generating */ }}
     >
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+      <View style={[styles.overlay, fLoad.overlay]}>
+        <View style={[styles.card, fLoad.card]}>
           <View style={styles.scene}>
             <CraneSvg size={288} animate={visible} />
           </View>

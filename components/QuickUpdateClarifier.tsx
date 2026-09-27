@@ -29,6 +29,7 @@ import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { neutralInk } from '@/components/ui/ink';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 /**
  * Clarifier opened from Quick Field Update when the parser couldn't
@@ -107,6 +108,9 @@ export default function QuickUpdateClarifier({
   );
   const [noteText, setNoteText] = useState<string>(initialText ?? '');
   const [query, setQuery] = useState<string>(initialQuery ?? '');
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   // Re-seed every time the sheet opens so a second invocation doesn't carry
   // stale selection from the previous attempt.
@@ -173,21 +177,23 @@ export default function QuickUpdateClarifier({
       text: needsText ? noteText.trim() : undefined,
     });
   };
+  // Desktop web: Cmd/Ctrl+Enter (and Cmd+S) = Apply update, only while it can.
+  useSheetPrimaryHotkey(visible, canSubmit ? handleSubmit : null);
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={fX.animationType}
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.root}
+        style={[styles.root, fX.overlay]}
       >
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.sheet} testID="quick-update-clarifier">
-          <View style={styles.handle} />
+        <Pressable style={[styles.backdrop, fX.backdrop]} onPress={onClose} />
+        <View style={[styles.sheet, fX.card]} testID="quick-update-clarifier">
+          {fX.showHandle && <View style={styles.handle} />}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Clarify update</Text>

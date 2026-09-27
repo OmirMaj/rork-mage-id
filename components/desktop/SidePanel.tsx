@@ -110,6 +110,11 @@ export interface SidePanelProps {
   /** Web: tag the desktop panel data-print="hide" so Cmd+P prints the page
    *  beside it, not the panel (a page-owned pane that is not the shell dock). */
   printHide?: boolean;
+  /** Desktop: closed → the panel stays MOUNTED with display: none, so its
+   *  content keeps its state (a half-typed question, a chat's turns) until it
+   *  opens again. While hidden it hears no Esc and carries no DOM id. The
+   *  phone branch (a page sheet) ignores it. Default false (closed = null). */
+  keepMounted?: boolean;
 }
 
 /** Web: the resize cursor on the drag edge. RN types only 'auto' | 'pointer';
@@ -126,7 +131,7 @@ export function SidePanel(props: SidePanelProps) {
     open, onClose, title, children, onToggle, toggleCombo = 'mod+j', tabs, activeTab, onTabChange,
     panelId, defaultWidth = SIDE_PANEL_DEFAULT, containerWidth, overlayBelow = SIDE_PANEL_OVERLAY_BELOW,
     headerActions, scroll = true, style, testID, hotkeyScope = 'page', nativeID, printHide = false,
-    resizable = true,
+    resizable = true, keepMounted = false,
   } = props;
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -183,8 +188,9 @@ export function SidePanel(props: SidePanelProps) {
   // Motion (slicker pass, desktop web only). The slide arms only once this
   // panel has SEEN open go false → true after mount, so a panel that mounts
   // open — and every golden — renders exactly as before. The panel View is
-  // re-inserted on each open (null while closed), so the 200 ms slide replays
-  // per open; a width drag never replays it. The body fades 140 ms when the
+  // re-inserted on each open (null while closed; display none → flex under
+  // keepMounted, which restarts the animation too), so the 200 ms slide
+  // replays per open; a width drag never replays it. The body fades 140 ms when the
   // section title or tab changes, WITHOUT a remount (a chat draft and the
   // scroll position survive): useWebSwap alternates two keyframe names.
   const prevOpen = useRef(open);
@@ -250,7 +256,7 @@ export function SidePanel(props: SidePanelProps) {
     );
   }
 
-  if (!open) return null;
+  if (!open && !keepMounted) return null;
   // sidePanelMode's rule (utils/splitViewLayout) at the caller's threshold:
   // an unmeasured container docks; a measured one under `overlayBelow`
   // overlays. At the default threshold this IS sidePanelMode(containerWidth).
@@ -261,10 +267,15 @@ export function SidePanel(props: SidePanelProps) {
   return (
     <View
       style={slide
-        ? [styles.panel, { width }, overlay ? styles.overlay : null, style, slide]
-        : [styles.panel, { width }, overlay ? styles.overlay : null, style]}
+        ? [styles.panel, { width }, overlay ? styles.overlay : null, style, slide, !open && styles.hidden]
+        : [styles.panel, { width }, overlay ? styles.overlay : null, style, !open && styles.hidden]}
       testID={testID}
       nativeID={domId}
+      // keepMounted and closed: display none AND no DOM id — nothing (the
+      // print rule, a probe, a test's #id query) may find a panel that is off
+      // screen. Re-shown, the id comes back and the slide replays (display
+      // none → flex restarts the CSS animation).
+      {...(open ? null : { nativeID: undefined })}
       {...(printHide && Platform.OS === 'web' ? ({ dataSet: { print: 'hide' } } as object) : {})}
       // A landmark on web (<aside>-like), so a screen reader can jump to it.
       role={Platform.OS === 'web' ? 'complementary' : undefined}
@@ -330,4 +341,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tabTextOn: { color: t.text },
   body: { flex: 1 },
   bodyContent: { padding: Layout.cardPad, gap: Layout.groupGap },
+  hidden: { display: 'none' },
 });

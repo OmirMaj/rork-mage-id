@@ -39,6 +39,7 @@ import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { matchesConditionFilter, type ConditionKind, type rollup } from '@/utils/takeoff/conditions';
 import { filterSuggestions } from '@/utils/takeoff/aiSuggestions';
 import AiSuggestionsSection, { type AiSuggestionsSectionProps } from './AiSuggestionsSection';
+import type { TakeoffConflict } from '@/hooks/useTakeoffConditions';
 
 export type PanelRow = ReturnType<typeof rollup>['rows'][number];
 export type PanelFilter = 'sheet' | 'all';
@@ -53,9 +54,6 @@ export function visibleRows<R extends { condition: PanelRow['condition'] }>(rows
 /** The filter input's DOM id: the workspace's Esc binding clears the box only
  *  when the key was typed in it (targetWithin). */
 export const TAKEOFF_FILTER_DOM_ID = 'takeoffws-filter-input-dom';
-
-/** Lane SYNC's account-sync conflict (useTakeoffConditions().conflict). */
-export type TakeoffConflict = { notice: string; hasBackup: boolean; restore: () => void; dismiss: () => void };
 
 /** One "Start with" chip: the name · unit, and its rate line ("$4.10/SF · from your jobs" / "no history"). */
 export interface StarterChip { key: string; name: string; unit: string; rateLine: string }
@@ -98,6 +96,7 @@ export interface ConditionsPanelProps {
   skippedLines: string[];
   /** "Saved on this browser" until lane SYNC words it for account sync. */
   saveLine: string;
+  /** Lane SYNC's account-sync conflict: the hook's own type (useTakeoffConditions().conflict). */
   conflict: TakeoffConflict | null;
   /** The filter box's text (the workspace owns it). */
   filterText: string;

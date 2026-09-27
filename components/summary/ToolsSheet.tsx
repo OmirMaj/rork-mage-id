@@ -25,6 +25,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { NavRow } from '@/components/NavRow';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import { featureFor, type FeatureId } from '@/utils/featureRegistry';
 
 interface SheetRow {
@@ -65,6 +66,9 @@ interface ToolsSheetProps {
 export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Desktop web: a centred card in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's sheet, byte for byte.
+  const fX = useSheetFrame('form', { visible, animationType: 'slide' });
 
   // Navigate by registry route, not by the row's literal, so a stale literal
   // sends nobody anywhere wrong in the window before the guard is next run.
@@ -74,15 +78,16 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
   );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={fX.animationType} onRequestClose={onClose}>
+      <SheetOverlay frame={fX}>
       <TouchableOpacity
-        style={styles.backdrop}
+        style={[styles.backdrop, fX.backdrop]}
         activeOpacity={1}
         onPress={onClose}
         testID="summary-tools-backdrop"
       />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]} testID="summary-tools-sheet">
-        <View style={styles.handle} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, fX.card]} testID="summary-tools-sheet">
+        {fX.showHandle && <View style={styles.handle} />}
         <Text style={styles.title}>Tools</Text>
         <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
           {SHEET_ROWS.map(row => (
@@ -97,6 +102,7 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
           ))}
         </ScrollView>
       </View>
+      </SheetOverlay>
     </Modal>
   );
 }

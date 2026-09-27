@@ -1184,6 +1184,233 @@ console.log('\nhidden tabs (href: null) have a back affordance:');
     + 'behind it, and a GC running eight jobs cannot check "this project" against anything.');
 }
 
+// ── d6r K3 — sidebar ────────────────────────────────────────────────────────
+// Wave 6d (d6r lane K3) gave the sidebar a power layer: live counts beside
+// RFIs / Submittals / Change Orders / Punch List, an instant hover label on the
+// collapsed rail, '+ New' merged into a 40×40 button beside the job switcher
+// (CreateMenu anchored to it), the Ask MAGE row as a ⌘J dock toggle, and an
+// Action Required footer row that opens the attention list in the dock.
+//
+// PART 1 — the counts equal the log chips. The founder reads the number on the
+// rail and clicks through; if the log's Open chip then says something else, the
+// rail lied. So utils/sidebarCounts is run for real against the SAME chip
+// counters the logs render (utils/logs/*), on fixtures that mix jobs, statuses
+// and due dates. And the honesty rules (contract D9): no job, an unloaded or
+// failed source, or nothing open → the row is OMITTED, never a 0.
+//
+// PART 2 — source pins on components/DesktopSidebar.tsx and the new
+// components/sidebar/* files, for the shapes a refactor would quietly undo.
+console.log('\nd6r K3 — sidebar (counts equal the log chips; the power-layer pins):');
+{
+  const { jobRowCounts, countPill, latchLoaded } = await import('../utils/sidebarCounts');
+  const { rfiLogCounts } = await import('../utils/logs/rfiLogRows');
+  const { submittalLogChipCounts } = await import('../utils/logs/submittalLogRows');
+  const { coLogChipCounts } = await import('../utils/logs/changeOrderLogRows');
+
+  const NOW = new Date(2026, 8, 26, 12, 0, 0);
+  const PAST = '2026-09-01';
+  const FUTURE = '2026-12-01';
+  const rfis = [
+    { projectId: 'p1', status: 'open' as const, dateRequired: PAST },
+    { projectId: 'p1', status: 'open' as const, dateRequired: PAST },
+    { projectId: 'p1', status: 'open' as const, dateRequired: FUTURE },
+    { projectId: 'p1', status: 'answered' as const, dateRequired: PAST },
+    { projectId: 'p1', status: 'closed' as const, dateRequired: PAST },
+    { projectId: 'p1', status: 'void' as const, dateRequired: PAST },
+    { projectId: 'p2', status: 'open' as const, dateRequired: PAST },
+  ];
+  const submittals = [
+    { projectId: 'p1', currentStatus: 'pending' as const, reviewCycles: [], requiredDate: PAST },
+    { projectId: 'p1', currentStatus: 'in_review' as const, reviewCycles: [], requiredDate: FUTURE },
+    { projectId: 'p1', currentStatus: 'revise_resubmit' as const, reviewCycles: [], requiredDate: '' },
+    { projectId: 'p1', currentStatus: 'approved' as const, reviewCycles: [], requiredDate: PAST },
+    { projectId: 'p1', currentStatus: 'rejected' as const, reviewCycles: [], requiredDate: PAST },
+    { projectId: 'p2', currentStatus: 'pending' as const, reviewCycles: [], requiredDate: PAST },
+  ];
+  const changeOrders = [
+    { projectId: 'p1', status: 'draft' as const },
+    { projectId: 'p1', status: 'submitted' as const },
+    { projectId: 'p1', status: 'under_review' as const },
+    { projectId: 'p1', status: 'revised' as const },
+    { projectId: 'p1', status: 'approved' as const },
+    { projectId: 'p1', status: 'rejected' as const },
+    { projectId: 'p1', status: 'void' as const },
+    { projectId: 'p2', status: 'draft' as const },
+  ];
+  const punchItems = [
+    { projectId: 'p1', status: 'open' as const },
+    { projectId: 'p1', status: 'open' as const },
+    { projectId: 'p1', status: 'in_progress' as const },
+    { projectId: 'p1', status: 'ready_for_review' as const },
+    { projectId: 'p1', status: 'closed' as const },
+    { projectId: 'p2', status: 'open' as const },
+  ];
+  const ALL = { rfis: true, submittals: true, co: true, punch: true };
+  const base = { projectId: 'p1', loaded: ALL, rfis, submittals, changeOrders, punchItems, now: NOW };
+  const c = jobRowCounts(base);
+  const p1 = <T extends { projectId: string }>(xs: T[]) => xs.filter(x => x.projectId === 'p1');
+
+  const rfiChip = rfiLogCounts(p1(rfis), NOW);
+  ok(`K3 RFIs: open equals the RFI log's Open chip (${c.rfi?.open} vs ${rfiChip.open}), dot = its Overdue chip`,
+    !!c.rfi && c.rfi.open === rfiChip.open && c.rfi.alert === rfiChip.overdue && rfiChip.open === 3 && rfiChip.overdue === 2
+    && c.rfi.label === '3 open, 2 overdue');
+  const subChip = submittalLogChipCounts(p1(submittals), NOW);
+  ok(`K3 Submittals: open equals the submittal log's Open chip (${c.submittal?.open} vs ${subChip.open}), dot = its Late chip`,
+    !!c.submittal && c.submittal.open === subChip.open && c.submittal.alert === subChip.late && subChip.open === 3
+    && c.submittal.label === `3 open, ${subChip.late} late`);
+  const coChip = coLogChipCounts(p1(changeOrders));
+  ok(`K3 Change Orders: open equals the CO log's Open chip, drafts included (${c['change-order']?.open} vs ${coChip.open})`,
+    !!c['change-order'] && c['change-order'].open === coChip.open && coChip.open === 4
+    && c['change-order'].alert === 0 && c['change-order'].label === '4 open');
+  // The job page's punch KPI (hooks/useProjectPulse): open + in progress + ready for review.
+  const pulse = p1(punchItems);
+  const pulseOpen = pulse.filter(x => x.status === 'open').length
+    + pulse.filter(x => x.status === 'in_progress').length
+    + pulse.filter(x => x.status === 'ready_for_review').length;
+  ok(`K3 Punch List: open equals the job page's pulse formula (${c['punch-list']?.open} vs ${pulseOpen})`,
+    !!c['punch-list'] && c['punch-list'].open === pulseOpen && pulseOpen === 4 && c['punch-list'].alert === 0);
+
+  ok('K3 no active job: every row omitted',
+    Object.keys(jobRowCounts({ ...base, projectId: null })).length === 0
+    && Object.keys(jobRowCounts({ ...base, projectId: '' })).length === 0);
+  const zero = jobRowCounts({ ...base, projectId: 'p9' });
+  ok('K3 nothing open: the row is omitted, never a 0', Object.keys(zero).length === 0);
+  const flags = ['rfis', 'submittals', 'co', 'punch'] as const;
+  const rowOf = { rfis: 'rfi', submittals: 'submittal', co: 'change-order', punch: 'punch-list' } as const;
+  for (const f of flags) {
+    const got = jobRowCounts({ ...base, loaded: { ...ALL, [f]: false } });
+    const others = flags.filter(g => g !== f).every(g => !!got[rowOf[g]]);
+    ok(`K3 loaded.${f} false (unloaded or failed) omits ONLY the ${rowOf[f]} row`, !got[rowOf[f]] && others);
+  }
+  const many = jobRowCounts({ ...base, punchItems: Array.from({ length: 150 }, () => ({ projectId: 'p1', status: 'open' as const })) });
+  ok("K3 150 open reads '99+'; 99 reads '99'; the label keeps the true number",
+    many['punch-list']?.pill === '99+' && many['punch-list']?.label === '150 open' && countPill(99) === '99' && countPill(100) === '99+');
+
+  // The collection-read latch (fix round 1): opening the RFI log refetches
+  // ['rfis'], and a fresh `settled && !failed` would blink the count off and on
+  // under the click. Walk a read through its life and check every step.
+  {
+    const steps: [string, { settled: boolean; failed: boolean }, boolean][] = [
+      ['first read in flight', { settled: false, failed: false }, false],
+      ['first read settled', { settled: true, failed: false }, true],
+      ['background refetch in flight', { settled: false, failed: false }, true],
+      ['refetch settled', { settled: true, failed: false }, true],
+      ['refetch failed', { settled: true, failed: true }, false],
+      ['retry in flight after the failure', { settled: false, failed: false }, false],
+      ['paused (offline: settled + failed)', { settled: true, failed: true }, false],
+      ['healthy again', { settled: true, failed: false }, true],
+    ];
+    let prev = false;
+    const bad: string[] = [];
+    for (const [name, read, want] of steps) {
+      prev = latchLoaded(prev, read);
+      if (prev !== want) bad.push(`${name}: ${prev}`);
+    }
+    ok(`K3 latchLoaded: a loaded source stays loaded through a refetch, a failed read unlatches${bad.length ? ` (${bad.join('; ')})` : ''}`,
+      bad.length === 0 && latchLoaded(true, { settled: false, failed: true }) === false);
+  }
+
+  // ── PART 2 — source pins ──
+  const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const side = strip(read(join('components', 'DesktopSidebar.tsx')));
+  const pillSrc = strip(read(join('components', 'sidebar', 'RailHoverPill.tsx')));
+  const arSrc = strip(read(join('components', 'sidebar', 'SidebarActionRequiredRow.tsx')));
+  const hookSrc = strip(read(join('hooks', 'useJobRowCounts.ts')));
+
+  ok('K3 each row reads its OWN loaded flag, and the two collection reads go through the latch (restarted per user)',
+    /loaded: \{ rfis: rfisLoaded, submittals: submittalsLoaded, co: changeOrdersLoaded, punch: punchItemsLoaded \}/.test(hookSrc)
+    && /const rfisLoaded = useLoadedLatch\(rfiRead, userId\);/.test(hookSrc)
+    && /const submittalsLoaded = useLoadedLatch\(submittalRead, userId\);/.test(hookSrc)
+    && /const rfiRead = useCollectionSettled\('rfis', undefined\);/.test(hookSrc)
+    && /const submittalRead = useCollectionSettled\('submittals', undefined\);/.test(hookSrc)
+    && /const loaded = latchLoaded\(latch\.userId === userId \? latch\.loaded : false, read\);/.test(hookSrc)
+    && /const \{ changeOrders, changeOrdersLoaded \} = useFinancialsData\(\);/.test(hookSrc)
+    && /const \{ punchItems, punchItemsLoaded \} = useFieldData\(\);/.test(hookSrc));
+  ok('K3 a count never renders beside a lock badge (`const pill = !locked ? count : undefined;` in BOTH modes)',
+    (side.match(/const pill = !locked \? count : undefined;/g) ?? []).length === 2
+    && (side.match(/const locked = !asProfile && !!requires && !canAccess\(requires\);/g) ?? []).length === 2);
+
+  ok("K3 the Ask MAGE row keeps route: '/ask' and feature: 'ask-mage', and gains dock: 'ask'",
+    /\{ key: 'ask-mage',[^\n}]*route: '\/ask',[^\n}]*feature: 'ask-mage', dock: 'ask' \}/.test(side));
+  ok('K3 the Ask row is a dock toggle on desktop web in BOTH modes (item.dock && isDesktopWeb) and a RowLink elsewhere',
+    (side.match(/if \(item\.dock && isDesktopWeb\) \{/g) ?? []).length === 2
+    && /testID="sidebar-ask-mage"/.test(side)
+    && /accessibilityLabel="Ask MAGE, opens beside the page"/.test(side)
+    && /accessibilityState=\{\{ expanded: isAskOpen \}\}/.test(side)
+    && (side.match(/onPress=\{toggleAsk\}/g) ?? []).length === 2
+    && />⌘J</.test(side));
+  ok('K3 Action Required is gated `!isMinimalPersona && isDesktopWeb` in both modes: first in the footer, before Settings on the rail',
+    /<View style=\{styles\.accountSection\}>\s*<View style=\{styles\.footerDivider\} \/>\s*(\{\}\s*)?\{!isMinimalPersona && isDesktopWeb && <SidebarActionRequiredRow \/>\}\s*\{accountItems\.map/.test(side)
+    && /\{!isMinimalPersona && isDesktopWeb && \(\s*<RailTip label="Action Required"[^>]*>\s*<SidebarActionRequiredRow collapsed \/>\s*<\/RailTip>\s*\)\}\s*\{settingsItem \? renderRailItem\(settingsItem\) : null\}/.test(side)
+    && (side.match(/<SidebarActionRequiredRow\b/g) ?? []).length === 2);
+  ok('K3 Action Required opens the ATTENTION dock with the docked rail and closes it when it is showing',
+    /const open = dock\.id === ATTENTION_DOCK_ID && dock\.showing;/.test(arSrc)
+    && /if \(dock\.id === ATTENTION_DOCK_ID && dock\.showing\) \{\s*dock\.close\(\);\s*return;\s*\}/.test(arSrc)
+    && /if \(!dock\.canShow\(ATTENTION_DOCK_ID\)\) return;/.test(arSrc)
+    && /<DesktopActionRail variant="dock" \/>/.test(arSrc)
+    && /id: ATTENTION_DOCK_ID, title: 'Action Required', width: SIDE_PANEL_DEFAULT/.test(arSrc)
+    && /attentionBadgeLabel\(total, sourceFailed\)/.test(arSrc)
+    && /testID="sidebar-action-required"/.test(arSrc));
+  ok("K3 '+ New' is a 40×40 button beside the job switcher: newItem is gone and newButton exists",
+    !/\bnewItem\b/.test(side) && /style=\{styles\.topBlockRow\}/.test(side)
+    && /<JobSwitcher hrefForJob=\{hrefForJob\} \/>\s*<\/View>\s*<Pressable\s+ref=\{newRef\}\s+style=\{\(s\) => \[styles\.newButton\b/.test(side)
+    && /newButton: \{\s*width: Layout\.control\.md,\s*height: Layout\.control\.md,[\s\S]{0,200}?marginLeft: Layout\.rowGap,/.test(side));
+  ok("K3 the '+' hands CreateMenu a measured anchor and the active job (anchor + activeJob)",
+    /anchor=\{createAnchor \?\? undefined\}/.test(side) && /activeJob=\{!!jobId\}/.test(side)
+    && /measureInWindow\(/.test(side)
+    && /setCreateAnchor\(y === null \? null : \{ x: width \+ Layout\.menu\.offset, y \}\);\s*setCreateOpen\(true\);/.test(side)
+    && /setCreateAnchor\(y === null \? null : \{ x: Layout\.sidebar\.rail \+ Layout\.menu\.offset, y \}\);\s*setCreateOpen\(true\);/.test(side)
+    && (side.match(/setCreateOpen\(true\)/g) ?? []).length >= 2);
+  ok('K3 the hover pill sits at the rail\'s left + Layout.sidebar.rail + Layout.menu.offset and fades only when webMotion is non-null',
+    /export const RAIL_PILL_LEFT = Layout\.sidebar\.rail \+ Layout\.menu\.offset;/.test(pillSrc)
+    && /left=\{hoverTip\.railLeft \+ RAIL_PILL_LEFT\}/.test(side)
+    && /top=\{hoverTip\.top \+ hoverTip\.height \/ 2 - RAIL_PILL_HEIGHT \/ 2\}/.test(side)
+    && /const fade = webMotion\('fadeIn'\);/.test(pillSrc) && /\.\.\.\(fade \? \[fade\] : \[\]\)/.test(pillSrc)
+    && /\{ top, left, pointerEvents: 'none' \}/.test(pillSrc) && !/pointerEvents="none"/.test(pillSrc));
+  // Fix round 1: react-native-web makes every View a z-index-0 stacking
+  // context, and app/_layout.tsx draws the page View AFTER the sidebar's
+  // wrapper — so a pill inside the sidebar is painted under the page. On web it
+  // is portalled to document.body, fixed, in viewport px.
+  ok('K3 on web the pill is portalled to document.body with position fixed (the page would paint over it inside the sidebar)',
+    /return Platform\.OS === 'web' && typeof document !== 'undefined' \? document\.body : null;/.test(pillSrc)
+    && /return host \? createPortal\(pill, host\) : pill;/.test(pillSrc)
+    && /host \? styles\.railPillFixed : null/.test(pillSrc)
+    && /railPillFixed: \{\s*position: 'fixed' as unknown as ViewStyle\['position'\],\s*zIndex: 1000,/.test(pillSrc)
+    && /onHover\(labelRef\.current, \{ top: r\.top, height: r\.height, railLeft: c\?\.left \?\? 0 \}\);/.test(side));
+  ok('K3 the rail, its pill and the Action Required row paint from ONE palette (RAIL, exported beside the pill)',
+    /export const RAIL = \{\s*ground: '#1C1C1E',\s*ink: '#FFFFFF',/.test(pillSrc)
+    && /backgroundColor: RAIL\.ground,/.test(pillSrc) && /color: RAIL\.ink,/.test(pillSrc)
+    && !/const RAIL = \{/.test(side) && /import \{ RailHoverPill, RAIL, RAIL_PILL_HEIGHT, RAIL_PILL_LEFT \} from '@\/components\/sidebar\/RailHoverPill';/.test(side)
+    && /import \{ RAIL \} from '@\/components\/sidebar\/RailHoverPill';/.test(arSrc) && /ink: RAIL\.ink,/.test(arSrc));
+  {
+    const rail = side.slice(side.indexOf('if (collapsed) {'), side.indexOf('\n  return (\n', side.indexOf('if (collapsed) {')));
+    const pillAt = rail.indexOf('<RailHoverPill');
+    ok('K3 the pill renders in the collapsed rail, after the nav ScrollView closes (it clips at 64 px) — the last child',
+      pillAt > rail.indexOf('</ScrollView>') && rail.indexOf('</ScrollView>') > 0
+      && /<RailHoverPill[^>]*\/>\s*\)\}\s*<\/View>\s*\);\s*\}\s*$/.test(rail));
+  }
+  {
+    const tip = side.slice(side.indexOf('function RailTip('), side.indexOf('const DesktopSidebar = '));
+    ok("K3 RailTip sets no native title attribute (the pill replaced it) and keeps data-title",
+      tip.length > 0 && !/setAttribute\?\.\('title'/.test(tip) && !/setAttribute/.test(tip)
+      && /dataSet: \{ title: label \}/.test(tip)
+      && ['mouseenter', 'focusin', 'mouseleave', 'focusout'].every(e => tip.includes(`addEventListener('${e}'`) && tip.includes(`removeEventListener?.('${e}'`)));
+  }
+  ok('K3 the count pill renders only from useJobRowCounts (through <JobRowCounts>, in both modes)',
+    (side.match(/useJobRowCounts\(/g) ?? []).length === 1
+    && /function JobRowCounts\([^\n]*\) \{\s*const counts = useJobRowCounts\(jobId\);/.test(side)
+    && (side.match(/countOf\(counts, item\.key\)/g) ?? []).length === 2
+    && /<JobRowCounts jobId=\{jobId\}>\s*\{counts => itemsIn\(JOB_SECTION\)\.map\(item => renderNavItem\(item, false, countOf\(counts, item\.key\)\)\)\}/.test(side)
+    && /<JobRowCounts jobId=\{jobId\}>\s*\{counts => itemsIn\(JOB_SECTION\)\.map\(item => renderRailItem\(item, countOf\(counts, item\.key\)\)\)\}/.test(side)
+    && (side.match(/styles\.countPill\b/g) ?? []).length === 1);
+  {
+    const pm = side.slice(side.indexOf('const PM_NAV_ITEMS'), side.indexOf('const PM_SECTIONS'));
+    const keys = [...pm.matchAll(/feature: '([^']+)'/g)].map(m => m[1]);
+    ok(`K3 PM_NAV_ITEMS' feature keys are still exactly projects / contacts / notifications / settings (${keys.join(', ')})`,
+      keys.join(',') === 'projects,contacts,notifications,settings');
+  }
+}
+
 // ── Result ──────────────────────────────────────────────────────────────────
 
 if (failures > 0) {

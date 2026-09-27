@@ -53,6 +53,7 @@ import {
   actionDueLabel, type OpenOACAction,
 } from '@/utils/oacEngine';
 import DatePickerModal from '@/components/DatePickerModal';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { formatCalendarDay, calendarDayOf } from '@/utils/calendarDate';
 import { StatusPipeline } from '@/components/StatusPipeline';
 import { stagesFor, visualStageFor } from '@/utils/workflowPipelines';
@@ -752,6 +753,12 @@ function OACMeetingInner() {
     [agendaBuckets],
   );
 
+  // Desktop: Add attendee is a centred form card (d6r X3, batch F); a phone
+  // keeps its bottom sheet (every frame part is null there). Cmd/Ctrl+Enter
+  // (and Cmd+S) run its Add — handleSaveAttendee asks for a name itself.
+  const fAttendee = useSheetFrame('form', { visible: showAddAttendee, animationType: 'slide' });
+  useSheetPrimaryHotkey(showAddAttendee, handleSaveAttendee);
+
   if (!project) {
     return (
       <View style={styles.container}>
@@ -1073,10 +1080,10 @@ function OACMeetingInner() {
 
         {/* Add-attendee modal — cross-platform replacement for Alert.prompt.
             Name required, email optional (needed only for minutes distribution). */}
-        <Modal visible={showAddAttendee} transparent animationType="slide" onRequestClose={() => setShowAddAttendee(false)}>
+        <Modal visible={showAddAttendee} transparent animationType={fAttendee.animationType} onRequestClose={() => setShowAddAttendee(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <Pressable style={styles.attendeeModalOverlay} onPress={() => setShowAddAttendee(false)}>
-              <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }]} onPress={() => undefined}>
+            <Pressable style={[styles.attendeeModalOverlay, fAttendee.overlay]} onPress={() => setShowAddAttendee(false)}>
+              <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }, fAttendee.card]} onPress={() => undefined}>
                 <View style={styles.attendeeModalHeader}>
                   <Text style={styles.attendeeModalTitle}>Add attendee</Text>
                   <TouchableOpacity onPress={() => setShowAddAttendee(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">

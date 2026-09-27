@@ -80,7 +80,7 @@ const ROOT = join(__dirname, '..');
 const CEILING = {
   /** Numeric `maxWidth` literals ≥ 700 in app/ + components/ — page and
    *  column caps that should each be a Layout token. */
-  pageWidthLiterals: 40,
+  pageWidthLiterals: 39, // d6r phase A (2026-09-26): 40 → 39
   /** seg/segment/tab/toggle/mode style entries that stretch (flex:1 /
    *  flexGrow:1) with no `segmentedDesktop` companion at their use site.
    *  Excludes components/schedule/mobile and `…Phone` styles. */
@@ -88,18 +88,18 @@ const CEILING = {
   /** Files with a transparent <Modal> and no desktop frame (no Sheet /
    *  useSheetFrame, no maxWidth anywhere in the file). SHEET_EXEMPT files are
    *  skipped (wave 6d): they never render a desktop sheet. */
-  unframedTransparentModalFiles: 19,
+  unframedTransparentModalFiles: 2, // d6r phase B (2026-09-27): 18 → 2
   /** Non-transparent pageSheet <Modal>s (full-window on web). */
-  pageSheetModals: 22,
+  pageSheetModals: 6, // d6r phase B (2026-09-27): 16 → 6
   /** Percent-width tile literals (width / flexBasis / minWidth of 22–25%,
    *  30–33% or 45–49%) — tiles sized from the row, not from a minimum. */
   percentTileLiterals: 26,
   /** Desktop tile styles that combine flexGrow:1 with a numeric flexBasis
    *  (the last row's orphan stretches across the page). */
-  growingDesktopTiles: 11,
+  growingDesktopTiles: 10, // d6r phase A (2026-09-26): 11 → 10
   /** `showsHorizontalScrollIndicator={false}` — a desktop mouse has no swipe,
    *  so a hidden-scrollbar rail hides its own overflow. */
-  hiddenScrollbarRails: 106,
+  hiddenScrollbarRails: 104, // d6r phase A (2026-09-26): 106 → 104
   /** `<Button style={{ flex: 1 }}>` — a stretched button; containerStyle is
    *  the replacement. */
   stretchedButtons: 0,
@@ -659,68 +659,13 @@ if (fixedBaseline.length) note(`gated now — delete from UNGATED_BASELINE: ${fi
  *  edit this block; the orchestrator trims it at integration.
  *  Wave 6d P0: 91 → 86 — estimate/full reached parity under consumed-frame
  *  SA6; the three phone-only schedule sheets and SidePanel moved to
- *  SHEET_EXEMPT. */
+ *  SHEET_EXEMPT.
+ *  d6r phase A (2026-09-26): 4 files reached parity — components/CreateMenu.tsx
+ *  (K2), app/wip-report.tsx (B2), app/buyout.tsx and app/buyout-package.tsx (B3).
+ *  d6r phase B (2026-09-27): 55 files reached parity (X1/X2/X3 + ToolbarActions);
+ *  only components/Paywall.tsx stays — its second Modal is the native-only pageSheet. */
 const SHEET_PENDING: ReadonlySet<string> = new Set<string>([
-  'app/(tabs)/discover/bids.tsx',
-  'app/(tabs)/materials/[category].tsx',
-  'app/(tabs)/schedule/index.tsx',
-  'app/building-access.tsx',
-  'app/buyout-package.tsx',
-  'app/buyout.tsx',
-  'app/client-view.tsx',
-  'app/company-profile.tsx',
-  'app/equipment-detail.tsx',
-  'app/get-verified.tsx',
-  'app/lead-detail.tsx',
-  'app/managed-property.tsx',
-  'app/oac-meeting.tsx',
-  'app/plan-intelligence.tsx',
-  'app/qbo-review.tsx',
-  'app/shared-schedule.tsx',
-  'app/wip-report.tsx',
-  'app/work-order.tsx',
-  'components/AIBidScorer.tsx',
-  'components/AIProjectReport.tsx',
-  'components/AIQuickEstimate.tsx',
-  'components/AIWeeklySummary.tsx',
-  'components/AssemblyEditorModal.tsx',
-  'components/CSIDivisionPicker.tsx',
-  'components/CashFlowSetup.tsx',
-  'components/ClientDocumentAskSheet.tsx',
-  'components/ClientPaywall.tsx',
-  'components/ConfirmEmailModal.tsx',
-  'components/CreateMenu.tsx',
-  'components/DemoSeedPickerModal.tsx',
-  'components/EstimateComparison.tsx',
-  'components/EstimateLoadingOverlay.tsx',
-  'components/FeatureExplainerSheet.tsx',
-  'components/HelpFab.tsx',
-  'components/InfoBubble.tsx',
-  'components/InstantBidProposalModal.tsx',
-  'components/MaterialAIEstimateModal.tsx',
-  'components/OfflineSyncPill.tsx',
   'components/Paywall.tsx',
-  'components/ProductivityCalculator.tsx',
-  'components/PropertyManagerHome.tsx',
-  'components/QuickFieldUpdate.tsx',
-  'components/QuickUpdateClarifier.tsx',
-  'components/RFITriageModal.tsx',
-  'components/RateOverrideModal.tsx',
-  'components/ReferralPrompt.tsx',
-  'components/SquareFootEstimator.tsx',
-  'components/SubDailyUpdateModal.tsx',
-  'components/TakeoffFieldVerifyButton.tsx',
-  'components/TakeoffPageInspector.tsx',
-  'components/UniversalMicButton.tsx',
-  'components/UpgradeSheet.tsx',
-  'components/VoiceCommandModal.tsx',
-  'components/copilot/ScheduleEditPanel.tsx',
-  'components/desktop/JobSwitcher.tsx',
-  'components/desktop/ToolbarActions.tsx',
-  'components/estimate/RateProvenanceChip.tsx',
-  'components/punch/PunchExportSheet.tsx',
-  'components/punch/PunchPhotoViewer.tsx',
-  'components/summary/ToolsSheet.tsx',
 ]);
 
 const FRAME_PARTS = /^(?:overlay|card|backdrop|scrollContent|footer|footerButton)$/;
@@ -1041,6 +986,21 @@ const PINS: Pin[] = [
     name: "TodayView's emptyActive has a desktop variant",
     file: 'components/schedule/TodayView.tsx', fixed: true,
     isFixed: (s) => /\bemptyActiveDesktop\b/.test(s),
+  },
+  {
+    name: 'reports uses <ActionBar> (d6r B2)',
+    file: 'app/reports.tsx', fixed: true,
+    isFixed: (s) => /<ActionBar style=\{styles\.actionBar\} width="dashboard">/.test(s),
+  },
+  {
+    name: 'wip-report renders the wip-projects DataTable behind isDesktopWeb (d6r B2)',
+    file: 'app/wip-report.tsx', fixed: true,
+    isFixed: (s) => /\) : isDesktopWeb \? \([\s\S]{0,200}<DataTable\s+tableId="wip-projects"/.test(s),
+  },
+  {
+    name: 'buyout renders the buyout-packages DataTable behind isDesktopWeb (d6r B3)',
+    file: 'app/buyout.tsx', fixed: true,
+    isFixed: (s) => /\) : isDesktopWeb \? \([\s\S]{0,400}<DataTable\s+tableId="buyout-packages"/.test(s),
   },
 ];
 for (const pin of PINS) {

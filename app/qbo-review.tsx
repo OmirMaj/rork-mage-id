@@ -44,6 +44,7 @@ import {
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { formatMoney } from '@/utils/formatters';
+import { useSheetFrame } from '@/components/ui/Sheet';
 
 // ─── Business gate ────────────────────────────────────────────────────────────
 
@@ -95,6 +96,9 @@ function QboReviewInner() {
   // Confirm-time project assignments for unmapped lines (line id → project id).
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [pickerFor, setPickerFor] = useState<QboCostLineRow | null>(null);
+  // Desktop web: the project picker is a centred dialog in the content
+  // column, the scrim over the sidebar. Phone: every part is null.
+  const fPick = useSheetFrame('dialog', { visible: pickerFor != null, animationType: 'fade' });
 
   const projectName = useCallback(
     (id: string | null | undefined) => projects.find(p => p.id === id)?.name ?? null,
@@ -388,9 +392,9 @@ function QboReviewInner() {
       )}
 
       {/* Project picker */}
-      <Modal visible={pickerFor != null} transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
-        <View style={styles.pickerBackdrop}>
-          <View style={styles.pickerSheet}>
+      <Modal visible={pickerFor != null} transparent animationType={fPick.animationType} onRequestClose={() => setPickerFor(null)}>
+        <View style={[styles.pickerBackdrop, fPick.overlay]}>
+          <View style={[styles.pickerSheet, fPick.card]}>
             <View style={styles.pickerHead}>
               <Text style={styles.pickerTitle}>File this cost to…</Text>
               <TouchableOpacity onPress={() => setPickerFor(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close picker">

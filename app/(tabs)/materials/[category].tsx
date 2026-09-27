@@ -31,6 +31,7 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { parseLenientNumber } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
+import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 
 const PAGE_SIZE = 30;
 
@@ -163,6 +164,11 @@ export default function CategoryDetailScreen() {
       `MAGE will compare ${alertModal.name} against the price book — it does not watch the market. Open Materials › Price Targets to see whether it is ${alertDirection} $${price.toFixed(2)}.`,
     );
   }, [alertModal, alertPrice, alertDirection, addPriceAlert]);
+  // Desktop web: the price-alert dialog is a centred card in the content
+  // column, the scrim over the sidebar; Cmd/Ctrl+Enter (and Cmd+S) sets the
+  // alert. Phone: every part is null — today's dialog, byte for byte.
+  const fAlert = useSheetFrame('dialog', { visible: alertModal !== null, animationType: 'fade' });
+  useSheetPrimaryHotkey(alertModal !== null, handleCreateAlert);
 
   const renderItem = useCallback(({ item }: { item: MaterialItem }) => {
     const discount = calcDiscount(item.baseRetailPrice, item.baseBulkPrice);
@@ -349,11 +355,11 @@ export default function CategoryDetailScreen() {
       <Modal
         visible={alertModal !== null}
         transparent
-        animationType="fade"
+        animationType={fAlert.animationType}
         onRequestClose={() => setAlertModal(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <View style={[styles.modalOverlay, fAlert.overlay]}>
+          <View style={[styles.modalCard, fAlert.card]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Set Price Alert</Text>
               <TouchableOpacity onPress={() => setAlertModal(null)} accessibilityRole="button" accessibilityLabel="Close">

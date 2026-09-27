@@ -16,14 +16,14 @@ exports[`slick3 front door golden — /login and /signup at rest (b) /signup pho
 
 exports[`slick3 front door golden — /login and /signup at rest (c) /login desktop 1280 × 800 (desktop-web layout forced) 1`] = `
 {
-  "lines": 363,
-  "sha256": "ed4dfc3832bbfcd4977d081422437bc91262c29c145c86e38db30dfa9ee25177",
+  "lines": 364,
+  "sha256": "95b74adda971fb53997e809b2bd601fefbf4d587dd97760e8df0e2a8b00d26d3",
 }
 `;
 
 exports[`slick3 front door golden — /login and /signup at rest (d) /signup desktop 1280 × 800 (desktop-web layout forced) 1`] = `
 {
-  "lines": 450,
-  "sha256": "9ebcb10e150ab95316d9c643428467b68239e553b88191c7ebb214384bee5502",
+  "lines": 451,
+  "sha256": "45f20a2b19b1a22c38448043f883ef65612e637fdba394cee67afa09c3402a27",
 }
 `;

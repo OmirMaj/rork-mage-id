@@ -45,12 +45,17 @@ import {
   BID_PACKAGE_STATUSES, BID_PACKAGE_STATUS_LABELS,
   type BidPackage, type BidPackageStatus,
 } from '@/types';
-import { formatCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, parseCalendarDay } from '@/utils/calendarDate';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Layout, Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
-import { cardSurface } from '@/components/ui';
+import {
+  cardSurface, ChipRail, chipDesktop, SheetOverlay, SheetScrim,
+  useIsDesktop, useIsDesktopWeb, useSheetFrame, useSheetPrimaryHotkey,
+} from '@/components/ui';
+import { DataTable, type DataTableColumn } from '@/components/desktop/DataTable';
+import { routeHref } from '@/components/desktop/RowLink';
 import { estimateItemsToScope } from '@/utils/estimateItemsToScope';
 import { deliverPendingBidInvites, fetchBidInvitesForProject } from '@/utils/bidInvites';
 import { lineCost, round2 } from '@/utils/estimateMarkup';
@@ -312,6 +317,121 @@ export default function BuyoutScreen() {
     router.push({ pathname: '/buyout-package' as never, params: { packageId: newPkg.id } as never });
   }, [project, newPkgName, newPkgPhase, newPkgCsi, newPkgBudget, newPkgPickedItemIds, newPkgDueDate, projectEstimateItems, addBidPackage, router]);
 
+  // ── Desktop (wave 6d, d6r B3) ───────────────────────────────────
+  // The packages become a linked, sortable table on desktop web; the
+  // new-package sheet becomes a centred 560 card over a scrim instead of an
+  // opaque full-window page. On the phone every one of these is inert: the
+  // frame's styles are null, the hotkey registers nothing, and the table sits
+  // behind isDesktopWeb with today's card list as the other arm.
+  const isDesktop = useIsDesktop();
+  const isDesktopWeb = useIsDesktopWeb();
+  const fNew = useSheetFrame('form', { visible: showNewPkg, animationType: 'slide' });
+  useSheetPrimaryHotkey(showNewPkg, handleCreatePackage);
+
+  // Everything one package row shows, derived once — the phone card and the
+  // desktop table read the SAME figures (no cell re-derives a number). One
+  // clock per row, so the row's due state and its invite coverage agree.
+  const packageRowView = (pkg: BidPackage) => {
+    const now = Date.now();
+    const bids = getBidsForPackage(pkg.id);
+    const lowest = bids.length > 0 ? bids.reduce((m, b) => b.amount < m ? b.amount : m, bids[0].amount) : 0;
+    const live = pkg.status !== 'awarded' && pkg.status !== 'cancelled';
+    const savings = packageBuyoutSavings(pkg, bids, commitments);
+    const budgetAtSell = sellBasisIds.has(pkg.id);
+    const dueState = bidDueState(pkg.dueDate, now);
+    const overdue = live && dueState === 'overdue';
+    // Only rendered when the invite read actually succeeded —
+    // "0 invited" over a dropped read is a claim we cannot make.
+    const pkgInvites = invitesLoaded ? (invitesByPackage.get(pkg.id) ?? []) : null;
+    const cover = pkgInvites ? inviteCoverage(pkgInvites, now) : null;
+    return { now, bids, lowest, live, savings, budgetAtSell, dueState, overdue, cover };
+  };
+  // Derived once per render and read by every cell of the row (and by the
+  // phone card), instead of each cell re-filtering the project's bids.
+  const rowViews = new Map(packages.map(p => [p.id, packageRowView(p)] as const));
+  const rowView = (pkg: BidPackage) => rowViews.get(pkg.id) ?? packageRowView(pkg);
+
+  // The 'buyout-packages' table (desktop web only). Every money cell is the
+  // card's own expression: Budget is formatMoney(pkg.estimateBudget); Result
+  // is the card's four-way branch, copied, never re-derived.
+  const packageColumns: DataTableColumn<BidPackage>[] = [
+    {
+      key: 'name', label: 'Package', flex: 1, minWidth: 220,
+      sortValue: (pkg) => pkg.name.toLowerCase(),
+      render: (pkg) => {
+        const v = rowView(pkg);
+        return (
+          <View style={styles.tablePkgCell}>
+            <View style={[styles.statusDot, styles.tableStatusDot, { backgroundColor: STATUS_COLORS[pkg.status] }]} />
+            <Text style={[styles.tableCell, styles.tableCellStrong]} numberOfLines={1}>{pkg.name}</Text>
+            {v.overdue ? <Text style={styles.tableOverdue}>OVERDUE</Text> : null}
+          </View>
+        );
+      },
+    },
+    { key: 'phase', label: 'Phase', width: 120, hideBelow: 1100, value: (pkg) => pkg.phase || null, sortValue: (pkg) => pkg.phase || null },
+    {
+      // Wide enough for the longest label ('Leveling · Comparing bids') on one line.
+      key: 'status', label: 'Status', width: 180,
+      value: (pkg) => BID_PACKAGE_STATUS_LABELS[pkg.status], sortValue: (pkg) => BID_PACKAGE_STATUS_LABELS[pkg.status],
+    },
+    {
+      key: 'due', label: 'Bids due', width: 150, hideBelow: 1000,
+      // The card shows the chase line only while the package is live.
+      sortValue: (pkg) => (rowView(pkg).live ? parseCalendarDay(pkg.dueDate)?.getTime() ?? null : null),
+      render: (pkg) => {
+        const v = rowView(pkg);
+        return v.live ? (
+          <Text style={[styles.tableCell, v.dueState === 'overdue' && { color: themeColors.danger, fontWeight: '700' }]} numberOfLines={1}>
+            {bidDueLabel(pkg.dueDate, v.now)}
+          </Text>
+        ) : <Text style={[styles.tableCell, styles.tableCellMuted]}>—</Text>;
+      },
+    },
+    {
+      key: 'invites', label: 'Invites', width: 84, numeric: true,
+      // '—' while the project's invite read has not come back: never a 0.
+      // A loaded read with no invites says so in words — the card leaves its
+      // coverage out then, so the table does not print a bare 0/0 either.
+      value: (pkg) => {
+        const cover = rowView(pkg).cover;
+        if (!cover) return null;
+        return cover.invited > 0 ? `${cover.responded}/${cover.invited}` : 'None sent';
+      },
+    },
+    {
+      key: 'budget', label: 'Budget', width: 130, numeric: true,
+      sortValue: (pkg) => pkg.estimateBudget,
+      render: (pkg) => (
+        <View style={styles.tableNumCell}>
+          <Text style={[styles.tableCell, styles.tableNum]} numberOfLines={1}>{formatMoney(pkg.estimateBudget)}</Text>
+          {sellBasisIds.has(pkg.id) ? <Text style={[styles.tableSub, styles.tableNum]} numberOfLines={1}>incl. markup</Text> : null}
+        </View>
+      ),
+    },
+    {
+      key: 'result', label: 'Result', width: 210,
+      render: (pkg) => {
+        const { budgetAtSell, savings, bids, lowest } = rowView(pkg);
+        return budgetAtSell ? (
+          <Text style={[styles.tableCell, { color: themeColors.warningLabel }]} numberOfLines={2}>Budget includes markup — review</Text>
+        ) : savings != null ? (
+          <Text style={[styles.tableCell, styles.tableCellStrong, { color: savings >= 0 ? themeColors.success : themeColors.danger }]} numberOfLines={1}>
+            {savings >= 0 ? '+' : ''}{formatMoney(savings)}
+          </Text>
+        ) : bids.length > 0 ? (
+          <Text style={styles.tableCell} numberOfLines={1}>Lowest {formatMoney(lowest)} · {bids.length} in</Text>
+        ) : (
+          <Text style={[styles.tableCell, styles.tableCellMuted]} numberOfLines={1}>No bids yet</Text>
+        );
+      },
+    },
+    {
+      key: 'bids', label: 'Bids', width: 64, numeric: true,
+      value: (pkg) => rowView(pkg).bids.length, sortValue: (pkg) => rowView(pkg).bids.length,
+    },
+  ];
+
   return (
     <>
       <Stack.Screen options={{ title: 'Buyout', headerLargeTitle: false }} />
@@ -335,17 +455,13 @@ export default function BuyoutScreen() {
         />
 
         {/* Project chip row — matches the schedule tab pattern. */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.projectChipsRow}
-        >
+        <ChipRail contentContainerStyle={styles.projectChipsRow}>
           {projects.map(p => {
             const active = p.id === project?.id;
             return (
               <TouchableOpacity
                 key={p.id}
-                style={[styles.projectChip, active && styles.projectChipActive]}
+                style={[styles.projectChip, isDesktop && chipDesktop, active && styles.projectChipActive]}
                 onPress={() => setPickedProjectId(p.id)}
                 activeOpacity={0.8}
               >
@@ -358,7 +474,7 @@ export default function BuyoutScreen() {
           {projects.length === 0 && (
             <Text style={styles.emptyChipText}>No projects yet — create one from the Home tab.</Text>
           )}
-        </ScrollView>
+        </ChipRail>
 
         {!project ? (
           <View style={styles.emptyState}>
@@ -439,19 +555,23 @@ export default function BuyoutScreen() {
                     Create a scope package — Plumbing rough-in, Drywall, MEP, etc. Send it out for bid, log the responses, and let MAGE ID level them.
                   </Text>
                 </View>
+              ) : isDesktopWeb ? (
+                // Desktop web: one linked row per package — Cmd/middle-click
+                // opens it in a new tab (D7: /buyout-package?packageId). The
+                // table only mounts here, so its phone branch (renderCard) is
+                // never reached; the phone renders the cards below.
+                <DataTable
+                  tableId="buyout-packages"
+                  testID="buyout-packages"
+                  columns={packageColumns}
+                  rows={packages}
+                  rowKey={p => p.id}
+                  getRowHref={p => routeHref('/buyout-package', { packageId: p.id })}
+                  renderCard={() => null}
+                />
               ) : (
                 packages.map(pkg => {
-                  const bids = getBidsForPackage(pkg.id);
-                  const lowest = bids.length > 0 ? bids.reduce((m, b) => b.amount < m ? b.amount : m, bids[0].amount) : 0;
-                  const live = pkg.status !== 'awarded' && pkg.status !== 'cancelled';
-                  const savings = packageBuyoutSavings(pkg, bids, commitments);
-                  const budgetAtSell = sellBasisIds.has(pkg.id);
-                  const dueState = bidDueState(pkg.dueDate, Date.now());
-                  const overdue = live && dueState === 'overdue';
-                  // Only rendered when the invite read actually succeeded —
-                  // "0 invited" over a dropped read is a claim we cannot make.
-                  const pkgInvites = invitesLoaded ? (invitesByPackage.get(pkg.id) ?? []) : null;
-                  const cover = pkgInvites ? inviteCoverage(pkgInvites, Date.now()) : null;
+                  const { bids, lowest, live, savings, budgetAtSell, dueState, overdue, cover } = rowView(pkg);
                   return (
                     <Pressable
                       key={pkg.id}
@@ -541,7 +661,7 @@ export default function BuyoutScreen() {
 
         {/* New-package FAB row */}
         {project && (
-          <View style={[styles.fabRow, { bottom: insets.bottom + 18 }]}>
+          <View style={[styles.fabRow, { bottom: insets.bottom + 18 }, isDesktop && styles.fabRowDesktop]}>
             <TouchableOpacity
               style={styles.fabPrimary}
               onPress={() => setShowNewPkg(true)}
@@ -555,8 +675,13 @@ export default function BuyoutScreen() {
         )}
 
         {/* New-package modal */}
-        <Modal visible={showNewPkg} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewPkg(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
+        {/* Phone: today's pageSheet (the frame hands back 'slide', and
+            transparent stays undefined). Desktop: a transparent Modal with a
+            centred 560 card over a scrim that closes on click. */}
+        <Modal visible={showNewPkg} animationType={fNew.animationType} presentationStyle={fNew.isDesktop ? undefined : 'pageSheet'} transparent={fNew.isDesktop || undefined} onRequestClose={() => setShowNewPkg(false)}>
+          <SheetOverlay frame={fNew}>
+          <SheetScrim frame={fNew} onPress={() => setShowNewPkg(false)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fNew.card, fNew.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>New scope package</Text>
               <TouchableOpacity onPress={() => setShowNewPkg(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
@@ -715,6 +840,7 @@ export default function BuyoutScreen() {
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
+          </SheetOverlay>
           {/* allowFuture: a bid deadline is always ahead of today, and the
               picker blocks future dates unless told otherwise. */}
           <DatePickerModal
@@ -781,6 +907,28 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   pkgBudgetValueMuted: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
 
   fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 8 },
+  // Desktop: the FAB sits at the right, capped at the full-width button max.
+  // `left: 'auto'`, not undefined — react-native-web keeps the earlier
+  // `left: 16` for an undefined (or null) override, which with a fixed width
+  // pins the FAB to the LEFT edge and ignores `right`.
+  fabRowDesktop: { left: 'auto', right: Layout.gutter, width: Layout.button.fullWidthMax },
+  // Desktop: a centred sheet card sizes to its content, up to the frame's 85%
+  // max height (the body scrolls past that). Without it the phone's flex: 1
+  // grows every card to 85% of the window, so a one-field dialog is a tall
+  // box with its button stranded at the bottom. No surface here: the frame
+  // card already paints it.
+  sheetCardDesktop: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', overflow: 'hidden' },
+
+  // The desktop packages table's cells (no surface: the table is the card).
+  tablePkgCell: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  tableStatusDot: { marginTop: 0 },
+  tableCell: { fontSize: Type.bodyCompact.fontSize, color: t.text },
+  tableCellStrong: { fontWeight: '700' as const, flexShrink: 1 },
+  tableCellMuted: { color: t.textMuted },
+  tableOverdue: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.danger, letterSpacing: 0.5 },
+  tableNumCell: { alignItems: 'flex-end' },
+  tableNum: { textAlign: 'right' as const, fontVariant: ['tabular-nums'] },
+  tableSub: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accentFill, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 5 },
   fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 

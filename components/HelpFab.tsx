@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { HelpCircle, X, Play, Mail, BookOpen, ExternalLink } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { SheetOverlay, useSheetFrame } from '@/components/ui/Sheet';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -59,6 +60,9 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+  // Desktop web: a centred dialog in the content column, the scrim over the
+  // sidebar. Phone: every part is null — today's sheet, byte for byte.
+  const fX = useSheetFrame('dialog', { visible: open, animationType: 'slide' });
 
   const handleOpen = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -113,10 +117,11 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
         </TouchableOpacity>
       )}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.handle} />
+      <Modal visible={open} transparent animationType={fX.animationType} onRequestClose={handleClose}>
+        <SheetOverlay frame={fX}>
+        <TouchableOpacity style={[styles.backdrop, fX.backdrop]} activeOpacity={1} onPress={handleClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, fX.card]}>
+          {fX.showHandle && <View style={styles.handle} />}
           <View style={styles.head}>
             <Text style={styles.title}>Need a hand?</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
@@ -167,6 +172,7 @@ function HelpFabImpl({ bottomOffset = 0, onOpenTutorials, hideFab = false, openS
             <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
+        </SheetOverlay>
       </Modal>
     </>
   );

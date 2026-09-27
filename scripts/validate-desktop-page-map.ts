@@ -13,7 +13,7 @@
 //      every entry (and every DESKTOP_SHELL_EXEMPT / SELF_CAPPED name) is a
 //      real route file;
 //   B. the seeds the two audits decided (form / table / reading / bleed, the
-//      four un-exempted tools, Ask + Copilot still exempt) hold;
+//      four un-exempted tools, Ask with the sidebar, Copilot still exempt) hold;
 //   C. the pure lookups behave (fallbacks, pass-through, the tab map);
 //   D. the wiring: the root Stack frames through screenLayout, _layout.tsx no
 //      longer keeps its own exempt list, (tabs) has no literal width, and
@@ -22,6 +22,10 @@
 //      print stylesheet live where the SINGLE-page export actually serves
 //      them (public/index.html — Expo ignores app/+html.tsx in that mode),
 //      as verbatim copies of components/desktop/webDocument.ts.
+//   F. (d6r Z1) the desktop web header lines up with the page column
+//      (utils/desktopHeader + DesktopStackHeader, mounted by the root Stack on
+//      desktop web only), and print hides the Brain / Help FABs and fits a
+//      wide canvas (utils/printFit + hooks/usePrintFit on the Gantt roots).
 //
 // Imports utils/desktopPage.ts directly — it is pure (type-only imports), so
 // bun can load it; react-native would crash bun.
@@ -49,6 +53,14 @@ import {
   THEME_STORAGE_KEY,
   WEB_DOCUMENT_CSS,
 } from '../components/desktop/webDocument';
+import { headerColumnKind, headerInsetFor } from '../utils/desktopHeader';
+import {
+  PRINT_FIT_VAR,
+  PRINT_PAGE_CSS,
+  PRINT_PAGE_STYLE_ID,
+  printFitClips,
+  printFitZoom,
+} from '../utils/printFit';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -180,12 +192,25 @@ ok("the Subs tab is a table (a register)", pageTypeForTab('subs') === 'table');
 expectKind('table', ['deliveries', 'documents']);
 const unexempted = ['cost-xray', 'scan', 'judges', 'quick-quote'].filter(r => DESKTOP_SHELL_EXEMPT.has(r));
 ok('cost-xray, scan, judges and quick-quote have the sidebar back (not shell-exempt)', unexempted.length === 0, unexempted.join(', '));
-ok('Ask and Copilot stay shell-exempt until the dock hosts them',
-  DESKTOP_SHELL_EXEMPT.has('ask') && DESKTOP_SHELL_EXEMPT.has('copilot') && DESKTOP_SHELL_EXEMPT.has('copilot-hub'));
+ok('Ask has the sidebar (the dock ships); Copilot stays exempt', !DESKTOP_SHELL_EXEMPT.has('ask') &&
+  DESKTOP_SHELL_EXEMPT.has('copilot') && DESKTOP_SHELL_EXEMPT.has('copilot-hub'));
 // Wave 6c: Pro sizes itself from its container (lane DB) and the sidebar
 // collapses to the 64 px rail there — it has the sidebar back and stays bleed.
-ok('schedule-pro has the sidebar (not shell-exempt) and stays bleed; ask is still exempt',
-  !DESKTOP_SHELL_EXEMPT.has('schedule-pro') && ROUTE_PAGE_TYPE['schedule-pro'] === 'bleed' && DESKTOP_SHELL_EXEMPT.has('ask'));
+ok('schedule-pro has the sidebar (not shell-exempt) and stays bleed',
+  !DESKTOP_SHELL_EXEMPT.has('schedule-pro') && ROUTE_PAGE_TYPE['schedule-pro'] === 'bleed');
+// d6r K1: the root layout wires the keyboard shell and the Ask dock's
+// suppression on the /ask page (handoff K1-layout.patch).
+{
+  const rootLayout = read('app/_layout.tsx');
+  const listener = /function SearchHotkeyListener\(\) \{[\s\S]*?\n\}/.exec(rootLayout)?.[0] ?? '';
+  ok('SearchHotkeyListener returns <ShellHotkeys /> with its raw Cmd+K effect intact',
+    /if \(Platform\.OS !== 'web'\) return;/.test(listener)
+    && /const isK = e\.key === 'k' \|\| e\.key === 'K';\s*if \(isK && \(e\.metaKey \|\| e\.ctrlKey\)\) \{\s*e\.preventDefault\(\);\s*toggleSearch\(\);/.test(listener)
+    && /window\.addEventListener\('keydown', handler\);/.test(listener)
+    && /\n  return <ShellHotkeys \/>;\n\}$/.test(listener) && !/return null;/.test(listener));
+  ok("ShellDockHost suppresses the Ask dock on the /ask page (suppressId={topSegment === 'ask' ? ASK_DOCK_ID : null})",
+    /<ShellDockHost visible=\{showDesktopShell\} suppressId=\{topSegment === 'ask' \? ASK_DOCK_ID : null\} \/>/.test(rootLayout));
+}
 // Every canvas route (the sidebar defaults to the 64 px rail there) is a real
 // route file that shows the sidebar — a rail on a page with no sidebar, or on
 // a typo, is a rule that never runs.
@@ -306,6 +331,81 @@ console.log('\ndesktop page map — web document (public/index.html):');
   ok('+html renders the same strings (no second copy to drift)',
     /__html:\s*THEME_BOOT_SCRIPT\b/.test(html) && /__html:\s*WEB_DOCUMENT_CSS\b/.test(html)
     && !/@media print/.test(html) && !/data-theme/.test(html));
+}
+
+console.log('\ndesktop page map — header column + print fit (d6r Z1):');
+{
+  // F1. The pure header rules (utils/desktopHeader).
+  ok("headerColumnKind: '(tabs)' and a bleed route keep native-stack's full-width header",
+    headerColumnKind('(tabs)') === null && headerColumnKind('leads') === null);
+  ok('headerColumnKind: a form route lines up with the form column, a table route with the table column',
+    headerColumnKind('notifications-settings') === 'form' && headerColumnKind('aia-pay-app') === 'table');
+  ok('headerInsetFor: half the spare width, floored; 0 when the column fills the stack or the width is not finite',
+    headerInsetFor(1272, 760) === 256 && headerInsetFor(1272, 1280) === 0
+    && headerInsetFor(2320, 760) === 780 && headerInsetFor(Number.NaN, 760) === 0,
+    `got ${[headerInsetFor(1272, 760), headerInsetFor(1272, 1280), headerInsetFor(2320, 760), headerInsetFor(Number.NaN, 760)].join(', ')}`);
+
+  // F2. The wiring: a desktop-web-gated memo, spread LAST in the <Stack>
+  // literal (after headerTitleStyle — validate-contrast check 11 — and after
+  // the page fade), above the loader's early return.
+  const hdrLayout = read('app/_layout.tsx');
+  ok('app/_layout.tsx imports renderDesktopStackHeader',
+    /import\s*\{\s*renderDesktopStackHeader\s*\}\s*from\s*'@\/components\/desktop\/DesktopStackHeader'/.test(hdrLayout));
+  ok('the header override is a module-level {} off desktop web (native keeps its own header)',
+    /^const NO_HEADER_OVERRIDE = \{\} as const;/m.test(hdrLayout));
+  const gate = /const\s+desktopWebHeader\s*=\s*Platform\.OS === 'web' && layout\.isDesktop;/.exec(hdrLayout);
+  const memo = /const\s+desktopHeaderOption\s*=\s*React\.useMemo\(\s*\(\)\s*=>\s*\(desktopWebHeader\s*\?\s*\{\s*header:\s*renderDesktopStackHeader\s*\}\s*:\s*NO_HEADER_OVERRIDE\s*\),\s*\[desktopWebHeader\],?\s*\)/.exec(hdrLayout);
+  const loaderAt = hdrLayout.indexOf("if (navMode === 'loader')");
+  ok("`header: renderDesktopStackHeader` sits in a `Platform.OS === 'web' && layout.isDesktop` gated memo, above the loader return",
+    !!gate && !!memo && gate.index < memo.index && loaderAt > 0 && memo.index < loaderAt);
+  ok('the <Stack> screenOptions literal spreads ...desktopHeaderOption after headerTitleStyle and ...stackMotion',
+    /<Stack\s+screenOptions=\{\{[^}]*headerTitleStyle:[^}]*\.\.\.stackMotion,\s*\.\.\.desktopHeaderOption\s*\}\}\s*screenLayout=\{renderDesktopPageFrame\}>/.test(hdrLayout));
+  const hdr = read('components/desktop/DesktopStackHeader.tsx');
+  ok("DesktopStackHeader measures its OWN width and insets both containers by headerInsetFor(width, Layout.page[kind])",
+    /useContainerWidth\(exempt \? layout\.width : undefined\)/.test(hdr) && /DESKTOP_SHELL_EXEMPT\.has\(/.test(hdr) && /<View onLayout=\{onLayout\}>/.test(hdr)
+    && /headerColumnKind\(route\.name\)/.test(hdr) && /headerInsetFor\(width,\s*Layout\.page\[kind\]\)/.test(hdr)
+    && /headerLeftContainerStyle=\{inset \?/.test(hdr) && /marginStart:\s*inset/.test(hdr)
+    && /headerRightContainerStyle=\{inset \?/.test(hdr) && /marginEnd:\s*inset/.test(hdr));
+  ok('DesktopStackHeader keeps contentStyle (the page fade) and presentation away from the header, and Back pops',
+    /contentStyle:\s*_contentStyle/.test(hdr) && /presentation:\s*_presentation/.test(hdr)
+    && /onPress=\{navigation\.goBack\}/.test(hdr));
+
+  // F3. Print: the FABs never reach paper, and a wide canvas is zoomed to fit.
+  ok("PRINT_CSS hides [data-testid='brain-fab'] and [data-testid='help-fab'] with the shell",
+    /\[data-testid='brain-fab'\],\s*\n\s*\[data-testid='help-fab'\],\s*\n\s*\[data-print='hide'\]\s*\{\s*\n\s*display: none !important;/.test(PRINT_CSS));
+  ok(`PRINT_CSS zooms [data-print='fit'] by var(${PRINT_FIT_VAR}, 1)`,
+    /\[data-print='fit'\]\s*\{\s*\n\s*zoom: var\(--mage-print-fit, 1\);/.test(PRINT_CSS)
+    && PRINT_CSS.includes(`zoom: var(${PRINT_FIT_VAR}, 1);`));
+  ok('BrainFab still carries testID="brain-fab" and HelpFab testID="help-fab" (a rename would silently un-hide them)',
+    /testID="brain-fab"/.test(read('components/brain/BrainFab.tsx')) && /testID="help-fab"/.test(read('components/HelpFab.tsx')));
+  ok('printFitZoom / printFitClips: fits, halves, clamps at the floor (and clips), and leaves nothing-to-measure at 1',
+    printFitZoom(980, 980, 0.3) === 1 && !printFitClips(980, 980, 0.3)
+    && printFitZoom(1960, 980, 0.3) === 0.5 && !printFitClips(1960, 980, 0.3)
+    && printFitZoom(9800, 980, 0.3) === 0.3 && printFitClips(9800, 980, 0.3)
+    && printFitZoom(0, 980, 0.3) === 1 && printFitZoom(Number.NaN, 980, 0.3) === 1,
+    `got ${[printFitZoom(980, 980, 0.3), printFitZoom(1960, 980, 0.3), printFitZoom(9800, 980, 0.3), printFitZoom(0, 980, 0.3)].join(', ')}`);
+  ok('the print-fit literals: --mage-print-fit, #mage-print-page, a landscape 10 mm sheet',
+    PRINT_FIT_VAR === '--mage-print-fit' && PRINT_PAGE_STYLE_ID === 'mage-print-page'
+    && PRINT_PAGE_CSS === '@page { size: landscape; margin: 10mm; }');
+  const fit = read('hooks/usePrintFit.ts');
+  ok('usePrintFit is web-and-enabled only, sized by Layout.print, and removes what it added',
+    /const active = Platform\.OS === 'web' && enabled;/.test(fit)
+    && /if \(!active\b/.test(fit)
+    && /addEventListener\('beforeprint'/.test(fit) && /addEventListener\('afterprint'/.test(fit)
+    && /removeEventListener\('beforeprint'/.test(fit) && /removeEventListener\('afterprint'/.test(fit)
+    && /printFitZoom\(neededWidth\(el\),\s*Layout\.print\.landscapeWidth,\s*Layout\.print\.fitMin\)/.test(fit)
+    && /removeProperty\(PRINT_FIT_VAR\)/.test(fit) && /pageStyle\?\.remove\(\)/.test(fit)
+    && /printProps: active \? FIT_PROPS : NO_PROPS/.test(fit));
+  const tab = read('components/schedule/tabs/GanttTab.tsx');
+  const tabHook = tab.indexOf('const printFit = usePrintFit(isDesktop);');
+  const tabPhone = tab.indexOf("if (bp === 'phone')");
+  ok('GanttTab calls usePrintFit(isDesktop) above its phone return and spreads printProps on its root',
+    tabHook > 0 && tabPhone > tabHook
+    && /<View\s+ref=\{printFit\.ref\}\s+style=\{styles\.nonPhoneRoot\}[^>]*testID=\{isDesktop \? 'gantt-tab-root' : undefined\}\s+\{\.\.\.printFit\.printProps\}\s*>/.test(tab));
+  const chart = read('components/schedule/GanttChart.tsx');
+  ok('GanttChart gates usePrintFit on useIsDesktop() and spreads printProps on its root',
+    /const isDesktop = useIsDesktop\(\);\s*\n\s*const printFit = usePrintFit\(isDesktop\);/.test(chart)
+    && /<View ref=\{printFit\.ref\} style=\{s\.container\} \{\.\.\.printFit\.printProps\}>/.test(chart));
 }
 
 if (failures > 0) {
