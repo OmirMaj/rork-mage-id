@@ -22,6 +22,7 @@ import type { Project, Invoice, ChangeOrder } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { SheetOverlay, SheetScrim, useSheetFrame } from '@/components/ui/Sheet';
 import { displayText } from '@/utils/formatters';
 import { showAlert } from '@/utils/alert';
 
@@ -42,6 +43,9 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
   const [result, setResult] = useState<ProjectReportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  // Desktop: the 880 px right-docked panel over the page (d6r X3, R-PANEL);
+  // a phone keeps its native page sheet (every frame part is null there).
+  const fP = useSheetFrame('panel', { visible: showModal, animationType: 'slide' });
 
   const handleGenerate = useCallback(async () => {
     if (isLoading) return;
@@ -90,12 +94,15 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
 
       <Modal
         visible={showModal}
-        animationType="slide"
+        animationType={fP.animationType}
         presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        transparent={fP.transparent}
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={[styles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
-          <View style={styles.modalHandle} />
+        <SheetOverlay frame={fP}>
+        <SheetScrim frame={fP} onPress={() => setShowModal(false)} />
+        <View style={[styles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }, fP.card]}>
+          {fP.showHandle && <View style={styles.modalHandle} />}
           <View style={styles.modalHeader}>
             <View style={styles.headerLeft}>
               <MageAIMark size={16} color={themeColors.accent} />
@@ -183,6 +190,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
             </ScrollView>
           )}
         </View>
+        </SheetOverlay>
       </Modal>
     </>
   );

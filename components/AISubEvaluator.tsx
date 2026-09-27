@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Platform,
 } from 'react-native';
+import { Spinner } from '@/components/ui/Spinner';
 import * as Haptics from 'expo-haptics';
 import { HelpCircle, DollarSign, AlertTriangle, CheckCircle2, FileText } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -92,7 +93,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
     return (
       <TouchableOpacity style={styles.triggerBtn} onPress={handleEvaluate} activeOpacity={0.7} disabled={isLoading}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={"#FF6A1A"} />
+          <Spinner tone="accent" />
         ) : (
           <MageAIMark size={16} color={"#FF6A1A"} />
         )}

@@ -14,8 +14,9 @@
 //      overshoot at most, never a wobble, never a sluggish crawl.
 //   3. No `scaleXY` in code (comments may explain why): a create/delete
 //      scaleXY LayoutAnimation SIGABRTs on Fabric under a transform.
-//   4. `animationKeyframes` only in motion.ts: an inline keyframe object is
-//      silently dropped by react-native-web; only StyleSheet.create compiles it.
+//   4. `animationKeyframes` only in motion.ts or under components/loaders/css/
+//      (the level's web keyframes): an inline keyframe object is silently
+//      dropped by react-native-web; only StyleSheet.create compiles it.
 //   5. No `transitionDuration:` / `animationDuration:` with a bare number: RN-web
 //      turns a number into px, so the duration silently becomes 0.
 //   6. MOTION_CSS ships in WEB_DOCUMENT_CSS, only under
@@ -37,8 +38,11 @@ import { MOTION_CSS, WEB_DOCUMENT_CSS } from '../components/desktop/webDocument'
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-/** Measured 2026-09-25 after lane 1 (comment-stripped source). NEVER RAISE. */
-const BASELINE = 20;
+/** Measured 2026-09-25 after lane 1 (comment-stripped source): 20. Lowered
+ *  2026-09-26 by the level motion lane to 2 — the estimate cart pops, the chat
+ *  springs, the Gantt zoom pill, ProjectHero's bubble, VoiceFieldButton,
+ *  HardHatTap and ProjectCard moved onto Motion.spring presets. NEVER RAISE. */
+const BASELINE = 2;
 
 let failures = 0;
 function ok(name: string, condition: boolean, detail?: string) {
@@ -145,8 +149,8 @@ const presets = [...springBody.matchAll(/(\w+):\s*\{([^}]*)\}/g)].map((m) => {
   const num = (k: string) => Number((m[2].match(new RegExp(`\\b${k}:\\s*([\\d.]+)`)) ?? [])[1]);
   return { name: m[1], damping: num('damping'), stiffness: num('stiffness'), mass: num('mass'), raw: m[2] };
 });
-ok('Motion.spring parses (snap, settled, heavy, rise, glideLead, glideTrail present)',
-  ['snap', 'settled', 'heavy', 'rise', 'glideLead', 'glideTrail'].every((n) => presets.some((p) => p.name === n)),
+ok('Motion.spring parses (snap, settled, heavy, rise, glideLead, glideTrail, sheet present)',
+  ['snap', 'settled', 'heavy', 'rise', 'glideLead', 'glideTrail', 'sheet'].every((n) => presets.some((p) => p.name === n)),
   `found: ${presets.map((p) => p.name).join(', ') || '(none)'}`);
 for (const p of presets) {
   const zeta = p.damping / (2 * Math.sqrt(p.stiffness * p.mass));
@@ -163,9 +167,9 @@ ok('no `scaleXY` outside comments in app/, components/, hooks/', scale.length ==
   `A create/delete scaleXY LayoutAnimation SIGABRTs on Fabric under a transform. Use layoutNext() (opacity only):\n${scale.join('\n')}`);
 
 // ── 4. keyframes only in motion.ts ───────────────────────────────────────────
-const keyframes = hits(/\banimationKeyframes\b/, (p) => p !== 'components/ui/motion.ts');
-ok('`animationKeyframes` appears only in components/ui/motion.ts', keyframes.length === 0,
-  `Inline keyframes are silently dropped by react-native-web. Use webMotion(key) / registerWithMotion():\n${keyframes.join('\n')}`);
+const keyframes = hits(/\banimationKeyframes\b/, (p) => p !== 'components/ui/motion.ts' && !p.startsWith('components/loaders/css/'));
+ok('`animationKeyframes` appears only in components/ui/motion.ts or under components/loaders/css/', keyframes.length === 0,
+  `Inline keyframes are silently dropped by react-native-web. Use webMotion(key) / registerWithMotion(), or a StyleSheet.create file under components/loaders/css/:\n${keyframes.join('\n')}`);
 
 // ── 5. CSS durations are strings ─────────────────────────────────────────────
 const bare = hits(/\b(?:transitionDuration|animationDuration|transitionDelay|animationDelay)\s*:\s*-?[\d.]/);

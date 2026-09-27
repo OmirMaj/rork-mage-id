@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
+import { Spinner } from '@/components/ui/Spinner';
 import * as Haptics from 'expo-haptics';
 import { AlertTriangle, CheckCircle2, XCircle, Search } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -102,7 +103,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
       <View>
         <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
           {isLoading ? (
-            <ActivityIndicator size="small" color={"#FF6A1A"} />
+            <Spinner tone="accent" />
           ) : (
             <Search size={16} color={"#FF6A1A"} strokeWidth={1.75} />
           )}
@@ -191,7 +192,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
           ) : null}
 
           <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator size="small" color={"#FF6A1A"} /> : null}
+            {isLoading ? <Spinner tone="accent" /> : null}
             <Text style={styles.revalidateText}>{isLoading ? 'Re-validating...' : 'Re-validate'}</Text>
           </TouchableOpacity>
         </>

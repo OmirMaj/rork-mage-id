@@ -1,48 +1,63 @@
 // CodeCheckLoader — full-screen wait state for a code compliance check.
 //
-// WHAT IT REPLACES. A gavel icon spinning 360° over a pulsing circle in a small
-// centred card, floating above the half-dimmed form. That is the generic
-// AI-app loading pattern: it says "something is happening" without saying WHAT,
-// and a rotating icon reads as filler.
+// THE IDEA. A code check is a document review — MAGE recalls the code that
+// likely governs your scope. So the wait shows the output's shape: a drafting
+// sheet (title block bottom-right, drafting convention) with a laser line
+// sweeping down it, and review marks in the margin that light as it crosses
+// each band and then fade.
 //
-// THE IDEA. A code check is literally a document review — MAGE reads your scope
-// against the code that governs it. So the wait shows that: a drafting sheet
-// (title block bottom-right, drafting convention) with a scan beam sweeping
-// down it, leaving review marks in the margin as it passes each band. The five
-// real steps sit below as a checklist that ticks off, so the GC can see how far
-// through the pass they are — a progress ladder, not a mystery spinner.
+// HONESTY. The screen used to tick its checklist off on 1700 ms timers
+// (app/(tabs)/construction-ai passes a timer-driven `activeStep`). That was
+// made-up progress. Now the list only claims progress from a REAL `stepIndex`;
+// without one it is a plain "What we check" list with no ticks and no current
+// row. `activeStep` stays in the props type so the caller still compiles, and
+// is never read. Under the headline: the real elapsed time and the typical
+// range ("0:07 · usually 5–20 s").
 //
-// The sheet is drawn once in SVG and never animated; only three Animated.Views
-// move (beam, marks, glow). Everything runs on the native driver — transform
-// and opacity only, no animated SVG props — so it stays smooth while the AI
-// request is in flight.
-//
-// Reanimated-free (RN Animated + react-native-svg), theme tokens only, no raw
-// hex, no emoji. Same constraints as components/CraneLoader.tsx.
+// MOTION. Native: ONE linear Animated.loop over 3000 ms on the native driver;
+// the laser's eased sweep and the marks' decay are pre-sampled ranges from
+// components/loaders/progressMath.ts (the native interpolation allowlist has no
+// easing). The laser is invisible at the wrap, so its jump back to the top is
+// never seen. Web: no Animated at all — on react-native-web that loop is a JS
+// rAF loop that freezes while the screen is busy — the same ranges run as CSS
+// keyframes (components/loaders/css/codeCheckCss.ts). Reduce Motion: a static
+// sheet, no laser, no marks. Transform and opacity only; theme tokens only.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import Svg, { G, Line, Rect, Path } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-
-/** Where each review mark sits down the sheet, 0..1. The beam lights one as it
- *  crosses. Uneven on purpose — evenly spaced reads mechanical. */
-const MARK_STOPS = [0.18, 0.33, 0.47, 0.62, 0.79];
+import { nativeDriver, useReducedMotion } from '@/components/ui/motion';
+import { ProgressStepRow, type ProgressStepState } from '@/components/loaders/WorkProgress';
+import {
+  CODE_CHECK_LASER_OPACITY, CODE_CHECK_SWEEP_MS, MARK_STOPS,
+  codeCheckLaserOpacity, codeCheckLaserY, codeCheckMarkOpacity, elapsedLine,
+} from '@/components/loaders/progressMath';
+import { codeCheckLaserStyle, codeCheckMarkStyle } from '@/components/loaders/css/codeCheckCss';
+import type { ThemeColors } from '@/constants/colors';
 
 interface Props {
   /** Small caps label above the headline. */
   eyebrow?: string;
   /** The one-line promise of what's being done. */
   headline?: string;
-  /** The five (or however many) pass labels, in order. */
+  /** The pass labels, in order. */
   steps: readonly string[];
-  /** Index of the step currently running. */
-  activeStep: number;
+  /**
+   * DEPRECATED, NEVER READ. The caller drives it from a 1700 ms timer, so it
+   * is not a real step; honouring it would tick the list off on a clock. Kept
+   * only so existing callers compile. Pass `stepIndex` for real progress.
+   */
+  activeStep?: number;
+  /** The index of the step REALLY running. Absent → a neutral "What we check" list. */
+  stepIndex?: number;
+  /** The typical duration, shown after the elapsed time. */
+  typical?: string;
   /** Shown under the eyebrow — usually the address being checked. */
   subject?: string;
-  /** Rotating one-liner beneath the checklist (construction facts). */
+  /** Rotating one-liner beneath the checklist (construction facts — not progress). */
   facts?: readonly string[];
   factIntervalMs?: number;
   style?: ViewStyle;
@@ -53,39 +68,28 @@ export default function CodeCheckLoader({
   // AI-F3: the default headline must not imply a code lookup — the Code
   // Check recalls; nothing is read. (The permit roadmap passes its own.)
   headline = 'Recalling the code that likely governs this job',
-  steps, activeStep, subject, facts, factIntervalMs = 4200, style,
+  steps, stepIndex, typical = 'usually 5–20 s', subject, facts, factIntervalMs = 4200, style,
 }: Props) {
   const { colors: t } = useTheme();
   const { width, height } = useWindowDimensions();
+  const reduce = useReducedMotion();
 
   // Sheet is sized off the viewport so it genuinely fills the screen rather
   // than sitting in a 260pt card.
-  const sheetW = Math.min(width - 72, 320);
-  const sheetH = Math.min(Math.round(sheetW * 1.28), Math.round(height * 0.42));
+  // (Clamped at 0: a not-yet-measured 0 × 0 window must not produce a negative sheet.)
+  const sheetW = Math.max(0, Math.min(width - 72, 320));
+  const sheetH = Math.max(0, Math.min(Math.round(sheetW * 1.28), Math.round(height * 0.42)));
 
-  const scan = useRef(new Animated.Value(0)).current;
+  // Elapsed from mount: a text update, not motion.
+  const mountedAt = useRef(Date.now()).current;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const [factIdx, setFactIdx] = useState(0);
   const rotating = Array.isArray(facts) && facts.length > 0;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scan, {
-          toValue: 1,
-          duration: 2600,
-          easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        // Brief hold at the bottom so the sheet reads as "reviewed" before the
-        // next pass, instead of snapping back instantly.
-        Animated.delay(420),
-        Animated.timing(scan, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => { loop.stop(); scan.setValue(0); };
-  }, [scan]);
-
   useEffect(() => {
     if (!rotating || facts!.length <= 1) return;
     const id = setInterval(
@@ -95,37 +99,29 @@ export default function CodeCheckLoader({
     return () => clearInterval(id);
   }, [rotating, facts, factIntervalMs]);
 
-  const beamY = scan.interpolate({ inputRange: [0, 1], outputRange: [0, sheetH] });
-  // Beam fades in at the top and out at the bottom so it doesn't pop.
-  const beamOpacity = scan.interpolate({
-    inputRange: [0, 0.06, 0.92, 1],
-    outputRange: [0, 1, 1, 0],
-  });
-
-  const marks = useMemo(
-    () => MARK_STOPS.map(stop => ({
-      stop,
-      // Each mark fades in just as the beam reaches it, then stays lit.
-      opacity: scan.interpolate({
-        inputRange: [Math.max(0, stop - 0.04), stop, 1],
-        outputRange: [0, 1, 1],
-        extrapolate: 'clamp',
-      }),
-    })),
-    [scan],
-  );
+  const real = typeof stepIndex === 'number' && Number.isFinite(stepIndex);
+  const stateOf = (i: number): ProgressStepState => {
+    if (!real) return 'neutral';
+    if (i < stepIndex!) return 'done';
+    return i === stepIndex ? 'current' : 'next';
+  };
 
   const line = t.line;
   const ink = t.textMuted;
+  // Read at render (never module scope): the golden harness flips Platform.OS.
+  const web = Platform.OS === 'web';
 
   return (
-    <View style={[styles.root, { backgroundColor: t.bg }, style]}>
+    <View style={[styles.root, { backgroundColor: t.bg }, style]} testID="code-check-loader">
       <View style={styles.head}>
         <Text style={[styles.eyebrow, { color: t.accentLabel }]}>{eyebrow}</Text>
-        <Text style={[styles.title, { color: t.text }]} numberOfLines={2}>{headline}</Text>
+        <Text style={[styles.title, { color: t.text }]} numberOfLines={2} accessibilityLiveRegion="polite">{headline}</Text>
         {subject ? (
           <Text style={[styles.subject, { color: t.textMuted }]} numberOfLines={1}>{subject}</Text>
         ) : null}
+        <Text style={[Type.footnote, styles.elapsed, { color: t.textSecondary }]} testID="code-check-elapsed">
+          {elapsedLine(now - mountedAt, typical)}
+        </Text>
       </View>
 
       {/* ── the sheet ─────────────────────────────────────────────────── */}
@@ -198,65 +194,22 @@ export default function CodeCheckLoader({
           </G>
         </Svg>
 
-        {/* review marks in the right margin — lit as the beam passes */}
-        {marks.map((m, i) => (
-          <Animated.View
-            key={i}
-            style={[
-              styles.mark,
-              {
-                top: sheetH * m.stop - 7,
-                borderColor: t.accent,
-                backgroundColor: t.accentSoft,
-                opacity: m.opacity,
-              },
-            ]}
-          >
-            <View style={[styles.markTick, { backgroundColor: t.accent }]} />
-          </Animated.View>
-        ))}
-
-        {/* the scan beam */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.beamWrap,
-            { width: sheetW, opacity: beamOpacity, transform: [{ translateY: beamY }] },
-          ]}
-        >
-          <View style={[styles.beamGlow, { backgroundColor: t.accent }]} />
-          <View style={[styles.beamLine, { backgroundColor: t.accent }]} />
-        </Animated.View>
+        {/* Reduce Motion: the static sheet only. */}
+        {reduce ? null : web
+          ? <SheetMotionWeb sheetW={sheetW} sheetH={sheetH} colors={t} />
+          : <SheetMotionNative sheetW={sheetW} sheetH={sheetH} colors={t} />}
       </View>
 
-      {/* ── the pass, as a checklist ──────────────────────────────────── */}
+      {/* ── the pass, as a list — progress only from a REAL stepIndex ──── */}
       <View style={styles.steps}>
-        {steps.map((s, i) => {
-          const done = i < activeStep;
-          const active = i === activeStep;
-          return (
-            <View key={i} style={styles.stepRow}>
-              <View
-                style={[
-                  styles.stepDot,
-                  { borderColor: done || active ? t.accent : t.line },
-                  done && { backgroundColor: t.accent },
-                  active && { backgroundColor: t.accentSoft },
-                ]}
-              />
-              <Text
-                style={[
-                  styles.stepText,
-                  { color: done ? t.textMuted : active ? t.text : t.textMuted },
-                  active && styles.stepTextActive,
-                ]}
-                numberOfLines={1}
-              >
-                {s}
-              </Text>
-            </View>
-          );
-        })}
+        {real ? null : (
+          <Text style={[Type.footnoteEmphasized, styles.stepsHeader, { color: t.textSecondary }]} testID="code-check-steps-header">
+            What we check
+          </Text>
+        )}
+        {steps.map((s, i) => (
+          <ProgressStepRow key={i} label={s} state={stateOf(i)} colors={t} />
+        ))}
       </View>
 
       {rotating ? (
@@ -266,6 +219,83 @@ export default function CodeCheckLoader({
         </View>
       ) : null}
     </View>
+  );
+}
+
+interface MotionProps { sheetW: number; sheetH: number; colors: ThemeColors }
+
+/** iOS / Android: ONE linear native loop; every curve is a pre-sampled range. */
+function SheetMotionNative({ sheetW, sheetH, colors }: MotionProps) {
+  const scan = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(scan, {
+        toValue: 1,
+        duration: CODE_CHECK_SWEEP_MS,
+        easing: Easing.linear,
+        useNativeDriver: nativeDriver,
+        isInteraction: false,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scan]);
+
+  const laserY = useMemo(() => scan.interpolate(codeCheckLaserY(sheetH)), [scan, sheetH]);
+  const laserOpacity = useMemo(() => scan.interpolate(codeCheckLaserOpacity), [scan]);
+  const marks = useMemo(
+    () => MARK_STOPS.map(stop => scan.interpolate({ ...codeCheckMarkOpacity(stop), extrapolate: 'clamp' })),
+    [scan],
+  );
+
+  return (
+    <>
+      {MARK_STOPS.map((stop, i) => (
+        <Animated.View
+          key={i}
+          testID={`code-check-mark-${i}`}
+          style={[
+            styles.mark,
+            { top: sheetH * stop - 7, borderColor: colors.accent, backgroundColor: colors.accentSoft, opacity: marks[i] },
+          ]}
+        >
+          <View style={[styles.markTick, { backgroundColor: colors.accent }]} />
+        </Animated.View>
+      ))}
+      <Animated.View
+        pointerEvents="none"
+        testID="code-check-laser"
+        style={[styles.laserWrap, { width: sheetW, opacity: laserOpacity, transform: [{ translateY: laserY }] }]}
+      >
+        <View style={[styles.laserLine, { backgroundColor: colors.accent }]} />
+      </Animated.View>
+    </>
+  );
+}
+
+/** Web: no Animated at all — the same ranges as CSS keyframes (codeCheckCss.ts). */
+function SheetMotionWeb({ sheetW, sheetH, colors }: MotionProps) {
+  const laser = codeCheckLaserStyle(sheetH);
+  return (
+    <>
+      {MARK_STOPS.map((stop, i) => (
+        <View
+          key={i}
+          testID={`code-check-mark-${i}`}
+          style={[
+            styles.mark,
+            { top: sheetH * stop - 7, borderColor: colors.accent, backgroundColor: colors.accentSoft },
+            codeCheckMarkStyle(i),
+          ]}
+        >
+          <View style={[styles.markTick, { backgroundColor: colors.accent }]} />
+        </View>
+      ))}
+      {/* RN-web 0.21 warns on the pointerEvents PROP; the style key is its web spelling. */}
+      <View testID="code-check-laser" style={[styles.laserWrap, styles.noHit, { width: sheetW }, laser]}>
+        <View style={[styles.laserLine, { backgroundColor: colors.accent }]} />
+      </View>
+    </>
   );
 }
 
@@ -281,12 +311,13 @@ const styles = StyleSheet.create({
     maxWidth: 300,
   },
   subject: { fontSize: Type.footnote.fontSize, marginTop: 8, maxWidth: 300, textAlign: 'center' },
+  elapsed: { marginTop: 8, textAlign: 'center', fontVariant: ['tabular-nums'] },
 
   sheetWrap: { position: 'relative', overflow: 'hidden', borderRadius: Tokens.radius.sm },
 
-  beamWrap: { position: 'absolute', left: 0, top: 0, height: 24, justifyContent: 'flex-end' },
-  beamGlow: { height: 22, width: '100%', opacity: 0.16 },
-  beamLine: { height: 1.5, width: '100%' },
+  laserWrap: { position: 'absolute', left: 0, top: 0, height: 1.5 },
+  noHit: { pointerEvents: 'none' },
+  laserLine: { height: 1.5, alignSelf: 'stretch', opacity: CODE_CHECK_LASER_OPACITY },
 
   mark: {
     position: 'absolute',
@@ -298,10 +329,7 @@ const styles = StyleSheet.create({
   markTick: { width: 6, height: 6, borderRadius: 1.5 },
 
   steps: { marginTop: 28, alignSelf: 'stretch', maxWidth: 340, gap: 9 },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
-  stepText: { flex: 1, fontSize: Type.footnote.fontSize },
-  stepTextActive: { fontWeight: '600' },
+  stepsHeader: { marginBottom: 2 },
 
   factWrap: { marginTop: 30, alignItems: 'center', maxWidth: 320 },
   factLabel: { ...Type.monoCaption, letterSpacing: 1.2, marginBottom: 6 },

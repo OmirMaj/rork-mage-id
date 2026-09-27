@@ -16,8 +16,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) area-takeoff
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) construction-ai 1`] = `
 {
-  "lines": 748,
-  "sha256": "e8c1f2b66e20152ba97ae00b2ae3d9b754c9d8d78c7abe85e3e8a080c11eac1a",
+  "lines": 764,
+  "sha256": "e95fb5674b2091eebc33cfa5609f4061de4de44670c81f7999e17922b564ed8d",
 }
 `;
 
@@ -66,21 +66,21 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) deliveries (
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) equipment 1`] = `
 {
   "lines": 543,
-  "sha256": "8978f8b4b0446fa3ad7cde7a98fc506e323b13581bfd52b6637cdb7f8c15f58d",
+  "sha256": "92469f34ea1bcb2089bc2f7c4a2029a47764888fbe33eea72e6be7a6a49dea2c",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/full (dialogs and forms) 1`] = `
 {
-  "lines": 3906,
-  "sha256": "b0218ec69a039e77a369a07b11933ae2079629df64f5e1263845d02cec3bce5c",
+  "lines": 3892,
+  "sha256": "e3b4294bcd865b8bf96ab403edef623057d16748cfdcc5cd466c47f4419fb399",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) estimate/review 1`] = `
 {
   "lines": 625,
-  "sha256": "05c1ccdca3f4a2b473149365b97d59a9d2370317a1437aaceb1165c00dcbe464",
+  "sha256": "807314db8c6fc62ddb63096ec0acefbd577d2a6eaa20a6e185365bbb9e66a285",
 }
 `;
 
@@ -129,14 +129,14 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) last-planner
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) mage-id-bids 1`] = `
 {
   "lines": 492,
-  "sha256": "0c86707290de3e351de898da865b4254314c0052ae54d1b6a8a92c5272934953",
+  "sha256": "6d8f96cd2143e04a2500223f980cf8e8989397d60ffe6170786985aa427ddf28",
 }
 `;
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) marketplace 1`] = `
 {
   "lines": 1168,
-  "sha256": "3dbd94bd1262fe5943b70f0cf03d3ab5a9aae205d4d0ac866c71e30457642853",
+  "sha256": "8df729024e5d9700ed7cc43c3b8f4a926facc7ec68f262a1cf448fc63cd53e16",
 }
 `;
 
@@ -247,8 +247,8 @@ exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) scan 1`] = `
 
 exports[`lane H — the phone is unchanged (golden, 390 × 844 iOS) selections 1`] = `
 {
-  "lines": 856,
-  "sha256": "b66c71060aa15398d9cb720caa726718b458c336eb11f65941a8016420cd553d",
+  "lines": 842,
+  "sha256": "c9eb13403b67ecc52f673f78412d33968183fac725c26d4b9bc2592b53e92806",
 }
 `;
 

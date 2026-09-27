@@ -809,6 +809,12 @@ exports[`phone at 390 x 844 (native): project-detail renders exactly what it ren
                     "backgroundColor": "#2E7D44",
                     "height": 1.5,
                     "marginHorizontal": 0,
+                    "transform": [
+                      {
+                        "scaleX": 0,
+                      },
+                    ],
+                    "transformOrigin": "left",
                     "width": "100%",
                   }
                 }

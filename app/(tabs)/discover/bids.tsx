@@ -49,6 +49,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { LandingSlot, useLanding } from '@/components/animations/Landing';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { supabase } from '@/lib/supabase';
 import {
   useUserLocation,
@@ -290,6 +291,10 @@ export default function CachedBidsScreen() {
   const [showStateList, setShowStateList] = useState(false);
   const [showSetAsideDropdown, setShowSetAsideDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  // Desktop web: each dropdown is a centred dialog in the content column, the
+  // scrim over the sidebar. Phone: every part is null — today's dropdowns.
+  const fSort = useSheetFrame('dialog', { visible: showSortDropdown, animationType: 'fade' });
+  const fAside = useSheetFrame('dialog', { visible: showSetAsideDropdown, animationType: 'fade' });
 
   // Hydrate persisted filter state on mount. Don't block the first
   // render — defaults keep the screen usable while AsyncStorage warms.
@@ -703,11 +708,11 @@ export default function CachedBidsScreen() {
       <Modal
         visible={showSortDropdown}
         transparent
-        animationType="fade"
+        animationType={fSort.animationType}
         onRequestClose={() => setShowSortDropdown(false)}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
-          <View style={styles.dropdownModal}>
+        <TouchableOpacity style={[styles.modalOverlay, fSort.overlay]} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
+          <View style={[styles.dropdownModal, fSort.card]}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Sort by</Text>
               <TouchableOpacity onPress={() => setShowSortDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -732,11 +737,11 @@ export default function CachedBidsScreen() {
       <Modal
         visible={showSetAsideDropdown}
         transparent
-        animationType="fade"
+        animationType={fAside.animationType}
         onRequestClose={() => setShowSetAsideDropdown(false)}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
-          <View style={styles.dropdownModal}>
+        <TouchableOpacity style={[styles.modalOverlay, fAside.overlay]} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
+          <View style={[styles.dropdownModal, fAside.card]}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Set-aside type</Text>
               <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">

@@ -13,6 +13,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { LOADER } from '../utils/levelTimeline';
+import * as Stage from '../components/launch/splashStage';
+const { splashWordmarkBox } = Stage;
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
@@ -110,10 +114,15 @@ function springProblems(file: string, src: string): string[] {
 
 type Section = { name: string; run: () => void };
 
+/** The splash wordmark: Type.serifTitle (28 / 32 in the display face) with 3.4 tracking, in NATIVE_SPLASH_FG. */
+const WORDMARK_STYLE = /\.\.\.Type\.serifTitle,[^\n]*\n\s*letterSpacing: 3\.4,\s*color: NATIVE_SPLASH_FG/;
+const serifTitle28 = () => /serifTitle:\s*\{[^}]*fontSize: 28, lineHeight: 32\b/.test(read('constants/typography.ts'));
+
 const SECTIONS: Section[] = [
   {
-    name: 'A1 — BrandSplash holds for the app and hands off (no glow, no wobble)',
+    name: 'A1 — BrandSplash continues the native splash, holds for the app and hands off (lane LAUNCH)',
     run: () => {
+      const raw = read('components/BrandSplash.tsx');
       const s = code('components/BrandSplash.tsx');
       ok('no settle glow (settleGlow / bubbleGlow are gone)', !/settleGlow|bubbleGlow/.test(s));
       ok('imports setLaunchPhase from the launch curtain',
@@ -121,23 +130,106 @@ const SECTIONS: Section[] = [
       ok('reads getBootReady() before exiting', /getBootReady\(\)/.test(s));
       ok("sets 'lifting' at the exit and 'open' in finish()",
         /setLaunchPhase\('lifting'\)/.test(s) && /doneRef\.current = true;[\s\S]{0,400}setLaunchPhase\('open'\)/.test(s));
-      const exitBy = num(s, 'EXIT_BY_MS');
       const exitMs = num(s, 'EXIT_MS');
       const max = num(s, 'SPLASH_MAX_LIFETIME_MS');
       const cap = num(s, 'FLY_CAP_MS');
       const fade = num(s, 'FLY_FADE_MS');
-      ok(`EXIT_BY_MS + EXIT_MS < SPLASH_MAX_LIFETIME_MS (${exitBy} + ${exitMs} < ${max})`,
-        exitBy != null && exitMs != null && max != null && exitBy + exitMs < max);
+      ok(`SPLASH_MAX_LIFETIME_MS === 8000 === LOADER.splash.failsafeMs (${max}, ${LOADER.splash.failsafeMs})`,
+        max === 8000 && LOADER.splash.failsafeMs === 8000);
+      ok('no EXIT_BY_MS (the forced 2300 ms exit only ever uncovered a second loader)', !/EXIT_BY_MS/.test(s));
       ok('the exit is bounded by its own timer: setTimeout(finish, EXIT_MS + 50)', /setTimeout\(finish, EXIT_MS \+ 50\)/.test(s));
-      ok(`EXIT_BY_MS + EXIT_MS + 50 < SPLASH_MAX_LIFETIME_MS`, exitBy != null && exitMs != null && max != null && exitBy + exitMs + 50 < max);
+      ok(`EXIT_MS + 50 < SPLASH_MAX_LIFETIME_MS (${exitMs} + 50 < ${max})`, exitMs != null && max != null && exitMs + 50 < max);
       ok(`the fly's cap + cross-fade fit inside EXIT_MS (${cap} + ${fade} ≤ ${exitMs})`,
         cap != null && fade != null && exitMs != null && cap + fade <= exitMs);
+      const ex = LOADER.splash.exit;
+      ok(`the signed-in exit fits inside EXIT_MS (retractAtMs + retractSpanMs = ${ex.retractAtMs + ex.retractSpanMs} ≤ ${exitMs}; inkAtMs + inkMs = ${ex.inkAtMs + ex.inkMs})`,
+        exitMs != null && ex.retractAtMs + ex.retractSpanMs <= exitMs && ex.inkAtMs + ex.inkMs <= exitMs);
       ok('the module-scope markLaunchPending() is guarded by JEST_WORKER_ID',
         /const UNDER_JEST = typeof process !== 'undefined' && process\.env\?\.JEST_WORKER_ID != null;\s*\nif \(!UNDER_JEST\) markLaunchPending\(\);/.test(s));
       ok('the ink is its own layer (the outer overlay no longer paints it)',
         /overlay:\s*\{(?![^}]*backgroundColor)[^}]*\}/.test(s) && /styles\.ink, \{ opacity: inkOpacity \}/.test(s));
-      ok('the bubble spring is BUBBLE_SPRING (ζ≈0.81), not the old 12/150/0.9',
-        /Animated\.spring\(bubbleX, \{ toValue: 0, \.\.\.BUBBLE_SPRING/.test(s) && !/damping: 12, stiffness: 150/.test(s));
+      ok('the ink is NATIVE_SPLASH_BG', /ink:\s*\{\s*backgroundColor: NATIVE_SPLASH_BG,?\s*\}/.test(s));
+      ok('no expo-haptics import (a launch is not a success event)', !/expo-haptics/.test(s) && !/Haptics\./.test(s));
+      ok('no hex colour literal in BrandSplash.tsx (NATIVE_SPLASH_* + the derived accent only)', !/#[0-9a-fA-F]{3,8}\b/.test(s));
+      ok('no Animated.delay( (delays are plateaus baked into easing)', !/Animated\.delay\(/.test(s));
+      const springs = [...s.matchAll(/Animated\.spring\(\s*(\w+)/g)].map((m) => m[1]);
+      ok(`the only spring is the wordmark fly (springs on: ${springs.join(', ') || 'none'})`,
+        springs.length === 1 && springs[0] === 'fly' && !/BUBBLE_SPRING|bubbleX/.test(s));
+      ok('LevelMark is rendered with tone="splash" and revealDelayMs={0} (no <Image> of the PNG)',
+        /<LevelMark\s+tone="splash"[\s\S]{0,200}revealDelayMs=\{0\}/.test(s) && !/<Image\b/.test(s));
+      ok('LevelMark animate is tied to the reduce-motion probe (never a bare literal true)',
+        /animate=\{reduceMotion !== true\}/.test(s) && !/animate=\{true\}/.test(s));
+      ok('the level sits at splashRect(width, height, Platform.OS)', /splashRect\(width, height, Platform\.OS\)/.test(s));
+      // The probe frame is gone: no early `return <View …/>` of bare ink before the level renders.
+      const firstLevel = s.indexOf('<LevelMark');
+      const earlyReturn = /return\s*\(?\s*<(Animated\.)?View\b/.exec(s);
+      ok('no early return of a bare ink View before the LevelMark renders (the probe frame is gone)',
+        firstLevel > 0 && (earlyReturn == null || earlyReturn.index > s.lastIndexOf('return (', firstLevel) - 1)
+        && !/if \(reduceMotion === null\) \{?\s*return/.test(s));
+      ok('a setInterval readiness backstop exists and is cleared',
+        /const backstop = setInterval\(tryExit, READY_BACKSTOP_MS\)/.test(s) && /clearInterval\(backstop\)/.test(s) && num(s, 'READY_BACKSTOP_MS') === 500);
+      ok('the fast-boot line comes from LOADER.splash.aliveAtMs (levelTimeline is RN-free)',
+        /const ALIVE_MS = SPLASH\.aliveAtMs;/.test(s) && /const SPLASH = LOADER\.splash;/.test(s)
+        && /from '@\/utils\/levelTimeline'/.test(s) && LOADER.splash.aliveAtMs === 400);
+      ok('the `live` and `onFirstFrame` props exist (live defaults to true)',
+        /live\?: boolean;/.test(s) && /onFirstFrame\?: \(\) => void;/.test(s) && /\{ onDone, live = true, onFirstFrame \}/.test(s));
+      ok('onFirstFrame fires once, from the root onLayout plus one requestAnimationFrame',
+        /onLayout=\{onRootLayout\}/.test(s) && /requestAnimationFrame\(\(\) => onFirstFrameRef\.current\?\.\(\)\)/.test(s));
+      ok('BrandSplash neither imports nor calls useTheme (it renders outside ThemeProvider)',
+        !/useTheme/.test(s) && !/ThemeContext/.test(s));
+      ok('it publishes the stage: alive, hue, wordmark, finished',
+        /setSplashStage\(\{ alive: true \}\)/.test(s) && /setSplashStage\(\{ hue: true \}\)/.test(s)
+        && /setSplashStage\(\{ wordmark: true \}\)/.test(s) && /setSplashStage\(\{ finished: true \}\)/.test(s));
+      ok('finish(): doneRef → overlayOpacity 0 → setSplashStage finished → open → onDone()',
+        /doneRef\.current = true;[\s\S]{0,400}overlayOpacity\.setValue\(0\);[\s\S]{0,300}setSplashStage\(\{ finished: true \}\);[\s\S]{0,200}setLaunchPhase\('open'\);\s*onDone\(\);/.test(s));
+      ok('the wordmark box is the shared splashWordmarkBox(rect); Type.serifTitle (28/32) + 3.4 tracking, NATIVE_SPLASH_FG',
+        /splashWordmarkBox\(rect\)/.test(s) && WORDMARK_STYLE.test(s) && serifTitle28());
+      ok('the eyebrow, the 44 pt wordmark and the old literals are gone',
+        !/THE OPERATING SYSTEM FOR BUILDERS/.test(raw) && !/fontSize: 44/.test(s)
+        && !/\b(INK|CREAM|FOG|AMBER|AMBER_SOFT|LINE|NOTCH|T_LABEL|T_TRACK|T_BUBBLE|BUBBLE_START_X|REDUCED_HOLD_MS)\b/.test(s));
+      ok('the hue layer is the derived accent, only when it differs from the baked orange',
+        /deriveAccentPalette\(getCustomPrimary\(\), 'dark'\)\.accent/.test(s) && /toUpperCase\(\) !== NATIVE_SPLASH_ACCENT/.test(s));
+    },
+  },
+  {
+    name: 'A1 — BootShell is a still replica until BrandSplash finishes, then adopts its stage (lane LAUNCH)',
+    run: () => {
+      const b = code('components/loaders/BootShell.tsx');
+      ok('subscribes to the splash stage (useSplashStage)', /const stage = useSplashStage\(\);/.test(b));
+      ok('adopts only on stage.finished while the app is not ready', /if \(!stage\.finished \|\| adopted \|\| getBootReady\(\)\) return;/.test(b));
+      const sets = [...b.matchAll(/\.setValue\(1\)/g)].length;
+      ok('amp.setValue(1) only on the adopted-alive path', /if \(stage\.alive\) amp\.setValue\(1\);/.test(b)
+        && (b.match(/amp\.setValue\(/g) ?? []).length === 1, `${sets} .setValue(1)`);
+      ok('no timer at all (nothing can start before `finished`; the +500 ms wordmark is a plateau)',
+        !/setTimeout|setInterval|requestAnimationFrame/.test(b) && /plateau\(LOADER\.splash\.wordmarkAtMs \/ total, DECELERATE\)/.test(b));
+      ok('no useTheme (NATIVE_SPLASH_* + Type only)', !/useTheme/.test(b));
+      ok('the same splashRect, LevelMark tone and wordmark box as BrandSplash',
+        /splashRect\(width, height, Platform\.OS\)/.test(b) && /tone="splash"/.test(b) && /splashWordmarkBox\(rect\)/.test(b)
+        && WORDMARK_STYLE.test(b));
+      ok('holds the shared clock from mount (animate={!reduce}); a11y progressbar "Loading MAGE ID"',
+        /animate=\{!reduce\}/.test(b) && /accessibilityRole="progressbar"/.test(b) && /accessibilityLabel="Loading MAGE ID"/.test(b));
+      ok('no hex colour literal', !/#[0-9a-fA-F]{3,8}\b/.test(b));
+      const box = splashWordmarkBox({ markTop: 420.2, markH: 168.1 * 30 / 438 });
+      ok(`splashWordmarkBox: bottom edge 28 pt above the level's centre (${(box.top + box.height).toFixed(2)})`,
+        Math.abs(box.top + box.height - (420.2 + (168.1 * 30 / 438) / 2 - 28)) < 1e-9 && box.height === 32 && box.left === 0 && box.right === 0);
+      // The stage store: all false at first; merge; notify ONLY on a change; reset clears.
+      Stage.__resetSplashStageForTests();
+      let calls = 0;
+      const off = Stage.subscribeSplashStage(() => { calls++; });
+      const s0 = Stage.getSplashStage();
+      ok('splashStage starts all false', !s0.alive && !s0.wordmark && !s0.hue && !s0.finished);
+      Stage.setSplashStage({ alive: true });
+      Stage.setSplashStage({ alive: true });
+      const s1 = Stage.getSplashStage();
+      ok('setSplashStage merges and notifies once per real change (a new object only then)',
+        calls === 1 && s1.alive && !s1.wordmark && s1 !== s0);
+      Stage.setSplashStage({ wordmark: true, alive: true });
+      ok('a patch keeps the other flags', calls === 2 && Stage.getSplashStage().alive && Stage.getSplashStage().wordmark);
+      Stage.setSplashStage({});
+      ok('an empty patch does not notify', calls === 2 && Stage.getSplashStage() === Stage.getSplashStage());
+      off();
+      Stage.__resetSplashStageForTests();
+      ok('__resetSplashStageForTests restores all false', !Stage.getSplashStage().alive && !Stage.getSplashStage().wordmark);
     },
   },
   {
@@ -182,6 +274,12 @@ const SECTIONS: Section[] = [
       ok('the veil renders nothing until it has been active', /if \(!mounted\) return null;/.test(v) && /useState\(active\)/.test(v));
       ok('the veil waits VEIL_GRACE_MS before it shows', /setTimeout\(show, VEIL_GRACE_MS\)/.test(v));
       ok('the veil honours Reduce Motion', /reducedMotion\(\)/.test(v));
+      ok('the veil draws the plain level: <ScreenLoader revealDelayMs={0} /> (no "MAGE ID" crane)',
+        /<ScreenLoader revealDelayMs=\{0\} \/>/.test(v) && !/CraneLoader/.test(v));
+      ok('VEIL_MIN_MS = LOADER.gate.screen.minMs (500) gates the fade-out start',
+        /const VEIL_MIN_MS = LOADER\.gate\.screen\.minMs;/.test(v) && LOADER.gate.screen.minMs === 500
+        && /const hold = shownAtRef\.current \+ VEIL_MIN_MS - Date\.now\(\);\s*if \(hold > 0\) holdRef\.current = setTimeout\(fadeOut, hold\);/.test(v));
+      ok('a re-activation during the hold cancels it', /A re-activation during the hold cancels it\.\s*\n\s*if \(holdRef\.current != null\) \{ clearTimeout\(holdRef\.current\);/.test(read('components/launch/ReloadVeil.tsx')));
     },
   },
   {

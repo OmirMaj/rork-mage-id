@@ -16,6 +16,7 @@ import { HelpCircle, X } from 'lucide-react-native';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { getGlossaryEntry } from '@/constants/glossary';
@@ -38,6 +39,8 @@ export function InfoBubble({
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
+  // Desktop web: a centred card beside the sidebar; all-null on a phone.
+  const fInfo = useSheetFrame('dialog', { visible: open, animationType: 'fade' });
 
   const entry = term ? getGlossaryEntry(term) : null;
   const resolvedTitle = title ?? entry?.term;
@@ -57,10 +60,10 @@ export function InfoBubble({
         <HelpCircle size={size} color={color ?? t.textMuted} strokeWidth={2} />
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close definition">
+      <Modal visible={open} transparent animationType={fInfo.animationType} onRequestClose={() => setOpen(false)}>
+        <Pressable style={[styles.backdrop, fInfo.overlay]} onPress={() => setOpen(false)} accessibilityLabel="Close definition">
           {/* Inner Pressable swallows taps so they don't dismiss the modal. */}
-          <Pressable style={styles.card} onPress={() => undefined}>
+          <Pressable style={[styles.card, fInfo.card]} onPress={() => undefined}>
             <View style={styles.headerRow}>
               <Text style={styles.title}>{resolvedTitle}</Text>
               <TouchableOpacity

@@ -44,6 +44,7 @@ import {
 import { useClientDocumentGate } from '@/hooks/useClientDocumentGate';
 import ClientDocumentAskSheet from '@/components/ClientDocumentAskSheet';
 import ProfileLoadNotice from '@/components/ProfileLoadNotice';
+import { useSheetFrame } from '@/components/ui/Sheet';
 import { resolvePaymentSplit, resolveWarrantyMonths, splitLabel, warrantyShortLabel } from '@/utils/paymentTerms';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -144,6 +145,12 @@ function CompanyProfileForm() {
   const [signatureData, setSignatureData] = useState<string[] | undefined>(branding.signatureData);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
+  // Desktop web: the licence-state picker and the signature pad are centred
+  // cards in the content column, the scrim over the sidebar. Phone: every
+  // part is null — today's bottom sheets, byte for byte. The pad keeps its own
+  // Save, so neither sheet binds a primary hotkey.
+  const fState = useSheetFrame('form', { visible: showStatePicker, animationType: 'slide' });
+  const fSig = useSheetFrame('form', { visible: showSignatureModal, animationType: 'slide' });
 
   // ── LEAVE GUARD (#133) ───────────────────────────────────────────────────
   // The text fields wait for Save, and leaving without it used to drop a typed
@@ -673,11 +680,11 @@ function CompanyProfileForm() {
       <Modal
         visible={showStatePicker}
         transparent
-        animationType="slide"
+        animationType={fState.animationType}
         onRequestClose={() => setShowStatePicker(false)}
       >
-        <View style={styles.sigModalOverlay}>
-          <View style={[styles.sigModalCard, styles.stateModalCard]}>
+        <View style={[styles.sigModalOverlay, fState.overlay]}>
+          <View style={[styles.sigModalCard, styles.stateModalCard, fState.card]}>
             <View style={styles.sigModalHeader}>
               <Text style={styles.sigModalTitle}>Which state licenses you?</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
@@ -731,11 +738,11 @@ function CompanyProfileForm() {
       <Modal
         visible={showSignatureModal}
         transparent
-        animationType="slide"
+        animationType={fSig.animationType}
         onRequestClose={() => setShowSignatureModal(false)}
       >
-        <View style={styles.sigModalOverlay}>
-          <View style={styles.sigModalCard}>
+        <View style={[styles.sigModalOverlay, fSig.overlay]}>
+          <View style={[styles.sigModalCard, fSig.card]}>
             <View style={styles.sigModalHeader}>
               <Text style={styles.sigModalTitle}>Draw Your Signature</Text>
               <TouchableOpacity onPress={() => setShowSignatureModal(false)} accessibilityRole="button" accessibilityLabel="Close">
