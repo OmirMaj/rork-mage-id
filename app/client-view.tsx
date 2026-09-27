@@ -1149,7 +1149,7 @@ export default function ClientViewScreen() {
           <Text style={styles.headerLastUpdated} testID="client-last-updated">
             Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
-          <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? '#34C75940' : '#FF950040' }]}>
+          <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? themeColors.success + '40' : '#FF950040' }]}>
             <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.success : Colors.warning }]}>
               {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
             </Text>
@@ -1556,7 +1556,7 @@ export default function ClientViewScreen() {
             {expanded.invoices && (
               <View style={styles.sectionBody}>
                 {invoices.map(inv => {
-                  const statusColor = inv.status === 'paid' ? '#34C759' : inv.status === 'overdue' ? themeColors.danger : '#FF9500';
+                  const statusColor = inv.status === 'paid' ? themeColors.successLabel : inv.status === 'overdue' ? themeColors.danger : '#FF9500';
                   return (
                     <View key={inv.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1596,7 +1596,7 @@ export default function ClientViewScreen() {
             {expanded.changeOrders && (
               <View style={styles.sectionBody}>
                 {changeOrders.map(co => {
-                  const statusColor = co.status === 'approved' ? '#34C759' : co.status === 'rejected' ? themeColors.danger : '#FF9500';
+                  const statusColor = co.status === 'approved' ? themeColors.successLabel : co.status === 'rejected' ? themeColors.danger : '#FF9500';
                   // Signing needs a session (see submitApproval). Offering a
                   // "Sign & Approve" button that can't persist an e-signature
                   // would be worse than not offering it at all.
@@ -1730,7 +1730,7 @@ export default function ClientViewScreen() {
             {expanded.punchList && (
               <View style={styles.sectionBody}>
                 {punchItems.map(item => {
-                  const statusColor = item.status === 'closed' ? '#34C759' : item.status === 'in_progress' ? '#007AFF' : '#FF9500';
+                  const statusColor = item.status === 'closed' ? themeColors.successLabel : item.status === 'in_progress' ? '#007AFF' : '#FF9500';
                   return (
                     <View key={item.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1769,7 +1769,7 @@ export default function ClientViewScreen() {
             {expanded.rfis && (
               <View style={styles.sectionBody}>
                 {rfis.map(rfi => {
-                  const statusColor = rfi.status === 'answered' ? '#34C759' : rfi.status === 'closed' ? themeColors.textMuted : '#FF9500';
+                  const statusColor = rfi.status === 'answered' ? themeColors.successLabel : rfi.status === 'closed' ? themeColors.textMuted : '#FF9500';
                   return (
                     <View key={rfi.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -1813,7 +1813,7 @@ export default function ClientViewScreen() {
                 ) : (
                   documents.map(doc => {
                     const typeInfo = documentTypeInfo(themeColors)[doc.type] ?? { label: doc.type, color: themeColors.textMuted, bgColor: themeColors.surfaceAlt };
-                    const statusColor = doc.status === 'signed' ? '#34C759' : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
+                    const statusColor = doc.status === 'signed' ? themeColors.successLabel : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
                     const hasFile = !!doc.fileUrl;
                     const rowInner = (
                       <>
@@ -2219,8 +2219,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   coActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
   coSignedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#34C75915', paddingHorizontal: 10, paddingVertical: 8,
-    borderTopWidth: 1, borderTopColor: '#34C75920',
+    backgroundColor: t.success + '15', paddingHorizontal: 10, paddingVertical: 8,
+    borderTopWidth: 1, borderTopColor: t.success + '20',
   },
   coSignedBannerText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.successDark, flex: 1 },
 

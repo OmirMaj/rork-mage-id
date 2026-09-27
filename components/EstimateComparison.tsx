@@ -429,7 +429,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginBottom: 16,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginBottom: 16,
   },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 10 },

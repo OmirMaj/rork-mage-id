@@ -606,10 +606,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   wordmark: {
-    // The app's display face (Fraunces 700 on the orange brand; it follows the
-    // rebrand through Type). Falls back to the platform serif if the font
-    // network-blips on first launch; the wordmark still reads.
-    ...Type.serifTitle, // 28 / 32 in the display face
+    // The app's display face (Barlow since the 2026-09-16 rebrand; it follows
+    // Type). Falls back to the platform face if the font network-blips on first
+    // launch; the wordmark still reads.
+    ...Type.serifTitle, // 28 / 34 in the display face
     letterSpacing: 3.4,
     color: NATIVE_SPLASH_FG,
     textAlign: 'center',

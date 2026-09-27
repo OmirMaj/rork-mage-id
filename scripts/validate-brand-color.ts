@@ -623,14 +623,9 @@ console.log('brand-colour USAGE guard (white text on a solid Colors.primary fill
 type PrimaryAllow = { file: string; style: string; reason: string };
 const PRIMARY_FILL_ALLOW: PrimaryAllow[] = [];
 const PRIMARY_FILL_DEFERRED: Record<string, number> = {
+  // UX lane B owns it (2026-09-27): chipActive, runBtn, lockedCta,
+  // modeToggleBtnActive, regenBtnHighlighted.
   'app/(tabs)/construction-ai/index.tsx': 5,
-  'app/(tabs)/estimate/full.tsx': 14,
-  'components/AIQuickEstimate.tsx': 3,
-  'components/EstimateComparison.tsx': 1,
-  'components/MaterialAIEstimateModal.tsx': 1,
-  'components/ProductivityCalculator.tsx': 2,
-  'components/SquareFootEstimator.tsx': 1,
-  'components/VoiceCommandModal.tsx': 1,
 };
 
 /** Is `value` (a backgroundColor's value text) a SOLID primary fill somewhere
@@ -1146,8 +1141,8 @@ const DARK_INK_PINS: { file: string; bg: string; text: string }[] = [
   { file: 'components/schedule/SchedulerHeader.tsx', bg: 'phoneExportBtn', text: 'phoneExportBtnText' },
   { file: 'components/schedule/tabs/BoardTab.tsx', bg: 'phoneSwitcherTabActive', text: 'phoneSwitcherLabelActive' },
   { file: 'components/schedule/tabs/BoardTab.tsx', bg: 'phoneSwitcherTabActive', text: 'phoneSwitcherCountActive' },
-  // DEFERRED (d6r Z1 owns the file): the FAB paints Colors.tradeColors.general
-  // under a '#0B0D10' "+" glyph. Counted against its DEFERRED ceiling below.
+  // The phone FAB paints Colors.tradeColors.general under a "+" glyph, which
+  // was '#0B0D10' (3.72:1) until the 2026-09-27 colour round moved it to white.
   { file: 'components/schedule/tabs/GanttTab.tsx', bg: 'fab', text: 'fabIcon' },
 ];
 
@@ -1181,45 +1176,28 @@ const GATE_ALLOWLIST: AllowEntry[] = [
   { path: 'constants/certifications.ts', match: '#2E7D32', reason: 'certification badge palette: categorical' },
   { path: 'constants/certifications.ts', match: '#1B5E20', reason: 'certification badge palette: categorical' },
   { path: 'constants/materials.ts', match: '#1A6B3C', reason: 'materials category palette: categorical' },
+  { path: 'app/(tabs)/discover/hire.tsx', match: '#2E7D32', reason: 'TRADE_BADGE_COLORS Labor: trade palette, categorical (same hex as the certification badge palette)' },
   { path: 'components/schedule/ResourceSwimlanes.tsx', match: '#34C759', reason: 'per-resource palette: categorical' },
   { path: 'app/punch-walk.tsx', match: '#16A34A', reason: 'trade colour: categorical' },
   { path: 'app/closeout-binder.tsx', match: '#16A34A', reason: 'per-document colour (G704): categorical' },
   { path: 'utils/pdfGenerator.ts', match: /'Caveat',\s*cursive,\s*Georgia,\s*serif/i, reason: 'typed-signature handwriting fallback, not a display face' },
-  { path: 'app/_layout.tsx', match: /fraunces/i, reason: 'Fraunces_700Bold import + useFonts, kept loaded ONLY for main\'s components/BrandSplash.tsx. Once the loader\'s rewritten BrandSplash lands it names no Fraunces face: delete the import, this entry and BrandSplash\'s GATE_DEFERRED row together (deferred.md)' },
-  // NOT YET (an entry that matches nothing fails as stale): in the loader
-  // (level) merge commit, add utils/levelTimeline.ts '#FF6A1A' and '#F4EFE6' —
-  // NATIVE_SPLASH_*, the replica of the INSTALLED orange native splash, kept
-  // until the native build ships assets/brand-next. Exact entries in
-  // deferred.md, "utils/levelTimeline.ts".
+  // The installed native splash (assets/images/splash-icon.png) is still the
+  // ORANGE one until the next native build. The Level's frame 0 — BrandSplash on
+  // device, the pre-JS level on web — replicates it pixel for pixel, then shifts
+  // to the live (green) hue; validate-level-splash decodes the PNG and pins both.
+  { path: 'utils/levelTimeline.ts', match: '#FF6A1A', reason: 'NATIVE_SPLASH_ACCENT: replica of the installed (orange) native splash so frame 0 matches it — until the native build ships assets/brand-next (then flip NATIVE_SPLASH_* to green, delete these entries, re-baseline validate-level-splash)' },
+  { path: 'utils/levelTimeline.ts', match: '#F4EFE6', reason: 'NATIVE_SPLASH_CAP / NATIVE_SPLASH_FG: same installed native splash replica — until the native build ships assets/brand-next (then flip NATIVE_SPLASH_* to green, delete these entries, re-baseline validate-level-splash)' },
+  { path: 'public/index.html', match: /#mage-prejs-level \.mpl-(track|bubble) \{[^}]*#FF6A1A/i, reason: 'pre-JS level track/bubble = NATIVE_SPLASH_ACCENT (validate-level-splash rule G) — until the native build ships assets/brand-next (then flip NATIVE_SPLASH_* to green, delete these entries, re-baseline validate-level-splash)' },
+  { path: 'public/index.html', match: /#mage-prejs-level \.mpl-cap-[lr] \{[^}]*#F4EFE6/i, reason: 'pre-JS level caps = NATIVE_SPLASH_CAP (validate-level-splash rule G) — until the native build ships assets/brand-next (then flip NATIVE_SPLASH_* to green, delete these entries, re-baseline validate-level-splash)' },
 ];
 
 // f. DEFERRED: owned right now by the level / d6r phase-B runs. CEILING = the
 //    hit count on 2026-09-26 under these exact rules (dark-ink pins included).
 //    Only ever lower a number; delete the row when its file reaches 0.
 const GATE_DEFERRED: Record<string, number> = {
-  'app/(tabs)/discover/hire.tsx': 6,
-  'app/(tabs)/schedule/index.tsx': 1,
-  'app/client-view.tsx': 8,
-  'app/company-profile.tsx': 1,
-  'app/compare-drawings.tsx': 4,
-  'app/equipment-detail.tsx': 5,
-  'app/extract-submittals.tsx': 3,
-  'app/oac-meeting.tsx': 1,
-  'components/AIBidScorecard.tsx': 13,
-  'components/AIEquipmentAdvice.tsx': 4,
-  'components/AIEstimateValidator.tsx': 7,
-  'components/AISubEvaluator.tsx': 3,
-  'components/AIWeeklySummary.tsx': 8,
-  // Not a colour pass: the loader's rewrite reads NATIVE_SPLASH_* (must match
-  // the installed orange splash) then the live hue. Delete this row with the
-  // _layout.tsx Fraunces import + ALLOWLIST entry when that rewrite lands.
-  'components/BrandSplash.tsx': 4,
-  'components/ConfirmEmailModal.tsx': 2,
-  'components/DemoSeedPickerModal.tsx': 2,
-  'components/QuickUpdateClarifier.tsx': 3,
-  'components/schedule/InteractiveGantt.tsx': 1,
-  'components/schedule/tabs/GanttTab.tsx': 1, // the fab→fabIcon dark-ink pin
-  'public/index.html': 4,
+  // Empty since the 2026-09-27 colour round: every file the level / d6r runs
+  // owned has had its pass. Add a row (ceiling = today's count) only for a file
+  // another run owns at the moment a new retired literal is found in it.
 };
 
 const gateFileList = GATE_ROOTS.flatMap((r) => gateWalk(join(ROOT, r), []))

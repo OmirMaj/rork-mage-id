@@ -104,7 +104,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               {
                 "alignItems": "center",
                 "backgroundColor": "#FFFFFF",
-                "borderColor": "rgba(43,48,56,0.12)",
+                "borderColor": "#D7DAD4",
                 "borderRadius": 12,
                 "borderWidth": 1,
                 "flexDirection": "row",
@@ -139,7 +139,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               meetOrSlice={0}
               minX={0}
               minY={0}
-              stroke="#FF6A1A"
+              stroke="#2F6B3A"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.75}
@@ -174,7 +174,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
                 stroke={
                   {
-                    "payload": 4294928922,
+                    "payload": 4281297722,
                     "type": 0,
                   }
                 }
@@ -196,7 +196,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -218,7 +218,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -261,7 +261,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               {
                 "alignItems": "center",
                 "backgroundColor": "#FFFFFF",
-                "borderColor": "rgba(43,48,56,0.12)",
+                "borderColor": "#D7DAD4",
                 "borderRadius": 12,
                 "borderWidth": 1,
                 "flexDirection": "row",
@@ -296,7 +296,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               meetOrSlice={0}
               minX={0}
               minY={0}
-              stroke="#FF6A1A"
+              stroke="#2F6B3A"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.75}
@@ -331,7 +331,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
                 stroke={
                   {
-                    "payload": 4294928922,
+                    "payload": 4281297722,
                     "type": 0,
                   }
                 }
@@ -353,7 +353,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -375,7 +375,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -437,7 +437,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               meetOrSlice={0}
               minX={0}
               minY={0}
-              stroke="#FF6A1A"
+              stroke="#2F6B3A"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.9}
@@ -472,7 +472,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
                 stroke={
                   {
-                    "payload": 4294928922,
+                    "payload": 4281297722,
                     "type": 0,
                   }
                 }
@@ -494,7 +494,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -516,7 +516,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -529,7 +529,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
             <Text
               style={
                 {
-                  "color": "#FF6A1A",
+                  "color": "#2F6B3A",
                   "fontSize": 15,
                   "fontWeight": "600",
                 }
@@ -801,7 +801,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               {
                 "alignItems": "center",
                 "backgroundColor": "#FFFFFF",
-                "borderColor": "rgba(43,48,56,0.12)",
+                "borderColor": "#D7DAD4",
                 "borderRadius": 12,
                 "borderWidth": 1,
                 "flexDirection": "row",
@@ -836,7 +836,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               meetOrSlice={0}
               minX={0}
               minY={0}
-              stroke="#FF6A1A"
+              stroke="#2F6B3A"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.75}
@@ -871,7 +871,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
                 stroke={
                   {
-                    "payload": 4294928922,
+                    "payload": 4281297722,
                     "type": 0,
                   }
                 }
@@ -893,7 +893,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -915,7 +915,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -958,7 +958,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               {
                 "alignItems": "center",
                 "backgroundColor": "#FFFFFF",
-                "borderColor": "rgba(43,48,56,0.12)",
+                "borderColor": "#D7DAD4",
                 "borderRadius": 12,
                 "borderWidth": 1,
                 "flexDirection": "row",
@@ -993,7 +993,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               meetOrSlice={0}
               minX={0}
               minY={0}
-              stroke="#FF6A1A"
+              stroke="#2F6B3A"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.75}
@@ -1028,7 +1028,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
                 stroke={
                   {
-                    "payload": 4294928922,
+                    "payload": 4281297722,
                     "type": 0,
                   }
                 }
@@ -1050,7 +1050,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -1072,7 +1072,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -1134,7 +1134,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
               meetOrSlice={0}
               minX={0}
               minY={0}
-              stroke="#FF6A1A"
+              stroke="#2F6B3A"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.9}
@@ -1169,7 +1169,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 }
                 stroke={
                   {
-                    "payload": 4294928922,
+                    "payload": 4281297722,
                     "type": 0,
                   }
                 }
@@ -1191,7 +1191,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -1213,7 +1213,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -1226,7 +1226,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
             <Text
               style={
                 {
-                  "color": "#FF6A1A",
+                  "color": "#2F6B3A",
                   "fontSize": 15,
                   "fontWeight": "600",
                 }
@@ -1328,7 +1328,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                     "width": 96,
                   },
                   {
-                    "backgroundColor": "#FF6A1A14",
+                    "backgroundColor": "#2F6B3A14",
                     "opacity": 0.6,
                   },
                 ]
@@ -1345,7 +1345,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                     "width": 76,
                   },
                   {
-                    "backgroundColor": "#FF6A1A18",
+                    "backgroundColor": "#2F6B3A18",
                   },
                 ]
               }
@@ -1360,7 +1360,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                 meetOrSlice={0}
                 minX={0}
                 minY={0}
-                stroke="#FF6A1A"
+                stroke="#2F6B3A"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={1.6}
@@ -1395,7 +1395,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                   }
                   stroke={
                     {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     }
                   }
@@ -1417,7 +1417,7 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
                     }
                     stroke={
                       {
-                        "payload": 4294928922,
+                        "payload": 4281297722,
                         "type": 0,
                       }
                     }
@@ -1433,10 +1433,10 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
             style={
               {
                 "color": "#2B3038",
-                "fontFamily": "Fraunces_700Bold",
+                "fontFamily": "Barlow_600SemiBold",
                 "fontSize": 22,
-                "letterSpacing": -0.22,
-                "lineHeight": 26,
+                "letterSpacing": 0,
+                "lineHeight": 28,
                 "marginBottom": 10,
                 "textAlign": "center",
               }
@@ -1488,13 +1488,13 @@ exports[`phone at 390: ToolProjectPicker renders exactly what it rendered before
             onStartShouldSetResponder={[Function]}
             style={
               {
-                "backgroundColor": "#BC440C",
+                "backgroundColor": "#2F6B3A",
                 "borderRadius": 14,
                 "elevation": 3,
                 "opacity": 1,
                 "paddingHorizontal": 28,
                 "paddingVertical": 14,
-                "shadowColor": "#BC440C",
+                "shadowColor": "#2F6B3A",
                 "shadowOffset": {
                   "height": 4,
                   "width": 0,

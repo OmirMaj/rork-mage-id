@@ -10,7 +10,7 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order (project only) 1`] = `
 {
   "lines": 1011,
-  "sha256": "eb75ebabd712efa939fbd6bf148cb17a83571e55ec5eacd3589dbeeaf761ca16",
+  "sha256": "e140e2bd4c77fdf9eeab49f31cd0d4878b2f94a0bc05a1d55fa2cf7149053f4f",
 }
 `;
 
@@ -24,14 +24,14 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (a r
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (project only) 1`] = `
 {
   "lines": 1003,
-  "sha256": "b38829adec2db2d6ae42fbcb749d4dd15276609ed7af6af0e431fc081220bad2",
+  "sha256": "68304c620d8d1ceef37039503efecc126dd66890e8a5d8aa59e9f1b596272001",
 }
 `;
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (the tutorial route, type=progress) 1`] = `
 {
   "lines": 1014,
-  "sha256": "a35484495e6b348b0a09334e119d53be2100eaee00884de8cac8c8a9186da321",
+  "sha256": "771e758ba25a54dd0b0756422430574d5f048e392ed9e96d8956b92bceb96062",
 }
 `;
 
@@ -45,7 +45,7 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (a recor
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (project only: the create form) 1`] = `
 {
   "lines": 734,
-  "sha256": "c12a60a2f512108fb614a32996497b830db74b55036c8af314949ee47bdee7b0",
+  "sha256": "0533a0a87d1a6b53f0feac57460fb7db471b494dd6cf965c4085986b6edcec3e",
 }
 `;
 
@@ -59,7 +59,7 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (a
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (project only) 1`] = `
 {
   "lines": 714,
-  "sha256": "176fe886a00340fea20fd9fcb91b0a019dfe33ceea7dde35fd3a0191639351e6",
+  "sha256": "66985ec19e22d9f40f1118138bf06d2dee3d35fbd2bd769319cd3403947e3472",
 }
 `;
 

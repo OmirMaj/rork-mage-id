@@ -95,7 +95,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         {isLoading ? (
           <Spinner tone="accent" />
         ) : (
-          <MageAIMark size={16} color={"#FF6A1A"} />
+          <MageAIMark size={16} color={themeColors.accent} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Evaluate Sub'}</Text>
       </TouchableOpacity>
@@ -105,7 +105,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
   return (
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
-        <MageAIMark size={12} color={"#FF6A1A"} />
+        <MageAIMark size={12} color={themeColors.accent} />
         <Text style={styles.headerTitle}>AI Sub Evaluation</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>

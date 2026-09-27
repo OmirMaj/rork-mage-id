@@ -284,7 +284,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   catChip: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: t.neutralSoft,
   },
-  catChipActive: { backgroundColor: Colors.primary },
+  catChipActive: { backgroundColor: t.accentFill },
   catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   catChipTextActive: { color: Colors.textOnPrimary },
   rateList: { flex: 1 },
@@ -346,7 +346,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   notes: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4,
+    backgroundColor: t.accentFill, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4,
   },
   addBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });

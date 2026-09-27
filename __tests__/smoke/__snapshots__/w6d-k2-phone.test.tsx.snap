@@ -121,7 +121,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                             "onChangeText": [Function],
                             "onSubmitEditing": [Function],
                             "placeholder": "Find a tool, a screen, a number",
-                            "placeholderTextColor": "rgba(43,48,56,0.7)",
+                            "placeholderTextColor": "rgba(43,48,56,0.72)",
                             "returnKeyType": "search",
                             "style": {
                               "color": "#2B3038",
@@ -153,7 +153,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -175,7 +175,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -195,7 +195,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -216,7 +216,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -264,7 +264,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                             "onStartShouldSetResponder": [Function],
                             "style": {
                               "alignItems": "center",
-                              "backgroundColor": "rgba(43,48,56,0.12)",
+                              "backgroundColor": "#D7DAD4",
                               "borderRadius": 11,
                               "height": 22,
                               "justifyContent": "center",
@@ -278,7 +278,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                       "props": {
                         "style": {
                           "alignItems": "center",
-                          "backgroundColor": "#F4EFE6",
+                          "backgroundColor": "#E2E4DF",
                           "borderRadius": 10,
                           "flex": 1,
                           "flexDirection": "row",
@@ -297,7 +297,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                           ],
                           "props": {
                             "style": {
-                              "color": "#FF6A1A",
+                              "color": "#2F6B3A",
                               "fontSize": 15,
                               "fontWeight": "500",
                             },
@@ -356,8 +356,8 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
               ],
               "props": {
                 "style": {
-                  "backgroundColor": "#FBF8F2",
-                  "borderBottomColor": "rgba(43,48,56,0.12)",
+                  "backgroundColor": "#ECEDE9",
+                  "borderBottomColor": "#D7DAD4",
                   "borderBottomWidth": 0.5,
                   "paddingBottom": 8,
                   "paddingHorizontal": 12,
@@ -496,7 +496,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                                       "props": {
                                         "d": "M18.5 15.4 20.6 17.2 18.5 19 16.4 17.2z",
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -559,7 +559,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -641,7 +641,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
           ],
           "props": {
             "style": {
-              "backgroundColor": "#FBF8F2",
+              "backgroundColor": "#ECEDE9",
               "flex": 1,
               "paddingTop": 47,
             },
@@ -789,7 +789,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                             "onChangeText": [Function],
                             "onSubmitEditing": [Function],
                             "placeholder": "Find a tool, a screen, a number",
-                            "placeholderTextColor": "rgba(43,48,56,0.7)",
+                            "placeholderTextColor": "rgba(43,48,56,0.72)",
                             "returnKeyType": "search",
                             "style": {
                               "color": "#2B3038",
@@ -821,7 +821,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -843,7 +843,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -863,7 +863,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -884,7 +884,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -932,7 +932,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                             "onStartShouldSetResponder": [Function],
                             "style": {
                               "alignItems": "center",
-                              "backgroundColor": "rgba(43,48,56,0.12)",
+                              "backgroundColor": "#D7DAD4",
                               "borderRadius": 11,
                               "height": 22,
                               "justifyContent": "center",
@@ -946,7 +946,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                       "props": {
                         "style": {
                           "alignItems": "center",
-                          "backgroundColor": "#F4EFE6",
+                          "backgroundColor": "#E2E4DF",
                           "borderRadius": 10,
                           "flex": 1,
                           "flexDirection": "row",
@@ -965,7 +965,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                           ],
                           "props": {
                             "style": {
-                              "color": "#FF6A1A",
+                              "color": "#2F6B3A",
                               "fontSize": 15,
                               "fontWeight": "500",
                             },
@@ -1024,8 +1024,8 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
               ],
               "props": {
                 "style": {
-                  "backgroundColor": "#FBF8F2",
-                  "borderBottomColor": "rgba(43,48,56,0.12)",
+                  "backgroundColor": "#ECEDE9",
+                  "borderBottomColor": "#D7DAD4",
                   "borderBottomWidth": 0.5,
                   "paddingBottom": 8,
                   "paddingHorizontal": 12,
@@ -1164,7 +1164,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                                       "props": {
                                         "d": "M18.5 15.4 20.6 17.2 18.5 19 16.4 17.2z",
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -1227,7 +1227,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -1309,7 +1309,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
           ],
           "props": {
             "style": {
-              "backgroundColor": "#FBF8F2",
+              "backgroundColor": "#ECEDE9",
               "flex": 1,
               "paddingTop": 47,
             },
@@ -1457,7 +1457,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                             "onChangeText": [Function],
                             "onSubmitEditing": [Function],
                             "placeholder": "Find a tool, a screen, a number",
-                            "placeholderTextColor": "rgba(43,48,56,0.7)",
+                            "placeholderTextColor": "rgba(43,48,56,0.72)",
                             "returnKeyType": "search",
                             "style": {
                               "color": "#2B3038",
@@ -1474,7 +1474,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                       "props": {
                         "style": {
                           "alignItems": "center",
-                          "backgroundColor": "#F4EFE6",
+                          "backgroundColor": "#E2E4DF",
                           "borderRadius": 10,
                           "flex": 1,
                           "flexDirection": "row",
@@ -1493,7 +1493,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                           ],
                           "props": {
                             "style": {
-                              "color": "#FF6A1A",
+                              "color": "#2F6B3A",
                               "fontSize": 15,
                               "fontWeight": "500",
                             },
@@ -1552,8 +1552,8 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
               ],
               "props": {
                 "style": {
-                  "backgroundColor": "#FBF8F2",
-                  "borderBottomColor": "rgba(43,48,56,0.12)",
+                  "backgroundColor": "#ECEDE9",
+                  "borderBottomColor": "#D7DAD4",
                   "borderBottomWidth": 0.5,
                   "paddingBottom": 8,
                   "paddingHorizontal": 12,
@@ -1621,7 +1621,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -1648,7 +1648,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -1675,7 +1675,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -1702,7 +1702,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -1729,7 +1729,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -1756,7 +1756,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -1774,7 +1774,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "props": {
                                             "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z",
                                             "fill": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "propList": [
@@ -1820,7 +1820,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               "props": {
                                 "style": {
                                   "alignItems": "center",
-                                  "backgroundColor": "rgba(255,106,26,0.12)",
+                                  "backgroundColor": "rgba(47,107,58,0.12)",
                                   "borderRadius": 8,
                                   "height": 34,
                                   "justifyContent": "center",
@@ -1882,7 +1882,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1902,7 +1902,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1923,7 +1923,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -2001,7 +2001,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -2023,7 +2023,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -2044,7 +2044,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -2068,7 +2068,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -2089,7 +2089,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                     "meetOrSlice": 0,
                                     "minX": 0,
                                     "minY": 0,
-                                    "stroke": "#FF6A1A",
+                                    "stroke": "#2F6B3A",
                                     "strokeLinecap": "round",
                                     "strokeLinejoin": "round",
                                     "strokeWidth": 1.75,
@@ -2111,7 +2111,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               "props": {
                                 "style": {
                                   "alignItems": "center",
-                                  "backgroundColor": "rgba(255,106,26,0.12)",
+                                  "backgroundColor": "rgba(47,107,58,0.12)",
                                   "borderRadius": 8,
                                   "height": 34,
                                   "justifyContent": "center",
@@ -2173,7 +2173,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -2193,7 +2193,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -2214,7 +2214,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -2294,7 +2294,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                             ],
                                             "r": "10",
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -2316,7 +2316,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -2338,7 +2338,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -2358,7 +2358,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -2379,7 +2379,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                     "meetOrSlice": 0,
                                     "minX": 0,
                                     "minY": 0,
-                                    "stroke": "#FF6A1A",
+                                    "stroke": "#2F6B3A",
                                     "strokeLinecap": "round",
                                     "strokeLinejoin": "round",
                                     "strokeWidth": 1.75,
@@ -2401,7 +2401,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               "props": {
                                 "style": {
                                   "alignItems": "center",
-                                  "backgroundColor": "rgba(255,106,26,0.12)",
+                                  "backgroundColor": "rgba(47,107,58,0.12)",
                                   "borderRadius": 8,
                                   "height": 34,
                                   "justifyContent": "center",
@@ -2450,7 +2450,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -2470,7 +2470,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -2491,7 +2491,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -2752,7 +2752,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                       "props": {
                                         "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z",
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -2815,7 +2815,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -2958,7 +2958,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                       "props": {
                                         "d": "M18.5 15.4 20.6 17.2 18.5 19 16.4 17.2z",
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -3021,7 +3021,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -3200,7 +3200,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3267,7 +3267,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -3438,7 +3438,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                         "cx": 15.4,
                                         "cy": 9.2,
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -3502,7 +3502,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -3671,7 +3671,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3697,7 +3697,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3760,7 +3760,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -4022,7 +4022,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -4079,7 +4079,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                           ],
                           "props": {
                             "style": {
-                              "color": "rgba(43,48,56,0.7)",
+                              "color": "rgba(43,48,56,0.72)",
                               "fontSize": 13,
                               "lineHeight": 19,
                               "paddingHorizontal": 16,
@@ -4115,7 +4115,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
           ],
           "props": {
             "style": {
-              "backgroundColor": "#FBF8F2",
+              "backgroundColor": "#ECEDE9",
               "flex": 1,
               "paddingTop": 47,
             },
@@ -4263,7 +4263,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                             "onChangeText": [Function],
                             "onSubmitEditing": [Function],
                             "placeholder": "Find a tool, a screen, a number",
-                            "placeholderTextColor": "rgba(43,48,56,0.7)",
+                            "placeholderTextColor": "rgba(43,48,56,0.72)",
                             "returnKeyType": "search",
                             "style": {
                               "color": "#2B3038",
@@ -4280,7 +4280,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                       "props": {
                         "style": {
                           "alignItems": "center",
-                          "backgroundColor": "#F4EFE6",
+                          "backgroundColor": "#E2E4DF",
                           "borderRadius": 10,
                           "flex": 1,
                           "flexDirection": "row",
@@ -4299,7 +4299,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                           ],
                           "props": {
                             "style": {
-                              "color": "#FF6A1A",
+                              "color": "#2F6B3A",
                               "fontSize": 15,
                               "fontWeight": "500",
                             },
@@ -4358,8 +4358,8 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
               ],
               "props": {
                 "style": {
-                  "backgroundColor": "#FBF8F2",
-                  "borderBottomColor": "rgba(43,48,56,0.12)",
+                  "backgroundColor": "#ECEDE9",
+                  "borderBottomColor": "#D7DAD4",
                   "borderBottomWidth": 0.5,
                   "paddingBottom": 8,
                   "paddingHorizontal": 12,
@@ -4427,7 +4427,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4454,7 +4454,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4481,7 +4481,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4508,7 +4508,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4535,7 +4535,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4562,7 +4562,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4580,7 +4580,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "props": {
                                             "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z",
                                             "fill": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "propList": [
@@ -4626,7 +4626,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               "props": {
                                 "style": {
                                   "alignItems": "center",
-                                  "backgroundColor": "rgba(255,106,26,0.12)",
+                                  "backgroundColor": "rgba(47,107,58,0.12)",
                                   "borderRadius": 8,
                                   "height": 34,
                                   "justifyContent": "center",
@@ -4688,7 +4688,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4708,7 +4708,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -4729,7 +4729,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -4807,7 +4807,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4829,7 +4829,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4850,7 +4850,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -4874,7 +4874,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4895,7 +4895,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                     "meetOrSlice": 0,
                                     "minX": 0,
                                     "minY": 0,
-                                    "stroke": "#FF6A1A",
+                                    "stroke": "#2F6B3A",
                                     "strokeLinecap": "round",
                                     "strokeLinejoin": "round",
                                     "strokeWidth": 1.75,
@@ -4917,7 +4917,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               "props": {
                                 "style": {
                                   "alignItems": "center",
-                                  "backgroundColor": "rgba(255,106,26,0.12)",
+                                  "backgroundColor": "rgba(47,107,58,0.12)",
                                   "borderRadius": 8,
                                   "height": 34,
                                   "justifyContent": "center",
@@ -4979,7 +4979,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4999,7 +4999,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -5020,7 +5020,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -5100,7 +5100,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                             ],
                                             "r": "10",
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -5122,7 +5122,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -5144,7 +5144,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                               "strokeLinejoin",
                                             ],
                                             "stroke": {
-                                              "payload": 4294928922,
+                                              "payload": 4281297722,
                                               "type": 0,
                                             },
                                             "strokeLinecap": 1,
@@ -5164,7 +5164,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5185,7 +5185,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                     "meetOrSlice": 0,
                                     "minX": 0,
                                     "minY": 0,
-                                    "stroke": "#FF6A1A",
+                                    "stroke": "#2F6B3A",
                                     "strokeLinecap": "round",
                                     "strokeLinejoin": "round",
                                     "strokeWidth": 1.75,
@@ -5207,7 +5207,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               "props": {
                                 "style": {
                                   "alignItems": "center",
-                                  "backgroundColor": "rgba(255,106,26,0.12)",
+                                  "backgroundColor": "rgba(47,107,58,0.12)",
                                   "borderRadius": 8,
                                   "height": 34,
                                   "justifyContent": "center",
@@ -5256,7 +5256,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5276,7 +5276,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -5297,7 +5297,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 1.75,
@@ -5558,7 +5558,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                       "props": {
                                         "d": "M6.75 0 L7.6 2.7 L10.3 3.5 L7.6 4.3 L6.75 7 L5.9 4.3 L3.2 3.5 L5.9 2.7 Z",
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -5621,7 +5621,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -5764,7 +5764,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                       "props": {
                                         "d": "M18.5 15.4 20.6 17.2 18.5 19 16.4 17.2z",
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -5827,7 +5827,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -6006,7 +6006,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6073,7 +6073,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -6244,7 +6244,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                         "cx": 15.4,
                                         "cy": 9.2,
                                         "fill": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "propList": [
@@ -6308,7 +6308,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -6477,7 +6477,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6503,7 +6503,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6566,7 +6566,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -6828,7 +6828,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                               ],
                               "props": {
                                 "style": {
-                                  "color": "rgba(43,48,56,0.7)",
+                                  "color": "rgba(43,48,56,0.72)",
                                   "fontFamily": "JetBrainsMono_500Medium",
                                   "fontSize": 10,
                                   "letterSpacing": 1.8,
@@ -6885,7 +6885,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                           ],
                           "props": {
                             "style": {
-                              "color": "rgba(43,48,56,0.7)",
+                              "color": "rgba(43,48,56,0.72)",
                               "fontSize": 13,
                               "lineHeight": 19,
                               "paddingHorizontal": 16,
@@ -6921,7 +6921,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
           ],
           "props": {
             "style": {
-              "backgroundColor": "#FBF8F2",
+              "backgroundColor": "#ECEDE9",
               "flex": 1,
               "paddingTop": 47,
             },

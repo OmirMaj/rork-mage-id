@@ -1,17 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-// useFonts comes from the font package, as the Fraunces import did — not from
-// expo-font directly. The two are different hooks, and with expo-font's the
+// useFonts comes from the font package (as it did when the display face was
+// Fraunces) — not from expo-font directly. The two are different hooks, and with expo-font's the
 // smoke harness never gets job costing past "Checking your access…" or cash
 // flow past a $0 balance (bisected to this one import, 2026-09-16).
 import { useFonts, Barlow_600SemiBold, Barlow_700Bold, Barlow_700Bold_Italic } from "@expo-google-fonts/barlow";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
-// Fraunces_700Bold stays loaded for ONE caller: components/BrandSplash.tsx (the
-// cold-start wordmark), which the loader rebuild owns right now and which
-// still names it. Drop this import once BrandSplash moves to Barlow — see
-// scratchpad rebrand-handoff/deferred.md.
-import { Fraunces_700Bold } from "@expo-google-fonts/fraunces";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -1722,13 +1717,13 @@ export default Sentry.wrap(function RootLayout() {
   // Bold is there for a wordmark. The expo-font plugin is registered bare in
   // app.json, so these load at runtime and ship over OTA — no native build.
   //
-  // Fraunces is no longer a display face. It stayed through the first pass of
-  // the rebrand because onboarding, persona-select, estimate-wizard and the
-  // native header face named it literally; all of them now name Barlow. The
-  // one exception is components/BrandSplash.tsx (owned by the loader rebuild
-  // while this merged), so Fraunces_700Bold alone stays loaded until it moves.
-  // Unloading a face something still names makes that text fall back to the
-  // system font SILENTLY, which is why the grep came first.
+  // Fraunces is no longer loaded at all. It stayed through the first pass of
+  // the rebrand because onboarding, persona-select, estimate-wizard, the native
+  // header face and (last) components/BrandSplash.tsx named it literally; all of
+  // them now name Barlow (BrandSplash's wordmark is ...Type.serifTitle). An
+  // unloaded face that something still names falls back to the system font
+  // SILENTLY, which is why the grep came first — validate-brand-color keeps it
+  // at zero.
   //
   // Barlow_700Bold_Italic is here for the accent word in the onboarding and
   // persona-select headlines, which were a Fraunces italic.
@@ -1736,8 +1731,6 @@ export default Sentry.wrap(function RootLayout() {
     Barlow_600SemiBold,
     Barlow_700Bold,
     Barlow_700Bold_Italic,
-    // BrandSplash only (see the import) — not a display face any more.
-    Fraunces_700Bold,
     JetBrainsMono_400Regular,
     JetBrainsMono_500Medium,
   });

@@ -1674,7 +1674,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   const finished = recordedEnd != null;
                   const fillColor = finished
                     ? themeColors.success
-                    : 'rgba(52,199,89,0.55)';  // translucent green for in-progress
+                    : 'rgba(18,128,110,0.55)';  // translucent success teal for in-progress
                   return (
                     <SvgRect
                       key={`actual-${bar.task.id}`}

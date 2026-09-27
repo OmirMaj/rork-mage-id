@@ -13,8 +13,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -258,7 +258,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                   "height": 28,
                   "justifyContent": "center",
                   "overflow": "hidden",
-                  "shadowColor": "#FF6A1A",
+                  "shadowColor": "#2F6B3A",
                   "shadowOffset": {
                     "height": 3,
                     "width": 0,
@@ -317,7 +317,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                             ],
                             "r": "8",
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -339,7 +339,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -359,7 +359,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -380,7 +380,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2,
@@ -428,7 +428,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                 "style": {
                   "alignItems": "center",
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 10,
                   "borderWidth": 1,
                   "height": 34,
@@ -459,7 +459,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -481,7 +481,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -501,7 +501,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -522,7 +522,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2.2,
@@ -570,7 +570,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                 "style": {
                   "alignItems": "center",
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 10,
                   "borderWidth": 1,
                   "height": 34,
@@ -596,7 +596,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
       "props": {
         "style": {
           "alignItems": "center",
-          "borderBottomColor": "rgba(43,48,56,0.12)",
+          "borderBottomColor": "#D7DAD4",
           "borderBottomWidth": 1,
           "flexDirection": "row",
           "justifyContent": "space-between",
@@ -626,7 +626,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                       "strokeLinejoin",
                     ],
                     "stroke": {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     },
                     "strokeLinecap": 1,
@@ -650,7 +650,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                     "rx": "2",
                     "ry": undefined,
                     "stroke": {
-                      "payload": 4294928922,
+                      "payload": 4281297722,
                       "type": 0,
                     },
                     "strokeLinecap": 1,
@@ -673,7 +673,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                   "strokeLinejoin",
                 ],
                 "stroke": {
-                  "payload": 4294928922,
+                  "payload": 4281297722,
                   "type": 0,
                 },
                 "strokeLinecap": 1,
@@ -694,7 +694,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
             "meetOrSlice": 0,
             "minX": 0,
             "minY": 0,
-            "stroke": "#FF6A1A",
+            "stroke": "#2F6B3A",
             "strokeLinecap": "round",
             "strokeLinejoin": "round",
             "strokeWidth": 2,
@@ -736,7 +736,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
               ],
               "props": {
                 "style": {
-                  "color": "#FF6A1A",
+                  "color": "#2F6B3A",
                   "fontSize": 13,
                   "fontWeight": "700",
                 },
@@ -783,7 +783,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
         "style": {
           "alignItems": "center",
           "backgroundColor": "#FFFFFF",
-          "borderBottomColor": "rgba(43,48,56,0.12)",
+          "borderBottomColor": "#D7DAD4",
           "borderBottomWidth": 1,
           "flexDirection": "row",
           "gap": 8,
@@ -808,8 +808,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                           "children": null,
                           "props": {
                             "colors": [
-                              4294935859,
-                              4290528268,
+                              4282227278,
+                              4281297722,
                             ],
                             "dither": undefined,
                             "endPoint": [
@@ -1055,7 +1055,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                           "justifyContent": "center",
                           "marginBottom": 16,
                           "overflow": "hidden",
-                          "shadowColor": "#FF6A1A",
+                          "shadowColor": "#2F6B3A",
                           "shadowOffset": {
                             "height": 8,
                             "width": 0,
@@ -1079,10 +1079,10 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                       "props": {
                         "style": {
                           "color": "#2B3038",
-                          "fontFamily": "Fraunces_700Bold",
+                          "fontFamily": "Barlow_600SemiBold",
                           "fontSize": 28,
-                          "letterSpacing": -0.56,
-                          "lineHeight": 32,
+                          "letterSpacing": -0.14,
+                          "lineHeight": 34,
                         },
                       },
                       "type": "Text",
@@ -1123,7 +1123,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1145,7 +1145,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1165,7 +1165,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1186,7 +1186,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -1235,7 +1235,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1255,7 +1255,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1276,7 +1276,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -1322,7 +1322,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -1356,7 +1356,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                         ],
                                         "r": "10",
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1378,7 +1378,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1398,7 +1398,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1419,7 +1419,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -1468,7 +1468,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1488,7 +1488,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1509,7 +1509,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -1555,7 +1555,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -1587,7 +1587,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1609,7 +1609,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1631,7 +1631,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1651,7 +1651,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1672,7 +1672,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -1721,7 +1721,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1741,7 +1741,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1762,7 +1762,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -1808,7 +1808,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -1839,7 +1839,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1865,7 +1865,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1885,7 +1885,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1906,7 +1906,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -1955,7 +1955,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -1975,7 +1975,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -1996,7 +1996,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -2042,7 +2042,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -2086,7 +2086,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                     "rx": "2",
                                     "ry": undefined,
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -2111,7 +2111,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -2131,7 +2131,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                   "strokeLinejoin",
                                 ],
                                 "stroke": {
-                                  "payload": 4294928922,
+                                  "payload": 4281297722,
                                   "type": 0,
                                 },
                                 "strokeLinecap": 1,
@@ -2152,7 +2152,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                             "meetOrSlice": 0,
                             "minX": 0,
                             "minY": 0,
-                            "stroke": "#FF6A1A",
+                            "stroke": "#2F6B3A",
                             "strokeLinecap": "round",
                             "strokeLinejoin": "round",
                             "strokeWidth": 2,
@@ -2201,7 +2201,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -2221,7 +2221,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                                   "strokeLinejoin",
                                 ],
                                 "stroke": {
-                                  "payload": 3005952056,
+                                  "payload": 3089838136,
                                   "type": 0,
                                 },
                                 "strokeLinecap": 1,
@@ -2242,7 +2242,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                             "meetOrSlice": 0,
                             "minX": 0,
                             "minY": 0,
-                            "stroke": "rgba(43,48,56,0.7)",
+                            "stroke": "rgba(43,48,56,0.72)",
                             "strokeLinecap": "round",
                             "strokeLinejoin": "round",
                             "strokeWidth": 2,
@@ -2288,7 +2288,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                         "style": {
                           "alignItems": "center",
                           "alignSelf": "stretch",
-                          "borderColor": "rgba(43,48,56,0.12)",
+                          "borderColor": "#D7DAD4",
                           "borderRadius": 14,
                           "borderStyle": "dashed",
                           "borderWidth": 1,
@@ -2352,7 +2352,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -2374,7 +2374,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -2395,7 +2395,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -2419,7 +2419,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -2440,7 +2440,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2,
@@ -2504,10 +2504,10 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                 "onChangeText": [Function],
                 "onSubmitEditing": [Function],
                 "placeholder": "Ask anything…",
-                "placeholderTextColor": "rgba(43,48,56,0.7)",
+                "placeholderTextColor": "rgba(43,48,56,0.72)",
                 "style": {
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 18,
                   "borderWidth": 1,
                   "color": "#2B3038",
@@ -2530,8 +2530,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -2685,7 +2685,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
                   "justifyContent": "center",
                   "opacity": 0.45,
                   "overflow": "hidden",
-                  "shadowColor": "#FF6A1A",
+                  "shadowColor": "#2F6B3A",
                   "shadowOffset": {
                     "height": 6,
                     "width": 0,
@@ -2702,8 +2702,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
           "props": {
             "style": {
               "alignItems": "flex-end",
-              "backgroundColor": "#FBF8F2",
-              "borderTopColor": "rgba(43,48,56,0.12)",
+              "backgroundColor": "#ECEDE9",
+              "borderTopColor": "#D7DAD4",
               "borderTopWidth": 1,
               "flexDirection": "row",
               "gap": 10,
@@ -2727,7 +2727,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, anchored to the job from p
   ],
   "props": {
     "style": {
-      "backgroundColor": "#FBF8F2",
+      "backgroundColor": "#ECEDE9",
       "flex": 1,
       "paddingTop": 0,
     },
@@ -2749,8 +2749,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -2994,7 +2994,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                   "height": 28,
                   "justifyContent": "center",
                   "overflow": "hidden",
-                  "shadowColor": "#FF6A1A",
+                  "shadowColor": "#2F6B3A",
                   "shadowOffset": {
                     "height": 3,
                     "width": 0,
@@ -3053,7 +3053,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                             ],
                             "r": "8",
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -3075,7 +3075,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -3095,7 +3095,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -3116,7 +3116,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2,
@@ -3164,7 +3164,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                 "style": {
                   "alignItems": "center",
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 10,
                   "borderWidth": 1,
                   "height": 34,
@@ -3195,7 +3195,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -3217,7 +3217,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -3237,7 +3237,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -3258,7 +3258,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2.2,
@@ -3306,7 +3306,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                 "style": {
                   "alignItems": "center",
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 10,
                   "borderWidth": 1,
                   "height": 34,
@@ -3332,7 +3332,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
       "props": {
         "style": {
           "alignItems": "center",
-          "borderBottomColor": "rgba(43,48,56,0.12)",
+          "borderBottomColor": "#D7DAD4",
           "borderBottomWidth": 1,
           "flexDirection": "row",
           "justifyContent": "space-between",
@@ -3357,8 +3357,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                           "children": null,
                           "props": {
                             "colors": [
-                              4294935859,
-                              4290528268,
+                              4282227278,
+                              4281297722,
                             ],
                             "dither": undefined,
                             "endPoint": [
@@ -3604,7 +3604,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                           "justifyContent": "center",
                           "marginBottom": 16,
                           "overflow": "hidden",
-                          "shadowColor": "#FF6A1A",
+                          "shadowColor": "#2F6B3A",
                           "shadowOffset": {
                             "height": 8,
                             "width": 0,
@@ -3628,10 +3628,10 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                       "props": {
                         "style": {
                           "color": "#2B3038",
-                          "fontFamily": "Fraunces_700Bold",
+                          "fontFamily": "Barlow_600SemiBold",
                           "fontSize": 28,
-                          "letterSpacing": -0.56,
-                          "lineHeight": 32,
+                          "letterSpacing": -0.14,
+                          "lineHeight": 34,
                         },
                       },
                       "type": "Text",
@@ -3672,7 +3672,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3694,7 +3694,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3716,7 +3716,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3738,7 +3738,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3760,7 +3760,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3780,7 +3780,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -3801,7 +3801,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -3850,7 +3850,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3870,7 +3870,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -3891,7 +3891,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -3937,7 +3937,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -3969,7 +3969,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -3991,7 +3991,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4011,7 +4011,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -4032,7 +4032,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -4081,7 +4081,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4101,7 +4101,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -4122,7 +4122,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -4168,7 +4168,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -4200,7 +4200,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4222,7 +4222,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4242,7 +4242,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -4263,7 +4263,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -4312,7 +4312,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -4332,7 +4332,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -4353,7 +4353,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -4399,7 +4399,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -4471,7 +4471,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -4493,7 +4493,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -4514,7 +4514,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -4538,7 +4538,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -4559,7 +4559,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2,
@@ -4623,10 +4623,10 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                 "onChangeText": [Function],
                 "onSubmitEditing": [Function],
                 "placeholder": "Ask anything…",
-                "placeholderTextColor": "rgba(43,48,56,0.7)",
+                "placeholderTextColor": "rgba(43,48,56,0.72)",
                 "style": {
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 18,
                   "borderWidth": 1,
                   "color": "#2B3038",
@@ -4649,8 +4649,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -4804,7 +4804,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
                   "justifyContent": "center",
                   "opacity": 0.45,
                   "overflow": "hidden",
-                  "shadowColor": "#FF6A1A",
+                  "shadowColor": "#2F6B3A",
                   "shadowOffset": {
                     "height": 6,
                     "width": 0,
@@ -4821,8 +4821,8 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
           "props": {
             "style": {
               "alignItems": "flex-end",
-              "backgroundColor": "#FBF8F2",
-              "borderTopColor": "rgba(43,48,56,0.12)",
+              "backgroundColor": "#ECEDE9",
+              "borderTopColor": "#D7DAD4",
               "borderTopWidth": 1,
               "flexDirection": "row",
               "gap": 10,
@@ -4846,7 +4846,7 @@ exports[`Ask MAGE page on a phone (real app) 390 ios, no params (empty world) 1`
   ],
   "props": {
     "style": {
-      "backgroundColor": "#FBF8F2",
+      "backgroundColor": "#ECEDE9",
       "flex": 1,
       "paddingTop": 0,
     },
@@ -4868,8 +4868,8 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -5113,7 +5113,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                   "height": 28,
                   "justifyContent": "center",
                   "overflow": "hidden",
-                  "shadowColor": "#FF6A1A",
+                  "shadowColor": "#2F6B3A",
                   "shadowOffset": {
                     "height": 3,
                     "width": 0,
@@ -5172,7 +5172,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                             ],
                             "r": "8",
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -5194,7 +5194,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -5214,7 +5214,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -5235,7 +5235,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2,
@@ -5285,7 +5285,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                 "style": {
                   "alignItems": "center",
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 10,
                   "borderWidth": 1,
                   "height": 34,
@@ -5316,7 +5316,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -5338,7 +5338,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -5358,7 +5358,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -5379,7 +5379,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2.2,
@@ -5429,7 +5429,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                 "style": {
                   "alignItems": "center",
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 10,
                   "borderWidth": 1,
                   "height": 34,
@@ -5455,7 +5455,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
       "props": {
         "style": {
           "alignItems": "center",
-          "borderBottomColor": "rgba(43,48,56,0.12)",
+          "borderBottomColor": "#D7DAD4",
           "borderBottomWidth": 1,
           "flexDirection": "row",
           "justifyContent": "space-between",
@@ -5480,8 +5480,8 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                           "children": null,
                           "props": {
                             "colors": [
-                              4294935859,
-                              4290528268,
+                              4282227278,
+                              4281297722,
                             ],
                             "dither": undefined,
                             "endPoint": [
@@ -5727,7 +5727,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                           "justifyContent": "center",
                           "marginBottom": 16,
                           "overflow": "hidden",
-                          "shadowColor": "#FF6A1A",
+                          "shadowColor": "#2F6B3A",
                           "shadowOffset": {
                             "height": 8,
                             "width": 0,
@@ -5751,10 +5751,10 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                       "props": {
                         "style": {
                           "color": "#2B3038",
-                          "fontFamily": "Fraunces_700Bold",
+                          "fontFamily": "Barlow_600SemiBold",
                           "fontSize": 28,
-                          "letterSpacing": -0.56,
-                          "lineHeight": 32,
+                          "letterSpacing": -0.14,
+                          "lineHeight": 34,
                         },
                       },
                       "type": "Text",
@@ -5795,7 +5795,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5817,7 +5817,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5839,7 +5839,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5861,7 +5861,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5883,7 +5883,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5903,7 +5903,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -5924,7 +5924,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -5973,7 +5973,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -5993,7 +5993,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -6014,7 +6014,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -6062,7 +6062,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -6094,7 +6094,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6116,7 +6116,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6136,7 +6136,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -6157,7 +6157,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -6206,7 +6206,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6226,7 +6226,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -6247,7 +6247,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -6295,7 +6295,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -6327,7 +6327,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6349,7 +6349,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 4294928922,
+                                          "payload": 4281297722,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6369,7 +6369,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 4294928922,
+                                      "payload": 4281297722,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -6390,7 +6390,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "#FF6A1A",
+                                "stroke": "#2F6B3A",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -6439,7 +6439,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                           "strokeLinejoin",
                                         ],
                                         "stroke": {
-                                          "payload": 3005952056,
+                                          "payload": 3089838136,
                                           "type": 0,
                                         },
                                         "strokeLinecap": 1,
@@ -6459,7 +6459,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                       "strokeLinejoin",
                                     ],
                                     "stroke": {
-                                      "payload": 3005952056,
+                                      "payload": 3089838136,
                                       "type": 0,
                                     },
                                     "strokeLinecap": 1,
@@ -6480,7 +6480,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                                 "meetOrSlice": 0,
                                 "minX": 0,
                                 "minY": 0,
-                                "stroke": "rgba(43,48,56,0.7)",
+                                "stroke": "rgba(43,48,56,0.72)",
                                 "strokeLinecap": "round",
                                 "strokeLinejoin": "round",
                                 "strokeWidth": 2,
@@ -6528,7 +6528,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                             "style": {
                               "alignItems": "center",
                               "backgroundColor": "#FFFFFF",
-                              "borderColor": "rgba(43,48,56,0.12)",
+                              "borderColor": "#D7DAD4",
                               "borderRadius": 14,
                               "borderWidth": 1,
                               "flexDirection": "row",
@@ -6600,7 +6600,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -6622,7 +6622,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -6643,7 +6643,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                               "strokeLinejoin",
                             ],
                             "stroke": {
-                              "payload": 3005952056,
+                              "payload": 3089838136,
                               "type": 0,
                             },
                             "strokeLinecap": 1,
@@ -6667,7 +6667,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                           "strokeLinejoin",
                         ],
                         "stroke": {
-                          "payload": 3005952056,
+                          "payload": 3089838136,
                           "type": 0,
                         },
                         "strokeLinecap": 1,
@@ -6688,7 +6688,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                     "meetOrSlice": 0,
                     "minX": 0,
                     "minY": 0,
-                    "stroke": "rgba(43,48,56,0.7)",
+                    "stroke": "rgba(43,48,56,0.72)",
                     "strokeLinecap": "round",
                     "strokeLinejoin": "round",
                     "strokeWidth": 2,
@@ -6754,10 +6754,10 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                 "onChangeText": [Function],
                 "onSubmitEditing": [Function],
                 "placeholder": "Ask anything…",
-                "placeholderTextColor": "rgba(43,48,56,0.7)",
+                "placeholderTextColor": "rgba(43,48,56,0.72)",
                 "style": {
                   "backgroundColor": "#FFFFFF",
-                  "borderColor": "rgba(43,48,56,0.12)",
+                  "borderColor": "#D7DAD4",
                   "borderRadius": 18,
                   "borderWidth": 1,
                   "color": "#2B3038",
@@ -6780,8 +6780,8 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -6937,7 +6937,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
                   "justifyContent": "center",
                   "opacity": 0.45,
                   "overflow": "hidden",
-                  "shadowColor": "#FF6A1A",
+                  "shadowColor": "#2F6B3A",
                   "shadowOffset": {
                     "height": 6,
                     "width": 0,
@@ -6954,8 +6954,8 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
           "props": {
             "style": {
               "alignItems": "flex-end",
-              "backgroundColor": "#FBF8F2",
-              "borderTopColor": "rgba(43,48,56,0.12)",
+              "backgroundColor": "#ECEDE9",
+              "borderTopColor": "#D7DAD4",
               "borderTopWidth": 1,
               "flexDirection": "row",
               "gap": 10,
@@ -6978,7 +6978,7 @@ exports[`Ask MAGE page on a phone (real app) web 390, no params (empty world) 1`
   ],
   "props": {
     "style": {
-      "backgroundColor": "#FBF8F2",
+      "backgroundColor": "#ECEDE9",
       "flex": 1,
       "paddingTop": 0,
     },
@@ -7000,8 +7000,8 @@ exports[`BrainFab on a phone 390 ios 1`] = `
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -7355,8 +7355,8 @@ exports[`BrainFab on a phone web 390 1`] = `
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [
@@ -7712,8 +7712,8 @@ exports[`BrainFab on a phone web 820 (below the 900 desktop gate) 1`] = `
                   "children": null,
                   "props": {
                     "colors": [
-                      4294935859,
-                      4290528268,
+                      4282227278,
+                      4281297722,
                     ],
                     "dither": undefined,
                     "endPoint": [

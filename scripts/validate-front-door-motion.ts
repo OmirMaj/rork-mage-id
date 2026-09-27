@@ -114,9 +114,11 @@ function springProblems(file: string, src: string): string[] {
 
 type Section = { name: string; run: () => void };
 
-/** The splash wordmark: Type.serifTitle (28 / 32 in the display face) with 3.4 tracking, in NATIVE_SPLASH_FG. */
+/** The splash wordmark: Type.serifTitle (28 / 34 in the display face — Barlow since the 2026-09-16 rebrand; it
+ *  was Fraunces 28 / 32) with 3.4 tracking, in NATIVE_SPLASH_FG. The 32 pt splashWordmarkBox is bottom-anchored
+ *  and centres its text, so the 2 pt taller line box overflows it by 1 pt each side and moves no pixel of the level. */
 const WORDMARK_STYLE = /\.\.\.Type\.serifTitle,[^\n]*\n\s*letterSpacing: 3\.4,\s*color: NATIVE_SPLASH_FG/;
-const serifTitle28 = () => /serifTitle:\s*\{[^}]*fontSize: 28, lineHeight: 32\b/.test(read('constants/typography.ts'));
+const serifTitle28 = () => /serifTitle:\s*\{[^}]*fontFamily: 'Barlow_600SemiBold', fontSize: 28, lineHeight: 34\b/.test(read('constants/typography.ts'));
 
 const SECTIONS: Section[] = [
   {
@@ -182,7 +184,7 @@ const SECTIONS: Section[] = [
         && /setSplashStage\(\{ wordmark: true \}\)/.test(s) && /setSplashStage\(\{ finished: true \}\)/.test(s));
       ok('finish(): doneRef → overlayOpacity 0 → setSplashStage finished → open → onDone()',
         /doneRef\.current = true;[\s\S]{0,400}overlayOpacity\.setValue\(0\);[\s\S]{0,300}setSplashStage\(\{ finished: true \}\);[\s\S]{0,200}setLaunchPhase\('open'\);\s*onDone\(\);/.test(s));
-      ok('the wordmark box is the shared splashWordmarkBox(rect); Type.serifTitle (28/32) + 3.4 tracking, NATIVE_SPLASH_FG',
+      ok('the wordmark box is the shared splashWordmarkBox(rect); Type.serifTitle (Barlow 28/34) + 3.4 tracking, NATIVE_SPLASH_FG',
         /splashWordmarkBox\(rect\)/.test(s) && WORDMARK_STYLE.test(s) && serifTitle28());
       ok('the eyebrow, the 44 pt wordmark and the old literals are gone',
         !/THE OPERATING SYSTEM FOR BUILDERS/.test(raw) && !/fontSize: 44/.test(s)
