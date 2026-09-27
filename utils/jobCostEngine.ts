@@ -256,10 +256,18 @@ export function commitmentValue(c: Commitment): number {
 }
 
 /**
- * What has already gone OUT against a commitment — the server-maintained
+ * What has been BILLED AND ACCEPTED against a commitment — the server-maintained
  * rollup of approved-and-paid sub invoices. COST, not revenue: this is the
- * GC's money leaving, never the client's money arriving. Floored at zero
+ * GC's money committed out, never the client's money arriving. Floored at zero
  * because a negative rollup is a data fault, not a refund.
+ *
+ * NOT PURE CASH (health 2026-09-26, MONEY-CASH-SUB-APPROVED). The trigger
+ * (supabase/schema.sql recompute_commitment_paid_to_date) sums `amount` over
+ * status IN ('approved','paid') — a bill the GC has only APPROVED counts here
+ * before any check is cut, and `amount` is GROSS of the retainage the GC
+ * withholds from the sub. That is the right cost-side number; it is two
+ * dollars short of a cash one. utils/cashFlowEngine.buildSubBillOutflows puts
+ * both back on the cash side from the sub invoices themselves.
  */
 export function commitmentPaidToDate(c: Commitment): number {
   const paid = Number.isFinite(c.paidToDate) ? (c.paidToDate as number) : 0;
@@ -267,8 +275,17 @@ export function commitmentPaidToDate(c: Commitment): number {
 }
 
 /**
- * CASH still to leave the bank against a signed commitment — what the GC has
- * committed to and has NOT yet paid.
+ * The COST-SIDE remaining on a signed commitment — what the GC has committed
+ * to and the sub has NOT yet billed-and-had-approved (value − paidToDate).
+ *
+ * It is NOT all the cash still to leave the bank (health 2026-09-26,
+ * MONEY-CASH-SUB-APPROVED): paidToDate counts APPROVED-but-unpaid sub bills
+ * and is gross of the retainage withheld from the sub (see
+ * commitmentPaidToDate). A $100k subcontract with a $40k bill approved at 10%
+ * retainage reads $60k here while $100k is still owed: $60k unbilled, a $36k
+ * check due now and $4k of retainage at closeout. The cash forecast adds the
+ * last two from the sub invoices (utils/cashFlowEngine.buildSubBillOutflows);
+ * a cash surface that reads this alone must say sub bills were not checked.
  *
  * Snapped material receipts are deliberately NOT netted out of this, and that
  * is the one place where the cash view and this engine's EAC legitimately

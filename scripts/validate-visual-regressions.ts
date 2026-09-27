@@ -135,7 +135,7 @@ const fontFamilyHits: string[] = [];
 for (const file of estimateFiles) {
   readFileSync(file, 'utf8').split('\n').forEach((text, i) => {
     // A literal fontFamily. Type.serif*/Type.mono* carry their own families
-    // and are the sanctioned way to reach Fraunces / JetBrains Mono.
+    // and are the sanctioned way to reach the display face (Barlow) / JetBrains Mono.
     if (/\bfontFamily\s*:/.test(text)) {
       fontFamilyHits.push(relative(ROOT, file) + ':' + (i + 1) + '  ' + text.trim().slice(0, 80));
     }
@@ -180,7 +180,7 @@ const card = read('components/ui/Card.tsx');
 ok(
   'Card: title/meta body slots are NOT serif or mono',
   !/(CardTitle|CardMeta)[\s\S]{0,300}?Type\.(serif|mono)/.test(card),
-  'Card rows are body UI. Fraunces (Type.serif*) is for screen-level display ' +
+  'Card rows are body UI. The display face (Barlow, Type.serif*) is for screen-level display ' +
     'titles and JetBrains Mono (Type.mono*) for micro/numeric labels — using ' +
     'them for every card row is what made the Estimate hub read as a ' +
     'different typeface from the rest of the app.',

@@ -736,7 +736,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
   },
   newCmdBtnText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -828,7 +828,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

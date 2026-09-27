@@ -79,30 +79,53 @@ export const Type = {
     lineHeight: 14,
   } as TextStyle,
 
-  // ─── Serif (Fraunces) — display use only. Using 700 weight for strong
-  //     contrast in both light and dark themes (500 felt too thin against
-  //     ink in dark mode). 500 is also loaded if needed for soft headings.
-  // Hero figure — one big number as the subject of a screen (project margin,
-  // cash runway). Display only; never for running text.
-  serifHero:       { fontFamily: 'Fraunces_700Bold', fontSize: 64, lineHeight: 62, letterSpacing: -1.6 } as TextStyle,
-  serifLargeTitle: { fontFamily: 'Fraunces_700Bold', fontSize: 36, lineHeight: 40, letterSpacing: -0.9 } as TextStyle,
-  serifTitle:      { fontFamily: 'Fraunces_700Bold', fontSize: 28, lineHeight: 32, letterSpacing: -0.56 } as TextStyle,
+  // ─── Display (Barlow) — screen titles and numbers that matter.
+  //
+  // REBRAND 2026-09-16: the display face moved from Fraunces to Barlow. A
+  // serif display over a warm cream ground is one of the most recognisable
+  // generated-app looks, so the face changed with the colour. Barlow is a
+  // grotesk drawn from California highway signage — plain, upright, legible at
+  // a distance, which is the voice a construction tool should have.
+  //
+  // THE NAMES STAY `serif*`. They are consumed by 19 screen/component files
+  // and pinned by scripts/validate-type-identity.ts and validate-contrast.ts,
+  // none of which this change owns; renaming them here would break the build
+  // for everyone mid-rebrand. Read `serif*` as "display" — a rename to
+  // `display*` is a mechanical follow-up once the consumers can move together.
+  //
+  // WEIGHT: SemiBold 600 throughout. Bold 700 reads heavy at 64pt and turns a
+  // screen title into a shout; 600 is the confident-signage weight. Bold is
+  // loaded too (DISPLAY_FONT.bold) for a wordmark that wants it.
+  //
+  // METRICS, re-derived rather than carried over. Barlow's line box is 1.20em
+  // (hhea ascender 1000 / descender -200 on a 1000 upm) and its cap height is
+  // 0.70em; Fraunces carried 1.23em and tight negative tracking to pull a
+  // high-contrast serif together. Barlow is already narrow, and the same
+  // tracking crowds it — at -1.6 on 64pt the hero digits touched. So tracking
+  // is roughly -1% at the largest sizes, tapering to 0 by 22pt, and lineHeight
+  // is ≥1.06em everywhere: caps and digits top out at 0.70em, so nothing
+  // clips, where Fraunces' 62-on-64 hero relied on the serif's own metrics.
+  serifHero:       { fontFamily: 'Barlow_600SemiBold', fontSize: 64, lineHeight: 68, letterSpacing: -0.64 } as TextStyle,
+  serifLargeTitle: { fontFamily: 'Barlow_600SemiBold', fontSize: 36, lineHeight: 42, letterSpacing: -0.36 } as TextStyle,
+  serifTitle:      { fontFamily: 'Barlow_600SemiBold', fontSize: 28, lineHeight: 34, letterSpacing: -0.14 } as TextStyle,
   // SCREEN TITLES USE THIS. The rule, so the app reads as one product rather
   // than 165 separately-built screens:
   //
-  //   • Fraunces for screen titles and for NUMBERS THAT MATTER (margin %,
-  //     money totals, counts you want someone to feel).
+  //   • The display face (Barlow) for screen titles and for NUMBERS THAT
+  //     MATTER (margin %, money totals, counts you want someone to feel).
   //   • System sans for everything else — labels, body, controls, data rows.
   //
-  // 22/26 is sized for an in-app header row that also carries a back button and
-  // an action, so it holds one line everywhere title2-at-800 already did.
+  // 22/28 is sized for an in-app header row that also carries a back button and
+  // an action. Barlow sets narrower than Fraunces did at 22pt, so a title that
+  // held one line before holds it with room to spare; the 2pt of extra line
+  // height is the 1.2em box, not decoration.
   //
-  // Do NOT pair it with fontWeight: Fraunces_700Bold already carries its weight,
-  // and an override makes the platform synthesise a fake bold on top of a real
-  // one (muddy on iOS, ignored on some Android builds).
+  // Do NOT pair it with fontWeight: Barlow_600SemiBold already carries its
+  // weight, and an override makes the platform synthesise a fake bold on top
+  // of a real one (muddy on iOS, ignored on some Android builds).
   //
   // Pinned by test:type-identity.
-  serifHeadline:   { fontFamily: 'Fraunces_700Bold', fontSize: 22, lineHeight: 26, letterSpacing: -0.22 } as TextStyle,
+  serifHeadline:   { fontFamily: 'Barlow_600SemiBold', fontSize: 22, lineHeight: 28, letterSpacing: 0 } as TextStyle,
 
   // ─── Mono (JetBrains Mono) — micro labels, eyebrows, status.
   monoEyebrow: {
@@ -128,3 +151,14 @@ export const Type = {
 } as const;
 
 export type TypeKey = keyof typeof Type;
+
+/**
+ * The display face's loaded family names, for the few places that cannot spread
+ * a Type token (a native header's fontFamily, a PDF/HTML template, a splash
+ * wordmark). Each must be a key app/_layout.tsx passes to useFonts — an
+ * unloaded family silently falls back to the system face.
+ */
+export const DISPLAY_FONT = {
+  semibold: 'Barlow_600SemiBold',
+  bold: 'Barlow_700Bold',
+} as const;

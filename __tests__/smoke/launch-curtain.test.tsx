@@ -9,7 +9,8 @@
  *    tree is unchanged), armed under the curtain, the wordmark hidden only
  *    until 'landed', and nothing left hidden by a heal or Reduce Motion.
  *  - components/launch/ReloadVeil.tsx: renders nothing until a reload, blocks
- *    input while active, lets go at once and fades out after it.
+ *    input while active, lets go at once, holds the picture VEIL_MIN_MS once
+ *    shown, and fades out after it (level-launch.test.tsx times it exactly).
  */
 
 import React from 'react';
@@ -251,17 +252,21 @@ describe('ReloadVeil', () => {
     expect(screen.queryByTestId('root-nav-reload-overlay')).toBeNull();
   });
 
-  it('blocks input from the first frame, shows after the grace, lets go and fades out', () => {
+  it('blocks input from the first frame, shows after the grace, lets go, holds, and fades out', () => {
     const { rerender } = render(<ReloadVeil active />);
     const veil = () => screen.queryByTestId('root-nav-reload-overlay');
     expect(veil()).not.toBeNull();
     expect(veil()!.props.pointerEvents).toBe('auto');
-    expect(screen.getByText('crane:MAGE ID')).toBeTruthy();
-    advance(400); // past the grace + fade in
+    // Lane LAUNCH: the plain level (ScreenLoader), not the "MAGE ID" crane.
+    expect(screen.getByTestId('screen-loader')).toBeTruthy();
+    expect(screen.queryByText('crane:MAGE ID')).toBeNull();
+    advance(400); // past the grace + fade in (shown at 200)
     rerender(<ReloadVeil active={false} />);
     expect(veil()).not.toBeNull();
     expect(veil()!.props.pointerEvents).toBe('none');
-    advance(400);
+    advance(250); // 650: inside the 500 ms hold (shown at 200 → the fade may start at 700)
+    expect(veil()).not.toBeNull();
+    advance(400); // the fade ran 700 → 880
     expect(veil()).toBeNull();
   });
 

@@ -18,7 +18,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import CraneLoader from '@/components/CraneLoader';
+import WorkProgress from '@/components/loaders/WorkProgress';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -323,15 +323,18 @@ export default function ExtractSubmittalsScreen() {
     );
   }
 
-  // Full-screen crane + rotating facts during the 60-90s render/AI read (was a
-  // tiny centered spinner on an otherwise empty screen).
+  // The 60-90s render/AI read: the REAL phase (render, then read), the elapsed
+  // time and the typical range; facts stay as a quiet footer. No page counter:
+  // uploadAndRenderPdf and the spec-book read are each ONE server call with no
+  // progress callback, so there is no real "i of N" to show.
   if (step === 'uploading' || step === 'analyzing') {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader eyebrow="SPEC BOOK · MAGE ID" title={project.name} />
-        <CraneLoader
-          label={step === 'uploading' ? 'Rendering pages' : 'Reading the spec book'}
+        <WorkProgress
+          title={step === 'uploading' ? 'Rendering pages' : 'Reading the spec book'}
+          typical="usually 60–90 s"
           facts={CONSTRUCTION_FACTS}
         />
       </View>
@@ -347,7 +350,7 @@ export default function ExtractSubmittalsScreen() {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <MageAIMark size={20} color={"#FF6A1A"} />
+                <MageAIMark size={20} color={themeColors.accent} />
               </View>
               <Text style={styles.heroTitle}>Spec book → submittal log</Text>
               <Text style={styles.heroBody}>
@@ -454,7 +457,7 @@ export default function ExtractSubmittalsScreen() {
                   <Switch
                     value={row.selected}
                     onValueChange={() => toggleRow(row.rowId)}
-                    trackColor={{ false: themeColors.line, true: "#FF6A1A" }}
+                    trackColor={{ false: themeColors.line, true: themeColors.accentFill }}
                     thumbColor="#FFF"
                   />
                 </View>
@@ -493,7 +496,9 @@ export default function ExtractSubmittalsScreen() {
 // dark mode the "low confidence" chip washed toward the surface it sits on
 // instead of away from it. neutralInk inverts with the ground.
 function confColor(c: 'high' | 'medium' | 'low', t: ThemeColors) {
-  if (c === 'high') return { backgroundColor: "#2E7D44" + '20' };
+  // Success TEAL, not the old success green #2E7D44 — that sat ΔE 9.2 from the
+  // brand green, so a "high" chip would have read as a brand-coloured control.
+  if (c === 'high') return { backgroundColor: t.success + '20' };
   if (c === 'medium') return { backgroundColor: Colors.warning + '20' };
   return { backgroundColor: neutralInk(t) + '20' };
 }

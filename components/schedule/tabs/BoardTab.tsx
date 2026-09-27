@@ -326,7 +326,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '600',
   },
   phoneSwitcherLabelActive: {
-    color: '#0B0D10',
+    color: Colors.textOnAccent,
     fontWeight: '700',
   },
   phoneSwitcherCount: {
@@ -335,7 +335,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '600',
   },
   phoneSwitcherCountActive: {
-    color: '#0B0D10',
+    color: Colors.textOnAccent,
     fontWeight: '700',
   },
   phoneCol: { flex: 1, backgroundColor: t.surfaceAlt },

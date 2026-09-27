@@ -284,7 +284,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
     backgroundColor: t.neutralSoft,
   },
-  catChipActive: { backgroundColor: Colors.primary },
+  catChipActive: { backgroundColor: t.accentFill },
   catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   catChipTextActive: { color: Colors.textOnPrimary },
   modelList: { flex: 1 },

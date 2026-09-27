@@ -37,7 +37,7 @@ import { onlineManager } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import CraneLoader from '@/components/CraneLoader';
+import WorkProgress from '@/components/loaders/WorkProgress';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -614,14 +614,14 @@ export default function CompareDrawingsScreen() {
     );
   }
 
-  // Full-screen crane + rotating facts during the 30-60s AI compare (was a tiny
-  // centered spinner on an otherwise empty screen).
+  // The 30-60s AI compare: the real phase, the elapsed time and the typical
+  // range; facts stay as a quiet footer.
   if (step === 'analyzing') {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
-        <CraneLoader label="Comparing sheets" facts={CONSTRUCTION_FACTS} />
+        <WorkProgress title="Comparing sheets" typical="usually 30–60 s" facts={CONSTRUCTION_FACTS} />
       </View>
     );
   }
@@ -1037,9 +1037,10 @@ function labelForType(t: ChangeType): string {
   if (t === 'modified') return 'Modified';
   return 'Note revised';
 }
-// Module-level — hardcoded hex to stay theme-agnostic.
+// Module-level. `added` is the success TEAL (Colors.success, static, white
+// glyph 4.9:1): the pre-rebrand #2E7D44 sat ΔE 9.2 from the brand green.
 function changeBg(t: ChangeType) {
-  if (t === 'added') return { backgroundColor: '#2E7D44' };
+  if (t === 'added') return { backgroundColor: Colors.success };
   if (t === 'removed') return { backgroundColor: '#C84038' };
   if (t === 'modified') return { backgroundColor: Colors.warning };
   return { backgroundColor: '#1565C0' };
@@ -1047,12 +1048,12 @@ function changeBg(t: ChangeType) {
 function impactBg(i: ChangeImpact) {
   if (i === 'major') return { backgroundColor: '#C84038' + '25' };
   if (i === 'moderate') return { backgroundColor: Colors.warning + '25' };
-  return { backgroundColor: '#F4EFE6' };
+  return { backgroundColor: Colors.surfaceAlt };
 }
 function severityHero(s: 'low' | 'medium' | 'high') {
   if (s === 'high') return { backgroundColor: '#C84038' + '12', borderColor: '#C84038' + '30' };
   if (s === 'medium') return { backgroundColor: Colors.warning + '14', borderColor: Colors.warning + '40' };
-  return { backgroundColor: '#2E7D44' + '12', borderColor: '#2E7D44' + '30' };
+  return { backgroundColor: Colors.success + '12', borderColor: Colors.success + '30' };
 }
 function severityLabel(s: 'low' | 'medium' | 'high'): string {
   if (s === 'high') return 'HIGH IMPACT';

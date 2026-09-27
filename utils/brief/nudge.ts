@@ -27,6 +27,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { SchedulableTriggerInputTypes } from 'expo-notifications';
+import { BRAND_ACCENT } from '@/constants/colors';
 import { nextMorningFireDate } from './nudgeTime';
 
 export const BRIEF_NUDGE_IDENTIFIER = 'mageid-morning-brief-nudge';
@@ -64,7 +65,7 @@ export async function armDailyBriefNudge(opts: {
         name: 'Default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#1A6B3C',
+        lightColor: BRAND_ACCENT,
       });
     }
 

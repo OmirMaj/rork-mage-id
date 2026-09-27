@@ -335,6 +335,114 @@ export function computeAIATotals(app: AIAPayApplication) {
   };
 }
 
+/**
+ * The prior period, as far as line 7 of the NEXT application needs it. Only
+ * the fields read below; a record hydrated from the server can arrive without
+ * `totals` (MONEY-F1) and must still seed.
+ */
+export interface PriorCertificateFigures {
+  amountCertified?: number | null;
+  lessPreviousCertificates?: number | null;
+  totals?: { totalEarnedLessRetainage?: number | null } | null;
+}
+
+/**
+ * G702 LINE 7 FOR THE NEXT PERIOD — "Line 6 from prior Certificate", which is
+ * CUMULATIVE: everything certified to date.
+ *
+ * MONEY-AIA-L7 (health 2026-09-26). The seed used to be
+ * `prior.amountCertified ?? prior.totals.totalEarnedLessRetainage`. But
+ * `amountCertified` is PER PERIOD — the architect's figure for line 8, the
+ * payment THIS certificate authorises (the "record it" chip sets it to
+ * currentPaymentDue) — so from the third application on, line 7 carried only
+ * the last period's certificate and line 8 (and the Stripe link minted from it)
+ * was overstated by every earlier one: $100k contract, 25%/month, 10%
+ * retainage, certified as applied → app #3 asked for $45,000 instead of
+ * $22,500.
+ *
+ * With a certificate on the prior period: what was certified BEFORE it (its
+ * own line 7) plus what it certified. Without one: the prior line 6, the
+ * amount applied for to date — the fallback that was already cumulative.
+ */
+export function seedLessPreviousCertificates(prior: PriorCertificateFigures | null | undefined): number {
+  if (!prior) return 0;
+  const certified = prior.amountCertified;
+  if (certified != null && Number.isFinite(certified)) {
+    const before = Number(prior.lessPreviousCertificates ?? 0);
+    return roundCents((Number.isFinite(before) ? before : 0) + certified);
+  }
+  const line6 = Number(prior.totals?.totalEarnedLessRetainage ?? 0);
+  return roundCents(Number.isFinite(line6) ? line6 : 0);
+}
+
+/**
+ * What the owner can be asked to pay on this application RIGHT NOW: the
+ * architect's certified figure once it is recorded (A201 §9.5/§9.6 — the owner
+ * pays the certified amount), else line 8 as applied for. The Pay link is
+ * minted for this, and the portal shows Pay only while the link still charges
+ * it (MONEY-AIA-CERTIFIED-LINK: a certificate cut below the application used
+ * to leave a link charging the applied-for figure, and the owner could overpay
+ * by exactly the cut).
+ */
+export function aiaPayableNow(app: {
+  amountCertified?: number | null;
+  totals?: { currentPaymentDue?: number | null } | null;
+} | null | undefined): number {
+  if (!app) return 0;
+  const certified = app.amountCertified;
+  if (certified != null && Number.isFinite(certified)) return roundCents(certified);
+  const due = Number(app.totals?.currentPaymentDue ?? 0);
+  return roundCents(Number.isFinite(due) ? due : 0);
+}
+
+/**
+ * A certificate recorded AFTER the Pay link was minted: does the link now
+ * charge the wrong figure, and may it be replaced? Pure, so the validator
+ * executes the screen's decision.
+ *
+ * Re-mint only a live, unpaid link — no paidAt, no bank payment settling, the
+ * source invoice not already settled — whose amount differs from what is
+ * payable now by more than a cent. Replacing it sends nothing to anyone:
+ * create-payment-link retires the old link on Stripe and the portal shows the
+ * new one (drafts-never-send holds).
+ */
+export function certifiedPayLinkNeedsRemint(rec: {
+  payLinkUrl?: string | null;
+  payLinkId?: string | null;
+  payLinkAmount?: number | null;
+  paidAt?: string | null;
+  amountCertified?: number | null;
+  totals?: { currentPaymentDue?: number | null } | null;
+} | null | undefined, opts: { pendingBankPayment: boolean; sourceInvoiceSettled: boolean }): boolean {
+  if (!rec || !rec.payLinkUrl || !rec.payLinkId) return false;
+  if (rec.paidAt || opts.pendingBankPayment || opts.sourceInvoiceSettled) return false;
+  if (rec.amountCertified == null) return false;
+  const payable = aiaPayableNow(rec);
+  if (payable <= 0) return false;
+  const minted = rec.payLinkAmount;
+  if (minted == null || !Number.isFinite(minted)) return true;
+  return Math.abs(roundCents(minted - payable)) > 0.01;
+}
+
+/**
+ * The re-minted Pay link's write-back. Pure.
+ *
+ * The replacement is minted across two network awaits (Stripe status, then
+ * create-payment-link), and addAIAPayApp replaces the WHOLE record. Writing
+ * back the snapshot the re-mint started from would undo a certificate the GC
+ * corrected and saved inside that window. So only the three pay-link fields are
+ * written, onto the LATEST record with the same id (the snapshot only when no
+ * newer copy of this record is known).
+ */
+export function mergeRemintedPayLink<T extends { id: string }>(
+  latest: T | null | undefined,
+  mintedFrom: T,
+  link: { url: string; id: string; amount: number },
+): T & { payLinkUrl: string; payLinkId: string; payLinkAmount: number } {
+  const base = latest && latest.id === mintedFrom.id ? latest : mintedFrom;
+  return { ...base, payLinkUrl: link.url, payLinkId: link.id, payLinkAmount: roundCents(link.amount) };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THE SCHEDULE OF VALUES — column C is the CONTRACT, column E is this month.
 //

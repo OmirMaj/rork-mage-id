@@ -27,12 +27,18 @@
 // already happened.
 
 import type { ScheduleTask, DependencyLink, WeatherDelayLogEntry } from '@/types';
-import type { DayForecast } from '@/utils/weatherService';
+import { findWeatherRisk, type DayForecast } from '@/utils/weatherService';
 import {
   partitionDatesBySource,
   summarizeForecastSource,
   type ForecastCoverage,
 } from '@/utils/weatherProvenance';
+import {
+  taskCalendarDay,
+  todayWorkingOrdinal,
+  scheduleAnchorDate,
+  type ScheduleCalendar,
+} from '@/utils/scheduleCalendarDate';
 
 export type { WeatherDelayLogEntry };
 
@@ -89,12 +95,20 @@ function depLinks(task: ScheduleTask): DependencyLink[] {
   return (task.dependencies ?? []).map((id) => ({ taskId: id, lagDays: 0, type: 'FS' as const }));
 }
 
-/** ISO date for a 1-indexed schedule day, using the calendar-offset convention
- *  the rest of the weather code uses (matches weatherService.findWeatherRisk). */
+/** RAW-DAY MODE ONLY: ISO date for a 1-indexed schedule day as a plain
+ *  calendar offset. Correct only when the schedule has no start date — the
+ *  engine then runs without a calendar and the working and calendar scales
+ *  are the same numbers (utils/cpm.ts "THE TWO DAY-NUMBER SCALES"). A dated
+ *  schedule goes through `taskCalendarDay` instead (see `calendar` below). */
 function isoForDay(projectStartDate: Date, dayNumber: number): string {
   const d = new Date(projectStartDate.getTime());
   d.setDate(d.getDate() + (dayNumber - 1));
   return d.toISOString().split('T')[0];
+}
+
+/** Calendar days from the raw anchor to `now`, 1-based (raw-day mode's today). */
+function rawTodayDay(projectStartDate: Date, now: Date): number {
+  return Math.max(1, Math.floor((now.getTime() - projectStartDate.getTime()) / 86400000) + 1);
 }
 
 export function computeWeatherReschedule(
@@ -102,10 +116,31 @@ export function computeWeatherReschedule(
   projectStartDate: Date,
   forecast: DayForecast[],
   opts?: {
-    /** 1-indexed "today" — tasks starting before this are pinned (past work). Default 1. */
+    /** 1-indexed "today" ON THE startDay SCALE — tasks starting before this are
+     *  pinned (past work). Wins over `now` when both are given. Default 1. */
     todayDay?: number;
+    /** The real clock. Converted to the startDay scale here — the working
+     *  ordinal on a dated schedule (`todayWorkingOrdinal`), calendar days from
+     *  `projectStartDate` in raw-day mode — so a caller cannot compare a
+     *  calendar count with a working ordinal (which froze every task whose
+     *  working day number was below the calendar day count). */
+    now?: Date;
+    /** The schedule's calendar (`scheduleCalendarOf(project.schedule)`). When
+     *  it carries a start date, every startDay is read as a WORKING ordinal on
+     *  it — the way the CPM engine and the Gantt read it — so only bad days
+     *  that are WORKING days of the task count, and every day figure in the
+     *  result (weatherDelayDays, startSlipDays, projectSlipDays) is in working
+     *  days. Omitted or undated ⇒ raw-day mode (plain calendar offsets from
+     *  `projectStartDate`), which is also how the engine reads an undated
+     *  schedule. */
+    calendar?: ScheduleCalendar;
   },
 ): WeatherRescheduleResult {
+  const cal = opts?.calendar && scheduleAnchorDate(opts.calendar) ? opts.calendar : undefined;
+  /** The date a task occupies on its `offset`-th working day. */
+  const dayIso = (startDay: number, offset: number): string | null => (
+    cal ? taskCalendarDay(cal, startDay, offset) : isoForDay(projectStartDate, startDay + offset)
+  );
   const badByDate = new Map<string, DayForecast>();
   for (const f of forecast) if (!f.isWorkable) badByDate.set(f.date, f);
 
@@ -120,13 +155,19 @@ export function computeWeatherReschedule(
   const badDatesOf = new Map<string, string[]>();
   const visiting = new Set<string>();
 
-  const floor = opts?.todayDay ?? 1;
+  const floor = opts?.todayDay
+    ?? (opts?.now
+      ? (cal ? todayWorkingOrdinal(cal, opts.now) : rawTodayDay(projectStartDate, opts.now))
+      : 1);
 
+  // The task's own days, one per unit of duration. On a dated schedule each is
+  // a WORKING day (a Saturday on a Mon-Fri week is never one of them, so rain
+  // on it costs nothing); in raw-day mode every calendar day is a work day.
   function badDaysInWindow(startDay: number, durationDays: number): string[] {
     const out: string[] = [];
     for (let o = 0; o < Math.max(1, durationDays); o++) {
-      const iso = isoForDay(projectStartDate, startDay + o);
-      if (badByDate.has(iso)) out.push(iso);
+      const iso = dayIso(startDay, o);
+      if (iso && badByDate.has(iso)) out.push(iso);
     }
     return out;
   }
@@ -319,4 +360,111 @@ export function buildWeatherDelayLog(
         }
       : {}),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The "Push them" banner (components/schedule/WeatherReschedulePrompt.tsx).
+// Lives here, pure, so the day-scale rule is executed by a validator instead of
+// being trusted inside a component.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WeatherPushConflict {
+  task: ScheduleTask;
+  hitDay: DayForecast;
+  /** How far to push the task's startDay so none of its days is un-workable.
+   *  WORKING days on a dated schedule (the unit startDay is in); calendar days
+   *  in raw-day mode, where the two coincide. */
+  suggestedPushDays: number;
+}
+
+/**
+ * Dated schedule: the smallest push, in WORKING days, after which none of the
+ * task's working days is an un-workable forecast day. Bound at 14 like the raw
+ * walk below. The result is added straight onto `startDay`, which is a working
+ * ordinal — so a push never lands the task on a weekend it does not work, and
+ * a push across a weekend is not inflated by the two days nobody works.
+ */
+export function findFirstWorkablePushWorkingDays(
+  calendar: ScheduleCalendar,
+  startDay: number,
+  durationDays: number,
+  forecasts: DayForecast[],
+): number {
+  for (let push = 1; push <= 14; push++) {
+    let allWorkable = true;
+    for (let offset = 0; offset < Math.max(1, durationDays); offset++) {
+      const iso = taskCalendarDay(calendar, startDay + push, offset);
+      const day = iso ? forecasts.find(f => f.date === iso) : undefined;
+      if (day && !day.isWorkable) {
+        allWorkable = false;
+        break;
+      }
+    }
+    if (allWorkable) return push;
+  }
+  return 1;
+}
+
+/** RAW-DAY MODE ONLY (no schedule start date — every calendar day is a work
+ *  day). The banner's original calendar walk, keyed EXACTLY like
+ *  findWeatherRisk's raw path (local start + n days, then its ISO day) so the
+ *  push and the risk it answers can never disagree about which day is which.
+ *  The old walk re-parsed a `toISOString()` day with `new Date(iso)` (UTC
+ *  midnight) — the validate-calendar-date UNRESOLVED defect; that round trip
+ *  is gone. */
+function findFirstWorkableOffset(
+  projectStartDate: Date,
+  startDay: number,
+  durationDays: number,
+  forecasts: DayForecast[],
+): number {
+  // Try shifting by 1, 2, 3 days until the entire task window has no
+  // un-workable forecast day. Bound at 14 days so we don't loop forever
+  // when the forecast is all bad.
+  for (let push = 1; push <= 14; push++) {
+    let allWorkable = true;
+    for (let offset = 0; offset < durationDays; offset++) {
+      const d = new Date(projectStartDate.getTime());
+      d.setDate(d.getDate() + (startDay - 1) + push + offset);
+      const iso = d.toISOString().split('T')[0];
+      const day = forecasts.find(f => f.date === iso);
+      if (day && !day.isWorkable) {
+        allWorkable = false;
+        break;
+      }
+    }
+    if (allWorkable) return push;
+  }
+  return 1;
+}
+
+/**
+ * Weather-sensitive, not-yet-started, non-summary tasks whose days hit an
+ * un-workable forecast day, with the push that clears them. `calendar` as in
+ * computeWeatherReschedule: dated ⇒ working days throughout; omitted/undated ⇒
+ * raw calendar offsets.
+ */
+export function findWeatherPushConflicts(
+  tasks: readonly ScheduleTask[],
+  forecasts: DayForecast[],
+  projectStartDate: Date,
+  calendar?: ScheduleCalendar,
+): WeatherPushConflict[] {
+  if (forecasts.length === 0) return [];
+  const cal = calendar && scheduleAnchorDate(calendar) ? calendar : undefined;
+  const out: WeatherPushConflict[] = [];
+  for (const task of tasks) {
+    if (task.isSummary) continue;
+    if (!task.isWeatherSensitive) continue;
+    // Already started — pushing won't help.
+    if ((task.progress ?? 0) > 0) continue;
+    const risk = findWeatherRisk(projectStartDate, task.startDay, task.durationDays, forecasts, cal);
+    if (!risk) continue;
+    if (cal) {
+      out.push({ task, hitDay: risk, suggestedPushDays: findFirstWorkablePushWorkingDays(cal, task.startDay, task.durationDays, forecasts) });
+      continue;
+    }
+    out.push({ task, hitDay: risk, suggestedPushDays: findFirstWorkableOffset(projectStartDate, task.startDay, task.durationDays, forecasts) });
+  }
+  return out;
 }

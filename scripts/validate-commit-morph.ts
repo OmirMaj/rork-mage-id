@@ -110,7 +110,9 @@ ok('Button.tsx calls reducedMotion() — and the morph effect jumps every layer 
 ok('the morph layers use the nativeDriver const, never a literal', !/useNativeDriver:\s*true/.test(BTN) && /useNativeDriver: nativeDriver/.test(BTN));
 ok('only the tint, spinner and check layers are hidden from accessibility',
   (BTN.match(/accessibilityElementsHidden/g) ?? []).length === 4 /* 3 armed layers + the static check */
-  && /<Animated\.View style=\{\[styles\.row, \{ opacity: values\.current\.labelO \}\]\}>/.test(BTN));
+  // (level wave: the label row also lifts 4 pt while the busy visual comes in — labelY — so the
+  // pin now reads the row's opacity AND its translateY; it stays un-hidden either way.)
+  && /<Animated\.View style=\{\[styles\.row, \{ opacity: values\.current\.labelO, transform: \[\{ translateY: values\.current\.labelY \}\] \}\]\}>/.test(BTN));
 
 console.log('\nno bounce anywhere in the commit');
 for (const [name, code] of [['Button.tsx', BTN], ['NailItToast.tsx', TOAST]] as const) {

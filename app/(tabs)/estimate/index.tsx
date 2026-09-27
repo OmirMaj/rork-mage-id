@@ -73,7 +73,7 @@ export default function EstimateHubScreen() {
             Discover is where both come from (its "Estimator" card and its
             sub-tab strip), so that is the label and the destination.
             OnInk.title, not the brand primary: this sits ON the opaque ink
-            field BrandBackdrop paints, where #FF6A1A is under 3:1. */}
+            field BrandBackdrop paints, where the light brand green is under 3:1. */}
         <HiddenTabBackLink
           label="Discover"
           href="/(tabs)/discover"
@@ -123,15 +123,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // These were hand-rolled at weight '800', which is off the four-weight
   // ladder in constants/typography.ts ('400' | '500' | '600' | '700').
   // The three hero foregrounds are `OnInk`, not ThemeColors, because `hero`
-  // renders <BrandBackdrop /> — an OPAQUE ink field (#0B0D10 → #14181D) that
+  // renders <BrandBackdrop /> — an OPAQUE ink field (#151816 → #1D211F) that
   // is identical in light and dark mode. See components/BrandBackdrop.tsx.
   heroEyebrow: {
     ...Type.eyebrow,
     color: OnInk.eyebrow,
     marginBottom: 4,
   },
-  // Fraunces display face — matches PageHeader and the wizard hero. Serif is
-  // for the SCREEN title only; the cards below are on the sans ladder.
+  // Barlow display face — matches PageHeader and the wizard hero. The display
+  // face is for the SCREEN title only; the cards below are on the body ladder.
   heroTitle: {
     ...Type.serifTitle,
     color: OnInk.title,

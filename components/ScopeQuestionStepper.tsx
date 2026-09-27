@@ -323,7 +323,7 @@ const makeStyles = (themeColors: ThemeColors) =>
       marginBottom: 12,
     },
     stepTitle: {
-      // App display font (Fraunces) so the wizard matches the rest of the app
+      // App display font (Barlow) so the wizard matches the rest of the app
       // instead of falling back to the system/Times default.
       ...Type.serifHeadline,
       color: themeColors.text,

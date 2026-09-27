@@ -222,7 +222,7 @@ export default function ConfirmEmailModal({
               statusKind === 'success' ? styles.statusBannerSuccess : styles.statusBannerError,
             ]}>
               {statusKind === 'success'
-                ? <CheckCircle2 size={14} color="#1B5E20" strokeWidth={1.75} />
+                ? <CheckCircle2 size={14} color={Colors.successDark} strokeWidth={1.75} />
                 : <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />}
               <Text style={[
                 styles.statusText,
@@ -401,7 +401,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '500',
   },
   statusTextSuccess: {
-    color: '#1B5E20',
+    // Colors.successDark, static like the Colors.successLight banner under it
+    // (a themed successLabel is the light teal in dark mode, on a pale fill).
+    color: Colors.successDark,
   },
   statusTextError: {
     color: t.danger,

@@ -19,6 +19,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { SchedulableTriggerInputTypes } from 'expo-notifications';
+import { BRAND_ACCENT } from '@/constants/colors';
 
 /** The stem of the five OS notification identifiers (the same family as
  *  'mageid-week-close-nudge'). An OS schedule id, NOT a local-storage key —
@@ -95,7 +96,7 @@ export async function armLineupReminder(opts: { prompt?: boolean }): Promise<Lin
         name: 'Default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#1A6B3C',
+        lightColor: BRAND_ACCENT,
       });
     }
 

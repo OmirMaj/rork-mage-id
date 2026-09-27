@@ -13,8 +13,9 @@
 //   2. CreateMenu navigates a non-modal row BEFORE it closes (no fixed timer),
 //      defers a modal row to onDismiss (+ the timeout fallback), and never
 //      slides.
-//   3. The phone tab bar cross-fades with the app's swap spec (off under Reduce
-//      Motion), and the tab icon neither bounces nor uses bounciness.
+//   3. The phone tab bar FADES THROUGH (tabFadeThrough, native only; opacity
+//      only under Reduce Motion) on Motion.duration.tab, and the tab icon
+//      neither bounces nor uses bounciness; its pill springs on glideLead.
 //   4. The Brain FAB does not breathe (no Animated.loop), has no accent glow,
 //      uses the neutral Shadow.medium, springs on Motion presets, and glides a
 //      lift through a translateY that rests at 0.
@@ -102,12 +103,25 @@ ok('the card rises (phone) / pops in (desktop web) and crossfades list <-> picke
 
 const tabs = code('app/(tabs)/_layout.tsx');
 ok('phone tabs cross-fade; Reduce Motion zeroes the fade instead of switching it off (switching remounts every iOS tab)', /animation: 'fade',/.test(tabs) && !/animation: reduced/.test(tabs));
-ok('the fade uses the swap duration with an ease-out (not the 150 ms linear stock spec)',
-  /transitionSpec:\s*\{\s*animation: 'timing',\s*config: \{ duration: reduced \? 0 : Motion\.duration\.swap, easing: Easing\.out\(Easing\.cubic\) \}/.test(tabs));
+// Moved by the level motion lane: the switch is a 200 ms fade-through
+// (Motion.duration.tab), no longer the 160 ms swap cross-fade that showed both
+// scenes at once.
+ok('the fade uses the tab duration with an ease-out (not the 150 ms linear stock spec)',
+  /transitionSpec:\s*\{\s*animation: 'timing',\s*config: \{ duration: reduced \? 0 : Motion\.duration\.tab, easing: Easing\.out\(Easing\.cubic\) \}/.test(tabs));
+ok('native tab scenes fade THROUGH (never both visible); Reduce Motion drops the rise; phone web keeps the stock fade',
+  /\.\.\.\(Platform\.OS !== 'web'\s*\?\s*\{ sceneStyleInterpolator: reduced \? tabFadeThroughReduced : tabFadeThrough \}\s*:\s*null\)/.test(tabs));
+{
+  const motion = code('components/ui/motion.ts');
+  ok('tabFadeThrough: the leaving scene is out by 45 % and the arriving one in only after it (linear pieces, native driver)',
+    /const FADE_THROUGH = \{ inputRange: \[-1, -0\.45, 0, 0\.45, 1\], outputRange: \[0, 0, 1, 0, 0\] \}/.test(motion)
+    && /outputRange: \[8, 0, 8\]/.test(motion));
+}
 ok('desktop scenes fade in with the web fadeIn keyframe', /sceneStyle: [^\n]*webMotion\('fadeIn'\)/.test(tabs));
 ok('the tab icon has no bounce (no bounciness, no 1.08 overshoot)', !/bounciness/.test(tabs) && !/1\.08/.test(tabs));
-ok('the tab focus springs on Motion.spring.rise with the shared driver flag',
-  /Animated\.spring\(focus, \{[\s\S]*?\.\.\.Motion\.spring\.rise,[\s\S]*?useNativeDriver: nativeDriver/.test(tabs));
+// Moved by the level motion lane: glideLead (ζ≈0.96, quick) so the pill lands
+// with the 200 ms scene fade instead of trailing it on the slower rise spring.
+ok('the tab focus springs on Motion.spring.glideLead with the shared driver flag',
+  /Animated\.spring\(focus, \{[\s\S]*?\.\.\.Motion\.spring\.glideLead,[\s\S]*?useNativeDriver: nativeDriver/.test(tabs));
 
 // ── 4. Brain FAB ────────────────────────────────────────────────────────────
 

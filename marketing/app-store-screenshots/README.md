@@ -53,13 +53,13 @@ Edit the `PRESETS` array at the bottom of `builder.html`. Each entry:
 }
 ```
 
-`<em>` inside the title is the only inline tag that renders specially — it italicizes and colors the wrapped phrase in the brand orange. Use it to land the ONE word you want a scrolling buyer to read.
+`<em>` inside the title is the only inline tag that renders specially — it italicizes and colors the wrapped phrase in the brand green (#5DB36E, the on-ink brand — the canvas is ink). Use it to land the ONE word you want a scrolling buyer to read.
 
 ## Why pure HTML
 
 - No `node_modules`, no fastlane install, no Ruby, no Xcode plugin
 - Edit copy / image, hit refresh, see the result. ~1 second iteration loop
-- Same brand fonts as the marketing site (Fraunces, Inter)
+- Same brand fonts as the marketing site (Barlow for the headline, Space Grotesk for body copy, JetBrains Mono for labels)
 - The PNG export is identical pixels to what you see in the browser — no surprises
 
 ## Adding a 6.5" set (older Pro Max)

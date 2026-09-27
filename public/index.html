@@ -47,10 +47,10 @@
     </script>
     <!-- mage:document-css (components/desktop/webDocument.ts WEB_DOCUMENT_CSS) -->
     <style id="mage-document">
-body { background-color: #0B0D10; }
-@media (prefers-color-scheme: light) { body { background-color: #FBF8F2; } }
-html[data-theme='dark'] body { background-color: #0B0D10; }
-html[data-theme='light'] body { background-color: #FBF8F2; }
+body { background-color: #151816; }
+@media (prefers-color-scheme: light) { body { background-color: #ECEDE9; } }
+html[data-theme='dark'] body { background-color: #151816; }
+html[data-theme='light'] body { background-color: #ECEDE9; }
 @media (prefers-reduced-motion: no-preference) {
   :where(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem']) * {
     transition-property: color, stroke, fill;
@@ -63,8 +63,8 @@ html[data-theme='light'] body { background-color: #FBF8F2; }
     transition-timing-function: cubic-bezier(0.2,0,0,1);
   }
 }
-:is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline: 2px solid #BC440C; outline-offset: 2px; }
-html[data-theme='dark'] :is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline-color: #FF6A1A; }
+:is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline: 2px solid #2F6B3A; outline-offset: 2px; }
+html[data-theme='dark'] :is(a[href],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='switch']):focus-visible { outline-color: #5DB36E; }
 @media print {
   html, body, #root {
     overflow: visible !important;
@@ -86,6 +86,25 @@ html[data-theme='dark'] :is(a[href],[role='button'],[role='link'],[role='tab'],[
   }
 }
     </style>
+    <!-- mage:prejs-level (SPLASHPX P2; checked by scripts/validate-level-splash.ts rule G)
+      The still level the app's first web frame draws (BrandSplash, splashRect web
+      cap), shown while the bundle downloads instead of a blank page. Pure CSS, no
+      animation. Every number is utils/levelTimeline.ts NATIVE_SPLASH_PX over the
+      438 x 30 mark box at PNG x 293 / y 497; the colours are the baked
+      assets/images/splash-icon.png. It is a sibling AFTER #root and hides the
+      moment React renders anything into #root, so #root stays exactly as Expo's
+      template contract (and validate-desktop-page-map) needs it. -->
+    <style id="mage-prejs-level-css">
+#mage-prejs-level { position: fixed; inset: 0; background-color: #0B0D10; z-index: 1; }
+#root:not(:empty) + #mage-prejs-level { display: none; }
+#mage-prejs-level .mpl-mark { position: absolute; left: 50%; top: 50%; width: min(42.7734375vmin, 240px); aspect-ratio: 438 / 30; transform: translate(-50%, -50%); }
+#mage-prejs-level .mpl-part { position: absolute; }
+#mage-prejs-level .mpl-cap-l { left: 0%; top: 0%; width: 1.826484%; height: 100%; background-color: #F4EFE6; opacity: 0.25098; border-radius: 9999px; }
+#mage-prejs-level .mpl-cap-r { left: 98.173516%; top: 0%; width: 1.826484%; height: 100%; background-color: #F4EFE6; opacity: 0.25098; border-radius: 9999px; }
+#mage-prejs-level .mpl-track { left: 1.826484%; top: 36.666667%; width: 96.347032%; height: 26.666667%; background-color: #FF6A1A; opacity: 0.25098; border-radius: 0; }
+#mage-prejs-level .mpl-bubble { left: 42.465753%; top: 6.666667%; width: 15.296804%; height: 86.666667%; background-color: #FF6A1A; border-radius: 9999px; }
+    </style>
+    <noscript><style>#mage-prejs-level { display: none; }</style></noscript>
   </head>
 
   <body>
@@ -95,5 +114,6 @@ html[data-theme='dark'] :is(a[href],[role='button'],[role='link'],[role='tab'],[
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
+    <div id="mage-prejs-level" aria-hidden="true"><div class="mpl-mark"><div class="mpl-part mpl-cap-l"></div><div class="mpl-part mpl-cap-r"></div><div class="mpl-part mpl-track"></div><div class="mpl-part mpl-bubble"></div></div></div>
   </body>
 </html>

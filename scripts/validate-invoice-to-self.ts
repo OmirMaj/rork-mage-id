@@ -251,7 +251,7 @@ const region = (src: string, decl: string) => {
   ok('…with the real number, the balance the email names, and the address it went to',
     /tutorialSignal\('invoice\.sent', \{\s*projectId: workingInvoice\.projectId,\s*invoiceId: workingInvoice\.id,\s*number: workingInvoice\.number,\s*total: amountDueNow,\s*to: sendRecipientEmail\.trim\(\),\s*\}\);/.test(run));
   const failedFires = (run.match(/tutorialSignal\('invoice\.send\.failed'/g) ?? []).length;
-  ok('invoice.send.failed on the sample refusal, a refused/unsaved insert and a failed email', failedFires === 3, `${failedFires}`);
+  ok('invoice.send.failed on the sample refusal, a refused/unsaved insert, a server balance refusal (MONEYPAY) and a failed email', failedFires === 4, `${failedFires}`);
   const cancelledAt = run.indexOf("if (result.error === 'cancelled') return;");
   const emailFailAt = run.indexOf("tutorialSignal('invoice.send.failed'", cancelledAt);
   ok('…a cancelled composer is NOT a failure (he backed out)', cancelledAt > 0 && emailFailAt > cancelledAt);

@@ -479,7 +479,7 @@ function WarrantiesScreenInner() {
       <Stack.Screen options={{
         title: title_label,
         headerStyle: { backgroundColor: themeColors.bg },
-        headerTintColor: "#FF6A1A",
+        headerTintColor: themeColors.accent,
         headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text },
       }} />
       <ScrollView
@@ -488,7 +488,7 @@ function WarrantiesScreenInner() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <Shield size={24} color={"#FF6A1A"} strokeWidth={1.75} />
+          <Shield size={24} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.heroTitle}>Warranty Tracker</Text>
           <Text style={styles.heroSub}>Track active, expiring, and claimed warranties across projects.</Text>
         </View>
@@ -635,7 +635,7 @@ function WarrantiesScreenInner() {
         )}
 
         <TouchableOpacity style={styles.addBtn} onPress={openNew} activeOpacity={0.85}>
-          <Plus size={18} color={"#FF6A1A"} strokeWidth={1.75} />
+          <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.addBtnText}>Add Warranty</Text>
         </TouchableOpacity>
       </ScrollView>

@@ -73,14 +73,14 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 // ── Brand palette (mirrors auth-magic-link & _shared/email.ts) ───────
 const INK = '#0B0D10';
-const AMBER = '#FF6A1A';
-const CREAM = '#F4EFE6';
-const SAND = '#E8DFCD';
+const BRAND = '#2F6B3A';
+const CONCRETE = '#ECEDE9';
+const HAIRLINE = '#D7DAD4';
 const FOG = '#9AA3AD';
 const STONE = '#4A5159';
 const PAPER = '#FFFFFF';
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 function escapeHtml(text: unknown): string {
   if (text == null) return '';
@@ -297,9 +297,9 @@ function renderDigestHtml(opts: {
           ? `<p style="margin:6px 0 0;color:${FOG};font-size:12px;">Yesterday: ${b.totalManpowerYesterday} workers on site${b.yesterdayDfr.issues_and_delays ? ' · issues logged' : ''}</p>`
           : '';
         return `
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;background:${CREAM};border:1px solid ${SAND};border-radius:14px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;background:${CONCRETE};border:1px solid ${HAIRLINE};border-radius:14px;">
             <tr><td style="padding:18px 22px;">
-              <p style="margin:0 0 6px;font-family:${FONT_STACK};font-size:11px;font-weight:800;color:${AMBER};letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(b.name)}</p>
+              <p style="margin:0 0 6px;font-family:${FONT_STACK};font-size:11px;font-weight:800;color:${BRAND};letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(b.name)}</p>
               ${weatherLine}
               ${tasksLine}
               ${riskLine}

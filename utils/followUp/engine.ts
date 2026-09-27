@@ -29,6 +29,7 @@ import type {
   PlanSheet, Contact, Subcontractor,
 } from '@/types';
 import type { Delivery } from '@/utils/deliverySchedule';
+import type { ScheduleCalendar } from '@/utils/scheduleCalendarDate';
 
 export const DAY_MS = 86400000;
 
@@ -62,9 +63,24 @@ export interface FollowUpContext {
   /** The schedule's day-0 anchor, so a task's startDay can be read as a date.
    *  Undefined on an undated schedule — rules that need a date must refuse. */
   scheduleStartDate?: string;
+  /**
+   * The rest of the schedule's calendar, beside its anchor. `startDay` is a
+   * WORKING-day ordinal (utils/cpm.ts "THE TWO DAY-NUMBER SCALES"), so turning
+   * it into a date needs the week length and the closures — without them the
+   * COI rule put working day 16 of a Mon-Fri job (Mon Mar 23) on Tue Mar 17 and
+   * missed a certificate that lapses Fri Mar 20. Build it with
+   * `scheduleCalendarOf(project.schedule)`.
+   *
+   * NOT a collection and NOT a read: it only qualifies `scheduleStartDate`,
+   * which is the field G3 guards. Absent ⇒ the helper's defaults (5-day week,
+   * no closures — the same default Schedule Pro and runCpmForCalendar use),
+   * never a refusal. `startDate` on this object is ignored; the anchor is
+   * `scheduleStartDate`, so the undated-schedule refusal cannot be bypassed.
+   */
+  scheduleCalendar?: ScheduleCalendar;
 }
 
-export type FollowUpReads = Exclude<keyof FollowUpContext, 'nowMs' | 'projectId' | 'projectName' | 'seenRuleIds'>;
+export type FollowUpReads = Exclude<keyof FollowUpContext, 'nowMs' | 'projectId' | 'projectName' | 'seenRuleIds' | 'scheduleCalendar'>;
 
 /** What a rule hands back. The engine fills in the parts it owns. */
 export type MintedFollowUp =

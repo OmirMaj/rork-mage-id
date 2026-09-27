@@ -1,16 +1,21 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
+// useFonts comes from the font package (as it did when the display face was
+// Fraunces) — not from expo-font directly. The two are different hooks, and with expo-font's the
+// smoke harness never gets job costing past "Checking your access…" or cash
+// flow past a $0 balance (bisected to this one import, 2026-09-16).
+import { useFonts, Barlow_600SemiBold, Barlow_700Bold, Barlow_700Bold_Italic } from "@expo-google-fonts/barlow";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandSplash from "@/components/BrandSplash";
-import CraneLoader from "@/components/CraneLoader";
+import BootShell from "@/components/loaders/BootShell";
+import ScreenLoader from "@/components/loaders/ScreenLoader";
 import ReloadVeil from "@/components/launch/ReloadVeil";
-import { setBootReady } from "@/components/launch/launchCurtain";
+import { getHasBooted, setBootReady } from "@/components/launch/launchCurtain";
 import DesktopSidebar from "@/components/DesktopSidebar";
 import { useSidebarRailRouteSync } from "@/hooks/useSidebarRail";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
@@ -891,8 +896,11 @@ function RootLayoutNav() {
   });
   navStateRef.current = navNext;
 
+  // The first boot keeps the splash ink + level (BootShell: a still replica
+  // under BrandSplash that adopts its stage if the splash's failsafe fires
+  // first); an account switch gets the theme-ground level (ScreenLoader).
   if (navMode === 'loader') {
-    return <CraneLoader label="MAGE ID" />;
+    return getHasBooted() ? <ScreenLoader /> : <BootShell />;
   }
 
   return (
@@ -930,12 +938,12 @@ function RootLayoutNav() {
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
       <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
-      <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling' }} />
-      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer' }} />
-      <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal' }} />
-      <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt' }} />
-      <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
-      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
+      <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling', headerShown: false }} />
+      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer', headerShown: false }} />
+      <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal', headerShown: false }} />
+      <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt', headerShown: false }} />
+      <Stack.Screen name="last-planner" options={{ title: 'Last Planner', headerShown: false }} />
+      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence', headerShown: false }} />
       {/* gestureEnabled:false — the wizard holds an unsaved multi-task draft.
           A swipe-down (iOS) discarded it with no prompt; the in-app back
           button's confirm can't intercept the gesture. */}
@@ -952,8 +960,8 @@ function RootLayoutNav() {
       <Stack.Screen name="extract-submittals" options={{ headerShown: false }} />
       <Stack.Screen name="compare-drawings" options={{ headerShown: false }} />
       <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC Export' }} />
-      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance Audit Pack' }} />
-      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's Lineup" }} />
+      <Stack.Screen name="insurance-audit" options={{ title: 'Insurance Audit Pack', headerShown: false }} />
+      <Stack.Screen name="tomorrow-lineup" options={{ title: "Tomorrow's Lineup", headerShown: false }} />
       <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
         name="login"
@@ -1139,7 +1147,7 @@ function RootLayoutNav() {
           ...headerTitled,
         }}
       />
-      <Stack.Screen name="wip-report" options={{ title: 'WIP Report' }} />
+      <Stack.Screen name="wip-report" options={{ title: 'WIP Report', headerShown: false }} />
       {/* Construction News (founder request 2026-09-22): publisher feed
           headlines, merged by the construction-news edge function. Doors:
           the Discover ▸ Tools tile and the desktop sidebar's WORKSPACE row. */}
@@ -1200,7 +1208,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="estimate-calibration"
-        options={{ title: 'Estimate Calibration' }}
+        options={{ title: 'Estimate Calibration', headerShown: false }}
       />
       <Stack.Screen
         name="cost-database"
@@ -1610,6 +1618,17 @@ function RootLayoutNav() {
       <Stack.Screen name="quick-quote" options={{ presentation: "modal", headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="project-scope" options={{ headerShown: false }} />
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
+      {/* Sentry REACT-NATIVE-M: client-view hides the header from inside
+          (<Stack.Screen options={{ headerShown: false }} /> in every branch)
+          while the route started with it shown. Pushed on top of a modal, iOS
+          renders a shown header through a nested ScreenStack, so the flip
+          remounts the whole screen (react-native-screens warns about exactly
+          this) and client-view / win-optimizer hit "Maximum update depth
+          exceeded" from Screen's setOptions. Hidden from the first frame means
+          nothing flips. win-optimizer and the other self-headed tool screens
+          carry the same headerShown:false on their own lines above;
+          scripts/validate-static-header-hidden.ts keeps the two in step. */}
+      <Stack.Screen name="client-view" options={{ title: 'Client Portal', headerShown: false }} />
         </Stack>
       </View>
       </NavThemeProvider>
@@ -1699,50 +1718,84 @@ function ThemeLoader({ children }: { children: React.ReactNode }) {
 }
 
 export default Sentry.wrap(function RootLayout() {
-  // Load Fraunces — used for the onboarding display headline + any future
-  // expressive serif moments. We wait for fonts before hiding the splash
-  // so the first paint already has the right typography. If the font load
-  // fails (network blip on first launch), we still hide the splash after
-  // a 1s timeout so the user is never blocked.
+  // Load the display faces. We wait for fonts before hiding the splash so the
+  // first paint already has the right typography. If the font load fails
+  // (network blip on first launch), we still hide the splash after a 1s
+  // timeout so the user is never blocked.
+  //
+  // Barlow is the display face since the 2026-09-16 rebrand (Type.serif* and
+  // DISPLAY_FONT in constants/typography.ts). SemiBold is what the tokens use;
+  // Bold is there for a wordmark. The expo-font plugin is registered bare in
+  // app.json, so these load at runtime and ship over OTA — no native build.
+  //
+  // Fraunces is no longer loaded at all. It stayed through the first pass of
+  // the rebrand because onboarding, persona-select, estimate-wizard, the native
+  // header face and (last) components/BrandSplash.tsx named it literally; all of
+  // them now name Barlow (BrandSplash's wordmark is ...Type.serifTitle). An
+  // unloaded face that something still names falls back to the system font
+  // SILENTLY, which is why the grep came first — validate-brand-color keeps it
+  // at zero.
+  //
+  // Barlow_700Bold_Italic is here for the accent word in the onboarding and
+  // persona-select headlines, which were a Fraunces italic.
   const [fontsLoaded] = useFonts({
-    Fraunces_500Medium,
-    Fraunces_700Bold,
-    Fraunces_700Bold_Italic,
+    Barlow_600SemiBold,
+    Barlow_700Bold,
+    Barlow_700Bold_Italic,
     JetBrainsMono_400Regular,
     JetBrainsMono_500Medium,
   });
 
   // Splash hand-off state.
+  //   splashPainted — BrandSplash (mounted from the FIRST render, under the
+  //     native splash) has laid out and painted its frame 0: the same level,
+  //     same pixels, same place as the native splash.
   //   nativeHidden — the pre-JS native splash (app.json level-line) has been
-  //     dismissed. We hide it only once fonts are ready (or a failsafe fires)
-  //     so the animated BrandSplash below already has its Fraunces wordmark.
-  //   brandSplashDone — the animated BrandSplash has finished playing and the
-  //     app should now be fully revealed. It plays exactly once per cold
-  //     start (guarded by the fact this component mounts once).
+  //     dismissed. We hide it only once fonts are ready (or the 1.2 s failsafe
+  //     fires) AND the JS replica is painted, so the hand-off has no frame of
+  //     the app and no blink; an absolute 1.5 s backstop hides it regardless
+  //     (a crashed BrandSplash must never pin the native splash). BrandSplash's
+  //     timeline starts at `live={nativeHidden}`.
+  //   brandSplashDone — BrandSplash has handed back and the app should now be
+  //     fully revealed. It plays exactly once per cold start (guarded by the
+  //     fact this component mounts once).
   const [nativeHidden, setNativeHidden] = useState(false);
   const [brandSplashDone, setBrandSplashDone] = useState(false);
+  const [splashPainted, setSplashPainted] = useState(false);
+  const [fontsTimedOut, setFontsTimedOut] = useState(false);
 
+  // Failsafe: stop waiting for fonts after 1.2 s. BrandSplash + onboarding
+  // fall back to the platform serif so they remain usable.
   useEffect(() => {
-    // Hand the native splash off to the animated BrandSplash: the app tree
-    // renders underneath from the first frame, so hiding the native layer
-    // reveals BrandSplash (an ink overlay identical to the native ink) with
-    // no white flash, and interactivity is never blocked beyond the ~1s
-    // animation — the app is already mounted and hydrating below it.
-    if (fontsLoaded) {
-      void SplashScreen.hideAsync();
-      setNativeHidden(true);
-      return;
-    }
-    // Failsafe: hand off after 1.2s even if fonts haven't loaded. BrandSplash
-    // + onboarding fall back to the platform serif so they remain usable.
-    const timer = setTimeout(() => {
-      void SplashScreen.hideAsync();
-      setNativeHidden(true);
-    }, 1200);
+    if (fontsLoaded) return;
+    const timer = setTimeout(() => setFontsTimedOut(true), 1200);
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
+  // hideAsync runs once, whichever path gets there first.
+  const nativeHiddenRef = useRef(false);
+  const hideNativeSplash = useCallback(() => {
+    if (nativeHiddenRef.current) return;
+    nativeHiddenRef.current = true;
+    void SplashScreen.hideAsync();
+    setNativeHidden(true);
+  }, []);
+
+  // Hand the native splash off once the fonts are in (or timed out) AND the
+  // JS replica is painted under it.
+  useEffect(() => {
+    if ((fontsLoaded || fontsTimedOut) && splashPainted) hideNativeSplash();
+  }, [fontsLoaded, fontsTimedOut, splashPainted, hideNativeSplash]);
+
+  // Absolute backstop, from the first render and never re-armed: the native
+  // splash never outlives 1.5 s of JS, painted replica or not.
+  useEffect(() => {
+    const backstop = setTimeout(hideNativeSplash, 1500);
+    return () => clearTimeout(backstop);
+  }, [hideNativeSplash]);
+
   const handleBrandSplashDone = useCallback(() => setBrandSplashDone(true), []);
+  const handleSplashFirstFrame = useCallback(() => setSplashPainted(true), []);
 
   // Capture the marketing-site signup intent (?plan=pro&trial=14) on first
   // web load. Runs once per session, before auth, so a fresh arrival from the
@@ -1835,11 +1888,13 @@ export default Sentry.wrap(function RootLayout() {
             </AuthProvider>
             </ThemeProvider>
           </ThemeLoader>
-          {/* Animated launch — mounts as a full-screen overlay ABOVE the app
-              (which renders + hydrates underneath) once the native splash is
-              handed off, plays the level-settle once, then unmounts. */}
-          {nativeHidden && !brandSplashDone && (
-            <BrandSplash onDone={handleBrandSplashDone} />
+          {/* The launch — a full-screen overlay ABOVE the app (which renders
+              + hydrates underneath), mounted from the FIRST render so its
+              frame 0 (the native splash, redrawn) is painted before the native
+              splash leaves; its timeline starts when it goes live. It lies
+              OUTSIDE ThemeProvider on purpose and never reads the theme. */}
+          {!brandSplashDone && (
+            <BrandSplash onDone={handleBrandSplashDone} live={nativeHidden} onFirstFrame={handleSplashFirstFrame} />
           )}
         </GestureHandlerRootView>
       </QueryClientProvider>

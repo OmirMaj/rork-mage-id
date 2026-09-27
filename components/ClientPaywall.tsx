@@ -655,8 +655,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: -4,
   },
   // Overrides the muted text-on-surface color when the trial copy sits
-  // inside the featured (accent-filled) card — cream@78% reads against
-  // the orange fill the same way it does in onboarding's eyebrow text.
+  // inside the featured (accent-filled) card — white@78% reads against
+  // the brand fill the same way it does in onboarding's eyebrow text.
   trialFinePrintOnAccent: {
     color: 'rgba(255,255,255,0.78)',
   },

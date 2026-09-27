@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -46,9 +47,10 @@ export function PortalStatusPill({ portalState, itemUpdatedAt }: Props) {
 
   if (status === 'draft') {
     // accentLabel, not accent. The raw brand hue over its own 13%-alpha tint
-    // composites to #FFEBE0 behind #FF6A1A ink — 2.49:1, measured in the
-    // 2026-09-07 audit, against a 4.5:1 floor for 12pt text. The DOT keeps the
-    // raw accent: it is non-text chrome and lives under the 3:1 rule.
+    // was 2.49:1 for the retired orange (2026-09-07 audit), and a brand wash
+    // under brand text is still the weakest pairing for the green (4.25:1 over
+    // surfaceAlt) against a 4.5:1 floor for 12pt text. The DOT keeps the raw
+    // accent: it is non-text chrome and lives under the 3:1 rule.
     return <View style={[styles.pill, { backgroundColor: colors.accent + '22' }]}>
       <View style={[styles.dot, { backgroundColor: colors.accent }]} />
       <Text style={[styles.label, { color: colors.accentLabel }]}>Draft</Text>
@@ -72,10 +74,14 @@ export function PortalStatusPill({ portalState, itemUpdatedAt }: Props) {
       <Text style={[styles.label, { color: '#1E40AF' }]}>{`Viewed · ${fmtDateTime(s.viewedAt)}`}</Text>
     </View>;
   }
-  // Sent (or grandfathered)
+  // Sent (or grandfathered). A success state, so it carries a CHECK instead of
+  // the dot: since the 2026-09-16 rebrand success is teal and the brand is
+  // green, and a state must never be told apart from a brand chip by hue
+  // alone. successLabel (not the success fill) is the ink, because 12pt text
+  // on its own 13% wash is a label, not a signal fill.
   return <View style={[styles.pill, { backgroundColor: colors.success + '22' }]}>
-    <View style={[styles.dot, { backgroundColor: colors.success }]} />
-    <Text style={[styles.label, { color: colors.success }]}>{s?.sentAt ? `Sent · ${fmtDate(s.sentAt)}` : 'Shared'}</Text>
+    <Check size={10} color={colors.successLabel} strokeWidth={3} />
+    <Text style={[styles.label, { color: colors.successLabel }]}>{s?.sentAt ? `Sent · ${fmtDate(s.sentAt)}` : 'Shared'}</Text>
   </View>;
 }
 

@@ -64,6 +64,7 @@ import {
 } from '@/components/ui';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { useCommitFeedback } from '@/components/ui/Button';
+import LevelMark from '@/components/loaders/LevelMark';
 
 let mockWidth = 390;
 let mockWeb = false;
@@ -574,17 +575,25 @@ function hostAncestors(n: unknown): HostInst[] {
 const a11yHidden = (n: { props: Record<string, unknown> }) =>
   n.props.accessibilityElementsHidden === true && n.props.importantForAccessibility === 'no-hide-descendants';
 
+/** The Button's own Animated layers — LevelMark (the busy level) animates inside itself. */
+const buttonLayers = (r: Pick<ReturnType<typeof render>, 'UNSAFE_queryAllByType'>) =>
+  r.UNSAFE_queryAllByType(Animated.View).filter((n) => {
+    let p = n.parent as { type: unknown; parent: unknown } | null;
+    while (p) { if (p.type === LevelMark) return false; p = p.parent as typeof p; }
+    return true;
+  });
+
 describe('the commit morph (round 2)', () => {
   it('phone loading at mount holds the width: label row hidden under an overlay spinner, no Animated layers', () => {
     phone();
     const r = render(<Wrap><Button label="Save" onPress={noop} loading testID="b" /></Wrap>);
     const row = hostParent(r.getByText('Save'));
     expect(flat(row.props.style)).toMatchObject({ flexDirection: 'row', opacity: 0 });
-    const spinners = r.UNSAFE_getAllByType(ActivityIndicator);
+    const spinners = r.UNSAFE_getAllByType(LevelMark);
     expect(spinners).toHaveLength(1);
     expect(flat(hostParent(spinners[0]).props.style)).toMatchObject({ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 });
     // Only the press-scale wrapper is animated: nothing armed at mount.
-    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    expect(buttonLayers(r)).toHaveLength(1);
     // Static a11y state, and the at-rest disabled fade.
     const b = r.getByTestId('b');
     expect(b.props.accessibilityState).toEqual({ disabled: true });
@@ -598,17 +607,17 @@ describe('the commit morph (round 2)', () => {
     expect(flat(b.props.style)).toMatchObject({ height: 40, paddingHorizontal: 20, minWidth: 96, opacity: 0.5 });
     expect(b.props.accessibilityState).toEqual({ disabled: true });
     expect(flat(hostParent(r.getByText('Save')).props.style)).toMatchObject({ flexDirection: 'row', opacity: 0 });
-    expect(r.UNSAFE_getAllByType(ActivityIndicator)).toHaveLength(1);
-    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    expect(r.UNSAFE_getAllByType(LevelMark)).toHaveLength(1);
+    expect(buttonLayers(r)).toHaveLength(1);
     // Same shape as the phone's static tree, which is today's desktop tree.
-    const hidden = all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true);
+    const hidden = all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true && n.props?.testID !== 'level-mark');
     expect(hidden).toHaveLength(0);
   });
 
   it('a phase change arms the morph: seeded from idle, spinner layer, full opacity, busy', () => {
     phone();
     const r = render(<Wrap><Button label="Save" onPress={noop} testID="b" /></Wrap>);
-    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    expect(buttonLayers(r)).toHaveLength(1);
     r.rerender(<Wrap><Button label="Save" onPress={noop} loading testID="b" /></Wrap>);
     const b = r.getByTestId('b');
     // styles.disabled (opacity 0.5) is dropped while morphing; the press is
@@ -619,14 +628,14 @@ describe('the commit morph (round 2)', () => {
     const row = hostParent(r.getByText('Save'));
     expect(flat(row.props.style).opacity).toBe(1);
     expect(a11yHidden(row)).toBe(false);
-    const spinners = r.UNSAFE_getAllByType(ActivityIndicator);
+    const spinners = r.UNSAFE_getAllByType(LevelMark);
     expect(spinners).toHaveLength(1);
     expect(a11yHidden(hostParent(spinners[0]))).toBe(true);
     expect(flat(hostParent(spinners[0]).props.style).opacity).toBe(0);
     // wrapper + teal tint (primary) + label row + spinner + check
-    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(5);
+    expect(buttonLayers(r)).toHaveLength(5);
     // The tint, spinner and check layers are the ONLY a11y-hidden nodes.
-    expect(all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true)).toHaveLength(3);
+    expect(all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true && n.props?.testID !== 'level-mark')).toHaveLength(3);
   });
 
   it('mount loading → done arms from loading and shows the check; the label row stays readable', () => {
@@ -643,7 +652,7 @@ describe('the commit morph (round 2)', () => {
     expect(flat(row.props.style).opacity).toBe(0);
     expect(hostAncestors(label).some((n) => a11yHidden(n))).toBe(false);
     // The check layer: a11y-hidden, absolute, scale seeded at 0.6 (secondary: no tint).
-    const layers = all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true);
+    const layers = all(r.toJSON(), (n) => n.props?.accessibilityElementsHidden === true && n.props?.testID !== 'level-mark');
     expect(layers).toHaveLength(2);
     const check = layers.find((n) => Array.isArray(flat(n.props.style).transform));
     expect(check).toBeTruthy();
@@ -654,7 +663,7 @@ describe('the commit morph (round 2)', () => {
     phone();
     const r = render(<Wrap><Button label="Save" onPress={noop} testID="b" /></Wrap>);
     r.rerender(<Wrap><Button label="Save 2" onPress={noop} disabled testID="b" /></Wrap>);
-    expect(r.UNSAFE_queryAllByType(Animated.View)).toHaveLength(1);
+    expect(buttonLayers(r)).toHaveLength(1);
     expect(r.getByTestId('b').props.accessibilityState).toEqual({ disabled: true });
     expect(flat(r.getByTestId('b').props.style).opacity).toBe(0.5);
   });

@@ -71,6 +71,12 @@ import {
   g703MoneyColumnWidth,
   g703GridMinWidth,
   type G703Col,
+  // Health MONEYPAY: line 7 is cumulative, and the Pay link charges the
+  // certified figure once there is one.
+  seedLessPreviousCertificates,
+  aiaPayableNow,
+  certifiedPayLinkNeedsRemint,
+  mergeRemintedPayLink,
 } from '@/utils/aiaBilling';
 // The one definition of "what is still owed on this invoice", net of held
 // retention — the same helper the portal and the invoice screen gate their Pay
@@ -86,7 +92,7 @@ import { Banknote, FileSignature } from 'lucide-react-native';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { useAuth } from '@/contexts/AuthContext';
-import { createPaymentLink } from '@/utils/stripe';
+import { createPaymentLink, isPayLinkBalanceCode, payLinkRemintRefusalNotice } from '@/utils/stripe';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import type { SavedAIAPayApp } from '@/types';
 import { Type } from '@/constants/typography';
@@ -268,6 +274,9 @@ function AIAPayAppScreenInner() {
   const approvedCOs = coSplit.inPeriod;
   const [generating, setGenerating] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  // MONEY-AIA-CERTIFIED-LINK: why the Pay link could not be replaced after a
+  // lower (or higher) certificate was recorded. null = nothing to say.
+  const [certRemintNote, setCertRemintNote] = useState<string | null>(null);
   const [showFirstUseDisclaimer, setShowFirstUseDisclaimer] = useState(false);
   const [showPreExportConfirm, setShowPreExportConfirm] = useState(false);
 
@@ -374,16 +383,16 @@ function AIAPayAppScreenInner() {
     return {
       ...seeded,
       lines: carryForwardPriorLines(seeded.lines, priorAIA.lines),
-      // Line 7 is "Line 6 from prior Certificate" — the CERTIFIED figure when
-      // the architect sent one back, and only the amount APPLIED FOR when he
-      // did not. Seeding the requested figure over a certificate that came
-      // back reduced is how a GC ends up permanently short by the difference,
-      // in a number he believes is automatic.
-      lessPreviousCertificates: priorAIA.amountCertified
-        ?? priorAIA.totals?.totalEarnedLessRetainage
-        // MONEY-F1 (client half): a record hydrated from the server can arrive
-        // without `totals`; the second period must not crash on it.
-        ?? 0,
+      // Line 7 is "Line 6 from prior Certificate" — CUMULATIVE, everything
+      // certified to date. Seeded from the certificate when the architect sent
+      // one back (the prior line 7 plus what he certified — amountCertified
+      // is that period's line 8, not a running total: MONEY-AIA-L7), and from
+      // the amount APPLIED FOR to date only when he did not. Seeding the
+      // requested figure over a certificate that came back reduced is how a GC
+      // ends up permanently short by the difference, in a number he believes
+      // is automatic. MONEY-F1 (client half): a record hydrated from the
+      // server can arrive without `totals` — the helper reads that as 0.
+      lessPreviousCertificates: seedLessPreviousCertificates(priorAIA),
       storedRetainagePercent: priorAIA.storedRetainagePercent,
     };
   }, [invoice, project, settings?.branding, approvedCOs, resolvedApplicationNumber, priorAIA,
@@ -988,7 +997,12 @@ function AIAPayAppScreenInner() {
     let payLinkId = rec.payLinkId;
     let stripeNotConnected = false;
     let stripeFailureReason: string | null = null;
-    const due = rec.totals?.currentPaymentDue ?? 0;
+    // create-payment-link refused on the SERVER's balance (health
+    // MONEY-PAYLINK-AMOUNT-TRUST) — its own sentence, not "Stripe didn't reach us".
+    let balanceRefusal: string | null = null;
+    // The owner pays the CERTIFIED figure once the architect's certificate is
+    // recorded; line 8 as applied for until then (MONEY-AIA-CERTIFIED-LINK).
+    const due = aiaPayableNow(rec);
     // ONE BILLING PERIOD IS ONE OBLIGATION — the write-side half.
     //
     // A G702 and the progress invoice it certifies are the same money. The
@@ -1036,6 +1050,9 @@ function AIAPayAppScreenInner() {
           if (res.success && res.url && res.id) {
             payLinkUrl = res.url;
             payLinkId = res.id;
+          } else if (isPayLinkBalanceCode(res.code)) {
+            console.warn('[AIA] payment link refused on the server balance:', res.code);
+            balanceRefusal = res.error ?? 'The server shows a different balance for this pay application.';
           } else {
             console.warn('[AIA] Auto-generate payment link failed:', res.error);
             stripeFailureReason = res.error ?? 'unknown';
@@ -1079,6 +1096,8 @@ function AIAPayAppScreenInner() {
           { text: 'Set up Stripe', onPress: () => router.push('/payments-setup' as never) },
         ],
       );
+    } else if (balanceRefusal && due > 0) {
+      showAlert('Saved — no Pay button', `${balanceRefusal} The pay application is saved without a Pay button.`, [{ text: 'OK', style: 'default' }]);
     } else if (stripeFailureReason && due > 0) {
       showAlert(
         'Saved — Pay button could not be attached',
@@ -1102,8 +1121,100 @@ function AIAPayAppScreenInner() {
    * `snapshot_totals` wholesale, and these three fields ride in its
    * `__mageCertificate` sidecar, so before it is applied this write is
    * rejected with check_violation and the response lives on this device only.
+   *
+   * MONEY-AIA-CERTIFIED-LINK (health 2026-09-26): the one Stripe call this
+   * makes. A live, unpaid Pay link minted for the amount APPLIED FOR keeps
+   * charging it after the architect certifies less, and the owner could
+   * overpay by exactly the cut. When the certificate changes what is payable
+   * (certifiedPayLinkNeedsRemint), the link is REPLACED — create-payment-link
+   * reads the old link off the server row and deactivates it. Nothing is
+   * sent to the owner; the certificate stays locked (the link is still
+   * there). If the replacement fails, the portal already hides the stale
+   * button (its guard compares against aiaPayableNow) and the reason is shown
+   * under the certificate.
    */
-  const handleSaveCertification = useCallback(() => {
+  // One replacement at a time. A second tap (Save, or the retry) before the
+  // first call returns would read the same old link off the server row, so the
+  // first new link would never be deactivated and would stay live, orphaned.
+  const certRemintInFlight = useRef(false);
+  // The newest certificate record handed to the re-mint (Save or the retry),
+  // including one a locked-out second Save brought while the first call was
+  // in flight. The write-back merges the new link onto THIS, never onto the
+  // snapshot the call started from (mergeRemintedPayLink).
+  const latestCertRecordRef = useRef<SavedAIAPayApp | null>(null);
+  const remintCertifiedPayLink = useCallback(async (updated: SavedAIAPayApp) => {
+    latestCertRecordRef.current = updated;
+    if (certRemintInFlight.current) return;
+    certRemintInFlight.current = true;
+    try {
+      setCertRemintNote(null);
+      const sourceInvoiceSettled = !!invoice && invoiceOutstanding(invoice) <= 0.01;
+      if (!certifiedPayLinkNeedsRemint(
+        { ...updated, paidAt: savedPaidAt ?? undefined },
+        { pendingBankPayment: !!pendingBankPayment, sourceInvoiceSettled },
+      )) return;
+      const payable = aiaPayableNow(updated);
+      const was = updated.payLinkAmount != null ? formatMoney(updated.payLinkAmount, 2) : 'the amount applied for';
+      let failure: string | null = null;
+      try {
+        const status = user?.id ? await fetchStripeConnectStatus(user.id) : null;
+        if (status && status.success && status.chargesEnabled && status.accountId) {
+          const res = await createPaymentLink({
+            invoiceId: updated.id,
+            recordType: 'aia_pay_app',
+            invoiceNumber: updated.applicationNumber,
+            projectName: updated.projectName ?? 'Project',
+            amountCents: Math.round(payable * 100),
+            customerEmail: '',
+            companyName: updated.contractorName ?? settings?.branding?.companyName ?? 'Contractor',
+            stripeAccountId: status.accountId,
+            userTier: tier,
+          });
+          if (res.success && res.url && res.id) {
+            const merged = mergeRemintedPayLink(latestCertRecordRef.current, updated, { url: res.url, id: res.id, amount: payable });
+            latestCertRecordRef.current = merged;
+            addAIAPayApp(merged);
+            // The certificate changed again while this link was being made:
+            // the new link charges the earlier figure. Say so and offer the
+            // retry (the portal hides the mismatched Pay button meanwhile).
+            if (certifiedPayLinkNeedsRemint(
+              { ...merged, paidAt: savedPaidAt ?? undefined },
+              { pendingBankPayment: !!pendingBankPayment, sourceInvoiceSettled },
+            )) {
+              setCertRemintNote(
+                `The certificate changed while the Pay link was being replaced; the new link charges ${formatMoney(payable, 2)}, `
+                + `not the certified ${formatMoney(aiaPayableNow(merged), 2)}. Replace it again.`,
+              );
+            }
+          } else {
+            // A certificate ABOVE the amount applied for whose sidecar is still
+            // queued: the server compares against line 8 and refuses. Say that,
+            // not "refresh before sending".
+            const notice = payLinkRemintRefusalNotice(res.code, 'certificate');
+            if (notice) {
+              setCertRemintNote(notice);
+              return;
+            }
+            failure = res.error ?? 'Stripe did not return a new link';
+          }
+        } else {
+          failure = status && !status.success ? (status.error ?? 'the payment setup could not be checked') : 'Stripe is not connected';
+        }
+      } catch (err) {
+        failure = (err as Error)?.message ?? 'network error';
+      }
+      if (failure) {
+        setCertRemintNote(
+          `The Pay link was made for ${was}; a replacement for the certified ${formatMoney(payable, 2)} could not be made (${failure}). `
+          + 'The client portal hides the old Pay button until it is replaced.',
+        );
+      }
+    } finally {
+      certRemintInFlight.current = false;
+    }
+  }, [invoice, savedPaidAt, pendingBankPayment, user, settings, tier, addAIAPayApp]);
+
+  const handleSaveCertification = useCallback(async () => {
     if (!app || certReadOnly) return;
     const existing = savedForThisInvoice;
     if (!existing) {
@@ -1112,16 +1223,19 @@ function AIAPayAppScreenInner() {
       void handleSave();
       return;
     }
-    addAIAPayApp({
+    const updated: SavedAIAPayApp = {
       ...existing,
       amountCertified: app.amountCertified,
       certifiedDate: app.certifiedDate,
       certifiedExplanation: app.certifiedExplanation,
-    });
+    };
+    addAIAPayApp(updated);
     setSavedFlash(true);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setSavedFlash(false), 2200);
-  }, [app, certReadOnly, savedForThisInvoice, addAIAPayApp, handleSave]);
+
+    await remintCertifiedPayLink(updated);
+  }, [app, certReadOnly, savedForThisInvoice, addAIAPayApp, handleSave, remintCertifiedPayLink]);
 
   /** Has the GC changed the architect's response since it was last stored? */
   const certificationDirty = !!app && !!savedForThisInvoice && (
@@ -1991,6 +2105,24 @@ function AIAPayAppScreenInner() {
               <Save size={15} color={themeColors.accent} strokeWidth={2} />
               <Text style={styles.sovFooterBtnText}>Save the architect&apos;s response</Text>
             </TouchableOpacity>
+          )}
+          {!!certRemintNote && (
+            <>
+              <View style={styles.sovWarnBanner} testID="aia-cert-remint-failed">
+                <ShieldAlert size={16} color={Colors.warningLabel} strokeWidth={2} />
+                <Text style={styles.sovWarnText}>{certRemintNote}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.certSaveBtn}
+                onPress={() => { if (savedForThisInvoice) void remintCertifiedPayLink(savedForThisInvoice); }}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Try replacing the Pay link again"
+                testID="aia-cert-remint-retry"
+              >
+                <Text style={styles.sovFooterBtnText}>Replace the Pay link again</Text>
+              </TouchableOpacity>
+            </>
           )}
 
           {/* AIA's own instructions: the Contractor should sign G702, HAVE IT

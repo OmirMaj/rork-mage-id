@@ -38,7 +38,7 @@ import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline'
 import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { LienClockCard } from '@/components/invoice/LienClockCard';
-import { createPaymentLink } from '@/utils/stripe';
+import { createPaymentLink, isPayLinkBalanceCode, payLinkBalanceFallback, payLinkRemintRefusalNotice } from '@/utils/stripe';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Banknote } from 'lucide-react-native';
 import { fetchStripeConnectStatus, resolveStripeAccount } from '@/utils/stripeConnect';
@@ -1076,6 +1076,19 @@ function InvoiceInner() {
       userTier: tier,
     });
     if (!res.success || !res.url || !res.id) {
+      // MONEY-PAYLINK-AMOUNT-TRUST: the server compared the amount with ITS
+      // balance and refused — 'balance_changed' (this device's figure is above
+      // what the server says is owed: a payment landed elsewhere) or
+      // 'nothing_due'. No link; the message says why. Both send paths stop on
+      // these rather than email a stale amount.
+      if (isPayLinkBalanceCode(res.code)) {
+        return {
+          ok: false,
+          reason: 'failed',
+          error: res.code,
+          message: res.error || payLinkBalanceFallback(res.code, res.serverBalanceCents),
+        };
+      }
       // #83 carry: create-payment-link refuses (409 'payment_pending') while
       // the client's bank payment settles — but supabase.functions.invoke
       // hands a non-2xx back as a generic "non-2xx status code" message, so
@@ -1473,6 +1486,16 @@ function InvoiceInner() {
           } else if (minted.reason === 'not_connected') {
             console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
             stripeNotConnected = true;
+          } else if (isPayLinkBalanceCode(minted.error)) {
+            // MONEY-PAYLINK-AMOUNT-TRUST: the SERVER says this invoice's
+            // balance is not what this screen holds (a payment landed from
+            // another device or the portal) or that nothing is owed. The email
+            // would state that stale figure, so it does not go — not even
+            // without a Pay button. Stop, say why; a refresh shows the truth.
+            const reason = minted.message ?? payLinkBalanceFallback(minted.error);
+            tutorialSignal('invoice.send.failed', { projectId: workingInvoice.projectId, reason });
+            showAlert('Invoice not sent', reason);
+            return;
           } else {
             // Includes #36's 'unreachable' (offline status check): it names
             // itself here instead of reading as "Stripe isn't connected".
@@ -1782,6 +1805,12 @@ function InvoiceInner() {
             // Sent" over an invoice the client could not pay online.
             console.log('[Invoice] PDF send: skipping payment link — Stripe Connect not set up');
             noPayButtonReason = STRIPE_NOT_CONNECTED_REASON;
+          } else if (isPayLinkBalanceCode(minted.error)) {
+            // MONEY-PAYLINK-AMOUNT-TRUST: same stop as runConfirmSend — the
+            // server's balance disagrees with this device's, so the email's
+            // figure would be stale. Nothing goes; the reason is shown.
+            showAlert('Invoice not sent', minted.message ?? payLinkBalanceFallback(minted.error));
+            return;
           } else {
             console.warn('[Invoice] PDF send: payment link mint failed:', minted.error);
             noPayButtonReason = minted.message ?? payLinkFailureReason(minted.error);
@@ -2507,7 +2536,13 @@ function InvoiceInner() {
     // hidden behind payLinkMatchesBalance until Send / Regenerate re-mints.
     const newBalance = outcome.newBalance;
     if (outcome.needsPayLinkRemint) {
-      void mintPayLinkFor(existingInvoice, newBalance).catch((err) => {
+      // A queued release write the server has not seen yet: the server still
+      // holds the lower balance and refuses (409 balance_changed). Say so —
+      // the old link is not retired and the portal hides it.
+      void mintPayLinkFor(existingInvoice, newBalance).then((minted) => {
+        const notice = minted.ok ? null : payLinkRemintRefusalNotice(minted.error, 'retention_release');
+        if (notice) showAlert('Pay link not replaced yet', notice);
+      }).catch((err) => {
         console.warn('[Invoice] re-mint after retention release failed:', err);
       });
     }
@@ -4134,9 +4169,10 @@ function InvoiceInner() {
 // The punch-list fix pairs a SOFT fill with a label/saturated foreground, and
 // that is the pattern here too — with one substrate difference that matters:
 // this badge is a child of `heroCard`, whose background is `themeColors.accent`
-// (#FF6A1A in BOTH themes), not a surface card. Every *Soft token is a
-// translucent rgba, so on orange they composite back toward orange and the
-// "fixed" badge is still unreadable:
+// (the brand hue, not a surface card). Every *Soft token is a translucent
+// rgba, so on the brand they composite back toward the brand and the
+// "fixed" badge is still unreadable (ratios measured on the pre-2026-09-16
+// orange hero; the mechanism is hue-independent):
 //
 //   dangerLabel on dangerSoft over the hero  →  1.85:1 light / 1.06:1 dark
 //   info        on info+'1F'  over the hero  →  1.73:1 light / 1.20:1 dark
@@ -4147,9 +4183,9 @@ function InvoiceInner() {
 //
 // So the fill is `t.surface` — the one OPAQUE token that inverts with the theme
 // (white chip in light, near-black chip in dark) and therefore reads against the
-// fixed orange either way. Foregrounds are the punch-list label tokens, and the
+// fixed brand fill either way. Foregrounds are the punch-list label tokens, and the
 // border mirrors `ui/Badge.tsx` (`fg + '33'`) so the statuses stay
-// distinguishable. Measured on the hero: 4.85–13.27:1 light, 4.75–16.99:1 dark.
+// distinguishable. Measured on the (orange) hero: 4.85–13.27:1 light, 4.75–16.99:1 dark.
 function getInvoiceStatusColors(t: ThemeColors, status: string): { bg: string; text: string } {
   switch (status) {
     case 'draft': return { bg: t.surface, text: t.text };

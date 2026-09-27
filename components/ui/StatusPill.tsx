@@ -31,8 +31,8 @@
 //     returns the identical value and warning has no colour of its own.
 //   • `primary` / `accent` / `success` / `error` returned the SIGNAL hues,
 //     which are for dots and bars. As TEXT on a wash of themselves they are
-//     what validate-contrast check 5 exists to stop: `t.accent` (#FF6A1A) is
-//     2.87:1, and founder decision #1 routes text through `accentLabel`.
+//     what validate-contrast check 5 exists to stop: `t.accent` (then the orange
+//     brand) was 2.87:1, and founder decision #1 routes text through `accentLabel`.
 //
 // Fill and ink are now separate: the ink is the theme's *Label token (AA-
 // verified by check 5 on exactly this idiom) and the fill is the matching
