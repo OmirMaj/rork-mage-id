@@ -22,6 +22,7 @@
 // Cash App, Things 3, and Mercury ship with.
 
 import { Platform, type ViewStyle } from 'react-native';
+import { LOADER } from '@/utils/levelTimeline';
 
 // ─────────────────────────────────────────────────────────────────────
 // Spacing — 4-point grid. Universal in 2026.
@@ -188,6 +189,8 @@ export const Motion = {
     /** Entries and hover glides: fast out, long settle. */
     easeOut: 'cubic-bezier(0.2, 0, 0, 1)',
   },
+  /** "The Level" loading system: every loader number (utils/levelTimeline.ts). */
+  loader: LOADER,
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────

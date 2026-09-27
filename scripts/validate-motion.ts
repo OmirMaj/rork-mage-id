@@ -14,8 +14,9 @@
 //      overshoot at most, never a wobble, never a sluggish crawl.
 //   3. No `scaleXY` in code (comments may explain why): a create/delete
 //      scaleXY LayoutAnimation SIGABRTs on Fabric under a transform.
-//   4. `animationKeyframes` only in motion.ts: an inline keyframe object is
-//      silently dropped by react-native-web; only StyleSheet.create compiles it.
+//   4. `animationKeyframes` only in motion.ts or under components/loaders/css/
+//      (the level's web keyframes): an inline keyframe object is silently
+//      dropped by react-native-web; only StyleSheet.create compiles it.
 //   5. No `transitionDuration:` / `animationDuration:` with a bare number: RN-web
 //      turns a number into px, so the duration silently becomes 0.
 //   6. MOTION_CSS ships in WEB_DOCUMENT_CSS, only under
@@ -163,9 +164,9 @@ ok('no `scaleXY` outside comments in app/, components/, hooks/', scale.length ==
   `A create/delete scaleXY LayoutAnimation SIGABRTs on Fabric under a transform. Use layoutNext() (opacity only):\n${scale.join('\n')}`);
 
 // ── 4. keyframes only in motion.ts ───────────────────────────────────────────
-const keyframes = hits(/\banimationKeyframes\b/, (p) => p !== 'components/ui/motion.ts');
-ok('`animationKeyframes` appears only in components/ui/motion.ts', keyframes.length === 0,
-  `Inline keyframes are silently dropped by react-native-web. Use webMotion(key) / registerWithMotion():\n${keyframes.join('\n')}`);
+const keyframes = hits(/\banimationKeyframes\b/, (p) => p !== 'components/ui/motion.ts' && !p.startsWith('components/loaders/css/'));
+ok('`animationKeyframes` appears only in components/ui/motion.ts or under components/loaders/css/', keyframes.length === 0,
+  `Inline keyframes are silently dropped by react-native-web. Use webMotion(key) / registerWithMotion(), or a StyleSheet.create file under components/loaders/css/:\n${keyframes.join('\n')}`);
 
 // ── 5. CSS durations are strings ─────────────────────────────────────────────
 const bare = hits(/\b(?:transitionDuration|animationDuration|transitionDelay|animationDelay)\s*:\s*-?[\d.]/);

@@ -31,6 +31,8 @@ export const LAUNCH_STALE_MS = 3500;
 let phase: LaunchPhase = 'open';
 let coveredAt = 0;
 let bootReady = false;
+/** Sticky: the app has finished its first boot in this process (CraneLoader's BootShell/ScreenLoader pick). */
+let hasBooted = false;
 let target: LaunchRect | null = null;
 let healTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
@@ -95,6 +97,7 @@ export function useLaunchPhase(): LaunchPhase {
 
 /** RootLayoutNav's `!bootstrapping`: auth, projects and onboarding state read. */
 export function setBootReady(v: boolean): void {
+  if (v) hasBooted = true;
   if (v === bootReady) return;
   bootReady = v;
   notify();
@@ -102,6 +105,11 @@ export function setBootReady(v: boolean): void {
 
 export function getBootReady(): boolean {
   return bootReady;
+}
+
+/** True once setBootReady(true) has ever run in this process (never goes back). */
+export function getHasBooted(): boolean {
+  return hasBooted;
 }
 
 /** Window rect of the screen's own "MAGE ID" wordmark; last writer wins. */
@@ -130,6 +138,7 @@ export function __resetLaunchCurtainForTests(): void {
   phase = 'open';
   coveredAt = 0;
   bootReady = false;
+  hasBooted = false;
   target = null;
   listeners.clear();
 }
