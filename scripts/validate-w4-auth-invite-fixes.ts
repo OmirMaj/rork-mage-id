@@ -133,12 +133,13 @@ console.log('\n#7 the root navigator survives a sign-in:');
     && /navStateRef\.current = navNext;/.test(LAYOUT));
   // Slick round 3: the overlay lives in components/launch/ReloadVeil (a grace
   // before it shows, a fade out). Same meaning: rendered in the Stack's own
-  // return (not instead of it), absoluteFill at zIndex 1000, the crane loader,
-  // and it blocks input while the reload runs.
-  ok('…draws the loader OVER the mounted Stack while reloading',
+  // return (not instead of it), absoluteFill at zIndex 1000, the plain level
+  // loader (ScreenLoader, lane LAUNCH — a reload is not a brand moment), and it
+  // blocks input while the reload runs.
+  ok('…draws the level loader OVER the mounted Stack while reloading',
     /<\/Stack>[\s\S]{0,600}<ReloadVeil active=\{navMode === 'stack\+overlay'\} \/>\s*<\/View>\s*\);/.test(LAYOUT)
     && ((veil: string) => /StyleSheet\.absoluteFill, \{ zIndex: 1000 \}\]/.test(veil)
-      && /<CraneLoader label="MAGE ID" \/>/.test(veil)
+      && /<ScreenLoader revealDelayMs=\{0\} \/>/.test(veil)
       && /pointerEvents=\{active \? 'auto' : 'none'\}/.test(veil))(code(read('components/launch/ReloadVeil.tsx'))));
   ok('…and keys the Stack container by the account generation',
     /<View style=\{\{ flex: 1 \}\} key=\{`stack-\$\{navNext\.generation\}`\}>\s*<Stack /.test(LAYOUT));

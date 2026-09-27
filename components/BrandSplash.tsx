@@ -1,63 +1,56 @@
-// BrandSplash — the in-app animated launch screen.
+// BrandSplash — the cold start CONTINUES the native splash (lane LAUNCH).
 //
-// The FIRST thing every user sees. The app's real brand motif: an ink field,
-// the "MAGE ID" wordmark in the app's display face (Fraunces), and a thin amber
-// spirit-level track whose bubble slides in off-centre and SETTLES DEAD CENTRE
-// with a hair of overshoot — the move from components/PersonaSwitchOverlay.tsx
-// and the marketing site. Construction for "everything is level, you're ready
-// to build."
+// The native splash (assets/images/splash-icon.png) is one orange spirit level
+// on ink. This component is that SAME level, in the same pixels at the same
+// place (utils/levelTimeline.ts splashRect + CORE's LevelMark tone="splash"),
+// painted on the very first commit as plain Views — never an <Image> of the PNG,
+// which decodes async on iOS and can blink bare ink. From there it is ONE object:
 //
-// Ink + amber only. No illustration, crest, gradient, glow, blur, or emoji.
-// Colours/type come strictly from constants/colors + typography + tokens.
+//   frame 0      the native picture, still. No eyebrow, no big wordmark, no
+//                bubble springing in from off-centre.
+//   +400 ms      only if the app is NOT ready yet: the bubble starts to seek
+//                (host amp 0→1, plateau-baked into one timing on the shared
+//                clock), and the hue shifts to the user's accent WHILE it moves.
+//   +500 ms      only if still not ready (signed in): a small "MAGE ID" rises in
+//                above the level — the level never moves off centre for it.
+//                Signed out: the wordmark shows at max(160 ms, the moment the
+//                login registered its own wordmark) so it can fly onto it.
+//   ready        (launchCurtain's getBootReady + TARGET_GRACE_MS): the bubble
+//                settles dead centre, the level folds (CORE's retract ranges),
+//                the ink dissolves onto the app. Ready before +400 ms → the
+//                bubble never moved: one still image, a 280 ms dissolve, done.
 //
-// How it's wired (see app/_layout.tsx):
-//   - The NATIVE splash (app.json splash-icon.png, the flat level line) holds
-//     the pre-JS moment. SplashScreen.preventAutoHideAsync() keeps it up.
-//   - Once fonts load, _layout hides the native splash and mounts THIS
-//     component as a full-screen overlay ABOVE the app. The app tree renders
-//     and hydrates underneath.
-//   - Plays once per cold start. onDone() unmounts it.
+// No haptic: a launch is not a success event.
 //
-// THE HAND-OFF (slick round 3). The splash no longer fades at a fixed time.
-// It HOLDS until the app underneath is ready (RootLayoutNav's setBootReady)
-// and the first screen has reported where its own "MAGE ID" sits
-// (components/launch/launchCurtain.ts), then hands off instead of cutting:
-//   - the wordmark flies (translate + uniform scale) onto the screen's own
-//     wordmark and cross-fades into it;
-//   - the eyebrow and the spirit level fold away (the track retracts to its
-//     centre notch);
-//   - the ink dissolves while the screen's blocks rise in on a stagger
-//     (components/auth/authMotion.tsx useLaunchEntrance).
-// With no target (a signed-in user landing on Home) the centre group rises
-// 10 pt and fades while the ink dissolves. The exit starts unconditionally at
-// EXIT_BY_MS, and SPLASH_FAILSAFE still bounds the whole lifetime.
+// NO THEME. This mounts OUTSIDE ThemeProvider in app/_layout.tsx, where
+// useTheme() returns undefined. It never reads a theme: colours are the
+// NATIVE_SPLASH_* constants (equal to the baked PNG) and the user's hue from
+// deriveAccentPalette(getCustomPrimary(), 'dark').
 //
-// Timeline (entry, as before):
-//   0ms        — ink field + wordmark/eyebrow already painted (no flash)
-//   40–340ms   — eyebrow + wordmark settle up
-//   180ms      — level track draws in
-//   300ms      — bubble springs from off-centre → dead centre (ζ≈0.81)
-//   then       — hold until ready, then the ~0.5 s hand-off above
+// It is the ONLY owner of the launch timeline. It publishes what it has shown
+// (components/launch/splashStage.ts); BootShell, the still replica underneath,
+// adopts that state when this finishes while the app is still loading.
 //
-// Reduced motion (AccessibilityInfo, latched) → paint the settled state, hold
-// until the same ready rule (min 500 ms), fade the overlay, done. No fly, no
-// 'lifting', so no screen entrance arms. Web-safe: haptics guarded, and every
-// Animated call uses the native driver only where it exists.
+// Reduce Motion (AccessibilityInfo, latched, 250 ms timeout): the level is a
+// still frame (animate={false}: no clock, no breath), the wordmark fades in
+// without a rise if its rule fires, and on ready the overlay fades in 200 ms.
+// Never 'lifting', so no screen entrance arms. No minimum hold.
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
-  Easing,
   Platform,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { Type } from '@/constants/typography';
-import { Motion, Tokens } from '@/constants/designTokens';
+import { Motion } from '@/constants/designTokens';
+import { deriveAccentPalette, getCustomPrimary } from '@/constants/colors';
 import { nativeDriver } from '@/components/ui/motion';
+import LevelMark from '@/components/loaders/LevelMark';
 import {
   getBootReady,
   getLaunchTarget,
@@ -66,6 +59,20 @@ import {
   subscribeLaunch,
   type LaunchRect,
 } from '@/components/launch/launchCurtain';
+import { setSplashStage, splashWordmarkBox } from '@/components/launch/splashStage';
+import {
+  DECELERATE,
+  LOADER,
+  NATIVE_SPLASH_ACCENT,
+  NATIVE_SPLASH_BG,
+  NATIVE_SPLASH_FG,
+  STANDARD,
+  easeInOutSine,
+  easeOutCubic,
+  linear,
+  plateau,
+  splashRect,
+} from '@/utils/levelTimeline';
 
 // The app tree mounts under the NATIVE splash before this component can; mark the curtain now so a
 // fast /login's first render already sees 'covered'. Never under jest: _layout imports this module in
@@ -74,97 +81,104 @@ import {
 const UNDER_JEST = typeof process !== 'undefined' && process.env?.JEST_WORKER_ID != null;
 if (!UNDER_JEST) markLaunchPending();
 
-// ── Brand tokens ────────────────────────────────────────────────────────────
-// The splash is a fixed BRAND moment — always the ink field regardless of the
-// user's light/dark preference. A splash that flashed cream-white in light
-// mode would be jarring and wouldn't match the ink native layer it hands off
-// from. These match constants/colors.ts Theme.dark + the marketing --ink.
-const INK = '#0B0D10';
-const CREAM = '#F4EFE6';
-const FOG = 'rgba(244,239,230,0.62)';
-const AMBER = '#FF6A1A';
-const AMBER_SOFT = 'rgba(255,106,26,0.16)';
-const LINE = 'rgba(255,255,255,0.10)';
-const NOTCH = 'rgba(244,239,230,0.32)';
-
-// ── Level geometry (from PersonaSwitchOverlay) ───────────────────────────────
-const LEVEL_TRACK_W = 200;
-const BUBBLE_W = 34;
-const BUBBLE_START_X = -62; // off-centre; settles at 0
-
-// ── Timings (ms) — the entry mirrors PersonaSwitchOverlay ────────────────────
-const T_LABEL = 40;
-const T_TRACK = 180;
-const T_BUBBLE = 300;
-
-// The bubble's settle: a hair of overshoot, no wobble (was 12/150/0.9, ζ≈0.52).
-// ζ = 20 / (2·√(170·0.9)) ≈ 0.81 — hoist into Motion.spring after round 3
-const BUBBLE_SPRING = { damping: 20, stiffness: 170, mass: 0.9 };
+// ── The timeline (CORE's numbers, never re-declared) ─────────────────────────
+const SPLASH = LOADER.splash;
+const EXIT = LOADER.splash.exit;
+/** The fast-boot line: ready before this and the bubble never moves. */
+const ALIVE_MS = SPLASH.aliveAtMs;
+/** Signed out: the earliest the wordmark shows (so the fly has a source). */
+const SIGNED_OUT_WORDMARK_MS = 160;
+/** The wordmark's rise, pt. */
+const WORDMARK_RISE = 6;
 
 // ── The hand-off ─────────────────────────────────────────────────────────────
 // Wait this long after the app is ready for the first screen to report its
-// wordmark; past it, the no-target exit runs. hoist into Motion.duration after round 3
+// wordmark; past it, the no-target exit runs.
 const TARGET_GRACE_MS = 150;
-// The exit starts unconditionally this long after mount. hoist into Motion.duration after round 3
-const EXIT_BY_MS = 2300;
-// The longest exit leg: the fly's cap (FLY_CAP_MS) + the cross-fade (FLY_FADE_MS).
-// EXIT_BY_MS + EXIT_MS stays under SPLASH_MAX_LIFETIME_MS. hoist into Motion.duration after round 3
+// The longest exit leg: ≥ the signed-in exit (EXIT.retractAtMs + EXIT.retractSpanMs
+// = 480) and ≥ the fly's cap + its cross-fade (FLY_CAP_MS + FLY_FADE_MS = 520).
 const EXIT_MS = 520;
-// hoist into Motion.duration after round 3
 const FLY_CAP_MS = 420;
-// hoist into Motion.duration after round 3
 const FLY_FADE_MS = 100;
-// hoist into Motion.duration after round 3
-const FOLD_MS = 140;
-// hoist into Motion.duration after round 3
-const TRACK_RETRACT_MS = 160;
-// hoist into Motion.duration after round 3
-const INK_DELAY_MS = 60;
-// hoist into Motion.duration after round 3
-const INK_FADE_MS = 280;
-// No target: the centre group rises and fades. hoist into Motion.duration after round 3
-const RISE_OUT_MS = 160;
-// Reduced motion: the minimum settled hold, then the overlay fade. hoist into Motion.duration after round 3
-const REDUCED_HOLD_MS = 500;
-// hoist into Motion.duration after round 3
-const REDUCED_FADE_MS = 200;
+// The fly's ink: a 60 ms plateau, then 280 ms (baked into one timing, no delay leg).
+const FLY_INK_AT_MS = 60;
+const FLY_INK_MS = 280;
+// A missed notify must never strand the ink over a ready app.
+const READY_BACKSTOP_MS = 500;
 
-// Hard ceiling on the overlay's total lifetime, measured from mount.
-// The splash now holds for the app (EXIT_BY_MS at the latest) and its exit is
-// bounded by EXIT_MS; on a congested cold start the Animated callbacks are
-// JS-driven and can land late because the JS thread is saturated by route
-// resolution + provider hydration. Nothing can push the splash past this.
+// Hard ceiling on the overlay's total lifetime, measured from mount
+// (= LOADER.splash.failsafeMs). Why 8 s is safe:
+//   - if boot IS ready, the exit started long before (the 500 ms readiness
+//     backstop re-checks even when a notify was missed);
+//   - if boot is still NOT ready, the screen UNDER the splash is BootShell,
+//     which on `finished` ADOPTS this splash's stage — the same ink, the same
+//     level on the SAME shared clock phase, amp 1 at once if this was alive,
+//     the wordmark at rest if this showed it — so the failsafe's dissolve is
+//     invisible. It used to be 3 s and uncovered a second, different loader.
 // See SPLASH_FAILSAFE below for why this must not depend on Animated.
-export const SPLASH_MAX_LIFETIME_MS = 3000;
+export const SPLASH_MAX_LIFETIME_MS = 8000;
 
 // How long we'll wait for the native reduced-motion query before assuming
-// "no". Until it answers we paint a bare ink field with no wordmark, and
-// AccessibilityInfo.isReduceMotionEnabled() is an unbounded native promise.
+// "no". It only decides whether the bubble will ever move: frame 0 is static,
+// so it never waits for this.
 const REDUCE_MOTION_QUERY_TIMEOUT_MS = 250;
 
 export interface BrandSplashProps {
   /** Called when the splash finishes and the app should be revealed. */
   onDone: () => void;
+  /**
+   * The timeline's t = 0 is the moment this is first true (default: mount).
+   * Before it, the splash is frame 0 only (the native splash is still over it).
+   */
+  live?: boolean;
+  /**
+   * Called ONCE after the first layout + one animation frame: the JS replica is
+   * painted, so the native splash may leave without a blink.
+   */
+  onFirstFrame?: () => void;
 }
 
 type Measurable = { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void };
 
-export default function BrandSplash({ onDone }: BrandSplashProps) {
+interface Controller {
+  startAmp: () => void;
+}
+
+export default function BrandSplash({ onDone, live = true, onFirstFrame }: BrandSplashProps) {
+  const { width, height } = useWindowDimensions();
+  const rect = splashRect(width, height, Platform.OS);
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+  const [isLive, setIsLive] = useState(live);
+  if (live && !isLive) setIsLive(true);
+  const [wordmarkOn, setWordmarkOn] = useState(false);
+
   const doneRef = useRef(false);
-  const mountedAtRef = useRef(Date.now());
+  const reduceRef = useRef<boolean | null>(null);
+  reduceRef.current = reduceMotion;
+  const controllerRef = useRef<Controller | null>(null);
   const wordmarkRef = useRef<Text | null>(null);
   const srcRectRef = useRef<LaunchRect | null>(null);
+  const firstFrameRef = useRef(false);
+  const onFirstFrameRef = useRef(onFirstFrame);
+  onFirstFrameRef.current = onFirstFrame;
+
+  // The user's accent (after the green rebrand, or a picked hue). On the
+  // orange brand it equals the baked accent and no hue layer renders.
+  // Read per render, but the timeline reads it through a ref, so a hue that
+  // hydrates mid-launch never restarts the timeline.
+  const liveHue = deriveAccentPalette(getCustomPrimary(), 'dark').accent;
+  const hueShift = liveHue.toUpperCase() !== NATIVE_SPLASH_ACCENT;
+  const hueShiftRef = useRef(hueShift);
+  hueShiftRef.current = hueShift;
 
   // Animated values
   const overlayOpacity = useRef(new Animated.Value(1)).current;
   const inkOpacity = useRef(new Animated.Value(1)).current;
-  const labelOpacity = useRef(new Animated.Value(0)).current;
-  const labelTranslate = useRef(new Animated.Value(10)).current;
-  const trackScaleX = useRef(new Animated.Value(0)).current;
-  const bubbleX = useRef(new Animated.Value(BUBBLE_START_X)).current;
-  const eyebrowOut = useRef(new Animated.Value(1)).current;
-  const levelOut = useRef(new Animated.Value(1)).current;
+  const amp = useRef(new Animated.Value(0)).current;
+  const retract = useRef(new Animated.Value(0)).current;
+  const hueMix = useRef(new Animated.Value(0)).current;
+  const wordmarkOpacity = useRef(new Animated.Value(0)).current;
+  const wordmarkY = useRef(new Animated.Value(WORDMARK_RISE)).current;
   const flyOpacity = useRef(new Animated.Value(1)).current;
   // One value drives the whole fly: translate = fly·(dx, dy), scale = 1 + fly·(k − 1).
   const fly = useRef(new Animated.Value(0)).current;
@@ -180,11 +194,11 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
   const finish = useCallback(() => {
     if (doneRef.current) return;
     doneRef.current = true;
-    // Snap transparent before handing back. If we got here from an interrupted
-    // animation or the failsafe, overlayOpacity is stranded part-way and the
-    // parent's unmount is a commit away — without this the wordmark would be
-    // painted over the app for that frame.
+    // Snap transparent before handing back (an interrupted exit or the
+    // failsafe leaves overlayOpacity part-way for the unmount's commit).
     overlayOpacity.setValue(0);
+    // BootShell adopts what this showed, in the commit that unmounts this.
+    setSplashStage({ finished: true });
     // The curtain is up: every waiting screen snaps to rest.
     setLaunchPhase('open');
     onDone();
@@ -203,24 +217,22 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
   // nothing else.
   //
   // Every other dismiss path funnels through an Animated completion callback,
-  // and that callback is not a guarantee: Animated.parallel defaults to
-  // stopTogether, so ANY interrupted leg reports finished:false for the whole
-  // group; the Animated.delay legs are JS-driven, so a saturated JS thread can
-  // starve them; and a native-driver callback that never makes it back over
-  // the bridge simply never arrives. Because this component renders a
-  // full-screen overlay ABOVE a live, hydrating app rather than gating it, any
-  // of those left the "MAGE ID" wordmark painted translucently over the home
-  // feed permanently — the deep-link cold-start bug. A launch screen that
-  // outlives its animation is a bug, so time it out unconditionally.
+  // and that callback is not a guarantee: an interrupted leg reports
+  // finished:false, a saturated JS thread delays it, and a native-driver
+  // callback that never makes it back over the bridge simply never arrives.
+  // Because this component renders a full-screen overlay ABOVE a live,
+  // hydrating app rather than gating it, any of those used to leave the splash
+  // painted over the home feed permanently — the deep-link cold-start bug. A
+  // launch screen that outlives its purpose is a bug, so time it out
+  // unconditionally (from mount, not from `live`: nothing can pin it).
   useEffect(() => {
     const failsafe = setTimeout(finish, SPLASH_MAX_LIFETIME_MS);
     return () => clearTimeout(failsafe);
   }, [finish]);
 
   // Resolve reduced-motion once. We deliberately latch the FIRST answer and do
-  // not subscribe to later 'reduceMotionChanged' events: the splash lives for
-  // a couple of seconds at most, so re-deciding the path mid-play can only
-  // interrupt the running animation — it can't improve anything.
+  // not subscribe to later 'reduceMotionChanged' events: re-deciding the path
+  // mid-launch can only interrupt what is running — it can't improve anything.
   useEffect(() => {
     let active = true;
     const settle = (v: boolean) => {
@@ -231,23 +243,32 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
     AccessibilityInfo.isReduceMotionEnabled()
       .then(settle)
       .catch(() => settle(false));
-    // The native query is an unbounded promise; don't sit on a bare ink field
-    // waiting for it on a congested cold start.
+    // The native query is an unbounded promise; frame 0 does not wait for it,
+    // but the decision "will the bubble ever move" does, so bound it.
     const t = setTimeout(() => settle(false), REDUCE_MOTION_QUERY_TIMEOUT_MS);
     return () => { active = false; clearTimeout(t); };
   }, []);
 
+  // THE TIMELINE — from the moment the splash is live (the native splash has
+  // left). Everything before it is frame 0.
   useEffect(() => {
-    // Wait until we know the reduced-motion preference before choosing a path.
-    if (reduceMotion === null) return;
+    if (!isLive) return undefined;
+    const t0 = Date.now();
+    const elapsed = () => Date.now() - t0;
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     const running: Animated.CompositeAnimation[] = [];
-    let entryDone = false;
     let exitStarted = false;
+    let ampStarted = false;
+    let alive = false;
+    // Ready before ALIVE: the bubble will never move (the fast-boot rule).
+    let aliveCancelled = false;
     let graceTimer: ReturnType<typeof setTimeout> | null = null;
     let graceOver = false;
-    let entry: Animated.CompositeAnimation | null = null;
+    let wordmarkShown = false;
+    // Signed out: the wordmark has finished rising (the fly measures it at rest).
+    let wordmarkReady = false;
+    let wordmarkAnim: Animated.CompositeAnimation | null = null;
 
     // `anim` IS the exit's last leg. Its end callback dismisses on EVERY end,
     // interrupted or not. Gating this on `finished` was the deep-link
@@ -256,253 +277,317 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
     // forever at whatever opacity it had reached. The splash is never
     // load-bearing — revealing the app early is always correct, leaving it
     // covered never is.
-    const endWith = (anim: Animated.CompositeAnimation, haptic: boolean) => {
+    const endWith = (anim: Animated.CompositeAnimation) => {
       running.push(anim);
       anim.start(({ finished }) => {
-        if (haptic && finished && Platform.OS !== 'web') {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        // An interrupted leg leaves the overlay part-way: clear it before the hand-back.
+        if (!finished) overlayOpacity.setValue(0);
         finish();
       });
     };
+    const run = (anim: Animated.CompositeAnimation) => {
+      running.push(anim);
+      anim.start();
+    };
 
-    const fadeInk = () => Animated.sequence([
-      Animated.delay(INK_DELAY_MS),
-      Animated.timing(inkOpacity, {
-        toValue: 0, duration: INK_FADE_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
-      }),
-    ]);
+    // ── Coming alive (only while the app is not ready) ───────────────────────
+    const startAmp = () => {
+      if (ampStarted || aliveCancelled || exitStarted || doneRef.current || reduceRef.current !== false) return;
+      ampStarted = true;
+      const wait = Math.max(0, ALIVE_MS - elapsed());
+      const total = wait + SPLASH.ampDriftMs;
+      run(Animated.timing(amp, {
+        toValue: 1,
+        duration: total,
+        easing: wait > 0 ? plateau(wait / total, easeInOutSine) : easeInOutSine,
+        useNativeDriver: nativeDriver,
+        isInteraction: false,
+      }));
+      // The stage flag flips when the drift actually leaves centre (a flag, not motion).
+      const markAlive = () => {
+        if (aliveCancelled || exitStarted || doneRef.current) return;
+        alive = true;
+        setSplashStage({ alive: true });
+      };
+      if (wait > 0) timers.push(setTimeout(markAlive, wait));
+      else markAlive();
 
-    // The hand-off, once the source wordmark is measured (or not).
+      if (hueShiftRef.current) {
+        const hueTotal = wait + SPLASH.hueMs;
+        run(Animated.timing(hueMix, {
+          toValue: 1,
+          duration: hueTotal,
+          easing: wait > 0 ? plateau(wait / hueTotal, STANDARD) : STANDARD,
+          useNativeDriver: nativeDriver,
+          isInteraction: false,
+        }));
+        const markHue = () => { if (!aliveCancelled && !exitStarted && !doneRef.current) setSplashStage({ hue: true }); };
+        if (wait > 0) timers.push(setTimeout(markHue, wait));
+        else markHue();
+      }
+    };
+    controllerRef.current = { startAmp };
+
+    // Ready before ALIVE: stop the (still-plateaued, still 0) amp and hue timings
+    // at once, even while the exit waits out its grace — one still image.
+    const cancelAlive = () => {
+      if (alive || aliveCancelled) return;
+      aliveCancelled = true;
+      amp.stopAnimation();
+      hueMix.stopAnimation();
+    };
+
+    // ── The wordmark ─────────────────────────────────────────────────────────
+    const showWordmark = () => {
+      if (wordmarkShown || exitStarted || doneRef.current) return;
+      wordmarkShown = true;
+      setWordmarkOn(true);
+      setSplashStage({ wordmark: true });
+      const reduce = reduceRef.current === true;
+      if (reduce) wordmarkY.setValue(0);
+      const legs = [
+        Animated.timing(wordmarkOpacity, {
+          toValue: 1, duration: SPLASH.wordmarkMs, easing: DECELERATE, useNativeDriver: nativeDriver,
+        }),
+      ];
+      if (!reduce) {
+        legs.push(Animated.timing(wordmarkY, {
+          toValue: 0, duration: SPLASH.wordmarkMs, easing: DECELERATE, useNativeDriver: nativeDriver,
+        }));
+      }
+      wordmarkAnim = Animated.parallel(legs);
+      run(wordmarkAnim);
+      // At rest by then (a timer, not the callback, so a lost callback cannot hold the exit).
+      timers.push(setTimeout(() => { wordmarkReady = true; tryExit(); }, SPLASH.wordmarkMs));
+    };
+    let wordmarkPending = false;
+    const checkWordmark = () => {
+      if (wordmarkShown || wordmarkPending || exitStarted || doneRef.current) return;
+      if (getLaunchTarget()) {
+        // Signed out: at max(160 ms, the moment the target registered).
+        const wait = SIGNED_OUT_WORDMARK_MS - elapsed();
+        if (wait <= 0) { showWordmark(); return; }
+        wordmarkPending = true;
+        timers.push(setTimeout(() => { wordmarkPending = false; checkWordmark(); }, wait));
+      }
+    };
+    // Signed in: at +500 ms, only if the app is still not ready.
+    timers.push(setTimeout(() => {
+      if (!getBootReady() && !getLaunchTarget()) showWordmark();
+      else checkWordmark();
+    }, SPLASH.wordmarkAtMs));
+
+    // ── The exits ────────────────────────────────────────────────────────────
+    const fastExit = () => {
+      setLaunchPhase('landed');
+      endWith(Animated.timing(overlayOpacity, {
+        toValue: 0, duration: EXIT.fastInkMs, easing: DECELERATE, useNativeDriver: nativeDriver,
+      }));
+    };
+
+    const settleExit = () => {
+      const retractTotal = EXIT.retractAtMs + EXIT.retractSpanMs; // 480
+      const inkTotal = EXIT.inkAtMs + EXIT.inkMs; // 480
+      // All in ONE JS tick. The settle — "level" — is the only launch moment.
+      amp.stopAnimation(() => {
+        run(Animated.timing(amp, {
+          toValue: 0, duration: EXIT.ampMs, easing: easeOutCubic, useNativeDriver: nativeDriver,
+        }));
+      });
+      run(Animated.timing(retract, {
+        toValue: 1, duration: retractTotal, easing: plateau(EXIT.retractAtMs / retractTotal, linear), useNativeDriver: nativeDriver,
+      }));
+      if (wordmarkShown) {
+        wordmarkAnim?.stop();
+        run(Animated.timing(wordmarkOpacity, {
+          toValue: 0, duration: inkTotal, easing: plateau(EXIT.inkAtMs / inkTotal, STANDARD), useNativeDriver: nativeDriver,
+        }));
+      }
+      // Home's entrance arms on 'landed' (a flag, not motion).
+      timers.push(setTimeout(() => { if (!doneRef.current) setLaunchPhase('landed'); }, EXIT.inkAtMs));
+      endWith(Animated.timing(inkOpacity, {
+        toValue: 0, duration: inkTotal, easing: plateau(EXIT.inkAtMs / inkTotal, STANDARD), useNativeDriver: nativeDriver,
+      }));
+    };
+
+    const flyExit = (src: LaunchRect, target: LaunchRect) => {
+      const k = Math.min(1, Math.max(0.15, target.width / src.width));
+      flyDx.setValue((target.x + target.width / 2) - (src.x + src.width / 2));
+      flyDy.setValue((target.y + target.height / 2) - (src.y + src.height / 2));
+      flyDk.setValue(k - 1);
+      // The level folds while the wordmark flies: settle + retract, no plateau.
+      amp.stopAnimation(() => {
+        run(Animated.timing(amp, {
+          toValue: 0, duration: EXIT.ampMs, easing: easeOutCubic, useNativeDriver: nativeDriver,
+        }));
+      });
+      run(Animated.timing(retract, {
+        toValue: 1, duration: EXIT.retractSpanMs, easing: linear, useNativeDriver: nativeDriver,
+      }));
+      const inkTotal = FLY_INK_AT_MS + FLY_INK_MS;
+      run(Animated.timing(inkOpacity, {
+        toValue: 0, duration: inkTotal, easing: plateau(FLY_INK_AT_MS / inkTotal, easeOutCubic), useNativeDriver: nativeDriver,
+      }));
+
+      let landed = false;
+      const land = () => {
+        if (landed || doneRef.current) return;
+        landed = true;
+        // The screen's own wordmark shows beneath; this one cross-fades out.
+        setLaunchPhase('landed');
+        const anim = Animated.timing(flyOpacity, {
+          toValue: 0, duration: FLY_FADE_MS, easing: easeOutCubic, useNativeDriver: nativeDriver,
+        });
+        endWith(anim);
+      };
+      const flight = Animated.spring(fly, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver });
+      running.push(flight);
+      flight.start(() => land());
+      timers.push(setTimeout(land, FLY_CAP_MS));
+    };
+
     const runExit = (src: LaunchRect | null) => {
       if (doneRef.current) return;
       setLaunchPhase('lifting');
       // The exit is bounded too: whatever its legs report, it ends by EXIT_MS.
       timers.push(setTimeout(finish, EXIT_MS + 50));
       const target = getLaunchTarget();
-
-      if (target && src && src.width > 0 && src.height > 0) {
-        const k = Math.min(1, Math.max(0.15, target.width / src.width));
-        flyDx.setValue((target.x + target.width / 2) - (src.x + src.width / 2));
-        flyDy.setValue((target.y + target.height / 2) - (src.y + src.height / 2));
-        flyDk.setValue(k - 1);
-
-        const lift = Animated.parallel([
-          Animated.timing(eyebrowOut, {
-            toValue: 0, duration: FOLD_MS, easing: Easing.in(Easing.cubic), useNativeDriver: nativeDriver,
-          }),
-          Animated.timing(levelOut, {
-            toValue: 0, duration: FOLD_MS, easing: Easing.in(Easing.cubic), useNativeDriver: nativeDriver,
-          }),
-          // The track folds to its centre notch.
-          Animated.timing(trackScaleX, {
-            toValue: 0, duration: TRACK_RETRACT_MS, easing: Easing.in(Easing.cubic), useNativeDriver: nativeDriver,
-          }),
-          fadeInk(),
-        ]);
-        running.push(lift);
-        lift.start();
-
-        let landed = false;
-        const land = () => {
-          if (landed || doneRef.current) return;
-          landed = true;
-          // The screen's own wordmark shows beneath; this one cross-fades out.
-          setLaunchPhase('landed');
-          const anim = Animated.timing(flyOpacity, {
-            toValue: 0, duration: FLY_FADE_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
-          });
-          endWith(anim, true);
-        };
-        const flight = Animated.spring(fly, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver });
-        running.push(flight);
-        flight.start(() => land());
-        timers.push(setTimeout(land, FLY_CAP_MS));
+      if (target && src && src.width > 0 && src.height > 0) { flyExit(src, target); return; }
+      // Ready before ALIVE (or the bubble never started): it never moved.
+      if (!alive) {
+        cancelAlive();
+        fastExit();
         return;
       }
-
-      // No target (Home, persona-select, onboarding, …): rise and fade.
-      setLaunchPhase('landed');
-      const anim = Animated.parallel([
-        Animated.timing(labelTranslate, {
-          toValue: -10, duration: RISE_OUT_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
-        }),
-        Animated.timing(labelOpacity, {
-          toValue: 0, duration: RISE_OUT_MS, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
-        }),
-        fadeInk(),
-      ]);
-      endWith(anim, true);
+      settleExit();
     };
 
     const startExit = () => {
       if (exitStarted || doneRef.current) return;
       exitStarted = true;
-      entry?.stop();
 
-      if (reduceMotion) {
-        // Reduced: never 'lifting', so no screen entrance arms.
-        const anim = Animated.timing(overlayOpacity, {
-          toValue: 0, duration: REDUCED_FADE_MS, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver,
-        });
-        endWith(anim, false);
+      if (reduceRef.current === true) {
+        // Reduced: nothing moves, never 'lifting', so no screen entrance arms.
+        timers.push(setTimeout(finish, EXIT_MS + 50));
+        endWith(Animated.timing(overlayOpacity, {
+          toValue: 0, duration: EXIT.rmInkMs, easing: DECELERATE, useNativeDriver: nativeDriver,
+        }));
         return;
       }
 
-      // Measure the wordmark where it sits NOW (after the entry's rise).
+      // Measure the wordmark where it sits NOW.
       let proceeded = false;
       const go = (src: LaunchRect | null) => {
         if (proceeded) return;
         proceeded = true;
         runExit(src);
       };
-      const node = wordmarkRef.current as unknown as Measurable | null;
-      if (node?.measureInWindow) {
-        node.measureInWindow((x, y, width, height) => {
-          go(width > 0 && height > 0 ? { x, y, width, height } : srcRectRef.current);
+      const node = (wordmarkShown ? wordmarkRef.current : null) as unknown as Measurable | null;
+      if (getLaunchTarget() && node?.measureInWindow) {
+        node.measureInWindow((x, y, w, h) => {
+          go(w > 0 && h > 0 ? { x, y, width: w, height: h } : srcRectRef.current);
         });
         timers.push(setTimeout(() => go(srcRectRef.current), 60));
       } else {
-        go(srcRectRef.current);
+        go(wordmarkShown ? srcRectRef.current : null);
       }
     };
 
-    const tryExit = () => {
-      if (exitStarted || doneRef.current || !entryDone || !getBootReady()) return;
-      if (!getLaunchTarget() && !graceOver) return;
-      startExit();
-    };
-
-    const onLaunchChange = () => {
-      if (getBootReady() && graceTimer == null && !graceOver) {
+    // THE HOLD — until the app is ready (+ the grace for a first screen to
+    // register its wordmark). Called on every launch notify AND by the backstop.
+    function tryExit() {
+      if (exitStarted || doneRef.current || !getBootReady()) return;
+      cancelAlive();
+      if (graceTimer == null && !graceOver) {
         graceTimer = setTimeout(() => { graceOver = true; tryExit(); }, TARGET_GRACE_MS);
         timers.push(graceTimer);
       }
+      const target = getLaunchTarget();
+      if (!target && !graceOver) return;
+      // Signed out: wait for the wordmark to be up so the fly has a source.
+      if (target && reduceRef.current !== true && !wordmarkReady) { checkWordmark(); return; }
+      startExit();
+    }
+
+    const onLaunchChange = () => {
+      checkWordmark();
       tryExit();
     };
     const unsubscribe = subscribeLaunch(onLaunchChange);
-
-    // The exit starts by EXIT_BY_MS after mount, whatever is still loading.
-    timers.push(setTimeout(() => {
-      entryDone = true;
-      graceOver = true;
-      startExit();
-    }, Math.max(0, EXIT_BY_MS - (Date.now() - mountedAtRef.current))));
-
-    if (reduceMotion) {
-      // Reduced motion: paint the settled state, hold, then the same ready rule.
-      labelOpacity.setValue(1);
-      labelTranslate.setValue(0);
-      trackScaleX.setValue(1);
-      bubbleX.setValue(0);
-      timers.push(setTimeout(() => { entryDone = true; tryExit(); }, REDUCED_HOLD_MS));
-      onLaunchChange();
-      return () => {
-        unsubscribe();
-        timers.forEach(clearTimeout);
-        running.forEach((a) => a.stop());
-      };
-    }
-
-    if (Platform.OS !== 'web') {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    // Spring physics only on native; web keeps its timing for the bubble.
-    const springy = Platform.OS !== 'web';
-
-    entry = Animated.parallel([
-      // Eyebrow + wordmark settle up.
-      Animated.sequence([
-        Animated.delay(T_LABEL),
-        Animated.parallel([
-          Animated.timing(labelOpacity, {
-            toValue: 1, duration: 260, easing: Easing.out(Easing.ease), useNativeDriver: nativeDriver,
-          }),
-          Animated.timing(labelTranslate, {
-            toValue: 0, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
-          }),
-        ]),
-      ]),
-
-      // The level track draws in.
-      Animated.sequence([
-        Animated.delay(T_TRACK),
-        Animated.timing(trackScaleX, {
-          toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
-        }),
-      ]),
-
-      // The bubble slides from off-centre and settles DEAD CENTRE.
-      Animated.sequence([
-        Animated.delay(T_BUBBLE),
-        springy
-          ? Animated.spring(bubbleX, { toValue: 0, ...BUBBLE_SPRING, useNativeDriver: nativeDriver })
-          : Animated.timing(bubbleX, {
-              toValue: 0, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver,
-            }),
-      ]),
-    ]);
-    // The entry ending (finished or not) never dismisses: it only lets the
-    // exit start once the app is ready.
-    entry.start(() => { entryDone = true; tryExit(); });
+    const backstop = setInterval(tryExit, READY_BACKSTOP_MS);
+    // The probe may already have answered "motion allowed" before `live`.
+    startAmp();
     onLaunchChange();
 
     return () => {
+      controllerRef.current = null;
       unsubscribe();
+      clearInterval(backstop);
       timers.forEach(clearTimeout);
-      entry?.stop();
       running.forEach((a) => a.stop());
     };
   }, [
-    reduceMotion, overlayOpacity, inkOpacity, labelOpacity, labelTranslate, trackScaleX, bubbleX,
-    eyebrowOut, levelOut, flyOpacity, fly, flyDx, flyDy, flyDk, finish,
+    isLive, finish, overlayOpacity, inkOpacity, amp, retract, hueMix, wordmarkOpacity, wordmarkY,
+    flyOpacity, fly, flyDx, flyDy, flyDk,
   ]);
+
+  // The probe answered "motion allowed": the bubble may come alive.
+  useEffect(() => {
+    if (reduceMotion === false) controllerRef.current?.startAmp();
+  }, [reduceMotion, isLive]);
+
+  const onRootLayout = useCallback(() => {
+    if (firstFrameRef.current) return;
+    firstFrameRef.current = true;
+    // One frame after the first layout: the replica is on screen.
+    requestAnimationFrame(() => onFirstFrameRef.current?.());
+  }, []);
 
   const onWordmarkLayout = useCallback(() => {
     const node = wordmarkRef.current as unknown as Measurable | null;
-    node?.measureInWindow?.((x, y, width, height) => {
-      if (width > 0 && height > 0) srcRectRef.current = { x, y, width, height };
+    node?.measureInWindow?.((x, y, w, h) => {
+      if (w > 0 && h > 0) srcRectRef.current = { x, y, width: w, height: h };
     });
   }, []);
 
-  // Don't paint until we know the motion preference (one frame) so we never
-  // start the motion path and then swap to the reduced path mid-animation.
-  if (reduceMotion === null) {
-    return <View style={[styles.overlay, styles.ink]} pointerEvents="none" />;
-  }
+  const box = splashWordmarkBox(rect);
 
   return (
     <Animated.View
       style={[styles.overlay, { opacity: overlayOpacity }]}
       pointerEvents="none"
       testID="brand-splash"
+      onLayout={onRootLayout}
     >
       {/* The ink field, on its own layer so it can dissolve under the fly. */}
       <Animated.View style={[StyleSheet.absoluteFill, styles.ink, { opacity: inkOpacity }]} />
-      <Animated.View
-        style={[styles.center, { opacity: labelOpacity, transform: [{ translateY: labelTranslate }] }]}
+      <View
+        testID="brand-splash-mark"
+        style={{ position: 'absolute', left: rect.markLeft, top: rect.markTop, width: rect.markW, height: rect.markH }}
       >
-        <Animated.View style={{ opacity: eyebrowOut }}>
-          <Text style={styles.eyebrow}>
-            <Text style={styles.eyebrowDot}>●</Text>  THE OPERATING SYSTEM FOR BUILDERS
-          </Text>
+        <LevelMark
+          tone="splash"
+          size={rect.markW}
+          revealDelayMs={0}
+          exit="none"
+          animate={reduceMotion !== true}
+          amp={amp}
+          retract={retract}
+          hueColor={hueShift ? liveHue : undefined}
+          hueMix={hueShift ? hueMix : undefined}
+        />
+      </View>
+      {wordmarkOn && (
+        <Animated.View
+          testID="brand-splash-wordmark"
+          style={[styles.wordmarkBox, box, { opacity: wordmarkOpacity, transform: [{ translateY: wordmarkY }] }]}
+        >
+          {/* The fly wrapper's box IS the Text's box, so the fly's scale pivots on the wordmark's own centre. */}
+          <Animated.View style={{ opacity: flyOpacity, transform: flyTransform }}>
+            <Text ref={wordmarkRef} onLayout={onWordmarkLayout} style={styles.wordmark} numberOfLines={1}>MAGE&nbsp;ID</Text>
+          </Animated.View>
         </Animated.View>
-        <Animated.View style={[styles.wordmarkWrap, { opacity: flyOpacity, transform: flyTransform }]}>
-          <Text ref={wordmarkRef} onLayout={onWordmarkLayout} style={styles.wordmark} numberOfLines={1}>MAGE&nbsp;ID</Text>
-        </Animated.View>
-
-        {/* The spirit level — bubble settles dead centre. */}
-        <Animated.View style={{ opacity: levelOut }}>
-          <View style={styles.levelWrap}>
-            <Animated.View style={[styles.levelTrack, { transform: [{ scaleX: trackScaleX }] }]} />
-            <View style={[styles.levelNotch, styles.notchLeft]} />
-            <View style={[styles.levelNotch, styles.notchRight]} />
-            <View style={styles.levelNotchCenter} />
-            <Animated.View style={[styles.bubble, { transform: [{ translateX: bubbleX }] }]} />
-          </View>
-        </Animated.View>
-      </Animated.View>
+      )}
     </Animated.View>
   );
 }
@@ -510,77 +595,23 @@ export default function BrandSplash({ onDone }: BrandSplashProps) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
     zIndex: 9999,
   },
   ink: {
-    backgroundColor: INK,
+    backgroundColor: NATIVE_SPLASH_BG,
   },
-  center: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  eyebrow: {
-    ...Type.monoEyebrow,
-    color: FOG,
-    textAlign: 'center',
-    marginBottom: 18,
-  },
-  eyebrowDot: {
-    color: AMBER,
-  },
-  // The wordmark's spacing lives on its fly wrapper, so the wrapper's box IS
-  // the Text's box and the fly's scale pivots on the wordmark's own centre.
-  wordmarkWrap: {
-    marginBottom: 28,
-  },
-  wordmark: {
-    // Fraunces 700 Bold — the app's display face (loaded in _layout.tsx).
-    // Falls back to the platform serif if the font network-blips on first
-    // launch; the wordmark still reads.
-    fontFamily: 'Fraunces_700Bold',
-    fontSize: 44,
-    lineHeight: 50,
-    letterSpacing: 2,
-    color: CREAM,
-    textAlign: 'center',
-  },
-  levelWrap: {
-    width: LEVEL_TRACK_W,
-    height: 18,
+  wordmarkBox: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  levelTrack: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 3,
-    borderRadius: Tokens.radius.full,
-    backgroundColor: AMBER_SOFT,
-  },
-  levelNotch: {
-    position: 'absolute',
-    width: 3,
-    height: 12,
-    borderRadius: Tokens.radius.full,
-    backgroundColor: NOTCH,
-  },
-  notchLeft: { left: 0 },
-  notchRight: { right: 0 },
-  levelNotchCenter: {
-    position: 'absolute',
-    width: 2,
-    height: 8,
-    borderRadius: Tokens.radius.full,
-    backgroundColor: LINE,
-  },
-  bubble: {
-    position: 'absolute',
-    width: BUBBLE_W,
-    height: 11,
-    borderRadius: Tokens.radius.full,
-    backgroundColor: AMBER,
+  wordmark: {
+    // The app's display face (Fraunces 700 on the orange brand; it follows the
+    // rebrand through Type). Falls back to the platform serif if the font
+    // network-blips on first launch; the wordmark still reads.
+    ...Type.serifTitle, // 28 / 32 in the display face
+    letterSpacing: 3.4,
+    color: NATIVE_SPLASH_FG,
+    textAlign: 'center',
   },
 });

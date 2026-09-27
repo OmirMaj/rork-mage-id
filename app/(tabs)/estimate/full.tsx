@@ -64,7 +64,8 @@ import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
 import { formatMoney, formatNumber, parseLenientNumber, displayText } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
+import { nativeDriver } from '@/components/ui/motion';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useCostSeeds } from '@/hooks/useCostSeeds';
@@ -479,8 +480,8 @@ export default function EstimateScreen() {
       source: 'ai',
     }).then(() => getRecentMaterials().then(setRecentMaterials)).catch(() => {});
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [cartAnim, ctxAddToCart]);
 
@@ -580,8 +581,8 @@ export default function EstimateScreen() {
     setCustomPrice('');
     setCustomNotes('');
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [customName, customPrice, customUnit, customCategory, customNotes, cartAnim, ctxAddToCart]);
 
@@ -892,8 +893,8 @@ export default function EstimateScreen() {
       return Array.from(map.values());
     });
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.4, useNativeDriver: true, speed: 30, bounciness: 12 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
   }, [cartAnim, ctxAddManyToCart]);
 
@@ -1008,8 +1009,8 @@ export default function EstimateScreen() {
       ctxAddToCart(selectedMaterial, qty);
     }
     Animated.sequence([
-      Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
-      Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
+      Animated.spring(cartAnim, { toValue: 1.1, ...Motion.spring.snap, useNativeDriver: nativeDriver }),
+      Animated.spring(cartAnim, { toValue: 1, ...Motion.spring.rise, useNativeDriver: nativeDriver }),
     ]).start();
     addRecentMaterial({
       id: selectedMaterial.id,

@@ -68,7 +68,7 @@ import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction, type RowMenuAnchor } from '@/components/schedule/ScheduleRowMenu';
 import { orthogonalArrowPath, CLEARANCE } from '@/utils/ganttArrowPath';
 import { useIsDesktopWeb } from '@/components/ui/desktop';
-import { cardSurface } from '@/components/ui';
+import { cardSurface, nativeDriver } from '@/components/ui';
 import { FIT_TAIL_DAYS, GANTT_FOOTER_STRIP_H, GANTT_SYNC_TAIL, fitPxPerDay } from '@/utils/scheduleProLayout';
 import { finishDeltaLabel, type SchedulePreviewOverlay } from '@/utils/schedulePreviewOverlay';
 
@@ -78,7 +78,7 @@ function colorForTask(task: ScheduleTask): string {
   return canonicalColorForTask(task);
 }
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Motion, Tokens } from '@/constants/designTokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -397,9 +397,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   useEffect(() => {
     Animated.spring(segmentAnim, {
       toValue: zoom === 'day' ? 0 : zoom === 'week' ? 1 : 2,
-      useNativeDriver: true,
-      speed: 22,
-      bounciness: 8,
+      ...Motion.spring.glideLead,
+      useNativeDriver: nativeDriver,
     }).start();
   }, [zoom, segmentAnim]);
 

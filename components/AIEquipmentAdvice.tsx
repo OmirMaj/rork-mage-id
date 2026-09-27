@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Platform,
 } from 'react-native';
+import { Spinner } from '@/components/ui/Spinner';
 import * as Haptics from 'expo-haptics';
 import { RefreshCw, TrendingUp, ArrowRight, Tag, ClipboardList } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -178,7 +179,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
     return (
       <TouchableOpacity style={styles.triggerBtn} onPress={handleAnalyze} activeOpacity={0.7} disabled={isLoading}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={"#FF6A1A"} />
+          <Spinner tone="accent" />
         ) : (
           <MageAIMark size={16} color={"#FF6A1A"} />
         )}

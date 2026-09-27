@@ -157,7 +157,27 @@ export const Motion = {
     swap: 160,
     /** LayoutAnimation commit (layoutNext): a list row added / removed. */
     layout: 240,
+    /** A press registering (scale down on touch). */
+    tap: 100,
+    /** A plain opacity fade (in or out). */
+    fade: 160,
+    /** Something arriving: a card, a row, a toast. */
+    enter: 220,
+    /** Something leaving — shorter than its entry, eased in. */
+    exit: 160,
+    /** An indicator gliding between positions. */
+    glide: 320,
+    /** A number counting to its value. */
+    count: 420,
+    /** How long a confirmation stays before it leaves. */
+    hold: 900,
+    /** How long a toast stays on screen. */
+    toastHold: 1600,
+    /** The phone tab switch (app/(tabs)/_layout.tsx tabFadeThrough). */
+    tab: 200,
   },
+  /** The gap between two staggered entries (a list laying itself down). */
+  stagger: 35,
   /** Bezier curves — only ease-out for entries, ease-in for exits. */
   easing: {
     standard: [0.4, 0.0, 0.2, 1] as const,    // ease-in-out
@@ -183,6 +203,9 @@ export const Motion = {
     glideLead: { damping: 44, stiffness: 520, mass: 1 },
     /** A gliding indicator's trailing edge — a beat behind. ζ≈0.97. */
     glideTrail: { damping: 30, stiffness: 240, mass: 1 },
+    /** A phone sheet travelling its own height into place. ζ = 36 / (2·√320)
+     *  ≈ 1.006: critically damped, so a long travel settles with no overshoot. */
+    sheet: { damping: 36, stiffness: 320, mass: 1 },
   },
   /** Web CSS timing functions (react-native-web passthrough). */
   css: {

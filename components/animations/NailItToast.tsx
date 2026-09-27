@@ -26,7 +26,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/utils/haptics';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { nativeDriver, reducedMotion } from '@/components/ui/motion';
@@ -148,11 +148,11 @@ export function NailItToastHost() {
     idRef.current = event.id;
     setActive(event);
 
+    // Through utils/haptics: a Button's done morph that just buzzed Success
+    // is de-duped against this one (one buzz per Send, not two).
     if (Platform.OS !== 'web') {
-      const kind = event.kind === 'error'
-        ? Haptics.NotificationFeedbackType.Error
-        : Haptics.NotificationFeedbackType.Success;
-      Haptics.notificationAsync(kind).catch(() => {});
+      if (event.kind === 'error') haptic.error();
+      else haptic.success();
     }
 
     if (holdTimer.current) clearTimeout(holdTimer.current);

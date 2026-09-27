@@ -25,8 +25,8 @@ export type LaunchPhase = 'open' | 'covered' | 'lifting' | 'landed';
 
 export interface LaunchRect { x: number; y: number; width: number; height: number }
 
-/** Longer than BrandSplash's SPLASH_MAX_LIFETIME_MS (3000). */
-export const LAUNCH_STALE_MS = 3500;
+/** Longer than BrandSplash's SPLASH_MAX_LIFETIME_MS (8000). */
+export const LAUNCH_STALE_MS = 8500;
 
 let phase: LaunchPhase = 'open';
 let coveredAt = 0;

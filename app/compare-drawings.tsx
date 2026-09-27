@@ -37,7 +37,7 @@ import { onlineManager } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBrainFabScroll, BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import CraneLoader from '@/components/CraneLoader';
+import WorkProgress from '@/components/loaders/WorkProgress';
 import { CONSTRUCTION_FACTS } from '@/utils/constructionFacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -614,14 +614,14 @@ export default function CompareDrawingsScreen() {
     );
   }
 
-  // Full-screen crane + rotating facts during the 30-60s AI compare (was a tiny
-  // centered spinner on an otherwise empty screen).
+  // The 30-60s AI compare: the real phase, the elapsed time and the typical
+  // range; facts stay as a quiet footer.
   if (step === 'analyzing') {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE ID" title={project.name} />
-        <CraneLoader label="Comparing sheets" facts={CONSTRUCTION_FACTS} />
+        <WorkProgress title="Comparing sheets" typical="usually 30–60 s" facts={CONSTRUCTION_FACTS} />
       </View>
     );
   }

@@ -96,11 +96,11 @@ describe('The Level', () => {
       b.unmount();
     });
 
-    it('web (Platform.OS flipped at runtime): 288 → the SVG crane, no level; 28 → the level, no crane', () => {
+    it('web (Platform.OS flipped at runtime): 288 → the composited crane (no svg), no level; 28 → the level, no crane', () => {
       asWeb();
       const a = render(<CraneSvg size={288} />);
       expect(a.getByTestId('crane-mark-web', H)).toBeTruthy();
-      expect(a.UNSAFE_queryAllByType(Svg).length).toBeGreaterThan(0);
+      expect(a.UNSAFE_queryAllByType(Svg)).toHaveLength(0);
       expect(a.queryByTestId('level-mark', H)).toBeNull();
       a.unmount();
       const b = render(<CraneSvg size={28} />);

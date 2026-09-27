@@ -38,8 +38,11 @@ import { MOTION_CSS, WEB_DOCUMENT_CSS } from '../components/desktop/webDocument'
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-/** Measured 2026-09-25 after lane 1 (comment-stripped source). NEVER RAISE. */
-const BASELINE = 20;
+/** Measured 2026-09-25 after lane 1 (comment-stripped source): 20. Lowered
+ *  2026-09-26 by the level motion lane to 2 — the estimate cart pops, the chat
+ *  springs, the Gantt zoom pill, ProjectHero's bubble, VoiceFieldButton,
+ *  HardHatTap and ProjectCard moved onto Motion.spring presets. NEVER RAISE. */
+const BASELINE = 2;
 
 let failures = 0;
 function ok(name: string, condition: boolean, detail?: string) {
@@ -146,8 +149,8 @@ const presets = [...springBody.matchAll(/(\w+):\s*\{([^}]*)\}/g)].map((m) => {
   const num = (k: string) => Number((m[2].match(new RegExp(`\\b${k}:\\s*([\\d.]+)`)) ?? [])[1]);
   return { name: m[1], damping: num('damping'), stiffness: num('stiffness'), mass: num('mass'), raw: m[2] };
 });
-ok('Motion.spring parses (snap, settled, heavy, rise, glideLead, glideTrail present)',
-  ['snap', 'settled', 'heavy', 'rise', 'glideLead', 'glideTrail'].every((n) => presets.some((p) => p.name === n)),
+ok('Motion.spring parses (snap, settled, heavy, rise, glideLead, glideTrail, sheet present)',
+  ['snap', 'settled', 'heavy', 'rise', 'glideLead', 'glideTrail', 'sheet'].every((n) => presets.some((p) => p.name === n)),
   `found: ${presets.map((p) => p.name).join(', ') || '(none)'}`);
 for (const p of presets) {
   const zeta = p.damping / (2 * Math.sqrt(p.stiffness * p.mass));
