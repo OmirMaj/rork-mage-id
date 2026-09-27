@@ -2,8 +2,8 @@
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order (a record) 1`] = `
 {
-  "lines": 1374,
-  "sha256": "672288a2116131ccf84f6cacf2e5b9d6d24e8360fdb0315adb141acf3b1ae5cc",
+  "lines": 1376,
+  "sha256": "f82db8aab312dc95a815612a0c1ebba0f63175e23d0a0e69e2c22149f4a763ee",
 }
 `;
 
@@ -16,8 +16,8 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) change-order
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (a record) 1`] = `
 {
-  "lines": 991,
-  "sha256": "49c51e6bf94f78704bcc5cc8503a4fbd7e8c0bd5a1255cad91c501d26854c733",
+  "lines": 993,
+  "sha256": "9a0ce1d6daa023cad11b6eef885861c13fde08627573bad57ead589fca5268ce",
 }
 `;
 
@@ -37,8 +37,8 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) invoice (the
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (a record) 1`] = `
 {
-  "lines": 791,
-  "sha256": "c8beeeda30f400ac6d2d3e9ea4509c42bf3a0348e89389d13dd50354466f5948",
+  "lines": 793,
+  "sha256": "beb9916efd6b68b816d0dfa90c41ec7f33866daad1c49dd24e932cf433d2c958",
 }
 `;
 
@@ -51,8 +51,8 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) rfi (project
 
 exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (a record) 1`] = `
 {
-  "lines": 793,
-  "sha256": "1edc9ea6b8d7dc42e21597be3fe614888cf1bae5aab3934f4a7be02d72032393",
+  "lines": 795,
+  "sha256": "db87fcc01c74627b2ed54cdd32b221a65e8ac20a83266c5e3a5e80a048b0ebbe",
 }
 `;
 
@@ -65,28 +65,28 @@ exports[`lane G — the phone is unchanged (golden, 390 × 844 iOS) submittal (p
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved credit: the bill bar says why) 1`] = `
 {
-  "lines": 973,
-  "sha256": "cf2fcae109dc81eb2930e7bd0fd4987aea336f9cf15c3afbbc47eda33882ba30",
+  "lines": 975,
+  "sha256": "083f8e5ba7d0c427c63cc9a1820c226469ad9c3588cee2c9e74760d349212c4a",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (approved, billable: the bill bar) 1`] = `
 {
-  "lines": 974,
-  "sha256": "76265c484e447d6fc6a9dd9f21a208ff00c69129fa89f91b02ea4193c5eedb6b",
+  "lines": 976,
+  "sha256": "174165a1d2df525f67c6afbcc2380301b552b14f37ce821fe82025d0b767ed04",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) change-order (rejected: locked, no bar) 1`] = `
 {
-  "lines": 979,
-  "sha256": "3b7c74c8851e56e30ecdea11920d4ed82383c7f093e989a79c0e7138c9aac71d",
+  "lines": 981,
+  "sha256": "ff2bd487886aa5b2e963616e54293a16fac89527032c83bf975f6adb94f1c75c",
 }
 `;
 
 exports[`lane G — the phone is unchanged, bar branches (golden, 390 × 844 iOS) invoice (sent: reminder and pay link) 1`] = `
 {
-  "lines": 968,
-  "sha256": "55c04660201f3fd82b624aaa6bde637e00ec7cd4353bf2db96530db9f90a5030",
+  "lines": 970,
+  "sha256": "ec76c945dc1aeea14c977302e7c1ec379d366f088cfe7f6c6160f926ebc10a8b",
 }
 `;
