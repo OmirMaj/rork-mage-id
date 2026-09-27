@@ -141,8 +141,9 @@ export const PRINT_CSS = [
  *  - A brand focus ring for keyboard focus (:focus-visible only, so a mouse
  *    click draws none). The accent is a per-user hue at runtime, and a static
  *    document cannot follow it, so the ring is the BRAND family: accentFill on
- *    light (#FF6A1A itself is 2.87:1 there, under the 3:1 a focus indicator
- *    needs) and accent on dark, keyed on the same data-theme tag as the page
+ *    light (#2F6B3A since the 2026-09-16 rebrand; the raw accent of a picked
+ *    hue may miss the 3:1 a focus indicator needs, accentFill never does) and
+ *    accent on dark (#5DB36E), keyed on the same data-theme tag as the page
  *    ground above.
  */
 const FOCUS_LIGHT = deriveAccentPalette(BRAND_ACCENT, 'light').accentFill;

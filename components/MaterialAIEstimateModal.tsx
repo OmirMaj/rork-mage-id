@@ -608,7 +608,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accentFill,
   },
   applyBtnApplied: { backgroundColor: Colors.successLight },
   applyBtnText: {

@@ -502,7 +502,7 @@ function TodayView({
         <Text style={s.todayDate}>{dateFormatted}</Text>
         <View style={s.todayBadges}>
           <View style={s.healthMini}>
-            <View style={[s.healthMiniDot, { backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : '#FF3B30' }]} />
+            <View style={[s.healthMiniDot, { backgroundColor: healthScore >= 80 ? Colors.success : healthScore >= 60 ? '#FF9500' : '#FF3B30' }]} />
             <Text style={s.healthMiniText}>{healthScore}</Text>
           </View>
           <View style={s.daysLeftMini}>
@@ -841,7 +841,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   swipeBgText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: '#FFF' },
   flashOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#34C75920',
+    backgroundColor: Colors.success + '20',
     borderRadius: Tokens.radius.panel,
   },
 
@@ -875,7 +875,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#34C75912',
+    backgroundColor: Colors.success + '12',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
@@ -927,7 +927,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md,
     backgroundColor: t.neutralSoft,
   },
-  quickActionBtnComplete: { backgroundColor: '#34C75912' },
+  quickActionBtnComplete: { backgroundColor: Colors.success + '12' },
   quickActionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
 
   photoStrip: { flexDirection: 'row', gap: 6, marginTop: 2 },
@@ -968,7 +968,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: '#34C75918',
+    backgroundColor: Colors.success + '18',
   },
   overdueResolveBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.successLabel },
 
@@ -1000,11 +1000,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#34C75908',
+    backgroundColor: Colors.success + '08',
     borderRadius: Tokens.radius.card,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#34C75918',
+    borderColor: Colors.success + '18',
   },
   completedTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: t.text },
 });

@@ -2,10 +2,11 @@
 //
 // Renders the conversational interview by phase (spec §3.7 visual design):
 //   listening → VoiceCaptureModal (voice in) → thinking → asking (resolved
-//   chips + Fraunces question + mono grounding + tap-to-pick options + editable
-//   transcript) → review (confirm-back) → applying → done. Ink ground, cream
-//   text, MAGE-orange the single accent, amber the "your data" signal, Fraunces
-//   for the question only, JetBrains-Mono for every grounded citation. Built
+//   chips + display-face question + mono grounding + tap-to-pick options +
+//   editable transcript) → review (confirm-back) → applying → done. Ink ground,
+//   light text, MAGE green the single accent (it also rules the "your data"
+//   grounding lines), Barlow for the question only, JetBrains-Mono for every
+//   grounded citation. Built
 //   from Colors/Type/Tokens (no raw hex / inline fontSize / borderRadius).
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
@@ -502,8 +503,8 @@ function makeStyles(colors: ThemeColors) {
     thinkingText: { ...Type.footnote, color: colors.textMuted },
 
     ask: { gap: Tokens.spacing.sm },
-    // accentLabel (#C44A0F light / #FF6A1A dark) — correct on cream/ink;
-    // accentLight (#FFCC00) was ~1.4:1 on cream = illegible in light mode.
+    // accentLabel (#2C6436 light / #69B979 dark) — AA on concrete and the dark
+    // ground; accentLight (#FFCC00) is ~1.4:1 on a light ground = illegible.
     askEyebrow: { ...Type.monoEyebrow, color: colors.accentLabel },
     question: { ...Type.serifHeadline, color: colors.text },
     grounding: { ...Type.monoLabel, color: colors.textMuted, borderLeftWidth: 2, borderLeftColor: colors.accent, paddingLeft: Tokens.spacing.sm },

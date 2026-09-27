@@ -8,24 +8,29 @@
 <title>Reviewer Portal — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
-    --ink: #0B0D10; --ink-2: #1A1D22; --amber: #FF6A1A; --amber-dark: #E5570F;
-    --amber-tint: #FFF1E6; --cream: #F4EFE6; --cream-2: #FAF7F0;
-    --surface: #FFFFFF; --bone: #E8DFCD; --bone-2: #F1EAD9;
+    --ink: #0B0D10; --ink-2: #1A1D22; --brand: #2F6B3A; --brand-dark: #24542D;
+    --brand-tint: #E3ECE4; --ground: #ECEDE9; --ground-2: #F4F5F2;
+    /* #2F6B3A is only 3:1 on --ink, so anything green sitting on an ink panel
+       takes the dark-UI brand instead (6.93:1). */
+    --brand-on-dark: #5DB36E;
+    --surface: #FFFFFF; --bone: #D7DAD4; --bone-2: #E2E4DF;
     --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
-    --success: #1E8E4A; --success-tint: #E8F5ED;
+    /* Success is teal, not green: the old #1E8E4A sat too close to --brand
+       to tell an approved state from a primary action. */
+    --success: #12806E; --success-tint: #E3F2EF;
     --warning: #C26A00; --warning-tint: #FFF4E0;
     --error: #C0392B; --error-tint: #FBEAE7;
     --info: #1E5BC6; --info-tint: #E7EEFA;
     --shadow-sm: 0 1px 2px rgba(11,13,16,0.04), 0 1px 3px rgba(11,13,16,0.06);
     --shadow-md: 0 4px 12px rgba(11,13,16,0.06), 0 2px 4px rgba(11,13,16,0.04);
     --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
-    --shadow-amber: 0 8px 24px -6px rgba(255,106,26,0.4);
+    --shadow-brand: 0 8px 24px -6px rgba(47,107,58,0.4);
     --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
-    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-display: "Barlow", "Helvetica Neue", Arial, system-ui, sans-serif;
     --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
     --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   }
@@ -33,7 +38,7 @@
   html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
   body {
     font-family: var(--ff-sans);
-    background: var(--cream); color: var(--text);
+    background: var(--ground); color: var(--text);
     line-height: 1.55; font-size: 15px; min-height: 100vh;
   }
   .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
@@ -46,13 +51,13 @@
   }
   .logo {
     width: 40px; height: 40px; border-radius: 11px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-weight: 800; font-size: 22px;
   }
   .brand {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-weight: 700; font-size: 18px; color: var(--text);
   }
   .brand-sub {
@@ -67,7 +72,7 @@
   }
   .doc-eyebrow {
     display: inline-block; padding: 5px 11px; border-radius: 999px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
     text-transform: uppercase; margin-bottom: 14px;
   }
@@ -76,7 +81,7 @@
     letter-spacing: 0.5px; margin-bottom: 6px; text-transform: uppercase;
   }
   .doc-title {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 24px; font-weight: 700; line-height: 1.2;
     letter-spacing: -0.02em; color: var(--text); margin-bottom: 6px;
   }
@@ -108,7 +113,7 @@
   .priority-low    { background: #F2F4F7;            color: var(--text-muted); }
 
   .question-card {
-    background: var(--cream-2); border-left: 3px solid var(--amber);
+    background: var(--ground-2); border-left: 3px solid var(--brand);
     border-radius: 10px; padding: 16px 18px; margin: 18px 0 8px;
   }
   .question-label {
@@ -126,12 +131,12 @@
     display: block; width: 148px; border: 1px solid var(--bone-2); border-radius: 10px;
     overflow: hidden; background: #fff; text-decoration: none; color: var(--text);
   }
-  .att-tile img { display: block; width: 100%; height: 110px; object-fit: contain; background: var(--cream-2); }
+  .att-tile img { display: block; width: 100%; height: 110px; object-fit: contain; background: var(--ground-2); }
   .att-tile span { display: block; font-size: 11px; padding: 6px 8px; color: var(--text-muted); }
   .att-note { font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
   /* #77 — the pin the RFI was raised from, circled on its sheet. The frame
      keeps the image's own aspect so the percentages land on the drawing. */
-  .att-frame { position: relative; background: var(--cream-2); }
+  .att-frame { position: relative; background: var(--ground-2); }
   .att-frame img { height: auto; object-fit: initial; }
   .att-pin {
     position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px;
@@ -139,7 +144,7 @@
   }
 
   .section-title {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 18px; font-weight: 700; color: var(--text);
     margin: 24px 0 12px; padding-bottom: 6px;
     border-bottom: 1px solid var(--bone-2);
@@ -160,7 +165,7 @@
     font-family: inherit; transition: border-color 120ms ease;
   }
   .form-input:focus, .form-textarea:focus, .form-select:focus {
-    outline: none; border-color: var(--amber);
+    outline: none; border-color: var(--brand);
   }
   .form-textarea { min-height: 140px; resize: vertical; line-height: 1.55; }
   .form-row {
@@ -182,10 +187,10 @@
     padding: 14px; cursor: pointer; transition: all 150ms ease;
     background: var(--surface); user-select: none;
   }
-  .action-card:hover { border-color: var(--amber); }
+  .action-card:hover { border-color: var(--brand); }
   .action-card.selected {
-    border-color: var(--amber); background: var(--amber-tint);
-    box-shadow: var(--shadow-amber);
+    border-color: var(--brand); background: var(--brand-tint);
+    box-shadow: var(--shadow-brand);
   }
   .action-card .name {
     font-size: 13px; font-weight: 800; margin-bottom: 3px; color: var(--text);
@@ -199,17 +204,17 @@
   .action-card[data-code="rejected"]            .name { color: var(--error); }
 
   .submit-btn {
-    width: 100%; background: var(--amber); color: #fff;
+    width: 100%; background: var(--brand); color: #fff;
     border: none; border-radius: 12px; padding: 16px;
     font-size: 16px; font-weight: 800; cursor: pointer;
-    box-shadow: var(--shadow-amber); transition: all 150ms ease;
+    box-shadow: var(--shadow-brand); transition: all 150ms ease;
     font-family: inherit; letter-spacing: 0.2px;
   }
-  .submit-btn:hover:not(:disabled) { background: var(--amber-dark); transform: translateY(-1px); }
+  .submit-btn:hover:not(:disabled) { background: var(--brand-dark); transform: translateY(-1px); }
   .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .helper-banner {
-    background: var(--amber-tint); border: 1px solid rgba(255,106,26,0.25);
+    background: var(--brand-tint); border: 1px solid rgba(47,107,58,0.25);
     border-radius: 10px; padding: 12px 14px; margin-top: 14px;
     font-size: 12px; color: var(--text-2); line-height: 1.55;
   }
@@ -222,12 +227,12 @@
   .error-state { background: var(--error-tint); border-color: rgba(192,57,43,0.25); }
   .empty-icon {
     width: 56px; height: 56px; border-radius: 16px;
-    background: var(--ink); color: var(--amber);
+    background: var(--ink); color: var(--brand-on-dark);
     display: inline-flex; align-items: center; justify-content: center;
     font-size: 28px; margin-bottom: 14px;
   }
   .empty-title {
-    font-family: var(--ff-serif);
+    font-family: var(--ff-display);
     font-size: 22px; font-weight: 700; margin-bottom: 8px;
   }
   .empty-body {
@@ -236,7 +241,7 @@
   }
 
   .success-state {
-    background: var(--success-tint); border: 1px solid rgba(30,142,74,0.25);
+    background: var(--success-tint); border: 1px solid rgba(18,128,110,0.25);
     border-radius: var(--radius-xl); padding: 40px 24px; text-align: center;
   }
   .success-icon {
@@ -260,7 +265,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .skeleton {
-    height: 200px; background: linear-gradient(90deg, var(--bone-2) 0%, var(--cream-2) 50%, var(--bone-2) 100%);
+    height: 200px; background: linear-gradient(90deg, var(--bone-2) 0%, var(--ground-2) 50%, var(--bone-2) 100%);
     background-size: 200% 100%; animation: shimmer 1.6s infinite;
     border-radius: var(--radius-xl);
   }
@@ -764,6 +769,6 @@
 
   boot();
 </script>
-  <script src="/motion.js" defer></script>
+  <script src="/motion.js?v=2026-09-16-green" defer></script>
 </body>
 </html>

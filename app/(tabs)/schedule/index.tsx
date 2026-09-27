@@ -2288,7 +2288,7 @@ function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef
                   <Flag size={12} color={hit ? themeColors.success : missed ? themeColors.danger : themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.summaryMilestoneName}>{m.title}</Text>
                   <View style={[styles.summaryMilestoneChip, {
-                    backgroundColor: hit ? '#34C75914' : missed ? '#FF3B3014' : '#FF950014'
+                    backgroundColor: hit ? themeColors.success + '14' : missed ? '#FF3B3014' : '#FF950014'
                   }]}>
                     <Text style={[styles.summaryMilestoneChipText, {
                       color: hit ? themeColors.success : missed ? themeColors.danger : themeColors.accent
@@ -4473,9 +4473,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 4 },
   backToSchedules: { marginBottom: 6 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  // Screen title — Fraunces serif per the type rule in constants/typography.ts
-  // (serif for screen titles + numbers that matter, system sans for everything
-  // else). No fontWeight override: Fraunces_700Bold already carries its weight.
+  // Screen title — the display face (Barlow since the 2026-09-16 rebrand) per
+  // the type rule in constants/typography.ts (display face for screen titles +
+  // numbers that matter, system sans for everything else). No fontWeight
+  // override: the display face already carries its weight.
   title: { ...Type.serifHeadline, color: themeColors.text },
   subtitle: { marginTop: 4, fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
 

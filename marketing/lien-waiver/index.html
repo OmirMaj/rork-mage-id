@@ -8,46 +8,50 @@
 <title>Sign a lien waiver — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%235DB36E'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
+  /* Equipment green on concrete (2026-09 rebrand), same system as /sub-portal.
+     --brand #2F6B3A: 5.44:1 on --concrete. --brand-on-dark #5DB36E for the
+     mark on --ink. --success is teal so "signed" never reads as a brand
+     button. --text-muted darkened to clear 4.5:1 on the concrete ground. */
   :root {
-    --ink: #0B0D10; --amber: #FF6A1A; --amber-dark: #E5570F;
-    --cream: #F4EFE6; --cream-2: #FAF7F0; --surface: #FFFFFF;
-    --bone: #E8DFCD; --bone-2: #F1EAD9;
-    --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
-    --success: #1E8E4A; --success-tint: #E8F5ED;
+    --ink: #0B0D10; --brand: #2F6B3A; --brand-dark: #24552D; --brand-on-dark: #5DB36E;
+    --concrete: #ECEDE9; --surface: #FFFFFF;
+    --hairline: #D7DAD4; --surface-alt: #E2E4DF;
+    --text: #0B0D10; --text-2: #4A5159; --text-muted: #5F666E;
+    --success: #12806E; --success-tint: #F2F9F7;
     --warning: #C26A00; --warning-tint: #FFF4E0;
     --error: #C0392B; --error-tint: #FBEAE7;
     --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
     --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
-    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-display: "Barlow", "Helvetica Neue", Arial, system-ui, sans-serif;
     --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
     --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { -webkit-font-smoothing: antialiased; }
-  body { font-family: var(--ff-sans); background: var(--cream); color: var(--text); line-height: 1.55; font-size: 15px; min-height: 100vh; }
+  body { font-family: var(--ff-sans); background: var(--concrete); color: var(--text); line-height: 1.55; font-size: 15px; min-height: 100vh; }
   .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
 
   .wrap { max-width: 780px; margin: 0 auto; padding: 24px 18px 64px; }
   .brandbar { display: flex; align-items: center; gap: 10px; padding: 18px 0 22px; }
-  .brandmark { width: 34px; height: 34px; border-radius: 9px; background: var(--ink); color: var(--amber); display: inline-flex; align-items: center; justify-content: center; font-weight: 900; }
+  .brandmark { width: 34px; height: 34px; border-radius: 9px; background: var(--ink); color: var(--brand-on-dark); display: inline-flex; align-items: center; justify-content: center; font-weight: 900; }
   .brandbar span { font-size: 13px; color: var(--text-2); font-weight: 600; }
 
-  .card { background: var(--surface); border: 1px solid var(--bone-2); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 26px 24px; margin-bottom: 18px; }
-  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--amber-dark); margin-bottom: 8px; }
-  h1 { font-family: var(--ff-serif); font-size: clamp(24px, 5vw, 32px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+  .card { background: var(--surface); border: 1px solid var(--surface-alt); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 26px 24px; margin-bottom: 18px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--brand-dark); margin-bottom: 8px; }
+  h1 { font-family: var(--ff-display); font-size: clamp(24px, 5vw, 32px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
   .lede { color: var(--text-2); font-size: 15px; margin-top: 10px; }
 
   .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 18px; }
-  .fact { background: var(--cream-2); border: 1px solid var(--bone-2); border-radius: var(--radius-md); padding: 11px 13px; }
+  .fact { background: var(--concrete); border: 1px solid var(--surface-alt); border-radius: var(--radius-md); padding: 11px 13px; }
   .fact b { display: block; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
   .fact span { display: block; margin-top: 3px; font-size: 15px; font-weight: 700; }
 
   .callout { border-radius: var(--radius-md); padding: 13px 15px; font-size: 13.5px; line-height: 1.55; margin-top: 16px; }
   .callout.warn { background: var(--warning-tint); border: 1px solid rgba(194,106,0,0.35); }
-  .callout.ok { background: var(--success-tint); border: 1px solid rgba(30,142,74,0.3); }
+  .callout.ok { background: var(--success-tint); border: 1px solid rgba(18,128,110,0.3); }
   .callout.bad { background: var(--error-tint); border: 1px solid rgba(192,57,43,0.3); }
 
   /* A dead link and a page that is still loading must not look the same. The
@@ -55,26 +59,36 @@
      it before they read it. */
   .card.bad { background: var(--error-tint); border-color: rgba(192,57,43,0.35); }
   .card.warn { background: var(--warning-tint); border-color: rgba(194,106,0,0.35); }
-  .card.ok { background: var(--success-tint); border-color: rgba(30,142,74,0.3); }
+  .card.ok { background: var(--success-tint); border-color: rgba(18,128,110,0.3); }
+  /* "Signed" is a success state, not a brand accent: teal, and a check so it
+     is never carried by hue alone. The mask is the lucide check, so the glyph
+     takes the eyebrow's own colour. */
+  #done .eyebrow, .card.ok .eyebrow { color: var(--success); }
+  #done .eyebrow::before, .card.ok .eyebrow::before {
+    content: ''; display: inline-block; width: 11px; height: 11px;
+    margin-right: 5px; vertical-align: -1px; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center / contain;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center / contain;
+  }
 
-  .doc-frame { width: 100%; height: 62vh; min-height: 380px; border: 1px solid var(--bone); border-radius: var(--radius-md); background: var(--surface); }
+  .doc-frame { width: 100%; height: 62vh; min-height: 380px; border: 1px solid var(--hairline); border-radius: var(--radius-md); background: var(--surface); }
 
   label.field { display: block; margin-top: 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-muted); }
-  input[type="text"] { width: 100%; margin-top: 6px; padding: 12px 13px; font: inherit; font-size: 15px; color: var(--text); background: var(--cream-2); border: 1px solid var(--bone); border-radius: var(--radius-md); }
-  input[type="text"]:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
+  input[type="text"] { width: 100%; margin-top: 6px; padding: 12px 13px; font: inherit; font-size: 15px; color: var(--text); background: var(--concrete); border: 1px solid var(--hairline); border-radius: var(--radius-md); }
+  input[type="text"]:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
 
-  .pad-wrap { margin-top: 8px; border: 1px dashed var(--bone); border-radius: var(--radius-md); background: var(--surface); position: relative; }
+  .pad-wrap { margin-top: 8px; border: 1px dashed var(--hairline); border-radius: var(--radius-md); background: var(--surface); position: relative; }
   canvas#pad { display: block; width: 100%; height: 170px; touch-action: none; border-radius: var(--radius-md); }
   .pad-hint { position: absolute; inset: auto 0 12px 0; text-align: center; font-size: 12px; color: var(--text-muted); pointer-events: none; }
   .pad-tools { display: flex; justify-content: flex-end; padding: 0 10px 10px; }
   .linkish { background: none; border: 0; font: inherit; font-size: 12.5px; color: var(--text-2); text-decoration: underline; cursor: pointer; padding: 4px; }
 
   .consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
-  .consent input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--amber); flex: none; }
+  .consent input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--brand); flex: none; }
 
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 20px; padding: 15px 20px; font: inherit; font-size: 16px; font-weight: 700; color: #fff; background: var(--ink); border: 0; border-radius: 999px; cursor: pointer; }
   .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
-  .btn.secondary { color: var(--text); background: var(--cream-2); border: 1px solid var(--bone); }
+  .btn.secondary { color: var(--text); background: var(--concrete); border: 1px solid var(--hairline); }
 
   .footnote { font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.6; }
   .center { text-align: center; }

@@ -33,7 +33,7 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 const REC_STYLES = {
   rent: { label: 'Keep Renting', Icon: RefreshCw, color: "#1565C0", bg: Colors.infoLight },
-  buy: { label: 'Buy It', Icon: Tag, color: "#2E7D44", bg: Colors.successLight },
+  buy: { label: 'Buy It', Icon: Tag, color: Colors.successDark, bg: Colors.successLight },
   lease: { label: 'Consider Leasing', Icon: ClipboardList, color: Colors.warningLabel, bg: Colors.warningLight },
 } as const;
 
@@ -181,7 +181,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
         {isLoading ? (
           <Spinner tone="accent" />
         ) : (
-          <MageAIMark size={16} color={"#FF6A1A"} />
+          <MageAIMark size={16} color={themeColors.accent} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Rent vs Buy Advice'}</Text>
       </TouchableOpacity>
@@ -193,7 +193,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <MageAIMark size={12} color={"#FF6A1A"} />
+        <MageAIMark size={12} color={themeColors.accent} />
         <Text style={styles.headerTitle}>Rent vs Buy: {equipment.name}</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>

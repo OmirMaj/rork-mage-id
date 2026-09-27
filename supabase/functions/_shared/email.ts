@@ -13,11 +13,15 @@
 // (the is_email_unsubscribed RPC) and fetchSignInEmail (the auth admin
 // API, for self-addressed digests) — are the file's only I/O.
 //
-// Design language matches the marketing site + portal:
+// Design language — the 2026-09-16 rebrand: deep equipment green on concrete,
+// Barlow display, replacing orange on cream with a serif display. Matches the
+// marketing site + portal:
 //   ink         #0B0D10   — header, primary buttons, body text
-//   amber       #FF6A1A   — eyebrow, accent, secondary buttons
-//   cream       #F4EFE6   — page bg, blockquote bg, hero bg
-//   sand        #E8DFCD   — card border, dividers
+//   brand       #2F6B3A   — eyebrow, accent, links (6.39:1 on white)
+//   brandOnInk  #5DB36E   — the MAGE ID chip on the ink header (#2F6B3A is
+//                           3.04:1 against ink; this is 7.54:1 under ink text)
+//   concrete    #ECEDE9   — page bg, blockquote bg, hero bg
+//   hairline    #D7DAD4   — card border, dividers
 //   fog         #9AA3AD   — meta text, footer
 //   stone       #4A5159   — body copy
 //
@@ -41,18 +45,19 @@
 //   escapeHtml                          — XSS guard
 
 const INK = '#0B0D10';
-const AMBER = '#FF6A1A';
-const CREAM = '#F4EFE6';
-const SAND = '#E8DFCD';
+const BRAND = '#2F6B3A';
+const BRAND_ON_INK = '#5DB36E';
+const CONCRETE = '#ECEDE9';
+const HAIRLINE = '#D7DAD4';
 const FOG = '#9AA3AD';
 const STONE = '#4A5159';
 const PAPER = '#FFFFFF';
 
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
-// Georgia-style serif for hero / display text. We're cautious — most
-// premium SaaS emails (Linear, Stripe, Mercury) lean SANS for body and
-// SERIF only for big numbers / hero titles.
-const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+// Barlow where the client honours the <link> in wrapEmailHtml's head (Apple
+// Mail, iOS Mail); everywhere else a plain grotesque. Deliberately no serif
+// in the fallback — the serif display was half of the look the rebrand left.
+const FONT_DISPLAY = `'Barlow','Helvetica Neue',Helvetica,Arial,sans-serif`;
 
 export interface ProjectContextOpts {
   /** Project name shown bold in the strip. */
@@ -145,10 +150,10 @@ export function emailStatRow(label: string, value: string, opts?: { valueColor?:
     </tr>`;
 }
 
-/** Boxed pale-cream card wrapping a stack of stat rows. */
+/** Boxed concrete card wrapping a stack of stat rows. */
 export function emailStatCard(rowsHtml: string): string {
   return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CREAM};border:1px solid ${SAND};border-radius:14px;margin:18px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CONCRETE};border:1px solid ${HAIRLINE};border-radius:14px;margin:18px 0;">
       <tr><td style="padding:18px 22px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           ${rowsHtml}
@@ -159,7 +164,7 @@ export function emailStatCard(rowsHtml: string): string {
 
 /** Italic blockquote — used for portal messages, scope excerpts, Q&A. */
 export function emailQuote(text: string): string {
-  return `<blockquote style="margin:0 0 16px;padding:14px 18px;background:${CREAM};border-left:3px solid ${AMBER};border-radius:8px;font-family:${FONT_STACK};font-style:italic;color:${INK};font-size:15px;line-height:1.55;">${escapeHtml(text)}</blockquote>`;
+  return `<blockquote style="margin:0 0 16px;padding:14px 18px;background:${CONCRETE};border-left:3px solid ${BRAND};border-radius:8px;font-family:${FONT_STACK};font-style:italic;color:${INK};font-size:15px;line-height:1.55;">${escapeHtml(text)}</blockquote>`;
 }
 
 /** Small uppercase line for meta info (timestamps, IDs). */
@@ -169,7 +174,7 @@ export function emailMetaLine(text: string): string {
 
 /** Hairline divider. */
 export function emailDivider(): string {
-  return `<div style="height:1px;background:${SAND};margin:22px 0;"></div>`;
+  return `<div style="height:1px;background:${HAIRLINE};margin:22px 0;"></div>`;
 }
 
 /**
@@ -189,7 +194,7 @@ export function emailHero(opts: {
   /** Accent color for the kicker + photo border glow. */
   accent?: string;
 }): string {
-  const accent = opts.accent ?? AMBER;
+  const accent = opts.accent ?? BRAND;
   const photo = opts.photoUrl
     ? `<tr><td style="padding:0;"><img src="${escapeHtml(opts.photoUrl)}" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border-bottom:3px solid ${accent};" /></td></tr>`
     : '';
@@ -200,11 +205,11 @@ export function emailHero(opts: {
     ? `<p style="margin:8px 0 0;font-family:${FONT_STACK};font-size:15px;color:${STONE};line-height:1.5;">${escapeHtml(opts.subText)}</p>`
     : '';
   return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CREAM};border-radius:16px;overflow:hidden;margin:0 0 22px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CONCRETE};border-radius:16px;overflow:hidden;margin:0 0 22px;">
       ${photo}
       <tr><td style="padding:28px 26px 26px;">
         ${kicker}
-        <h2 style="margin:0;font-family:${FONT_DISPLAY};font-size:32px;font-weight:700;color:${INK};letter-spacing:-0.6px;line-height:1.1;">${escapeHtml(opts.bigText)}</h2>
+        <h2 style="margin:0;font-family:${FONT_DISPLAY};font-size:32px;font-weight:700;color:${INK};letter-spacing:-0.3px;line-height:1.1;">${escapeHtml(opts.bigText)}</h2>
         ${sub}
       </td></tr>
     </table>`;
@@ -223,19 +228,19 @@ export function emailProductCard(opts: {
   overBudget?: boolean;
 }): string {
   const imgCell = opts.imageUrl
-    ? `<td width="120" valign="top" style="padding:0 16px 0 0;"><img src="${escapeHtml(opts.imageUrl)}" alt="${escapeHtml(opts.productName)}" width="120" height="120" style="display:block;width:120px;height:120px;border-radius:10px;border:1px solid ${SAND};object-fit:cover;" /></td>`
+    ? `<td width="120" valign="top" style="padding:0 16px 0 0;"><img src="${escapeHtml(opts.imageUrl)}" alt="${escapeHtml(opts.productName)}" width="120" height="120" style="display:block;width:120px;height:120px;border-radius:10px;border:1px solid ${HAIRLINE};object-fit:cover;" /></td>`
     : '';
   const priceLine = opts.price
     ? `<p style="margin:8px 0 0;font-family:${FONT_STACK};font-size:16px;font-weight:800;color:${INK};letter-spacing:-0.2px;">${escapeHtml(opts.price)}${opts.overBudget ? ` <span style="display:inline-block;margin-left:6px;padding:2px 8px;background:#FFE4D5;color:#C2410C;font-size:11px;font-weight:700;border-radius:999px;letter-spacing:0.4px;text-transform:uppercase;">over allowance</span>` : ''}</p>`
     : '';
   const categoryLine = opts.category
-    ? `<p style="margin:0 0 4px;font-family:${FONT_STACK};font-size:11px;font-weight:800;color:${AMBER};letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(opts.category)}</p>`
+    ? `<p style="margin:0 0 4px;font-family:${FONT_STACK};font-size:11px;font-weight:800;color:${BRAND};letter-spacing:1.2px;text-transform:uppercase;">${escapeHtml(opts.category)}</p>`
     : '';
   const brandLine = opts.brand
     ? `<p style="margin:2px 0 0;font-family:${FONT_STACK};font-size:13px;color:${STONE};">${escapeHtml(opts.brand)}</p>`
     : '';
   return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CREAM};border:1px solid ${SAND};border-radius:14px;margin:14px 0 18px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CONCRETE};border:1px solid ${HAIRLINE};border-radius:14px;margin:14px 0 18px;">
       <tr><td style="padding:16px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
@@ -258,7 +263,7 @@ export function emailProductCard(opts: {
  */
 export function emailPhotoStrip(urls: string[]): string {
   const cells = urls.slice(0, 3).map((u) =>
-    `<td width="33%" style="padding:0 4px;"><img src="${escapeHtml(u)}" width="180" height="120" alt="" style="display:block;width:100%;height:auto;border-radius:8px;border:1px solid ${SAND};object-fit:cover;" /></td>`,
+    `<td width="33%" style="padding:0 4px;"><img src="${escapeHtml(u)}" width="180" height="120" alt="" style="display:block;width:100%;height:auto;border-radius:8px;border:1px solid ${HAIRLINE};object-fit:cover;" /></td>`,
   ).join('');
   if (!cells) return '';
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0;"><tr>${cells}</tr></table>`;
@@ -269,7 +274,7 @@ export function emailPhotoStrip(urls: string[]): string {
 function projectContextHtml(opts: ProjectContextOpts): string {
   if (!opts.name && !opts.location) return '';
   const photo = opts.photoUrl
-    ? `<td width="56" valign="middle" style="padding:0 14px 0 0;"><img src="${escapeHtml(opts.photoUrl)}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid ${SAND};" /></td>`
+    ? `<td width="56" valign="middle" style="padding:0 14px 0 0;"><img src="${escapeHtml(opts.photoUrl)}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid ${HAIRLINE};" /></td>`
     : '';
   const name = opts.name
     ? `<p style="margin:0;font-family:${FONT_STACK};font-size:15px;font-weight:700;color:${INK};letter-spacing:-0.2px;">${escapeHtml(opts.name)}</p>`
@@ -278,7 +283,7 @@ function projectContextHtml(opts: ProjectContextOpts): string {
     ? `<p style="margin:2px 0 0;font-family:${FONT_STACK};font-size:13px;color:${FOG};">${escapeHtml(opts.location)}</p>`
     : '';
   return `
-    <tr><td style="background:${CREAM};padding:14px 32px;border-bottom:1px solid ${SAND};">
+    <tr><td style="background:${CONCRETE};padding:14px 32px;border-bottom:1px solid ${HAIRLINE};">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           ${photo}
@@ -570,7 +575,7 @@ function footerHtml(opts: {
     : '';
 
   return `
-    <tr><td style="padding:22px 32px 28px;background:#FAFAF7;border-top:1px solid ${SAND};">
+    <tr><td style="padding:22px 32px 28px;background:#FAFAF7;border-top:1px solid ${HAIRLINE};">
       ${senderLine}
       <p style="margin:0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;">
         Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a> — the operating system for general contractors.
@@ -582,7 +587,7 @@ function footerHtml(opts: {
 // ─── Main wrapper ────────────────────────────────────────────────────
 
 export function wrapEmailHtml(opts: EmailWrapOpts): string {
-  const accent = opts.accent ?? AMBER;
+  const accent = opts.accent ?? BRAND;
   const eyebrowHtml = opts.eyebrow
     ? `<p style="margin:0 0 12px;font-family:${FONT_STACK};font-size:11px;font-weight:800;color:${accent};letter-spacing:1.6px;text-transform:uppercase;">${escapeHtml(opts.eyebrow)}</p>`
     : '';
@@ -615,7 +620,7 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
             ${isCobranded ? `<p style="margin:3px 0 0;font-family:${FONT_STACK};font-size:11px;color:#9AA3AD;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;">via MAGE ID</p>` : ''}
           </td>
           <td align="right" valign="middle">
-            ${isCobranded ? `<span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${accent};color:#0B0D10;font-family:${FONT_STACK};font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">MAGE&nbsp;ID</span>` : ''}
+            ${isCobranded ? `<span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${BRAND_ON_INK};color:#0B0D10;font-family:${FONT_STACK};font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">MAGE&nbsp;ID</span>` : ''}
           </td>
         </tr>
       </table>
@@ -631,20 +636,21 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
   <meta name="color-scheme" content="light" />
   <meta name="supported-color-schemes" content="light" />
   <title>${escapeHtml(opts.title)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600;700&display=swap" rel="stylesheet" />
 </head>
-<body style="margin:0;padding:0;background:${CREAM};font-family:${FONT_STACK};color:${INK};">
+<body style="margin:0;padding:0;background:${CONCRETE};font-family:${FONT_STACK};color:${INK};">
   <!-- Preheader: hidden inbox preview text -->
-  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${CREAM};opacity:0;">${escapeHtml(opts.preheader)}</div>
-  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${CREAM};opacity:0;">&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${CONCRETE};opacity:0;">${escapeHtml(opts.preheader)}</div>
+  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${CONCRETE};opacity:0;">&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CREAM};padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CONCRETE};padding:32px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:${PAPER};border-radius:18px;overflow:hidden;border:1px solid ${SAND};">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:${PAPER};border-radius:18px;overflow:hidden;border:1px solid ${HAIRLINE};">
         ${headerHtml}
         ${projectStrip}
         <tr><td style="padding:34px 32px 8px;">
           ${eyebrowHtml}
-          <h1 style="margin:0;font-family:${FONT_DISPLAY};font-size:30px;font-weight:700;color:${INK};letter-spacing:-0.6px;line-height:1.18;">${escapeHtml(opts.title)}</h1>
+          <h1 style="margin:0;font-family:${FONT_DISPLAY};font-size:30px;font-weight:700;color:${INK};letter-spacing:-0.3px;line-height:1.18;">${escapeHtml(opts.title)}</h1>
           ${subtitleHtml}
         </td></tr>
         <tr><td style="padding:18px 32px 28px;font-family:${FONT_STACK};font-size:15px;line-height:1.6;color:${STONE};">

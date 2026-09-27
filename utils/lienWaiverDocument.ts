@@ -13,8 +13,7 @@
 // codeJurisdiction) and types.
 
 import {
-  pdfShell, pdfHeader, pdfFooter, escHtml, fmtMoney, fmtDate, PDF_PALETTE,
-} from './pdfDesign';
+  pdfShell, pdfHeader, pdfFooter, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_FONT_DISPLAY } from './pdfDesign';
 import {
   statutoryFormFor, isStatutoryWaiverState, GENERIC_FORM_WARNING,
   STATUTE_TEXT_AS_OF, STATUTE_VERIFY_LINE,
@@ -229,8 +228,8 @@ function statutoryBodyHtml(form: StatutoryWaiverForm): string {
       case 'fields':
         return `<table style="width:100%;border-collapse:collapse;margin:8px 0 12px">${b.rows.map(r => `
           <tr>
-            <td style="padding:8px 12px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:10px;font-weight:800;letter-spacing:0.5px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;width:34%">${escHtml(r.label)}</td>
-            <td style="padding:8px 12px;border:1px solid ${PDF_PALETTE.bone};font-size:12.5px;color:${PDF_PALETTE.text}">${escHtml(r.value)}</td>
+            <td style="padding:8px 12px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.5px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;width:34%">${escHtml(r.label)}</td>
+            <td style="padding:8px 12px;border:1px solid ${PDF_PALETTE.hairline};font-size:12.5px;color:${PDF_PALETTE.text}">${escHtml(r.value)}</td>
           </tr>`).join('')}</table>`;
       case 'para':
       default:
@@ -244,8 +243,8 @@ function statutoryBodyHtml(form: StatutoryWaiverForm): string {
 
   return `
     <div style="text-align:center;margin:24px 0 20px">
-      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:6px">${escHtml(form.stateName)} statutory form · ${escHtml(form.citation)}</div>
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;letter-spacing:-0.4px;color:${PDF_PALETTE.ink};line-height:1.25">${escHtml(form.heading)}</div>
+      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.brand};text-transform:uppercase;margin-bottom:6px">${escHtml(form.stateName)} statutory form · ${escHtml(form.citation)}</div>
+      <div style="font-family:${PDF_FONT_DISPLAY};font-size:22px;font-weight:700;letter-spacing:-0.4px;color:${PDF_PALETTE.ink};line-height:1.25">${escHtml(form.heading)}</div>
     </div>
     ${substitution}
     ${blocks}
@@ -259,7 +258,7 @@ function statutoryBodyHtml(form: StatutoryWaiverForm): string {
  * way to know it has.
  */
 function statuteProvenanceHtml(form: StatutoryWaiverForm): string {
-  return `<div style="margin-top:24px;padding:14px 16px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};border-radius:10px;font-size:11px;color:${PDF_PALETTE.text};line-height:1.6">
+  return `<div style="margin-top:24px;padding:14px 16px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};border-radius:10px;font-size:11px;color:${PDF_PALETTE.text};line-height:1.6">
     <strong>Form source.</strong> ${escHtml(form.stateName)} — ${escHtml(form.citation)}. Statutory text as of ${escHtml(STATUTE_TEXT_AS_OF)}.
     <div style="margin-top:6px;color:${PDF_PALETTE.text2}">${escHtml(STATUTE_VERIFY_LINE)}</div>
   </div>`;
@@ -323,15 +322,15 @@ export function buildLienWaiverHtml(
        </svg>`
     : '';
   const sigBlock = sig ? `
-    <div style="margin-top:36px;padding:20px;background:${PDF_PALETTE.cream2};border:1px solid ${signedByGc ? PDF_PALETTE.warning : PDF_PALETTE.bone};border-radius:12px">
+    <div style="margin-top:36px;padding:20px;background:${PDF_PALETTE.ground2};border:1px solid ${signedByGc ? PDF_PALETTE.warning : PDF_PALETTE.hairline};border-radius:12px">
       <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${signedByGc ? PDF_PALETTE.warning : PDF_PALETTE.textMuted};text-transform:uppercase;margin-bottom:6px">${signedByGc ? 'Recorded by the contractor from a signed paper original' : 'Signed by the subcontractor'}</div>
       ${strokes}
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;font-style:italic;color:${PDF_PALETTE.ink};margin-bottom:4px">${escHtml(sig.name)}</div>
+      <div style="font-family:${PDF_FONT_DISPLAY};font-size:22px;font-weight:700;font-style:italic;color:${PDF_PALETTE.ink};margin-bottom:4px">${escHtml(sig.name)}</div>
       <div style="font-size:11px;color:${PDF_PALETTE.textMuted}">${signedByGc ? 'Recorded' : 'Signed'} ${fmtDate(sig.signedAt)} · ${escHtml(waiver.subName)}${signerTitle ? ` · ${escHtml(signerTitle)}` : ''}</div>
       ${signedByGc ? `<div style="font-size:10.5px;color:${PDF_PALETTE.text2};margin-top:8px;line-height:1.55">This is the contractor's record that a signed paper waiver exists. It is not the subcontractor's signature; the paper original is the signed document.</div>` : ''}
     </div>
   ` : `
-    <div style="margin-top:36px;padding:20px;border:2px dashed ${PDF_PALETTE.bone};border-radius:12px;text-align:center">
+    <div style="margin-top:36px;padding:20px;border:2px dashed ${PDF_PALETTE.hairline};border-radius:12px;text-align:center">
       <div style="font-size:11px;color:${PDF_PALETTE.textMuted};font-style:italic">Awaiting subcontractor signature</div>
       <div style="margin-top:24px;height:1.5px;background:${PDF_PALETTE.ink2};max-width:280px;margin-inline:auto"></div>
       <div style="font-size:10px;color:${PDF_PALETTE.textMuted};margin-top:6px">Subcontractor signature</div>
@@ -342,8 +341,8 @@ export function buildLienWaiverHtml(
 
   const genericTitleHtml = `
     <div style="text-align:center;margin:24px 0 28px">
-      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:6px">Lien Waiver &amp; Release</div>
-      <div style="font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:700;letter-spacing:-0.5px;color:${PDF_PALETTE.ink};line-height:1.2">${escHtml(meta.long)}</div>
+      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${PDF_PALETTE.brand};text-transform:uppercase;margin-bottom:6px">Lien Waiver &amp; Release</div>
+      <div style="font-family:${PDF_FONT_DISPLAY};font-size:26px;font-weight:700;letter-spacing:-0.5px;color:${PDF_PALETTE.ink};line-height:1.2">${escHtml(meta.long)}</div>
     </div>`;
 
   // formatCalendarDay, NOT fmtDate. The through date is a calendar day the
@@ -372,26 +371,26 @@ export function buildLienWaiverHtml(
   const factsTableHtml = `
     <table style="width:100%;border-collapse:collapse;margin-bottom:18px">
       <tr>
-        <td style="padding:10px 14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;width:36%">Project</td>
-        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.bone};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(projectName)}</td>
+        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;width:36%">Project</td>
+        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(projectName)}</td>
       </tr>
       ${projectAddress ? `
       <tr>
-        <td style="padding:10px 14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Property Address</td>
-        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.bone};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(projectAddress)}</td>
+        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Property Address</td>
+        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(projectAddress)}</td>
       </tr>` : ''}
       <tr>
-        <td style="padding:10px 14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Subcontractor</td>
-        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.bone};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(waiver.subName)}</td>
+        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Subcontractor</td>
+        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(waiver.subName)}</td>
       </tr>
       ${showThroughDate ? `
       <tr>
-        <td style="padding:10px 14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Through Date</td>
-        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.bone};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(throughDateLabel)}</td>
+        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Through Date</td>
+        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:13px;color:${PDF_PALETTE.text}">${escHtml(throughDateLabel)}</td>
       </tr>` : ''}
       <tr>
-        <td style="padding:10px 14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Payment Amount</td>
-        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.bone};font-size:18px;color:${PDF_PALETTE.ink};font-weight:800">${fmtMoney(waiver.paidAmount, { decimals: 2 })}</td>
+        <td style="padding:10px 14px;background:${PDF_PALETTE.ground2};border:1px solid ${PDF_PALETTE.hairline};font-size:10px;font-weight:800;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Payment Amount</td>
+        <td style="padding:10px 14px;border:1px solid ${PDF_PALETTE.hairline};font-size:18px;color:${PDF_PALETTE.ink};font-weight:800">${fmtMoney(waiver.paidAmount, { decimals: 2 })}</td>
       </tr>
     </table>`;
 
@@ -407,7 +406,7 @@ export function buildLienWaiverHtml(
   // the states that do not prescribe one. On a statutory form it would be
   // false — the whole point of that page is that it IS the state's form.
   const genericWarningHtml = `
-    <div style="margin-top:28px;padding:14px 16px;background:${PDF_PALETTE.amberTint};border:1px solid ${PDF_PALETTE.amber}40;border-radius:10px;font-size:11px;color:${PDF_PALETTE.text};line-height:1.6">
+    <div style="margin-top:28px;padding:14px 16px;background:${PDF_PALETTE.brandTint};border:1px solid ${PDF_PALETTE.brand}40;border-radius:10px;font-size:11px;color:${PDF_PALETTE.text};line-height:1.6">
       <strong>Important.</strong> ${escHtml(GENERIC_FORM_WARNING)}
     </div>`;
 

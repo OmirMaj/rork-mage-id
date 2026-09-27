@@ -7,8 +7,9 @@
 // is not:
 //
 //   1. `#9AA3AD` — the DARK theme's `textSecondary` — hardcoded on a LIGHT
-//      surface, in 82 places. It is the right grey in dark mode (6.98:1 on
-//      #14181D) and 2.23-2.56:1 in light mode, which is where every one of
+//      surface, in 82 places. It is the right grey in dark mode (6.37:1 on
+//      the dark surface #1D211F) and 2.23-2.56:1 in light mode (measured on
+//      the pre-rebrand cream grounds), which is where every one of
 //      those 82 actually rendered. The fix for most of them is the theme token;
 //      the ones that ALSO have to work as a solid fill (a status dot, a chip
 //      that inverts when selected, anything alpha-suffixed `+ '20'`) cannot use
@@ -75,12 +76,12 @@ export function labelOn(fill: string): string {
  *
  * Light: `#5A6472` — the ink hue (#2B3038) opened up ~2.1x, so it stays in the
  * same slate family as `text` rather than introducing a new grey. Measured on
- * this theme's own grounds: 6.00:1 on surface #FFFFFF, 5.66:1 on bg #FBF8F2,
- * 5.24:1 on surfaceAlt #F4EFE6, and 5.06:1 as a label on its own `+ '20'`
- * tint over white. White on it as a fill: 6.00:1.
+ * this theme's own (concrete) grounds: 6.00:1 on surface #FFFFFF, 5.10:1 on
+ * bg #ECEDE9, 4.68:1 on surfaceAlt #E2E4DF, and 5.06:1 as a label on its own
+ * `+ '20'` tint over white. White on it as a fill: 6.00:1.
  *
  * Dark: `#9AA3AD` — unchanged, because on a dark ground that value was always
- * right (6.98:1 on surface #14181D, 5.72:1 on its own tint). The bug was never
+ * right (6.37:1 on surface #1D211F, 5.15:1 on its own `+ '20'` tint). The bug was never
  * the colour, it was that a dark-theme constant was frozen into light screens.
  *
  * Chosen by measuring the ground rather than by asking for the theme name, so
@@ -97,7 +98,7 @@ export function neutralInk(t: Pick<ThemeColors, 'bg'>): string {
  * inventing their own.
  *
  * Before 2026-09-07 they had two different tables and neither cleared AA:
- * TaskInspector painted `in_progress` in the raw brand accent (#FF6A1A, 2.87:1
+ * TaskInspector painted `in_progress` in the raw (then orange) brand accent (2.87:1
  * as text) and `not_started` in the dark theme's grey; the Schedule tab's sheet
  * used `{done:'#34C759', in_progress:'#007AFF', on_hold:'#FF9500',
  * not_started:'#8E8E93'}`, which fails in BOTH directions — 2.22 / 4.02 / 2.20
@@ -107,23 +108,25 @@ export function neutralInk(t: Pick<ThemeColors, 'bg'>): string {
  * These are theme tokens constants/colors.ts already derives and
  * scripts/validate-contrast.ts check 5 already measures on the app's `+ '15'`
  * chip tint, so a chip built from them inherits that proof. Hues follow
- * `utils/scheduleColors.ts:statusColor` — done green, in-progress BLUE, on-hold
+ * `utils/scheduleColors.ts:statusColor` — done teal, in-progress BLUE, on-hold
  * amber, not-started neutral — so a Gantt bar and a chip for the same task
  * never disagree.
  *
  * in_progress is `info`, not `accentLabel`. Amber was the obvious pick (it is
  * what TaskInspector used) and it is wrong for a reason contrast alone will not
- * catch: the light accentLabel is #B23E08 and warningLabel is #B84A00, so
- * "In progress" and "On hold" would have rendered as the same burnt orange
- * sitting next to each other. Legible and indistinguishable is still broken —
+ * catch: the light accentLabel was then #B23E08 (the pre-rebrand orange; it
+ * is MAGE green #2C6436 now) and warningLabel is #B84A00, so "In progress"
+ * and "On hold" would have rendered as the same burnt orange sitting next to
+ * each other. Legible and indistinguishable is still broken —
  * see validate-contrast check 5b, which exists because an earlier fix made a
  * yellow health dot identical to a red one.
  *
- * Measured on `surface` in each theme, as a bare label / on its own 8% tint:
- *   light  done 6.48 / 5.75   in_progress 5.75 / 5.03
- *          on_hold 5.23 / 4.67   not_started 6.00 / 5.36
- *   dark   done 9.27 / 8.02   in_progress 7.04 / 6.23
- *          on_hold 8.11 / 7.16   not_started 6.98 / 5.72
+ * Measured on `surface` in each theme (#FFFFFF / #1D211F), as a bare label /
+ * on its own `+ '15'` (CHIP_TINT_SUFFIX) tint:
+ *   light  done 7.20 / 6.34   in_progress 5.75 / 5.10
+ *          on_hold 5.23 / 4.65   not_started 6.00 / 5.35
+ *   dark   done 6.79 / 5.93   in_progress 6.43 / 5.65
+ *          on_hold 7.41 / 6.42   not_started 6.37 / 5.55
  *
  * A FILLED chip pairs these with `labelOn`, never with a literal white.
  */

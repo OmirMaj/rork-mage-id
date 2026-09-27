@@ -584,9 +584,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: t.bg,
   },
-  // The same fixed brand ink as login.tsx's hero (#0B0D10), so login → signup
-  // no longer jumps from ink to an accent slab (the accent never becomes the
-  // background). Every hero child below clears AA on it.
+  // A fixed brand ink (#0B0D10; login.tsx's hero moved to the #151816 dark
+  // ground in the 2026-09-16 rebrand, and scripts/validate-front-door-motion.ts
+  // pins this literal), so login → signup never jumps from ink to an accent
+  // slab (the accent never becomes the background). Every hero child below
+  // clears AA on it.
   topSection: {
     backgroundColor: '#0B0D10',
     paddingBottom: 28,
@@ -620,9 +622,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   // Colors.textOnAccent, NOT t.surface. This sits on a FIXED fill (ink #0B0D10 /
   // Apple black / t.accentFill) that does not change with the theme, so the
-  // foreground must not either. In dark mode t.surface is #14181D: the Sign In
-  // label was 1.09:1 on its own button, and the page behind it is #0B0D10 too,
-  // so the button had no edge and the label no contrast. validate-contrast.ts
+  // foreground must not either. In dark mode t.surface (then #14181D, #1D211F
+  // since the 2026-09-16 rebrand) made the Sign In label 1.09:1 on its own
+  // button, and the page behind it was #0B0D10 too, so the button had no edge
+  // and the label no contrast. validate-contrast.ts
   // passes on this file — it prints an explicit allowance for it.
   brandName: {
     fontSize: 24,

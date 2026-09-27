@@ -1,12 +1,13 @@
 // Social and landing-page hero compositions.
-// MAGE ID brand: amber #FF6A1A (only accent), ink #0B0D10, cream #F4EFE6.
-// Fonts: Fraunces (display), Space Grotesk (body/UI), JetBrains Mono (labels/numbers).
+// MAGE ID brand (2026-09-16 rebrand): green #2F6B3A on light grounds, #5DB36E on
+// ink #0B0D10; concrete #ECEDE9 light ground.
+// Fonts: Barlow (display), Space Grotesk (body/UI), JetBrains Mono (labels/numbers).
 
 // --- Landing hero: 16:9 (1920x1080) wide composition with 3 stacked phones ---
 const LandingHero3Phone = ({ srcs = [], title, accent, subtitle, cta }) => (
   <div style={{
     width: 1920, height: 1080,
-    background: "#F4EFE6",
+    background: "#ECEDE9",
     color: "#0B0D10",
     padding: "0 120px",
     boxSizing: "border-box",
@@ -16,23 +17,23 @@ const LandingHero3Phone = ({ srcs = [], title, accent, subtitle, cta }) => (
     position: "relative",
   }}>
     <div style={{ maxWidth: 800, position: "relative", zIndex: 2 }}>
-      <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", color: "#FF6A1A", marginBottom: 32, fontFamily: '"JetBrains Mono", ui-monospace, monospace' }}>
+      <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", color: "#2F6B3A", marginBottom: 32, fontFamily: '"JetBrains Mono", ui-monospace, monospace' }}>
         MAGE ID
       </div>
       <h1 style={{
         fontSize: 96, fontWeight: 700, lineHeight: 0.96,
-        letterSpacing: "-0.04em", margin: 0,
-        textWrap: "balance", fontFamily: '"Fraunces", Georgia, serif',
+        letterSpacing: "-0.012em", margin: 0,
+        textWrap: "balance", fontFamily: '"Barlow", "Helvetica Neue", Arial, sans-serif',
       }}>
-        {title} <span style={{ color: "#FF6A1A" }}>{accent}</span>
+        {title} <span style={{ color: "#2F6B3A" }}>{accent}</span>
       </h1>
-      <p style={{ fontSize: 26, color: "#6f6a60", marginTop: 36, lineHeight: 1.4, maxWidth: 640 }}>
+      <p style={{ fontSize: 26, color: "#5F655F", marginTop: 36, lineHeight: 1.4, maxWidth: 640 }}>
         {subtitle}
       </p>
       {cta && (
         <div style={{ marginTop: 48, display: "flex", gap: 16 }}>
           <div style={{
-            background: "#FF6A1A", color: "#fff",
+            background: "#2F6B3A", color: "#fff",
             padding: "20px 36px", borderRadius: 999,
             fontSize: 22, fontWeight: 600,
           }}>{cta}</div>
@@ -63,7 +64,7 @@ const LandingHero3Phone = ({ srcs = [], title, accent, subtitle, cta }) => (
 );
 
 // --- Social square 1080x1080 with single phone + headline ---
-const SocialSquare = ({ src, title, accent, tag, bg = "#0B0D10", fg = "#fff", accentColor = "#FF6A1A" }) => (
+const SocialSquare = ({ src, title, accent, tag, bg = "#0B0D10", fg = "#fff", accentColor = "#5DB36E" }) => (
   <div style={{
     width: 1080, height: 1080,
     background: bg, color: fg,
@@ -91,8 +92,8 @@ const SocialSquare = ({ src, title, accent, tag, bg = "#0B0D10", fg = "#fff", ac
       <div style={{ flex: 1 }}>
         <div style={{
           fontSize: 84, fontWeight: 700, lineHeight: 0.95,
-          letterSpacing: "-0.04em",
-          textWrap: "balance", fontFamily: '"Fraunces", Georgia, serif',
+          letterSpacing: "-0.012em",
+          textWrap: "balance", fontFamily: '"Barlow", "Helvetica Neue", Arial, sans-serif',
         }}>
           {title}
           {accent && <><br /><span style={{ color: accentColor }}>{accent}</span></>}
@@ -106,7 +107,7 @@ const SocialSquare = ({ src, title, accent, tag, bg = "#0B0D10", fg = "#fff", ac
 );
 
 // --- Story 1080x1920 vertical ---
-const SocialStory = ({ src, title, accent, sub, bg = "#F4EFE6", fg = "#0B0D10", accentColor = "#FF6A1A" }) => (
+const SocialStory = ({ src, title, accent, sub, bg = "#ECEDE9", fg = "#0B0D10", accentColor = "#2F6B3A" }) => (
   <div style={{
     width: 1080, height: 1920,
     background: bg, color: fg,
@@ -120,21 +121,21 @@ const SocialStory = ({ src, title, accent, sub, bg = "#F4EFE6", fg = "#0B0D10", 
     </div>
     <div style={{
       fontSize: 110, fontWeight: 700, lineHeight: 0.95,
-      letterSpacing: "-0.04em", textAlign: "center",
-      textWrap: "balance", marginBottom: 30, fontFamily: '"Fraunces", Georgia, serif',
+      letterSpacing: "-0.012em", textAlign: "center",
+      textWrap: "balance", marginBottom: 30, fontFamily: '"Barlow", "Helvetica Neue", Arial, sans-serif',
     }}>
       {title}
     </div>
     {accent && (
       <div style={{
-        fontSize: 110, fontWeight: 600, lineHeight: 0.95, letterSpacing: "-0.04em",
+        fontSize: 110, fontWeight: 600, lineHeight: 0.95, letterSpacing: "-0.012em",
         textAlign: "center", color: accentColor, marginBottom: 40,
-        fontFamily: '"Fraunces", Georgia, serif', fontStyle: "italic",
+        fontFamily: '"Barlow", "Helvetica Neue", Arial, sans-serif', fontStyle: "italic",
       }}>
         {accent}
       </div>
     )}
-    {sub && <div style={{ fontSize: 30, color: "#6f6a60", textAlign: "center", maxWidth: 800, marginBottom: 60 }}>{sub}</div>}
+    {sub && <div style={{ fontSize: 30, color: "#5F655F", textAlign: "center", maxWidth: 800, marginBottom: 60 }}>{sub}</div>}
     <div style={{ marginTop: "auto", filter: "drop-shadow(0 50px 100px rgba(11,13,16,0.22))" }}>
       <PhoneFrame src={src} width={680} />
     </div>
@@ -152,13 +153,13 @@ const TwitterCard = ({ srcs = [], title, sub }) => (
     position: "relative", overflow: "hidden",
   }}>
     <div style={{ flex: 1, position: "relative" }}>
-      <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "0.4em", color: "#FF6A1A", textTransform: "uppercase", marginBottom: 32, fontFamily: '"JetBrains Mono", ui-monospace, monospace' }}>
+      <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "0.4em", color: "#5DB36E", textTransform: "uppercase", marginBottom: 32, fontFamily: '"JetBrains Mono", ui-monospace, monospace' }}>
         MAGE ID — for general contractors
       </div>
       <div style={{
         fontSize: 86, fontWeight: 600, lineHeight: 0.98,
-        letterSpacing: "-0.035em",
-        fontFamily: '"Fraunces", Georgia, serif',
+        letterSpacing: "-0.012em",
+        fontFamily: '"Barlow", "Helvetica Neue", Arial, sans-serif',
       }}>
         {title}
       </div>

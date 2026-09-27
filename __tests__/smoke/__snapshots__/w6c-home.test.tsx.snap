@@ -3,48 +3,48 @@
 exports[`lane F — /attention on the phone (390 iOS) /attention, empty world — the rail's all-clear, scoped 1`] = `
 {
   "lines": 472,
-  "sha256": "ee115d58fd7dc239f69a002bc45ebc8cc981fddfc9d93422454b6c3ed469279d",
+  "sha256": "d8e502f76f648162b6010c36c03e34f91e1f6f75065533dbeb2d1d6c1bd518fe",
 }
 `;
 
 exports[`lane F — /attention on the phone (390 iOS) /attention, populated world 1`] = `
 {
   "lines": 483,
-  "sha256": "3bb4569047e3a831b41c266ccfcf0372fccee150133b35f090a5bc9f46bbcee0",
+  "sha256": "ec745e2727b5e14b5b9378f875161141ad6ce6631e8feb8b2b2726e07251c9dd",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs (the stage chips render) 1`] = `
 {
   "lines": 1996,
-  "sha256": "3929868a0d65a6d4b4a69a8a6eb90bc99486d0453891e26430a98a0f8ae9292d",
+  "sha256": "e173797ba777a0971f252dba404fe81121f8a8b0ec5683b960e520d2b6c97103",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs on site today (Today on site: four rows and "+2 more") 1`] = `
 {
   "lines": 2415,
-  "sha256": "1cf8a52dc243bf69ef5f862bc292673f36318144d31cf00c576e4991d5538e30",
+  "sha256": "06e8a42330b556a65c96a28a8d1a5ea8f2ac0cab397b7f90ae209ca6d3b73ada",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs, a chip tapped (Closed / Closeout bucket) 1`] = `
 {
   "lines": 1941,
-  "sha256": "e92d055574b0f126f9eae9bd395f2e7937dd2d576be7682526693989488905ad",
+  "sha256": "8fa43023c7d43acc041bfd72ddd0184e5cf221821903d7813f52bc329e57edfb",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, the fixture world (one job on site) 1`] = `
 {
   "lines": 1907,
-  "sha256": "22c3d2d4490817cdd9d71fbe31af9885bf0ec0efe5bb6ced0cd02070eecf6694",
+  "sha256": "b7c9e0f87b38b66972223a31a8a11d69dcce0057a165ab2f395edc45302b17bd",
 }
 `;
 
 exports[`lane F — the tablet Home keeps the ProjectRow table (golden, 820 iOS) Home, six jobs, tablet 1`] = `
 {
   "lines": 1991,
-  "sha256": "f9c817960962516c8ef2fa5fcc26028a4535909a2c2617fa00f66f00485d3af6",
+  "sha256": "286407dfed3f8e44371ea5a6b7c71ba224efbcc6f741ce13d6a77110a8fb7a5f",
 }
 `;

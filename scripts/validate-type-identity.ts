@@ -1,6 +1,6 @@
 // validate-type-identity.ts — the app must read as ONE product.
 //
-// WHY THIS EXISTS. MAGE ID ships four weights of Fraunces and, before the
+// WHY THIS EXISTS. MAGE ID ships a display face (Barlow) and, before the
 // 2026-08-26 pass, used the serif on 20 of ~165 screens — `serifHero` in
 // exactly one place. Every other screen hand-rolled its own header title in
 // system sans at whatever size that screen's author picked: headline/700,
@@ -12,7 +12,7 @@
 // because the surrounding 55 kept resetting the impression.
 //
 // THE RULE (constants/typography.ts):
-//   • Fraunces (Type.serifHeadline) for SCREEN TITLES and numbers that matter.
+//   • the display face (Barlow, Type.serifHeadline) for SCREEN TITLES and numbers that matter.
 //   • System sans for everything else.
 //
 // This guard is a RATCHET. It does not demand perfection on day one — it pins
@@ -52,14 +52,14 @@ import { join } from 'path';
  *  (components/ui/ScreenHeader.tsx), pinned by the delegation check below. */
 const SANS_HEADER_CEILING = 31;
 
-/** A fontWeight on a Fraunces style makes the platform synthesise a fake bold
+/** A fontWeight on a style in the display face (Barlow) makes the platform synthesise a fake bold
  *  over a real one. Always zero — there is no legitimate case. */
 const FAKE_BOLD_CEILING = 0;
 
 /**
  * Hero figures — a screen's ONE big number (margin %, coverage %, money total)
  * rendered at largeTitle or bigger — carry the serif too. That is the second
- * half of the rule: Fraunces for screen titles AND numbers that matter.
+ * half of the rule: the display face (Barlow) for screen titles AND numbers that matter.
  *
  * Deliberately narrow. Stat rows, KPI grids and small metric values stay SANS:
  * serif everywhere would flatten the hierarchy the hero depends on, which is a
@@ -200,7 +200,7 @@ for (const file of [...walk('app'), ...walk('components')]) {
       }
     }
 
-    // Fraunces + fontWeight on the same style object.
+    // The display face (Barlow) + fontWeight on the same style object.
     if (ln.includes('serif') && /fontWeight/.test(ln)) {
       fakeBold.push({ file, line: i + 1, snippet: trimmed.slice(0, 100) });
     }
@@ -244,10 +244,10 @@ if (sansHeaders.length > SANS_HEADER_CEILING) {
   console.log('        replace fontSize/fontWeight/letterSpacing with ...Type.serifHeadline.');
 }
 
-console.log(`  fake-bold (fontWeight on a Fraunces style): ${fakeBold.length} (ceiling ${FAKE_BOLD_CEILING})`);
+console.log(`  fake-bold (fontWeight on a display-face (Barlow) style): ${fakeBold.length} (ceiling ${FAKE_BOLD_CEILING})`);
 if (fakeBold.length > FAKE_BOLD_CEILING) {
   failed = true;
-  console.error('  FAIL  Fraunces_700Bold already carries its weight; an override synthesises');
+  console.error('  FAIL  the display face (Barlow_600SemiBold) already carries its weight; an override synthesises');
   console.error('        a fake bold on top of a real one. Remove the fontWeight.\n');
   for (const h of fakeBold.slice(0, 15)) {
     console.error(`        ${h.file}:${h.line}  ${h.snippet}`);

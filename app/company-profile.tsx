@@ -381,7 +381,7 @@ function CompanyProfileForm() {
         </Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#1A6B3C' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accentFill }]}>
               <Building2 size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Company Name</Text>

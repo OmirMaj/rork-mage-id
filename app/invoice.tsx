@@ -4169,9 +4169,10 @@ function InvoiceInner() {
 // The punch-list fix pairs a SOFT fill with a label/saturated foreground, and
 // that is the pattern here too — with one substrate difference that matters:
 // this badge is a child of `heroCard`, whose background is `themeColors.accent`
-// (#FF6A1A in BOTH themes), not a surface card. Every *Soft token is a
-// translucent rgba, so on orange they composite back toward orange and the
-// "fixed" badge is still unreadable:
+// (the brand hue, not a surface card). Every *Soft token is a translucent
+// rgba, so on the brand they composite back toward the brand and the
+// "fixed" badge is still unreadable (ratios measured on the pre-2026-09-16
+// orange hero; the mechanism is hue-independent):
 //
 //   dangerLabel on dangerSoft over the hero  →  1.85:1 light / 1.06:1 dark
 //   info        on info+'1F'  over the hero  →  1.73:1 light / 1.20:1 dark
@@ -4182,9 +4183,9 @@ function InvoiceInner() {
 //
 // So the fill is `t.surface` — the one OPAQUE token that inverts with the theme
 // (white chip in light, near-black chip in dark) and therefore reads against the
-// fixed orange either way. Foregrounds are the punch-list label tokens, and the
+// fixed brand fill either way. Foregrounds are the punch-list label tokens, and the
 // border mirrors `ui/Badge.tsx` (`fg + '33'`) so the statuses stay
-// distinguishable. Measured on the hero: 4.85–13.27:1 light, 4.75–16.99:1 dark.
+// distinguishable. Measured on the (orange) hero: 4.85–13.27:1 light, 4.75–16.99:1 dark.
 function getInvoiceStatusColors(t: ThemeColors, status: string): { bg: string; text: string } {
   switch (status) {
     case 'draft': return { bg: t.surface, text: t.text };

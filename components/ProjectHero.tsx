@@ -1,7 +1,7 @@
 // components/ProjectHero.tsx — the "number-as-hero" financial pulse for a project.
 //
-// One big number as the subject: projected final margin %, counted up in
-// Fraunces, framed by a drafting dimension bracket that measures out to its
+// One big number as the subject: projected final margin %, counted up in the
+// display face, framed by a drafting dimension bracket that measures out to its
 // health label. Below it, a spirit level whose bubble settles toward centre when
 // the job reads healthy and drifts off as margin risk climbs — then a compact
 // row of the numbers that move the finish: owed, schedule, open RFIs, punch.

@@ -1623,7 +1623,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           bodyHtml: `${emailStatCard([
             coName !== 'a change order' ? emailStatRow('Change order', escapeHtml(coName.replace('CO ', ''))) : '',
             description ? emailStatRow('Scope', escapeHtml(description.length > 80 ? description.slice(0, 80) + '…' : description)) : '',
-            coAmount ? emailStatRow('Amount', coAmount, { emphasize: true, valueColor: isApproved ? '#1E8E4A' : '#C2410C' }) : '',
+            coAmount ? emailStatRow('Amount', coAmount, { emphasize: true, valueColor: isApproved ? '#026354' : '#C2410C' }) : '',
             coNoCost ? emailStatRow('Amount', 'No cost change') : '',
             isApproved && newTotal ? emailStatRow('New contract total', newTotal) : '',
             emailStatRow('Decision', isApproved ? 'Approved' : 'Declined', coAmount ? undefined : { emphasize: true }),
@@ -1689,7 +1689,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         break;
       }
       const statusMap: Record<string, { eyebrow: string; title: string; subtitle: string; symbol: string; accent?: string }> = {
-        paid: { eyebrow: 'Invoice paid', title: `${company} paid invoice #${num}`, subtitle: 'Payment is on its way — check your bank for the deposit. We sent this on their behalf.', symbol: EMOJI.paid, accent: '#1E8E4A' },
+        paid: { eyebrow: 'Invoice paid', title: `${company} paid invoice #${num}`, subtitle: 'Payment is on its way — check your bank for the deposit. We sent this on their behalf.', symbol: EMOJI.paid, accent: '#026354' },
         approved: { eyebrow: 'Invoice approved', title: `${company} approved invoice #${num}`, subtitle: "You'll get another note once payment is on its way.", symbol: EMOJI.approved },
         rejected: { eyebrow: 'Invoice update', title: `${company} sent back invoice #${num}`, subtitle: 'Reach out for clarification or revise and resubmit through your portal.', symbol: EMOJI.declined, accent: '#C2410C' },
       };
@@ -1874,12 +1874,12 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
         emailSubject: `${EMOJI.celebrate} You won the bid · ${projectName}`,
         emailWrap: {
           preheader: `Congrats — the homeowner picked you for ${projectName}.`,
-          accent: '#1E8E4A',
+          accent: '#026354',
           eyebrow: 'Bid awarded',
           title: 'You won.',
           subtitle: `The homeowner just awarded ${projectName} to you. We've set up the project in MAGE ID with their address, photos, drawings, scope and the price they accepted. Their email is already on the client-portal invite — open portal setup to publish it and send them the link.`,
           bodyHtml: `
-            ${emailHero({ kicker: 'Project awarded', bigText: projectName, subText: awardedValueText ? `${awardedValueText} contract value` : undefined, photoUrl: heroPhoto, accent: '#1E8E4A' })}
+            ${emailHero({ kicker: 'Project awarded', bigText: projectName, subText: awardedValueText ? `${awardedValueText} contract value` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
             <p style="margin:0 0 12px;"><strong>What's next:</strong> open the project, review what the homeowner posted, then publish their portal and send the link to ${homeownerEmail ? escapeHtml(homeownerEmail) : 'the homeowner'} so they know you're on it.</p>
             <p style="margin:0;color:#9AA3AD;font-size:13px;">Other bidders were politely declined automatically — you don't need to do anything on that side.</p>
           `,
@@ -1906,10 +1906,10 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           eyebrow: 'Contract signed',
           title: 'Signed and binding.',
           subtitle: `${signerName} just counter-signed ${contractTitle}. The agreement is now in effect — start the work with confidence.`,
-          accent: '#1E8E4A',
+          accent: '#026354',
           bodyHtml: `
-            ${contractValue ? emailHero({ kicker: 'Contract value', bigText: fmtMoney(contractValue), subText: `Signed by ${signerName}`, accent: '#1E8E4A' }) : ''}
-            ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow('Signed by', escapeHtml(signerName))}${contractValue ? emailStatRow('Contract value', fmtMoney(contractValue), { emphasize: true, valueColor: '#1E8E4A' }) : ''}${emailStatRow('Signed at', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}`)}
+            ${contractValue ? emailHero({ kicker: 'Contract value', bigText: fmtMoney(contractValue), subText: `Signed by ${signerName}`, accent: '#026354' }) : ''}
+            ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow('Signed by', escapeHtml(signerName))}${contractValue ? emailStatRow('Contract value', fmtMoney(contractValue), { emphasize: true, valueColor: '#026354' }) : ''}${emailStatRow('Signed at', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}`)}
             <p style="margin:0;">The signed PDF is in MAGE ID under this project's Contract section — pull it for your records. A copy lives in the homeowner's portal too, so they can reference it any time.</p>
           `,
           cta: { label: 'View signed contract', href: appLink('contract_signed', projectData) },
@@ -2057,9 +2057,9 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           // default, so this line does not promise one. The trades are named
           // either way.
           subtitle: `${company} just delivered the closeout binder for ${projectName}. Every paint color, fixture brand, warranty, maintenance reminder and the trades who did the work — all in your portal.`,
-          accent: '#1E8E4A',
+          accent: '#026354',
           bodyHtml: `
-            ${emailHero({ kicker: 'Project complete', bigText: projectName, subText: finalCost ? `Final cost: ${fmtMoney(finalCost)}` : undefined, photoUrl: heroPhoto, accent: '#1E8E4A' })}
+            ${emailHero({ kicker: 'Project complete', bigText: projectName, subText: finalCost ? `Final cost: ${fmtMoney(finalCost)}` : undefined, photoUrl: heroPhoto, accent: '#026354' })}
             ${emailStatCard(`${photoCount ? emailStatRow('Project photos', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties on file', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
             <p style="margin:0 0 14px;">Open your portal and tap <strong>Closeout Binder</strong>. Read it on your phone, or hit Print to save a PDF you can keep forever.</p>
             <p style="margin:0;color:#9AA3AD;font-size:13px;">Save the binder as a PDF while you can: the portal link below stays open until 30 days after ${escapeHtml(company)} closes out the job, then it stops working.</p>
@@ -2118,7 +2118,7 @@ async function dispatch(req: NotifyRequest, caller: Caller, clientIp: string): P
           emailSubject: `${EMOJI.binder} Closeout delivered · ${projectName}`,
           emailWrap: {
             preheader: `Closeout binder for ${projectName} sent${homeownerName !== 'there' ? ` to ${homeownerName}` : ''}. Nice work.`,
-            accent: '#1E8E4A',
+            accent: '#026354',
             eyebrow: 'Project closed out',
             title: 'Binder delivered. Project complete.',
             subtitle: `${homeownerName !== 'there' ? `${homeownerName} now has` : 'The homeowner now has'} the full closeout package — every spec, warranty, and maintenance reminder for ${projectName}. Nice work.`,

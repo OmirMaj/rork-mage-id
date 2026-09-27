@@ -658,10 +658,10 @@ const makeStyles = (t: ThemeColors) =>
     },
     primary: {
       // White label sits on this fill (textColor === '#FFFFFF' above), so the
-      // fill must clear 4.5:1 for white — brand accent #FF6A1A is only 2.87:1.
-      // accentFill (#BC440C, white 5.29:1) is the accessible button fill; the
-      // brand hue still reads (HSL 19°). Shadow stays the brighter accent — a
-      // shadow carries no text, so the 4.5:1 rule does not apply to it.
+      // fill must clear 4.5:1 for white. accentFill is that solved fill: the
+      // brand green #2F6B3A (white 6.39:1) in light, and a mid green in dark,
+      // where the dark-theme accent #5DB36E is too light to carry white. Shadow
+      // stays the accent — a shadow carries no text, so 4.5:1 does not apply.
       backgroundColor: t.accentFill,
       shadowColor: t.accent,
       shadowOffset: { width: 0, height: 6 },

@@ -12,15 +12,22 @@ import type { ThemeColors } from '@/constants/colors';
 
 interface Props {
   children: string;
-  tone?: 'amber' | 'success' | 'neutral';
+  /**
+   * 'brand' (default) paints the label in the brand's label ink
+   * (accentLabel — MAGE green since the 2026-09-16 rebrand).
+   * @deprecated 'amber' — the pre-rebrand name for the same tone, kept as an
+   * alias so existing callers (components/ProjectCard.tsx) render unchanged.
+   * New code passes 'brand' or omits the prop.
+   */
+  tone?: 'brand' | 'amber' | 'success' | 'neutral';
   showDot?: boolean;
 }
 
-export function EyebrowLabel({ children, tone = 'amber', showDot = true }: Props) {
+export function EyebrowLabel({ children, tone = 'brand', showDot = true }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const color =
-    tone === 'amber' ? colors.accentLabel :
+    tone === 'brand' || tone === 'amber' ? colors.accentLabel :
     tone === 'success' ? colors.success :
     colors.textSecondary;
 

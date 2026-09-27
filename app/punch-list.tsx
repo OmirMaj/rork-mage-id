@@ -4500,8 +4500,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     minHeight: 46, marginTop: 8, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentSoft,
   },
   walkShootBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accentLabel },
-  // accentFill (#BC440C, 5.29:1) is the accent tone white text may sit on;
-  // themeColors.accent behind #fff is 2.87:1 and fails AA.
+  // accentFill (#2F6B3A light, white 6.39:1) is the accent tone white text may
+  // sit on; themeColors.accent in dark (#5DB36E) behind #fff is 2.58:1 and fails AA.
   walkFileBtn: {
     minHeight: 48, marginTop: 8, borderRadius: Tokens.radius.lg,
     backgroundColor: themeColors.accentFill, alignItems: 'center' as const, justifyContent: 'center' as const,

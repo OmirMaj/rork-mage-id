@@ -258,7 +258,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       <p style="margin:6px 0 18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#4A5159;word-break:break-all;line-height:1.5;">
         ${escapeHtml(actionLink)}
       </p>
-      <div style="height:1px;background:#E8DFCD;margin:8px 0 16px;"></div>
+      <div style="height:1px;background:#D7DAD4;margin:8px 0 16px;"></div>
       <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#9AA3AD;line-height:1.55;">
         ${escapeHtml(copy.footer)}
       </p>

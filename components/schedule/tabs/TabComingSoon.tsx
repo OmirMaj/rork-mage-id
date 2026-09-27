@@ -7,7 +7,8 @@
 import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Check } from 'lucide-react-native';
-import { Colors, type ThemeColors } from '@/constants/colors';
+import { type ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { supabase } from '@/lib/supabase';
 
@@ -26,6 +27,7 @@ export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabCo
   // (audit 2026-09-07). useThemedStyles is the subscription that actually
   // rebuilds the sheet.
   const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
 
   const notify = async () => {
@@ -54,8 +56,8 @@ export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabCo
       >
         {state === 'done' ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Check size={12} color={Colors.tradeColors.general} strokeWidth={2.5} />
-            <Text style={styles.btnText}>We'll let you know</Text>
+            <Check size={12} color={colors.successLabel} strokeWidth={2.5} />
+            <Text style={[styles.btnText, styles.btnTextDone]}>We'll let you know</Text>
           </View>
         ) : (
           <Text style={styles.btnText}>
@@ -74,7 +76,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   preview: { width: 240, height: 120, backgroundColor: t.surfaceAlt, borderRadius: 10, padding: 12, opacity: 0.7 },
   title: { fontSize: 18, color: t.text, fontWeight: '700' },
   tagline: { fontSize: 13, color: t.textSecondary, textAlign: 'center', maxWidth: 320, lineHeight: 19 },
-  btn: { backgroundColor: 'rgba(255,106,26,0.15)', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
-  btnDone: { backgroundColor: 'rgba(78,211,122,0.15)' },
-  btnText: { color: Colors.tradeColors.general, fontSize: 12, fontWeight: '700' },
+  // Chip-scale wash (accentSoft) with the label ink on it: text on a wash
+  // needs the *Label token to hold 4.5:1, not the brand fill. The done state
+  // is SUCCESS, so it goes teal (successSoft + successLabel), not brand green.
+  btn: { backgroundColor: t.accentSoft, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },
+  btnDone: { backgroundColor: t.successSoft },
+  btnText: { color: t.accentLabel, fontSize: 12, fontWeight: '700' },
+  btnTextDone: { color: t.successLabel },
 });

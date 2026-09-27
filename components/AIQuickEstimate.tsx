@@ -1013,8 +1013,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   typeChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: t.accentFill,
+    borderColor: t.accentFill,
   },
   typeChipText: {
     fontSize: Type.footnote.fontSize,
@@ -1089,7 +1089,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.panel,
     paddingVertical: 18,
     marginTop: 8,
@@ -1428,7 +1428,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accentFill,
     borderRadius: Tokens.radius.panel,
     paddingVertical: 18,
     shadowColor: Colors.primary,

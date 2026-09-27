@@ -32,9 +32,15 @@ import type { HealthScoreResult, HealthCheck, HealthGrade } from '@/utils/schedu
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+// A and B are GETTERS so they follow the theme at read time (a module-scope
+// literal freezes at import). A is success, and success is TEAL since the
+// 2026-09-16 rebrand (the old #2E7D44 sat ΔE 9.2 from the brand green). B was
+// a teal (#0F9B8E) that now collides with teal A (ΔE 14.6 in dark), so B moves
+// to the info-blue label ink: ΔE 69 from A in light, 70 in dark, and 87 / 89
+// from the brand green — a distinct second-best grade in both themes.
 const GRADE_COLOR: Record<HealthGrade, string> = {
-  A: "#2E7D44",
-  B: '#0F9B8E',     // teal — different shade from A so users can tell them apart
+  get A() { return Colors.successLabel; },
+  get B() { return Colors.infoLabel; },
   C: Colors.warningLabel,
   D: '#FF8A1A',     // orange between warning and error
   F: "#C84038",
@@ -167,7 +173,7 @@ function CheckRow({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [expanded, setExpanded] = useState(check.severity !== 'good');
-  const tone = check.severity === 'good' ? "#2E7D44"
+  const tone = check.severity === 'good' ? Colors.successLabel
     : check.severity === 'warn' ? Colors.warningLabel : "#C84038";
   const Icon = check.severity === 'good' ? CheckCircle2 : AlertTriangle;
   return (

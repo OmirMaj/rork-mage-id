@@ -259,9 +259,9 @@ export default function DiscoverScreen() {
       >
         {/* All three quick-action tints unified on the brand accent.
             Pre-fix Post Bid was cobalt blue (#1565C0) and Post Job was
-            forest green (Colors.primary, since reassigned to orange) —
-            the row had three different oranges/blues fighting for
-            attention. They're all CREATION actions; tone them the same. */}
+            forest green (Colors.primary, since reassigned to orange and,
+            in the 2026-09-16 rebrand, to the MAGE green) — the row had
+            three different oranges/blues fighting for attention. They're all CREATION actions; tone them the same. */}
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickAction}
@@ -312,7 +312,7 @@ export default function DiscoverScreen() {
         {/* Tools — the cross-project workflow hub. Section bar + card
             tint moved off amber #D97706 onto the brand accent. The
             amber was a relic of the forest-green era when accent was
-            yellow-orange; now we have one orange that covers it. */}
+            yellow-orange; now one brand green covers it. */}
         <View style={styles.sectionHeaderRow}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
@@ -457,7 +457,7 @@ export default function DiscoverScreen() {
           />
         )}
 
-        {/* Live-databases group: third tone (`accent` orange) — these are
+        {/* Live-databases group: third tone (`accent`, the brand green) — these are
             external resources you visit, not work happening in MAGE ID. */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
@@ -588,7 +588,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderColor: t.line,
   },
   // Active pill uses the brand accent so the "you're here" cue reads
-  // cleanly in BOTH light (amber on cream) and dark (amber on ink) mode.
+  // cleanly in BOTH light (green on concrete) and dark (green on ink) mode.
   // The earlier pattern (bg = Colors.text) inverted oddly in dark mode.
   tabPillActive: {
     backgroundColor: t.accentFill,
