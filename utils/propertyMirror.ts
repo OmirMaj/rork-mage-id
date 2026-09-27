@@ -465,12 +465,9 @@ export function composeDispatchMessage(i: DispatchMessageInput): { subject: stri
   return { subject, body: parts.join('\n\n') };
 }
 
-export function buildDispatchSmsUrl(phone: string, msg: { body: string }, platform: 'ios' | 'android' | 'web' | string): string {
-  const to = phone.replace(/[^\d+]/g, '');
-  // iOS wants `&body=` after a recipient; Android and web take `?body=`.
-  const sep = platform === 'ios' ? '&' : '?';
-  return `sms:${to}${sep}body=${encodeURIComponent(msg.body)}`;
-}
+// Moved to utils/smsUrl.ts (UX wave, Lane 0) so field screens share the one
+// builder; re-exported under the old name, behaviour unchanged.
+export { smsUrl as buildDispatchSmsUrl } from '@/utils/smsUrl';
 
 export function buildDispatchMailtoUrl(email: string, msg: { subject: string; body: string }): string {
   return `mailto:${encodeURIComponent(email.trim())}?subject=${encodeURIComponent(msg.subject)}&body=${encodeURIComponent(msg.body)}`;

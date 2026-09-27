@@ -72,6 +72,7 @@ import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import { sendEmail } from '@/utils/emailService';
 import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import { portalShareUrl } from '@/utils/portalSnapshot';
+import { portalDeliveryState, portalRecipients } from '@/utils/portalReady';
 import SignaturePad from '@/components/SignaturePad';
 import { supabase } from '@/lib/supabase';
 import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError, SEALED_PDF_DOWNLOAD_FAILED_MESSAGE } from '@/utils/contractSealing';
@@ -927,10 +928,9 @@ function ContractScreenInner() {
       let emailNote = '';
       try {
         const portalSettings = project?.clientPortal;
-        const invites = portalSettings?.invites ?? [];
-        const recipients = invites
-          .filter(i => (i.email ?? '').trim().includes('@'))
-          .map(i => ({ email: i.email!.trim(), name: i.name }));
+        // Who can receive it, by the one rule utils/portalReady shares with
+        // the pre-send check (an '@' in the trimmed invitee address).
+        const recipients = portalRecipients(portalSettings);
         // The link in this email IS the homeowner's authority to counter-sign:
         // the portal's signing RPCs all gate on `?t=<accessToken>`. A bare
         // `mageid.app/portal/<id>` opens a portal that cannot do the one thing
@@ -990,12 +990,25 @@ function ContractScreenInner() {
           } else {
             emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
           }
-        } else if (recipients.length === 0) {
-          emailNote = ' Note: no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.';
-        } else if (portalSettings?.enabled && portalSettings.portalId) {
-          emailNote = ' Note: this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.';
         } else {
-          emailNote = ' Note: the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.';
+          // Why nothing went out, from utils/portalReady — the same answer the
+          // pre-send check gets. 'ready' cannot reach this branch (it is the
+          // `if` above); it shares the last note only to keep the switch total.
+          switch (portalDeliveryState(project, user?.id ?? null)) {
+            case 'collaborator':
+              emailNote = ' Note: only the job\'s owner holds this portal\'s signing link, so nothing was emailed — ask the owner to share it from Client Portal.';
+              break;
+            case 'no_email':
+              emailNote = ' Note: no portal invitee email on file — share the portal link manually so the homeowner can counter-sign.';
+              break;
+            case 'no_signing_key':
+              emailNote = ' Note: this portal has no secure signing key yet, so nothing was emailed — open Client Portal, tap Save, then Share the link from there.';
+              break;
+            case 'portal_off':
+            case 'ready':
+              emailNote = ' Note: the client portal is off, so nothing was emailed — turn it on in Client Portal so the homeowner can counter-sign.';
+              break;
+          }
         }
       } catch (err) {
         console.warn('[contract] email send failed', err);
@@ -1014,7 +1027,7 @@ function ContractScreenInner() {
     } finally {
       setSigning(false);
     }
-  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds, requestPortalPublish]);
+  }, [contract, project, ctxUpdateProject, settings, isFree, projects, commitments, receipts, laborSamples, seeds, requestPortalPublish, user?.id]);
 
   // #67: record a homeowner signature given OUTSIDE the portal. The rules
   // (name, pad or page photo + day, never a future day) and the conditional

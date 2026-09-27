@@ -120,6 +120,7 @@ import { getOfflineQueue } from '@/utils/offlineQueue';
 import { unsavedWriteIds, unsavedPaymentAppends, requestSyncSheet, hasUnsavedChainForSession } from '@/utils/syncLedger';
 import { pendingIdsForTable } from '@/utils/projectContextPure';
 import { sendInvoiceReminderNow } from '@/utils/invoiceReminders';
+import { remindInvoice } from '@/utils/remindInvoice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
 import { qboClosedFlagOf, qboClosedFlagAlertReason } from '@/utils/qboClosedFlag';
@@ -2385,32 +2386,31 @@ function InvoiceInner() {
       showAlert('Sample job', SAMPLE_NOTHING_SENT);
       return;
     }
-    setSendingReminder(true);
+    // utils/remindInvoice owns the guards, the outcome wording and the marker
+    // patch; the payments list and the desktop dock call the same helper. The
+    // QuickBooks-closed question was already asked by the Send reminder button
+    // below, so it is passed as confirmed and `confirm` is never reached here.
     try {
-      const res = await sendInvoiceReminderNow(existingInvoice.id);
-      if (!res.success) {
-        showAlert('Reminder not sent', res.error ?? 'Could not reach the reminder service. Try again in a moment.');
-        return;
-      }
-      if (res.outcome === 'skipped') {
-        showAlert(
-          'No reminder sent',
-          res.reason === 'no_recipient'
-            ? 'No client email is on file for this invoice. Email the invoice to your client (the address is kept for reminders) or add a portal invitee in Client Portal setup, then try again.'
-            : res.reason
-              ? reminderBlockMessage(res.reason as Parameters<typeof reminderBlockMessage>[0], reminderState?.lastMs, Date.now())
-              : 'This invoice is not eligible for a reminder right now.',
-        );
-        return;
-      }
+      const out = await remindInvoice(
+        {
+          invoiceId: existingInvoice.id,
+          projectName: projectNameRef.current,
+          qboError: existingInvoice.qboError,
+          qboClosedConfirmed: true,
+          lastReminderMs: reminderState?.lastMs,
+        },
+        { send: sendInvoiceReminderNow, confirm: async () => true, onSendStart: () => setSendingReminder(true) },
+      );
       // Mirror the server's markers locally so the state line updates without
       // waiting for the next invoices refetch. These columns are written by
       // the edge function; echoing the SAME values back is idempotent.
-      if (res.stage != null && res.sentAt) {
-        updateInvoice(existingInvoice.id, { dunningStage: res.stage, dunningLastSentAt: res.sentAt });
+      if (out.patch) updateInvoice(existingInvoice.id, out.patch);
+      if (out.kind === 'sent') {
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        nailIt(out.message);
+      } else if (out.kind !== 'cancelled') {
+        showAlert(out.title, out.message);
       }
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      nailIt(`${dunningStageLabel(res.stage ?? 1)} sent${res.recipient ? ` to ${res.recipient}` : ''}`);
     } finally {
       setSendingReminder(false);
     }
