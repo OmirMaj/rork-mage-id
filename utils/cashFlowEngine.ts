@@ -5,6 +5,7 @@ import { commitmentUnpaid } from '@/utils/jobCostEngine';
 import { addWorkingDays } from '@/utils/scheduleEngine';
 import { parseCalendarDay, calendarDayStart, addCalendarDays, toCalendarDayString } from '@/utils/calendarDate';
 import { paymentReceivedAt } from '@/utils/billingFlowCore';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
 export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
@@ -1216,7 +1217,7 @@ export function calculateSummary(weeks: CashFlowWeek[]): CashFlowSummary {
 export function formatCurrency(n: number): string {
   const abs = Math.abs(n);
   const formatted = abs >= 1000
-    ? '$' + abs.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    ? '$' + roundHalfAwayFromZero(abs, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
     : '$' + abs.toFixed(0);
   return n < 0 ? '-' + formatted : formatted;
 }

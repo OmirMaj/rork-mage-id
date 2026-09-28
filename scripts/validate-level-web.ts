@@ -109,6 +109,10 @@ const pub: [string, Style][] = [
   ['levelBeatStyle twin', L.levelBeatStyle('twin') as Style],
   ['levelRevealStyle(150)', L.levelRevealStyle(150) as Style],
   ['LEVEL_CSS.breath', L.LEVEL_CSS.breath as Style],
+  ['levelDriftStyle(28, main, 450)', L.levelDriftStyle(28, 'main', 450) as Style],
+  ['levelDriftStyle(28, twin, 1390)', L.levelDriftStyle(28, 'twin', 1390) as Style],
+  ['levelStretchStyle phase 850', L.levelStretchStyle(lg.stretch, lg.squash, 'main', 850) as Style],
+  ['levelBeatStyle twin phase 850', L.levelBeatStyle('twin', 850) as Style],
 ];
 for (const size of [120, 288]) {
   const s = C.craneStyles(size) as Record<string, Style>;
@@ -184,7 +188,7 @@ check('8 onSettled: container opacity transitionend + backstop exit + 150, calle
   && /setTimeout\(finish, levelExitMs\([^)]*\) \+ LEVEL_BACKSTOP_MS\)/.test(levelSrc) && L.LEVEL_BACKSTOP_MS === 150
   && /if \(settledRef\.current\) return;\s*settledRef\.current = true;/.test(levelSrc)
   && L.levelExitMs('settle', false) === 340 && L.levelExitMs('fade', false) === 120 && L.levelExitMs('settle', true) === 160);
-check('8 a restart re-arms the drift with the byte-different TWIN', /levelDriftStyle\(parts\.amp, twin\)/.test(levelSrc) && /restarts\.current % 2 === 1 \? 'twin' : 'main'/.test(levelSrc));
+check('8 a restart re-arms the drift with the byte-different TWIN', /levelDriftStyle\(parts\.amp, twin, phase\)/.test(levelSrc) && /restarts\.current % 2 === 1 \? 'twin' : 'main'/.test(levelSrc));
 {
   const main = L.levelDriftRaw(28) as Style;
   const tw = L.levelDriftRaw(28, 'twin') as Style;
@@ -295,7 +299,71 @@ for (const [name, s] of pub.filter(([n]) => n.startsWith('crane'))) {
     && JSON.stringify((br.animationKeyframes as unknown[])[0]) === JSON.stringify({ from: { opacity: 1 }, to: { opacity: 0.5 } }));
   check('10 reveal: 170ms (LOADER.enter.visFadeMs), delay = the prop, 0 → 1', rv.animationDuration === `${TL.LOADER.enter.visFadeMs}ms` && rv.animationDelay === '150ms'
     && JSON.stringify((rv.animationKeyframes as unknown[])[0]) === JSON.stringify({ from: { opacity: 0 }, to: { opacity: 1 } }));
-  check('10 levelCss derives its periods in source', /LEVEL_PERIOD_MS \/ 2/.test(src[LEVEL_CSS]) && /LEVEL_RM_PERIOD_MS \/ 2/.test(src[LEVEL_CSS]) && /-LEVEL_PERIOD_MS \/ 4/.test(src[LEVEL_CSS]));
+  check('10 levelCss derives its periods in source', /LEVEL_PERIOD_MS \/ 2/.test(src[LEVEL_CSS]) && /LEVEL_RM_PERIOD_MS \/ 2/.test(src[LEVEL_CSS])
+    && /animationDelay: ms\(-\(levelPhaseSnap\(phaseMs\) \+ LEVEL_PERIOD_MS \/ 4\)\)/.test(src[LEVEL_CSS]));
+}
+
+// ── 12. ONE PHASE: every web level joins one shared cycle ───────────────────
+// Native marks read one shared clock. On the web each drift used to start at
+// −P/4 (dead centre) the moment its class landed, so the splash → BootShell
+// hand-back on the 8 s failsafe restarted the bubble at centre. Every delay is
+// now measured from levelCss's module epoch.
+{
+  const P = TL.LEVEL_PERIOD_MS;
+  const E = L.LEVEL_WEB_EPOCH_MS;
+  const delay = (s: Style) => Number(String(s.animationDelay).replace(/ms$/, ''));
+  check('12 the epoch is read once, when levelCss loads', typeof E === 'number' && Number.isFinite(E)
+    && (src[LEVEL_CSS].match(/export const LEVEL_WEB_EPOCH_MS = Date\.now\(\);/g) ?? []).length === 1);
+  check('12 levelPhaseMs: ms into the period since the epoch, on a 10 ms grid, wrapped',
+    L.LEVEL_PHASE_STEP_MS === 10 && L.levelPhaseMs(E) === 0 && L.levelPhaseMs(E + 123) === 120 && L.levelPhaseMs(E + 2 * P + 350) === 350
+    && L.levelPhaseMs(E + P - 1) === 0 && L.levelPhaseMs(E - 10) === P - 10 && L.levelPhaseSnap(Number.NaN) === 0,
+    [L.levelPhaseMs(E), L.levelPhaseMs(E + 123), L.levelPhaseMs(E + P - 1), L.levelPhaseMs(E - 10)].join(','));
+  check('12 drift delay = −(phase + P/4); stretch and glint = −(phase mod sweep)',
+    L.levelDriftRaw(28, 'main', 450).animationDelay === '-800ms' && L.levelDriftRaw(28, 'main', 1390).animationDelay === '-1740ms'
+    && L.levelStretchRaw(0.14, 0.1, 'main', 450).animationDelay === '-450ms' && L.levelStretchRaw(0.14, 0.1, 'main', 850).animationDelay === '-150ms'
+    && L.levelBeatRaw('main', 850).animationDelay === '-150ms' && L.levelDriftRaw(28).animationDelay === `-${P / 4}ms`
+    && L.levelStretchRaw(0.14, 0.1).animationDelay === '0ms' && L.levelBeatRaw().animationDelay === '0ms');
+  // Whenever a drift starts, it is at the SAME point of the cycle as every other:
+  // local time (now − start) + |delay| ≡ (now − epoch) + P/4 (mod P), ± half a step.
+  let worst = 0;
+  let stretchOff = 0;
+  for (let t = 0; t < 3 * P; t += 7) {
+    const start = E + t;
+    const d = L.levelDriftRaw(28, 'main', L.levelPhaseMs(start)) as Style;
+    const now = start + 3000;
+    const local = now - start - delay(d);
+    const want = now - E + P / 4;
+    const diff = (((local - want) % P) + P + P / 2) % P - P / 2;
+    worst = Math.max(worst, Math.abs(diff));
+    const st = L.levelStretchRaw(0.14, 0.1, 'main', L.levelPhaseMs(start)) as Style;
+    // The stretch's 0 % stop (a centre crossing) lands where the drift crosses centre.
+    const dLocal = -delay(d) - P / 4;
+    stretchOff = Math.max(stretchOff, Math.abs((((-delay(st) - dLocal) % (P / 2)) + P / 2) % (P / 2)));
+  }
+  check('12 every start time lands on the one shared phase (within half a 10 ms step)', worst <= L.LEVEL_PHASE_STEP_MS / 2, `${worst} ms`);
+  check('12 the squash-and-stretch and the glint stay in phase with the drift at every phase', stretchOff === 0, `${stretchOff} ms`);
+  // Classes: a new phase is a new class (a restart gets a fresh delay); the same
+  // snapped phase is the same class; and they stay bounded.
+  const drifts = new Set<unknown>();
+  const stretches = new Set<unknown>();
+  for (let p = 0; p < 2 * P; p++) {
+    drifts.add(L.levelDriftStyle(28, 'main', p));
+    stretches.add(L.levelStretchStyle(lg.stretch, lg.squash, 'main', p));
+  }
+  check('12 one class per snapped phase: drift ≤ 140, stretch ≤ 70 per amplitude and twin', drifts.size === P / L.LEVEL_PHASE_STEP_MS && stretches.size === P / 2 / L.LEVEL_PHASE_STEP_MS,
+    `${drifts.size} drift, ${stretches.size} stretch`);
+  check('12 a different phase is a different class; 452 ms and 450 ms share one', L.levelDriftStyle(28, 'main', 450) !== L.levelDriftStyle(28, 'main', 460)
+    && L.levelDriftStyle(28, 'main', 452) === L.levelDriftStyle(28, 'main', 450) && L.levelDriftStyle(28, 'twin', 450) !== L.levelDriftStyle(28, 'main', 450));
+  check('12 LevelMarkWeb reads the phase once per run (drift start, restart) and hands it to all three classes',
+    /import \{[^}]*\blevelPhaseMs\b[^}]*\} from '\.\/css\/levelCss'/.test(levelSrc)
+    && /if \(!drifting\) phaseRef\.current = null;/.test(levelSrc)
+    && /else if \(phaseRef\.current == null \|\| phaseRef\.current\.run !== restarts\.current\) \{\s*phaseRef\.current = \{ run: restarts\.current, ms: levelPhaseMs\(\) \};/.test(levelSrc)
+    && /const phase = phaseRef\.current\?\.ms \?\? 0;/.test(levelSrc)
+    && /levelDriftStyle\(parts\.amp, twin, phase\)/.test(levelSrc) && /levelStretchStyle\(parts\.stretch, parts\.squash, twin, phase\)/.test(levelSrc)
+    && /levelBeatStyle\(twin, phase\)/.test(levelSrc) && (levelSrc.match(/levelPhaseMs\(\)/g) ?? []).length === 1);
+  check('12 LevelMarkWeb keeps no clock of its own (no Date.now / performance.now)', !/Date\.now|performance\.now/.test(levelSrc));
+  check('12 Reduce Motion is unchanged: the breath has no phase, delay 0ms', (L.LEVEL_CSS.breath as Style).animationDelay === '0ms'
+    && /reduce \? LEVEL_CSS\.breath/.test(levelSrc));
 }
 
 // ── 11. CORE's gate (read-only cross-check) ─────────────────────────────────

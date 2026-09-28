@@ -13,6 +13,7 @@ import { acceptanceSentence, milestoneDueText, paymentStageRows, printedSchedule
 import { openPrintWindowOrThrow } from './platformFile';
 import { coApprovalLine } from './coApproval';
 import { homeownerSignatureMethodLabel } from './contractSignatureCore';
+import { roundHalfAwayFromZero } from './formatters';
 
 // Status labels printed on documents come from maps, never from the raw enum
 // (docs/VOICE.md: a humanized enum prints Title Case and whatever the row holds).
@@ -409,7 +410,7 @@ function estimateTotalCents(grandTotal: number): number {
 }
 
 function formatCurrency(n: number): string {
-  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '$' + roundHalfAwayFromZero(n, 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function buildSignatureSvg(paths: string[]): string {

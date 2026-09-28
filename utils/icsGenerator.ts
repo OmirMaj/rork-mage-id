@@ -21,6 +21,7 @@ import { invoiceOutstanding } from '@/utils/invoiceBilling'; // MONEY-F5
 import { toCalendarDayString } from '@/utils/calendarDate';
 import { resolveScheduleAnchor, scheduledPlacements, scheduledTaskRange, type ScheduledPlacement } from '@/utils/scheduleOps';
 import { runCpm } from '@/utils/cpm';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 import type {
   Project, ProjectSchedule, ScheduleTask, Invoice, Warranty,
 } from '@/types';
@@ -390,7 +391,7 @@ function slugify(name: string): string {
 }
 
 function formatMoney(n: number): string {
-  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return '$' + roundHalfAwayFromZero(n, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function downloadOnWeb(fileName: string, text: string): void {

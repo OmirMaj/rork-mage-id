@@ -14,6 +14,8 @@
 // PURE: no react-native, no contexts — scripts/validate-g-logs.ts executes it
 // under bun.
 
+import { roundHalfAwayFromZero } from '../formatters';
+
 export type LogKind = 'rfi' | 'submittal' | 'changeOrder' | 'invoice';
 
 export type LogRouteMode = 'phone' | 'form' | 'log' | 'split';
@@ -213,7 +215,7 @@ export function logDayKey(value: string | null | undefined): string | null {
 /** '$1,234.50' / '-$1,234.50'; null when not a number. `signed` adds '+'. */
 export function logMoney(n: number | null | undefined, signed = false): string | null {
   if (typeof n !== 'number' || !Number.isFinite(n)) return null;
-  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const abs = roundHalfAwayFromZero(Math.abs(n), 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (n < 0) return `-$${abs}`;
   return `${signed && n > 0 ? '+' : ''}$${abs}`;
 }

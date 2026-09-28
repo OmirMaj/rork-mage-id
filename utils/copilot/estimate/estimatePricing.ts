@@ -16,6 +16,7 @@
 import type { LinkedEstimate, LinkedEstimateItem, QualityTier } from '@/types';
 import { withMarkup, isMarkupSet, round2 } from '@/utils/estimateMarkup';
 import { scopeRelevance } from '@/utils/groundingChip';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 import type { EstimateGroundingEntry } from './estimateGrounding';
 import type { CopilotContext } from '../types';
 
@@ -169,7 +170,7 @@ export function replaceWarning(current: Pick<LinkedEstimate, 'items' | 'grandTot
   const n = current?.items?.length ?? 0;
   if (!current || n === 0) return null;
   const total = Number.isFinite(current.grandTotal) ? current.grandTotal : 0;
-  return `This replaces your current ${n}-line estimate ($${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). The old version is saved.`;
+  return `This replaces your current ${n}-line estimate ($${roundHalfAwayFromZero(total, 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). The old version is saved.`;
 }
 
 /** What the pricing step hands the review and Build. Serializable: it lives in

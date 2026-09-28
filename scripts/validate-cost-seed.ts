@@ -2096,8 +2096,15 @@ console.log('\n17. the pins the last pass did not leave behind:');
   // header, and an assertion about what the CODE can reach must not be
   // satisfiable — or breakable — by prose.
   const fmCode = fmMod.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  ok('utils/fieldMeasuredQuantity can write nothing — no imports, no store, no setter',
-    !/^\s*import\s/m.test(fmCode)
+  // ONE import is allowed (2026-09-27): utils/formatters' roundHalfAwayFromZero,
+  // so a measured "12.125 SF" prints the same on iPhone and on the web — and only
+  // while formatters itself imports nothing and names no store, so the
+  // reachability argument above still holds through it.
+  const fmImportLines = fmCode.match(/^\s*import\s.*$/gm) ?? [];
+  const fmtCode = src('utils/formatters.ts').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok('utils/fieldMeasuredQuantity can write nothing — no imports but the pure rounding helper, no store, no setter',
+    fmImportLines.every((l) => l.trim() === "import { roundHalfAwayFromZero } from './formatters';")
+    && !/^\s*import\s/m.test(fmtCode) && !/AsyncStorage|setOverride|updateProject|saveTakeoff/.test(fmtCode)
     && !/overrides\[/.test(fmCode)
     && !/AsyncStorage|setOverride|updateProject|saveTakeoff/.test(fmCode),
     'a silent writer here is how a 19x rate gets published as "measured"');

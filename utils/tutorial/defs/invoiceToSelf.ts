@@ -6,6 +6,7 @@
 // invoice is him. Data only.
 
 import type { CopyCtx, TutorialDef } from '../types';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 
 const INV = { pathname: '/invoice', projectParam: 'projectId' } as const;
 const HUB = { pathname: '/project-detail', projectParam: 'id' } as const;
@@ -13,12 +14,12 @@ const HUB = { pathname: '/project-detail', projectParam: 'id' } as const;
 /** '$63,360' — whole dollars when the total is whole, else cents. */
 export function formatUsd(n: number): string {
   if (!Number.isFinite(n)) return '';
-  const whole = Math.abs(n - Math.round(n)) < 0.005;
-  return n.toLocaleString('en-US', {
+  const d = Math.abs(n - Math.round(n)) < 0.005 ? 0 : 2;
+  return roundHalfAwayFromZero(n, d).toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2,
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
   });
 }
 

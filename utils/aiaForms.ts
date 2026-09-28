@@ -26,6 +26,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding } from '@/types';
 import { openPrintWindowOrThrow } from '@/utils/platformFile';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 
 // ─── Shared HTML helpers ────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ function escapeHtml(text: string | number | null | undefined): string {
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return '$0.00';
-  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '$' + roundHalfAwayFromZero(n, 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtDate(iso?: string | null): string {
