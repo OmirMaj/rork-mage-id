@@ -1327,6 +1327,13 @@
   .contract-sign-line:empty { display: none; }
   .contract-sign-line[data-tone="error"] { color: var(--error); }
   .contract-seal-host { margin: 12px 0 4px; }
+  /* D-7: the typed name on the signing line (Barlow 500, never cursive). */
+  .contract-line-name {
+    min-height: 26px; margin-top: 6px; padding: 0 2px;
+    font-family: var(--font-display); font-weight: 500; font-size: 20px;
+    line-height: 1.3; color: var(--text); overflow-wrap: anywhere;
+  }
+  .contract-line-name:empty { visibility: hidden; }
 
   /* ───────── Closeout binder ───────── */
   .closeout { padding: 4px 0; }
@@ -2970,6 +2977,13 @@
     esignNeedName: 'Type your full legal name to sign.',
     esignNeedSignature: 'Draw your signature to sign.',
     esignNeedConsent: 'Tick the consent box to sign.',
+    // D-7 (founder, 2026-09-28): in English the contract counter-sign is the
+    // slide, and its consent line names the slide. The tap sentence above
+    // (contractFinePrint, and CONTRACT_COPY in every language) stays, word for
+    // word, for the tap button: the other five languages, and English when
+    // moments.js did not load. Consent text: never machine-translated.
+    contractSlideLabel: 'Slide along the line to make it binding',
+    contractFinePrintSlide: 'By typing your name and sliding along the line, you accept the agreement as legally binding. Your contractor keeps the sealed signed copy and can send it to you.',
     closeoutPrint: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print or save as PDF',
     closeoutDelivered: 'Delivered',
     closeoutFinalized: 'Finalized',
@@ -3833,6 +3847,14 @@
     var bundle = CONTRACT_COPY[lang] || CONTRACT_COPY.en;
     return bundle[key] || CONTRACT_COPY.en[key] || '';
   }
+  // D-7: the counter-sign is the slide only where its consent line names the
+  // slide — English — and only when moments.js loaded (else the tap button).
+  function contractUsesLine() {
+    var d = window.__portalData || {};
+    var lang = String(d.language || 'en').slice(0, 2).toLowerCase();
+    var M = window.MageMoments;
+    return lang === 'en' && !!(M && M.MomentLine);
+  }
 
   var WARRANTY_PLACEHOLDER_MARK = '[warranty period — set before signing]';
   // Why these terms cannot be signed yet, or null when they can. Same rule as
@@ -3947,17 +3969,28 @@
     // Status 'sent'. The terms first — always — then either the sign box or
     // the reason there is none.
     var why = c.contentPending === true ? 'no_content' : contractTermsMissing(c.content);
+    // D-7: English (with moments.js loaded) signs on the line, and its fine
+    // print names the slide; every other language, and English without
+    // moments.js, keeps the tap button under the "tapping Sign" fine print.
+    // Each control sits with the one sentence that describes it.
+    var slide = contractUsesLine();
     var signBox = why
       ? '<div class="prop-note" data-contract-terms-pending="' + esc(why) + '">' + esc(CONTRACT_MISSING_COPY[why] || CONTRACT_MISSING_COPY.no_content) + '</div>'
       : '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">' + esc(contractCopy('explainer')) + '</p>' +
-        '<div class="contract-sign">' +
+        '<div class="contract-sign"' + (slide ? ' data-contract-mode="line"' : '') + '>' +
           '<input type="text" id="contract-name-' + esc(c.id) + '" placeholder="' + esc(t('contractSignNamePlaceholder')) + '" style="width:100%;padding:12px 14px;border:1px solid #D7DAD4;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
-          // D-7: the fine print below says "tapping Sign", so this stays a tap
-          // button. It is locked until a full name is typed, with the reason
-          // on the line under it (never an alert).
-          '<button type="button" class="contract-sign-btn" data-action="sign-contract" data-contract-id="' + esc(c.id) + '" disabled aria-describedby="contract-sign-line-' + esc(c.id) + '">' + esc(t('contractSignButton')) + '</button>' +
-          '<div class="contract-sign-line" id="contract-sign-line-' + esc(c.id) + '" data-contract-sign-reason="1" data-tone="neutral" aria-live="polite">' + esc(t('contractSignNameReason')) + '</div>' +
-          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">' + esc(contractCopy('finePrint')) + '</p>' +
+          (slide
+            // The typed name sits on the line (Barlow 500, not a cursive
+            // imitation); mountContractLines() draws the line itself, locked
+            // with "Type your full legal name to sign." until 3 characters.
+            ? '<div class="contract-line-name" id="contract-line-name-' + esc(c.id) + '" aria-hidden="true"></div>' +
+              '<div class="contract-line-host" data-contract-line="' + esc(c.id) + '"></div>' +
+              '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5" data-contract-fine-print="slide">' + esc(t('contractFinePrintSlide')) + '</p>'
+            // The tap button: locked until a full name is typed, with the
+            // reason on the line under it (never an alert).
+            : '<button type="button" class="contract-sign-btn" data-action="sign-contract" data-contract-id="' + esc(c.id) + '" disabled aria-describedby="contract-sign-line-' + esc(c.id) + '">' + esc(t('contractSignButton')) + '</button>' +
+              '<div class="contract-sign-line" id="contract-sign-line-' + esc(c.id) + '" data-contract-sign-reason="1" data-tone="neutral" aria-live="polite">' + esc(t('contractSignNameReason')) + '</div>' +
+              '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5" data-contract-fine-print="tap">' + esc(contractCopy('finePrint')) + '</p>') +
         '</div>';
     return '' +
       '<div class="open-book">' +
@@ -4229,10 +4262,11 @@
 
   // Contract-sign handler.
   //
-  // D-7 (wave-next W3): the counter-sign stays a TAP. Its fine print is
-  // consent text that says "tapping Sign" in six languages, and a slide would
-  // make that sentence false; new fine print waits on the founder and counsel.
-  // What changed is the answer: the seal draws only after the server said
+  // D-7: in English (moments.js loaded) the counter-sign is the slide
+  // (mountContractLines, below) under fine print that names the slide. The
+  // other five languages keep this TAP: their fine print says "tapping Sign"
+  // and is never machine-translated; English falls back to it too when
+  // moments.js did not load. What changed in W3 is the answer: the seal draws only after the server said
   // {ok: true}; every other outcome is a plain line under the button (no
   // pop-up box, no confetti), and nothing claims the contractor heard.
   // 'change' too: a browser's autofill does not always fire 'input'.
@@ -4258,31 +4292,12 @@
       if (nameInput) nameInput.focus();
       return;
     }
-    var api = data.portalApi;
     // Busy: the button keeps its words, locked, with a line under it.
     target.disabled = true;
     target.setAttribute('aria-busy', 'true');
     if (nameInput) nameInput.readOnly = true;
     setContractSignLine(contractId, t('contractSignBusy'), 'neutral');
-    fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/rpc/portal_sign_contract', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': api.supabaseAnonKey,
-        'Authorization': 'Bearer ' + api.supabaseAnonKey,
-      },
-      body: JSON.stringify({
-        p_portal_id: api.portalId,
-        p_contract_id: contractId,
-        p_signer_name: typedName,
-        p_passcode: (data && data.passcode) || null,
-        p_access_token: (new URLSearchParams(window.location.search).get('t') || null),
-      }),
-    })
-    .then(function (r) {
-      if (!r.ok) throw new Error('Sign failed: ' + r.status);
-      return r.json().catch(function () { return {}; });
-    })
+    postContractSignature(data, contractId, typedName)
     .then(function (res) {
       target.removeAttribute('aria-busy');
       // {ok:true, already:true}: signed already — on another device, in
@@ -4300,18 +4315,8 @@
         setContractSignLine(contractId, t('momentNoAnswer'), 'error');
         return;
       }
-      // Fire-and-forget: ping the GC so they know the contract just
-      // became binding and can pull the signed PDF. Nothing on this page
-      // claims the ping arrived (notify may drop it by his preferences).
-      notifyEvent('contract_signed', {
-        project_id: data.project && data.project.id,
-        portal_id: api.portalId,
-        access_token: getPortalToken(),
-        project_name: data.project && data.project.name,
-        signer_name: typedName,
-        contract_value: data.contract && data.contract.contractValue,
-        contract_title: data.contract && data.contract.title,
-      });
+      // Fire-and-forget: nothing on this page claims the ping arrived.
+      notifyContractSigned(data, typedName);
       // The seal closes the ring over the contractor's arc. The RPC returns
       // no time, so the Recorded line waits for the re-read below: the
       // snapshot's signed-at is the server's clock, never this device's.
@@ -4358,6 +4363,149 @@
     });
   });
 
+  /** POST portal_sign_contract (the tap and the line). Resolves the body; a
+   *  non-2xx rejects with 'Sign failed: <status>', a network error as itself. */
+  function postContractSignature(data, contractId, typedName) {
+    var api = data.portalApi;
+    return fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/rpc/portal_sign_contract', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api.supabaseAnonKey,
+        'Authorization': 'Bearer ' + api.supabaseAnonKey,
+      },
+      body: JSON.stringify({
+        p_portal_id: api.portalId,
+        p_contract_id: contractId,
+        p_signer_name: typedName,
+        p_passcode: (data && data.passcode) || null,
+        p_access_token: (new URLSearchParams(window.location.search).get('t') || null),
+      }),
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('Sign failed: ' + r.status);
+      return r.json().catch(function () { return {}; });
+    });
+  }
+  /** Fire-and-forget: ping the GC so they know the contract just became
+   *  binding and can pull the signed PDF. Nothing on this page claims the
+   *  ping arrived (notify may drop it by his preferences). */
+  function notifyContractSigned(data, typedName) {
+    var api = data.portalApi;
+    notifyEvent('contract_signed', {
+      project_id: data.project && data.project.id,
+      portal_id: api.portalId,
+      access_token: getPortalToken(),
+      project_name: data.project && data.project.name,
+      signer_name: typedName,
+      contract_value: data.contract && data.contract.contractValue,
+      contract_title: data.contract && data.contract.title,
+    });
+  }
+
+  // ── D-7: the counter-sign as the slide (English, moments.js loaded) ────
+  // The same request and the same answers as the tap above, shown on the
+  // line: the seal only for the server's {ok: true}; {already: true} a plain
+  // note, no seal; a 4xx the same three reasons under the line with the
+  // typed name kept; no answer (offline, a timeout, a 5xx, a 2xx without
+  // {ok: true}) "No answer yet…" and the line locks. Keyboard hold, the
+  // screen reader's confirming second activation and Reduce Motion all come
+  // from MomentLine. render() calls mountContractLines() after each draw.
+  var contractLines = {};
+  function mountContractLines() {
+    Object.keys(contractLines).forEach(function (id) {
+      var old = contractLines[id];
+      if (old && !document.body.contains(old.host)) { old.destroy(); delete contractLines[id]; }
+    });
+    var M = window.MageMoments;
+    if (!M || !M.MomentLine) return;
+    var hosts = document.querySelectorAll('[data-contract-line]');
+    for (var i = 0; i < hosts.length; i++) mountContractLine(M, hosts[i]);
+  }
+  function mountContractLine(M, host) {
+    var contractId = host.getAttribute('data-contract-line');
+    if (!contractId || host.getAttribute('data-mounted') === '1') return;
+    host.setAttribute('data-mounted', '1');
+    var line = new M.MomentLine(host, {
+      label: t('contractSlideLabel'),
+      strings: {
+        hint: t('momentHint'),
+        armed: t('momentArmed'),
+        busy: t('contractSignBusy'),
+        cancelled: t('momentCancelled'),
+        noAnswer: t('momentNoAnswer'),
+      },
+      disabledReason: t('contractSignNameReason'),
+      onCommit: function () { return commitContractLine(contractId, line); },
+      onDone: function (r) { if (r && r.status === 'confirmed') afterContractSigned(contractId); },
+    });
+    contractLines[contractId] = line;
+    syncContractSignGate(contractId);
+  }
+  /** After the seal has been on screen: re-read, and keep the seal with the
+   *  server's Recorded time (the RPC returns none; the snapshot's is the server's). */
+  function afterContractSigned(contractId) {
+    refreshPortalSnapshot().then(function (fresh) {
+      var fc = fresh && fresh.contract;
+      var signedAt = (fc && fc.id === contractId && fc.status === 'signed' && fc.homeownerSignedAt) || null;
+      keepContractSeal(contractId, signedAt, !!(fc && fc.id === contractId && fc.status === 'signed'));
+    });
+  }
+  /** The line's commit: resolves exactly one answer for the line to show. */
+  function commitContractLine(contractId, line) {
+    var data = window.__portalData;
+    var host = line.host;
+    var nameInput = document.getElementById('contract-name-' + contractId);
+    var typedName = nameInput ? nameInput.value.trim() : '';
+    if (!data || !data.portalApi || !data.contract || typedName.length < 3) {
+      return Promise.resolve({ status: 'refused', reason: t('contractSignNameReason') });
+    }
+    if (nameInput) nameInput.readOnly = true;
+    return postContractSignature(data, contractId, typedName).then(function (res) {
+      // {ok:true, already:true}: signed already (another device, in person,
+      // on paper). Not a new signature: no seal; a plain note, then the
+      // re-read shows who signed. The line is gone, so nothing answers it.
+      if (res && res.already === true) {
+        line.destroy();
+        delete contractLines[contractId];
+        showContractSignNote(host, t('contractSignAlready'));
+        refreshPortalSnapshot();
+        return new Promise(function () {});
+      }
+      // Only the server's {ok: true} is a signature.
+      if (!res || res.ok !== true) {
+        return { status: 'timeout', reason: t('momentNoAnswer') };
+      }
+      notifyContractSigned(data, typedName);
+      host.setAttribute('data-contract-seal', contractId);
+      return { status: 'confirmed', seal: contractSealOpts(null, true) };
+    }, function (err) {
+      console.error(err);
+      if (!(err && /Sign failed: 4/.test(String(err.message)))) {
+        // No answer: it may or may not be on file. The line locks.
+        return { status: 'timeout', reason: t('momentNoAnswer') };
+      }
+      // sign_denied: look before blaming the link (#65), exactly as the tap.
+      return refreshPortalSnapshot().then(function (fresh) {
+        var fc = fresh && fresh.contract;
+        var key = fc && fc.id === contractId && fc.status === 'signed' ? 'contractSignDeniedSigned'
+          : fc && fc.contentPending === true ? 'contractSignDeniedPending'
+          : 'contractSignDeniedLink';
+        var text = t(key);
+        if (document.body.contains(host)) {
+          if (nameInput) nameInput.readOnly = false;
+          return { status: 'refused', reason: text };
+        }
+        // The re-read redrew the card: the reason goes on what is there now.
+        restoreContractName(contractId, typedName);
+        var now = contractLines[contractId];
+        if (now) now.showReason(text, 'error');
+        else setContractSignLine(contractId, text, 'error');
+        return { status: 'refused', reason: text };
+      });
+    });
+  }
+
   // A short status line under the sign button (replaces the button's row).
   function showContractSignNote(btn, text) {
     var host = btn && btn.closest ? btn.closest('.contract-sign') : null;
@@ -4401,6 +4549,15 @@
   /** Name under 3 characters: the button is locked and the line says why. */
   function syncContractSignGate(contractId) {
     var parts = contractSignParts(contractId);
+    var line = contractLines[contractId];
+    if (line && parts.input && document.body.contains(line.host)) {
+      // The line: the typed name sits on it; locked with the reason under 3.
+      var typed = parts.input.value.trim();
+      var nameEl = document.getElementById('contract-line-name-' + contractId);
+      if (nameEl) nameEl.textContent = typed;
+      line.setDisabledReason(typed.length < 3 ? t('contractSignNameReason') : null);
+      return;
+    }
     if (!parts.button || !parts.input || parts.button.getAttribute('aria-busy') === 'true') return;
     var short = parts.input.value.trim().length < 3;
     parts.button.disabled = short;
@@ -4414,20 +4571,25 @@
     if (!parts.input.value) parts.input.value = typedName;
     syncContractSignGate(contractId);
   }
+  /** The contract's seal (the tap's and the line's): the second arc closes the
+   *  ring. `signedAt` is ONLY ever the refreshed snapshot's homeownerSignedAt. */
+  function contractSealOpts(signedAt, animate) {
+    return {
+      label: t('contractSignedSeal'),
+      chip: t('contractSealChip'),
+      closing: true,
+      recordedAt: signedAt,
+      recordedTemplate: t('momentRecordedAt'),
+      animate: animate,
+    };
+  }
   /** The seal, or (moments.js missing) the same words as a plain note. `signedAt`
    *  is ONLY ever the refreshed snapshot's homeownerSignedAt — the server's clock. */
   function drawContractSeal(host, contractId, signedAt, animate) {
     host.setAttribute('data-contract-seal', contractId);
     var M = window.MageMoments;
     if (M && M.sealResult) {
-      M.sealResult(host, {
-        label: t('contractSignedSeal'),
-        chip: t('contractSealChip'),
-        closing: true,
-        recordedAt: signedAt,
-        recordedTemplate: t('momentRecordedAt'),
-        animate: animate,
-      });
+      M.sealResult(host, contractSealOpts(signedAt, animate));
       return;
     }
     host.innerHTML = '<div class="prop-note" data-contract-sign-note="1">' + esc(t('contractSignedSeal')) + '</div>';
@@ -7772,6 +7934,7 @@
     }
 
     document.getElementById('sections').innerHTML = sectionHtml;
+    mountContractLines();
     renderNav(navItems);
     wireOwnerDecisionRows();
 
