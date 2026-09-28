@@ -494,5 +494,37 @@ console.log('\nthe history really comes off the encoded column:');
   eq('...and the module says none', inspectionHistoryFactsFor([p], PHOENIX, null).kind, 'none');
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nthe two Baltimores — one postal name, two permit offices:');
+// Lane PLACECODES (2026-09-28). The City row answers to 'baltimore city' and
+// the County row to 'baltimore'; with "city"/"county" dropped as office words
+// both reduce to {baltimore}, so the word-set match alone finds TWO rows for
+// any Baltimore text. localEntryFor reads the literal words first.
+{
+  const DHCD = issuingAuthorityForAddress({ city: 'Baltimore City', state: 'MD' });
+  const PAI = issuingAuthorityForAddress({ county: 'Baltimore County', state: 'MD' });
+  ok('both Baltimore authorities resolve, and they are different offices',
+    !!DHCD && !!PAI && DHCD !== PAI && /DHCD/.test(DHCD ?? '') && /PAI/.test(PAI ?? ''), `${DHCD} / ${PAI}`);
+  const city = DHCD ?? '';
+  const county = PAI ?? '';
+  for (const typed of ['Baltimore City DHCD', 'Baltimore City', 'Baltimore City, MD', 'City of Baltimore', 'Baltimore DHCD']) {
+    ok(`"${typed}" → the City office`, sameAuthority(typed, city) && !sameAuthority(typed, county));
+  }
+  for (const typed of ['Baltimore County PAI', 'Baltimore County', 'Baltimore County, MD', 'Baltimore PAI']) {
+    ok(`"${typed}" → the County office`, sameAuthority(typed, county) && !sameAuthority(typed, city));
+  }
+  for (const typed of ['Baltimore', 'Baltimore, MD']) {
+    ok(`a bare "${typed}" binds NEITHER office (ambiguous is an honest null)`,
+      !sameAuthority(typed, city) && !sameAuthority(typed, county));
+  }
+  ok('text naming both governments binds neither',
+    !sameAuthority('Baltimore City / Baltimore County', city) && !sameAuthority('Baltimore City / Baltimore County', county));
+  ok('the two canonical authorities never match each other', !sameAuthority(city, county));
+  ok('a Baltimore in another state is neither office', !sameAuthority('Baltimore City, OH', city) && !sameAuthority('Baltimore County, OH', county));
+  ok('the NYC DOB is untouched by the Baltimore rule',
+    sameAuthority('Brooklyn, NY', 'New York City Department of Buildings') && !sameAuthority('Baltimore City', 'New York City Department of Buildings'));
+  ok('Phoenix is untouched by the Baltimore rule', sameAuthority('City of Phoenix, AZ', PHOENIX) && !sameAuthority('Baltimore City', PHOENIX));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

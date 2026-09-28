@@ -284,5 +284,24 @@ assert((review.match(/<ClientDocumentAskSheet\b/g) ?? []).length === 1, 'review.
     'copyProposalLink states the 30-day validity as a calendar day');
 }
 
+// 9. Prices valid until (T2). The date is a calendar day; old links still
+// open; a crafted date is dropped rather than printed on the client's page;
+// the page words it as passed once the device's today is after it.
+{
+  assert(payload.valid === '2026-08-31', 'the valid-through day rides on the link as given');
+  const noDate = buildClientEstimateSharePayload(view, { projectName: 'Kitchen' });
+  const back2 = decodeClientEstimateToken(encodeClientEstimateToken(noDate));
+  assert(!!back2 && back2.valid === undefined, 'a link without a date round-trips with no date');
+  const crafted = decodeClientEstimateToken(encodeClientEstimateToken({ v: 1, n: 'X', total: 1, scope: [], valid: 'javascript:alert(1)' }));
+  assert(!!crafted && crafted.valid === undefined, 'a crafted date is dropped and the proposal still opens');
+  const rolled = decodeClientEstimateToken(encodeClientEstimateToken({ v: 1, n: 'X', total: 1, scope: [], valid: '2026-02-30' }));
+  assert(!!rolled && rolled.valid === undefined, 'a date that does not exist (Feb 30) is dropped');
+  const instant = buildClientEstimateSharePayload(view, { projectName: 'Kitchen', validThrough: '2026-08-31T12:00:00.000Z' });
+  assert(instant.valid === undefined, 'the builder never puts a timestamp on the link as a date');
+  const shared = stripComments(readFileSync(join(ROOT, 'app', 'shared-estimate.tsx'), 'utf8'));
+  assert(/isExpired\(payload\.valid, todayCalendarDay\(\)\)/.test(shared) && /expiredValidityLine\(payload\.valid, payload\.gc\)/.test(shared),
+    'shared-estimate says the prices were valid until the date once it has passed');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

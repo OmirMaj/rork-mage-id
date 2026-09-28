@@ -26,6 +26,8 @@ import { parseDecimalInput } from '@/utils/estimateLanding';
 import { generateUUID } from '@/utils/generateId';
 import { showAlert } from '@/utils/alert';
 import { amountFromHours, BackchargeHoursError, backchargePrefillFromPunch, formatCents, type Backcharge } from '@/utils/backcharges';
+import { backchargeSheetSubtitle } from '@/utils/backchargeCopy';
+import { useBackcharges } from '@/hooks/useBackcharges';
 import type { Commitment, Project, ProjectPhoto, PunchItem, Subcontractor } from '@/types';
 
 export const NO_LABOR_RATE_TEXT = 'No labor rate on file — type the amount';
@@ -49,6 +51,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
   const styles = useThemedStyles(makeStyles);
   const { addProjectPhoto, getPunchItemsForProject } = useProjects();
   const { rates } = useLaborRates();
+  const { signedIn } = useBackcharges();
 
   // The parent mounts this sheet only while open, so the initialisers are the reset.
   const [reason, setReason] = useState(() => (fromPunch ? backchargePrefillFromPunch(fromPunch, [sub]).reason : ''));
@@ -155,7 +158,7 @@ export function BackchargeSheet({ visible, project, sub, commitments, onClose, o
       visible={visible}
       onClose={onClose}
       title={`Backcharge ${sub.companyName}`}
-      subtitle="Saved on this device until you sign out. Nothing is sent to the sub."
+      subtitle={backchargeSheetSubtitle(signedIn)}
       testID="backcharge-sheet"
       primaryAction={{
         label: amount.cents != null ? `Save ${formatCents(amount.cents)}` : 'Save',

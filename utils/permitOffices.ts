@@ -1,5 +1,5 @@
-// utils/permitOffices.ts — WHICH office issues the permit, for a NY / NJ / CT
-// jobsite outside the city rows in utils/codeJurisdiction.ts. PURE: no React,
+// utils/permitOffices.ts — WHICH office issues the permit, for a NY / NJ / CT /
+// MD jobsite outside the city rows in utils/codeJurisdiction.ts. PURE: no React,
 // no storage, no network, so bun validators drive it directly
 // (scripts/validate-permit-offices.ts). The I/O half — the edge-function call
 // and the mageid_place_* cache — is utils/placeLookup.ts.
@@ -18,6 +18,13 @@
 //   CT  the town, plus the DAS list's sub-town offices (City of Groton,
 //       Groton Long Point, Fenwick …) when the Census place at the address is
 //       one of them, plus its "See <town>" aliases for a mailing-town guess.
+//   MD  the COUNTY, never the town: Maryland's Census county subdivisions are
+//       election districts ("District 9"), not governments. 24510 Baltimore
+//       city and 24005 Baltimore County are hand-verified cards built from
+//       the department blocks in utils/codeJurisdiction.ts (one source, so
+//       the two cannot drift); every other county is a NAME-ONLY card, and
+//       an incorporated city or town inside it gets a caution to check
+//       whether it runs its own permits. MAGE claims neither.
 // HONESTY
 //   approximate → "Looks like X (from the map pin) — confirm."
 //   none        → never picks one; NY says it could be the town or a village.
@@ -32,15 +39,24 @@
 
 import njRoster from './generated/njConstructionOffices.json';
 import ctList from './generated/ctBuildingOfficials.json';
-import { jobsiteAddressForProject, normalizeState, type AddressableProject } from './codeJurisdiction';
+import {
+  LOCAL_ADOPTIONS,
+  jobsiteAddressForProject,
+  normalizeState,
+  type AddressableProject,
+  type BuildingDepartment,
+  type LocalAdoption,
+} from './codeJurisdiction';
 
 // ─────────────────────────────────────────────────────────────────────
 // The Census answer (wire shape of supabase/functions/place-lookup)
 // ─────────────────────────────────────────────────────────────────────
 
 export type PlaceMatch = 'address' | 'approximate' | 'none';
-export type TristateCode = 'NY' | 'NJ' | 'CT';
-export const TRISTATE: readonly TristateCode[] = ['NY', 'NJ', 'CT'];
+/** The states this lookup answers for. The name predates Maryland; it is
+ *  kept so callers do not change. */
+export type TristateCode = 'NY' | 'NJ' | 'CT' | 'MD';
+export const TRISTATE: readonly TristateCode[] = ['NY', 'NJ', 'CT', 'MD'];
 
 /** One Census geography. `kind` is the Census type word after the name
  *  ("Garden City village" → 'village'; "Levittown CDP" → 'CDP'; '' when the
@@ -123,8 +139,9 @@ export interface PlaceQueryProject extends AddressableProject {
   locationLongitude?: number | null;
 }
 
-/** The lookup a project implies, or null when it isn't a NY/NJ/CT jobsite or
- *  names no address to look up. */
+/** The lookup a project implies, or null when it isn't a NY/NJ/CT/MD jobsite
+ *  or names no address to look up. A location-only project sends its whole
+ *  `location`, so a trailing ZIP reaches the Census geocoder. */
 export function placeQueryForProject(project: PlaceQueryProject | null | undefined): PlaceQuery | null {
   if (!project) return null;
   const a = jobsiteAddressForProject(project);
@@ -521,12 +538,60 @@ function nyHandOffice(h: HandCard): PermitOffice {
   };
 }
 
+// ── MD: the two Baltimore governments ──────────────────────────────
+// Keyed by Census county GEOID (checked 2026-09-28 against the live Census
+// geocoder: "620 E 31st St, Baltimore, MD 21218" → Counties "Baltimore city"
+// 24510; "400 Washington Ave, Towson, MD 21204" → "Baltimore County" 24005;
+// "100 State Cir, Annapolis, MD 21401" → "Anne Arundel County" 24003, with the
+// incorporated place "Annapolis city" and the county subdivision "District 6").
+// Phone, email, portal, hours and source come from the row's `department`
+// block, so this card and the code-jurisdiction card are the same facts. Only
+// the street address is added here, each read 2026-09-28:
+//   City   "Visit us at the One Stop Shop at 417 E. Fayette Street, Room 100"
+//          (https://www.baltimorecity.gov/dhcd/our-work/permits-and-inspections);
+//          the ZIP 21202 is on DHCD's building-permits page for 417 E.
+//          Fayette Street.
+//   County "County Office Building, 111 West Chesapeake Avenue, Towson,
+//          Maryland 21204" (https://www.baltimorecountymd.gov/departments/pai).
+export const MD_COUNTY_OFFICES: Readonly<Record<string, { row: string; address: readonly string[] }>> = {
+  '24510': { row: 'Baltimore City', address: ['One Stop Shop, 417 E. Fayette Street, Room 100', 'Baltimore, MD 21202'] },
+  '24005': { row: 'Baltimore County', address: ['County Office Building, 111 West Chesapeake Avenue', 'Towson, MD 21204'] },
+};
+
+function mdHandOffice(geoid: string): PermitOffice | null {
+  const spec = MD_COUNTY_OFFICES[geoid];
+  const row: LocalAdoption | undefined = spec
+    ? LOCAL_ADOPTIONS.find((e) => e.state === 'MD' && e.name === spec.row)
+    : undefined;
+  const d: BuildingDepartment | undefined = row?.department;
+  if (!spec || !row || !d) return null;
+  return {
+    key: `MD:${geoid}`,
+    jurisdiction: row.name,
+    title: row.authorityName,
+    subtitle: 'Maryland',
+    verification: 'hand-verified',
+    address: spec.address,
+    phone: d.phone ?? null,
+    email: d.email ?? null,
+    portalUrl: d.portalUrl,
+    hours: d.hours ?? null,
+    facts: [d.afterHours, d.applicantOfRecordNote].filter((f): f is string => !!f),
+    sourceLabel: `${d.sourceLabel ?? hostOf(d.sourceUrl)}, checked ${d.checkedOn}`,
+    sourceUrl: d.sourceUrl,
+  };
+}
+
 /** The office map, keyed by state + municipality id. */
 export const DEPARTMENTS: Readonly<Record<string, PermitOffice>> = (() => {
   const m: Record<string, PermitOffice> = {};
   for (const e of njRoster.offices as NjEntry[]) m[`NJ:${e.code}`] = njOffice(e);
   for (const e of ctList.offices as CtEntry[]) m[`CT:${e.id}`] = ctOffice(e);
   for (const h of NY_HAND_VERIFIED) m[`NY:${h.geoid}`] = nyHandOffice(h);
+  for (const geoid of Object.keys(MD_COUNTY_OFFICES)) {
+    const o = mdHandOffice(geoid);
+    if (o) m[o.key] = o;
+  }
   return m;
 })();
 
@@ -546,7 +611,8 @@ for (const e of ctList.offices as CtEntry[]) {
 const CT_BY_NAME = new Map((ctList.offices as CtEntry[]).filter((e) => e.censusGeoid).map((e) => [placeNorm(e.name), e.id]));
 const CT_ALIAS = new Map((ctList.aliases as { name: string; seeTowns: string[] }[]).map((a) => [placeNorm(a.name), a.seeTowns]));
 
-/** The name-only card for a NY municipality MAGE hasn't verified. */
+/** The name-only card for a municipality (or, in Maryland, a county) MAGE
+ *  hasn't verified. */
 export function nameOnlyOffice(state: TristateCode, jurisdiction: string, geoid: string): PermitOffice {
   return {
     key: `${state}:${geoid}`,
@@ -598,6 +664,9 @@ function noneHeadline(state: TristateCode, postalCity: string): string {
   }
   if (state === 'NJ') {
     return "MAGE couldn't place this address on the Census map. In New Jersey the mailing town is often not the municipality, so confirm the municipality before you file.";
+  }
+  if (state === 'MD') {
+    return `MAGE couldn't place this address on the Census map. ${postalCity.trim() ? `A Maryland mailing town like ${postalCity.trim()}` : 'A Maryland mailing address'} doesn't always tell you the county, and a "Baltimore" address can be in Baltimore City or Baltimore County. Confirm which government issues the permit before you file.`;
   }
   return "MAGE couldn't place this address on the Census map. Confirm the town before you file.";
 }
@@ -676,6 +745,24 @@ function resolveCt(place: PlaceLookupResult): PermitOfficeAnswer {
   return { kind: 'unresolved', office: null, headline: noneHeadline('CT', ''), cautions: [] };
 }
 
+/**
+ * MD: keyed on the COUNTY. Baltimore city (24510) and Baltimore County (24005)
+ * are hand-verified; any other county is a name-only card. The Census county
+ * subdivision (an election district in Maryland) is never used.
+ */
+function resolveMd(place: PlaceLookupResult): PermitOfficeAnswer {
+  const county = place.county;
+  if (!county) return { kind: 'unresolved', office: null, headline: noneHeadline('MD', ''), cautions: [] };
+  const hand = DEPARTMENTS[`MD:${county.geoid}`];
+  if (hand) return { kind: 'office', office: hand, headline: pinHeadline(place.match, hand.jurisdiction), cautions: [] };
+  const office = nameOnlyOffice('MD', county.name, county.geoid);
+  const ip = place.incorporatedPlace;
+  const cautions = ip
+    ? [`${ip.name} is an incorporated place inside ${county.name}. Check whether it issues its own permits before you file.`]
+    : [];
+  return { kind: 'office', office, headline: pinHeadline(place.match, county.name), cautions };
+}
+
 /** CT only: a mailing-town guess from the DAS list when Census found nothing. */
 function ctGuessByPostalCity(postalCity: string): PermitOfficeAnswer | null {
   const n = placeNorm(postalCity);
@@ -714,5 +801,6 @@ export function permitOfficeFor(
   }
   if (state === 'NY') return resolveNy(place);
   if (state === 'NJ') return resolveNj(place);
+  if (state === 'MD') return resolveMd(place);
   return resolveCt(place);
 }

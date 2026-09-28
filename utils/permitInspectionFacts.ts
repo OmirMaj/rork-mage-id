@@ -193,6 +193,33 @@ function tokensContained(needle: readonly string[], hay: Set<string>): boolean {
 }
 
 /**
+ * THE TWO-BALTIMORE TRAP. The Baltimore City row answers to 'baltimore city'
+ * and the Baltimore County row to 'baltimore'; after "city" and "county" are
+ * dropped as office words, BOTH reduce to the one token {baltimore}, so the
+ * token match below finds two rows for any Baltimore text and returns null —
+ * even for "Baltimore City DHCD", which names one office plainly.
+ *
+ * So the two governments are told apart HERE, on the literal words, before
+ * the stopwords go:
+ *   'baltimore city' / 'city of baltimore', or 'baltimore' + DHCD  → the City
+ *   'baltimore county', or 'baltimore' + PAI                        → the County
+ *   both, or a bare 'baltimore'                                     → null
+ * A bare "Baltimore" stays an honest null: County addresses use that postal
+ * name too. Returns `undefined` when the text has nothing to do with
+ * Baltimore (or names another state), so every other row's behaviour is
+ * untouched.
+ */
+function baltimoreEntryFor(norm: string, state: string): LocalAdoption | null | undefined {
+  if (state && state !== 'MD') return undefined;
+  if (!/\bbaltimore\b/.test(norm)) return undefined;
+  const city = /\bbaltimore city\b|\bcity of baltimore\b/.test(norm) || /\bdhcd\b/.test(norm);
+  const county = /\bbaltimore county\b/.test(norm) || /\bpai\b/.test(norm);
+  if (city === county) return null;
+  const name = city ? 'Baltimore City' : 'Baltimore County';
+  return LOCAL_ADOPTIONS.find((e) => e.state === 'MD' && e.name === name) ?? null;
+}
+
+/**
  * The LOCAL_ADOPTIONS row an authority string names, or null.
  *
  * Two ways in, in order:
@@ -211,6 +238,8 @@ function localEntryFor(cleaned: string): LocalAdoption | null {
   }
   const split = splitLocationText(cleaned);
   const state = normalizeState(split.state);
+  const baltimore = baltimoreEntryFor(norm, state);
+  if (baltimore !== undefined) return baltimore;
   const tokens = new Set(authorityPlaceTokens(split.city || cleaned));
   if (tokens.size === 0) return null;
   const hits: LocalAdoption[] = [];
@@ -228,6 +257,10 @@ interface AuthorityIdentity {
   /** Two-letter state, from the row or from the text. '' when unknown. */
   state: string;
   tokens: string[];
+  /** True when the text names Baltimore without saying which government
+   *  (see baltimoreEntryFor). Such text never folds into either Baltimore
+   *  row's record through the word-set fallback. */
+  ambiguousBaltimore?: boolean;
 }
 
 const IDENTITY_CACHE = new Map<string, AuthorityIdentity>();
@@ -248,11 +281,13 @@ function authorityIdentity(raw: string): AuthorityIdentity {
       out = { entryKey: '', state: wholeState, tokens: [] };
     } else {
       const split = splitLocationText(cleaned);
+      const splitState = normalizeState(split.state);
       out = {
         entryKey: '',
-        state: normalizeState(split.state),
+        state: splitState,
         tokens: authorityPlaceTokens(split.city || cleaned),
       };
+      if (baltimoreEntryFor(normalizePlace(cleaned), splitState) === null) out.ambiguousBaltimore = true;
     }
   }
   if (IDENTITY_CACHE.size > 512) IDENTITY_CACHE.clear();
@@ -282,6 +317,9 @@ export function sameAuthority(a: string | null | undefined, b: string | null | u
     const known = ia.entryKey ? ra : rb;
     const other = ia.entryKey ? ib : ia;
     if (other.tokens.length === 0) return false;
+    // "Baltimore" alone could be the City's office or the County's. It is not
+    // widened into either one's record.
+    if (other.ambiguousBaltimore) return false;
     const knownTokens = new Set(authorityPlaceTokens(stripAuthorityTails(known)));
     return tokensContained(other.tokens, knownTokens);
   }

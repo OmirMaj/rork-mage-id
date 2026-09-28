@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0B0D10" />
 <meta name="robots" content="noindex" />
+<!-- T6.6: this page carries its access token in ?t=. No Referer leaves it, so
+     no link here (the growth link included) can hand the token to another site. -->
+<meta name="referrer" content="no-referrer" />
 <title>Sub Portal — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -729,7 +732,7 @@
       <div id="invoices-section"></div>
 
       <footer class="portal-footer">
-        <span><span class="footer-mark">M</span>Powered by <a href="https://mageid.app">MAGE ID</a></span>
+        <span><span class="footer-mark">M</span><a href="https://mageid.app/?ref=sub_portal&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a></span>
         <div style="margin-top:6px">Contract, invoices and schedule as of <span id="snapshot-time">just now</span></div>
       </footer>
     </main>

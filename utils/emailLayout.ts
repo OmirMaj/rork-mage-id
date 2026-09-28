@@ -29,6 +29,8 @@
 // KEEP IN SYNC with supabase/functions/_shared/email.ts — system-generated
 // and user-composed emails must look identical in the inbox.
 
+import { growthLink } from './growthLink';
+
 const INK = '#0B0D10';
 const BRAND = '#2F6B3A';
 const BRAND_ON_INK = '#5DB36E';
@@ -312,7 +314,9 @@ export function buildPreferencesUrl(email: string): string {
 // "Built with MAGE ID — run your projects free" growth CTA. Shown in the
 // footer when growthBadge is set (free-tier GC → their clients/subs). The
 // recipient is a prospective user; this is the product-led acquisition loop.
-const GROWTH_BADGE_URL = `${PORTAL_BASE_URL}/?ref=email`;
+// T6: the same tracked link every outsider page uses (utils/growthLink), so the
+// landing counts email arrivals under ref=email as before, with the shared utm tags.
+const GROWTH_BADGE_URL = growthLink('email');
 
 function brandLineHtml(growthBadge?: boolean): string {
   if (growthBadge) {

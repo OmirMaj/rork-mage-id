@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0B0D10" />
 <meta name="robots" content="noindex" />
+<!-- T6.6: this page carries its access token in ?t=. No Referer leaves it, so
+     no link here (the growth link included) can hand the token to another site. -->
+<meta name="referrer" content="no-referrer" />
 <title>Invitation to Bid — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -234,7 +237,7 @@
         '<div class="state-badge ' + badge + '">' + glyph + '</div>' +
         '<h1>' + esc(title) + '</h1>' +
         paras.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
-        '<p class="footer" style="margin-top:22px">Sent with <a href="https://mageid.app">MAGE ID</a></p>' +
+        '<p class="footer" style="margin-top:22px"><a href="https://mageid.app/?ref=bid_invite&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a></p>' +
       '</div></div>';
   }
 
@@ -385,7 +388,7 @@
           '<div class="hint" style="text-align:center;margin-top:10px">This link is yours — anyone who has it can file a bid under your name, so please don\'t forward it.</div>' +
         '</section>' +
 
-        '<div class="footer">Sent with <a href="https://mageid.app">MAGE ID</a></div>' +
+        '<div class="footer"><a href="https://mageid.app/?ref=bid_invite&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a></div>' +
       '</main>';
 
     if (SCOPE.sub_name) document.getElementById('f-vendor').value = SCOPE.sub_name;

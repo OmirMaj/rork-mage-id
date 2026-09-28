@@ -228,6 +228,19 @@ export interface LocalAdoption extends BaseEntry {
    * address fact, not the name of a permit office; it lives here.
    */
   postalCity?: readonly string[];
+  /**
+   * Five-digit ZIPs that place an ADDRESS inside this row. Read ONLY by
+   * `resolveCodeJurisdiction`, on the query's `zip`, and never when the
+   * address carries a county that is not one of this row's `matchCounty`
+   * names — a county always outranks a ZIP.
+   *
+   * A row may list a ZIP here only when that ZIP's Census ZCTA lies wholly
+   * inside the row's government, measured from a fetched Census file (see the
+   * Baltimore rows for the method). A ZCTA approximates a USPS ZIP; it is not
+   * the same thing, which is why a ZIP that crosses a line is left out and
+   * falls through to the state row rather than being guessed at.
+   */
+  postalZip?: readonly string[];
   /** How to reach the building department. Only rows verified on the
    *  authority's own site carry one (NYC today); `departmentFor` returns null
    *  for every other row, so nothing is rendered from recall. */
@@ -252,6 +265,12 @@ export interface DepartmentChannel {
  *  computed. */
 export interface BuildingDepartment {
   portalUrl: string;
+  /**
+   * Link text for `portalUrl`, as the department names its own portal
+   * ('E-Permits portal'). Absent means the NYC wording the card has always
+   * used ('DOB NOW portal'), so the NYC row renders exactly as before.
+   */
+  portalLabel?: string;
   statusLookupUrl?: string;
   phone?: string;
   email?: string;
@@ -261,6 +280,11 @@ export interface BuildingDepartment {
   feeScheduleUrls?: readonly { label: string; url: string }[];
   applicantOfRecordNote?: string;
   sourceUrl: string;
+  /**
+   * Where the facts were read, in the words the card prints after "Checked …
+   * on" ('baltimorecity.gov'). Absent means the NYC wording ('nyc.gov').
+   */
+  sourceLabel?: string;
   checkedOn: string;
 }
 
@@ -295,12 +319,36 @@ export interface BuildingDepartment {
 //                 date that has now passed. A self-contradicting page is not a
 //                 source, so the Austin row claims no electrical edition.
 //   Everywhere    Fort Worth, Atlanta, Charlotte, Nashville, Las Vegas,
-//     else        Portland, Baltimore, Detroit, Minneapolis, New Orleans,
+//     else        Portland, Detroit, Minneapolis, New Orleans,
 //                 San Diego, Sacramento, Indianapolis, Columbus, Jacksonville,
 //                 Milwaukee, Albuquerque, Tucson and Kansas City have NOT been
 //                 researched. They resolve to their state row where one exists
 //                 and to 'unknown' otherwise, which is the correct answer
 //                 until somebody reads their building department's page.
+//
+// MARYLAND (added 2026-09-28; every page below fetched that day with curl and
+// a Safari User-Agent, PDFs through `pdftotext -layout`):
+//   VERIFIED  the state row (Maryland Department of Labor's code matrix and
+//             its building-codes pages), Baltimore City (the City's own Law
+//             Library and DHCD's pages) and Baltimore County (PAI's codes
+//             sheet Rev 08/25/26 and its pages). Both Baltimore rows carry a
+//             department block.
+//   NOT       every other Maryland county and every incorporated town inside
+//   VERIFIED  them. They resolve to the state row, and the permit-office card
+//             (utils/permitOffices.ts) is name-only for them. Montgomery,
+//             Prince George's, Anne Arundel, Howard and the rest each set
+//             their own amendments, fire code and electrical code; none of
+//             that has been read, so none of it is claimed.
+//   THE TRAP  "Baltimore, MD" is NOT Baltimore City. Baltimore County
+//             addresses use the same postal name: its own address-point layer
+//             (Facilities/Address/MapServer/0, grouped by CITY_POSTAL and ZIP
+//             on 2026-09-28) holds 20,870 County address points whose postal
+//             city is BALTIMORE, across nine ZIPs. So no row matches the city
+//             name 'baltimore'; the County decides, or a ZIP that lies wholly
+//             in one government, or the answer is the state row with
+//             `localAmbiguity` set (see resolveCodeJurisdiction). One of those
+//             nine is 21230, whose Census ZCTA is wholly City: that is why a
+//             ZIP must also pass the address-point test (BALTIMORE ZIPs below).
 //
 // SOURCES THIS ENVIRONMENT CANNOT OPEN — every one of these WAS read on
 // 2026-09-07, out of band, and the receipt records how. What they have in
@@ -675,7 +723,146 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     sourceUrl: 'https://www.ncosfm.gov/codes/codes-current-and-past',
     checkedOn: '2026-09-07',
   },
+  {
+    // MARYLAND, added 2026-09-28. Every fact below was read that day (curl,
+    // Safari UA; the PDF through `pdftotext -layout`):
+    //   - sourceUrl, the Department of Labor's matrix "Current Adopted
+    //     Building-Related Codes in the State of Maryland", dated 3/18/2026:
+    //     Building "2021 IBC (MBPS)", Residential "2021 IRC (MBPS)", Energy
+    //     "2021 IECC (MBPS)", Existing Building "2021 IEBC (MBRC)"; Electrical
+    //     (2) "State Fire Marshal 2017 NEC (State Fire Prevention Code)" and
+    //     Electrical (3) "local jurisdiction (locally adopted)"; Fire
+    //     Prevention "2024 NFPA 1 and 2024 NFPA 101 (not applicable to one-
+    //     and two-family dwellings and buildings located in Baltimore City …)".
+    //   - https://labor.maryland.gov/labor/build/buildcodes.shtml: "Each local jurisdiction in
+    //     Maryland may modify these codes to suit local conditions with
+    //     exception to the International Energy Conservation Code … and
+    //     Maryland Accessibility Code … The Energy Code and the Accessibility
+    //     Code can be made more stringent but not less by the local
+    //     jurisdictions." It also says "The State has modified the IBC and the
+    //     IRC", which is why the codes below carry the state's own name.
+    //   - noteSourceUrl, https://labor.maryland.gov/labor/build/buildadmin.shtml: the 2021
+    //     IBC, IRC, IECC, IgCC and IEBC were adopted; "The effective date is
+    //     May 29, 2023. State law requires local jurisdiction to start
+    //     implementing & enforcing the new requirements by May 29, 2024."
+    //   - https://www.labor.maryland.gov/labor/build/buildnews.shtml: the 2024
+    //     IBC, IRC and IECC update is PROPOSED — "published in the Maryland
+    //     Register on June 26, 2026", comments until July 27, 2026, hearing
+    //     July 16, 2026. No effective date is posted, so none is claimed.
+    //   - https://labor.maryland.gov/labor/build/buildmech.shtml: "The Office
+    //     of the State Fire Marshal has the authority to adopt the electrical
+    //     code for the state. Certain local jurisdictions may adopt their own
+    //     electrical codes."
+    // A STALE STATE PAGE, NOTED SO NOBODY "FIXES" THE ROW TO IT:
+    // https://labor.maryland.gov/labor/build/buildrehab.shtml still says the
+    // Rehabilitation Code is the 2015 IEBC (effective April 11, 2016). The
+    // dated matrix (3/18/2026) and buildadmin.shtml both say 2021; so do
+    // Baltimore City's Building Code and Baltimore County's codes sheet.
+    // NO FIRE OR ELECTRICAL EDITION IS CLAIMED: the matrix's 2017 NEC and
+    // NFPA rows belong to the State Fire Prevention Code, which does not reach
+    // one- and two-family dwellings or Baltimore City, and counties adopt
+    // their own electrical code.
+    state: 'MD',
+    stateName: 'Maryland',
+    authorityName: 'Maryland Department of Labor, Division of Labor and Industry, Building Codes Administration',
+    codes: [
+      { family: 'IBC', edition: '2021', name: 'Maryland Building Performance Standards' },
+      { family: 'IRC', edition: '2021', name: 'Maryland Building Performance Standards' },
+      { family: 'IECC', edition: '2021', name: 'Maryland Building Performance Standards' },
+      { family: 'IEBC', edition: '2021', name: 'Maryland Building Rehabilitation Code' },
+    ],
+    notes: 'The Maryland Building Performance Standards are the 2021 IBC, IRC and IECC with state changes, in effect since 29 May 2023; every county and Baltimore City had to enforce them by 29 May 2024. Work on existing buildings follows the Maryland Building Rehabilitation Code (the 2021 IEBC with state changes). Counties and Baltimore City may amend these codes, except the energy code and the Maryland Accessibility Code, which they can make stricter but not weaker, so the local amendments matter. No statewide fire or electrical edition is claimed here. The state\'s code matrix marks the State Fire Prevention Code (2024 NFPA 1 and NFPA 101) "not applicable to one- and two-family dwellings and buildings located in Baltimore City", and local governments may adopt their own electrical code. A move to the 2024 IBC, IRC and IECC was published as a proposal in the Maryland Register on 26 June 2026, and the department\'s page posted no effective date when MAGE checked it on 28 September 2026, so ask the county which edition your permit date falls under.',
+    // noteSourceUrl names the page behind the note's first, dated facts (the
+    // 2021 codes, 29 May 2023, 29 May 2024). The note's other facts each sit
+    // on their own page (quoted above): the local-amendment rule on
+    // buildcodes.shtml, the fire-code scope on the matrix (sourceUrl), the
+    // electrical rule on buildmech.shtml, and the 26 June 2026 proposal on
+    // buildnews.shtml. buildcodes.shtml carries none of the dates.
+    noteSourceUrl: 'https://labor.maryland.gov/labor/build/buildadmin.shtml',
+    sourceUrl: 'https://labor.maryland.gov/labor/build/buildcodematrix.pdf',
+    checkedOn: '2026-09-28',
+  },
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// BALTIMORE ZIPs — which government a ZIP places an address in.
+//
+// SOURCE (fetched 2026-09-28): the Census Bureau's 2020 ZCTA-to-county
+// relationship file,
+//   https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt
+// METHOD: every ZCTA with a row for county 24510 (Baltimore city) or 24005
+// (Baltimore County). A ZCTA is WHOLLY in one of them when it has exactly one
+// county row and that row's AREALAND_PART equals AREALAND_ZCTA5_20 (all of
+// its land). Every other one is split, and is listed below with the county
+// GEOIDs it touches. (No split ZCTA here has a zero-land part, so "one county
+// row" and "all its land in one county" agree for every ZCTA in this list.)
+//
+// A ZCTA APPROXIMATES A USPS ZIP; it is not the same thing. The Postal
+// Service can put an address in a ZIP whose Census tabulation area it sits
+// just outside of. That is why only WHOLLY-inside ZIPs decide anything, why a
+// county on the address always outranks a ZIP, and why a split ZIP decides
+// nothing: it falls through to the Maryland row.
+//
+// SO THE ZCTA TEST ALONE IS NOT ENOUGH. A ZIP is WHOLLY in one government
+// only when BOTH hold:
+//   1. its Census ZCTA passes the test above; and
+//   2. neither government's own address-point layer uses that ZIP on the
+//      other side of the line. Checked 2026-09-28 by grouping every point by
+//      ZIP:
+//        City   https://baltegis.baltimorecity.gov/mapping/rest/services/Address_Points/AddressPoint_Native/FeatureServer/0
+//               (279,299 points, 37 zip_code values): no City point uses any
+//               ZIP in the County list below.
+//        County https://bcgisdata.baltimorecountymd.gov/arcgis/rest/services/Facilities/Address/MapServer/0
+//               (57 ZIP values): exactly one City-only ZCTA is used by County
+//               points — 21230, 10 points, all CITY_POSTAL 'BALTIMORE', on
+//               Patapsco Ave and Marmenco Ct (the Census geocoder puts a
+//               sampled one, -76.6597,39.2545, in Baltimore County 24005).
+//   21230 therefore fails rule 2 and is listed as SPLIT below, not City-only.
+// WHAT RULE 2 DOES NOT SEE: address points of the OTHER neighbouring counties
+// (Anne Arundel, Carroll, Harford, Howard). Maryland's statewide address
+// service (geodata.md.gov) answered with a "Site Maintenance" page on
+// 2026-09-28, so that was NOT checked. A county on the address still outranks
+// the ZIP, which is the guard for that case.
+// ─────────────────────────────────────────────────────────────────────
+
+/** ZIPs lying wholly in Baltimore City (24510): both rules above. */
+const BALTIMORE_CITY_ZCTAS: readonly string[] = [
+  '21201', '21202', '21205', '21211', '21213', '21214', '21216', '21217',
+  '21218', '21223', '21231', '21233', '21251', '21287',
+];
+
+/** ZIPs lying wholly in Baltimore County (24005): both rules above. */
+const BALTIMORE_COUNTY_ZCTAS: readonly string[] = [
+  '21023', '21030', '21031', '21051', '21052', '21053', '21057', '21071',
+  '21093', '21105', '21117', '21120', '21128', '21131', '21133', '21152',
+  '21153', '21156', '21162', '21204', '21219', '21220', '21221', '21244',
+  '21250', '21252', '21285', '21286',
+];
+
+/**
+ * ZIPs partly in Baltimore City or Baltimore County, each with the county
+ * GEOIDs it touches (24510 Baltimore city, 24005 Baltimore County, 24003
+ * Anne Arundel, 24013 Carroll, 24025 Harford, 24027 Howard). They never match
+ * a row; each one sets localAmbiguity on the Maryland answer when nothing
+ * else decides (see localAmbiguityFor). 31 come straight from the Census
+ * file. 21230 is the 32nd: its ZCTA is wholly in the City, but Baltimore
+ * County's own address points use it (rule 2 above), so it is split here.
+ */
+export const BALTIMORE_SPLIT_ZCTAS: Readonly<Record<string, readonly string[]>> = {
+  '21013': ['24005', '24025'], '21043': ['24005', '24027'], '21074': ['24005', '24013'],
+  '21082': ['24005', '24025'], '21085': ['24005', '24025'], '21087': ['24005', '24025'],
+  '21102': ['24005', '24013'], '21104': ['24005', '24013', '24027'], '21111': ['24005', '24025'],
+  '21136': ['24005', '24013'], '21155': ['24005', '24013'], '21161': ['24005', '24025'],
+  '21163': ['24005', '24027'], '21206': ['24005', '24510'], '21207': ['24005', '24510'],
+  '21208': ['24005', '24510'], '21209': ['24005', '24510'], '21210': ['24005', '24510'],
+  '21212': ['24005', '24510'], '21215': ['24005', '24510'], '21222': ['24005', '24510'],
+  '21224': ['24005', '24510'], '21225': ['24003', '24510'], '21226': ['24003', '24510'],
+  '21227': ['24005', '24510'], '21228': ['24005', '24510'], '21229': ['24005', '24510'],
+  // Census ZCTA wholly City; County address points use the USPS ZIP (rule 2).
+  '21230': ['24005', '24510'],
+  '21234': ['24005', '24510'], '21236': ['24005', '24510'], '21237': ['24005', '24510'],
+  '21239': ['24005', '24510'],
+};
 
 export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
   {
@@ -1122,6 +1309,345 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     sourceUrl: 'https://web.archive.org/web/20260813101626/https://dallascityhall.com/departments/sustainabledevelopment/buildinginspection/Pages/know_code.aspx',
     checkedOn: '2026-09-07',
   },
+  {
+    // BALTIMORE CITY, added 2026-09-28. Every fact read that day (curl,
+    // Safari UA; PDFs through `pdftotext -layout`) off these pages:
+    //   - sourceUrl, the City Law Library's "Building, Fire, and Related Codes
+    //     2024 Edition" index. Its introductory note lists the codes "as
+    //     supplemented, amended, or otherwise modified by the Mayor and City
+    //     Council of Baltimore": "International Building Code / 2021",
+    //     "National Electrical Code / 2020", "International Fuel Gas Code /
+    //     2021", "International Mechanical Code / 2021", "International
+    //     Plumbing Code / 2021", "International Fire Code / 2021",
+    //     "International Energy Conservation Code / 2021", "International
+    //     Residential Code, 1- and 2- Family Dwellings / 2021" (plus the
+    //     IPMC, IgCC and ISPSC, which are not CodeFamily entries). Its
+    //     Transitions note: "Ordinance 24-341 became effective May 22, 2024",
+    //     applying "to all building operations for which a permit application
+    //     is filed on or after the effective date". The Law Library's code
+    //     page, https://codes.baltimorecity.gov/us/md/cities/baltimore/code
+    //     (not the site root), says "Current through July 17, 2026", last
+    //     codified Ord. 26-129.
+    //   - Part II (the Building Code), full text, .../building-codes/II/
+    //     index.full.html: "Existing buildings undergoing repair, alterations,
+    //     or additions, and change of occupancy must comply with the Maryland
+    //     Building Rehabilitation Code, set forth in COMAR 09.12.58. {Note: The
+    //     Maryland Building Rehabilitation Code comprises the 2021
+    //     International Existing Building Code, with State modifications.}"
+    //     § 105.1.3 (who applies), § 109 fees, § 109.7 the 5% Building Code
+    //     Permit Tax (amended by Ord. 24-437, effective December 2, 2024, per
+    //     .../ordinances/2024/24-437), § 1511.9 rooftop decks.
+    //   - Part X (the IRC), full text: R302.1.1 porch roofs, R311.7.5.1-.2
+    //     riser 8¼ in. and tread 9 in., R312.1.3 no horizontal rails or ladder
+    //     effect, R313.1 sprinklers in any new townhouse or 1- or 2-family
+    //     dwelling, R301.2.4 floodplain "{Not Adopted}" with a pointer to City
+    //     Code Article 7, and R911.1 sending rooftop structures to Building
+    //     Code "§ 1510". Part II has "Sections 1505 to 1510. {As in IBC}" and
+    //     puts rooftop decks in § 1511.9, so R911.1's "§ 1510" looks like a
+    //     cross-reference slip; the note cites § 1511.9.
+    //   - DHCD's building-permits page (updated 09/04/2026): "renovations,
+    //     modifications, and reconstructions always need a permit"; 1- and
+    //     2-family work "Requires a Maryland Home Improvement License (MHIC)
+    //     contractor"; its linked "Work Exempt From Permit" list (REV 09/24),
+    //     https://s3.amazonaws.com/baltimorecity.gov.if-us-east-1/s3fs-public/2026-03/Work%20Exempt%20From%20Permit.pdf,
+    //     does not list fences, decks or retaining walls.
+    //   - DHCD's special-referrals page (updated 07/27/2026) and CHAP's
+    //     review procedures (updated 09/16/2026): exterior work in a CHAP
+    //     district or on a landmark goes through CHAP, and a permit filed
+    //     first is held until CHAP issues an Authorization to Proceed.
+    //   - https://www.baltimoresustainability.org/floodplain-management-program/ :
+    //     "the regulated floodplain includes the 1% and 0.2% annual-chance
+    //     flood areas"; the City's floodplain code "supersedes both State and
+    //     Federal floodplain regulations".
+    // NO 2024 CITY ADOPTION FOUND: the Law Library's 2025 and 2026 ordinance
+    // lists (read 2026-09-28, codified through July 17, 2026) show no
+    // ordinance adopting new I-Code editions, so the state's proposed 2024
+    // codes are not claimed here either.
+    //
+    // MATCHING. matchCounty 'baltimore city' is the Census name for 24510
+    // ("Baltimore city"; the resolver strips only a trailing " county").
+    // matchCity 'baltimore city' is what a contractor types for the City.
+    // NEVER 'baltimore' in matchCity or postalCity: Baltimore County uses that
+    // postal name for 20,870 address points (see the MARYLAND block above).
+    name: 'Baltimore City',
+    state: 'MD',
+    matchCity: ['baltimore city'],
+    matchCounty: ['baltimore city'],
+    postalZip: BALTIMORE_CITY_ZCTAS,
+    authorityName: 'Baltimore City Department of Housing & Community Development (DHCD), Permits and Inspections',
+    codes: [
+      { family: 'IBC', edition: '2021', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'IRC', edition: '2021', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'IECC', edition: '2021', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'IFC', edition: '2021', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'IPC', edition: '2021', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'IMC', edition: '2021', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'IFGC', edition: '2021', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'NEC', edition: '2020', name: 'Baltimore City Building, Fire, and Related Codes, 2024 Edition' },
+      { family: 'IEBC', edition: '2021', name: 'Maryland Building Rehabilitation Code', sourceUrl: 'https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes/II/index.full.html' },
+    ],
+    notes: 'Baltimore City and Baltimore County are separate governments with different codes; a "Baltimore, MD" mailing address can be in either. The City\'s 2024 Edition (Ordinance 24-341) applies to permit applications filed on or after 22 May 2024. The fire code is the 2021 IFC (Part VIII), not the NFPA 1 and 101 used by the state and by Baltimore County, and the electrical code is the 2020 NEC (Part III). Local IRC changes: risers 8¼ in. maximum and treads 9 in. minimum; fire-retardant-treated sheathing on a new or replaced porch roof that abuts another porch roof; guards may not use horizontal rails or a ladder pattern; sprinklers in every new townhouse and 1- or 2-family dwelling; the IRC\'s flood sections (R301.2.4, R309.3 and R322) are not adopted and the City\'s floodplain code (City Code Article 7) applies instead, covering the 0.2% annual-chance flood area as well as the 1% area; rooftop decks follow Building Code § 1511.9. Work on existing buildings follows the Maryland Building Rehabilitation Code. Renovations, modifications and reconstructions always need a permit; DHCD\'s "Work Exempt From Permit" list (REV 09/24) is short and does not include fences, decks or retaining walls. A permit to remove formstone, paint or other material from exterior surfaces, or for underpinning or a retaining foundation wall, must be applied for by the licensed contractor doing the work (Building Code § 105.1.3), and work on 1- and 2-family dwellings needs an MHIC-licensed contractor. In a CHAP historic district or on a landmark, exterior work generally needs CHAP approval before the permit issues. Permit fees are set in Building Code § 109, plus a 5% permit tax (§ 109.7). No City ordinance adopting the 2024 codes was found in the City\'s codified ordinances through 17 July 2026.',
+    noteSourceUrl: 'https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes/X/index.full.html',
+    sourceUrl: 'https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes',
+    checkedOn: '2026-09-28',
+    // Every fact below read 2026-09-28 off the page its channel links to, or
+    // off the E-Permits Expanded Customer Support Guide (rev. June 17, 2025),
+    // https://s3.amazonaws.com/baltimorecity.gov.if-us-east-1/s3fs-public/2025-09/E-Permits%20Portal%20Expanded%20Customer%20Support%20Guide%20(1).pdf .
+    // Only department mailboxes are used; the guide also lists staff members'
+    // personal addresses, and none of them is copied here.
+    // TWO CONFLICTS, SHOWN RATHER THAN PICKED:
+    //   - Hours. The permits-and-inspections page (updated 08/01/2026) says
+    //     Permits and Plans Review in person "Monday - Tuesday - Thursday -
+    //     Friday - 8:30 am - 3:30 pm ( No In-Person Assistance on Wednesdays
+    //     )"; the E-Permits Help Center (updated 07/27/2026) lists the kiosk
+    //     "Monday - Friday, 8:30 AM - 3:30 PM". Both are named in `hours`.
+    //   - CHAP's phone. The special-referrals page prints 410-396-4866; CHAP's
+    //     own page and the E-Permits guide both print (410) 396-7526. The
+    //     number two official sources agree on is used.
+    // Left out on purpose: the 3-1-1 / (443) 263-2220 lines in the City
+    // website's footer (a City-wide line, not a DHCD channel) and the Zoning
+    // office's room (two City pages disagree).
+    department: {
+      portalUrl: 'https://aca-prod.accela.com/BALTIMORE/Default.aspx',
+      portalLabel: 'E-Permits portal',
+      // "No, you do not need to create an account to search permit or license
+      // registration information in E-Permits." (E-Permits Help Center)
+      statusLookupUrl: 'https://aca-prod.accela.com/BALTIMORE/Default.aspx',
+      phone: '443-984-1809',
+      email: 'DHCD.Permits@baltimorecity.gov',
+      hours: 'Permits and Plans Review, in person at the One Stop Shop, 417 E. Fayette Street, Room 100: Monday, Tuesday, Thursday and Friday, 8:30 am to 3:30 pm, with no in-person help on Wednesdays. The E-Permits Help Center lists the kiosk as open Monday to Friday, so call ahead.',
+      afterHours: 'E-Permits is open 24 hours a day, 7 days a week, and inspections can be scheduled online at any hour.',
+      questionChannels: [
+        {
+          stage: 'pre_filing',
+          label: 'DHCD Permits Office',
+          url: 'https://www.baltimorecity.gov/dhcd/our-work/permits-inspections/building-permits',
+          phone: '443-984-1809',
+          email: 'DHCD.Permits@baltimorecity.gov',
+          note: 'Questions before you file. Applications are made online in E-Permits; you can also apply at the One Stop Shop kiosk.',
+        },
+        {
+          stage: 'pre_filing',
+          label: 'Work exempt from permit (DHCD list, REV 09/24)',
+          url: 'https://s3.amazonaws.com/baltimorecity.gov.if-us-east-1/s3fs-public/2026-03/Work%20Exempt%20From%20Permit.pdf',
+          note: 'Check this list before you skip a permit. Fences, decks and retaining walls are not on it, and renovations, modifications and reconstructions always need a permit.',
+        },
+        {
+          stage: 'in_review',
+          label: 'DHCD Plans Review',
+          url: 'https://www.baltimorecity.gov/dhcd/our-work/permits-inspections/building-permits',
+          phone: '410-396-3460',
+          email: 'DHCD.PlansReview@baltimorecity.gov',
+          note: 'Questions on an application in plan review. Plans are uploaded through ProjectDox once staff send instructions.',
+        },
+        {
+          stage: 'objection',
+          label: 'Plans Review, then the Board of Municipal and Zoning Appeals',
+          url: 'https://s3.amazonaws.com/baltimorecity.gov.if-us-east-1/s3fs-public/2025-09/E-Permits%20Portal%20Expanded%20Customer%20Support%20Guide%20(1).pdf',
+          phone: '410-396-3460',
+          email: 'DHCD.PlansReview@baltimorecity.gov',
+          note: 'Take a review comment to Plans Review first. Permit appeals go to the Board of Municipal and Zoning Appeals (BMZA), 410-396-4301.',
+        },
+        {
+          stage: 'inspection',
+          label: 'DHCD Building Inspections',
+          url: 'https://www.baltimorecity.gov/dhcd/our-work/permits-and-inspections/inspection-scheduling',
+          phone: '410-396-3470',
+          email: 'DHCD.ConstructionInspection@baltimorecity.gov',
+          note: 'Schedule, cancel or reschedule inspections in E-Permits under "Schedule an Inspection". Every permit needs a final inspection before a Certificate of Occupancy is issued.',
+        },
+        {
+          stage: 'general',
+          label: 'Zoning Office',
+          phone: '410-396-4126',
+          note: 'Zoning questions and zoning verification.',
+        },
+        {
+          stage: 'general',
+          label: 'CHAP (historic districts and landmarks)',
+          url: 'https://chap.baltimorecity.gov/review-procedures',
+          phone: '410-396-7526',
+          note: 'Exterior work in a CHAP district or on a landmark goes through CHAP. A permit filed first is held until CHAP issues an Authorization to Proceed.',
+        },
+        {
+          stage: 'general',
+          label: 'Department of Planning',
+          phone: '410-396-7526',
+          email: 'deptofplanning@baltimorecity.gov',
+          note: 'Floodplain, Critical Area, design review and forest conservation reviews. The City regulates both the 1% and the 0.2% annual-chance flood areas.',
+        },
+        {
+          stage: 'general',
+          label: 'Fire Marshal plans review (Baltimore City Fire Department)',
+          phone: '410-396-5752',
+          email: 'BCFD.Plans@baltimorecity.gov',
+          note: 'Fire protection plans review and system acceptance.',
+        },
+      ],
+      feeScheduleUrls: [
+        { label: 'Permit fees, Building Code § 109 (plus a 5% permit tax)', url: 'https://codes.baltimorecity.gov/us/md/cities/baltimore/code/building-codes/II/109' },
+      ],
+      applicantOfRecordNote: 'In Baltimore City the owner, the lessee, their agent, or the licensed engineer or architect applies for most permits. A permit to remove formstone, paint or other material from exterior surfaces, or for underpinning or a retaining foundation wall, must be applied for by the licensed contractor doing the work (Building Code § 105.1.3).',
+      sourceUrl: 'https://www.baltimorecity.gov/dhcd/our-work/permits-and-inspections',
+      sourceLabel: 'baltimorecity.gov',
+      checkedOn: '2026-09-28',
+    },
+  },
+  {
+    // BALTIMORE COUNTY, added 2026-09-28. Every fact read that day (curl,
+    // Safari UA; bun's fetch also got HTTP 200 from baltimorecountymd.gov that
+    // day, although earlier research recorded 403s):
+    //   - sourceUrl, PAI's sheet "Current Building and Fire Codes in Effect"
+    //     (PAI PR1w, Rev 08/25/26): "Building Code - 2021 International
+    //     Building Code – adopted/amended by Baltimore County Bill #49-24
+    //     (Effective date: September 3, 2024)"; the same bill and date for
+    //     the 2021 IRC, the 2021 IMC and the "2021 International Energy Code";
+    //     "Plumbing Code - 2021 International Plumbing Code adopted/amended by
+    //     Baltimore County Bill #94-23 (Effective date: July 1, 2024)";
+    //     "Electrical Code - 2026 NEC – Effective September 1, 2026"; "Life
+    //     Safety Code - 2018 NFPA 101" and "Fire Prevention Code – 2018
+    //     Edition NFPA 1", both "Baltimore County Bill #14-21 (Effective date:
+    //     April 18, 2021)"; "Rehab Code – COMAR 09.12.58 Maryland Building
+    //     Rehabilitation Code. (2021 International Existing Building Code)";
+    //     floodplain "Baltimore County Bill #6-24, effective May 6, 2024";
+    //     and its phone list.
+    //   - noteSourceUrl, PAI's "Current Codes and Regulations" page: "Per
+    //     Section 21-7-303 of the Baltimore County Code, 2015, electrical
+    //     installations shall conform to most recent edition year of the
+    //     published National Electric Code (NEC, effective September 1 of the
+    //     edition year of the code)." THAT PAGE IS STALE ON ONE LINE: it still
+    //     calls the Rehabilitation Code the 2015 IEBC (effective April 11,
+    //     2016). The newer sheet says 2021, and the row follows the sheet.
+    //   - /departments/pai: County Office Building, 111 West Chesapeake
+    //     Avenue, Towson; Monday through Friday 8:30 a.m. to 4:30 p.m.;
+    //     410-887-3353. /departments/pai/permit-processing: Room 100,
+    //     paipermitstatus@baltimorecountymd.gov, 410-887-3900; "All
+    //     applications for building, plumbing, electrical and other
+    //     construction permits must be completed online." /departments/pai/
+    //     application: the portal link and "Permits are valid for one year
+    //     with an option to request one additional year at the time the
+    //     application is filed." /departments/pai/building-inspections: Room
+    //     G-24, 7:30 a.m. to 3:30 p.m., 410-887-3953, "call 410-887-3953 on the
+    //     morning of the inspection between 7:30 and 8 a.m.", and the local
+    //     design requirements quoted in the note.
+    // CONFLICTS, SHOWN RATHER THAN PICKED:
+    //   - Plans Review's phone: 410-887-3985 on the codes page, 410-887-3987
+    //     on the Rev 08/25/26 sheet. The channel carries the email and names
+    //     both numbers with where each is printed.
+    //   - When to ask for the second permit year: "at the time the
+    //     application is filed" (application page) vs "Request to extend must
+    //     be submitted prior to the expiration of the permit" (the building
+    //     fee schedule effective 07/01/26). The note names both.
+    //   - The 2021 Rehabilitation Code's effective date: March 29, 2023 on the
+    //     County sheet, May 29, 2023 on the state's page. No date is claimed.
+    // Staff names and a staff email appear on these pages; none is copied.
+    //
+    // MATCHING. matchCounty 'baltimore' is the Census "Baltimore County"
+    // after the resolver strips " county". NEVER matchCity 'baltimore' (see
+    // the MARYLAND block). postalCity: the County's own address points
+    // (Facilities/Address/MapServer/0, 296,513 points, grouped by CITY_POSTAL
+    // and ZIP on 2026-09-28) keep a postal name here only when EVERY ZIP it is
+    // used with is a ZCTA lying wholly in Baltimore County (the list above).
+    // That keeps out names that cross a line (Catonsville 21228, Dundalk
+    // 21222, Parkville 21234, Pikesville 21208, Reisterstown 21136, Rosedale
+    // 21237, Nottingham 21236, Halethorpe 21227, Gwynn Oak 21207 …) and
+    // BALTIMORE itself. The method only sees Baltimore County's own points, so
+    // it cannot see a same-named community in another county; a county on the
+    // address still outranks the name.
+    name: 'Baltimore County',
+    state: 'MD',
+    matchCounty: ['baltimore'],
+    postalCity: [
+      'cockeysville', 'essex', 'fork', 'fort howard', 'freeland', 'glen arm',
+      'glyndon', 'hunt valley', 'lutherville timonium', 'middle river',
+      'owings mills', 'parkton', 'perry hall', 'phoenix', 'randallstown',
+      'sparks glencoe', 'sparrows point', 'stevenson', 'towson', 'upper falls',
+      'white marsh', 'windsor mill',
+    ],
+    postalZip: BALTIMORE_COUNTY_ZCTAS,
+    authorityName: 'Baltimore County Department of Permits, Approvals and Inspections (PAI)',
+    codes: [
+      { family: 'IBC', edition: '2021', name: 'Baltimore County Building Code, Bill 49-24' },
+      { family: 'IRC', edition: '2021', name: 'Baltimore County Building Code, Bill 49-24' },
+      { family: 'IMC', edition: '2021', name: 'Baltimore County Building Code, Bill 49-24' },
+      { family: 'IECC', edition: '2021', name: 'Baltimore County Building Code, Bill 49-24' },
+      { family: 'IPC', edition: '2021', name: 'Baltimore County Plumbing Code, Bill 94-23' },
+      { family: 'NEC', edition: '2026' },
+      { family: 'IEBC', edition: '2021', name: 'Maryland Building Rehabilitation Code' },
+      // NFPA is not an ICC family and has no CodeFamily of its own, so the
+      // County's fire code is carried as a LOCAL entry under the name the
+      // County gives it. Left out, the chip would list every other code and
+      // say nothing about fire, and a contractor could assume the IFC.
+      { family: 'LOCAL', edition: '2018', name: 'Fire Prevention Code (2018 NFPA 1) and Life Safety Code (2018 NFPA 101), Bill 14-21' },
+    ],
+    notes: 'Baltimore County and Baltimore City are separate governments with different codes; a "Baltimore, MD" mailing address can be in either. The County\'s building code (Bill 49-24, the 2021 IBC, IRC, IMC and IECC with County amendments) took effect 3 September 2024, and plumbing is the 2021 IPC under Bill 94-23 from 1 July 2024. The electrical code is the 2026 NEC from 1 September 2026: County Code § 21-7-303 puts each new NEC edition in force on 1 September of its edition year. The fire code is the 2018 NFPA 1 and NFPA 101 (Bill 14-21), not the IFC the City uses. The same County sheet also lists, under the State of Maryland, the State Fire Prevention Code (COMAR 29.06.01: the 2024 NFPA 1 and NFPA 101, effective 23 June 2025), so ask the County which edition your job is reviewed under; the sheet gives Fire Inspections as (410) 887-4880. Work on existing buildings follows the Maryland Building Rehabilitation Code (the 2021 IEBC). Floodplain rules are Bill 6-24, in effect since 6 May 2024. Local design values from the County: footings 30 in. below final grade (pole buildings 48 in.), ground snow load 30 psf, design wind speed 90 mph. All building, plumbing and electrical applications are filed online. Permits run one year with one optional added year; the application page says to ask for it when you file, and the fee schedule says to ask before the permit expires, so confirm with PAI.',
+    noteSourceUrl: 'https://www.baltimorecountymd.gov/departments/pai/building-plans-review/current-codes-regulations',
+    sourceUrl: 'https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/currentbuildingandfirecodes.pdf',
+    checkedOn: '2026-09-28',
+    department: {
+      portalUrl: 'https://cityworkspro.baltimorecountymd.gov/PLLPortal/',
+      portalLabel: 'Permits portal (PLL)',
+      // The application page's "Permits Online Query Search".
+      statusLookupUrl: 'https://permitreview.baltimorecountymd.gov/PermitReview',
+      phone: '410-887-3353',
+      email: 'paipermitstatus@baltimorecountymd.gov',
+      hours: 'Monday to Friday, 8:30 am to 4:30 pm, at the County Office Building, 111 West Chesapeake Avenue, Towson. Permit Processing is in Room 100.',
+      questionChannels: [
+        {
+          stage: 'pre_filing',
+          label: 'PAI Permit Processing',
+          url: 'https://www.baltimorecountymd.gov/departments/pai/permit-processing',
+          phone: '410-887-3900',
+          email: 'paipermitstatus@baltimorecountymd.gov',
+          note: 'Questions before you file. Applications are filed online; lobby workstations and staff can help you set up an account.',
+        },
+        {
+          stage: 'in_review',
+          label: 'PAI Building Plans Review',
+          url: 'https://www.baltimorecountymd.gov/departments/pai/building-plans-review/current-codes-regulations',
+          email: 'paibldgrvw@baltimorecountymd.gov',
+          note: 'Email first: the County lists two phone numbers for Plans Review, 410-887-3985 on its codes page and 410-887-3987 on its codes sheet (Rev 08/25/26).',
+        },
+        {
+          stage: 'inspection',
+          label: 'PAI Building Inspections',
+          url: 'https://www.baltimorecountymd.gov/departments/pai/building-inspections',
+          phone: '410-887-3953',
+          note: 'Monday to Friday, 7:30 am to 3:30 pm. To learn the time of a scheduled inspection, call between 7:30 and 8 am that morning with your permit number.',
+        },
+        {
+          stage: 'general',
+          label: 'Zoning Office',
+          phone: '410-887-3391',
+          note: 'From the County codes sheet (Rev 08/25/26).',
+        },
+        {
+          stage: 'general',
+          label: 'Electrical Inspections',
+          phone: '410-887-3960',
+          note: 'From the County codes sheet (Rev 08/25/26).',
+        },
+        {
+          stage: 'general',
+          label: 'Plumbing Inspections',
+          phone: '410-887-3620',
+          note: 'From the County codes sheet (Rev 08/25/26).',
+        },
+        {
+          stage: 'general',
+          label: 'Fire Inspections',
+          phone: '410-887-4880',
+          note: 'From the County codes sheet (Rev 08/25/26).',
+        },
+      ],
+      feeScheduleUrls: [
+        { label: 'Building permit fees, effective 1 July 2026 (PDF)', url: 'https://www.baltimorecountymd.gov/files/departments/permits-approvals-and-inspections/documents/buildingprocessfee.pdf' },
+      ],
+      sourceUrl: 'https://www.baltimorecountymd.gov/departments/pai',
+      sourceLabel: 'baltimorecountymd.gov',
+      checkedOn: '2026-09-28',
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────
@@ -1251,6 +1777,24 @@ export function splitLocationText(text: string): { city: string; state: string }
   return single.state ? single : { city: noZip, state: '' };
 }
 
+/**
+ * The trailing five-digit US ZIP of a free-text location, or ''.
+ *
+ *   '620 E 31st St, Baltimore, MD 21218'      → '21218'
+ *   '620 E 31st St, Baltimore, MD 21218-1234' → '21218'
+ *   'Baltimore, MD'                            → ''
+ *   '21218 Main St, Somewhere, MD'             → ''  (a house number is not a ZIP)
+ *
+ * It uses the same trailing-ZIP shape splitLocationText strips — a separator,
+ * five digits, an optional +4, and the end of the string — so the two can
+ * never disagree about what the ZIP of a location is. A five-digit number
+ * anywhere else in the text is never read as one.
+ */
+export function zipFromLocationText(text: string | null | undefined): string {
+  const m = /[,\s]+(\d{5})(?:-\d{4})?$/.exec((text ?? '').trim());
+  return m ? m[1] : '';
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // A project's jobsite address, as ONE value
 // ─────────────────────────────────────────────────────────────────────
@@ -1332,6 +1876,46 @@ export interface AddressQuery {
   city?: string;
   county?: string;
   state?: string;
+  /**
+   * The jobsite's five-digit ZIP, when the caller has one. Read only by rows
+   * that carry `postalZip`, and only when the address names no county or
+   * names that row's own county — a county always outranks a ZIP.
+   */
+  zip?: string;
+}
+
+/**
+ * The resolver query for a PROJECT: every resolveCodeJurisdiction /
+ * issuingAuthorityForAddress / departmentFor caller that starts from a
+ * project goes through here.
+ *
+ * WHY IT EXISTS. jobsiteAddressForProject returns zip '' for a project that
+ * only has the free-text `location` — and that is pinned (validate-code-
+ * jurisdiction, "THE AI-1 PROPERTY"), so it cannot change. Most real projects
+ * are location-only, so without this helper a ZIP typed into the location
+ * never reached the resolver at all.
+ *
+ *   city / state — exactly as jobsiteAddressForProject gives them.
+ *   county       — the address's own county when it has one, else
+ *                  `confirmedCounty` (the side of a parcel the contractor
+ *                  CONFIRMED in the building record, e.g. 'Baltimore city'),
+ *                  else ''. The address's own county wins: a disagreement is
+ *                  left for the contractor to fix, never resolved silently
+ *                  the other way.
+ *   zip          — structuredAddress.zip's first five digits, else the
+ *                  trailing ZIP of `location`, else ''.
+ *
+ * Pure, like the rest of this module.
+ */
+export function jurisdictionQueryForProject(
+  project: AddressableProject | null | undefined,
+  confirmedCounty?: string | null,
+): AddressQuery {
+  const addr = jobsiteAddressForProject(project);
+  const saZip = /^(\d{5})/.exec((project?.structuredAddress?.zip ?? '').trim());
+  const zip = saZip ? saZip[1] : zipFromLocationText(project?.location);
+  const county = addr.county || (confirmedCounty ?? '').trim();
+  return { city: addr.city, county, state: addr.state, zip };
 }
 
 export type ResolvedCodeJurisdiction =
@@ -1339,11 +1923,132 @@ export type ResolvedCodeJurisdiction =
       kind: 'city';
       entry: LocalAdoption;
       /** Which key the row matched on — useful when a county answered. */
-      matchedOn: 'city' | 'county';
+      matchedOn: 'city' | 'county' | 'zip';
       state: string;
     }
-  | { kind: 'state'; entry: StateAdoption; state: string }
+  | {
+      kind: 'state';
+      entry: StateAdoption;
+      state: string;
+      /**
+       * Set only when a Maryland address could be in Baltimore City or
+       * Baltimore County (or a neighbour of one of them) and nothing on it
+       * decides which: the postal name "Baltimore", a ZIP from
+       * BALTIMORE_SPLIT_ZCTAS, or a city field and
+       * a county field naming opposite Baltimore governments. `candidates`
+       * are government names, Baltimore rows first ('Baltimore City',
+       * 'Baltimore County', then e.g. 'Anne Arundel County' — a name with no
+       * row is one MAGE has not researched). `askFor` says what would settle
+       * it: 'zip-or-county' (the address has no ZIP), 'county' (it has a ZIP
+       * and the ZIP cannot decide), 'fix-address' (its fields contradict each
+       * other). Absent in every other case, so every other state answer is
+       * byte-for-byte what it was.
+       */
+      localAmbiguity?: {
+        candidates: string[];
+        reason: string;
+        askFor?: 'zip-or-county' | 'county' | 'fix-address';
+      };
+    }
   | { kind: 'unknown'; reason: string };
+
+/** Rows a Baltimore address can belong to, by `name`. */
+const BALTIMORE_ROW_NAMES = ['Baltimore City', 'Baltimore County'] as const;
+
+/**
+ * The governments behind the county GEOIDs in BALTIMORE_SPLIT_ZCTAS. Names
+ * from the NAMELSAD_COUNTY_20 column of the same Census file (fetched
+ * 2026-09-28: 24003 "Anne Arundel County", 24005 "Baltimore County", 24013
+ * "Carroll County", 24025 "Harford County", 24027 "Howard County", 24510
+ * "Baltimore city" — written 'Baltimore City' here to match the row).
+ */
+const MD_GOVERNMENT_BY_GEOID: Readonly<Record<string, string>> = {
+  '24510': 'Baltimore City',
+  '24005': 'Baltimore County',
+  '24003': 'Anne Arundel County',
+  '24013': 'Carroll County',
+  '24025': 'Harford County',
+  '24027': 'Howard County',
+};
+
+type LocalAmbiguity = { candidates: string[]; reason: string; askFor?: 'zip-or-county' | 'county' | 'fix-address' };
+
+/** Baltimore rows first, then the rest in GEOID order; no duplicates. */
+function orderedCandidates(names: Iterable<string>): string[] {
+  const set = new Set(names);
+  const first = BALTIMORE_ROW_NAMES.filter((n) => set.has(n));
+  const rest = Object.values(MD_GOVERNMENT_BY_GEOID).filter(
+    (n) => set.has(n) && !(BALTIMORE_ROW_NAMES as readonly string[]).includes(n),
+  );
+  return [...first, ...rest];
+}
+
+/**
+ * A Maryland address whose city field and county field name OPPOSITE
+ * Baltimore governments ("Baltimore City" in one, "Baltimore County" in the
+ * other). Nothing on it can be trusted to decide, so the resolver answers
+ * with the state row and says so instead of letting whichever field it reads
+ * first win. `city`/`county` are normalizePlace'd; `county` still carries its
+ * " county" suffix.
+ */
+function baltimoreFieldConflict(state: string, city: string, rawCounty: string): LocalAmbiguity | null {
+  if (state !== 'MD' || !city || !rawCounty) return null;
+  const cityIsCity = city === 'baltimore city' || city === 'city of baltimore';
+  const cityIsCounty = city === 'baltimore county';
+  const countyIsCity = rawCounty === 'baltimore city' || rawCounty === 'city of baltimore';
+  const countyIsCounty = rawCounty === 'baltimore county';
+  if ((cityIsCity && countyIsCounty) || (cityIsCounty && countyIsCity)) {
+    return {
+      candidates: [...BALTIMORE_ROW_NAMES],
+      reason: 'This address names Baltimore City in one field and Baltimore County in the other.',
+      askFor: 'fix-address',
+    };
+  }
+  return null;
+}
+
+/**
+ * Why a Maryland address could be in Baltimore City, Baltimore County or a
+ * neighbour of one, with nothing to decide between them, or null. Only called
+ * once no row matched, so a county, a wholly-inside ZIP or a postal name has
+ * already had its chance.
+ *
+ *   - the city is the postal name "Baltimore", which both governments use;
+ *   - or the ZIP is in BALTIMORE_SPLIT_ZCTAS. The candidates are every
+ *     government that ZIP touches (21225: Baltimore City or Anne Arundel
+ *     County; 21013: Baltimore County or Harford County), plus both Baltimore
+ *     rows when the postal name is "Baltimore" too.
+ * With a ZIP on the address, only the county can settle it, so askFor is
+ * 'county'; without one, the ZIP might (askFor 'zip-or-county').
+ */
+function localAmbiguityFor(
+  state: string, city: string, county: string, zip: string,
+): LocalAmbiguity | null {
+  if (state !== 'MD' || county) return null;
+  const askFor = zip ? 'county' : 'zip-or-county';
+  const saysBaltimore = city === 'baltimore';
+  const split = zip ? BALTIMORE_SPLIT_ZCTAS[zip] : undefined;
+  if (split) {
+    const touched = split.map((g) => MD_GOVERNMENT_BY_GEOID[g]).filter((n): n is string => !!n);
+    const candidates = orderedCandidates(saysBaltimore ? [...BALTIMORE_ROW_NAMES, ...touched] : touched);
+    const lead = saysBaltimore
+      ? 'The mailing name "Baltimore" is used in both Baltimore City and Baltimore County. '
+      : '';
+    return {
+      candidates,
+      reason: `${lead}ZIP ${zip} crosses the line between ${orderedCandidates(touched).join(' and ')}, and this address names no county that decides it.`,
+      askFor,
+    };
+  }
+  if (city === 'baltimore') {
+    return {
+      candidates: [...BALTIMORE_ROW_NAMES],
+      reason: 'The mailing name "Baltimore" is used in both Baltimore City and Baltimore County, and this address names no county.',
+      askFor,
+    };
+  }
+  return null;
+}
 
 /**
  * Resolve the AHJ for an address. Deterministic, case- and
@@ -1366,7 +2071,19 @@ export function resolveCodeJurisdiction(q: AddressQuery): ResolvedCodeJurisdicti
   }
 
   const city = normalizePlace(q.city);
-  const county = normalizePlace(q.county).replace(/\s+county$/, '');
+  const rawCounty = normalizePlace(q.county);
+  // A county field of just "Baltimore" is read as Baltimore County, the
+  // government whose Census name is "Baltimore County" (the City's is
+  // "Baltimore city"); validate-code-jurisdiction pins that every row answers
+  // to its first matchCounty name.
+  const county = rawCounty.replace(/\s+county$/, '');
+  const zip = /^\s*(\d{5})/.exec(q.zip ?? '')?.[1] ?? '';
+
+  const conflict = baltimoreFieldConflict(state, city, rawCounty);
+  if (conflict) {
+    const md = STATE_ADOPTIONS.find((e) => e.state === state);
+    if (md) return { kind: 'state', entry: md, state, localAmbiguity: conflict };
+  }
 
   for (const entry of LOCAL_ADOPTIONS) {
     if (entry.state !== state) continue;
@@ -1383,6 +2100,18 @@ export function resolveCodeJurisdiction(q: AddressQuery): ResolvedCodeJurisdicti
       return { kind: 'city', entry, matchedOn: 'city', state };
     }
   }
+  // A ZIP places the address only through a row's own `postalZip`, and only
+  // when the address names no county or names that row's county — the same
+  // gate a postal name has. Only rows whose ZIPs lie wholly inside them carry
+  // the list, and no two rows share a ZIP, so the order of the rows cannot
+  // change the answer.
+  if (zip) {
+    for (const entry of LOCAL_ADOPTIONS) {
+      if (entry.state !== state || !entry.postalZip?.includes(zip)) continue;
+      if (county && !(entry.matchCounty ?? []).some((m) => normalizePlace(m) === county)) continue;
+      return { kind: 'city', entry, matchedOn: 'zip', state };
+    }
+  }
   for (const entry of LOCAL_ADOPTIONS) {
     if (entry.state !== state) continue;
     if (county && entry.matchCounty?.some((m) => normalizePlace(m) === county)) {
@@ -1391,7 +2120,10 @@ export function resolveCodeJurisdiction(q: AddressQuery): ResolvedCodeJurisdicti
   }
 
   const st = STATE_ADOPTIONS.find((e) => e.state === state);
-  if (st) return { kind: 'state', entry: st, state };
+  if (st) {
+    const localAmbiguity = localAmbiguityFor(state, city, county, zip);
+    return localAmbiguity ? { kind: 'state', entry: st, state, localAmbiguity } : { kind: 'state', entry: st, state };
+  }
 
   return {
     kind: 'unknown',
@@ -1685,6 +2417,64 @@ export function groundingFactsFor(resolved: ResolvedCodeJurisdiction): Jurisdict
   }
 
   const scope = resolved.kind === 'state' ? `${resolved.entry.stateName} (state adoption)` : resolved.entry.name;
+
+  // THE AMBIGUOUS BALTIMORE ADDRESS. The state row is still the answer — it is
+  // the only thing MAGE can stand behind — but the model and the contractor are
+  // both told, in words built from the candidate rows' OWN data, that more
+  // than one local code is in play and none is grounded (a candidate with no
+  // row is named as not researched). Its own cache key keeps an answer given
+  // here from ever being served to a resolved City or County job.
+  const ambiguity = resolved.kind === 'state' ? resolved.localAmbiguity : undefined;
+  if (ambiguity && resolved.kind === 'state') {
+    const names = ambiguity.candidates;
+    const rowFor = (n: string) => LOCAL_ADOPTIONS.find((e) => e.state === resolved.state && e.name === n);
+    const which = names.length <= 2 ? names.join(' or ') : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+    // Every candidate MAGE has a row for is described from that row's own
+    // data; one without a row is named as not researched, never guessed at.
+    const each = names
+      .map((n) => {
+        const e = rowFor(n);
+        return e ? `${e.name}, ${e.authorityName}: ${codesSummary(e.codes)}` : `${n}: not researched by MAGE, so its local codes are not known here`;
+      })
+      .join('; ');
+    const allRows = names.every((n) => !!rowFor(n));
+    const baltimorePair = names.length === 2 && BALTIMORE_ROW_NAMES.every((n) => names.includes(n));
+    // Both Baltimore rows are verified to carry their own fire and electrical
+    // codes. For any other set, only what the Maryland row's own source says
+    // is claimed: counties may amend the state codes.
+    const governments = baltimorePair
+      ? 'They are separate governments with their own fire code, electrical code and local amendments'
+      : `They are separate governments, and each may amend ${resolved.entry.stateName}'s codes`;
+    const askFor = ambiguity.askFor ?? 'zip-or-county';
+    const tell = askFor === 'county'
+      ? "add the job's county"
+      : askFor === 'fix-address'
+        ? "correct the job's city or county so the two agree"
+        : "add the job's ZIP or county";
+    const chipAsk = askFor === 'county'
+      ? "Add the job's county"
+      : askFor === 'fix-address'
+        ? "Fix the job's city or county so they agree"
+        : "Add the job's ZIP or county";
+    facts.push(
+      `This address could be in ${which}. ${governments} (${each}). ${ambiguity.reason} MAGE could not tell which from this address, so only ${resolved.entry.stateName}'s statewide editions are grounded here. Do not cite ${names.length === 2 ? 'either' : 'any'} local code as the one that governs; tell the contractor to ${tell}.`,
+    );
+    // The plain "Baltimore, MD" shape keeps the key it always had; any other
+    // shape gets its own, so an answer is never served across two different
+    // sets of candidates or two different asks.
+    const base = `state:${entry.state}:${normalizePlace(resolved.entry.stateName)}:baltimore-ambiguous`;
+    const cacheKey = baltimorePair && askFor === 'zip-or-county'
+      ? base
+      : `${base}:${names.map((n) => normalizePlace(n)).join('+')}:${askFor}`;
+    return {
+      facts,
+      promptBlock: `JURISDICTION (verified adoption record):\n${facts.map((f) => `- ${f}`).join('\n')}\n${GROUNDED_INSTRUCTION}`,
+      chipLabel: `${resolved.entry.stateName} statewide codes only. ${which}? ${chipAsk}${allRows && askFor !== 'fix-address' ? ' to get the local codes' : ''}.`,
+      grounded: true,
+      cacheKey,
+      viewerLinks: viewerLinksFor(resolved),
+    };
+  }
 
   return {
     facts,

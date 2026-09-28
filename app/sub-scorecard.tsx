@@ -20,6 +20,8 @@ import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { computeSubScorecards, type SubGrade, type SubScorecard } from '@/utils/subScorecard';
 import { computeSupplierScorecards } from '@/utils/supplierScorecard';
+import { useBackcharges } from '@/hooks/useBackcharges';
+import { backchargesForScorecard } from '@/utils/backchargeRows';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { segmentedDesktop, useIsDesktop } from '@/components/ui';
@@ -74,9 +76,17 @@ function SubScorecardInner() {
   // asking one question in one moment: who earns the next order.
   const [mode, setMode] = useState<'subs' | 'suppliers'>('subs');
 
+  // Backcharges feed the backcharges factor (money taken back for damage,
+  // cleanup or rework), once a sub has worked on 3 projects. Only a COMPLETE
+  // list is counted: before the account's read is back (web, a second phone,
+  // offline) the list can be [] with backcharges on the account, and the factor
+  // must say "not counted", never "no backcharges".
+  const { list: backchargeList, complete: backchargesRead } = useBackcharges();
+  const backcharges = backchargesForScorecard(backchargeList, backchargesRead);
+
   const result = useMemo(
-    () => computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects, rfis }),
-    [subcontractors, commitments, changeOrders, punchItems, projects, rfis],
+    () => computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects, rfis, backcharges }),
+    [subcontractors, commitments, changeOrders, punchItems, projects, rfis, backcharges],
   );
 
   // Derived entirely from deliveries and receiving inspections already

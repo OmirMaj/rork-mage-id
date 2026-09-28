@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0B0D10" />
 <meta name="robots" content="noindex" />
+<!-- T6.6: this page carries its access token in the address. No Referer leaves it, so
+     no link here (the growth link included) can hand the token to another site. -->
+<meta name="referrer" content="no-referrer" />
 <title>Sign a lien waiver — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -174,6 +177,8 @@
       see it. Your signature is on the contractor's copy of this waiver in MAGE ID.</p>
     </div>
   </div>
+
+  <p class="footnote" style="text-align:center"><a href="https://mageid.app/?ref=lien_waiver&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a></p>
 </div>
 
 <script>

@@ -18,6 +18,7 @@ import { computeWinOptimizer, type BidPoint } from '@/utils/winOptimizer';
 import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import { workmanshipWarrantyLine } from '@/utils/paymentTerms';
+import { isCalendarDay, validUntilLine } from '@/utils/proposalValidity';
 
 export type ProposalTierKey = 'essential' | 'signature' | 'premium';
 
@@ -107,6 +108,12 @@ export interface SmartProposal {
    * their descriptions without amounts.
    */
   quick?: QuickQuoteClientBreakdown;
+  /**
+   * "Prices valid until" — a calendar day ('YYYY-MM-DD') the GC picked,
+   * default today + 30 (utils/proposalValidity). Absent on every record saved
+   * before it existed; those share exactly the text they always did.
+   */
+  validUntil?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -174,6 +181,9 @@ export interface BuildQuickQuoteInput {
   markupPct?: number;
   /** Sales tax as a percent, applied to subtotal + markup. Absent/≤0 means none. */
   taxPct?: number;
+  /** "Prices valid until" calendar day. Anything that is not a real
+   *  'YYYY-MM-DD' is left off the quote. */
+  validUntil?: string;
 }
 
 /**
@@ -211,6 +221,7 @@ export function buildQuickQuote(input: BuildQuickQuoteInput): SmartProposal {
     tiers: [tier],
     kind: 'quick',
     quick: { lines: q.lines, subtotal: q.subtotal, taxPct: q.taxPct, tax: q.tax, total: q.total },
+    ...(isCalendarDay(input.validUntil) ? { validUntil: input.validUntil } : {}),
     status: 'draft',
     createdAt: now,
     updatedAt: now,
@@ -353,6 +364,9 @@ export function proposalToShareText(
   const lines: string[] = [];
   const divider = '──────────────────────';
   const license = licenseLine(opts.licenseNumber);
+  // "Prices valid until Oct 28, 2026." — printed just above the licence line,
+  // and only when the record carries a real calendar day.
+  const validity = validUntilLine(proposal.validUntil);
 
   if (proposal.kind === 'quick') {
     const t = proposal.tiers[0];
@@ -376,6 +390,7 @@ export function proposalToShareText(
     lines.push('');
     lines.push(`TOTAL — ${formatMoney(q?.total ?? t?.price ?? 0, 2)}`);
     lines.push(divider);
+    if (validity) lines.push(validity);
     if (license) lines.push(license);
     lines.push('Reply to accept this quote.');
     return lines.join('\n');
@@ -395,6 +410,7 @@ export function proposalToShareText(
   }
 
   lines.push(divider);
+  if (validity) lines.push(validity);
   if (license) lines.push(license);
   lines.push(several
     ? 'Every option is delivered by the same team. To move forward, just reply with the option that fits best.'

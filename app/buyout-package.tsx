@@ -44,7 +44,13 @@ import {
 import { formatMoney } from '@/utils/formatters';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import { parseBidFromTranscript } from '@/utils/voiceFormParsers';
-import { levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
+import { applyLevelingHonesty, levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
+import {
+  AWARD_NEEDS_PRICE_TITLE, LABEL_NEEDS_PRICE, LABEL_NOT_FROM_BOOK, LABEL_YOUR_PRICE, SAVINGS_NEEDS_PRICE, SET_YOUR_PRICE_CTA,
+  NOTHING_EXTRA_CONFIRM_TITLE, NOTHING_EXTRA_LABEL,
+  awardNeedsPriceBody, isNothingExtraInput, levelingMayWrite, needsYourPrice, nothingExtraConfirmBody, nothingExtraReason,
+  readReason, yourPriceReason,
+} from '@/utils/levelingBasis';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
@@ -148,6 +154,9 @@ export default function BuyoutPackageScreen() {
   const heroUncovered = pkg?.status === 'awarded'
     ? openExcludedScope(bids.find(b => b.id === pkg.awardedBidId), awardedCommitmentOf(pkg, commitments)?.amount)
     : 0;
+  // An awarded bid still reading "Needs price" (only an older write can get
+  // here: Award refuses it now): its savings are unknown, so none are shown.
+  const heroNeedsPrice = pkg?.status === 'awarded' && needsYourPrice(bids.find(b => b.id === pkg.awardedBidId));
 
   // Identify allowance items that the package will lock to firm price
   // when awarded. This drives the "contains allowances" banner so the
@@ -190,6 +199,9 @@ export default function BuyoutPackageScreen() {
   // The bid whose amount is being fixed on its card (#95), and the draft.
   const [amountEditBidId, setAmountEditBidId] = useState<string | null>(null);
   const [amountDraft, setAmountDraft] = useState('');
+  // The same sheet prices a needs-price bid's excluded scope ("Set your
+  // price", utils/levelingBasis) — one sheet, two fields.
+  const [amountEditMode, setAmountEditMode] = useState<'amount' | 'excludedPrice'>('amount');
 
   const [leveling, setLeveling] = useState(false);
   const [levelingResult, setLevelingResult] = useState<LevelingResult | null>(null);
@@ -667,19 +679,57 @@ export default function BuyoutPackageScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [pkg, newVendor, newAmount, newIncludes, newExcludes, newTerms, addBidPackageBid]);
 
-  // ── Fix a bid's amount on its card (#95) ─────────────────────
-  const handleSaveAmount = useCallback(() => {
-    if (!amountEditBidId) return;
-    const amount = parseBidAmountInput(amountDraft);
-    if (amount == null) {
-      showAlert('Needs an amount', "Type the bid's total in dollars, like 4800 or 4,800.50.");
-      return;
-    }
-    updateBidPackageBid(amountEditBidId, { amount });
+  // ── "Nothing extra" (ideas-1 round 3) ────────────────────────
+  // His answer that the excluded scope costs nothing on top of this bid: saved
+  // at 0 as "Your price: Nothing extra for …", so the bid no longer needs a
+  // price, Award comes back at the bid amount and leveling never overwrites it.
+  const saveNothingExtra = useCallback((bidId: string) => {
+    const target = bids.find(b => b.id === bidId);
+    updateBidPackageBid(bidId, {
+      normalizedAdjustment: 0,
+      normalizedAdjustmentReason: nothingExtraReason(target?.excludes),
+    });
     setAmountEditBidId(null);
     setAmountDraft('');
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [amountEditBidId, amountDraft, updateBidPackageBid]);
+  }, [bids, updateBidPackageBid]);
+
+  // ── Fix a bid's amount on its card (#95) ─────────────────────
+  const handleSaveAmount = useCallback(() => {
+    if (!amountEditBidId) return;
+    // Pricing the excluded scope, 0 is an answer ("nothing extra"), not a
+    // missing number — confirmed first, since it makes the bid awardable.
+    if (amountEditMode === 'excludedPrice' && isNothingExtraInput(amountDraft)) {
+      const bidId = amountEditBidId;
+      showAlert(NOTHING_EXTRA_CONFIRM_TITLE, nothingExtraConfirmBody(bids.find(b => b.id === bidId)?.excludes), [
+        { text: 'Cancel', style: 'cancel' },
+        { text: NOTHING_EXTRA_LABEL, onPress: () => saveNothingExtra(bidId) },
+      ]);
+      return;
+    }
+    const amount = parseBidAmountInput(amountDraft);
+    if (amount == null) {
+      showAlert('Needs an amount', amountEditMode === 'excludedPrice'
+        ? 'Type your price for the excluded scope in dollars, like 3200 or 3,200.50.'
+        : "Type the bid's total in dollars, like 4800 or 4,800.50.");
+      return;
+    }
+    if (amountEditMode === 'excludedPrice') {
+      // His price for the scope the bid excludes: the adjustment the leveled
+      // total, the savings and the award read, labelled "Your price: …".
+      // parseBidAmountInput is to the cent; leveling never overwrites it.
+      const target = bids.find(b => b.id === amountEditBidId);
+      updateBidPackageBid(amountEditBidId, {
+        normalizedAdjustment: amount,
+        normalizedAdjustmentReason: yourPriceReason(target?.excludes),
+      });
+    } else {
+      updateBidPackageBid(amountEditBidId, { amount });
+    }
+    setAmountEditBidId(null);
+    setAmountDraft('');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [amountEditBidId, amountDraft, amountEditMode, bids, updateBidPackageBid, saveNothingExtra]);
 
   // ── Delete a bid — behind a confirm (#92) ────────────────────
   // One brush of a small trash icon used to delete a bid outright, including
@@ -721,8 +771,11 @@ export default function BuyoutPackageScreen() {
     }
     setLeveling(true);
     try {
-      const result = await levelBids({ pkg, bids, projects, commitments, receipts, seeds });
+      const raw = await levelBids({ pkg, bids, projects, commitments, receipts, seeds });
       await recordAIUsage('smart', 'bidLeveling');
+      // T7: the same honesty pass as app/bid-leveling — an amount not from his
+      // book is saved labelled, an exclusion that needs his price is saved at 0.
+      const result = applyLevelingHonesty(raw, bids).result;
       setLevelingResult(result);
       // Persist each adjustment back to the bid records — but only when
       // the AI actually succeeded. confidence === 0 is the failure
@@ -731,6 +784,9 @@ export default function BuyoutPackageScreen() {
       // a successful re-run (code-review #8).
       for (const adj of result.adjustments) {
         if (adj.confidence === 0) continue;
+        // Never over his own price ("Your price: …"), never over the awarded
+        // bid (utils/levelingBasis.levelingMayWrite, round 2).
+        if (!levelingMayWrite(bids.find(b => b.id === adj.bidId), pkg.awardedBidId)) continue;
         updateBidPackageBid(adj.bidId, {
           normalizedAdjustment: adj.adjustment,
           normalizedAdjustmentReason: adj.reason,
@@ -778,6 +834,13 @@ export default function BuyoutPackageScreen() {
     // the compliance and risk-override dialogs first (#95).
     if (bidAmountOf(bid) == null) {
       showAlert('Needs an amount', `${bid.vendorName || 'This bid'} has no dollar amount, so it can't be awarded. Tap the amount on the card to add it first.`);
+      return;
+    }
+    // Round 2: a needs-price bid's leveled cost is UNKNOWN (its adjustment is a
+    // 0 placeholder). Awarding it would store, show and print its unpriced
+    // excluded scope as savings — so it waits for his price.
+    if (needsYourPrice(bid)) {
+      showAlert(AWARD_NEEDS_PRICE_TITLE, awardNeedsPriceBody(bid.excludes, readReason(bid.normalizedAdjustmentReason).text));
       return;
     }
     // One savings figure everywhere: the leveled one (the awarded sub does not
@@ -1092,13 +1155,18 @@ export default function BuyoutPackageScreen() {
   // AI's adjustments are already factored in.
   // Priced bids only — a $0 or unreadable bid would drag the median down and
   // mark every real bid HIGH.
-  const leveledTotals = pricedBids.map(b => b.amount + (b.normalizedAdjustment ?? 0));
+  // A needs-price bid's 0 is a placeholder, not a price (ideas-1 round 3): it
+  // is left out of the median and of "Lowest" — only known leveled costs are
+  // compared.
+  const knownBids = pricedBids.filter(b => !needsYourPrice(b));
+  const leveledTotals = knownBids.map(b => b.amount + (b.normalizedAdjustment ?? 0));
   const median = leveledTotals.length === 0 ? 0
     : leveledTotals.length % 2 === 1
       ? leveledTotals[Math.floor(leveledTotals.length / 2)]
       : (leveledTotals[leveledTotals.length / 2 - 1] + leveledTotals[leveledTotals.length / 2]) / 2;
   const isOutlier = (bid: BidPackageBid): { kind: 'low' | 'high'; pct: number } | null => {
-    if (median === 0 || pricedBids.length < 2 || bidAmountOf(bid) == null) return null;
+    if (median === 0 || knownBids.length < 2 || bidAmountOf(bid) == null) return null;
+    if (needsYourPrice(bid)) return null;
     const total = bid.amount + (bid.normalizedAdjustment ?? 0);
     const deltaPct = ((total - median) / median) * 100;
     if (deltaPct < -15) return { kind: 'low', pct: Math.abs(deltaPct) };
@@ -1160,6 +1228,11 @@ export default function BuyoutPackageScreen() {
           <View style={styles.heroBudgetCell}>
             <Text style={styles.heroBudgetLabel}>Buyout savings</Text>
             <Text style={[styles.heroBudgetValue, { color: Colors.warningLabel }]}>Review</Text>
+          </View>
+        ) : heroNeedsPrice ? (
+          <View style={styles.heroBudgetCell}>
+            <Text style={styles.heroBudgetLabel}>Buyout savings</Text>
+            <Text style={[styles.heroBudgetLabel, { color: Colors.warningLabel }]} testID="leveling-hero-needs-price">{SAVINGS_NEEDS_PRICE}</Text>
           </View>
         ) : heroSavings != null ? (
           <View style={styles.heroBudgetCell}>
@@ -1583,13 +1656,15 @@ export default function BuyoutPackageScreen() {
           </Text>
         </View>
       ) : (
-        sortedBids.map((bid, i) => {
+        sortedBids.map((bid) => {
           const priced = bidAmountOf(bid) != null;
           const total = bid.amount + (bid.normalizedAdjustment ?? 0);
           const vsBudget = pkg.estimateBudget - total;
           const isWinner = winningBidId === bid.id;
-          // Never a bid with no amount, and only when two PRICED bids compete.
-          const isLowest = priced && i === 0 && pricedBids.length > 1;
+          // Never a bid with no amount or an unknown leveled cost, and only when
+          // two bids with a KNOWN leveled cost compete.
+          const needsPrice = priced && needsYourPrice(bid);
+          const isLowest = priced && !needsPrice && knownBids.length > 1 && knownBids[0].id === bid.id;
           const outlier = isOutlier(bid);
           const filedBySub = invitedBidIds.has(bid.id);
           const isAwardedBid = bid.status === 'awarded' || pkg.awardedBidId === bid.id;
@@ -1653,7 +1728,7 @@ export default function BuyoutPackageScreen() {
               <View style={styles.bidAmountsRow}>
                 <TouchableOpacity
                   style={styles.bidAmountCell}
-                  onPress={() => { if (canEditAmount) { setAmountDraft(priced ? String(bid.amount) : ''); setAmountEditBidId(bid.id); } }}
+                  onPress={() => { if (canEditAmount) { setAmountEditMode('amount'); setAmountDraft(priced ? String(bid.amount) : ''); setAmountEditBidId(bid.id); } }}
                   disabled={!canEditAmount}
                   activeOpacity={0.7}
                   accessibilityRole="button"
@@ -1678,9 +1753,13 @@ export default function BuyoutPackageScreen() {
                 )}
                 <View style={styles.bidAmountCell}>
                   <Text style={[styles.bidAmountLabel, { color: themeColors.text, fontWeight: '700' }]}>Leveled total</Text>
-                  <Text style={[styles.bidAmountValueTotal, { color: !priced ? themeColors.textMuted : vsBudget >= 0 ? themeColors.success : themeColors.danger }]}>
-                    {priced ? formatMoney(total) : '—'}
-                  </Text>
+                  {needsPrice ? (
+                    <Text style={[styles.bidAmountLabel, { color: themeColors.warningLabel, fontWeight: '700' }]}>{LABEL_NEEDS_PRICE}</Text>
+                  ) : (
+                    <Text style={[styles.bidAmountValueTotal, { color: !priced ? themeColors.textMuted : vsBudget >= 0 ? themeColors.success : themeColors.danger }]}>
+                      {priced ? formatMoney(total) : '—'}
+                    </Text>
+                  )}
                 </View>
               </View>
 
@@ -1696,14 +1775,38 @@ export default function BuyoutPackageScreen() {
                   <Text style={styles.bidScopeText}>{bid.excludes}</Text>
                 </View>
               )}
-              {!!bid.normalizedAdjustmentReason && (
-                <View style={styles.adjReason}>
-                  <MageAIMark size={11} color={themeColors.accent} />
-                  <Text style={styles.adjReasonText}>{bid.normalizedAdjustmentReason}</Text>
-                </View>
-              )}
+              {!!bid.normalizedAdjustmentReason && (() => {
+                const saved = readReason(bid.normalizedAdjustmentReason);
+                return (
+                  <View style={styles.adjReason}>
+                    <MageAIMark size={11} color={themeColors.accent} />
+                    {saved.label ? (
+                      <Text
+                        style={[styles.adjReasonText, { flex: 0, fontStyle: 'normal', fontWeight: '700', paddingHorizontal: 5, borderRadius: Tokens.radius.xs, overflow: 'hidden', color: saved.label === 'needs_price' ? themeColors.warningLabel : saved.label === 'your_price' ? themeColors.success : themeColors.textMuted, backgroundColor: saved.label === 'needs_price' ? themeColors.warningLabel + '1F' : themeColors.surfaceAlt }]}
+                        testID={`leveling-basis-${bid.id}`}
+                      >
+                        {saved.label === 'needs_price' ? LABEL_NEEDS_PRICE : saved.label === 'your_price' ? LABEL_YOUR_PRICE : LABEL_NOT_FROM_BOOK}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.adjReasonText}>{saved.text}</Text>
+                  </View>
+                );
+              })()}
 
-              {pkg.status !== 'awarded' && (priced ? (
+              {pkg.status !== 'awarded' && (needsPrice ? (
+                // No Award on a bid whose leveled cost is unknown — the one
+                // tap that unlocks it instead (round 2).
+                <TouchableOpacity
+                  style={[styles.needsAmountBtn, { borderColor: themeColors.warningLabel + '55', backgroundColor: themeColors.warningLabel + '0F' }]}
+                  onPress={() => { setAmountEditMode('excludedPrice'); setAmountDraft(''); setAmountEditBidId(bid.id); }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  testID={`leveling-set-price-${bid.id}`}
+                >
+                  <AlertTriangle size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+                  <Text style={[styles.needsAmountText, { color: themeColors.warningLabel }]}>{SET_YOUR_PRICE_CTA}</Text>
+                </TouchableOpacity>
+              ) : priced ? (
                 <TouchableOpacity style={styles.awardBtn} onPress={() => handleAward(bid)} activeOpacity={0.85}>
                   <Trophy size={14} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.awardBtnText}>Award · {formatMoney(total)}</Text>
@@ -1714,7 +1817,7 @@ export default function BuyoutPackageScreen() {
                 // and the fix instead (#95).
                 <TouchableOpacity
                   style={styles.needsAmountBtn}
-                  onPress={() => { setAmountDraft(''); setAmountEditBidId(bid.id); }}
+                  onPress={() => { setAmountEditMode('amount'); setAmountDraft(''); setAmountEditBidId(bid.id); }}
                   activeOpacity={0.85}
                   testID={`needs-amount-${bid.id}`}
                 >
@@ -1899,19 +2002,23 @@ export default function BuyoutPackageScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: themeColors.bg }, fAmount.card, fAmount.isDesktop && styles.sheetCardDesktop]}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>
-                {`Amount · ${bids.find(b => b.id === amountEditBidId)?.vendorName ?? 'this bid'}`}
+                {`${amountEditMode === 'excludedPrice' ? 'Your price' : 'Amount'} · ${bids.find(b => b.id === amountEditBidId)?.vendorName ?? 'this bid'}`}
               </Text>
               <TouchableOpacity onPress={() => setAmountEditBidId(null)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
-              <Text style={styles.fieldLabel}>Bid total *</Text>
+              <Text style={styles.fieldLabel}>
+                {amountEditMode === 'excludedPrice'
+                  ? `Your price for ${bids.find(b => b.id === amountEditBidId)?.excludes?.trim() || 'the excluded scope'} *`
+                  : 'Bid total *'}
+              </Text>
               <TextInput
                 style={styles.input}
                 value={amountDraft}
                 onChangeText={setAmountDraft}
-                placeholder="e.g. 4,800.50"
+                placeholder={amountEditMode === 'excludedPrice' ? 'e.g. 3,200' : 'e.g. 4,800.50'}
                 placeholderTextColor={themeColors.textMuted}
                 keyboardType="decimal-pad"
                 autoFocus
@@ -1921,8 +2028,22 @@ export default function BuyoutPackageScreen() {
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAmount} activeOpacity={0.85} testID="bid-amount-save">
                 <Save size={16} color="#FFF" strokeWidth={1.75} />
-                <Text style={styles.saveBtnText}>Save amount</Text>
+                <Text style={styles.saveBtnText}>{amountEditMode === 'excludedPrice' ? 'Save your price' : 'Save amount'}</Text>
               </TouchableOpacity>
+              {amountEditMode === 'excludedPrice' && amountEditBidId ? (
+                // The other honest answer: the excluded scope costs nothing
+                // extra (round 3). Without it the only unlock was a made-up
+                // price or a re-run of leveling.
+                <TouchableOpacity
+                  style={[styles.needsAmountBtn, { marginTop: 10, borderColor: themeColors.line, backgroundColor: 'transparent' }]}
+                  onPress={() => saveNothingExtra(amountEditBidId)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  testID="bid-price-nothing-extra"
+                >
+                  <Text style={[styles.needsAmountText, { color: themeColors.text }]}>{NOTHING_EXTRA_LABEL}</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </KeyboardAvoidingView>
           </SheetOverlay>

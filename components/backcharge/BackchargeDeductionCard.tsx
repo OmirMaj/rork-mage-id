@@ -6,6 +6,7 @@
 // only that (no second Apply). It never
 // changes the sub's invoice, the approve flow, the overage guard or any
 // payment record: MAGE records the deduction; the GC pays the net himself.
+// The last line says where these backcharges are kept (utils/backchargeCopy).
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Send, MinusCircle } from 'lucide-react-native';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui';
 import { shareText } from '@/utils/shareText';
 import { useBackcharges } from '@/hooks/useBackcharges';
 import { formatCents, invoiceDeduction, sumCents } from '@/utils/backcharges';
+import { backchargeStorageLine } from '@/utils/backchargeCopy';
 import type { Project, Subcontractor, SubSubmittedInvoice } from '@/types';
 
 export interface BackchargeDeductionCardProps {
@@ -30,7 +32,7 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { settings } = useProjects();
-  const { list, applyToInvoice } = useBackcharges();
+  const { list, applyToInvoice, statusOf, signedIn, retryNotSaved } = useBackcharges();
   const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   // SubSubmittedInvoice.amount is DOLLARS; the plan works in integer cents.
@@ -45,6 +47,11 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
   const waiting = d.kind === 'recorded' ? d.openAfter : d.kind === 'plan' ? d.plan.carried : [];
   const deductCents = d.kind === 'recorded' ? d.deductCents : d.kind === 'plan' ? d.plan.deductCents : 0;
   const payCents = d.kind === 'recorded' ? d.payCents : d.kind === 'plan' ? d.plan.payCents : billCents;
+  // Where the backcharges on this card are kept (utils/backchargeCopy).
+  const onCard = [...taken, ...waiting];
+  const states = onCard.map(b => statusOf(b.id));
+  const storage = backchargeStorageLine(states, signedIn);
+  const notSavedIds = onCard.filter((b, i) => states[i] === 'not_saved').map(b => b.id);
 
   const note = useMemo(() => {
     if (taken.length === 0) return '';
@@ -125,7 +132,17 @@ export function BackchargeDeductionCard({ invoice, project, sub }: BackchargeDed
         <Text style={styles.muted}>Nothing fits on this bill: the oldest open backcharge is bigger than the invoice.</Text>
       ) : null}
       <Text style={styles.muted}>
-        MAGE records the deduction. Pay {formatCents(payCents)} when you mark this bill paid — MAGE never moves the money. Saved on this device until you sign out.
+        MAGE records the deduction. Pay {formatCents(payCents)} when you mark this bill paid — MAGE never moves the money.{storage ? ' ' : null}
+        {storage?.retry ? (
+          <Text
+            style={styles.retry}
+            onPress={() => retryNotSaved(notSavedIds)}
+            accessibilityRole="button"
+            testID={`backcharge-storage-retry-${invoice.id}`}
+          >
+            {storage.text}
+          </Text>
+        ) : storage?.text ?? null}
       </Text>
       {shareMsg ? <Text style={styles.muted}>{shareMsg}</Text> : null}
     </View>
@@ -141,4 +158,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   item: { ...Type.footnote, color: t.textSecondary, marginTop: 4, marginLeft: 23 },
   muted: { ...Type.footnote, color: t.textMuted, marginTop: 6 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 10 },
+  retry: { ...Type.footnoteEmphasized, color: t.dangerLabel },
 });

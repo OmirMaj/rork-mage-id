@@ -353,7 +353,7 @@ console.log('\nsource assertions:');
 
   const screen = src('app/(tabs)/construction-ai/index.tsx');
   ok('Plan Review resolves the jurisdiction from ITS OWN project, not the Code Check field',
-    /resolveCodeJurisdiction\(jobsiteAddressForProject\(planProject\)\)/.test(screen),
+    /resolveCodeJurisdiction\((?:jobsiteAddressForProject|jurisdictionQueryForProject)\(planProject\)\)/.test(screen),
     'the two tabs answer questions about different jobs and must not share one resolution');
   ok('…and actually passes the block to the reviewer',
     /jurisdictionBlock: planGrounding\.promptBlock/.test(screen),

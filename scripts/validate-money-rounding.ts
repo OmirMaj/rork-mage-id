@@ -331,8 +331,11 @@ try {
   pin('cashFlowEngine formatCurrency(-1234.5)', formatCurrency(-1234.5), '-$1,235');
 
   // ── (b) the repo's Hermes binary vs node vs bun ─────────────────────────────
-  if (!existsSync(HERMES)) {
-    console.warn(`! validate-money-rounding (b) SKIPPED: no Hermes binary at ${HERMES} (non-Mac host). Run on a Mac before a release.`);
+  // react-native's npm package ships osx-bin/hermes on every OS, so on Linux CI the
+  // file EXISTS but is a macOS executable (spawn fails with ENOEXEC). Skip loudly on
+  // any non-darwin host, exactly like validate-i18n-hermes; the Mac gate runs (b).
+  if (process.platform !== 'darwin' || !existsSync(HERMES)) {
+    console.warn(`! validate-money-rounding (b) SKIPPED: ${process.platform !== 'darwin' ? `host is ${process.platform}; the Hermes binary is macOS-only` : `no Hermes binary at ${HERMES}`}. Run on a Mac before a release.`);
   } else {
     const tokens = inputs.map((x) => String(x));
     const probe = join(dir, 'probe.ts');

@@ -38,7 +38,7 @@ import { generateUUID } from '@/utils/generateId';
 import { edgeErrorCode } from '@/utils/edgeError';
 import { analyzePhotoCodeLook } from '@/utils/photoAnalyzer';
 import {
-  groundingFactsFor, jobsiteAddressForProject, resolveCodeJurisdiction,
+  groundingFactsFor, jurisdictionQueryForProject, resolveCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
 import { editionMismatchFor } from '@/utils/codeAmendments';
 import {
@@ -108,7 +108,7 @@ export default function CodeLookSheet({
     { scope: 'dialog', enabled: visible },
   );
 
-  const resolved = useMemo(() => resolveCodeJurisdiction(jobsiteAddressForProject(project)), [project]);
+  const resolved = useMemo(() => resolveCodeJurisdiction(jurisdictionQueryForProject(project)), [project]);
   const grounding = useMemo(() => groundingFactsFor(resolved), [resolved]);
   const jurisdictionKnown = resolved.kind !== 'unknown';
 

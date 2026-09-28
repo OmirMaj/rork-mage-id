@@ -11,6 +11,15 @@
 //      hasn't verified the contact details. A Census answer in one of the five
 //      NYC counties shows the NYC card. The lookup and its cache live in
 //      utils/placeLookup.ts; this file only renders.
+//      MARYLAND ONLY: when the lookup names the county (Census 'Baltimore
+//      city' / 'Baltimore County'), the job is re-resolved with that county,
+//      and a row with a verified department block renders path 1's card. A
+//      mailing address that only says "Baltimore, MD" can be in either
+//      government, so the Census county decides, never the postal city. For
+//      NY / NJ / CT this re-resolve never runs: a "Kings County" answer keeps
+//      going through the 'nyc' branch (the NYC card with its pin headline).
+// Path 1 resolves through jurisdictionQueryForProject, so a location-only job
+// whose text ends in a ZIP that lies in one government reaches its row.
 // Every other job (the Portland golden fixture included) returns null before
 // any hook, effect or storage read, so it renders byte-identically.
 //
@@ -29,7 +38,7 @@ import { Tokens } from '@/constants/designTokens';
 import { Badge, Card } from '@/components/ui';
 import {
   departmentFor,
-  jobsiteAddressForProject,
+  jurisdictionQueryForProject,
   resolveCodeJurisdiction,
   type BuildingDepartment,
 } from '@/utils/codeJurisdiction';
@@ -49,11 +58,11 @@ export interface DepartmentCardProps {
 }
 
 export function DepartmentCard({ project, testID }: DepartmentCardProps) {
-  const resolved = resolveCodeJurisdiction(jobsiteAddressForProject(project));
+  const resolved = resolveCodeJurisdiction(jurisdictionQueryForProject(project));
   const department = departmentFor(resolved);
   if (!department) {
     const query = placeQueryForProject(project);
-    if (query) return <PermitOfficeLookup query={query} testID={testID ?? 'department-card'} />;
+    if (query) return <PermitOfficeLookup query={query} project={project} testID={testID ?? 'department-card'} />;
   }
   if (!department || resolved.kind !== 'city') return null;
   return (
@@ -96,7 +105,7 @@ function DepartmentCardBody({
         ) : null}
         <TouchableOpacity style={s.link} onPress={() => open(d.portalUrl)} accessibilityRole="link" testID={`${testID}-portal`}>
           <ExternalLink size={14} color={t.accentLabel} strokeWidth={2} />
-          <Text style={s.linkText}>DOB NOW portal</Text>
+          <Text style={s.linkText}>{d.portalLabel ?? 'DOB NOW portal'}</Text>
         </TouchableOpacity>
         {d.statusLookupUrl ? (
           <TouchableOpacity style={s.link} onPress={() => open(d.statusLookupUrl!)} accessibilityRole="link" testID={`${testID}-status`}>
@@ -122,7 +131,7 @@ function DepartmentCardBody({
       ) : null}
 
       <TouchableOpacity onPress={() => open(d.sourceUrl)} accessibilityRole="link" testID={`${testID}-source`}>
-        <Card.Meta>Checked {d.checkedOn} on nyc.gov</Card.Meta>
+        <Card.Meta>Checked {d.checkedOn} on {d.sourceLabel ?? 'nyc.gov'}</Card.Meta>
       </TouchableOpacity>
     </Card>
   );
@@ -137,7 +146,9 @@ function DepartmentCardBody({
 const NYC_RESOLVED = resolveCodeJurisdiction({ city: 'New York', state: 'NY' });
 const NYC_DEPARTMENT = departmentFor(NYC_RESOLVED);
 
-function PermitOfficeLookup({ query, testID }: { query: PlaceQuery; testID: string }) {
+function PermitOfficeLookup({
+  query, project, testID,
+}: { query: PlaceQuery; project: Project | null | undefined; testID: string }) {
   const s = useThemedStyles(makeStyles);
   const lookup = usePlaceLookup(query);
 
@@ -156,6 +167,17 @@ function PermitOfficeLookup({ query, testID }: { query: PlaceQuery; testID: stri
         <Text style={s.body}>Couldn&apos;t reach the Census geocoder, so MAGE didn&apos;t look up the permit office. It will try again next time.</Text>
       </Card>
     );
+  }
+
+  // Maryland only: the Census county settles Baltimore City vs Baltimore
+  // County, so re-resolve with it and show that row's verified department.
+  // Never for NY / NJ / CT (see the header).
+  if (query.state === 'MD' && lookup.place?.county?.name) {
+    const md = resolveCodeJurisdiction({ ...jurisdictionQueryForProject(project), county: lookup.place.county.name });
+    const mdDepartment = departmentFor(md);
+    if (mdDepartment && md.kind === 'city') {
+      return <DepartmentCardBody department={mdDepartment} authorityName={md.entry.authorityName} testID={testID} />;
+    }
   }
 
   const answer = permitOfficeFor(lookup.place, { state: query.state, postalCity: query.postalCity });

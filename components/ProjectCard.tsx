@@ -59,6 +59,11 @@ interface ProjectCardProps {
   invoicedToDate?: number;
   /** Estimate + approved change orders — the burn denominator. */
   revisedContract?: number;
+  /** Drawn next to the stage badge when given (Home passes the Level,
+   *  components/level/JobLevel). A slot, not an import: this card stays free of
+   *  the Level's sheet chain, which scripts/validate-smooth-home cannot load
+   *  under bun. Absent → nothing drawn. */
+  levelSlot?: React.ReactNode;
 }
 
 /** The entrance delay for the card at `index`: 30 ms apart, the first five
@@ -67,7 +72,7 @@ export function entranceStagger(index: number): number {
   return Math.min(Math.max(0, index), 4) * 30;
 }
 
-function ProjectCard({ project, onPress, onLongPress, index = 0, skipEntrance = false, invoicedToDate, revisedContract }: ProjectCardProps) {
+function ProjectCard({ project, onPress, onLongPress, index = 0, skipEntrance = false, invoicedToDate, revisedContract, levelSlot }: ProjectCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -236,6 +241,10 @@ function ProjectCard({ project, onPress, onLongPress, index = 0, skipEntrance = 
                   </Badge>
                 </View>
               )}
+              {/* The Level (ideas-1, T5), when Home passes it: schedule slip +
+                  margin risk at a glance, next to the stage badge (the stage is
+                  not carried by the Level, so it stays). */}
+              {levelSlot ?? null}
             </View>
           </View>
 

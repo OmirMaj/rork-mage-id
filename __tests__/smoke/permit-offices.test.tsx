@@ -186,3 +186,54 @@ describe('hand-verified Suffolk and Westchester offices', () => {
     expect(screen.queryByText(/Villages usually run their own building department/)).toBeNull();
   });
 });
+
+// Lane PLACECODES (2026-09-28): Maryland. The two Baltimore governments carry
+// verified department blocks in utils/codeJurisdiction.ts, so a City or County
+// job whose address carries a ZIP lying wholly in one government shows that
+// block with no lookup at all. Any other Maryland county goes through
+// place-lookup (Census county recorded 2026-09-28) to a NAME-ONLY card.
+const MD_CITY_ID = '66666666-6666-4666-8666-666666666608';
+const MD_COUNTY_ID = '66666666-6666-4666-8666-666666666609';
+const MD_OTHER_ID = '66666666-6666-4666-8666-666666666610';
+const ANNAPOLIS = {
+  ...base, state: 'MD', match: 'address',
+  county: { name: 'Anne Arundel County', geoid: '24003' },
+  town: null,
+  incorporatedPlace: { name: 'Annapolis city', basename: 'Annapolis', geoid: '2401600', kind: 'city' },
+};
+
+describe('Maryland building departments', () => {
+  it('a Baltimore City job shows the DHCD card with its phone and the E-Permits link, and never calls place-lookup', async () => {
+    await seed([job(MD_CITY_ID, 'Waverly rowhouse', { street: '620 E 31st St', city: 'Baltimore', state: 'MD', zip: '21218' })]);
+    answer = () => ({ data: ANNAPOLIS, error: null });
+    await mountRouteChecked(`/permits?projectId=${MD_CITY_ID}`);
+    expect(await screen.findByText(/Baltimore City Department of Housing & Community Development \(DHCD\)/)).toBeTruthy();
+    expect(screen.getAllByText('443-984-1809').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('E-Permits portal').length).toBeGreaterThan(0);
+    expect(screen.queryByText('DOB NOW portal')).toBeNull();
+    expect(screen.getByText(/Checked 2026-09-28 on baltimorecity\.gov/)).toBeTruthy();
+    expect(lookups()).toHaveLength(0);
+  });
+
+  it('a Baltimore County job shows the PAI card, not the City one', async () => {
+    await seed([job(MD_COUNTY_ID, 'Towson addition', { street: '400 Washington Ave', city: 'Towson', state: 'MD', zip: '21204' })]);
+    answer = () => ({ data: ANNAPOLIS, error: null });
+    await mountRouteChecked(`/permits?projectId=${MD_COUNTY_ID}`);
+    expect(await screen.findByText(/Baltimore County Department of Permits, Approvals and Inspections \(PAI\)/)).toBeTruthy();
+    expect(screen.getAllByText('410-887-3353').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Permits portal (PLL)').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Checked 2026-09-28 on baltimorecountymd\.gov/)).toBeTruthy();
+    expect(screen.queryByText(/Housing & Community Development/)).toBeNull();
+  });
+
+  it('another Maryland county shows a name-only county card with the not-verified badge', async () => {
+    await seed([job(MD_OTHER_ID, 'Annapolis porch', { street: '100 State Cir', city: 'Annapolis', state: 'MD', zip: '21401' })]);
+    answer = () => ({ data: ANNAPOLIS, error: null });
+    await mountRouteChecked(`/permits?projectId=${MD_OTHER_ID}`);
+    expect(await screen.findByText('Anne Arundel County')).toBeTruthy();
+    expect(screen.getByText('Contact details not verified by MAGE')).toBeTruthy();
+    expect(screen.getByText(/Annapolis city is an incorporated place inside Anne Arundel County/)).toBeTruthy();
+    expect(screen.queryByTestId('permits-department-phone')).toBeNull();
+    expect(lookups()[0].body).toEqual({ address: '100 State Cir, Annapolis, MD 21401', lat: null, lon: null });
+  });
+});

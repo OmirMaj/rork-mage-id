@@ -24,6 +24,7 @@
 import { computeSubScorecards, gradeForScore } from '../utils/subScorecard';
 import type { ScorecardFactor, SubScorecard } from '../utils/subScorecard';
 import type { Subcontractor, Commitment, PunchItem, Project, ScheduleTask, RFI } from '../types';
+import type { Backcharge } from '../utils/backcharges';
 
 let pass = 0, fail = 0;
 function canon(x: unknown): unknown {
@@ -340,6 +341,122 @@ console.log('\nRFI responsiveness (sub attribution):');
   const card = cardFor(res, 's1');
   expect('RFI data alone lifts the sub out of paperwork-only',
     factor(card, 'compliance').weight < 1, true);
+}
+
+console.log('\nbackcharges (health lane H1.6):');
+{
+  // 3 signed commitments on 3 distinct projects, $100K each, open (no closed
+  // work, so cost discipline does not apply; CO impact does).
+  const three = [
+    commitment({ id: 'c1', projectId: 'p1', status: 'active' as Commitment['status'] }),
+    commitment({ id: 'c2', projectId: 'p2', status: 'active' as Commitment['status'] }),
+    commitment({ id: 'c3', projectId: 'p3', status: 'active' as Commitment['status'] }),
+  ];
+  const bc = (over: Partial<Backcharge>): Backcharge => ({
+    id: 'b1', projectId: 'p1', subId: 's1', subName: 'Acme Electric', commitmentId: null,
+    reason: 'Cleanup', amountCents: 150_000, basis: 'typed', hours: null, rateCents: null,
+    photoUri: null, photoId: null, punchItemId: null, status: 'open',
+    appliedInvoiceId: null, appliedAt: null, createdAt: '2026-09-01T00:00:00Z', ...over,
+  });
+
+  // Below 3 projects → not applicable, honest detail, no weight.
+  const two = computeSubScorecards({
+    subcontractors: [sub({})],
+    commitments: three.slice(0, 2),
+    backcharges: [bc({})],
+  });
+  const f2 = factor(cardFor(two, 's1'), 'backcharges');
+  expect('2 projects: not applicable, weight 0, "Not enough projects yet to judge backcharges"',
+    { applicable: f2.applicable, weight: f2.weight, detail: f2.detail, label: f2.label },
+    { applicable: false, weight: 0, detail: 'Not enough projects yet to judge backcharges', label: 'Backcharges' });
+  {
+    // Two commitments on ONE project + one on another = 2 distinct projects.
+    const sameJob = computeSubScorecards({
+      subcontractors: [sub({})],
+      commitments: [three[0], { ...three[1], projectId: 'p1' }, three[2]],
+      backcharges: [],
+    });
+    expect('projects are counted DISTINCT (3 commitments on 2 projects is not enough)',
+      factor(cardFor(sameJob, 's1'), 'backcharges').applicable, false);
+    const drafts = computeSubScorecards({
+      subcontractors: [sub({})],
+      commitments: [three[0], three[1], { ...three[2], status: 'draft' as Commitment['status'] }],
+      backcharges: [],
+    });
+    expect('a draft commitment is not a project worked', factor(cardFor(drafts, 's1'), 'backcharges').applicable, false);
+  }
+
+  // 0 backcharges on 3 projects → full marks.
+  const clean = computeSubScorecards({ subcontractors: [sub({})], commitments: three, backcharges: [] });
+  const fc = factor(cardFor(clean, 's1'), 'backcharges');
+  expect('0 backcharges on 3 projects: full marks, weight 0.15',
+    { applicable: fc.applicable, score: fc.score, weight: fc.weight, detail: fc.detail },
+    { applicable: true, score: 1, weight: 0.15, detail: 'No backcharges on 3 projects' });
+  const four = computeSubScorecards({
+    subcontractors: [sub({})],
+    commitments: [...three, commitment({ id: 'c4', projectId: 'p4', status: 'active' as Commitment['status'] })],
+    backcharges: [bc({ subId: 's2' })],
+  });
+  expect("another sub's backcharge is not this sub's: 'No backcharges on 4 projects'",
+    factor(cardFor(four, 's1'), 'backcharges').detail, 'No backcharges on 4 projects');
+
+  // Per-$100K maths: $300K signed; $1,500 open + $3,000 applied = $4,500 = 1.5%
+  // → quality 1 − 0.015/0.03 = 0.5; 2 backcharges → 0.7 per $100K; $1.5K per $100K.
+  const some = computeSubScorecards({
+    subcontractors: [sub({})],
+    commitments: three,
+    backcharges: [
+      bc({ id: 'b1', amountCents: 150_000 }),
+      bc({ id: 'b2', amountCents: 300_000, status: 'applied', appliedInvoiceId: 'inv1', appliedAt: '2026-09-02T00:00:00Z' }),
+      bc({ id: 'b3', amountCents: 9_000_000, status: 'void' }),
+    ],
+  });
+  const fs = factor(cardFor(some, 's1'), 'backcharges');
+  expect('open + applied count, void never: 1.5% of volume scores 0.5',
+    { applicable: fs.applicable, score: r4(fs.score) }, { applicable: true, score: 0.5 });
+  expect('detail names count, dollars, projects and the per-$100K rates',
+    fs.detail, '2 backcharges ($4.5K) across 3 projects · 0.7 backcharges and $1.5K per $100K of signed work');
+  const onlyVoid = computeSubScorecards({
+    subcontractors: [sub({})], commitments: three, backcharges: [bc({ status: 'void', amountCents: 9_000_000 })],
+  });
+  expect('a voided backcharge alone leaves full marks', factor(cardFor(onlyVoid, 's1'), 'backcharges').score, 1);
+  const heavy = computeSubScorecards({
+    subcontractors: [sub({})], commitments: three, backcharges: [bc({ amountCents: 900_000 })],
+  });
+  expect('3% of volume (the zero-at line) scores 0', r4(factor(cardFor(heavy, 's1'), 'backcharges').score), 0);
+
+  // The blend: CO impact (1.0, w 0.3) + compliance (0.32, w 0.3) + backcharges (0.5, w 0.15).
+  expect('the factor joins the blend with weight 0.15',
+    cardFor(some, 's1').score, Math.round(((1 * 0.3 + 0.32 * 0.3 + 0.5 * 0.15) / 0.75) * 100));
+
+  // Omitted input → not applicable and the score is exactly what the other
+  // factors make (the byte-identical guarantee for every existing caller).
+  const omitted = computeSubScorecards({ subcontractors: [sub({})], commitments: three });
+  const fo = factor(cardFor(omitted, 's1'), 'backcharges');
+  expect('omitted input: not applicable, weight 0, says it was not counted',
+    { applicable: fo.applicable, weight: fo.weight, detail: fo.detail },
+    { applicable: false, weight: 0, detail: 'Backcharges not counted on this screen' });
+  const others = cardFor(omitted, 's1').factors.filter(f => f.applicable && f.weight > 0);
+  expect('omitted input: score = the blend of the other factors alone',
+    cardFor(omitted, 's1').score,
+    Math.round((others.reduce((s, f) => s + f.score * f.weight, 0) / others.reduce((s, f) => s + f.weight, 0)) * 100));
+  const strip = (c: SubScorecard) => ({ ...c, factors: c.factors.filter(f => f.key !== 'backcharges') });
+  expect('omitted input vs a list that does not apply (2 projects): identical card apart from the factor detail',
+    strip(cardFor(computeSubScorecards({ subcontractors: [sub({})], commitments: three.slice(0, 2) }), 's1')),
+    strip(cardFor(two, 's1')));
+  // Every fixture above that predates the factor, re-run with backcharges
+  // omitted, keeps its pinned numbers: 59 (punch-only) and 32 (paperwork only).
+  expect('pre-factor fixtures keep their scores (59 / 32)',
+    [
+      cardFor(computeSubScorecards({ subcontractors: [sub({})], commitments: [], punchItems: [punch({ id: 'a' }), punch({ id: 'b' }), punch({ id: 'c' })] }), 's1').score,
+      cardFor(computeSubScorecards({ subcontractors: [sub({})], commitments: [] }), 's1').score,
+    ],
+    [59, 32]);
+  expect('the backcharges factor never becomes the top driver when it does not apply',
+    cardFor(omitted, 's1').factors[0].key !== 'backcharges' && cardFor(two, 's1').topDriver === cardFor(omitted, 's1').topDriver
+      ? true : cardFor(two, 's1').topDriver, true);
+  expect('backcharge data alone does not lift a sub out of paperwork-only below 3 projects',
+    cardFor(computeSubScorecards({ subcontractors: [sub({})], commitments: [], backcharges: [bc({})] }), 's1').topDriver.startsWith('No job history yet'), true);
 }
 
 expect('grade bands hold', [gradeForScore(95), gradeForScore(85), gradeForScore(75), gradeForScore(65), gradeForScore(50)], ['A', 'B', 'C', 'D', 'F']);

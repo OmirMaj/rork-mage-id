@@ -9,6 +9,7 @@
 // unit prices, suppliers, Brain flags — is never encoded into the link.
 
 import type { ClientEstimateView, PaymentMilestone } from './clientEstimateView';
+import { isCalendarDay } from './proposalValidity';
 
 /** v1 payload. Short field names keep tokens small. */
 export interface ClientEstimateSharePayload {
@@ -31,7 +32,10 @@ export interface ClientEstimateSharePayload {
   exc?: string[];
   /** Payment schedule: label, detail, optional amount. */
   pay?: { l: string; d: string; a?: number }[];
-  /** Valid-through date (ISO yyyy-mm-dd). */
+  /** "Prices valid until" — a calendar day ('YYYY-MM-DD'), the last day the
+   *  prices hold. Optional: links sent without it still open. A value that is
+   *  not a real calendar day is dropped on build and on decode (never printed
+   *  raw on the client's page). /shared-estimate says when it has passed. */
   valid?: string;
   // How the homeowner answers (audit 2026-09-18, #123). The link used to end
   // at "Powered by MAGE ID": no phone, no email, no way to say yes. All three
@@ -76,7 +80,7 @@ export function buildClientEstimateSharePayload(
     pay: opts.paymentSchedule?.length
       ? opts.paymentSchedule.map(m => ({ l: m.label, d: m.detail, ...(m.amount !== undefined ? { a: m.amount } : {}) }))
       : undefined,
-    valid: opts.validThrough,
+    valid: isCalendarDay(opts.validThrough) ? opts.validThrough : undefined,
     ph: clean(opts.gcPhone),
     em: clean(opts.gcEmail),
     acc: clean(opts.acceptance),
@@ -109,6 +113,9 @@ export function decodeClientEstimateToken(token: string): ClientEstimateSharePay
       : ascii;
     const parsed = JSON.parse(json) as ClientEstimateSharePayload;
     if (parsed.v !== 1 || typeof parsed.total !== 'number' || !Array.isArray(parsed.scope)) return null;
+    // A crafted or damaged date is dropped, not printed: the rest of the
+    // proposal still opens, with no validity line.
+    if (parsed.valid !== undefined && !isCalendarDay(parsed.valid)) delete parsed.valid;
     return parsed;
   } catch {
     return null;

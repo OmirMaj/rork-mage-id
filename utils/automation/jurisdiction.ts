@@ -87,6 +87,7 @@ import {
   codesSummary,
   issuingAuthorityForAddress,
   jobsiteAddressForProject,
+  jurisdictionQueryForProject,
   resolveCodeJurisdiction,
 } from '@/utils/codeJurisdiction';
 
@@ -749,7 +750,11 @@ export function describeZoningUnknown(project: Project): ZoningUnknownFacts {
   const state = addr.state.trim();
   const jobsiteLabel = city && state ? `${city}, ${state}` : city || state || null;
 
-  const resolved = resolveCodeJurisdiction({ city, county: addr.county, state });
+  // The resolver query takes county + ZIP from jurisdictionQueryForProject so
+  // a location-only job ending in a ZIP reaches a ZIP-keyed row (Baltimore);
+  // city and state stay the trimmed values the labels below use.
+  const q = jurisdictionQueryForProject(project);
+  const resolved = resolveCodeJurisdiction({ city, county: q.county, state, zip: q.zip });
   const grounded = resolved.kind !== 'unknown' ? resolved.entry : null;
 
   const placeLabel = city ? (state ? `${city}, ${state}` : city) : null;
@@ -776,7 +781,7 @@ export function describeZoningUnknown(project: Project): ZoningUnknownFacts {
     zoningAuthorityNote: placeLabel
       ? `Zoning is set locally — by the village, town or city that governs this parcel, not by the county or the state. MAGE has not verified which one covers ${placeLabel}.`
       : null,
-    permitAuthority: issuingAuthorityForAddress({ city, county: addr.county, state }),
+    permitAuthority: issuingAuthorityForAddress({ city, county: q.county, state, zip: q.zip }),
     codeSummary: grounded ? codesSummary(grounded.codes) : null,
     codeSourceUrl: grounded ? grounded.sourceUrl : null,
     codeCheckedOn: grounded ? grounded.checkedOn : null,

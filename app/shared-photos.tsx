@@ -23,7 +23,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, Image, ScrollView, useWindowDimensions, Platform, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, Image, ScrollView, useWindowDimensions, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,6 +42,8 @@ import {
 } from '@/utils/photoShareToken';
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { readEdgeError } from '@/utils/edgeError';
+import { GROWTH_LINK_TEXT } from '@/utils/growthLink';
+import { openGrowthLink } from '@/utils/growthAttribution';
 
 /** A tile ready to render: the payload's metadata plus a URL to show. */
 type ShareTile = PhotoShareV2Photo & { u: string };
@@ -282,23 +284,20 @@ export default function SharedPhotosScreen() {
           );
         })}
 
-        {/* Footer — gentle CTA, marketing only */}
+        {/* Footer: one tracked line back to MAGE ID (utils/growthLink). It
+            opens with no Referer, so this page's private link never travels. */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Powered by MAGE ID · Construction management for general contractors
-          </Text>
-          {Platform.OS === 'web' && (
-            <TouchableOpacity
+            {payload.gc ? `${payload.gc} · ` : ''}
+            <Text
+              onPress={() => openGrowthLink('shared_photos')}
               accessibilityRole="link"
-              onPress={() => {
-                if (typeof window !== 'undefined') {
-                  window.open('https://mageid.app', '_blank');
-                }
-              }}
+              style={styles.footerLink}
+              testID="growth-link-shared-photos"
             >
-              <Text style={styles.footerLink}>mageid.app</Text>
-            </TouchableOpacity>
-          )}
+              {GROWTH_LINK_TEXT}
+            </Text>
+          </Text>
         </View>
       </ScrollView>
     </View>

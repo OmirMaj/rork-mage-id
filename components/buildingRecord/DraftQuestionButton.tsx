@@ -10,6 +10,12 @@
 //
 // Renders null unless the job's building department is a verified row
 // (departmentFor — NYC today), decided BEFORE any hook or effect runs.
+//
+// A Maryland job goes to MdDraftQuestion FIRST (Baltimore City / Baltimore
+// County, same "sends nothing" rules). That branch sits above the NYC
+// decision because a job whose address is only "Baltimore, MD" has no
+// department until the Census place lookup answers. Both are early returns
+// before any hook, so hook order never changes.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -24,7 +30,7 @@ import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useBuildingRecord } from '@/hooks/useBuildingRecord';
-import { isNycJobsite } from '@/utils/buildingRecord';
+import { isMdJobsite, isNycJobsite } from '@/utils/buildingRecord';
 import {
   departmentFor,
   jobsiteAddressForProject,
@@ -35,6 +41,7 @@ import { buildQuestionPrompt, jobFilingFor, routeQuestion } from '@/utils/depart
 import { mageAISmart } from '@/utils/mageAI';
 import { copyToClipboard } from '@/utils/clipboard';
 import { showAlert } from '@/utils/alert';
+import { MdDraftQuestion } from './MdDraftQuestion';
 
 const draftSchema = z.object({
   subject: z.string().catch('').default(''),
@@ -52,6 +59,19 @@ interface DraftQuestionProps {
 }
 
 export function DraftQuestionButton({ project, permitNumber, permitNumbers, topic, testID }: DraftQuestionProps) {
+  // Maryland first: a plain "Baltimore, MD" job has no department until the
+  // place lookup answers, so the NYC decision below would drop it.
+  if (project && isMdJobsite(jobsiteAddressForProject(project))) {
+    return (
+      <MdDraftQuestion
+        project={project}
+        permitNumber={permitNumber}
+        permitNumbers={permitNumbers}
+        topic={topic}
+        testID={testID}
+      />
+    );
+  }
   // Pure, and decided before any hook below it can run: a job with no
   // verified building department renders nothing at all.
   const department = departmentFor(resolveCodeJurisdiction(jobsiteAddressForProject(project)));

@@ -629,7 +629,7 @@ console.log('\nsource assertions (the screen the pure functions cannot reach):')
 {
   const code = src('app/(tabs)/construction-ai/index.tsx');
 
-  ok('screen: resolves the jurisdiction through the shared resolver', /resolveCodeJurisdiction\(\{ city, county, state: stateCode \}\)/.test(code));
+  ok('screen: resolves the jurisdiction through the shared resolver', /resolveCodeJurisdiction\(\{ city, county(?:: codeCounty)?, state: stateCode(?:, zip: codeZip)? \}\)/.test(code));
   ok('screen: renders grounding through groundingFactsFor, once', /groundingFactsFor\(jurisdiction\)/.test(code));
 
   // THE anti-drift pins. Both prompts must take the block from the renderer,

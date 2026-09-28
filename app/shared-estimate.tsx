@@ -18,8 +18,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { cardSurface } from '@/components/ui';
-import { formatCalendarDay } from '@/utils/calendarDate';
+import { formatCalendarDay, todayCalendarDay } from '@/utils/calendarDate';
+import { expiredValidityLine, isExpired } from '@/utils/proposalValidity';
 import { decodeClientEstimateToken, shareProceedBlock, type ClientEstimateSharePayload } from '@/utils/clientEstimateShareToken';
+import { GROWTH_LINK_TEXT } from '@/utils/growthLink';
+import { openGrowthLink } from '@/utils/growthAttribution';
 
 // To the cent (#123). Whole dollars rounded every scope, allowance and payment
 // line on its own, so the milestones could fail to add up to the total printed
@@ -70,7 +73,12 @@ export default function SharedEstimateScreen() {
 
         <Text style={styles.totalLabel}>Project total</Text>
         <Text style={styles.total}>{money(payload.total)}</Text>
-        {!!payload.valid && <Text style={styles.valid}>Proposal · valid through {formatCalendarDay(payload.valid)}</Text>}
+        {/* Valid-until (T2). Once the day has passed on this device's
+            calendar, the page says so and names who to ask, instead of
+            presenting old prices as current. */}
+        {!!payload.valid && (isExpired(payload.valid, todayCalendarDay())
+          ? <Text style={styles.valid} testID="shared-estimate-valid-expired">{expiredValidityLine(payload.valid, payload.gc)}</Text>
+          : <Text style={styles.valid}>Proposal · valid through {formatCalendarDay(payload.valid)}</Text>)}
 
         <Text style={styles.section}>Scope of work</Text>
         <View style={styles.card}>
@@ -169,7 +177,17 @@ export default function SharedEstimateScreen() {
           </View>
         ) : null}
 
-        <Text style={styles.footer}>{payload.gc ? `${payload.gc} · ` : ''}Powered by MAGE ID</Text>
+        <Text style={styles.footer}>
+          {payload.gc ? `${payload.gc} · ` : ''}
+          <Text
+            onPress={() => openGrowthLink('shared_estimate')}
+            accessibilityRole="link"
+            style={{ textDecorationLine: 'underline' }}
+            testID="growth-link-shared-estimate"
+          >
+            {GROWTH_LINK_TEXT}
+          </Text>
+        </Text>
       </ScrollView>
     </View>
   );
