@@ -25,6 +25,15 @@
 // The drift runs at FULL amplitude from mount (CSS has no amplitude to ramp);
 // the reveal fade (invisible through the delay, then 170 ms) hides the join.
 //
+// ONE PHASE. Native marks share one clock; here every drift, stretch and glint
+// joins the shared cycle measured from levelCss's module epoch (levelPhaseMs),
+// read ONCE per run: when the drift classes first apply (a mount, a host amp
+// rising, Reduce Motion turning off) and at each restart. So N levels on a page
+// move in step, and a BootShell adopting the splash on the 8 s failsafe
+// continues the bubble where the splash had it instead of restarting at centre.
+// The phase is held in a ref, never re-read on a plain re-render: a changed
+// animation-delay on a running animation would jump it.
+//
 // THEME: read whole and null-safe (BrandSplash renders outside ThemeProvider).
 // Reduce Motion: components/ui/motion's useReducedMotion (matchMedia on web).
 // scripts/validate-level-web.ts holds the rules here.
@@ -36,7 +45,8 @@ import { useReducedMotion } from '@/components/ui/motion';
 import { LOADER, evalRange, levelParts, retractRanges, type LevelRect } from '@/utils/levelTimeline';
 import { levelPalette, splashFallbackColors } from './themeFallback';
 import {
-  LEVEL_BACKSTOP_MS, LEVEL_CSS, LEVEL_SETTLE, levelBeatStyle, levelDriftStyle, levelExitMs, levelRevealStyle, levelStretchStyle,
+  LEVEL_BACKSTOP_MS, LEVEL_CSS, LEVEL_SETTLE, levelBeatStyle, levelDriftStyle, levelExitMs, levelPhaseMs, levelRevealStyle,
+  levelStretchStyle,
 } from './css/levelCss';
 import type { LevelExit, LevelMarkProps } from './LevelMark';
 
@@ -165,6 +175,15 @@ export default function LevelMarkWeb({
     prevDoneRender.current = done;
   }
   const twin = restarts.current % 2 === 1 ? 'twin' : 'main';
+
+  // The shared phase for this run (see ONE PHASE above): read when the drift
+  // starts and at each restart, kept through every other render.
+  const phaseRef = useRef<{ run: number; ms: number } | null>(null);
+  if (!drifting) phaseRef.current = null;
+  else if (phaseRef.current == null || phaseRef.current.run !== restarts.current) {
+    phaseRef.current = { run: restarts.current, ms: levelPhaseMs() };
+  }
+  const phase = phaseRef.current?.ms ?? 0;
 
   const containerRef = useRef<View>(null);
   const trackLayerRef = useRef<View>(null);
@@ -349,9 +368,9 @@ export default function LevelMarkWeb({
   }
 
   const reveal = revealDelayMs > 0 ? levelRevealStyle(revealDelayMs) : null;
-  const driftClass = drifting ? levelDriftStyle(parts.amp, twin) : null;
-  const bubbleClass = reduce ? LEVEL_CSS.breath : drifting ? levelStretchStyle(parts.stretch, parts.squash, twin) : null;
-  const beatClass = drifting && parts.grads ? levelBeatStyle(twin) : null;
+  const driftClass = drifting ? levelDriftStyle(parts.amp, twin, phase) : null;
+  const bubbleClass = reduce ? LEVEL_CSS.breath : drifting ? levelStretchStyle(parts.stretch, parts.squash, twin, phase) : null;
+  const beatClass = drifting && parts.grads ? levelBeatStyle(twin, phase) : null;
 
   const trackLayer = (
     <>

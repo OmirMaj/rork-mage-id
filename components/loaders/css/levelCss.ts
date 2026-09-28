@@ -17,6 +17,15 @@
 // Every number comes from utils/levelTimeline.ts (LEVEL_PERIOD_MS, LOADER):
 // the drift sweeps once per half period, so one full left-right-left is the
 // same 1400 ms as the native clock.
+//
+// ONE PHASE (2026-09-27). Native marks all read the one shared levelClock, so
+// they move in step and the BrandSplash → BootShell hand-back keeps its phase.
+// The web had no shared clock: each drift started at −P/4 (dead centre) the
+// moment its class landed, so when the splash's 8 s failsafe handed back to an
+// adopting BootShell the bubble jumped to centre and started over. Now every
+// delay is measured from LEVEL_WEB_EPOCH_MS (read once, when this module loads):
+// a drift that starts at wall time T is already (T − epoch) mod P into the
+// cycle, so every web level on screen, whenever it started, is at one phase.
 
 import { StyleSheet, type ViewStyle } from 'react-native';
 import { Motion } from '@/constants/designTokens';
@@ -45,8 +54,29 @@ const r4 = (x: number) => {
 
 export type LevelTwin = 'main' | 'twin';
 
-/** The drift keyframes for an amplitude (px), before registration. */
-export function levelDriftRaw(ampPx: number, twin: LevelTwin = 'main'): ViewStyle {
+/** The shared phase origin of every web level (ms since the Unix epoch). */
+export const LEVEL_WEB_EPOCH_MS = Date.now();
+/**
+ * Phases are snapped to 10 ms so the registered classes stay bounded (140 per
+ * amplitude and twin); 5 ms of error is under a third of a 60 Hz frame.
+ */
+export const LEVEL_PHASE_STEP_MS = 10;
+/** A phase in ms, snapped to the grid and wrapped into [0, LEVEL_PERIOD_MS). */
+export function levelPhaseSnap(phaseMs: number): number {
+  if (!Number.isFinite(phaseMs)) return 0;
+  const wrapped = ((phaseMs % LEVEL_PERIOD_MS) + LEVEL_PERIOD_MS) % LEVEL_PERIOD_MS;
+  return (Math.round(wrapped / LEVEL_PHASE_STEP_MS) * LEVEL_PHASE_STEP_MS) % LEVEL_PERIOD_MS;
+}
+/** Where the shared cycle is at `now`: ms into the period, on the 10 ms grid. */
+export function levelPhaseMs(now: number = Date.now()): number {
+  return levelPhaseSnap(now - LEVEL_WEB_EPOCH_MS);
+}
+
+/**
+ * The drift keyframes for an amplitude (px), before registration, joining the
+ * shared cycle `phaseMs` in (levelPhaseMs() when the drift starts).
+ */
+export function levelDriftRaw(ampPx: number, twin: LevelTwin = 'main', phaseMs = 0): ViewStyle {
   const a = r4(Math.round(ampPx * 2) / 2);
   const start = { transform: `translateX(${r4(-a)}px)` };
   const end = { transform: `translateX(${a}px)` };
@@ -59,8 +89,9 @@ export function levelDriftRaw(ampPx: number, twin: LevelTwin = 'main'): ViewStyl
     animationTimingFunction: CSS_EASE_IN_OUT_SINE,
     animationIterationCount: 'infinite',
     animationDirection: 'alternate',
-    // −P/4: t = 0 is dead centre moving right (the native sine's phase).
-    animationDelay: ms(-LEVEL_PERIOD_MS / 4),
+    // −P/4: the cycle's t = 0 is dead centre moving right (the native sine's
+    // phase); a further −phase starts this drift where the shared cycle is now.
+    animationDelay: ms(-(levelPhaseSnap(phaseMs) + LEVEL_PERIOD_MS / 4)),
     animationFillMode: 'backwards',
   } as unknown as ViewStyle;
 }
@@ -78,7 +109,8 @@ export function levelStretchFrames(stretch: number, squash: number): { pct: numb
   });
 }
 
-export function levelStretchRaw(stretch: number, squash: number, twin: LevelTwin = 'main'): ViewStyle {
+/** In phase with the drift: its centre crossings are the 0 % / 100 % stops. */
+export function levelStretchRaw(stretch: number, squash: number, twin: LevelTwin = 'main', phaseMs = 0): ViewStyle {
   const frames: Record<string, { transform: string }> = {};
   const stops = levelStretchFrames(stretch, squash);
   stops.forEach((s, i) => {
@@ -90,7 +122,7 @@ export function levelStretchRaw(stretch: number, squash: number, twin: LevelTwin
     animationDuration: ms(LEVEL_SWEEP_MS),
     animationTimingFunction: 'linear',
     animationIterationCount: 'infinite',
-    animationDelay: '0ms',
+    animationDelay: ms(-(levelPhaseSnap(phaseMs) % LEVEL_SWEEP_MS)),
     animationFillMode: 'backwards',
   } as unknown as ViewStyle;
 }
@@ -100,7 +132,7 @@ export function levelStretchRaw(stretch: number, squash: number, twin: LevelTwin
  * levelTimeline beatRange folded onto one sweep (0.07 of the period = 14 %).
  */
 export const BEAT_EDGE_PCT = r4((0.07 / 0.5) * 100);
-export function levelBeatRaw(twin: LevelTwin = 'main'): ViewStyle {
+export function levelBeatRaw(twin: LevelTwin = 'main', phaseMs = 0): ViewStyle {
   const lo = `${BEAT_EDGE_PCT}%`;
   const hi = `${r4(100 - BEAT_EDGE_PCT)}%`;
   const frames = twin === 'twin'
@@ -111,7 +143,7 @@ export function levelBeatRaw(twin: LevelTwin = 'main'): ViewStyle {
     animationDuration: ms(LEVEL_SWEEP_MS),
     animationTimingFunction: 'linear',
     animationIterationCount: 'infinite',
-    animationDelay: '0ms',
+    animationDelay: ms(-(levelPhaseSnap(phaseMs) % LEVEL_SWEEP_MS)),
     animationFillMode: 'backwards',
   } as unknown as ViewStyle;
 }
@@ -142,18 +174,25 @@ function once(key: string, build: () => ViewStyle): ViewStyle {
   return s;
 }
 
-/** The drift for an amplitude, memoised on the amplitude rounded to 0.5 px. */
-export function levelDriftStyle(ampPx: number, twin: LevelTwin = 'main'): ViewStyle {
+/**
+ * The drift for an amplitude and a phase, memoised on the amplitude rounded to
+ * 0.5 px and the phase snapped to 10 ms. A restart reads a fresh phase, so it
+ * gets a fresh class that carries the delay of the moment it restarts.
+ */
+export function levelDriftStyle(ampPx: number, twin: LevelTwin = 'main', phaseMs = 0): ViewStyle {
   const a = Math.round(ampPx * 2) / 2;
-  return once(`drift:${a}:${twin}`, () => levelDriftRaw(a, twin));
+  const p = levelPhaseSnap(phaseMs);
+  return once(`drift:${a}:${twin}:${p}`, () => levelDriftRaw(a, twin, p));
 }
 
-export function levelStretchStyle(stretch: number, squash: number, twin: LevelTwin = 'main'): ViewStyle {
-  return once(`stretch:${r4(stretch)}:${r4(squash)}:${twin}`, () => levelStretchRaw(stretch, squash, twin));
+export function levelStretchStyle(stretch: number, squash: number, twin: LevelTwin = 'main', phaseMs = 0): ViewStyle {
+  const p = levelPhaseSnap(phaseMs) % LEVEL_SWEEP_MS;
+  return once(`stretch:${r4(stretch)}:${r4(squash)}:${twin}:${p}`, () => levelStretchRaw(stretch, squash, twin, p));
 }
 
-export function levelBeatStyle(twin: LevelTwin = 'main'): ViewStyle {
-  return once(`beat:${twin}`, () => levelBeatRaw(twin));
+export function levelBeatStyle(twin: LevelTwin = 'main', phaseMs = 0): ViewStyle {
+  const p = levelPhaseSnap(phaseMs) % LEVEL_SWEEP_MS;
+  return once(`beat:${twin}:${p}`, () => levelBeatRaw(twin, p));
 }
 
 export function levelRevealStyle(delayMs: number): ViewStyle {

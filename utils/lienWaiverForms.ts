@@ -37,6 +37,7 @@
 // it directly under bun.
 
 import type { LienWaiverType } from '@/types';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 
 /** The five states whose codes prescribe the words of a lien waiver. */
 export type WaiverStateCode = 'CA' | 'TX' | 'FL' | 'GA' | 'AZ';
@@ -85,7 +86,7 @@ function fill(value: string | undefined | null): string {
 /** Money renders as the statute writes it: a plain dollar figure in a blank. */
 function fillMoney(amount: number | undefined | null): string {
   if (amount == null || !isFinite(amount) || amount <= 0) return BLANK;
-  return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return roundHalfAwayFromZero(amount, 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**

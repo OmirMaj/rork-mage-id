@@ -16,7 +16,7 @@
  */
 
 import React, { act } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 
 // ── matchMedia: installed before any render (the motion store reads it lazily)
 type MqListener = (e: { matches: boolean }) => void;
@@ -55,6 +55,15 @@ jest.mock('@/contexts/ThemeContext', () => {
 import LevelMark from '@/components/loaders/LevelMark';
 // eslint-disable-next-line import/first
 import { CraneSvg } from '@/components/CraneLoader';
+// eslint-disable-next-line import/first
+import { LEVEL_WEB_EPOCH_MS } from '@/components/loaders/css/levelCss';
+
+/** Pin the wall clock the shared phase is read from (epoch + ms). */
+let nowSpy: jest.SpyInstance<number, []> | null = null;
+function atMs(ms: number) {
+  nowSpy?.mockRestore();
+  nowSpy = jest.spyOn(Date, 'now').mockReturnValue(LEVEL_WEB_EPOCH_MS + ms);
+}
 
 type Root = { render(node: React.ReactNode): void; unmount(): void };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -104,9 +113,12 @@ describe('LevelMark on the web (CSS)', () => {
   afterEach(() => {
     if (mqMatches) setReduceMotion(false);
     mockNoProvider = false;
+    nowSpy?.mockRestore();
+    nowSpy = null;
   });
 
   it.each([20, 64, 120])('%i px: drift keyframes, 700ms, infinite, alternate, fill backwards; the reveal delay is the prop', (size) => {
+    atMs(0); // at the epoch the shared phase is 0: the drift starts at −P/4, dead centre
     const m = mount(<LevelMark size={size} revealDelayMs={150} />);
     const drift = byId(m.host, 'level-mark-drift')!;
     const bubble = byId(m.host, 'level-mark-bubble')!;
@@ -124,6 +136,79 @@ describe('LevelMark on the web (CSS)', () => {
     expect(cssOf(box)).toContain('animation-duration:170ms');
     expect(insertedCss()).not.toContain('animation-fill-mode:both');
     m.done();
+  });
+
+  describe('one shared phase (native marks share one clock; the web measures from one epoch)', () => {
+    const delayOf = (el: Element) => Number(/animation-delay:(-?\d+)ms/.exec(cssOf(el))?.[1]);
+    const nameOf = (el: Element) => /animation-name:([\w-]+)/.exec(cssOf(el))?.[1];
+
+    it('two levels started 730 ms apart are at the same point of the cycle', () => {
+      atMs(100);
+      const a = mount(<LevelMark size={64} testID="a" />);
+      atMs(830);
+      const b = mount(<LevelMark size={64} testID="b" />);
+      const da = delayOf(byId(a.host, 'a-drift')!);
+      const db = delayOf(byId(b.host, 'b-drift')!);
+      expect(da).toBe(-450); // −(100 + 350)
+      expect(db).toBe(-1180); // −(830 + 350)
+      // Local time at wall time W is (W − start) − delay: both are W − epoch + 350.
+      expect(-(830 + db)).toBe(350);
+      expect(-(100 + da)).toBe(350);
+      // The squash-and-stretch joins the same cycle (its period is one 700 ms sweep).
+      expect(delayOf(byId(a.host, 'a-bubble')!)).toBe(-100);
+      expect(delayOf(byId(b.host, 'b-bubble')!)).toBe(-130);
+      a.done();
+      b.done();
+    });
+
+    it('a plain re-render keeps the phase (a changed delay would jump a running drift)', () => {
+      atMs(100);
+      const m = mount(<LevelMark size={64} />);
+      const drift = byId(m.host, 'level-mark-drift')!;
+      const before = drift.className;
+      atMs(900);
+      m.rerender(<LevelMark size={64} revealDelayMs={0} />);
+      expect(drift.className).toBe(before);
+      expect(delayOf(drift)).toBe(-450);
+      m.done();
+    });
+
+    it('a restart (done true → false) takes a fresh class at the phase of that moment', () => {
+      atMs(100);
+      const m = mount(<LevelMark size={64} />);
+      const drift = byId(m.host, 'level-mark-drift')!;
+      const first = nameOf(drift);
+      m.rerender(<LevelMark size={64} done />);
+      atMs(600);
+      m.rerender(<LevelMark size={64} done={false} />);
+      expect(delayOf(drift)).toBe(-950); // −(600 + 350): continues the shared cycle
+      expect(nameOf(drift)).not.toBe(first); // the twin: the keyframes restart
+      expect(delayOf(byId(m.host, 'level-mark-bubble')!)).toBe(-600);
+      m.done();
+    });
+
+    it('a host amp (BootShell adopting the splash on the failsafe): the drift starts on the shared phase, not at centre', () => {
+      atMs(0);
+      const amp = new Animated.Value(0);
+      const m = mount(<LevelMark tone="splash" size={168} revealDelayMs={0} exit="none" amp={amp} />);
+      const drift = byId(m.host, 'level-mark-drift')!;
+      expect(cssOf(drift)).not.toContain('animation-name'); // amp 0: no drift yet
+      atMs(8000 + 70);
+      act(() => { amp.setValue(1); });
+      expect(delayOf(drift)).toBe(-(((8000 + 70) % 1400) + 350)); // −1020, not −350
+      m.done();
+    });
+
+    it('Reduce Motion: no drift and no phase — the breath as before', () => {
+      setReduceMotion(true);
+      atMs(500);
+      const m = mount(<LevelMark size={64} />);
+      expect(cssOf(byId(m.host, 'level-mark-drift')!)).not.toContain('animation-name');
+      const b = cssOf(byId(m.host, 'level-mark-bubble')!);
+      expect(b).toContain('animation-duration:1120ms');
+      expect(b).toContain('animation-delay:0ms');
+      m.done();
+    });
   });
 
   it('revealDelayMs 0 → no reveal animation on the container', () => {

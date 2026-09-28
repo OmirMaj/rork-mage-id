@@ -24,7 +24,7 @@ import { isGcOnlyEstimateLine, CLIENT_CONTINGENCY_LABEL } from '@/utils/clientEs
 // Wave 6d (M1): the desktop G703 grid's cell parser and the one money
 // formatter, so a refusal quotes the figure the way the screen prints it.
 import { parseGridNumber } from '@/utils/dataTable';
-import { formatMoney } from '@/utils/formatters';
+import { formatMoney, roundHalfAwayFromZero } from '@/utils/formatters';
 
 // Re-exported so the pay-app module keeps offering the retainage rule it is the
 // reference implementation of, and existing importers (utils/portalSnapshot)
@@ -236,7 +236,7 @@ function escapeHtml(text: string): string {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return roundHalfAwayFromZero(n, 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**

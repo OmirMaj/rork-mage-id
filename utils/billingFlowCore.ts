@@ -25,6 +25,7 @@
 import { invoiceOutstanding, billedAmountForLine } from './invoiceBilling';
 import { milestoneDueText } from './paymentTerms';
 import { dayOrInstantDate, parseCalendarDay, toCalendarDayString } from './calendarDate';
+import { roundHalfAwayFromZero } from './formatters';
 // Relative, not '@/types': the header above promises this module resolves
 // without app tooling, and an alias only the app's tsconfig knows would break
 // that the moment a Deno function or a bare `bun` run imports the file. It is
@@ -349,7 +350,7 @@ export function milestoneBlockMessage(
       if (!ceiling) {
         return 'Billing this milestone would take the total invoiced past the contract value. Check the invoices on this project first — if the contract value has changed, update it here and the schedule will follow.';
       }
-      const m = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const m = (n: number) => `$${roundHalfAwayFromZero(n, 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       // NOTHING LEFT IS A DIFFERENT SENTENCE (review round 6). The remedy
       // clause below is "bill the remainder from Bill from Estimate", which
       // is good advice while a remainder exists — the split's progress row is

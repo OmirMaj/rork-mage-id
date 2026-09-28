@@ -47,6 +47,7 @@ import { cardSurface } from '@/components/ui/Card';
 import { showAlert } from '@/utils/alert';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { UNKNOWN_CELL, nextGridCell, parseGridNumber, parsePastedGrid, sumColumn } from '@/utils/dataTable';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 
 export interface LineItemColumn<R> {
   key: string;
@@ -112,9 +113,9 @@ const DELETE_COL = 36;
 
 function defaultFormat(kind: LineItemColumn<unknown>['kind'], n: number): string {
   if (kind === 'money') {
-    return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return roundHalfAwayFromZero(n, 2).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return roundHalfAwayFromZero(n, 2).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 export function LineItemGrid<R>(props: LineItemGridProps<R>) {

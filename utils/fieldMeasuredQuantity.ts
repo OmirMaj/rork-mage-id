@@ -43,6 +43,8 @@
 // Pure — no storage, no React, no network. Typed on a minimal structural
 // shape rather than on `TakeoffFieldVerification` so the guard can execute it.
 
+import { roundHalfAwayFromZero } from './formatters';
+
 /** The fields of a takeoff field verification this module needs. */
 export interface FieldMeasurement {
   rowKey: string;
@@ -179,7 +181,7 @@ export function pendingMeasuredRows(args: {
 export function formatMeasured(measured: number, unit: string): string {
   const n = Number.isInteger(measured)
     ? measured.toLocaleString()
-    : measured.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    : roundHalfAwayFromZero(measured, 2).toLocaleString(undefined, { maximumFractionDigits: 2 });
   return unit ? `${n} ${unit}` : n;
 }
 

@@ -719,11 +719,16 @@ console.log('\ncontract screen — progress rows (Direction B):');
   const valueImports = [...core.matchAll(/^import\s+(?!type\b)[^;]*?from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]);
   // ./calendarDate joined in wave 3 (#133: a picked received-day must never be
   // read as UTC midnight). It is allowed only while it has no imports at all.
-  ok('billingFlowCore value-imports only ./invoiceBilling, ./paymentTerms and ./calendarDate',
-    valueImports.length === 3 && valueImports.includes('./invoiceBilling') && valueImports.includes('./paymentTerms') && valueImports.includes('./calendarDate'),
+  // ./formatters joined 2026-09-27 (roundHalfAwayFromZero: the refusal's dollar
+  // figures print the same on iPhone and web), on the same condition.
+  ok('billingFlowCore value-imports only ./invoiceBilling, ./paymentTerms, ./calendarDate and ./formatters',
+    valueImports.length === 4 && valueImports.includes('./invoiceBilling') && valueImports.includes('./paymentTerms') && valueImports.includes('./calendarDate')
+    && valueImports.includes('./formatters'),
     JSON.stringify(valueImports));
   ok('…and utils/calendarDate.ts imports nothing',
     !/^import\s/m.test(read('utils/calendarDate.ts')));
+  ok('…and utils/formatters.ts imports nothing',
+    !/^import\s/m.test(read('utils/formatters.ts')));
   // AND NOT THROUGH THE ALIAS, type-only imports included (review round 5).
   // The check above deliberately ignores `import type`, which is erased — so
   // it said nothing when a `from '@/types'` appeared in a module whose header
