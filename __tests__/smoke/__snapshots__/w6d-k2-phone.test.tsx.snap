@@ -540,7 +540,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                             },
                             {
                               "children": [
-                                "Pro Scheduler",
+                                "Pro scheduler",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -571,7 +571,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 390 1`]
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Pro Scheduler",
+                            "accessibilityLabel": "Pro scheduler",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -1208,7 +1208,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                             },
                             {
                               "children": [
-                                "Pro Scheduler",
+                                "Pro scheduler",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -1239,7 +1239,7 @@ exports[`UniversalSearch below the desktop gate (web) open, "gantt", web 820 1`]
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Pro Scheduler",
+                            "accessibilityLabel": "Pro scheduler",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -3483,7 +3483,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                             },
                             {
                               "children": [
-                                "Daily Reports",
+                                "Daily reports",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -3514,7 +3514,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 390
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Daily Reports",
+                            "accessibilityLabel": "Daily reports",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,
@@ -6289,7 +6289,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                             },
                             {
                               "children": [
-                                "Daily Reports",
+                                "Daily reports",
                               ],
                               "props": {
                                 "numberOfLines": 1,
@@ -6320,7 +6320,7 @@ exports[`UniversalSearch below the desktop gate (web) open, empty query, web 820
                             },
                           ],
                           "props": {
-                            "accessibilityLabel": "Daily Reports",
+                            "accessibilityLabel": "Daily reports",
                             "accessibilityRole": "button",
                             "accessibilityState": {
                               "busy": undefined,

@@ -7238,7 +7238,7 @@ exports[`BrainFab on a phone 390 ios 1`] = `
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,
@@ -7593,7 +7593,7 @@ exports[`BrainFab on a phone web 390 1`] = `
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,
@@ -7950,7 +7950,7 @@ exports[`BrainFab on a phone web 820 (below the 900 desktop gate) 1`] = `
                 },
               ],
               "props": {
-                "accessibilityLabel": "Open MAGE Brain",
+                "accessibilityLabel": "Ask MAGE",
                 "accessibilityRole": "button",
                 "accessibilityState": {
                   "busy": undefined,

@@ -68,7 +68,7 @@ describe('Q6 — AI Quick Estimate: Other needs words, and the AI gets them', ()
     fireEvent.press(screen.getByText('Other (describe it)'));
     expect(screen.getByTestId('ai-type-other')).toBeTruthy();
     expect(screen.getByTestId('ai-generate-btn').props.accessibilityState?.disabled).toBe(true);
-    expect(screen.getByText(/You picked Other\. Describe the job/)).toBeTruthy();
+    expect(screen.getByText(/You picked Other\. Describe the project/)).toBeTruthy();
     // The AI-only screen never promises a job list / PDF / portal.
     expect(screen.queryByText(/job list|client portal/)).toBeNull();
 

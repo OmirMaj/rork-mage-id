@@ -242,17 +242,17 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) TakeoffFieldVe
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicButton — dark 1`] = `
 {
-  "lines": 79,
+  "lines": 87,
   "modalCount": 2,
-  "sha256": "825633d4d815a200aeed0bc5c64b2e4c8c282b1878eaa73d0cff03e02c5706ae",
+  "sha256": "01f037a0df848165a91552253346f18b4deb1d9c9b34f3548a3be4142f29660f",
 }
 `;
 
 exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UniversalMicButton — light 1`] = `
 {
-  "lines": 79,
+  "lines": 87,
   "modalCount": 2,
-  "sha256": "cc74ccb6ba35d1d0b037d3ea97d5cb40790e79d49329673d4d6d710e678cb4b0",
+  "sha256": "d8cdde1495dfbcd502423eb418ec941aaecc060dbc3aaf3986666d90e0e57a74",
 }
 `;
 
@@ -274,9 +274,9 @@ exports[`lane X1 — A1 / A2: each dialog alone (golden, iOS 390) UpgradeSheet �
 
 exports[`lane X1 — D: the classic schedule tab (golden, android 800 × 1280) /(tabs)/schedule?projectId — ScheduleScreen's non-desktop branch 1`] = `
 {
-  "lines": 2185,
+  "lines": 2193,
   "modalCount": 19,
-  "sha256": "5930fa4f4945e2ef011f4fd55d7466d9efb62fc2350c1c4fb07937309ddffbce",
+  "sha256": "12e5b09f2365a12b32931f66aa217f4ecef0a217f94221b6e326efe76543e4e2",
 }
 `;
 

@@ -2,49 +2,49 @@
 
 exports[`lane F — /attention on the phone (390 iOS) /attention, empty world — the rail's all-clear, scoped 1`] = `
 {
-  "lines": 472,
-  "sha256": "e624cdc9827e58fba9c65c8e10406bdd73f3cce497751fb07852f865a86aa999",
+  "lines": 478,
+  "sha256": "bac7ffd7fb171ad37a74e15b922253aab3c61148b3ca8b508a3427882d8e59b4",
 }
 `;
 
 exports[`lane F — /attention on the phone (390 iOS) /attention, populated world 1`] = `
 {
-  "lines": 498,
-  "sha256": "6cb61e639dae9e6a220c6f0341fba6aeaab0c457cc6066ed24abdb1f6c0712d4",
+  "lines": 502,
+  "sha256": "bdd036bfa91978a3ed8bd660321e6216603de571559caac6286c3b99be5fd28f",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs (the stage chips render) 1`] = `
 {
-  "lines": 2082,
-  "sha256": "5cd95504dd970143be3e4b9f307d89170cead639c9d459ae0864bb3032771c9e",
+  "lines": 2086,
+  "sha256": "7facdb3ae9194e8b06d044276bfb0823ab126224742467b65f8d4b6b7e5916f7",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs on site today (Today on site: four rows and "+2 more") 1`] = `
 {
-  "lines": 2496,
-  "sha256": "05a3fd68db7808e1c252305e8256dbe0405aaf2ff84ec16a730b11d8b582891b",
+  "lines": 2503,
+  "sha256": "fb2cb0d4074be17d566d2766ea3c65720e186a28a6553dc4ac2fe0e80fc15040",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, six jobs, a chip tapped (Closed / Closeout bucket) 1`] = `
 {
-  "lines": 2026,
-  "sha256": "3cffd58b9997da3154cc36f90010a517aee63978c323d1cd5c3834a7c9400eea",
+  "lines": 2030,
+  "sha256": "49cbd7e0e27493b0ceb612a1bee08e2f21e7816e78c499f40b7e2e2fc35cfb57",
 }
 `;
 
 exports[`lane F — the phone Home is unchanged (golden, 390 × 844 iOS) Home, the fixture world (one job on site) 1`] = `
 {
-  "lines": 1993,
-  "sha256": "03610876c7b98a70bf8dcec857d16ebfcb0591fb66873f3319b513dbc2ec717e",
+  "lines": 1997,
+  "sha256": "56a24b8de094cad6239a9850764a679fa79e503f20bd16d7c3c66de726abfaa3",
 }
 `;
 
 exports[`lane F — the tablet Home keeps the ProjectRow table (golden, 820 iOS) Home, six jobs, tablet 1`] = `
 {
-  "lines": 2076,
-  "sha256": "d1b03e44ea8e5dadc786c5edbdc2586d6c489380bfa3e73912a5975d07eefccb",
+  "lines": 2080,
+  "sha256": "5ab2a598e49cb7e681235dc22e0fe4d52e14f07317566f9d968b535563053d5b",
 }
 `;

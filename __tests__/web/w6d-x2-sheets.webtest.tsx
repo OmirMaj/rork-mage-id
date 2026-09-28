@@ -34,7 +34,8 @@ jest.mock('expo-router', () => {
 });
 // The job switcher reads the project list and the job context; neither
 // matters to the key it must not leak.
-jest.mock('@/contexts/ProjectContext', () => ({ useCoreData: () => ({ projects: [] }) }));
+jest.mock('@/contexts/ProjectContext', () => ({ useCoreData: () => ({ projects: [] }), useProjects: () => ({ projects: [] }) }));
+jest.mock('@/hooks/useProjectAccess', () => ({ useProjectAccess: () => ({ canAccess: () => true, requiredTierFor: () => null }) }));
 jest.mock('@/contexts/ActiveProjectContext', () => ({
   useActiveProject: () => ({ activeProjectId: null, activeProject: null, setActiveProject: () => {}, recentProjectIds: [] }),
 }));
