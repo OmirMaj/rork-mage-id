@@ -11,8 +11,12 @@
 // i18n modules into one IIFE, then `hermes` runs it and prints JSON, which is
 // compared to the same goldens computed under bun (and to fixed strings).
 //
-// Run: bun run test:i18n-hermes. Skips (exit 0, loudly) when the Hermes binary
-// is missing — non-Mac CI.
+// Run: bun run test:i18n-hermes. Skips (exit 0, loudly) on any non-Mac host
+// (ubuntu CI) and when the Hermes binary is missing. The platform check is the
+// one that matters: react-native's npm `files` ships sdks/hermesc/osx-bin on
+// EVERY OS, so on Linux the Mach-O file exists, spawnSync gets ENOEXEC and the
+// run would crash instead of skipping. linux64-bin has only hermesc (the
+// compiler), not the hermes VM this needs.
 
 import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -23,8 +27,12 @@ import { spawnSync } from 'node:child_process';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HERMES = join(ROOT, 'node_modules/react-native/sdks/hermesc/osx-bin/hermes');
 
-if (!existsSync(HERMES)) {
-  console.warn(`! validate-i18n-hermes SKIPPED: no Hermes binary at ${HERMES} (non-Mac host). Run on a Mac before a release.`);
+if (process.platform !== 'darwin' || !existsSync(HERMES)) {
+  console.warn(
+    process.platform !== 'darwin'
+      ? `! validate-i18n-hermes SKIPPED: ${process.platform} host; the shipped Hermes VM is macOS-only. Run on a Mac before a release.`
+      : `! validate-i18n-hermes SKIPPED: no Hermes binary at ${HERMES}. Run on a Mac before a release.`,
+  );
   process.exit(0);
 }
 
