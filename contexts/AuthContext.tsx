@@ -1116,6 +1116,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // gates (#107 / #131; utils/deepLinksInvite).
   const signup = useCallback(async (email: string, password: string, name: string, opts?: { inviteToken?: string | null }) => {
     console.log('[Auth] Signing up');
+    // T6: which outsider page brought this sign-up, for USER_SIGNED_UP below.
+    // Read now, not at the event: a sign-up that returns a session sweeps
+    // mageid_* (wipeLocalUserCache) before the event fires. Started here and
+    // never awaited by the sign-up itself, so it adds no latency; any failure
+    // is a null ref, never a failed sign-up. (A dynamic import, like the welcome
+    // email below, keeps this callback free of new module-level names.)
+    const growthRefRead: Promise<string | null> = import('@/utils/growthAttribution')
+      .then((m) => m.readGrowthRef())
+      .catch(() => null);
     // emailRedirectTo controls where Supabase sends the user AFTER they click
     // the email-confirmation link. Without this, Supabase uses the project's
     // Site URL (currently mageid.app — the marketing site), which dumps
@@ -1190,7 +1199,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Signup successful');
     // Funnel entry — distinct from user_logged_in so signup→activation is
     // measurable (login.tsx only ever emitted logged_in, even for new users).
-    track(AnalyticsEvents.USER_SIGNED_UP, { method: 'email' });
+    // growth_ref: the allow-listed page kind, or absent (EventProperties has no null).
+    void growthRefRead.then((growthRef) => {
+      track(AnalyticsEvents.USER_SIGNED_UP, { method: 'email', growth_ref: growthRef ?? undefined });
+    });
 
     // Fire-and-forget welcome email. Do NOT await — the user has just
     // created their account and should land on the next screen

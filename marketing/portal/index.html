@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0B0D10" />
 <meta name="robots" content="noindex" />
+<!-- T6.6: this page carries its access token in the address. No Referer leaves it, so
+     no link here (the growth link included) can hand the token to another site. -->
+<meta name="referrer" content="no-referrer" />
 <title>Project Portal — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -2748,7 +2751,7 @@
         <div style="font-size:16px;font-weight:800;margin-bottom:5px">Like being kept in the loop?</div>
         <div style="font-size:13px;opacity:.72;margin-bottom:16px;line-height:1.5">This live portal was built with MAGE ID. Share it with someone planning a project — or set one up for yours.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <a href="https://mageid.app?ref=portal" style="display:inline-block;padding:11px 18px;border-radius:11px;background:var(--brand);color:#fff;font-weight:700;font-size:14px;text-decoration:none">Get MAGE ID</a>
+          <a href="https://mageid.app/?ref=portal&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" style="display:inline-block;padding:11px 18px;border-radius:11px;background:var(--brand);color:#fff;font-weight:700;font-size:14px;text-decoration:none">Get MAGE ID</a>
           <button type="button" onclick="var b=this;var u=location.href;if(navigator.share){navigator.share({title:document.title,url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u);b.textContent='Link copied';}" style="padding:11px 18px;border-radius:11px;background:transparent;border:1px solid rgba(0,0,0,0.15);color:inherit;font-weight:700;font-size:14px;cursor:pointer">Share this portal</button>
         </div>
       </div>
@@ -2756,7 +2759,7 @@
       <footer class="portal-footer">
         <div class="portal-footer-row">
           <span class="footer-mark">M</span>
-          Powered by <a href="https://mageid.app">MAGE ID</a>
+          <a href="https://mageid.app/?ref=portal&utm_source=mageid&utm_medium=outsider_page&utm_campaign=built_with" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Built with MAGE ID</a>
         </div>
         <div>Snapshot taken <span id="snapshot-time">just now</span> · <a href="mailto:help@mageid.app">Contact support</a></div>
       </footer>

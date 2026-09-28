@@ -2,8 +2,9 @@
 // the rework he did not do, with a photo, taken off the sub's next bill.
 //
 // Pure: no React, no storage, no clock (callers pass nowIso). The hook
-// (hooks/useBackcharges.ts) persists the list device-local under a mageid_
-// key, so the tenant sweep on sign-out clears it; a synced table is deferred.
+// (hooks/useBackcharges.ts) keeps the list on the device under a mageid_ key
+// (the tenant sweep on sign-out clears that copy) AND on the account in
+// public.backcharges (20260928160000; rows mapped by utils/backchargeRows.ts).
 //
 // MONEY: integer cents everywhere. Dollars appear only at the edge
 // (formatCents below, for the notice text and the screens).

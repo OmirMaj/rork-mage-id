@@ -38,6 +38,9 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { ValidUntilField } from '@/components/proposal/ValidUntilField';
+import { defaultValidUntil } from '@/utils/proposalValidity';
+import { todayCalendarDay } from '@/utils/calendarDate';
 
 interface DraftLine {
   /** Stable key for the row (not persisted). */
@@ -109,6 +112,8 @@ export default function QuickQuoteScreen() {
     if (globalMarkup > 0) setMarkupStr(String(Math.round(globalMarkup)));
   }, [markupDecided, globalMarkup]);
   const [taxStr, setTaxStr] = useState('');
+  // T2: "Prices valid until" — a date he picks, today + 30 by default.
+  const [validUntil, setValidUntil] = useState<string>(() => defaultValidUntil(todayCalendarDay()) ?? '');
 
   const markupPct = parseAmount(markupStr);
   const taxPct = parseAmount(taxStr);
@@ -165,6 +170,7 @@ export default function QuickQuoteScreen() {
       lineItems: priced,
       markupPct: markupPct > 0 ? markupPct : undefined,
       taxPct: taxPct > 0 ? taxPct : undefined,
+      validUntil: validUntil || undefined,
     });
 
     addProposal(quote);
@@ -191,6 +197,7 @@ export default function QuickQuoteScreen() {
     setJobTitle('');
     setScope('');
     setLines([{ id: generateUUID(), description: '', amountStr: '' }]);
+    setValidUntil(defaultValidUntil(todayCalendarDay()) ?? '');
   };
 
   const reshare = async (record: SmartProposal) => {
@@ -357,6 +364,11 @@ export default function QuickQuoteScreen() {
               />
               <Text style={styles.inputSuffix}>%</Text>
             </View>
+          </View>
+          {/* T2: prices hold until this date; it prints on the quote he sends. */}
+          <View testID="validuntil-row">
+            <View style={styles.inputDivider} />
+            <ValidUntilField value={validUntil} onChange={setValidUntil} />
           </View>
         </View>
 

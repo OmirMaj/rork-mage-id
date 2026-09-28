@@ -18,6 +18,11 @@
 //     claim; the rule's rationale lives only in an internal audit entry.
 //   • Already covered / N/A marks live on this device only (AsyncStorage key
 //     mageid_scope_gaps, swept at sign-out) and the card says so.
+//   • Building-age lines (Bet 1, project mode only — utils/buildingScopeTriggers):
+//     lead-safe setup (EPA RRP) and the NYC asbestos survey (ACP-5), from the
+//     year he entered or PLUTO's, each with its source chip. They are reminders
+//     to check, never findings, and with no rate of his they read "Needs price"
+//     until he sets one (a SEEDED rate, "a rate you set" — never a learned one).
 //
 // Two modes (C4): 'project' derives everything from the project; 'cart' is the
 // project-less estimator review screen with a remembered Home/Commercial toggle.
@@ -33,6 +38,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useScopeCostBook } from '@/hooks/useScopeCostBook';
+import { useCostSeeds } from '@/hooks/useCostSeeds';
+import { useBuildingYear } from '@/hooks/useBuildingYear';
+import { BuildingYearRow } from '@/components/scopeGaps/BuildingYearRow';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -41,8 +49,14 @@ import { groundingFactsFor, jobsiteAddressForProject } from '@/utils/codeJurisdi
 import type { ScopeLine } from '@/utils/scopeCoverage';
 import { scopeRateFor } from '@/utils/scopePricing';
 import {
-  evaluateScopeGaps, scopeGapUnitWord, type PricedScopeGap, type ScopeGapDismissals,
+  evaluateScopeGaps, isBuildingGap, scopeGapUnitWord, type PricedScopeGap, type ScopeGapDismissals,
 } from '@/utils/scopeGaps';
+import { buildingSeedDraft, parsePriceCents, scopeHasBuildingTrigger } from '@/utils/buildingScopeTriggers';
+import { draftsToSeeds, MAX_SEED_RATE } from '@/utils/costSeedCore';
+import {
+  BUILDING_HEADER_NOTE, CANCEL, NEEDS_PRICE, PRICE_INPUT_HINT, SET_PRICE_FIRST, SET_YOUR_PRICE,
+  buildingInternalNote, priceBlockedReason,
+} from '@/utils/buildingScopeCopy';
 import {
   CODE_SCOPE_RULES, CODE_SCOPE_RULES_REVIEW, SCOPE_GAPS_STARTER_LABEL, type CodeScopeRule,
 } from '@/utils/codeScopeTriggers';
@@ -83,6 +97,8 @@ async function writeEntry(storageKey: string, entry: StoredEntry): Promise<void>
 
 const money = (dollars: number) => formatMoney(dollars, 2);
 const s = (n: number) => (n === 1 ? '' : 's');
+/** The dismissals / draft-marker key: a code rule's id, or 'bldg:<id>' for a building line. */
+const keyOf = (g: PricedScopeGap) => (isBuildingGap(g) ? g.building.dismissKey : g.rule.id);
 
 export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | null {
   const styles = useThemedStyles(makeStyles);
@@ -91,10 +107,14 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
   const costDb = useScopeCostBook();
   const { getProject, getChangeOrdersForProject, addChangeOrder } = useProjects();
   const { user } = useAuth();
+  const { addSeeds } = useCostSeeds();
 
   const projectId = props.mode === 'project' ? props.projectId : null;
   const project = projectId ? getProject(projectId) : null;
   const storageKey = props.mode === 'project' ? `project:${props.projectId}` : props.storageKey;
+  // Year built for the building-age lines (entered, else PLUTO once the NYC
+  // record is loaded). Never starts a building lookup; see the hook header.
+  const bYear = useBuildingYear(props.mode === 'project' ? project : null);
 
   // ── remembered marks (device only) ──
   const [dismissals, setDismissals] = useState<ScopeGapDismissals>({});
@@ -161,7 +181,8 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
     projectType: project?.type ?? null,
     address, changeOrders, projectId: projectId ?? undefined,
     costDb, dismissals, quantities, rules, rateFor: scopeRateFor,
-  }), [lines, scopeNotes, jobKind, project?.type, address, changeOrders, projectId, costDb, dismissals, quantities, rules]);
+    ...(props.mode === 'project' ? { building: { year: bYear.year, pluto: bYear.pluto } } : {}),
+  }), [lines, scopeNotes, jobKind, project?.type, address, changeOrders, projectId, costDb, dismissals, quantities, rules, props.mode, bYear.year, bYear.pluto]);
 
   // ── actions ──
   const [openGroup, setOpenGroup] = useState<'in' | 'off' | 'mine' | null>(null);
@@ -169,6 +190,10 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
   const [added, setAdded] = useState<Record<string, true>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const busyRef = useRef(false);
+  // "Set your price" on a building line (component state; the rate itself is
+  // committed as a seed through hooks/useCostSeeds, the offline-queued path).
+  const [priceOpen, setPriceOpen] = useState<string | null>(null);
+  const [priceText, setPriceText] = useState('');
 
   const mark = useCallback((ruleId: string, verdict: 'already_covered' | 'n_a' | null) => {
     const next = { ...dismissals };
@@ -185,8 +210,11 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
 
   const draftCo = useCallback(async (gap: PricedScopeGap) => {
     if (!project || !projectId || busyRef.current || gap.quantity == null) return;
+    // A building line drafts nothing until it has his price (like needs-quantity).
+    if (isBuildingGap(gap) && !gap.priced) return;
+    const key = keyOf(gap);
     busyRef.current = true;
-    setBusyId(gap.rule.id);
+    setBusyId(key);
     try {
       const rule = gap.rule;
       const nowISO = new Date().toISOString();
@@ -196,13 +224,15 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
         lines: [{ name: rule.topic, quantity: gap.quantity, unit: rule.price.unit, unitRate: gap.unitRate }],
         description: `Added scope: ${rule.topic}.`,
         reason: 'Added scope',
-        marker: { action: CODE_GAP_DRAFT_ACTION, detail: `${projectId}:${rule.id}` },
-        internalNote: `Scope Code Gaps starter rule ${rule.id} (${rule.family}: ${rule.topic}), not yet reviewed by the founder. Triggered by ${gap.triggeredBy}.`,
+        marker: { action: CODE_GAP_DRAFT_ACTION, detail: `${projectId}:${key}` },
+        internalNote: isBuildingGap(gap)
+          ? buildingInternalNote(gap.rule.id, gap.rule.topic, gap.building.sourceChip, gap.triggeredBy)
+          : `Scope Code Gaps starter rule ${rule.id} (${rule.family}: ${rule.topic}), not yet reviewed by the founder. Triggered by ${gap.triggeredBy}.`,
         nowISO,
       });
       const out = await addChangeOrder(co);
       if (out === 'failed') {
-        setRowMsg(m => ({ ...m, [rule.id]: 'Couldn’t save the draft change order. Nothing was sent. Try again.' }));
+        setRowMsg(m => ({ ...m, [key]: 'Couldn’t save the draft change order. Nothing was sent. Try again.' }));
         return;
       }
       router.push({ pathname: '/change-order', params: { projectId, coId: co.id } });
@@ -228,6 +258,10 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
     ? `Reviewed ${CODE_SCOPE_RULES_REVIEW.reviewedOn}. Family-level, never a code section. Your AHJ decides.`
     : SCOPE_GAPS_STARTER_LABEL;
   const n = gaps.length;
+  // Building-age lines (project mode only): the year row asks for a year only
+  // when the scope touches something the age matters for, or a line is on screen.
+  const buildingOnScreen = result.gaps.some(isBuildingGap);
+  const showYearRow = props.mode === 'project' && (buildingOnScreen || scopeHasBuildingTrigger(lines, scopeNotes));
 
   const renderAction = (gap: PricedScopeGap) => {
     const rule = gap.rule;
@@ -260,7 +294,8 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
         </View>
       );
     }
-    const existing = findScopeDraft(changeOrders, { action: CODE_GAP_DRAFT_ACTION, detail: `${projectId}:${rule.id}` });
+    const key = keyOf(gap);
+    const existing = findScopeDraft(changeOrders, { action: CODE_GAP_DRAFT_ACTION, detail: `${projectId}:${key}` });
     if (existing) {
       return (
         <View style={styles.inlineRow}>
@@ -274,25 +309,99 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
       );
     }
     const owner = isLeakDraftOwner(project!, user?.id);
+    const bldg = isBuildingGap(gap);
     const reason = !owner
       ? 'Only the project owner drafts change orders.'
-      : gap.quantity == null ? `Enter ${unitWord} first.` : null;
+      : gap.quantity == null ? `Enter ${unitWord} first.`
+        : bldg && !gap.priced ? SET_PRICE_FIRST : null;
     return (
       <View style={styles.actionBlock}>
         <Button
           label="Add to change-order draft" size="sm" variant="secondary"
-          disabled={!!reason || busyId !== null} loading={busyId === rule.id}
+          disabled={!!reason || busyId !== null} loading={busyId === key}
           onPress={() => { void draftCo(gap); }}
-          testID={`scopegaps-draft-${rule.id}`}
+          testID={bldg ? `scopegaps-bldg-${rule.id}-draft` : `scopegaps-draft-${rule.id}`}
         />
         {reason ? <Text style={styles.reason}>{reason}</Text> : null}
         {!reason && !gap.priced ? <Text style={styles.reason}>Drafts at $0 — price it on the change order.</Text> : null}
-        {rowMsg[rule.id] ? <Text style={styles.errorText}>{rowMsg[rule.id]}</Text> : null}
+        {rowMsg[key] ? <Text style={styles.errorText}>{rowMsg[key]}</Text> : null}
+      </View>
+    );
+  };
+
+  const savePrice = (gap: PricedScopeGap) => {
+    if (!isBuildingGap(gap)) return;
+    const cents = parsePriceCents(priceText);
+    if (cents == null) return;
+    const [seed] = draftsToSeeds([buildingSeedDraft(gap.rule, cents)], { now: new Date().toISOString(), method: 'manual' });
+    if (seed) addSeeds([seed]);
+    setPriceOpen(null);
+    setPriceText('');
+  };
+
+  const renderBuildingGap = (gap: PricedScopeGap) => {
+    if (!isBuildingGap(gap)) return null;
+    const rule = gap.rule;
+    const key = keyOf(gap);
+    const editing = priceOpen === key;
+    const cents = editing ? parsePriceCents(priceText) : null;
+    const priceLine = gap.priced && gap.totalCents != null
+      ? `Your price: ${money(gap.totalCents / 100)} · ${gap.rateCaption}`
+      : NEEDS_PRICE;
+    return (
+      <View key={key} style={styles.row} testID={`scopegaps-bldg-${rule.id}`}>
+        <Text style={styles.requires}>{rule.topic}</Text>
+        <Text style={styles.meta}>{rule.requires}</Text>
+        {gap.building.lines.map(l => <Text key={l} style={styles.meta}>{l}</Text>)}
+        <Text style={styles.chip}>{gap.building.sourceChip}</Text>
+        {gap.building.footer ? <Text style={styles.meta}>{gap.building.footer}</Text> : null}
+        <Text style={styles.price}>{priceLine}</Text>
+        {!gap.priced && !editing ? (
+          <View style={styles.actionBlock}>
+            <Button
+              label={SET_YOUR_PRICE} size="sm" variant="secondary"
+              onPress={() => { setPriceOpen(key); setPriceText(''); }}
+              testID={`scopegaps-bldg-${rule.id}-setprice`}
+            />
+          </View>
+        ) : null}
+        {editing ? (
+          <View style={styles.actionBlock}>
+            <View style={styles.inlineRow}>
+              <TextInput
+                value={priceText}
+                onChangeText={v => setPriceText(v.replace(/[^0-9.,$]/g, ''))}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor={t.textMuted}
+                style={styles.qtyInput}
+                accessibilityLabel={`Your price for ${rule.topic}, each`}
+                testID={`scopegaps-bldg-${rule.id}-price`}
+              />
+              <Text style={styles.meta}>per {rule.price.unit}</Text>
+              <Button
+                label="Save" size="sm" variant="secondary" disabled={cents == null}
+                onPress={() => savePrice(gap)}
+                testID={`scopegaps-bldg-${rule.id}-saveprice`}
+              />
+              <Button label={CANCEL} size="sm" variant="ghost" onPress={() => setPriceOpen(null)} testID={`scopegaps-bldg-${rule.id}-cancelprice`} />
+            </View>
+            <Text style={styles.reason}>
+              {cents == null && priceText.trim() !== '' ? priceBlockedReason(formatMoney(MAX_SEED_RATE, 2)) : PRICE_INPUT_HINT}
+            </Text>
+          </View>
+        ) : null}
+        {renderAction(gap)}
+        <View style={styles.inlineRow}>
+          <Button label="Already covered" size="sm" variant="ghost" onPress={() => mark(key, 'already_covered')} testID={`scopegaps-bldg-${rule.id}-covered`} />
+          <Button label="N/A" size="sm" variant="ghost" onPress={() => mark(key, 'n_a')} testID={`scopegaps-bldg-${rule.id}-na`} />
+        </View>
       </View>
     );
   };
 
   const renderGap = (gap: PricedScopeGap) => {
+    if (isBuildingGap(gap)) return renderBuildingGap(gap);
     const rule = gap.rule;
     const txt = qtyText[rule.id];
     const shown = txt !== undefined ? txt : rule.price.qty != null ? String(rule.price.qty) : '';
@@ -348,9 +457,9 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
           <Text style={styles.groupLabel}>{label}</Text>
         </TouchableOpacity>
         {open ? items.map(g => (
-          <View key={g.rule.id} style={styles.groupItem}>
+          <View key={keyOf(g)} style={styles.groupItem}>
             <Text style={styles.meta}>{`${g.rule.family}: ${g.rule.topic} — ${detail(g)}`}</Text>
-            {undo ? <Button label="Undo" size="sm" variant="ghost" onPress={() => mark(g.rule.id, null)} testID={`scopegaps-undo-${g.rule.id}`} /> : null}
+            {undo ? <Button label="Undo" size="sm" variant="ghost" onPress={() => mark(keyOf(g), null)} testID={isBuildingGap(g) ? `scopegaps-undo-bldg-${g.rule.id}` : `scopegaps-undo-${g.rule.id}`} /> : null}
           </View>
         )) : null}
       </View>
@@ -366,6 +475,18 @@ export function ScopeGapsCard(props: ScopeGapsCardProps): React.ReactElement | n
         </View>
         <Text style={styles.meta}>{subLabel}</Text>
         <Text style={styles.chip}>{chip}</Text>
+        {buildingOnScreen ? <Text style={styles.meta}>{BUILDING_HEADER_NOTE}</Text> : null}
+        {showYearRow ? (
+          <BuildingYearRow
+            year={bYear.year}
+            pluto={bYear.pluto}
+            entered={bYear.entered}
+            isNyc={bYear.isNyc}
+            currentYear={bYear.currentYear}
+            onSave={bYear.setEntered}
+            onRemove={bYear.clearEntered}
+          />
+        ) : null}
 
         {props.mode === 'cart' ? (
           <View style={styles.toggleBlock}>

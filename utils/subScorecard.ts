@@ -18,6 +18,7 @@
 // linked data yet") instead of a fake neutral score.
 
 import type { Subcontractor, Commitment, ChangeOrder, PunchItem, Project, RFI } from '@/types';
+import type { Backcharge } from '@/utils/backcharges';
 import { actualWorkingDays } from '@/utils/pace/paceBook';
 import { computeRfiHoldTime } from '@/utils/rfiHoldTime';
 
@@ -27,7 +28,7 @@ export type ScoreConfidence = 'low' | 'medium' | 'high';
 export type ScorecardFactorKey =
   | 'cost_discipline' | 'co_impact' | 'compliance'
   | 'rework_rate' | 'schedule_reliability'
-  | 'rfi_responsiveness';
+  | 'rfi_responsiveness' | 'backcharges';
 
 export interface ScorecardFactor {
   key: ScorecardFactorKey;
@@ -101,6 +102,14 @@ export interface SubScorecardInput {
    * applicable:false.
    */
   rfis?: RFI[];
+  /**
+   * Backcharges (hooks/useBackcharges list) for the backcharges factor:
+   * money the sub owed the GC for damage, cleanup or rework. Attribution is
+   * backcharge.subId. Voided ones never count; open and applied both do.
+   * Optional — omitted ⇒ the factor reports applicable:false and the score is
+   * exactly what it was without it.
+   */
+  backcharges?: Backcharge[];
 }
 
 export interface SubScorecardResult {
@@ -142,6 +151,20 @@ const MIN_MEASURED_RFIS = 2;
 // cost_discipline's treatment of underruns).
 const REWORK_ZERO_AT = 0.4;
 const SLIP_ZERO_AT = 0.5;
+
+// Backcharges are a real signal of sloppy work, but a GC also backcharges for
+// things that are half their own coordination (a shared dumpster, a trade that
+// was stacked on another), so it weighs less than cost discipline and the
+// work-measured factors. It scores only once the sub has worked on at least 3
+// distinct projects with signed commitments: one bad project is an anecdote.
+const W_BACKCHARGE = 0.15;
+const MIN_BACKCHARGE_JOBS = 3;
+// Backcharge dollars at which quality reaches zero, as a share of the sub's
+// signed volume. 3% of the contract taken back for damage and cleanup is well
+// past normal punch friction (a typical backcharge is a few hundred dollars on
+// a five- or six-figure subcontract, well under 1%); at 3% the GC is paying to
+// finish the sub's work. Zero backcharges earns full marks.
+const BACKCHARGE_ZERO_AT = 0.03;
 
 // Mean sub-side hold at which RFI responsiveness scores zero. Ten calendar days
 // sitting on an RFI is a schedule problem in anyone's book; same-day earns full
@@ -262,6 +285,8 @@ function buildCard(
   /** RFIs already narrowed to this sub via rfi.assignedSubId — same
    *  pre-filtered shape as subPunch/subTasks. */
   subRfis: RFI[] = [],
+  /** This sub's backcharges (by subId), or null when the caller passed none. */
+  subBackcharges: Backcharge[] | null = null,
 ): SubScorecard {
   // Draft commitments are unsigned intent — they say nothing about how the
   // sub actually performs, so they don't count as history.
@@ -454,6 +479,41 @@ function buildCard(
     });
   }
 
+  // ── Backcharges — money taken back from this sub for damage, cleanup or
+  // rework, per $100K of signed work. Scored only across MIN_BACKCHARGE_JOBS
+  // distinct projects with non-draft commitments; voided backcharges never
+  // count, open and applied both do (the sub owed it either way).
+  const backchargeJobs = new Set(signed.map(c => c.projectId).filter(Boolean)).size;
+  const counted = (subBackcharges ?? []).filter(b => b.status !== 'void');
+  const backApplicable = subBackcharges !== null && backchargeJobs >= MIN_BACKCHARGE_JOBS && totalVolume > 0;
+  if (backApplicable) {
+    const dollars = counted.reduce((s, b) => s + b.amountCents, 0) / 100;
+    const share = dollars / totalVolume;
+    const per100k = (n: number): number => (n / totalVolume) * 100_000;
+    factors.push({
+      key: 'backcharges',
+      label: 'Backcharges',
+      score: clamp01(1 - share / BACKCHARGE_ZERO_AT),
+      weight: W_BACKCHARGE,
+      applicable: true,
+      detail:
+        counted.length === 0
+          ? `No backcharges on ${backchargeJobs} projects`
+          : `${counted.length} backcharge${counted.length === 1 ? '' : 's'} (${money(dollars)}) across ${backchargeJobs} projects · ${per100k(counted.length).toFixed(1)} backcharges and ${money(per100k(dollars))} per $100K of signed work`,
+    });
+  } else {
+    factors.push({
+      key: 'backcharges',
+      label: 'Backcharges',
+      score: 0,
+      weight: 0,
+      applicable: false,
+      detail: subBackcharges === null
+        ? 'Backcharges not counted on this screen'
+        : 'Not enough projects yet to judge backcharges',
+    });
+  }
+
   // ── Compliance — paperwork standing today. Always applicable.
   const coi = docStatus('COI', sub.coiExpiry, now);
   const license = docStatus('License', sub.licenseExpiry, now);
@@ -468,7 +528,7 @@ function buildCard(
   // Paperwork is the WHOLE grade only when no performance factor applies at
   // all — a sub with zero commitments can still be graded on punch rework
   // or schedule reliability when that linked data exists.
-  const paperworkOnly = !costApplicable && !coApplicable && !reworkApplicable && !schedApplicable && !rfiApplicable;
+  const paperworkOnly = !costApplicable && !coApplicable && !reworkApplicable && !schedApplicable && !rfiApplicable && !backApplicable;
   factors.push({
     key: 'compliance',
     label: 'Compliance',
@@ -521,7 +581,7 @@ const CONFIDENCE_RANK: Record<ScoreConfidence, number> = { low: 0, medium: 1, hi
 const EMPTY_TASK_RECORD: SubTaskRecord = { linked: 0, measured: [] };
 
 export function computeSubScorecards(input: SubScorecardInput): SubScorecardResult {
-  const { subcontractors, commitments, punchItems, projects, rfis } = input;
+  const { subcontractors, commitments, punchItems, projects, rfis, backcharges } = input;
   const now = new Date();
 
   // Index RFIs by the sub they were assigned to. Only rows carrying
@@ -543,6 +603,20 @@ export function computeSubScorecards(input: SubScorecardInput): SubScorecardResu
     else bySub.set(c.subcontractorId, [c]);
   }
 
+  // Backcharges by the sub they were charged to. Omitted input stays null so
+  // the factor says it was not counted, never "no backcharges".
+  let backchargesBySub: Map<string, Backcharge[]> | null = null;
+  if (backcharges) {
+    const bySubId = new Map<string, Backcharge[]>();
+    for (const b of backcharges) {
+      if (!b?.subId) continue;
+      const list = bySubId.get(b.subId);
+      if (list) list.push(b);
+      else bySubId.set(b.subId, [b]);
+    }
+    backchargesBySub = bySubId;
+  }
+
   const tasksBySub = collectSubTasks(projects ?? []);
   const allPunch = punchItems ?? [];
 
@@ -554,6 +628,7 @@ export function computeSubScorecards(input: SubScorecardInput): SubScorecardResu
       tasksBySub.get(sub.id) ?? EMPTY_TASK_RECORD,
       now,
       rfisBySub.get(sub.id) ?? [],
+      backchargesBySub ? (backchargesBySub.get(sub.id) ?? []) : null,
     ))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;

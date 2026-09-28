@@ -132,7 +132,7 @@ console.log('\n#151 burn:');
   ok('both lists pass the numbers (so memoized rows re-render)',
     (home.match(/invoicedToDate=\{burnByProject\.get\(/g) ?? []).length === 2
     && (home.match(/revisedContract=\{burnByProject\.get\(/g) ?? []).length === 2);
-  ok('renderProject re-memoizes on the burn map', /\), \[handleProjectPress, burnByProject\]\);/.test(home));
+  ok('renderProject re-memoizes on the burn map', /\), \[handleProjectPress, burnByProject(?:, jobLevels)?\]\);/.test(home));
 }
 
 // ── #153 a failed Stripe check is not "not connected" ───────────────────────

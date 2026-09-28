@@ -6,6 +6,7 @@ import type { CompanyProfile, CertificationType, BidCategory } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
+import { useAfterFirstScreen } from '@/hooks/useAfterFirstScreen';
 
 const COMPANIES_KEY = 'mageid_companies';
 
@@ -14,10 +15,16 @@ export const [CompaniesProvider, useCompanies] = createContextHook(() => {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const canSync = !!userId && isSupabaseConfigured;
+  // IDEAS-1 SPEED S2: the first load waits for the first screen (or 1.5 s at
+  // most) so it does not compete with Home's reads on a weak signal. Home and
+  // the desktop portfolio never read this context. Once true it stays true, so
+  // every later refetch is unchanged.
+  const afterFirstScreen = useAfterFirstScreen();
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
 
   const companiesQuery = useQuery({
     queryKey: ['companies'],
+    enabled: afterFirstScreen,
     queryFn: async () => {
       if (canSync) {
         try {
@@ -112,9 +119,11 @@ export const [CompaniesProvider, useCompanies] = createContextHook(() => {
     }
   }, [companies, saveMutation, canSync]);
 
+  // Still loading while the first load waits: a deferred read is not an empty one.
+  const isLoading = companiesQuery.isLoading || (!afterFirstScreen && companiesQuery.data === undefined);
   return useMemo(() => ({
-    companies, addCompany, updateCompany, isLoading: companiesQuery.isLoading,
-  }), [companies, addCompany, updateCompany, companiesQuery.isLoading]);
+    companies, addCompany, updateCompany, isLoading,
+  }), [companies, addCompany, updateCompany, isLoading]);
 });
 
 export function useFilteredCompanies(filters: {

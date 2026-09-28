@@ -97,8 +97,11 @@ import { useSheetFrame, useSheetPrimaryHotkey } from '@/components/ui/Sheet';
 import { useIsDesktopWeb, desktopToggle } from '@/components/ui/desktop';
 import { layoutNext } from '@/components/ui/motion';
 import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
+import { markFirstUseful } from '@/utils/startupTiming';
 import { PortfolioHomeLayout } from '@/components/portfolio/PortfolioHomeLayout';
 import { buildPortfolioRows } from '@/utils/portfolio/portfolioRow';
+import { useJobLevels } from '@/hooks/useJobLevel';
+import { JobLevel } from '@/components/level/JobLevel';
 import { actionRailVisible } from '@/utils/sidebarRail';
 import { stageLabel } from '@/utils/projectStage';
 import { clientFieldsProblem, editedPrimaryContact, readNewJobThen, type NewJobThen } from '@/utils/uxDoors';
@@ -575,6 +578,13 @@ export default function HomeScreen() {
     projects: filteredProjects, invoices, changeOrders, rfis, punchItems, dailyReports, burnByProject, now: new Date(),
   }) : []), [responsive.isDesktop, filteredProjects, invoices, changeOrders, rfis, punchItems, dailyReports, burnByProject]);
 
+  // The Level on the phone list (ideas-1, T5): one reading per card, read once
+  // for the list. Desktop reads its own inside PortfolioTable (showLevel), so
+  // the phone pass gets no projects there. Money visibility = burnByProject,
+  // the rule the burn bar already prints by.
+  const phoneLevelProjects = useMemo(() => (responsive.isDesktop ? [] : filteredProjects), [responsive.isDesktop, filteredProjects]);
+  const jobLevels = useJobLevels({ projects: phoneLevelProjects, marginVisible: burnByProject });
+
   // ── Today on site ──────────────────────────────────────────────
   // Active projects whose schedule has at least one task running today.
   // Membership MUST match the Summary tab's "Today on site" exactly — both
@@ -799,13 +809,18 @@ export default function HomeScreen() {
       // changing is what makes it re-render when an invoice lands (#151).
       invoicedToDate={burnByProject.get(item.id)?.invoicedToDate}
       revisedContract={burnByProject.get(item.id)?.revisedContract}
+      levelSlot={(() => {
+        // Its own tap opens the reasons (the press stops, so the card does not open).
+        const level = jobLevels.get(item.id);
+        return level ? <JobLevel projectId={item.id} reading={level} size="row" projectName={item.name} /> : undefined;
+      })()}
       onPress={() => handleProjectPress(item)}
       onLongPress={() => {
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setActionSheetRef({ kind: 'project', id: item.id, label: item.name });
       }}
     />
-  ), [handleProjectPress, burnByProject]);
+  ), [handleProjectPress, burnByProject, jobLevels]);
 
   // Dense-row variant: at tablet+ widths we render the projects as a single
   // bordered "table" with internal dividers (one wrapping View, one row per
@@ -958,6 +973,14 @@ export default function HomeScreen() {
   // A skeleton that was on screen hands over with a short fade, not a cut
   // (slick round 3). null at rest; the project rows cascade on their own.
   const landing = useLanding(isLoading);
+
+  // IDEAS-1 SPEED-3: the first commit in which the list, its empty state (or a
+  // persona hub, or the desktop portfolio table) is on screen with data records
+  // how long the app took to get here. Once per launch; releases the deferred
+  // providers if the 1.5 s cap has not already.
+  useEffect(() => {
+    if (!isLoading) markFirstUseful('home');
+  }, [isLoading]);
 
   if (isLoading) {
     // Show 3 skeleton cards instead of a centered spinner. Preserves the
@@ -1170,6 +1193,7 @@ export default function HomeScreen() {
           projects={filteredProjects}
           rows={portfolioRows}
           burnByProject={burnByProject}
+          showLevel
           highlightId={justCreatedId}
           onOpenProject={handleProjectPress}
           onOpenActions={(p, a) => {

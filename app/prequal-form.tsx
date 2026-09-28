@@ -34,6 +34,7 @@ import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
+import { persistGrowthRef } from '@/utils/growthAttribution';
 import ErrorState from '@/components/ErrorState';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 import type {
@@ -784,9 +785,16 @@ function PrequalFormInner({ packet, gcName, subCompanyName, onSave, onExit }: {
             ) : (
               <TouchableOpacity
                 style={styles.subProfileLink}
-                onPress={() => router.push('/signup')}
+                onPress={() => {
+                  // T6: counted as a prequal-page sign-up (utils/growthAttribution).
+                  // Stays in the app: the sub is already on app.mageid.app, and an
+                  // in-app route sends no Referer, so this page's token goes nowhere.
+                  void persistGrowthRef('prequal');
+                  router.push('/signup');
+                }}
                 accessibilityRole="link"
                 accessibilityLabel="Create your free MAGE ID account"
+                testID="growth-link-prequal"
               >
                 <Text style={styles.subProfileLinkText}>Create your free MAGE ID account</Text>
                 <Text style={styles.subProfileLinkHint}>
