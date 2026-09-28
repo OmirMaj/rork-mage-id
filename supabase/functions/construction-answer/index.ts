@@ -327,6 +327,22 @@ function jurisdictionBlockFor(raw: unknown): string | null {
  *  lower by its builder; NYC's can run longer on a busy building. */
 const BUILDING_RECORD_CAP = 4000;
 
+/** Middle lines the length trim never drops: the "Not checked" line (NYC
+ *  writes it as a "- " line, Baltimore without the dash) and the landmark /
+ *  historic-district lines. */
+const BUILDING_RECORD_KEEP = [
+  /^(?:- )?Not checked:/,
+  /^- PLUTO lists this lot as /,
+  /^- Historic district: /,
+  /^- (?:CHAP historic district|County historic district|CHAP landmark): /,
+];
+const isKeptRecordLine = (l: string): boolean => BUILDING_RECORD_KEEP.some((re) => re.test(l));
+/** Parcel lines about the building itself (NYC PLUTO zoning, E-designation,
+ *  flood map): dropped only after every other droppable line (dataset lines
+ *  first). */
+const BUILDING_RECORD_LATE = [/^- Zoning /, /^- E-designation /, /^- In the 2015 preliminary flood map/];
+const isLateRecordLine = (l: string): boolean => BUILDING_RECORD_LATE.some((re) => re.test(l));
+
 /**
  * The linked job's public building record, as the FIRST user-message text
  * block, or null.
@@ -337,8 +353,12 @@ const BUILDING_RECORD_CAP = 4000;
  * "RULES:" that tells the model what it may not claim ("Never tell the
  * contractor the building is free of problems..."). Those rules must survive:
  * an over-long block is never cut at the end. Fact lines are dropped from the
- * end of the middle instead, with one line saying how many were left out. A
- * block with no RULES paragraph, or whose header, headline and rules alone
+ * end of the middle instead, with one line saying how many were left out.
+ * Some middle lines are never dropped, like the header, headline and RULES:
+ * the "Not checked: …" line (what MAGE did NOT read — dropping it would make
+ * the record look complete) and the landmark / historic-district lines (NYC's
+ * PLUTO lines, Baltimore's CHAP and County district lines). A block with no
+ * RULES paragraph, or whose header, headline, protected lines and rules alone
  * exceed the cap, sends nothing. Anything invalid returns null; never throws.
  */
 function buildingRecordBlockFor(raw: unknown): string | null {
@@ -364,16 +384,29 @@ function buildingRecordBlockFor(raw: unknown): string | null {
     const assemble = (mid: string[]) => [...head, ...mid, ...rules].join("\n");
     let block = assemble(middle);
     if (block.length > BUILDING_RECORD_CAP) {
-      const kept = [...middle];
+      // Protected lines stay in place. Droppable lines go from the end of the
+      // middle: dataset / other lines first, the building's own parcel lines
+      // last. The count note sits just above the "Not checked" line (or above
+      // RULES when there is none).
+      const keep = middle.map(() => true);
       let dropped = 0;
       const note = () => `- (${dropped} more lines left out for length; the Building record card shows them all.)`;
-      while (kept.length > 0 && assemble([...kept, note()]).length > BUILDING_RECORD_CAP) {
-        kept.pop();
-        dropped++;
+      const withNote = () => {
+        const mid = middle.filter((_, i) => keep[i]);
+        const at = mid.findIndex((l) => /^(?:- )?Not checked:/.test(l));
+        return at < 0 ? [...mid, note()] : [...mid.slice(0, at), note(), ...mid.slice(at)];
+      };
+      for (const late of [false, true]) {
+        for (let i = middle.length - 1; i >= 0 && assemble(withNote()).length > BUILDING_RECORD_CAP; i--) {
+          if (!keep[i] || isKeptRecordLine(middle[i]) || isLateRecordLine(middle[i]) !== late) continue;
+          keep[i] = false;
+          dropped++;
+        }
       }
-      // Nothing to drop: header, headline and rules alone are over the cap.
+      // Nothing droppable, or header, headline, protected lines and rules
+      // alone are over the cap: send nothing rather than a cut record.
       if (dropped === 0) return null;
-      block = assemble([...kept, note()]);
+      block = assemble(withNote());
       if (block.length > BUILDING_RECORD_CAP) return null;
     }
     const preface = `Public building record for the linked job, fetched by MAGE from government open data (as of ${asOf}). `

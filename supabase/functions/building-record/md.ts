@@ -999,7 +999,10 @@ const zoningCounty = (r: Raw): MdZoningRow | null => {
 /** Only an http(s) link to a government host is ever passed on; spaces encoded. */
 function httpsUrl(v: unknown): string | null {
   const s = str(v, 500);
-  if (!s || !/^https?:\/\/(s3\.amazonaws\.com\/baltimorecity\.gov[a-z0-9.-]*|[a-z0-9.-]*baltimorecity\.gov|[a-z0-9.-]*baltimorecountymd\.gov)\//i.test(s)) return null;
+  // The host must BE baltimorecity.gov / baltimorecountymd.gov or a subdomain
+  // of one (a dot before the domain), never a look-alike such as
+  // evilbaltimorecity.gov; the S3 form is the City's path-style bucket.
+  if (!s || !/^https?:\/\/(s3\.amazonaws\.com\/baltimorecity\.gov[a-z0-9.-]*|(?:[a-z0-9-]+\.)*baltimorecity\.gov|(?:[a-z0-9-]+\.)*baltimorecountymd\.gov)\//i.test(s)) return null;
   // The County's zoning PDFs are published as http:// and 302 to https://
   // (bcgis.baltimorecountymd.gov/ZoningReports/BR.pdf: https 200 application/pdf, checked 2026-09-28).
   return s.replace(/^http:\/\//i, 'https://').replace(/ /g, '%20');

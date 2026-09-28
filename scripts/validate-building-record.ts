@@ -1034,6 +1034,27 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
   ok('41. a zoning part that did not read → no PDF link; null record → no links',
     mdRecordLinks(failedZoning as unknown as ClientMdRecord).every((l) => !l.label.includes('zoning')) && mdRecordLinks(null).length === 0
     && ['failed', 'timeout'].every((st) => mdRecordLinks({ ...cityRec, zoning: { ...cityRec.zoning, status: st } } as unknown as ClientMdRecord).every((l) => !l.label.includes('zoning'))));
+  // The PDF host is anchored: a look-alike domain never becomes a link.
+  const zoningUrl = (side: 'baltimore_city' | 'baltimore_county', url: string) => {
+    const base = side === 'baltimore_city' ? FX.city : FX.county;
+    const attrs = side === 'baltimore_city'
+      ? { Zoning: 'R-6', overlay: ' ', Label: 'R-6', URL: url }
+      : { ZONE_CLASS: 'BR', ZONE_DIST: 'BR IM', DIST_CODE: 'IM', URL: url };
+    const r = withJobs(base, { zoning: { status: 'ok', body: { features: [{ attributes: attrs }] } } }, side, side === 'baltimore_city' ? '4074C009' : '2200002965');
+    return r.zoning.rows[0]?.pdfUrl ?? null;
+  };
+  ok('42. zoning PDF host: look-alike domains (evilbaltimorecity.gov, baltimorecity.gov.evil.com, evilbaltimorecountymd.gov) → no URL',
+    zoningUrl('baltimore_city', 'https://evilbaltimorecity.gov/r6.pdf') === null
+    && zoningUrl('baltimore_city', 'https://baltimorecity.gov.evil.com/r6.pdf') === null
+    && zoningUrl('baltimore_county', 'https://evilbaltimorecountymd.gov/BR.pdf') === null
+    && zoningUrl('baltimore_county', 'http://bcgis.evilbaltimorecountymd.gov/BR.pdf') === null);
+  ok('42. zoning PDF host: the real hosts and their subdomains still pass (http upgraded to https)',
+    zoningUrl('baltimore_city', 'https://baltimorecity.gov/r6.pdf') === 'https://baltimorecity.gov/r6.pdf'
+    && zoningUrl('baltimore_city', 'https://planning.baltimorecity.gov/r6.pdf') === 'https://planning.baltimorecity.gov/r6.pdf'
+    && zoningUrl('baltimore_county', 'http://bcgis.baltimorecountymd.gov/ZoningReports/BR.pdf') === 'https://bcgis.baltimorecountymd.gov/ZoningReports/BR.pdf');
+  const httpZoning = { ...cityRec, zoning: { ...cityRec.zoning, rows: [{ code: 'R-6', overlay: null, pdfUrl: 'http://baltimorecity.gov/r6.pdf' }, { code: 'R-7', overlay: null, pdfUrl: 'javascript:alert(1)' }] } };
+  ok('42. mdRecordLinks links https PDFs only (an http:// or javascript: pdfUrl that reached the client is never linked)',
+    mdRecordLinks(httpZoning as unknown as ClientMdRecord).every((l) => !l.label.includes('zoning')));
   const cardText = read('components/buildingRecord/MdBuildingRecordCard.tsx');
   ok('41. the MD card renders mdRecordLinks(rec), not rec.links', /const links = mdRecordLinks\(rec\);/.test(cardText) && !/rec\.links\.map/.test(cardText));
 
@@ -1057,6 +1078,19 @@ const MD_FIXTURES_JSON = String.raw`{"cityGeo":{"candidates":[{"address":"620 E 
 
   // The attention headline is neutral (the housing notices come from a feed that is not a published dataset).
   ok("41. the attention headline never says the notices are in the City's open data", !/open data lists/.test(sCity.headline) && sCity.headline.startsWith('Baltimore City records list open notices'));
+
+  // Housing notices are City-only: a County record carrying them is refused,
+  // and the attention headline names the record's OWN government.
+  ok('42. a County record carrying the City housing-notice layers → one fixed error (never parsed as a record)',
+    parseMdBuildingRecordResponse({ status: 'md_record', record: { ...trip(countyRec), housingNotices: trip(cityRec).housingNotices } }).status === 'error'
+    && parseMdBuildingRecordResponse({ status: 'md_record', record: { ...trip(countyRec), housingNotices: [trip(cityRec).housingNotices[0]] } }).status === 'error'
+    && parseMdBuildingRecordResponse(trip({ status: 'md_record', record: countyRec })).status === 'md_record');
+  const countyWithNotices = { ...trip(countyRec), housingNotices: trip(cityRec).housingNotices } as unknown as ClientMdRecord;
+  const sCountyNotices = summarizeMdBuildingRecord(countyWithNotices);
+  ok("42. the 'attention' headline uses the record's own government: City → 'Baltimore City records…', County → 'Baltimore County records…'",
+    sCity.headline.startsWith('Baltimore City records list open notices for this parcel: ')
+    && sCountyNotices.kind === 'attention' && sCountyNotices.headline.startsWith('Baltimore County records list open notices for this parcel: ')
+    && !sCountyNotices.headline.includes('Baltimore City'), sCountyNotices.headline);
 
   // A record whose as-of reads were cut off by the deadline is not cached.
   const noAsOfJobs: Partial<Record<MdJobId, MdFetched>> = {};

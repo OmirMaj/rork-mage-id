@@ -6,7 +6,9 @@
 //      `// <pure:buildingRecordBlockFor>` block): it accepts the NYC and the
 //      Baltimore record headers, rejects anything else, strips control
 //      characters, and NEVER cuts a block's RULES paragraph — an over-long
-//      block loses fact lines from the middle, with one line saying how many.
+//      block loses fact lines from the middle, with one line saying how many,
+//      but never its "Not checked" line or its landmark / historic-district
+//      lines (dataset lines go before the building's own parcel lines).
 //   2. construction-answer's `system: [...]` array and SYSTEM prompt are
 //      byte-identical to main (64d397af): the record rides in the first USER
 //      message, and "confirm with the building department" stays one line.
@@ -129,6 +131,55 @@ if (pure) {
     jb({ source: 's', asOf: null, block: [NYC_HEADER, 'Headline', ...facts].join('\n') }) === null);
   ok('header + headline + RULES alone over the cap → null',
     jb({ source: 's', asOf: null, block: [NYC_HEADER, 'Headline', '- a', `RULES: ${'y'.repeat(CAP)}`].join('\n') }) === null);
+
+  // An over-cap REAL NYC block (summarizeBuildingRecord): 50 dataset lines,
+  // then the PLUTO landmark and historic-district lines, then "- Not checked"
+  // LAST. The trim must drop dataset / other parcel lines, never those three.
+  const nycBig = summarizeBuildingRecord({
+    ...nycRec,
+    parcel: { ...(nycRec as unknown as { parcel: object }).parcel, landmark: 'an individual landmark', historicDistrict: 'Greenwich Village', eDesignation: 'E-123', floodZone2015: true },
+    datasets: Array.from({ length: 50 }, (_, i) => ({
+      id: `test-${i}`, name: `Test dataset ${String(i + 1).padStart(2, '0')} ${'n'.repeat(60)}`, url: '', asOf: '2026-09-20', status: 'ok',
+      activeCount: 0, returned: 3, limit: 50, truncated: false, flags: [], rows: [],
+    })),
+    notChecked: ['HPD (housing maintenance)', 'FDNY', 'DEP', 'LPC calendar', 'DOT', 'BIS-only paper records'],
+  } as unknown as BuildingRecord).promptBlock;
+  const nycBigLines = nycBig.split('\n');
+  const NOT_CHECKED_LINE = nycBigLines.find((l) => l.startsWith('- Not checked:')) ?? '';
+  const LANDMARK_LINE = nycBigLines.find((l) => l.startsWith('- PLUTO lists this lot as ')) ?? '';
+  const HISTORIC_LINE = nycBigLines.find((l) => l.startsWith('- Historic district: ')) ?? '';
+  ok('the real over-cap NYC fixture is over the cap and ends "- Not checked: …" then RULES',
+    nycBig.length > CAP + 500 && !!NOT_CHECKED_LINE && !!LANDMARK_LINE && !!HISTORIC_LINE
+      && nycBigLines[nycBigLines.length - 2] === NOT_CHECKED_LINE, `${nycBig.length}`);
+  const nycCut = jb({ source: "DOB's public records", asOf: '2026-09-20', block: nycBig }) ?? '';
+  const nycCutBlock = nycCut.slice(nycCut.indexOf('\n') + 1);
+  ok('the trimmed real NYC block is within the cap and still ends with its RULES', nycCut.length > 0 && nycCutBlock.length <= CAP && nycCut.endsWith(`\n${NYC_RULES}`), `${nycCutBlock.length}`);
+  ok('the trim NEVER drops the "- Not checked: …" line', nycCut.includes(`\n${NOT_CHECKED_LINE}\n`), NOT_CHECKED_LINE);
+  ok('the trim NEVER drops the PLUTO landmark or historic-district line', nycCut.includes(`\n${LANDMARK_LINE}\n`) && nycCut.includes(`\n${HISTORIC_LINE}\n`));
+  ok('it dropped dataset lines instead (the last datasets go, the first stay)',
+    nycCut.includes('- No active items in Test dataset 01') || nycCut.includes('- Test dataset 01'),
+    nycCutBlock.slice(0, 400));
+  ok('the dropped datasets are really gone', !nycCut.includes('Test dataset 50'));
+  ok('the building\'s own parcel lines (zoning, E-designation, flood map) outlive the dataset lines',
+    nycCut.includes('\n- Zoning R6 as published in PLUTO 25v2\n') && nycCut.includes('\n- E-designation E-123\n')
+      && nycCut.includes('\n- In the 2015 preliminary flood map (PFIRM)\n'));
+  const nycNote = /- \((\d+) more lines left out for length; the Building record card shows them all\.\)/.exec(nycCut);
+  ok('the count note sits right above the "- Not checked" line, which sits right above RULES',
+    !!nycNote && nycCut.includes(`${nycNote[0]}\n${NOT_CHECKED_LINE}\n${NYC_RULES}`));
+  const nycKept = nycCut.split('\n').filter((l) => l.startsWith('- ') && !l.startsWith('- (')).length;
+  const nycMiddle = nycBigLines.filter((l) => l.startsWith('- ')).length;
+  ok('the count is right (kept + left out = every fact line)', !!nycNote && nycKept + Number(nycNote[1]) === nycMiddle, `${nycKept} + ${nycNote?.[1]} vs ${nycMiddle}`);
+  // Baltimore's "Not checked" line carries no dash; it is protected too.
+  const mdShaped = ['BUILDING RECORD (Baltimore City open data, fetched by MAGE 2026-09-28)', 'Headline',
+    ...facts, '- CHAP historic district: Better Waverly · CHAP, as of 2026-09-25', 'Not checked: Permits issued before 2019.',
+    "RULES: These are public records as published, not a finding by MAGE. Never tell the contractor the building is free of problems or meets code."].join('\n');
+  const mdCut = jb({ source: "Baltimore City's open data", asOf: '2026-09-25', block: mdShaped }) ?? '';
+  ok('a Baltimore-shaped over-cap block keeps its dash-less "Not checked:" line and its CHAP district line',
+    mdCut.length > 0 && mdCut.includes('\nNot checked: Permits issued before 2019.\nRULES:') && mdCut.includes('\n- CHAP historic district: Better Waverly'));
+  ok('protected lines alone over the cap → null (never a record missing "Not checked")',
+    jb({ source: 's', asOf: null, block: [NYC_HEADER, 'Headline', '- droppable', `- Not checked: ${'z'.repeat(CAP)}.`, NYC_RULES].join('\n') }) === null);
+  ok('a record with ONLY protected middle lines over the cap → null',
+    jb({ source: 's', asOf: null, block: [NYC_HEADER, 'Headline', `- Historic district: ${'h'.repeat(CAP)}`, '- Not checked: FDNY.', NYC_RULES].join('\n') }) === null);
 
   // A normal Baltimore block (the builder caps its own at 2,400) passes through.
   const baltBlock = [
@@ -538,8 +589,9 @@ const routeMd = (dept: BuildingDepartment, side: 'baltimore_city' | 'baltimore_c
   const r = routeMd(CITY_DEPT, 'baltimore_city');
   ok('City: the chosen stage picks its channel and that channel\'s own email', r.channel?.label === 'Plans Review' && r.toEmail === 'DHCD.PlansReview@baltimorecity.gov');
   ok('City: nobody is named', r.toName === null && r.toDetail === null && r.filing === null);
-  ok('City: the card says no applicant is published and names the office',
-    r.toFallback === "No applicant is published in Baltimore City's permits open data (2019 to present). Ask the Baltimore City Plans Review directly.", r.toFallback);
+  ok('City: the card says MAGE names no person (never that the data has no applicant) and names the office',
+    r.toFallback === "No person is named here: MAGE does not copy names from Baltimore City's permits open data (2019 to present). Ask the Baltimore City Plans Review directly."
+      && !/No applicant is published/.test(r.toFallback), r.toFallback);
   ok("City: why = the channel note and the row's applicant note, verbatim", r.whyThisChannel === 'PLANS NOTE. APPLICANT RULE NOTE.');
   const g = routeMd(CITY_DEPT, 'baltimore_city', { stage: 'objection' });
   ok('a stage with no channel falls back to general; an office with no email gets NO email (never another desk\'s)',
@@ -651,6 +703,12 @@ console.log('\n6. Ask carries the loaded record');
   ok('Ask passes buildingRecord to askConstruction', /buildingRecord: attachedRecord,/.test(ask));
   ok('Ask tells the contractor when the record is not loaded',
     ask.includes("Building record not loaded. Open the job&apos;s Building record card to add it."));
+  const loadingAt = ask.indexOf('testID="construction-ask-record-loading"');
+  const missingAt = ask.indexOf('testID="construction-ask-record-missing"');
+  ok('while the record is loading, Ask says so instead of "not loaded" (the loading branch comes first)',
+    loadingAt > 0 && missingAt > loadingAt
+      && /building\.supported && \(building\.phase === 'loading' \|\| building\.phase === 'resolving'\) \? \(/.test(ask)
+      && ask.includes('Loading the job&apos;s building record. It is added to your question once it loads.'));
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} validate-baltimore-ai: ${pass} passed, ${fail} failed`);

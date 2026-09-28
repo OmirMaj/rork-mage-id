@@ -734,14 +734,14 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
     //     Electrical (3) "local jurisdiction (locally adopted)"; Fire
     //     Prevention "2024 NFPA 1 and 2024 NFPA 101 (not applicable to one-
     //     and two-family dwellings and buildings located in Baltimore City …)".
-    //   - noteSourceUrl, buildcodes.shtml: "Each local jurisdiction in
+    //   - https://labor.maryland.gov/labor/build/buildcodes.shtml: "Each local jurisdiction in
     //     Maryland may modify these codes to suit local conditions with
     //     exception to the International Energy Conservation Code … and
     //     Maryland Accessibility Code … The Energy Code and the Accessibility
     //     Code can be made more stringent but not less by the local
     //     jurisdictions." It also says "The State has modified the IBC and the
     //     IRC", which is why the codes below carry the state's own name.
-    //   - https://labor.maryland.gov/labor/build/buildadmin.shtml: the 2021
+    //   - noteSourceUrl, https://labor.maryland.gov/labor/build/buildadmin.shtml: the 2021
     //     IBC, IRC, IECC, IgCC and IEBC were adopted; "The effective date is
     //     May 29, 2023. State law requires local jurisdiction to start
     //     implementing & enforcing the new requirements by May 29, 2024."
@@ -772,7 +772,13 @@ export const STATE_ADOPTIONS: readonly StateAdoption[] = [
       { family: 'IEBC', edition: '2021', name: 'Maryland Building Rehabilitation Code' },
     ],
     notes: 'The Maryland Building Performance Standards are the 2021 IBC, IRC and IECC with state changes, in effect since 29 May 2023; every county and Baltimore City had to enforce them by 29 May 2024. Work on existing buildings follows the Maryland Building Rehabilitation Code (the 2021 IEBC with state changes). Counties and Baltimore City may amend these codes, except the energy code and the Maryland Accessibility Code, which they can make stricter but not weaker, so the local amendments matter. No statewide fire or electrical edition is claimed here. The state\'s code matrix marks the State Fire Prevention Code (2024 NFPA 1 and NFPA 101) "not applicable to one- and two-family dwellings and buildings located in Baltimore City", and local governments may adopt their own electrical code. A move to the 2024 IBC, IRC and IECC was published as a proposal in the Maryland Register on 26 June 2026, and the department\'s page posted no effective date when MAGE checked it on 28 September 2026, so ask the county which edition your permit date falls under.',
-    noteSourceUrl: 'https://labor.maryland.gov/labor/build/buildcodes.shtml',
+    // noteSourceUrl names the page behind the note's first, dated facts (the
+    // 2021 codes, 29 May 2023, 29 May 2024). The note's other facts each sit
+    // on their own page (quoted above): the local-amendment rule on
+    // buildcodes.shtml, the fire-code scope on the matrix (sourceUrl), the
+    // electrical rule on buildmech.shtml, and the 26 June 2026 proposal on
+    // buildnews.shtml. buildcodes.shtml carries none of the dates.
+    noteSourceUrl: 'https://labor.maryland.gov/labor/build/buildadmin.shtml',
     sourceUrl: 'https://labor.maryland.gov/labor/build/buildcodematrix.pdf',
     checkedOn: '2026-09-28',
   },
@@ -1318,8 +1324,10 @@ export const LOCAL_ADOPTIONS: readonly LocalAdoption[] = [
     //     IPMC, IgCC and ISPSC, which are not CodeFamily entries). Its
     //     Transitions note: "Ordinance 24-341 became effective May 22, 2024",
     //     applying "to all building operations for which a permit application
-    //     is filed on or after the effective date". The Law Library root says
-    //     "Current through July 17, 2026", last codified Ord. 26-129.
+    //     is filed on or after the effective date". The Law Library's code
+    //     page, https://codes.baltimorecity.gov/us/md/cities/baltimore/code
+    //     (not the site root), says "Current through July 17, 2026", last
+    //     codified Ord. 26-129.
     //   - Part II (the Building Code), full text, .../building-codes/II/
     //     index.full.html: "Existing buildings undergoing repair, alterations,
     //     or additions, and change of occupancy must comply with the Maryland

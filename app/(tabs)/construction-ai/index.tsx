@@ -87,6 +87,7 @@ import {
   departmentFor,
   jobsiteAddressForProject,
   sameJobsiteAddress,
+  jurisdictionQueryForProject,
   viewerUrlToOpen,
   EMPTY_JOBSITE_ADDRESS,
   type JobsiteAddress,
@@ -105,7 +106,7 @@ import {
   type CitationEvidence,
 } from '@/utils/codeAmendments';
 import { CODE_CHECK_DISCLAIMER } from '@/utils/codeCheckCopy';
-import { useBuildingRecord } from '@/hooks/useBuildingRecord';
+import { useJobBuildingRecord } from '@/hooks/useJobBuildingRecord';
 import { useReviewBenchmark } from '@/hooks/useReviewBenchmark';
 import BuildingRecordCard from '@/components/buildingRecord/BuildingRecordCard';
 import DepartmentCard from '@/components/buildingRecord/DepartmentCard';
@@ -621,10 +622,11 @@ function ConstructionAIScreenInner() {
       showAlert('Couldn\u2019t open the camera', 'Try again.');
     }
   }, [codeCheckProject]);
-  // The NYC building record for the LINKED job (null project → unsupported, no
-  // network). Its summary goes into the prompt only once it is 'ready'; a NYC
-  // job whose record was not read is saved as 'not checked', never as clean.
-  const codeBuilding = useBuildingRecord(codeCheckProject);
+  // The building record for the LINKED job — NYC DOB or Baltimore City /
+  // County open data (null project → unsupported, no network). Its summary
+  // goes into the prompt only once it is 'ready'; a job whose record was not
+  // read is saved as 'not checked', never as clean.
+  const codeBuilding = useJobBuildingRecord(codeCheckProject);
 
   // Linking a project REPLACES the address — every field, blanks included.
   //
@@ -689,9 +691,18 @@ function ConstructionAIScreenInner() {
   // WHO governs this address and WHICH edition they adopted. Pure lookup over
   // a cited table — { kind: 'unknown' } when MAGE has no verified record, which
   // the chip and the prompt both say out loud rather than papering over.
+  //
+  // The ZIP and county reach the resolver too (X4). The contractor's own
+  // typing always wins; while the box still holds the linked project's address
+  // untouched, a blank ZIP takes the ZIP in the project's location and a blank
+  // county takes the side of the parcel confirmed in its building record
+  // ('Baltimore city' / 'Baltimore County'). NYC rows read neither.
+  const linkedUntouched = !!codeCheckProject && !!linkedProjectAddress && sameJobsiteAddress(address, linkedProjectAddress);
+  const codeZip = zip.trim() || (linkedUntouched ? (jurisdictionQueryForProject(codeCheckProject).zip ?? '') : '');
+  const codeCounty = county.trim() || (linkedUntouched ? (codeBuilding.confirmedCounty ?? '') : '');
   const jurisdiction = useMemo(
-    () => resolveCodeJurisdiction({ city, county, state: stateCode }),
-    [city, county, stateCode],
+    () => resolveCodeJurisdiction({ city, county: codeCounty, state: stateCode, zip: codeZip }),
+    [city, codeCounty, stateCode, codeZip],
   );
   const grounding = useMemo(() => groundingFactsFor(jurisdiction), [jurisdiction]);
 
@@ -700,8 +711,8 @@ function ConstructionAIScreenInner() {
   // authority there is no way to say WHICH of his inspections are relevant, and
   // the chip says exactly that rather than matching on a street address.
   const codeCheckAuthority = useMemo(
-    () => issuingAuthorityForAddress({ city, county, state: stateCode }),
-    [city, county, stateCode],
+    () => issuingAuthorityForAddress({ city, county: codeCounty, state: stateCode, zip: codeZip }),
+    [city, codeCounty, stateCode, codeZip],
   );
 
   // THE CONTRACTOR'S OWN INSPECTION RECORD, for this authority and this
@@ -792,22 +803,21 @@ function ConstructionAIScreenInner() {
   // propagated to the permit export and the homeowner's closeout passport
   // (runtime audit MISS-06). `null` when MAGE has no verified record: a blank
   // the contractor fills in beats a building department that does not exist.
-  const roadmapJobsite = useMemo(() => jobsiteAddressForProject(roadmapProject), [roadmapProject]);
+  //
+  // The building's public record (NYC DOB, or Baltimore City / County open
+  // data; inert everywhere else) comes first, so the authority can use the
+  // county of a confirmed Baltimore parcel. It runs unconditionally so the
+  // hook order never depends on the jobsite.
+  const roadmapBuilding = useJobBuildingRecord(roadmapProject);
   const roadmapAuthority = useMemo(
-    () => issuingAuthorityForAddress({
-      city: roadmapJobsite.city,
-      county: roadmapJobsite.county,
-      state: roadmapJobsite.state,
-    }),
-    [roadmapJobsite],
+    () => issuingAuthorityForAddress(jurisdictionQueryForProject(roadmapProject, roadmapBuilding.confirmedCounty)),
+    [roadmapProject, roadmapBuilding.confirmedCounty],
   );
   const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;
   const roadmapTasks = roadmapProject?.schedule?.tasks ?? [];
   const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
-  // DOB's public record for the building (NYC only; inert everywhere else) and
-  // the borough's measured plan-review time. Both run unconditionally so the
-  // hook order never depends on the jobsite.
-  const roadmapBuilding = useBuildingRecord(roadmapProject);
+  // The borough's measured plan-review time (NYC only; inert everywhere else).
+  // It runs unconditionally so the hook order never depends on the jobsite.
   const roadmapBenchmark = useReviewBenchmark(roadmapProject);
   // (Declared here, ahead of roadmapLeadFor, whose deps read roadmapBenchmark.)
   // ── The Roadmap's provenance layer ──────────────────────────────────
@@ -1104,7 +1114,7 @@ function ConstructionAIScreenInner() {
   // IRC/IBC" for a job whose AHJ has adopted a specific edition
   // (audit 2026-09-07, theme 4).
   const planJurisdiction = useMemo(
-    () => resolveCodeJurisdiction(jobsiteAddressForProject(planProject)),
+    () => resolveCodeJurisdiction(jurisdictionQueryForProject(planProject)),
     [planProject],
   );
   const planGrounding = useMemo(() => groundingFactsFor(planJurisdiction), [planJurisdiction]);
@@ -1205,11 +1215,7 @@ function ConstructionAIScreenInner() {
     // inspection history and his measured permit-review range — the same three
     // strings the chips on this tab show him.
     const roadmapGroundingBlocks = [
-      groundingFactsFor(resolveCodeJurisdiction({
-        city: roadmapJobsite.city,
-        county: roadmapJobsite.county,
-        state: roadmapJobsite.state,
-      })).promptBlock,
+      groundingFactsFor(resolveCodeJurisdiction(jurisdictionQueryForProject(roadmapProject, roadmapBuilding.confirmedCounty))).promptBlock,
       roadmapInspectionGrounding.promptBlock,
       leadTimeFactsFor(permits, roadmapAuthority).promptBlock,
     ];
@@ -1249,7 +1255,7 @@ function ConstructionAIScreenInner() {
     savePermitRoadmap(newRoadmap);
     if (!res.cached) void bumpRoadmapTodayUsage(user?.id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap, permits, roadmapAuthority, roadmapJobsite, roadmapInspectionGrounding, roadmapBuilding.summary.promptBlock, roadmapBuilding.summary.cacheKey]);
+  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap, permits, roadmapAuthority, roadmapInspectionGrounding, roadmapBuilding.confirmedCounty, roadmapBuilding.summary.promptBlock, roadmapBuilding.summary.cacheKey]);
 
   const onAddToPermits = useCallback((p: RoadmapPermit) => {
     if (!roadmapProject || !roadmap || p.linkedPermitId) return;
@@ -1281,20 +1287,20 @@ function ConstructionAIScreenInner() {
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     };
-    // DOB's public record shows something open on this building: say so
+    // The building's public record shows something open: say so
     // BEFORE the permit is tracked, in the record's own words. The contractor
     // can still add it — this is a heads-up, not a gate.
     const summary = roadmapBuilding.summary;
     if (summary.kind === 'attention') {
       showAlert(
         'Before you add this permit',
-        `${summary.headline}\n\n${summary.lines.slice(0, 3).join('\n')}\n\nThese are DOB's public records as published. Ask your expeditor or applicant of record before you price.`,
+        `${summary.headline}\n\n${summary.lines.slice(0, 3).join('\n')}\n\n${roadmapBuilding.attentionNote}`,
         [{ text: 'Cancel', style: 'cancel' }, { text: 'Add anyway', onPress: () => addRoadmapPermit(p) }],
       );
       return;
     }
     addRoadmapPermit(p);
-  }, [roadmapProject, roadmap, roadmapAuthority, addPermit, updatePermitRoadmap, roadmapBuilding.summary]);
+  }, [roadmapProject, roadmap, roadmapAuthority, addPermit, updatePermitRoadmap, roadmapBuilding.summary, roadmapBuilding.attentionNote]);
 
   // City + state are what pick the authority, so they are what the form needs.
   // A missing street NEVER blocks the check — plenty of code questions are
@@ -1388,7 +1394,7 @@ Never invent a section number you are unsure of — leave section empty and desc
           buildingRecordKind: buildingReady ? codeBuilding.summary.kind : codeBuilding.supported ? 'not_checked' : 'none',
           buildingRecordHeadline: buildingReady
             ? codeBuilding.summary.headline
-            : codeBuilding.supported ? 'DOB record not checked (building not confirmed or not loaded)' : null,
+            : codeBuilding.supported ? codeBuilding.notCheckedHeadline : null,
           // BuildingDepartment carries no name of its own; the row that owns
           // the verified department is named by its authority.
           departmentName: departmentFor(jurisdiction) && jurisdiction.kind === 'city' ? jurisdiction.entry.authorityName : null,
@@ -1444,7 +1450,7 @@ Never invent a section number you are unsure of — leave section empty and desc
       const copy = describeError(err, { action: 'run the code check' });
       showAlert(own ? "Couldn't run the code check" : copy.title, own ?? copy.body);
     }
-  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id, answers, codeBuilding.phase, codeBuilding.supported, codeBuilding.summary, codeCheckAuthority, threadId, savedRecord, threadSource]);
+  }, [canSubmit, category, dailyCap, addressLine, city, stateCode, grounding, inspectionGrounding, jurisdiction, codeCheckProject, codeCheckProjectId, scenario, user?.id, answers, codeBuilding.phase, codeBuilding.supported, codeBuilding.summary, codeBuilding.notCheckedHeadline, codeCheckAuthority, threadId, savedRecord, threadSource]);
 
   // A follow-up tap. iOS will not present a second Modal while the pageSheet
   // result is still dismissing (the openDelay rule above), so close it FIRST

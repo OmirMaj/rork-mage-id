@@ -147,7 +147,7 @@ describe('Baltimore: Draft a question and the Department card', () => {
     expect(prompt).toContain('BRCM-2025-01234');
     expect(prompt).toContain('Baltimore City');
     expect(prompt).not.toMatch(/\bDOB\b/);
-    expect(screen.getByTestId('dq-to').props.children).toMatch(/^No applicant is published in Baltimore City's permits open data/);
+    expect(screen.getByTestId('dq-to').props.children).toMatch(/^No person is named here: MAGE does not copy names from Baltimore City's permits open data/);
   });
 
   it('(b) County job: routes to a PAI channel', async () => {

@@ -213,6 +213,10 @@ export default function AskConstructionMode({ projects, bottomInset }: Props) {
             <Text style={styles.recordNote} testID="construction-ask-record">
               {`Using the building record from ${attachedRecord.source} (${attachedRecord.asOf ? `as of ${formatCalendarDay(attachedRecord.asOf)}` : 'as-of date not published'}).`}
             </Text>
+          ) : linkedProject && building.supported && (building.phase === 'loading' || building.phase === 'resolving') ? (
+            <Text style={styles.recordNote} testID="construction-ask-record-loading">
+              Loading the job&apos;s building record. It is added to your question once it loads.
+            </Text>
           ) : linkedProject && building.supported ? (
             <Text style={styles.recordNote} testID="construction-ask-record-missing">
               Building record not loaded. Open the job&apos;s Building record card to add it.

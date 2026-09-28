@@ -689,6 +689,9 @@ function pMdRecord(v: unknown): MdBuildingRecord {
     links: arr(o.links, (x) => { const l = obj(x); return { label: s(l.label), url: s(l.url) }; }),
   };
   if (city && rec.housingNotices.length !== 4) throw new Bad();
+  // The four housing-notice layers are City-only too (the County publishes no
+  // code-enforcement data), so a County record carrying any is not a record.
+  if (!city && rec.housingNotices.length) throw new Bad();
   return rec;
 }
 
@@ -972,7 +975,7 @@ export function summarizeMdBuildingRecord(rec: MdBuildingRecord | null | undefin
     kind = 'attention';
     // Neutral on purpose: the housing notices come from the City's inspections
     // map feed, which is not a published dataset (each line names its source).
-    headline = `Baltimore City records list open notices for this parcel: ${listed.join(', ')} (${asOfText}).`;
+    headline = `${city ? 'Baltimore City' : 'Baltimore County'} records list open notices for this parcel: ${listed.join(', ')} (${asOfText}).`;
   } else if (!city) {
     kind = 'incomplete';
     const names: [MdPartMeta, string][] = [[rec.parcel, 'parcel'], [rec.permits, 'permits'], [rec.zoning, 'zoning'], [rec.flood, 'flood map'], [rec.historic, 'historic districts']];

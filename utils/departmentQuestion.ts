@@ -368,10 +368,13 @@ export function mdFilingFactFor(args: {
   }
 }
 
-/** Who a Baltimore question goes to when nobody can be named: the office. */
+/** Who a Baltimore question goes to when nobody can be named: the office.
+ *  It never claims the data has no applicant: the City's permits layer does
+ *  carry a permit name and the County's an initiator and contractor. MAGE
+ *  simply never copies a person's name out of it. */
 export function mdNoRecipientLine(side: MdSideLike, officeLabel: string | null | undefined): string {
   const office = clean(officeLabel) || 'building department';
-  return `No applicant is published in ${mdPermitsSourceFor(side)}. Ask the ${mdSideName(side)} ${office} directly.`;
+  return `No person is named here: MAGE does not copy names from ${mdPermitsSourceFor(side)}. Ask the ${mdSideName(side)} ${office} directly.`;
 }
 
 export interface MdQuestionInput {

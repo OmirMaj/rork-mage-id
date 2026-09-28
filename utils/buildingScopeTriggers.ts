@@ -28,19 +28,20 @@ import {
 } from '@/utils/scopeCoverage';
 import { scopeRateCaption, scopeRateFor } from '@/utils/scopePricing';
 import { toCents } from '@/utils/brain/scopeCoDraft';
-import { isNycJobsite } from '@/utils/buildingRecord';
+import { isMdJobsite, isNycJobsite } from '@/utils/buildingRecord';
 import { MAX_SEED_RATE, canonicalSeedUnit, type SeededRateDraft } from '@/utils/costSeedCore';
 import {
   ACP5_BOOK_TRADE, ACP5_REQUIRES, ACP5_TOPIC, PLUTO_FOOTER, RRP_BOOK_TRADE, RRP_EXEMPTION, RRP_REQUIRES,
-  RRP_TOPIC, acp5Why, bothChip, enteredChip, plutoChip, rrpWhy,
+  RRP_TOPIC, MD_LEAD_RENTAL_LINE, acp5Why, bothChip, enteredChip, mdBothChip, mdRecordChip, plutoChip, rrpWhy,
 } from '@/utils/buildingScopeCopy';
 
 export type BuildingRuleFamily = 'EPA' | 'NYC-DOB';
 
 export interface BuildingYear {
   year: number;
-  source: 'pluto' | 'entered';
-  /** PLUTO version (or the record's as-of day) for 'pluto'; the entered-on day for 'entered'. */
+  source: 'pluto' | 'entered' | 'baltimore_city' | 'baltimore_county';
+  /** PLUTO version (or the record's as-of day) for 'pluto'; the Baltimore record's as-of day for
+   *  'baltimore_city' / 'baltimore_county'; the entered-on day for 'entered'. */
   asOf: string | null;
 }
 
@@ -91,8 +92,11 @@ export function normalizeYearBuilt(v: unknown, currentYear: number): number | nu
 /** The source chip: which year the rules used, and where it came from. */
 export function buildingYearChip(year: BuildingYear, pluto?: BuildingYear | null): string {
   if (year.source === 'entered') {
-    return pluto && pluto.source === 'pluto' ? bothChip(year.year, pluto.year) : enteredChip(year.year);
+    if (pluto && pluto.source === 'pluto') return bothChip(year.year, pluto.year);
+    if (pluto && (pluto.source === 'baltimore_city' || pluto.source === 'baltimore_county')) return mdBothChip(year.year, pluto.year, pluto.source);
+    return enteredChip(year.year);
   }
+  if (year.source === 'baltimore_city' || year.source === 'baltimore_county') return mdRecordChip(year.year, year.source);
   return plutoChip(year.year);
 }
 
@@ -192,6 +196,8 @@ export function evaluateBuildingRules(input: BuildingRulesInput): PricedBuilding
       if (!hit) continue;
       triggeredBy = hit.label;
       lines = [rrpWhy(y.year, hit.label), RRP_EXEMPTION];
+      // Maryland adds its own rental lead law (MDE); stated as a condition.
+      if (isMdJobsite(input.address ?? {})) lines.push(MD_LEAD_RENTAL_LINE);
     } else {
       if (!nyc || y.year > ACP5_LAST_YEAR) continue;
       triggeredBy = 'an NYC jobsite';

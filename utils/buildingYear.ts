@@ -9,7 +9,7 @@
 // Pure — no React, no storage, no network. The hook
 // (hooks/useBuildingYear.ts) owns the reads and writes; this file parses what
 // it reads so a malformed value can never throw.
-import type { BuildingRecord } from '@/utils/buildingRecord';
+import type { BuildingRecord, MdBuildingRecord } from '@/utils/buildingRecord';
 import { normalizeYearBuilt, type BuildingYear } from '@/utils/buildingScopeTriggers';
 
 /** A mageid_ key, so the sign-out sweep (utils/localCacheKeys) clears it. */
@@ -66,6 +66,24 @@ export function plutoBuildingYear(
   if (year == null) return null;
   const fetched = typeof state.record.fetchedAt === 'string' && state.record.fetchedAt ? state.record.fetchedAt.slice(0, 10) : null;
   return { year, source: 'pluto', asOf: parcel.plutoVersion ?? parcel.asOf ?? fetched };
+}
+
+/** The Baltimore record's year (City Real Property YEAR_BUILD or County
+ *  YEAR_BUILT) from useMdBuildingRecord's state. Only phase 'ready' with a
+ *  record counts; md.ts already turns 0 / '0000' into null, and
+ *  normalizeYearBuilt drops anything else implausible — never 0. The source is
+ *  the side of the parcel the contractor confirmed. */
+export function mdRecordBuildingYear(
+  state: { phase: string; record: MdBuildingRecord | null } | null | undefined,
+  currentYear: number,
+): BuildingYear | null {
+  if (!state || state.phase !== 'ready' || !state.record) return null;
+  const parcel = state.record.parcel;
+  if (!parcel || parcel.status !== 'ok' || !parcel.found) return null;
+  const year = normalizeYearBuilt(parcel.yearBuilt, currentYear);
+  if (year == null) return null;
+  const fetched = typeof state.record.fetchedAt === 'string' && state.record.fetchedAt ? state.record.fetchedAt.slice(0, 10) : null;
+  return { year, source: state.record.side, asOf: parcel.asOf ?? fetched };
 }
 
 /** Entered wins; PLUTO is kept alongside so the chip can name both. */
