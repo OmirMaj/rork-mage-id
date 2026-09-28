@@ -83,6 +83,7 @@ import { formatMoney } from '@/utils/formatters';
 import { generateUUID } from '@/utils/generateId';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { showAlert } from '@/utils/alert';
+import { proposalFromCurrentEstimate, proposalLockedCopy, sendProposalHref } from '@/utils/nextBillableMilestone';
 import { describeError, rawErrorMessage } from '@/utils/errorCopy';
 
 // Route-level recovery (audit 2026-09-07, "Worth doing" #8). This screen holds
@@ -326,6 +327,8 @@ function TakeoffEstimateInner() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, updateProject, settings, commitments } = useProjects();
+  // C4: "Send proposal" after a save opens the contract (client_portal).
+  const { canAccess, requiredTierFor } = useTierAccess();
   // The contractor's own learned rates. Same engine, and now the same five
   // streams, as the Cost Database screen — so the two screens answer a given
   // trade+unit key with the SAME number rather than with two different ones.
@@ -738,6 +741,39 @@ function TakeoffEstimateInner() {
   // permits / contingency baked into it carry over). Both round every line.
   const costItems = useCallback((): LinkedEstimateItem[] => takeoffCostItems(lines), [lines]);
 
+  // C4: after a save, the two next steps — open the job's estimate, or send
+  // the proposal (snapshot this estimate as a revision, then the contract
+  // seeded from it) — with "Stay here" as the cancel. Reads the project
+  // fresh at press time: the save above has landed in the context by then.
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const afterSaveButtons = useCallback((id: string) => [
+    { text: 'Stay here', style: 'cancel' as const },
+    {
+      text: 'Open estimate',
+      onPress: () => router.push({ pathname: '/project-detail', params: { id, tile: 'linkedEstimate' } }),
+    },
+    {
+      text: 'Send proposal',
+      onPress: () => {
+        // C4: the contract is a client-portal feature. Locked, say why before
+        // anything is written (no revision snapshot on a tap that goes nowhere).
+        if (!canAccess('client_portal')) {
+          const lock = proposalLockedCopy(requiredTierFor('client_portal'));
+          showAlert(lock.title, lock.message, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/paywall') },
+          ]);
+          return;
+        }
+        const p = projectsRef.current.find(x => x.id === id);
+        const { patch, fromRevision } = proposalFromCurrentEstimate(p);
+        if (Object.keys(patch).length > 0) updateProject(id, patch);
+        router.push(sendProposalHref(id, fromRevision));
+      },
+    },
+  ], [router, updateProject, canAccess, requiredTierFor]);
+
   // Replace: wholesale-swap the project estimate with the takeoff lines.
   // commitEstimatePatch snapshots the outgoing estimate as a revision, so
   // it's recoverable from history — but the user is warned first (below).
@@ -773,10 +809,11 @@ function TakeoffEstimateInner() {
       updateProject(project.id, commitEstimatePatch(project, linkedEstimate, { reason: 'pre_overwrite' }));
       markSaved();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // C4: every document offers the next one — never "OK" + back.
       showAlert(
         'Estimate saved',
         `${lines.length} priced lines saved to ${project.name}. Grand total: ${formatMoney(linkedEstimate.grandTotal, 2)}.`,
-        [{ text: 'OK', onPress: () => router.back() }],
+        afterSaveButtons(project.id),
       );
     } catch (e) {
       // Was `e.message` as the entire body — the audit's named example
@@ -789,7 +826,7 @@ function TakeoffEstimateInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, costItems, markupPct, updateProject, router, lines.length, markSaved]);
+  }, [project, costItems, markupPct, updateProject, router, lines.length, markSaved, afterSaveButtons]);
 
   // Append: add the takeoff lines onto the existing estimate, preserving its
   // items and applying its effective markup ratio to the new base (matches
@@ -814,7 +851,7 @@ function TakeoffEstimateInner() {
       showAlert(
         'Lines appended',
         `${lines.length} priced lines added to ${project.name}. New grand total: ${formatMoney(next.grandTotal, 2)}.`,
-        [{ text: 'OK', onPress: () => router.back() }],
+        afterSaveButtons(project.id),
       );
     } catch (e) {
       // Same defect, append path. The existing estimate is untouched when the
@@ -825,7 +862,7 @@ function TakeoffEstimateInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, costItems, markupPct, updateProject, router, lines.length, markSaved]);
+  }, [project, costItems, markupPct, updateProject, router, lines.length, markSaved, afterSaveButtons]);
 
   const handleSave = useCallback(() => {
     if (!project) {

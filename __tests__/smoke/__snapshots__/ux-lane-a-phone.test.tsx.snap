@@ -1,0 +1,36 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ux lane A — phone golden (390 × 844 iOS) attention (Action Required) 1`] = `
+{
+  "lines": 498,
+  "sha256": "3ecac51d70223108f7f2e838f4444d80bcef9670855203ef4c78d4ee85bae45b",
+}
+`;
+
+exports[`ux lane A — phone golden (390 × 844 iOS) attention logs view 1`] = `
+{
+  "lines": 483,
+  "sha256": "15f8d4c88232be139bb613e2af6e2e7e3857c86fe584371a451dfa4b5a86f953",
+}
+`;
+
+exports[`ux lane A — phone golden (390 × 844 iOS) daily-report (editor, send + crew + contact sheets) 1`] = `
+{
+  "lines": 1145,
+  "sha256": "864b5fe9c7cd671a11b53a18f48e8f4b96a708ef0ad6b3f1b3926e232b8b14b0",
+}
+`;
+
+exports[`ux lane A — phone golden (390 × 844 iOS) home (DailyLogCard) 1`] = `
+{
+  "lines": 1970,
+  "sha256": "c0f92d5958ad6f7750d8b473215cb0df4fb1a7c9a5ef4b4b9a9dd8047dc32ef4",
+}
+`;
+
+exports[`ux lane A — phone golden (390 × 844 iOS) waiting-on 1`] = `
+{
+  "lines": 399,
+  "sha256": "31d1896d6790e49eae75365474c7b63c25e098e55e956158af2dea45b82ac9e5",
+}
+`;

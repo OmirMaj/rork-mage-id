@@ -14,6 +14,17 @@
 //   • the Morning Brief "N need you" line — the brief's own composed
 //     document (canonical set + brief-only rollups like leak flags)
 //
+// UX wave, lane A (A7): overdue RFIs and stale submittals are IN the canonical
+// set now (rfiAttention / submittalAttention). They used to be counted on the
+// side by the Action Required page, the desktop dock and the Brain Watch card
+// only to hold back the "all caught up" line — so the pill said 1 while a
+// 23-day-late RFI to the architect sat outside it, found only after the GC had
+// cleared everything else. With them in the set, the pill count IS the row
+// count on every surface that reads this hook (Summary pill, tab badge, dock,
+// /attention). Punch now arrives as one row per job (its punch list), and the
+// change-order rollup opens /waiting-on — see utils/brainWatch
+// scopePunchToProject / coRollupToWaitingOn.
+//
 // RT-R1: the builders read contexts that swallow fetch errors and serve the
 // local cache, so an empty set can mean "quiet" OR "every read 401'd". The
 // hook therefore also carries `sourceFailed`, and a surface that says "all
@@ -33,13 +44,16 @@ import {
   permitAttention,
   certAttention,
   closeoutAttention,
-  punchAttention,
   changeOrderAttention,
+  rfiAttention,
+  submittalAttention,
+  coRollupToWaitingOn,
   rankAttention,
   summarize,
   type AttentionItem,
   type AttnKind,
 } from '@/utils/brainWatch';
+import { punchAttentionByJob } from '@/utils/portfolio/attentionRows';
 
 export interface BrainWatchResult {
   /** Ranked (critical → high → medium), deduped attention items. */
@@ -56,7 +70,7 @@ export interface BrainWatchResult {
 export function useBrainWatch(): BrainWatchResult {
   const { projects, sourceFailed } = useCoreData();
   const { invoices, changeOrders } = useFinancialsData();
-  const { getPermitsForProject } = useDocsData();
+  const { getPermitsForProject, rfis, submittals } = useDocsData();
   const { punchItems } = useFieldData();
   const safety = useSafety();
 
@@ -75,16 +89,23 @@ export function useBrainWatch(): BrainWatchResult {
       all.push(...invoiceAttention(project, invoices, nowMs));
       all.push(...permitAttention(project, getPermitsForProject(project.id), nowMs));
       all.push(...closeoutAttention(project));
+      // UX A7: the replies that stop work — in the count, not beside it.
+      all.push(...rfiAttention(project, rfis, nowMs));
+      all.push(...submittalAttention(project, submittals, nowMs));
     }
+
+    // UX A7: one punch row per job, opening that job's punch list — over
+    // EVERY punch item (HEAD's population), outside the loop above, which
+    // skips completed jobs: Post-Con is where punch matters most.
+    all.push(...punchAttentionByJob(punchItems, projects));
 
     // Company-scoped signals + portfolio rollups.
     const expiring = safety.expiringCertifications(todayISO) as Parameters<typeof certAttention>[0];
     all.push(...certAttention(expiring, nowMs));
-    all.push(...punchAttention(punchItems));
-    all.push(...changeOrderAttention(changeOrders));
+    all.push(...changeOrderAttention(changeOrders).map(coRollupToWaitingOn));
 
     return rankAttention(all);
-  }, [projects, invoices, changeOrders, punchItems, getPermitsForProject, safety]);
+  }, [projects, invoices, changeOrders, punchItems, getPermitsForProject, rfis, submittals, safety]);
 
   const summary = useMemo(() => summarize(items), [items]);
 

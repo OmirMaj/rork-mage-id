@@ -1,0 +1,85 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (a) /contract for the fixture job (no invitee email on file) 1`] = `
+{
+  "lines": 989,
+  "sha256": "ceadff53de231a309c612fec4c2912499e5978ea0ddf1d192e693edc50c8dc1b",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (b) /change-order, a new CO on the fixture job 1`] = `
+{
+  "lines": 1011,
+  "sha256": "3749b7f54f7b27a71cac768d3aa84c5cf0b2ad078b982c904630f4b382fea447",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (c) /estimate-wizard for a job that already has an estimate 1`] = `
+{
+  "lines": 425,
+  "sha256": "01387b3908f9c8d22799d6aac1ad3fbf154f781b2e0dcedc1a2b80c786648c69",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (d) /smart-proposal for the fixture job 1`] = `
+{
+  "lines": 614,
+  "sha256": "1b87523882f87aa7195b2a1366a37b419b59890dbeb094d869dfa22be39549e8",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (e) /quick-quote 1`] = `
+{
+  "lines": 427,
+  "sha256": "2ee05a8d10da0f12af5475dc5579ce687494679cf737b9cf6478198d75e0d9af",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (f) /invoice, an overdue sent invoice 1`] = `
+{
+  "lines": 971,
+  "sha256": "c18dc8ad672b6372477e13e9c6571fe6faf7a2e6c6b2bdc07e68ccdf3db45e2d",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (g) /invoice, a paid invoice 1`] = `
+{
+  "lines": 906,
+  "sha256": "b77b89c253bfc5400b10c899be9fb7db1fbd0685cc2e93c182cbca10dd46d97c",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (h) /invoice, a new invoice on the fixture job 1`] = `
+{
+  "lines": 1003,
+  "sha256": "63be9ff9fa0f2d41860b42fe4964a4291b516dd614ed5c2c04bdfdb5a24351bc",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (i) /payments with two overdue invoices 1`] = `
+{
+  "lines": 485,
+  "sha256": "bab675eb774cbcfc8980a9f6c40d489244d20ea1bff058e964e9bc1cfdf5e4e9",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (j) /lien-waivers for the fixture job 1`] = `
+{
+  "lines": 459,
+  "sha256": "3e44339221db8ab3a2523b5025506d455accd53588f9de11bf1b959a6cae89d6",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (k) /sub-portal-setup for a sub on the fixture job 1`] = `
+{
+  "lines": 478,
+  "sha256": "c99918ed676bc8b53d6b3115d7a41f6d4090140008d100356d796c3e633ea332",
+}
+`;
+
+exports[`Lane C golden — the phone (390 × 844 iOS) (l) /takeoff-estimate for the fixture job 1`] = `
+{
+  "lines": 335,
+  "sha256": "73256d47ebaa8d91fa864db6f4499f77c8552596627423802a8fc783de0e3725",
+}
+`;

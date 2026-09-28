@@ -2954,9 +2954,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
             // the Supabase rows (which lack the field), silently clearing it.
             const prior = await loadLocal<DailyFieldReport[]>(DAILY_REPORTS_KEY, []);
             const priorById = new Map(prior.map(dr => [dr.id, dr]));
+            // UX wave A5: `origin` ('voice' on a draft the app made from a
+            // voice note) is local-only too, and merges forward the same way,
+            // so a refetch cannot turn a voice-only day into a filed one.
             const withLeakScan = mapped.map(dr => {
-              const localLeakScan = priorById.get(dr.id)?.leakScan;
-              return localLeakScan !== undefined ? { ...dr, leakScan: localLeakScan } : dr;
+              const local = priorById.get(dr.id);
+              const localLeakScan = local?.leakScan;
+              const localOrigin = local?.origin;
+              if (localLeakScan === undefined && localOrigin === undefined) return dr;
+              return {
+                ...dr,
+                ...(localLeakScan !== undefined ? { leakScan: localLeakScan } : {}),
+                ...(localOrigin !== undefined ? { origin: localOrigin } : {}),
+              };
             });
             // SYNC-F3: keep offline-created rows whose write is still queued — the
             // SELECT can beat the flush's INSERT and a wholesale overwrite dropped them.

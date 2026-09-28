@@ -148,7 +148,14 @@ function as(os: typeof Platform.OS, width: number, height = 844) {
   });
 }
 
-beforeEach(() => { jest.useFakeTimers(); });
+// UX wave D3: the + menu floats its Field group before 11 am on a weekday
+// (utils/uxDoors fieldGroupFirst), so the menu's order follows the clock. Pin
+// it to a weekday afternoon, in local time so the hour is the same in every
+// time zone: Friday 25 Sep 2026, 3 pm.
+beforeEach(() => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date(2026, 8, 25, 15, 0));
+});
 
 afterEach(() => {
   restoreOS?.();

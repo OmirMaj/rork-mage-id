@@ -513,3 +513,72 @@ export function buildScanReceipt(
   receipt.status = ctx.linesShown && receipt.lines.length > 0 ? 'reviewed' : 'extracted';
   return receipt;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UX wave, Lane B6: A SCANNED DELIVERY TICKET OPENS "IT'S HERE NOW".
+//
+// The ticket still files as an image (ROUTING keeps `file_only`: ScanRecordKind
+// is a shared type and the scan log's record kind stays true — no domain
+// record is made by the scan itself). What changes is the next step: once the
+// ticket is filed, /deliveries opens its "It's here now" sheet pre-filled with
+// what the scan read, each field labelled "from scan, check it", and the filed
+// ticket as the receipt's ticket photo. He saves it (or not); the scan never
+// writes a delivery on its own.
+//
+// Only a date that IS a calendar day pre-fills the day (scanCalendarDay); a
+// printed "3/4/26" stays out and the picker keeps today.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The route params /deliveries reads beside Lane 0's projectId + arrived=1. */
+export const SCAN_ARRIVAL_PARAM = {
+  what: 'what',
+  supplier: 'supplier',
+  date: 'arrivedOn',
+  po: 'po',
+  ticket: 'ticket',
+  fromScan: 'fromScan',
+} as const;
+
+export interface ScanArrivalPrefill {
+  what: string;
+  supplier: string;
+  /** A real calendar day, or null (the picker keeps today). */
+  date: string | null;
+  poNumber: string;
+}
+
+/** Does this scan's next step open "It's here now"? */
+export function scanOpensArrival(docType: ScanDocType | null | undefined): boolean {
+  return docType === 'delivery_ticket';
+}
+
+/** What a delivery ticket's fields pre-fill. Items become one "what" line,
+ *  capped so a 40-line packing slip stays a readable title. */
+export function deliveryArrivalFromScan(fields: Record<string, unknown>): ScanArrivalPrefill {
+  const items = Array.isArray(fields.items) ? (fields.items as unknown[]).map(str).filter(Boolean) : [];
+  let what = items.slice(0, 3).join(', ');
+  if (items.length > 3) what += ` +${items.length - 3} more`;
+  if (what.length > 120) what = `${what.slice(0, 117).trimEnd()}…`;
+  if (!what) what = str(fields.ticketNumber) ? `Ticket ${str(fields.ticketNumber)}` : '';
+  return {
+    what,
+    supplier: str(fields.supplier),
+    date: scanCalendarDay(fields.date),
+    poNumber: str(fields.poNumber),
+  };
+}
+
+/** The params for /deliveries?projectId&arrived=1 from a filed ticket. Blank
+ *  values are left out, so the sheet never shows an empty "from scan" field. */
+export function scanArrivalParams(prefill: ScanArrivalPrefill, ticketPath: string | null | undefined): Record<string, string> {
+  const out: Record<string, string> = { [SCAN_ARRIVAL_PARAM.fromScan]: '1' };
+  if (prefill.what) out[SCAN_ARRIVAL_PARAM.what] = prefill.what;
+  if (prefill.supplier) out[SCAN_ARRIVAL_PARAM.supplier] = prefill.supplier;
+  if (prefill.date) out[SCAN_ARRIVAL_PARAM.date] = prefill.date;
+  if (prefill.poNumber) out[SCAN_ARRIVAL_PARAM.po] = prefill.poNumber;
+  if (ticketPath) out[SCAN_ARRIVAL_PARAM.ticket] = ticketPath;
+  return out;
+}
+
+/** The confirm card's line for a delivery ticket (it still files as an image). */
+export const SCAN_TICKET_NEXT_STEP = 'saves the ticket, then opens It’s here now to log the delivery';

@@ -42,6 +42,7 @@ import {
   Camera,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
   Wallet, Ruler, Lock, FileCheck, Zap, Mic, PenTool,
+  Clock, Truck, ShieldCheck, CalendarCheck, Plus, HardHat,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageEstimate, MageSchedule, MageInvoice, MageChangeOrder, MagePayApp,
@@ -63,6 +64,10 @@ import { useRiseOnOpen, useSwapFade, webMotion } from '@/components/ui';
 import { useSheetDialogScope } from '@/components/ui/Sheet';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
 import { movePaletteSelection } from '@/utils/paletteRows';
+import { pickDefaultProjectId } from '@/utils/defaultProjectId';
+import { statusLabel } from '@/utils/projectStage';
+import { alwaysPicksJob, fieldGroupFirst, moneyRowsHidden, newJobThenFor, pickerRank, sortJobsForPicker, type NewJobThen } from '@/utils/uxDoors';
+import { SOURCE_PROJECT, UX_PARAM, subPortalSetupHref } from '@/utils/uxRoutes';
 
 interface CreateOption {
   /** Human label (plain English). */
@@ -101,6 +106,9 @@ interface CreateOption {
   param?: string;
   /** Static extra params merged into the route (e.g. `{ type:'progress' }`). */
   extraParams?: Record<string, string>;
+  /** After the job, ask which sub (UX wave D3): the destination needs a
+   *  `subId` too, and without one it dead-ends on "Project or sub not found". */
+  subPicker?: boolean;
 }
 
 const OPTIONS: CreateOption[] = [
@@ -116,18 +124,29 @@ const OPTIONS: CreateOption[] = [
   { label: 'Quick Quote', subtitle: 'Fast bid for a small job', Icon: Zap, href: '/quick-quote', feature: 'quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },
   { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: MageInvoice, href: '/invoice', feature: 'invoice', category: 'money', scoped: true },
   { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: MageChangeOrder, href: '/change-order', feature: 'change-order', category: 'money', keywords: ['co'], scoped: true },
-  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: MagePayApp, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true, extraParams: { type: 'progress' } },
+  // "Progress draw", not "Progress Billing, AIA G702/G703" — the GC's word
+  // (UX wave D3). The AIA words stay searchable.
+  { label: 'Progress draw', subtitle: 'Bill the next draw — the AIA G702/G703 pay app', Icon: MagePayApp, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703', 'progress billing', 'draw'], scoped: true, extraParams: { type: 'progress' } },
   { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', feature: 'buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
   { label: 'Scope Sheet', subtitle: 'AI inclusions & exclusions from your estimate', Icon: FileCheck, href: '/scope-sheet', category: 'docs', keywords: ['scope', 'inclusions', 'exclusions', 'clarifications', 'assumptions', 'sow'], scoped: true },
   { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', feature: 'lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
 
+  // Field — the site's own rows (UX wave D3). Each is gated like its
+  // destination through the registry `feature` (the lock chip), and carries
+  // the route contract's flag (utils/uxRoutes) so the screen opens on the
+  // action, not on a list.
+  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: MageDailyReport, href: '/daily-report', feature: 'daily-report', category: 'field', keywords: ['dfr', 'log'], scoped: true },
+  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: MagePunch, href: '/punch-list', feature: 'punch-list', category: 'field', keywords: ['punch list'], scoped: true },
+  { label: 'Clock in', subtitle: 'Clock the crew in on this project', Icon: Clock, href: '/time-tracking', feature: 'time-tracking', category: 'field', keywords: ['time', 'crew', 'hours', 'timesheet', 'payroll'], scoped: true, extraParams: { [UX_PARAM.clockIn]: '1' } },
+  { label: 'Delivery arrived', subtitle: 'A truck showed up — log it with the ticket', Icon: Truck, href: '/deliveries', feature: 'deliveries', category: 'field', keywords: ['delivery', 'material', 'truck', 'ticket', 'received', 'supplier'], scoped: true, extraParams: { [UX_PARAM.arrived]: '1' } },
+  { label: 'Code check', subtitle: 'Check the work against code for this project', Icon: ShieldCheck, href: '/(tabs)/construction-ai', feature: 'construction-ai', category: 'field', keywords: ['code', 'inspection', 'inspector', 'building code'], scoped: true, extraParams: { [UX_PARAM.source]: SOURCE_PROJECT } },
+  { label: 'Send lineup', subtitle: 'Text tomorrow\'s lineup to the crew and subs', Icon: CalendarCheck, href: '/tomorrow-lineup', feature: 'tomorrow-lineup', category: 'field', keywords: ['lineup', 'tomorrow', 'crew text', 'dispatch'], scoped: true },
+
   // Documentation
-  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: MageDailyReport, href: '/daily-report', feature: 'daily-report', category: 'docs', keywords: ['dfr', 'log'], scoped: true },
-  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: MagePunch, href: '/punch-list', feature: 'punch-list', category: 'docs', keywords: ['punch list'], scoped: true },
   { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MageRFI, href: '/rfi', feature: 'rfi', category: 'docs', keywords: ['request for information'], scoped: true },
   { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: MageSubmittal, href: '/submittal', feature: 'submittal', category: 'docs', scoped: true },
   { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: PenTool, href: '/selections', feature: 'selections', category: 'docs', scoped: true },
-  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', feature: 'photo-triage', category: 'docs', keywords: ['picture'], scoped: true },
+  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', feature: 'photo-triage', category: 'field', keywords: ['picture'], scoped: true },
   { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: MagePlans, href: '/plans', feature: 'plans', category: 'docs', keywords: ['blueprint'], scoped: true },
   { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', feature: 'permits', category: 'docs', scoped: true },
   { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: MageCOI, href: '/coi-vault', feature: 'coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
@@ -135,7 +154,7 @@ const OPTIONS: CreateOption[] = [
   // People & meetings
   { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', feature: 'oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
   { label: 'Client portal invite', subtitle: 'Give the client read access', Icon: Mail, href: '/client-portal-setup', feature: 'client-portal', category: 'people', scoped: true, param: 'id' },
-  { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true },
+  { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true, subPicker: true },
 
   // Closeout
   { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', feature: 'handover', category: 'docs', scoped: true },
@@ -173,6 +192,9 @@ const CATEGORY_LABELS: Record<CreateOption['category'], string> = {
 /** The list-first screens on desktop web (wave 6c, lanes G/H): a "New …"
  *  from this menu adds `new=1` so the create form opens over the log. */
 const LIST_FIRST_HREFS: ReadonlySet<string> = new Set(['/rfi', '/submittal', '/change-order', '/invoice', '/daily-report']);
+/** On a phone (UX wave D3): "+ > Punch item" opens the Add form, not the
+ *  list — the route contract's `new=1` (utils/uxRoutes punchListNewHref). */
+const PHONE_NEW_HREFS: ReadonlySet<string> = new Set(['/punch-list']);
 
 /** The routes this menu can open that app/_layout.tsx presents as
  *  `presentation: 'modal'`. iOS cannot present one while this sheet is still
@@ -205,11 +227,15 @@ export function pushCreateOption(
   desktopWeb: boolean,
 ): void {
   const opensCreate = desktopWeb && LIST_FIRST_HREFS.has(opt.href);
+  const opensPhoneAdd = !desktopWeb && PHONE_NEW_HREFS.has(opt.href);
   router.push({
     pathname: createHref(opt) as never,
     // Most screens read `projectId`; a few read `id`. Passing the
     // wrong name re-creates the exact dead-end the picker fixes.
-    params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}), ...(opensCreate ? { new: '1' } : {}) },
+    params: {
+      [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}), ...(opensCreate ? { new: '1' } : {}),
+      ...(opensPhoneAdd ? { [UX_PARAM.newItem]: '1' } : {}),
+    },
   } as never);
 }
 
@@ -229,8 +255,10 @@ export interface CreateMenuProps {
   onClose: () => void;
   /** Optional handler for the "Project" entry — if set, called instead
    *  of routing. Lets the host (typically the home tab) open its
-   *  create-project modal in place. */
-  onCreateProject?: () => void;
+   *  create-project modal in place. `then` (UX wave D1) is the wizard the
+   *  "+ New job" row of Estimate / Schedule asks for once the job exists;
+   *  a host that ignores it still opens its create modal. */
+  onCreateProject?: (then?: NewJobThen | null) => void;
   /** Desktop web only: the popover's top-left corner in window px (the
    *  sidebar's '+' passes its right edge + Layout.menu.offset). Omitted or
    *  null: the popover is centred in the content column, 12% down. */
@@ -245,7 +273,10 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projects } = useProjects();
+  // The sub step's two reads may be absent under a host that provides only
+  // `projects` (the phone snapshot harness), so both are read defensively.
+  const projectsCtx = useProjects();
+  const { projects } = projectsCtx;
   const { isProOrAbove, isBusinessOrAbove } = useTierAccess();
   // A locked row keeps working (tapping still routes → the screen's own
   // Paywall is the real gate) — the chip just sets expectations so a free
@@ -271,6 +302,9 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
   // Desktop web: 'Change' in the header — pick the job per row again instead
   // of creating for the active job.
   const [pickJob, setPickJob] = useState(false);
+  // UX wave D3: "Sub portal invite" asks which sub once the job is known, so
+  // the invite screen always gets a real subId.
+  const [subFor, setSubFor] = useState<{ opt: CreateOption; projectId: string } | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -283,22 +317,11 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
     });
   }, [query]);
 
-  // Group by category, preserving display order from the source array.
-  const grouped = useMemo(() => {
-    const out: Array<{ key: CreateOption['category']; label: string; items: CreateOption[] }> = [];
-    const order: CreateOption['category'][] = ['project', 'money', 'docs', 'people', 'tools', 'field'];
-    for (const cat of order) {
-      const items = filtered.filter(f => f.category === cat);
-      if (items.length === 0) continue;
-      out.push({ key: cat, label: CATEGORY_LABELS[cat], items });
-    }
-    return out;
-  }, [filtered]);
-
   const handleClose = useCallback(() => {
     setQuery('');
     setPickFor(null);
     setPickJob(false);
+    setSubFor(null);
     onClose();
   }, [onClose]);
 
@@ -344,8 +367,65 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
 
   // Desktop web: the job the GC is in. A job-scoped row creates for it at
   // once (no picker), until he presses 'Change'.
-  const { activeProject } = useActiveProject();
-  const jobShortcut = isDesktopWeb && activeJob && !pickJob ? activeProject : null;
+  // Phone (UX wave D3): the same, from pickDefaultProjectId — the route /
+  // real pick / recent job, NEVER the "most recently updated in-progress"
+  // guess (that is fine for a sidebar highlight, not for a daily log or
+  // payroll hours). No safe default → the picker, as before.
+  const { activeProject, activeProjectId, recentProjectIds } = useActiveProject();
+  const phoneDefaultJob = useMemo(() => {
+    if (isDesktopWeb) return null;
+    const pid = pickDefaultProjectId({ activeProjectId, recentProjectIds, projects });
+    return pid ? projects.find(p => p.id === pid) ?? null : null;
+  }, [isDesktopWeb, activeProjectId, recentProjectIds, projects]);
+  const defaultJob = isDesktopWeb ? (activeJob ? activeProject : null) : phoneDefaultJob;
+  const jobShortcut = defaultJob && !pickJob ? defaultJob : null;
+  // Every picker lists live jobs first (the one he last touched on top),
+  // completed then closed jobs last (D1: a closed job is never the top row).
+  const sortedProjects = useMemo(() => sortJobsForPicker(projects, recentProjectIds ?? []), [projects, recentProjectIds]);
+
+  // Group by category, preserving display order from the source array.
+  // D3: the Field group floats to the top before 11 am on a weekday, or when
+  // the job he is creating for makes him the field role — who never sees the
+  // money rows (canViewFinancials: the field role is blinded from money).
+  const defaultRole = (defaultJob as { myRole?: string } | null)?.myRole ?? null;
+  // No default job: hide Money when every job he could pick makes him field.
+  const hideMoney = useMemo(() => moneyRowsHidden(defaultRole, projects.map(p => p.myRole ?? null)), [defaultRole, projects]);
+  const grouped = useMemo(() => {
+    const out: Array<{ key: CreateOption['category']; label: string; items: CreateOption[] }> = [];
+    const order: CreateOption['category'][] = fieldGroupFirst(new Date(), defaultRole)
+      ? ['field', 'project', 'money', 'docs', 'people', 'tools']
+      : ['project', 'money', 'field', 'docs', 'people', 'tools'];
+    for (const cat of order) {
+      if (cat === 'money' && hideMoney) continue;
+      const items = filtered.filter(f => f.category === cat);
+      if (items.length === 0) continue;
+      out.push({ key: cat, label: CATEGORY_LABELS[cat], items });
+    }
+    return out;
+    // `visible` re-reads the clock each time the menu opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, defaultRole, hideMoney, visible]);
+
+  // A scoped row with its job: straight to the screen, or — for the sub
+  // portal invite — on to the sub step first.
+  const startScoped = useCallback((opt: CreateOption, projectId: string) => {
+    if (opt.subPicker) {
+      setPickFor(null);
+      setSubFor({ opt, projectId });
+      return;
+    }
+    routeScoped(opt, projectId);
+  }, [routeScoped]);
+
+  // D1: "+ New job" — Home's create modal, which then opens the wizard for
+  // the new job (the same chain its "what next?" sheet runs).
+  const startNewJob = useCallback((opt: CreateOption) => {
+    const then = newJobThenFor(opt.label);
+    go(true, () => {
+      if (onCreateProject) onCreateProject(then);
+      else router.push((then ? `/?openCreate=1&then=${then}` : '/?openCreate=1') as never);
+    });
+  }, [go, onCreateProject, router]);
 
   const handleSelect = useCallback((opt: CreateOption) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -354,8 +434,11 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
     // project" empty state (the audit's #1 discovery failure). Interpose
     // a picker — but skip it when the choice is trivial/forced.
     if (opt.scoped) {
-      if (jobShortcut) {
-        routeScoped(opt, jobShortcut.id);
+      // D1: Estimate, Schedule and Scope Sheet ALWAYS ask which job, with
+      // "+ New job" first — a new lead must not land on the live job.
+      const always = alwaysPicksJob(opt.label);
+      if (jobShortcut && !always) {
+        startScoped(opt, jobShortcut.id);
         return;
       }
       if (projects.length === 0) {
@@ -369,8 +452,9 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
               {
                 text: 'New project',
                 onPress: () => {
-                  if (onCreateProject) onCreateProject();
-                  else router.push('/?openCreate=1' as never);
+                  const then = newJobThenFor(opt.label);
+                  if (onCreateProject) onCreateProject(then);
+                  else router.push((then ? `/?openCreate=1&then=${then}` : '/?openCreate=1') as never);
                 },
               },
             ],
@@ -378,8 +462,8 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
         }, 280);
         return;
       }
-      if (projects.length === 1) {
-        routeScoped(opt, projects[0].id);
+      if (projects.length === 1 && !always) {
+        startScoped(opt, projects[0].id);
         return;
       }
       setPickFor(opt);
@@ -400,7 +484,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
         pushUnscopedCreateOption(router, opt);
       }
     });
-  }, [handleClose, go, router, onCreateProject, projects, routeScoped, hrefFor, jobShortcut]);
+  }, [handleClose, go, router, onCreateProject, projects, startScoped, hrefFor, jobShortcut]);
 
   // Desktop web: arrow keys move a highlight over the rows in display order
   // and Enter creates the highlighted one (the JobSwitcher pattern). The
@@ -442,7 +526,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
   // Motion (rise is null on web; swap is opacity only, so it cannot clash
   // with rise's translateY).
   const rise = useRiseOnOpen(visible);
-  const swap = useSwapFade(pickFor?.label ?? 'list');
+  const swap = useSwapFade(subFor ? 'sub' : pickFor?.label ?? 'list');
 
   return (
     <Modal
@@ -457,7 +541,77 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
       <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }, isDesktopWeb && styles.sheetDesktop, isDesktopWeb && popoverPos, desktopWeb ? webMotion('popIn') : rise, swap]}>
         {isDesktopWeb ? null : <View style={styles.handle} />}
 
-        {pickFor ? (
+        {subFor ? (
+          <>
+            {/* D3: the sub step — only real subs are offered, so the invite
+                screen never reaches "Project or sub not found". Subs already
+                under contract on this job come first. */}
+            <View style={styles.headerRow}>
+              <TouchableOpacity onPress={() => setSubFor(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
+                <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+              <Text style={[Type.title2, { color: themeColors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
+                {subFor.opt.label} → which sub?
+              </Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={[{ maxHeight: '70%' as any }, isDesktopWeb && listDesktop]} showsVerticalScrollIndicator={false}>
+              {(() => {
+                const subs = (projectsCtx.subcontractors as typeof projectsCtx.subcontractors | undefined) ?? [];
+                const commitmentsFor = projectsCtx.getCommitmentsForProject as typeof projectsCtx.getCommitmentsForProject | undefined;
+                const onJob = new Set(
+                  (commitmentsFor?.(subFor.projectId) ?? [])
+                    .map(c => c.subcontractorId)
+                    .filter((x): x is string => typeof x === 'string' && x.length > 0),
+                );
+                const ordered = [...subs.filter(sb => onJob.has(sb.id)), ...subs.filter(sb => !onJob.has(sb.id))];
+                if (ordered.length === 0) {
+                  return (
+                    <View style={styles.emptyResult} testID="createmenu-no-subs">
+                      <Text style={[Type.subhead, { color: themeColors.textSecondary, textAlign: 'center' }]}>
+                        No subs yet. Add the sub first, then send the invite.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.row, { justifyContent: 'center' }]}
+                        onPress={() => go(false, () => router.push('/(tabs)/subs' as never))}
+                        accessibilityRole="button"
+                        testID="createmenu-add-sub"
+                      >
+                        <Plus size={16} color={themeColors.accent} strokeWidth={2} />
+                        <Text style={[Type.headline, { color: themeColors.accent }]}>Add a sub</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
+                return ordered.map(sb => (
+                  <TouchableOpacity
+                    key={sb.id}
+                    style={[styles.row, isDesktopWeb && styles.rowDesktop]}
+                    onPress={() => {
+                      const pid = subFor.projectId;
+                      go(false, () => router.push(subPortalSetupHref(pid, sb.id)));
+                    }}
+                    activeOpacity={0.55}
+                    testID={`createmenu-pick-sub-${sb.id}`}
+                  >
+                    <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
+                      <HardHat size={18} color={themeColors.textSecondary} strokeWidth={2} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>{sb.companyName}</Text>
+                      <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
+                        {[onJob.has(sb.id) ? 'On this project' : null, sb.trade, sb.contactName].filter(Boolean).join(' · ') || 'Sub'}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                ));
+              })()}
+            </ScrollView>
+          </>
+        ) : pickFor ? (
           <>
             <View style={styles.headerRow}>
               <TouchableOpacity onPress={() => setPickFor(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
@@ -472,28 +626,58 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
             </View>
 
             <ScrollView style={[{ maxHeight: '70%' as any }, isDesktopWeb && listDesktop]} showsVerticalScrollIndicator={false}>
-              {projects.map(p => (
+              {/* D1: for Estimate, Schedule and Scope Sheet the first row is
+                  a NEW job, so a new lead never lands on the live one. */}
+              {alwaysPicksJob(pickFor.label) ? (
                 <TouchableOpacity
-                  key={p.id}
                   style={[styles.row, isDesktopWeb && styles.rowDesktop]}
-                  onPress={() => { if (pickFor) routeScoped(pickFor, p.id); }}
+                  onPress={() => { if (pickFor) startNewJob(pickFor); }}
                   activeOpacity={0.55}
-                  testID={`createmenu-pick-project-${p.id}`}
+                  accessibilityRole="button"
+                  testID="createmenu-new-job"
                 >
                   <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
-                    <FolderPlus size={18} color={themeColors.textSecondary} strokeWidth={2} />
+                    <Plus size={18} color={themeColors.accent} strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>
-                      {p.name}
+                    <Text style={[Type.headline, { color: themeColors.accent }]} numberOfLines={1}>
+                      {defaultJob ? 'New project instead' : 'New project'}
                     </Text>
                     <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
-                      {p.status.replace(/_/g, ' ')}
+                      {newJobThenFor(pickFor.label) ? `Set up the project, then its ${pickFor.label.toLowerCase()}` : 'Set up the project first'}
                     </Text>
                   </View>
                   <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
-              ))}
+              ) : null}
+              {(() => {
+                // The current job (when it is still open) leads, titled with
+                // the row it creates: "Estimate for Henderson".
+                const lead = defaultJob && pickerRank(defaultJob.status) === 0 && alwaysPicksJob(pickFor.label) ? defaultJob : null;
+                const list = lead ? [lead, ...sortedProjects.filter(p => p.id !== lead.id)] : sortedProjects;
+                return list.map(p => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.row, isDesktopWeb && styles.rowDesktop]}
+                    onPress={() => { if (pickFor) startScoped(pickFor, p.id); }}
+                    activeOpacity={0.55}
+                    testID={`createmenu-pick-project-${p.id}`}
+                  >
+                    <View style={[styles.iconSquare, isDesktopWeb && styles.iconSquareDesktop]}>
+                      <FolderPlus size={18} color={themeColors.textSecondary} strokeWidth={2} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>
+                        {lead && p.id === lead.id ? `${pickFor.label} for ${p.name}` : p.name}
+                      </Text>
+                      <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
+                        {lead && p.id === lead.id ? `Current project · ${statusLabel(p.status)}` : statusLabel(p.status)}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                ));
+              })()}
             </ScrollView>
           </>
         ) : (
@@ -503,19 +687,22 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
               <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
-            {isDesktopWeb && activeJob && activeProject ? (
+            {/* Desktop: the active job. Phone (D3): the safe default job —
+                "For Henderson · Change". */}
+            {defaultJob ? (
               <View style={styles.jobBar} testID="createmenu-job-bar">
                 <Text style={[Type.footnote, styles.jobBarText]} numberOfLines={1}>
-                  {pickJob ? 'Pick the job for each item' : `For ${activeProject.name}`}
+                  {pickJob ? 'Pick the job for each item' : `For ${defaultJob.name}`}
                 </Text>
                 <Text style={[Type.footnote, styles.jobBarText]}>·</Text>
                 <TouchableOpacity
                   onPress={() => setPickJob(p => !p)}
                   accessibilityRole="button"
-                  accessibilityLabel={pickJob ? `Create for ${activeProject.name}` : 'Change the job'}
+                  accessibilityLabel={pickJob ? `Create for ${defaultJob.name}` : 'Change the job'}
+                  {...(isDesktopWeb ? null : { hitSlop: 8 })}
                   testID="createmenu-change-job"
                 >
-                  <Text style={[Type.footnote, styles.jobBarAction]}>{pickJob ? `Use ${activeProject.name}` : 'Change'}</Text>
+                  <Text style={[Type.footnote, styles.jobBarAction]}>{pickJob ? `Use ${defaultJob.name}` : 'Change'}</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -580,7 +767,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject, anchor = null, acti
                           </View>
                         ) : null;
                       })()}
-                      {jobShortcut && opt.scoped ? (
+                      {isDesktopWeb && jobShortcut && opt.scoped && !alwaysPicksJob(opt.label) ? (
                         <Text style={[Type.footnote, styles.rowJob]} numberOfLines={1}>{jobShortcut.name}</Text>
                       ) : null}
                       <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />

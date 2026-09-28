@@ -24,7 +24,15 @@ import {
   Sun,
   ImageIcon,
   Droplet,
+  CalendarDays,
+  Send,
+  Lock,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Button } from '@/components/ui/Button';
+import { useProjectAccess } from '@/hooks/useProjectAccess';
+import { tomorrowBlock } from '@/utils/tomorrowBlock';
+import { tomorrowLineupHref } from '@/utils/uxRoutes';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -378,6 +386,11 @@ function TodayView({
   layout = 'stack',
 }: TodayViewProps) {
   const isDesktop = layout === 'desktop';
+  const router = useRouter();
+  // UX wave B5 — the Tomorrow block's lineup door checks the SAME gate as its
+  // destination (/tomorrow-lineup: schedule_gantt_pdf through useProjectAccess,
+  // so a collaborator's grant on the job counts). Locked, it says why.
+  const lineupAccess = useProjectAccess(schedule.projectId ?? undefined);
   // Built per theme. This is the 6am screen: every card, the weather strip and
   // the forecast row baked t.surface/text/cardBorder at import, so a
   // superintendent in dark mode got a white slab at full brightness in a truck
@@ -628,6 +641,52 @@ function TodayView({
       })}
     </View>
   );
+  // UX wave B5: "What's tomorrow?" — the next WORKING day on this schedule
+  // (Friday → Monday, closures skipped) and what is on it, with the lineup
+  // one tap away. Nothing on the day: said plainly, no send button.
+  const tomorrow = useMemo(() => tomorrowBlock(schedule, now), [schedule, now]);
+  const lineupOpen = lineupAccess.canAccess('schedule_gantt_pdf');
+  const lineupTier = lineupAccess.requiredTierFor('schedule_gantt_pdf');
+  const tomorrowEl = (
+    <View style={s.section} testID="today-tomorrow">
+      <View style={s.sectionHeader}>
+        <CalendarDays size={14} color={t.info} strokeWidth={1.75} />
+        <Text style={s.sectionTitle}>Tomorrow · {tomorrow.dayLabel}</Text>
+      </View>
+      {tomorrow.emptyNote ? (
+        <Text style={s.tomorrowNote} testID="today-tomorrow-empty">{tomorrow.emptyNote}</Text>
+      ) : (
+        tomorrow.tasks.map(task => (
+          <View key={task.id} style={s.compactCard}>
+            <View style={[s.compactDot, { backgroundColor: getPhaseColor(task.phase) }]} />
+            <View style={s.compactInfo}>
+              <Text style={s.compactTitle} numberOfLines={1}>{task.title}{task.isMilestone ? ' · Milestone' : ''}</Text>
+              {task.crew ? <Text style={s.compactMeta}>{task.crew}</Text> : null}
+            </View>
+          </View>
+        ))
+      )}
+      {tomorrow.canSend && schedule.projectId ? (
+        <>
+          <Button
+            label={lineupOpen ? 'Send lineup' : `Send lineup · needs ${lineupTier.charAt(0).toUpperCase()}${lineupTier.slice(1)}`}
+            variant={lineupOpen ? 'primary' : 'secondary'}
+            fullWidth
+            iconLeft={lineupOpen
+              ? <Send size={15} color={Colors.textOnAccent} strokeWidth={1.75} />
+              : <Lock size={15} color={t.textSecondary} strokeWidth={1.75} />}
+            onPress={() => router.push(tomorrowLineupHref(schedule.projectId as string))}
+            testID="today-tomorrow-lineup"
+          />
+          {!lineupOpen ? (
+            <Text style={s.tomorrowNote} testID="today-tomorrow-locked">
+              Tomorrow&apos;s lineup (a ready-to-send text per sub) is on the {lineupTier.charAt(0).toUpperCase()}{lineupTier.slice(1)} plan. Tap to see it.
+            </Text>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  );
   const completedEl = completedToday.length > 0 && (
     <View style={s.section}>
       <View style={s.sectionHeaderGreen}>
@@ -653,6 +712,7 @@ function TodayView({
           {overdueEl}
           {activeEl}
           {comingUpEl}
+          {tomorrowEl}
         </View>
         <View style={s.railDesktop} testID="today-rail">
           {headerEl}
@@ -708,6 +768,8 @@ function TodayView({
       {activeEl}
 
       {comingUpEl}
+
+      {tomorrowEl}
 
       {completedEl}
     </View>
@@ -784,6 +846,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 6,
   },
   sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  tomorrowNote: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
   sectionHeaderOverdue: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sectionTitleOverdue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.dangerLabel },
   sectionHeaderGreen: { flexDirection: 'row', alignItems: 'center', gap: 6 },

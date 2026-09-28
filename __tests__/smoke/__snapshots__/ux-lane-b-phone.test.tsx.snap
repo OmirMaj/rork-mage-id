@@ -1,0 +1,92 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`UX lane B — TodayView on the classic tab (820 tablet branch) Today view 1`] = `
+{
+  "lines": 2170,
+  "sha256": "8d4ffe49eef35f4f56422d4bda1acc13162dd5ca3675e1956a970d0545474ea4",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (Tools entry) 1`] = `
+{
+  "lines": 823,
+  "sha256": "bcdcec02eea24592681b7764a3985c0e7d1f19f02845b7a84af49c588f4828c3",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) construction-ai (from the job) 1`] = `
+{
+  "lines": 827,
+  "sha256": "8210e3d23c0564ad44305c73e8c35537553055cd169052516de8abff2469bf84",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) deliveries 1`] = `
+{
+  "lines": 887,
+  "sha256": "4d4a99adabc7881bde761a7fea3f69ce989731950b9f6aee20c01b14328e9d68",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) project-detail (code checks card) 1`] = `
+{
+  "lines": 1544,
+  "sha256": "c239fcd7c5f4d6e2816533e1a381070dbd24e83f8b34b408472c54f0a13a4653",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) punch-list 1`] = `
+{
+  "lines": 1638,
+  "sha256": "02aee2749ce78c7a5988536a7ae276156c80bb74a757725dcdaf5587bb5650eb",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (answered rfi-1) 1`] = `
+{
+  "lines": 835,
+  "sha256": "ce65f69e9b3742edbca8c139649151596ec8ae5a09c855887b23095ec20af975",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (new) 1`] = `
+{
+  "lines": 734,
+  "sha256": "9936760e085a820837354c13f1cbb6f72873dcb0e099200f82d14a2f2cb6957f",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) rfi (open rfi-2) 1`] = `
+{
+  "lines": 851,
+  "sha256": "c058752abc212b87c95a001cc648929b810f221546a1f636eb34a14826072fc3",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) scan 1`] = `
+{
+  "lines": 339,
+  "sha256": "dd7f784cd703a181a4b46866b93813d2a67ff07f19e48754a30d91ac84456944",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) time-tracking (no job) 1`] = `
+{
+  "lines": 623,
+  "sha256": "6335f8975fd19da4a719f29d899951fdc94991a450a4db7af64a9bc1e90a3ae2",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) time-tracking 1`] = `
+{
+  "lines": 644,
+  "sha256": "967ad3f095426a13271e92cb0f9f5339276d24ab7bd7631c250c4bfd8c0ae4d7",
+}
+`;
+
+exports[`UX lane B — the phone golden (390 x 844 iOS) tomorrow-lineup 1`] = `
+{
+  "lines": 304,
+  "sha256": "be94456cb52f2f735d01f8c0ef554e27eef6326aab3a790515ff5ce0b928c833",
+}
+`;

@@ -824,13 +824,12 @@ function mkCO(over: Partial<ChangeOrder> = {}): ChangeOrder {
 //
 // WHAT THIS DELIBERATELY DOES NOT ASSERT: that every builder reaches
 // hooks/useBrainWatch's canonical `total`. That was this check's first draft and
-// it was WRONG. RFIs and submittals gate the all-clear SENTENCE and are kept out
-// of the COUNT on purpose — sim-audit #15 was the home card reading 5 while the
-// tab badge read 11, and __tests__/smoke/all-clear-honesty.test.tsx pins the
-// split ("the extra categories gate the SENTENCE here precisely so they can
-// never reach the count"). Requiring canonical membership broke two of those
-// tests immediately. Reachability is the honest invariant; membership is a
-// product decision this guard has no business making.
+// it was WRONG at the time: RFIs and submittals then gated only the all-clear
+// SENTENCE and were kept out of the COUNT. UX wave A7 later made them
+// canonical (hooks/useBrainWatch pushes rfiAttention / submittalAttention, and
+// __tests__/smoke/all-clear-honesty.test.tsx now pins them IN the one count).
+// Which builders are canonical is still a product decision this guard has no
+// business making; reachability is the honest invariant.
 {
   const watchSrc = readFileSync(join(ROOT, 'utils', 'brainWatch.ts'), 'utf8');
   const builders = [...new Set(

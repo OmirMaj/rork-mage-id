@@ -16,7 +16,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAIN_FAB_CLEARANCE } from '@/components/brain/brainFabState';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import * as Haptics from 'expo-haptics';
 import {
@@ -50,7 +50,8 @@ interface DraftLine {
 const STATUS_LABEL: Record<SmartProposal['status'], string> = {
   draft: 'Draft',
   sent: 'Sent',
-  accepted: 'Accepted',
+  // C9: "yes" on a price is not a signature — the contract records that.
+  accepted: 'Said yes',
   declined: 'Declined',
 };
 
@@ -442,6 +443,7 @@ function QuoteRow({ record, t, styles, onAccept, onDecline, onReshare }: {
   onReshare: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
   const price = record.tiers[0]?.price ?? 0;
   const statusColor =
     record.status === 'accepted' ? t.success
@@ -481,7 +483,7 @@ function QuoteRow({ record, t, styles, onAccept, onDecline, onReshare }: {
             activeOpacity={0.85}
           >
             <CheckCircle2 size={15} color={t.success} strokeWidth={1.75} />
-            <Text style={[styles.quoteActionText, { color: t.success }]}>Accepted</Text>
+            <Text style={[styles.quoteActionText, { color: t.success }]}>Client said yes (not signed)</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quoteActionBtn, { borderColor: t.danger }, record.status === 'declined' && { backgroundColor: t.danger + '22' }]}
@@ -501,6 +503,21 @@ function QuoteRow({ record, t, styles, onAccept, onDecline, onReshare }: {
             <Text style={[styles.quoteActionText, { color: t.text }]}>Re-share</Text>
           </TouchableOpacity>
         </View>
+      )}
+      {expanded && (
+        record.projectId ? (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/contract', params: { projectId: record.projectId! } })}
+            accessibilityRole="link"
+            accessibilityLabel="To lock it in, send the contract"
+            hitSlop={8}
+            testID={`quick-quote-lock-in-${record.id}`}
+          >
+            <Text style={[styles.lockInLine, { color: t.accent }]}>To lock it in, send the contract</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.lockInLine} testID={`quick-quote-lock-in-${record.id}`}>To lock it in, send the contract</Text>
+        )
       )}
     </View>
   );
@@ -617,4 +634,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     gap: 5, paddingVertical: 10, borderRadius: Tokens.radius.card, borderWidth: 1.5,
   },
   quoteActionText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const },
+  lockInLine: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textMuted, paddingHorizontal: 14, paddingBottom: 12, marginTop: -4 },
 });

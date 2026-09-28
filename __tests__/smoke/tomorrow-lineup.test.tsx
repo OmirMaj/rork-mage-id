@@ -126,14 +126,36 @@ describe("tomorrow's lineup", () => {
     expect({ a: mask(a), b: mask(b) }).toMatchSnapshot();
   });
 
-  it('Send reaches the share sheet only when pressed, with his edits', async () => {
-    await mount(`/tomorrow-lineup?projectId=${P}`);
-    expect(mockShare).not.toHaveBeenCalled();
-    fireEvent.changeText(screen.getByTestId(`lineup-draft-${A}`), 'Edited lineup text');
-    expect(mockShare).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.press(screen.getByTestId(`lineup-send-${A}`)); });
-    expect(mockShare).toHaveBeenCalledTimes(1);
-    expect(mockShare.mock.calls[0][0].message).toBe('Edited lineup text');
+  // UX wave B4: a sub with a phone gets Messages, addressed, with the whole
+  // text (sms: URL); a sub with no phone gets the share sheet. Either way
+  // nothing leaves until Send is pressed, and the edited text is what goes.
+  it('Send opens Messages for a sub with a phone and the share sheet for one without, only when pressed, with the edits', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Linking } = require('react-native') as typeof import('react-native');
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    try {
+      await mount(`/tomorrow-lineup?projectId=${P}`);
+      expect(mockShare).not.toHaveBeenCalled();
+      expect(openURL).not.toHaveBeenCalled();
+      fireEvent.changeText(screen.getByTestId(`lineup-draft-${A}`), 'Edited lineup text');
+      fireEvent.changeText(screen.getByTestId(`lineup-draft-${B}`), 'Edited for Bolt');
+      expect(mockShare).not.toHaveBeenCalled();
+      expect(openURL).not.toHaveBeenCalled();
+
+      await act(async () => { fireEvent.press(screen.getByTestId(`lineup-send-${A}`)); });
+      expect(openURL).toHaveBeenCalledTimes(1);
+      const url = String(openURL.mock.calls[0][0]);
+      expect(url.startsWith('sms:5558000001')).toBe(true);
+      expect(decodeURIComponent(url.slice(url.indexOf('body=') + 5))).toBe('Edited lineup text');
+      expect(mockShare).not.toHaveBeenCalled();
+
+      await act(async () => { fireEvent.press(screen.getByTestId(`lineup-send-${B}`)); });
+      expect(mockShare).toHaveBeenCalledTimes(1);
+      expect(mockShare.mock.calls[0][0].message).toBe('Edited for Bolt');
+      expect(openURL).toHaveBeenCalledTimes(1);
+    } finally {
+      openURL.mockRestore();
+    }
   });
 
   it('the 3 pm reminder: on schedules five weekly reminders, asking permission only then', async () => {

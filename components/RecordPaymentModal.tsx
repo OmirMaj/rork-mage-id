@@ -9,9 +9,11 @@
 // payment as 'unreconciled' rather than blocking the flow.
 
 import React, { useState } from 'react';
-import { View, Animated, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Animated, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, AlertTriangle } from 'lucide-react-native';
+import { X, AlertTriangle, CalendarDays } from 'lucide-react-native';
+import DatePickerModal from '@/components/DatePickerModal';
+import { formatCalendarDay } from '@/utils/calendarDate';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
@@ -33,6 +35,13 @@ function todayLocalISO(): string {
   const day = `${d.getDate()}`.padStart(2, '0');
   return `${d.getFullYear()}-${m}-${day}`;
 }
+
+/** C7: the day money left the account can't be after today. Both sides are
+ *  local YYYY-MM-DD, so a string compare is a day compare. */
+export function isFuturePaidOn(day: string, todayISO: string): boolean {
+  return day > todayISO;
+}
+export const FUTURE_PAID_ON_REFUSAL = 'That day hasn’t happened yet. Pick the day the money left your account.';
 
 export interface PaymentDetail {
   method?: string;
@@ -71,6 +80,19 @@ export default function RecordPaymentModal({
   );
   const [reference, setReference] = useState(initial?.reference ?? '');
   const [paidOn, setPaidOn] = useState(initial?.paidOn ?? todayLocalISO());
+  // C7 (UX wave): the day comes from the picker, never a typed YYYY-MM-DD.
+  // A future day is refused HERE, not by the picker: without allowFuture the
+  // picker only caps the YEAR, so its Month/Day wheels still reach December.
+  // Money that has not left the account yet is not a payment to record.
+  const [datePicker, setDatePicker] = useState(false);
+  const [futureRefused, setFutureRefused] = useState(false);
+  const pickPaidOn = (iso: string) => {
+    const day = iso.slice(0, 10);
+    setDatePicker(false);
+    if (isFuturePaidOn(day, todayLocalISO())) { setFutureRefused(true); return; }
+    setFutureRefused(false);
+    setPaidOn(day);
+  };
 
   const submit = () => onSubmit({ method, reference, paidOn });
   const noticeText = notice ? notice(paidOn) : null;
@@ -130,17 +152,21 @@ export default function RecordPaymentModal({
             />
 
             <Text style={styles.fieldLabel}>Date paid</Text>
-            <TextInput
-              style={styles.input}
-              value={paidOn}
-              onChangeText={setPaidOn}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={t.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+            <TouchableOpacity
+              style={[styles.input, styles.dateField]}
+              onPress={() => setDatePicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Date paid, ${formatCalendarDay(paidOn)}. Change`}
               testID="payment-date-input"
-            />
+            >
+              <Text style={styles.dateText}>{formatCalendarDay(paidOn)}</Text>
+              <CalendarDays size={16} color={t.textMuted} strokeWidth={1.75} />
+            </TouchableOpacity>
+            {futureRefused ? (
+              <Text style={[styles.fieldHint, styles.fieldHintRefused]} testID="payment-date-future" accessibilityRole="alert">
+                {FUTURE_PAID_ON_REFUSAL}
+              </Text>
+            ) : null}
             <Text style={styles.fieldHint}>
               The day the money actually left your account — not today, if the check was written earlier.
             </Text>
@@ -165,6 +191,15 @@ export default function RecordPaymentModal({
           ) : null}
         </Animated.View>
       </View>
+      {datePicker ? (
+        <DatePickerModal
+          visible
+          value={paidOn}
+          title="Date paid"
+          onClose={() => setDatePicker(false)}
+          onChange={pickPaidOn}
+        />
+      ) : null}
     </Modal>
   );
 }
@@ -187,6 +222,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary, marginTop: 16, marginBottom: 8,
   },
   fieldHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 6 },
+  fieldHintRefused: { color: t.dangerLabel },
 
   methodRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   methodChip: {
@@ -203,6 +239,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
     fontSize: Type.subhead.fontSize, color: t.text, backgroundColor: t.bg,
   },
+  dateField: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, minHeight: 48 },
+  dateText: { fontSize: Type.subhead.fontSize, color: t.text },
 
   notice: {
     flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,

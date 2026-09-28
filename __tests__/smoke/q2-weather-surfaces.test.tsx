@@ -28,6 +28,16 @@ jest.mock('@/contexts/ThemeContext', () => {
   };
 });
 
+// UX wave B5: TodayView's Tomorrow block gates its "Send lineup" door through
+// useProjectAccess (schedule_gantt_pdf, the /tomorrow-lineup gate). This
+// harness mounts TodayView bare, with no SubscriptionProvider, so the hook is
+// stubbed open; its own gate is covered by validate-ux-lane-b.
+jest.mock('@/hooks/useProjectAccess', () => ({
+  useProjectAccess: () => ({
+    tier: 'pro', role: null, canAccess: () => true, canAccessOwnTier: () => true, requiredTierFor: () => 'pro',
+  }),
+}));
+
 const mockForecast = jest.fn();
 jest.mock('@/utils/weatherService', () => ({
   ...jest.requireActual('@/utils/weatherService'),
@@ -143,9 +153,21 @@ describe('Q2 weather surfaces', () => {
       }
       const golden = (JSON.parse(readFileSync(GOLDEN, 'utf8')) as Record<string, string[]>)[s.name];
       expect(golden).toBeDefined();
+      // UX wave B5: TodayView now ends with a "Tomorrow" block (the next
+      // working day's tasks and the lineup door). It comes after everything
+      // the golden holds, so it is split off and checked on its own: with no
+      // tasks it names the day and says nothing is scheduled.
+      const tIdx = lines.findIndex((l) => /^Tomorrow · /.test(l));
+      const body = tIdx >= 0 ? lines.slice(0, tIdx) : lines;
+      const tomorrowBlock = tIdx >= 0 ? lines.slice(tIdx) : [];
+      if (s.kind === 'today') {
+        expect(tomorrowBlock).toEqual(['Tomorrow · Fri, Sep 25', 'Nothing is scheduled on the next working day.']);
+      } else {
+        expect(tomorrowBlock).toEqual([]);
+      }
       // New lines this lane adds; everything else must be the golden, in order.
-      const added = lines.filter((l) => /^Weather for /.test(l));
-      const rest = lines.filter((l) => !/^Weather for /.test(l));
+      const added = body.filter((l) => /^Weather for /.test(l));
+      const rest = body.filter((l) => !/^Weather for /.test(l));
       // The banner body may carry the cause sentence after the golden copy.
       const norm = (l: string) => l
         .replace(/ This project has no jobsite address, so there is nowhere to forecast\. Add the address in Edit project to see live weather\.$/, '')

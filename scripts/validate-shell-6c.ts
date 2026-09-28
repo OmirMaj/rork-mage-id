@@ -466,11 +466,14 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
   // registry's projectScoped (DesktopSidebar hrefFor), and the chord's route
   // is the sidebar NAV_ITEMS literal for the same feature.
   const sidebar = read('components/DesktopSidebar.tsx');
+  // UX wave D6 moved RFIs and Submittals under the sidebar's DOCUMENTS section;
+  // for those two features that row is the one the chord must match.
+  const DOCUMENTS_FEATURES = new Set(['rfi', 'submittal']);
   const navRoute = (feature: string): string | null => {
     for (const line of sidebar.split('\n')) {
       if (!new RegExp(`feature: '${feature}'`).test(line)) continue;
       const m = /route: '([^']+)'/.exec(line);
-      if (m && /section: 'THIS JOB'/.test(line)) return m[1];
+      if (m && (/section: 'THIS JOB'/.test(line) || (DOCUMENTS_FEATURES.has(feature) && /section: 'DOCUMENTS'/.test(line)))) return m[1];
     }
     return null;
   };
@@ -482,7 +485,7 @@ console.log('\nd6r K1 — the Ask dock, the dock API it stands on, and the keybo
     const got = chordTarget(c, { activeProjectId: 'p1', schedule: { canPro: false, proFits: false } });
     ok(`K1 ${c.combo} (${c.label}) with a job = jobScopedTarget over featureFor('${t.feature}').projectScoped`,
       eq(got, want) && eq(got.params, { projectId: 'p1' }), JSON.stringify(got));
-    ok(`K1 ${c.combo} route is the sidebar's THIS JOB row for '${t.feature}'`, navRoute(t.feature) === t.route,
+    ok(`K1 ${c.combo} route is the sidebar's ${DOCUMENTS_FEATURES.has(t.feature) ? 'DOCUMENTS' : 'THIS JOB'} row for '${t.feature}'`, navRoute(t.feature) === t.route,
       `sidebar ${navRoute(t.feature)} vs chord ${t.route}`);
   }
   const sched = G_CHORDS.find((c) => c.target.kind === 'schedule');
