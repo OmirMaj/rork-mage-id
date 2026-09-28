@@ -43,10 +43,18 @@
 // (a photo, a dictation, a note from before payloads were kept) offers only
 // Dismiss — an ACKNOWLEDGEMENT, not a recovery, and the prompt says exactly
 // that.
+//
+// A6 (UX wave): the app-wide floating pill also says when voice notes are
+// still on this phone — "1 voice note waiting" (recorded with no signal, not
+// yet transcribed or not yet added to the report) and, separately and in the
+// failed style, "N voice notes couldn't be transcribed". The two are never
+// summed and never share a colour, the same rule as above. A tap opens
+// components/VoiceBacklogSheet: each clip, its project, when it was recorded
+// and where it stands. Home's header pill (not floating) does not repeat it.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { CloudOff, CircleAlert, CircleHelp } from 'lucide-react-native';
+import { CloudOff, CircleAlert, CircleHelp, Mic } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -59,6 +67,8 @@ import { showAlert } from '@/utils/alert';
 import { Button } from '@/components/ui';
 import { discardConfirmBody, type UnsavedLine } from '@/utils/syncStatusCore';
 import { onSyncSheetRequested } from '@/utils/syncLedger';
+import { voiceFailedLine, voiceWaitingLine } from '@/utils/audioTranscribeCore';
+import VoiceBacklogSheet, { useVoiceBacklog } from '@/components/VoiceBacklogSheet';
 
 interface Props {
   /** Optional: visual variant. 'compact' shows the icon + the short count;
@@ -83,6 +93,12 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
   const sheetOpenRef = useRef(false);
   sheetOpenRef.current = sheetOpen;
   const [busyId, setBusyId] = useState<string | null>(null);
+  // A6: voice notes still on this phone — the floating pill only.
+  const voice = useVoiceBacklog(floating);
+  const [voiceSheetOpen, setVoiceSheetOpen] = useState(false);
+  const voiceWaiting = floating ? voiceWaitingLine(voice.backlog) : '';
+  const voiceFailed = floating ? voiceFailedLine(voice.backlog) : '';
+  const showVoice = voiceWaiting.length > 0 || voiceFailed.length > 0;
   // Desktop web: the "what failed" sheet is a centred card beside the sidebar;
   // all-null on a phone. Above the `!visible` return, so hook order is fixed.
   const fSync = useSheetFrame('form', { visible: sheetOpen && tone === 'failed', animationType: 'slide' });
@@ -144,7 +160,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
     );
   }, [discardUnsaved]);
 
-  if (!visible) return null;
+  if (!visible && !showVoice && !voiceSheetOpen) return null;
 
   const failedTone = tone === 'failed';
   const unknownTone = tone === 'unknown';
@@ -157,8 +173,7 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
     ? status.badge
     : String(status.pending);
 
-  return (
-    <>
+  const statusPill = visible ? (
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.7}
@@ -178,6 +193,56 @@ export default function OfflineSyncPill({ variant = 'compact', floating = false 
           </Text>
         </View>
       </TouchableOpacity>
+  ) : null;
+
+  const voicePills = showVoice ? (
+    <>
+      {voiceWaiting ? (
+        <TouchableOpacity
+          onPress={() => setVoiceSheetOpen(true)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={voiceWaiting}
+          accessibilityHint="Shows the voice notes on this phone"
+          testID="offline-sync-voice-waiting"
+          style={styles.floatingGround}
+        >
+          <View style={[styles.pill, styles.voicePill]}>
+            <Mic size={12} color={Colors.warningLabel} strokeWidth={1.75} />
+            <Text style={styles.text} numberOfLines={1}>{voiceWaiting}</Text>
+          </View>
+        </TouchableOpacity>
+      ) : null}
+      {voiceFailed ? (
+        <TouchableOpacity
+          onPress={() => setVoiceSheetOpen(true)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={voiceFailed}
+          accessibilityHint="Shows the voice notes on this phone"
+          testID="offline-sync-voice-failed"
+          style={styles.floatingGround}
+        >
+          <View style={[styles.pill, styles.voicePill, { backgroundColor: themeColors.danger + '1F', borderColor: themeColors.danger + '59' }]}>
+            <CircleAlert size={12} color={themeColors.danger} strokeWidth={1.75} />
+            <Text style={[styles.text, { color: themeColors.danger }]} numberOfLines={1}>{voiceFailed}</Text>
+          </View>
+        </TouchableOpacity>
+      ) : null}
+    </>
+  ) : null;
+
+  return (
+    <>
+      {voicePills ? <View style={styles.voiceStack}>{statusPill}{voicePills}</View> : statusPill}
+      {voiceSheetOpen ? (
+        <VoiceBacklogSheet
+          visible
+          onClose={() => setVoiceSheetOpen(false)}
+          tasks={voice.tasks}
+          userId={voice.userId}
+        />
+      ) : null}
       <Modal
         visible={sheetOpen && failedTone}
         transparent
@@ -281,4 +346,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rowLabel: { ...Type.subheadEmphasized, color: t.text },
   rowReason: { ...Type.footnote, color: t.dangerLabel },
   rowActions: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
+  voiceStack: { gap: 6, alignItems: 'flex-start' },
+  // The voice lines are whole sentences; the count pill's 200 cap would cut
+  // "3 voice notes couldn't be transcribed" mid-word.
+  voicePill: { maxWidth: 300 },
 });

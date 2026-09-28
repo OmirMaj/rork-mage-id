@@ -14,7 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import {
   DollarSign, Users, TrendingDown, MapPin, Presentation, Gavel,
-  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, CalendarDays,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, CalendarDays, HandCoins,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, ScanSearch, Layers, Scale, ShieldCheck,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
@@ -99,7 +99,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { invoiceOutstanding, invoiceIsSettled } from '@/utils/invoiceBilling'; // MONEY-F5
 import { computeARAgingReport } from '@/utils/financialReports';
-import { fetchActiveContract } from '@/utils/contractEngine';
+import { loadActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { loadLienWaiversChecked } from '@/utils/lienWaiverEngine';
@@ -129,8 +129,16 @@ import { getSidebarRail } from '@/utils/sidebarRailStore';
 import { SidePanel } from '@/components/desktop/SidePanel';
 import { RowLink, routeHref } from '@/components/desktop/RowLink';
 import { useActiveProject } from '@/contexts/ActiveProjectContext';
-import { clockInHref, photoTriageHref, punchListNewHref, tomorrowLineupHref } from '@/utils/uxRoutes';
-import { showsFieldRow, clientFieldsProblem, editedPrimaryContact } from '@/utils/uxDoors';
+import { clockInHref, photoTriageHref, punchListNewHref, tomorrowLineupHref, scheduleFromJobFocusHref, estimateFromJobHref } from '@/utils/uxRoutes';
+import { showsFieldRow, clientFieldsProblem, editedPrimaryContact, chainContractFromLoad, moneyChainForRole } from '@/utils/uxDoors';
+import { SubsPayTile } from '@/components/project/SubsPayTile';
+import { useSearch } from '@/contexts/SearchContext';
+import { projectRecordWriteBlock } from '@/utils/collaboratorAccess';
+import { subsPayRows } from '@/utils/subsPayRows';
+import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
+import { nextBillableMilestone } from '@/utils/nextBillableMilestone';
+import { invoiceStatusLabel } from '@/utils/logs/invoiceLogRows';
+import { humanizeEnum } from '@/utils/statusLabels';
 import { rfiLogCounts } from '@/utils/logs/rfiLogRows';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useProjectPulse } from '@/hooks/useProjectPulse';
@@ -169,7 +177,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries' | 'safety' | 'aiReport';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'fieldTickets' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope' | 'deliveries' | 'safety' | 'aiReport' | 'subsPay';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -278,9 +286,14 @@ function hubPermissions(role: 'owner' | 'editor' | 'viewer' | 'field' | null): {
   canDelete: boolean;
   canLeave: boolean;
   editBlockedReason: string | null;
+  /** W1 UXDOORS (D5): Subs & pay is the owner's alone. Commitments are
+   *  owner-only under RLS (commitments_owner_all), so an editor's read comes
+   *  back empty and the tile would say "No subs" on a job full of subs. */
+  showSubsPay: boolean;
 } {
   const isOwner = role === 'owner';
   return {
+    showSubsPay: role === 'owner',
     showMoney: role === 'owner' || role === 'editor' || role === 'viewer',
     showClientPortal: isOwner,
     canDelete: isOwner,
@@ -333,11 +346,12 @@ function sortSubmittalsForHub<T extends { currentStatus: string }>(rows: T[]): T
 }
 
 /** The Money group's tiles — hidden together from a role that may not see money (#92). */
-const HUB_MONEY_TILE_KEYS: readonly string[] = ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'];
+const HUB_MONEY_TILE_KEYS: readonly string[] = ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover', 'subsPay'];
 
 /** Whether a tile (or a ?tile= deep link to its section) is shown to this role. */
-function hubTileVisible(key: string, perms: { showMoney: boolean; showClientPortal: boolean }): boolean {
+function hubTileVisible(key: string, perms: { showMoney: boolean; showClientPortal: boolean; showSubsPay?: boolean }): boolean {
   if (!perms.showMoney && HUB_MONEY_TILE_KEYS.includes(key)) return false;
+  if (key === 'subsPay' && !perms.showSubsPay) return false;
   if (!perms.showClientPortal && key === 'clientPortal') return false;
   return true;
 }
@@ -358,7 +372,7 @@ const TILE_LOCK_FEATURE: Record<string, string> = {
 function tileLockReason(key: string, role: 'owner' | 'editor' | 'viewer' | 'field' | null, requiredTier: string | null): string {
   if (key === 'permits' && role != null && role !== 'owner') return 'Permits are managed by the project owner';
   // A viewer seat is not locked out by a plan — a Business upsell would be a lie.
-  if (key === 'timeTracking' && role === 'viewer') return 'Clocking crew in needs a field or editor seat';
+  if (key === 'timeTracking' && role === 'viewer') return 'Clocking in crew needs Field or Editor access';
   if (!requiredTier) return 'Upgrade required';
   return `Needs ${requiredTier.charAt(0).toUpperCase()}${requiredTier.slice(1)}`;
 }
@@ -410,7 +424,7 @@ export default function ProjectDetailScreen() {
     useLocalSearchParams<{ id: string; tile?: string; edit?: string; justJoined?: string; prep?: string }>();
   const ctx = useProjects() as any;
   const { user: authUser } = useAuth();
-  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject, settingsLoaded, bidPackageBids, forgetSharedProject, portalListsServerRead, portalAiaListServerRead, projectsFetching, countQueuedForProject, countUnsavedForProject, flushPendingProjectSyncs } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, getFieldTicketsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, updateProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded, getBidPackagesForProject, getCommitmentsForProject, subcontractors, settingsLoaded, bidPackageBids, forgetSharedProject, portalListsServerRead, portalAiaListServerRead, projectsFetching, countQueuedForProject, countUnsavedForProject, flushPendingProjectSyncs } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess, requiredTierFor } = useTierAccess();
@@ -495,17 +509,24 @@ export default function ProjectDetailScreen() {
       try {
         // Per-fetch catch: one failing money fetch must not reject the whole
         // batch and blank all four badges (three of which fetched fine).
-        const [contract, sels, binder, waivers] = await Promise.all([
-          fetchActiveContract(id).catch(() => null),
+        const [contractLoad, sels, binder, waivers] = await Promise.all([
+          // W1 UXDOORS (D5): loadActiveContract says whether the read worked
+          // (fetchActiveContract folds a failure into null = "none on file").
+          // It never throws; the catch is belt-and-braces.
+          loadActiveContract(id).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : 'read failed' })),
           fetchSelectionsForProject(id).catch(() => []),
           fetchCloseoutBinder(id).catch(() => null),
           // #30 (CONTRACT 6): a failed read is said, never shown as none.
           loadLienWaiversChecked(id).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : 'read failed' })),
         ]);
         if (cancelled) return;
+        // The badge keeps today's behaviour: a failed read shows as none.
+        const contract = contractLoad.ok ? contractLoad.contract : null;
         // Kept for the Client Portal "Terms needed" badge below, which needs
         // proposalBlockReason's contract gate without a second fetch.
         setPortalBadgeContract(contract ?? null);
+        // The chain's copy: undefined (never read as "none") when the read failed.
+        setChainContract(chainContractFromLoad(contractLoad));
         const next: typeof tileBadges = {};
         // Contract \u2014 most useful when it's hanging in 'sent' awaiting
         // signature, or already 'signed'.
@@ -559,13 +580,14 @@ export default function ProjectDetailScreen() {
   const hubRole = roleState.role ?? pricingRoleFor(project?.myRole ?? null, project?.ownerUserId, authUser?.id);
   const hubPerms = useMemo(() => hubPermissions(hubRole), [hubRole]);
   // UX wave, Lane D (D2): a LIVE job's phone quick row is the field work —
-  // Daily report, Photo, Punch, Clock in — instead of the office row. Voice is
-  // HELD with A3: the global mic (UniversalMicButton) takes no job and files
-  // to its latched / most-recently-updated project, so a Voice door here could
-  // write the note to a different job.
+  // Daily report, Photo, Punch, Clock in, Voice — instead of the office row.
+  // Voice (W1 UXDOORS) opens the mic ON THIS JOB (openVoice's projectId) and
+  // recording at once (autoStart); native only — the web mic is disabled, and
+  // the desk keeps its typed doors.
   // Draft and estimated jobs keep the office row (showsFieldRow is pure,
   // proven by scripts/validate-ux-doors.ts). Desktop is untouched.
   const fieldRow = showsFieldRow(project?.status);
+  const { openVoice } = useSearch();
   // #173: the Team count reads the same rows (same react-query key) the Team
   // list below draws, so the two can never disagree — no extra fetch.
   const teamRoster = useProjectCollaborators(project?.id);
@@ -762,6 +784,8 @@ export default function ProjectDetailScreen() {
     scope: false,
     // Desktop-only section (the ⋯ menu's AI project report) — flag never read.
     aiReport: false,
+    // W1 UXDOORS (D5): Subs & pay has no collapsible header — flag never read.
+    subsPay: true,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -782,6 +806,23 @@ export default function ProjectDetailScreen() {
   // The active contract from the badge batch; undefined until it has loaded,
   // so the portal badge never guesses whether a sent contract blocks it.
   const [portalBadgeContract, setPortalBadgeContract] = useState<ProjectContract | null | undefined>(undefined);
+  // W1 UXDOORS (D5): the same fetch, for the money chain (NextStepHero's
+  // `contract`, the Invoices section's deposit button). undefined while not
+  // fetched AND when the read failed; null only when none is on file.
+  const [chainContract, setChainContract] = useState<ProjectContract | null | undefined>(undefined);
+  // W1 UXDOORS (D5): the Subs & pay rows. The sub bills are read only while
+  // the section is open (no new read on every job-page visit); until they
+  // land the rows show no open-bill figure rather than a guessed $0.
+  const subBillRead = useSubSubmittedInvoices({ projectId: activeTile === 'subsPay' ? (id ?? undefined) : undefined });
+  const subsPayRowList = useMemo(
+    () => subsPayRows({
+      projectId: id ?? '',
+      commitments: projectCommitments,
+      subs: subcontractors ?? [],
+      subBills: activeTile === 'subsPay' && subBillRead.subBillsChecked ? subBillRead.invoices : null,
+    }),
+    [id, projectCommitments, subcontractors, activeTile, subBillRead.subBillsChecked, subBillRead.invoices],
+  );
 
   // ── Proposal payment terms (Direction B) ─────────────────────────────
   // A portal switched on before the GC's terms existed publishes its proposal
@@ -1220,7 +1261,7 @@ export default function ProjectDetailScreen() {
     // Q6: Other needs his words — checked before anything is written.
     const typeBlock = projectTypeBlockReason(editType, editTypeOther);
     if (typeBlock) {
-      showAlert('Describe the job', typeBlock);
+      showAlert('Describe the project', typeBlock);
       return;
     }
     // D4: a typed client email / phone that cannot be used is said, not dropped.
@@ -2270,7 +2311,9 @@ export default function ProjectDetailScreen() {
       if (href.pathname === '/schedule-pro') router.push(href); else router.replace(href);
       return;
     }
-    router.replace(routeHref('/(tabs)/schedule', { projectId: id ?? '', focus: String(Date.now()) }));
+    // W1 UXDOORS (D2): the phone line carries from=job, so the schedule tab
+    // draws "< <this job>" and Back returns here.
+    router.replace(scheduleFromJobFocusHref(id ?? '', String(Date.now())));
   }, [router, id, deskWeb, canAccess, project?.myRole, layout.width]);
   const buildSchedule = useCallback(() => { router.replace(routeHref('/(tabs)/discover/schedule')); }, [router]);
   // Cmd/Ctrl+Enter (and Cmd+S) save the edit and note sheets on desktop web.
@@ -2370,6 +2413,17 @@ export default function ProjectDetailScreen() {
   const heroTotal = effectiveEstimateTotal(project);
   // THE one % complete (utils/projectProgress, via the pulse).
   const heroProgress = pulse.progress;
+  // W1 UXDOORS (D5): the Invoices section's deposit / final button. The FINAL
+  // row only once the job reads done (NextStepHero's rule, on the pulse's one
+  // progress). Numbering, retainage and the milestone:<id> key are the
+  // invoice screen's, untouched: this only opens it with the contract's params.
+  // Owner-only (contracts and COs are owner-only under RLS; nobody else bills).
+  const moneyChain = moneyChainForRole(hubRole, chainContract, changeOrders);
+  const depositToBill = nextBillableMilestone({
+    contract: moneyChain.contract,
+    invoices: projectInvoices,
+    includeFinal: project.status === 'completed' || (heroProgress.hasSchedule && heroProgress.pct >= 100),
+  });
   const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
 
   // ── The hub's tiles: the phone grid and the desktop section index ──
@@ -2403,7 +2457,7 @@ export default function ProjectDetailScreen() {
     budget: MONEY_COLOR, contract: MONEY_COLOR, selections: MONEY_COLOR,
     linkedEstimate: MONEY_COLOR, changeOrders: MONEY_COLOR,
     invoices: MONEY_COLOR, lienWaivers: MONEY_COLOR,
-    closeoutBinder: MONEY_COLOR, handover: MONEY_COLOR,
+    closeoutBinder: MONEY_COLOR, handover: MONEY_COLOR, subsPay: MONEY_COLOR,
     // docs
     rfis: DOCS_COLOR, submittals: DOCS_COLOR, permits: DOCS_COLOR,
     projectFiles: DOCS_COLOR, activity: DOCS_COLOR, calendar: DOCS_COLOR,
@@ -2426,6 +2480,10 @@ export default function ProjectDetailScreen() {
     { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: colorFor('handover'), count: null as number | null },
     { key: 'changeOrders', label: 'Change Orders', icon: MageChangeOrder, color: colorFor('changeOrders'), count: changeOrders.length },
     { key: 'invoices', label: 'Invoices', icon: MageInvoice, color: colorFor('invoices'), count: projectInvoices.length },
+    // W1 UXDOORS (D5): who is on this job, what they are owed and paid, and
+    // the Pay / Get waiver doors. A phone and tablet section (the section
+    // sheet); the desktop index keeps its nine-row Money column.
+    ...(!isDesktop ? [{ key: 'subsPay' as SectionKey, label: 'Subs & pay', icon: HandCoins, color: colorFor('subsPay'), count: subsPayRowList.length }] : []),
     { key: 'dailyReports', label: 'Daily Reports', icon: MageDailyReport, color: colorFor('dailyReports'), count: dailyReports.length },
     // T&M ticket — extra work signed for on site. The badge counts
     // SIGNED-BUT-UNBILLED tickets, because that number is money the GC
@@ -2447,7 +2505,7 @@ export default function ProjectDetailScreen() {
     ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: MageMargin, color: colorFor('budget'), count: null as number | null }] : []),
     { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
     { key: 'plans', label: 'Plans', icon: MagePlans, color: colorFor('plans'), count: projectPlans.length },
-    { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
+    { key: 'clientPortal', label: 'Client portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
     { key: 'communications', label: 'Communications', icon: Mail, color: colorFor('communications'), count: commEvents.length },
     { key: 'activity', label: 'Activity', icon: Activity, color: colorFor('activity'), count: null as number | null },
     { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: colorFor('calendar'), count: null as number | null },
@@ -2455,7 +2513,7 @@ export default function ProjectDetailScreen() {
 
   const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
     { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'fieldTickets', 'deliveries', 'timeTracking', 'safety', 'punchList', 'photos', 'plans', 'schedule'] },
-    { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
+    { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'subsPay', 'lienWaivers', 'closeoutBinder', 'handover'] },
     { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
     { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
   ];
@@ -2574,7 +2632,7 @@ export default function ProjectDetailScreen() {
                     style={styles.crossLinkBtn}
                     // Same context drop as :2335 — this link's own label prints
                     // THIS project's task count and then opened another project.
-                    onPress={() => navigateFromTile({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any, 'replace')}
+                    onPress={() => navigateFromTile(scheduleFromJobFocusHref(id ?? '', String(Date.now())), 'replace')}
                     activeOpacity={0.7}
                     testID="estimate-view-schedule-link"
                   >
@@ -2793,7 +2851,7 @@ export default function ProjectDetailScreen() {
                   // active there (P0 context drop, 2026-07 sim audit). The
                   // `focus` nonce lets the schedule screen re-apply the param
                   // on every visit while ignoring stale sticky tab params.
-                  onPress={() => navigateFromTile({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any, 'replace')}
+                  onPress={() => navigateFromTile(scheduleFromJobFocusHref(id ?? '', String(Date.now())), 'replace')}
                   activeOpacity={0.7}
                   testID="schedule-open-full-link"
                 >
@@ -3446,7 +3504,7 @@ export default function ProjectDetailScreen() {
                         <Text style={[styles.coBadgeText, {
                           color: displayStatus === 'paid' ? themeColors.success : displayStatus === 'overdue' ? themeColors.danger : displayStatus === 'partially_paid' ? themeColors.accent : displayStatus === 'sent' ? themeColors.info : themeColors.textSecondary
                         }]}>
-                          {displayStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          {invoiceStatusLabel(displayStatus) ?? humanizeEnum(displayStatus)}
                           {invDaysPastDue > 0 ? ` · ${invDaysPastDue}d` : ''}
                         </Text>
                       </View>
@@ -3463,6 +3521,25 @@ export default function ProjectDetailScreen() {
               {billBlockedReason ? (
                 <Text style={styles.coEmptyText} testID="invoice-bill-blocked">{billBlockedReason}</Text>
               ) : (<>
+              {/* W1 UXDOORS (D5): a signed contract with a deposit (or, once the
+                  job reads done, a final payment) nobody has billed leads the
+                  buttons. The amount and every param are the contract's
+                  (nextBillableMilestone composes the contract screen's own
+                  milestoneBillability / milestoneBillEffect); otherwise the
+                  buttons are exactly today's. */}
+              {depositToBill ? (
+                <TouchableOpacity
+                  style={styles.coAddBtn}
+                  onPress={() => navigateFromTile(depositToBill.href)}
+                  activeOpacity={0.7}
+                  testID="invoice-bill-milestone-btn"
+                >
+                  <Receipt size={16} color={themeColors.success} strokeWidth={1.75} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.success }]}>
+                    {`Bill ${depositToBill.kind} · ${formatMoney(depositToBill.amount, 2)}`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               {/* Bill by voice — MAGE Copilot: say the draw, it opens billing
                   pre-set to progress or full. */}
               <TouchableOpacity
@@ -3513,6 +3590,18 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
+
+        {/* W1 UXDOORS (D5): Subs & pay — one card per commitment on this job.
+            The owner's alone (commitments are owner-only under RLS):
+            hubTileVisible hides it from every other seat; the same checks keep a stale ?tile= out. */}
+        {activeTile === 'subsPay' && hubPerms.showMoney && hubPerms.showSubsPay && (
+          <SubsPayTile
+            rows={subsPayRowList}
+            onOpen={(href) => navigateFromTile(href)}
+            onAdd={() => navigateFromTile({ pathname: '/job-costing', params: { projectId: id ?? '' } })}
+            testID="subs-pay"
+          />
         )}
 
         {activeTile === 'dailyReports' && (
@@ -4346,7 +4435,7 @@ export default function ProjectDetailScreen() {
             testID="client-portal-section"
           >
             <Globe size={20} color={themeColors.info} strokeWidth={1.75} />
-            <Text style={styles.sectionTitle}>Client Portal</Text>
+            <Text style={styles.sectionTitle}>Client portal</Text>
             {expanded.clientPortal ? (
               <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
@@ -4744,7 +4833,7 @@ export default function ProjectDetailScreen() {
               <TouchableOpacity
                 style={[styles.quickActionBtn, isDesktop && styles.quickActionBtnDesktop]}
                 onPress={() => (hasAnyEstimate
-                  ? router.replace(routeHref('/(tabs)/estimate/full', { projectId: project.id }))
+                  ? router.replace(estimateFromJobHref(project.id))
                   : router.push(routeHref('/estimate-wizard', { projectId: project.id })))}
                 activeOpacity={0.7}
                 accessibilityRole="button"
@@ -4884,11 +4973,22 @@ export default function ProjectDetailScreen() {
           // Project-aware, like the lineup row: a collaborator may hold photos
           // through the job even when his own plan does not.
           const photoLock = canAccessProject('photo_documentation') ? null : tileLockReason('photos', hubRole, requiredTierFor('photo_documentation'));
+          const voiceLock = projectRecordWriteBlock(hubRole ?? undefined);
           const actions: { key: string; label: string; Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; lock: string | null; onPress: () => void }[] = [
             { key: 'daily-report', label: 'Daily report', Icon: ClipboardList, lock: null, onPress: () => router.push(routeHref('/daily-report', { projectId: project.id })) },
             { key: 'photo', label: 'Photo', Icon: Camera, lock: photoLock, onPress: () => router.push(photoTriageHref(project.id)) },
             { key: 'punch', label: 'Punch item', Icon: CheckSquare, lock: punchLock, onPress: () => router.push(punchListNewHref(project.id)) },
             { key: 'clock-in', label: 'Clock in', Icon: Clock, lock: clockLock, onPress: () => router.push(clockInHref(project.id)) },
+            // W1 UXDOORS: Voice files to THIS job. A viewer cannot file a
+            // record here, so the door says why instead of recording a note
+            // the server would refuse.
+            ...(Platform.OS !== 'web' ? [{
+              key: 'voice', label: 'Voice', Icon: Mic, lock: voiceLock,
+              onPress: () => {
+                if (voiceLock) { showAlert("Can't record here", voiceLock); return; }
+                openVoice({ projectId: project.id, autoStart: true });
+              },
+            }] : []),
           ];
           return (
             <View style={styles.fieldActionRow} testID="project-field-actions">
@@ -5054,6 +5154,12 @@ export default function ProjectDetailScreen() {
           rfis={projectRFIs}
           punchItems={punchItems}
           scopeToProjectId={project?.id}
+          // W1 UXDOORS (D5 / C3): the money chain, from data this page already
+          // has — the fetched contract (undefined until read, and when the
+          // read failed; null when none is on file) and this job's COs.
+          // The owner's page only: RLS hides both from every other seat.
+          contract={moneyChain.contract}
+          changeOrders={moneyChain.changeOrders}
           testID="project-next-step"
         />
 
@@ -5196,7 +5302,7 @@ export default function ProjectDetailScreen() {
               // MobileScheduleScreen keeps whichever project was last active
               // there and its effect returns early — the P0 context drop the
               // comment at :2335 already names and fixes for one call site.
-              onPress={() => router.replace({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any)}
+              onPress={() => router.replace(scheduleFromJobFocusHref(id ?? '', String(Date.now())))}
               activeOpacity={0.7}
               testID="project-view-schedule-btn"
             >
@@ -5209,7 +5315,7 @@ export default function ProjectDetailScreen() {
           {hasAnyEstimate && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.replace({ pathname: '/(tabs)/estimate/full', params: { projectId: id ?? '' } } as any)}
+              onPress={() => router.replace(estimateFromJobHref(id ?? ''))}
               activeOpacity={0.7}
               testID="project-view-estimate-btn"
             >
@@ -5349,7 +5455,7 @@ export default function ProjectDetailScreen() {
               // The office row's one-tap door into the estimate editor moves
               // too: Estimate when the job has one, Create estimate when not.
               ...(hasAnyEstimate
-                ? [{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: () => router.replace(routeHref('/(tabs)/estimate/full', { projectId: project.id })) }]
+                ? [{ key: 'view-estimate', label: 'Estimate', Icon: Receipt, testID: 'project-view-estimate-btn', onPress: () => router.replace(estimateFromJobHref(project.id)) }]
                 : [{ key: 'create-estimate', label: 'Create estimate', Icon: Receipt, testID: 'project-create-estimate-btn', onPress: () => router.push(routeHref('/estimate-wizard', { projectId: project.id })) }]),
               { key: 'cash-flow', label: 'Cash flow', Icon: Wallet, testID: 'project-cash-flow-btn', onPress: () => router.push(routeHref('/cash-flow', { projectId: project.id })) },
               { key: 'forecast', label: 'Payment forecast', Icon: TrendingDown, testID: 'project-payment-forecast-btn', onPress: () => router.push(routeHref('/payment-predictions', { projectId: project.id })) },
@@ -5449,7 +5555,7 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.sectionModalBackText}>Back</Text>
               </TouchableOpacity>
               <Text style={styles.sectionModalTitle} numberOfLines={1}>
-                {sectionTitle(activeTile)}
+                {activeTile === 'subsPay' ? 'Subs & pay' : sectionTitle(activeTile)}
               </Text>
               <View style={{ width: 72 }} />
             </View>
@@ -5525,7 +5631,7 @@ export default function ProjectDetailScreen() {
           accessibilityState={{ disabled: !!hubPerms.editBlockedReason }}
         >
           <Pencil size={18} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.editButtonText}>Edit Project</Text>
+          <Text style={styles.editButtonText}>Edit project</Text>
         </TouchableOpacity>
         {hubPerms.editBlockedReason ? (
           <Text style={[styles.contractHint, { marginHorizontal: 20, marginTop: 6 }]} testID="edit-project-blocked-reason">
@@ -5564,7 +5670,9 @@ export default function ProjectDetailScreen() {
         <SidePanel
           open={activeTile !== null}
           onClose={closeSection}
-          title={sectionTitle(activeTile)}
+          // 'subsPay' has no SECTION_TITLES entry yet (orchestrator item: add it
+          // to utils/projectWorkspaceLayout.ts); never a blank panel title.
+          title={activeTile === 'subsPay' ? 'Subs & pay' : sectionTitle(activeTile)}
           panelId="project-section"
           containerWidth={panelRow.width}
           testID="project-section-panel"
@@ -5856,7 +5964,7 @@ export default function ProjectDetailScreen() {
             >
               <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }, fEdit.card]}>
                 <View style={styles.inviteModalHeader}>
-                  <Text style={styles.inviteModalTitle}>Edit Project</Text>
+                  <Text style={styles.inviteModalTitle}>Edit project</Text>
                   <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
@@ -5958,7 +6066,7 @@ export default function ProjectDetailScreen() {
                 </View>
                 {editType === 'other' ? (
                   <>
-                    <Text style={styles.inviteFieldLabel}>Describe the job</Text>
+                    <Text style={styles.inviteFieldLabel}>Describe the project</Text>
                     <TextInput
                       style={styles.inviteInput}
                       value={editTypeOther}

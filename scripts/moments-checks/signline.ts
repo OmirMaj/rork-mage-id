@@ -233,7 +233,7 @@ export default async function run(ctx: Ctx): Promise<void> {
       }
       return shape && startable === 0;
     });
-    const passes = /noStartRects=\{noStart\}/.test(ceremony) && /locked=\{locked \|\| sealed\}/.test(ceremony)
+    const passes = /noStartRects=\{noStart\}/.test(ceremony) && /locked=\{locked \|\| (?:sealed|done)\}/.test(ceremony)
       && /noStartRectFor\(W, padH\)/.test(ceremony);
     ctx.ok('S7 no-start rect starts at/above the line zone (110) and the head grab area (118 - hitSlop = 106), no stroke can start in [106, padH] for W 320/352/390/420; the ceremony passes noStartRects + locked',
       slopPinned && rects.every(Boolean) && passes, JSON.stringify({ slopPinned, rects, passes }));
@@ -253,7 +253,8 @@ export default async function run(ctx: Ctx): Promise<void> {
   // ── S9 legal ───────────────────────────────────────────────────────────
   {
     const forced = /writeOptions:\s*\{\s*\.\.\.props\.writeOptions,\s*legal:\s*true\s*\}/.test(ceremony);
-    const offline = /offlineReason:\s*offlineLegalReason\(\)/.test(ceremony);
+    // Step 0: the site's whole-sentence copy.offline, else offlineLegalReason() (offlineReasonLine).
+    const offline = /offlineReason:\s*(?:offlineLegalReason\(\)|offlineReasonLine\(props\.writeOptions\))/.test(ceremony);
     const pcIdx = ceremony.indexOf('const playConfirmed = async');
     const pcBody = pcIdx >= 0 ? bodyFrom(ceremony, pcIdx) : '';
     const outside = pcBody ? ceremony.replace(pcBody, '') : ceremony;

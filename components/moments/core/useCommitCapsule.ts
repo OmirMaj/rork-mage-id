@@ -34,7 +34,7 @@ import { AccessibilityInfo, Animated, Easing, findNodeHandle, Platform, type Lay
 import { State } from 'react-native-gesture-handler';
 import { nativeDriver, reducedMotion, useReducedMotion } from '@/components/ui/motion';
 import {
-  legalQueuedCopy,
+  legalQueuedLine,
   resolvePlan,
   runCommit,
   type CommitResult,
@@ -122,12 +122,23 @@ export interface UseCommitCapsuleOptions {
   onResolved?: (r: CommitResult) => void;
   /** the screen closed mid-commit: caller shows NailIt / toast */
   onResultAfterUnmount?: (r: CommitResult) => void;
+  /**
+   * Step 0: an answer that arrived AFTER the timeout already resolved the
+   * moment (runCommit's onLateResult). A late confirmed write reaches the
+   * screen so it can refresh the record and say so; the capsule itself never
+   * replays a result it already showed.
+   */
+  onLateResult?: (r: CommitResult) => void;
   /** line skin: lock the pad, dim fields */
   onCommitStart?: () => void;
   /** refused or timeout: unlock the pad */
   onUncommit?: (r: CommitResult) => void;
-  /** skin override for 'success' ONLY (line -> seal) */
-  playConfirmed?: (ctx: ConfirmedContext) => Promise<void>;
+  /**
+   * skin override for 'success' ONLY (line -> seal). Answers 'neutral' when the
+   * skin resolved the confirmed answer as a plain line (no seal): the capsule's
+   * own display then takes the cap role, never 'success'.
+   */
+  playConfirmed?: (ctx: ConfirmedContext) => Promise<void | 'neutral'>;
   /** line skin: head hidden (arm 0) while disabled; X shows instead */
   hideWhenDisabled?: boolean;
   testID?: string;
@@ -520,15 +531,15 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
   }
 
   async function resolveConfirmedBySkin(g: number, r: Extract<CommitResult, { status: 'confirmed' }>, geom: CapsuleGeometryLive,
-    play: (ctx: ConfirmedContext) => Promise<void>) {
+    play: (ctx: ConfirmedContext) => Promise<void | 'neutral'>) {
     const ctx: ConfirmedContext = {
       result: r, values: valuesRef.current, geometry: geom, reduced: reducedMotion(),
       alive: () => alive(g), wait: (ms: number) => wait(g, ms),
     };
-    await play(ctx);
+    const how = await play(ctx);
     if (!alive(g)) return;
     stopSpin();
-    setDisplay({ title: r.title, detail: r.detail, role: 'success' });
+    setDisplay({ title: r.title, detail: r.detail, role: how === 'neutral' ? 'cap' : 'success' });
     showNext(g, r.next, 0);
     finish(g, r);
   }
@@ -592,8 +603,7 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
 
   async function resolveUncommit(g: number, r: CommitResult, p: ResolvePlan, geom: CapsuleGeometryLive) {
     const timeout = p === 'timeout';
-    const verb = optsRef.current.writeOptions.verb;
-    const text = r.status === 'timeout' ? r.message : r.status === 'refused' ? r.reason : legalQueuedCopy(verb);
+    const text = r.status === 'timeout' ? r.message : r.status === 'refused' ? r.reason : legalQueuedLine(optsRef.current.writeOptions);
     const toneV = timeout ? v.tone.neutral : v.tone.danger;
     const haptic = timeout ? 'warning' : 'error';
     try { optsRef.current.onUncommit?.(r); } catch { /* the pad must still unlock visually */ }
@@ -739,7 +749,11 @@ export function useCommitCapsule(o: UseCommitCapsuleOptions): CommitCapsule {
     try { opts.onCommitStart?.(); } catch { /* the commit goes on */ }
     const pending: Pending = { g, result: null, delivered: false };
     pendingRef.current = pending;
-    const resultP = runCommit(opts.write, opts.writeOptions);
+    const resultP = runCommit(opts.write, {
+      ...opts.writeOptions,
+      // The latest listener at the moment the late answer lands, never a stale render's.
+      onLateResult: (late) => { try { optsRef.current.onLateResult?.(late); } catch { /* a caller's handler must never break the capsule */ } },
+    });
     resultP.then((r) => {
       pending.result = r;
       // Unmounted (or reset) before the timeline could resolve it: hand it over now.

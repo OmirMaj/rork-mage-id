@@ -231,7 +231,7 @@ if (B) {
   ok('Save, Send & Save and the G714 all confirm first',
     /onPress=\{\(\) => withConfirmedImpactDays\(\(\) => handleSave\('draft'\)\)\}/.test(CODE)
     && /withConfirmedImpactDays\(\(\) => setShowSendRecipient\(true\)\)/.test(CODE)
-    && /withConfirmedImpactDays\(\(\) => showAlert\(\s*'Issue as Construction Change Directive\?'/.test(CODE));
+    && /withConfirmedImpactDays\(\(\) => showAlert\(\s*'Issue as a construction change directive\?'/.test(CODE));
   ok('the confirm asks "The client signs +N days — keep it?"', /The client signs \+\$\{days\} day\$\{plural\} — keep it\?/.test(CODE));
 }
 

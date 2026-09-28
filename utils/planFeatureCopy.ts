@@ -57,7 +57,7 @@ export const PLAN_FEATURE_LINES: PlanFeatureLine[] = [
   { label: 'Crew profiles and certifications', keys: ['crew_management'], short: 'crews' },
   { label: 'WIP reporting and full budget dashboard', keys: ['wip_reporting', 'full_budget_dashboard'], short: 'WIP' },
   { label: 'Cost X-Ray', keys: ['cost_xray'], short: 'Cost X-Ray' },
-  { label: 'Ask Your Plans', keys: ['ask_your_plans'], short: 'Ask Your Plans' },
+  { label: 'Ask your plans', keys: ['ask_your_plans'], short: 'Ask your plans' },
   { label: 'Unlimited marketplace bid responses', keys: ['unlimited_bid_responses'] },
 ];
 

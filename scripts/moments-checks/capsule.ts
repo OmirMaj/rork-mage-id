@@ -542,8 +542,8 @@ export default async function run(ctx: MomentsCtx): Promise<void> {
     const load = async (name: string) => import(pathToFileURL(join(dir, `${name}.ts`)).href);
     const results: [string, boolean][] = [];
     try {
-      const n1 = stage('c5-legal-queued-kept', mutate(commitSrc, /if \(opts\.legal\) return \{ status: 'refused', reason: legalQueuedCopy\(opts\.verb\) \};/, '', 'c5a'));
-      const n2 = stage('c5-timeout-says-nothing-saved', mutate(commitSrc, /return opts\.idempotent\s*\?\s*\{ status: 'refused', reason: transportCopy\(opts\.verb, true\) \}\s*:\s*\{ status: 'timeout', message: timeoutCopy\(opts\.subject\) \};/, "return { status: 'refused', reason: transportCopy(opts.verb, true) };", 'c5b'));
+      const n1 = stage('c5-legal-queued-kept', mutate(commitSrc, /if \(opts\.legal\) return \{ status: 'refused', reason: legalQueuedLine\(opts\) \};/, '', 'c5a'));
+      const n2 = stage('c5-timeout-says-nothing-saved', mutate(commitSrc, /return opts\.idempotent\s*\?\s*\{ status: 'refused', reason: given\(opts\.copy\?\.transport\) \?\? transportCopy\(opts\.verb \?\? FALLBACK_VERB, true\) \}\s*:\s*\{ status: 'timeout', message: timeoutLine\(opts\) \};/, "return { status: 'refused', reason: transportCopy(opts.verb ?? FALLBACK_VERB, true) };", 'c5b'));
       const n3 = stage('c5-late-overrides', mutate(commitSrc, /const n = normalise\(r, opts\);\s*if \(!settle\(n\)\) late\(n\);/, 'const n = normalise(r, opts); settle(n); late(n);', 'c5c'));
       const n4 = stage('c6-refused-success', mutate(commitSrc, /case 'refused':\s*default:\s*return 'uncommit';/, "case 'refused':\n    default:\n      return 'success';", 'c6a'));
       const n5 = stage('c6-lock-success', mutate(commitSrc, "return (o.resultIcon ?? 'check') === 'check' ? 'success' : 'neutral-done';", "return 'success';", 'c6b'));

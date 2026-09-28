@@ -40,6 +40,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, aiUsageGet, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { GEMINI_TEXT_MODEL } from "../_shared/models.ts";
 import { inferSchema, hintHasMultiShapeArray } from "../_shared/inferSchema.ts";
+import { replyLanguageRule } from "../_shared/replyLanguage.ts";
 
 const GK = Deno.env.get("GEMINI_API_KEY") || "";
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
@@ -266,7 +267,12 @@ serve(async (req) => {
     }
 
     const model = M[tier] || M.fast;
-    const sys = "You are MAGE AI, a construction project management assistant built into the MAGE ID app. You help contractors with scheduling, estimating, bid analysis, daily reports, and project management. Be concise, specific, and use construction industry terminology. When returning JSON, ensure ALL array fields are present even if empty. Never omit required fields or return null for arrays. Every number field MUST be a number (use 0 if unknown).";
+    const sys = "You are MAGE AI, a construction project management assistant built into the MAGE ID app. You help contractors with scheduling, estimating, bid analysis, daily reports, and project management. Be concise, specific, and use construction industry terminology. When returning JSON, ensure ALL array fields are present even if empty. Never omit required fields or return null for arrays. Every number field MUST be a number (use 0 if unknown)."
+      // Spanish replies (docs/I18N.md §7): appends the reply-language rule only
+      // when the client sent locale "es". '' otherwise, so an English request's
+      // system prompt is byte-identical to before. Schemas, enums, numbers and
+      // quoted evidence are unchanged by the rule.
+      + replyLanguageRule(body.locale);
 
     let userMsg = prompt;
     if (jsonMode && schemaHint) {

@@ -1,4 +1,4 @@
-// validate-code-look.ts — Photo Code Look (wave 4, lane P).
+// validate-code-look.ts — Photo code check (wave 4, lane P).
 //
 // Drives the REAL utils/codeLook.ts under bun, and reads the sheet, the edge
 // function, the shared caps and the paywall as TEXT for the honesty and

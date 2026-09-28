@@ -51,7 +51,7 @@ import { EN_CATALOG } from '../i18n/catalog/en';
 import { ES_CATALOG } from '../i18n/catalog/es';
 import { AI_GLOSSARY_ES as EDGE_GLOSSARY, replyLanguageRule, parseReplyLocale } from '../supabase/functions/_shared/replyLanguage';
 import { formatMoney, formatMoneyShort, formatNumber } from '../utils/formatters';
-import { formatCalendarDay } from '../utils/calendarDate';
+import { formatCalendarDay, parseCalendarDay } from '../utils/calendarDate';
 import { relativeTime } from '../utils/constructionNews';
 import { isAppStorageKey } from '../utils/localCacheKeys';
 
@@ -171,6 +171,18 @@ const calOpts: (Intl.DateTimeFormatOptions | undefined)[] = [undefined, ...dateO
 const calPairs: Array<[string | null | undefined, Intl.DateTimeFormatOptions | undefined]> = [];
 for (const v of calValues) for (const o of calOpts) calPairs.push([v, o]);
 eqAll(`formatCalendarDayL(v, opts, 'en') === formatCalendarDay(v, opts)`, calPairs, ([v, o]) => formatCalendarDayL(v, o, 'en'), ([v, o]) => (o ? formatCalendarDay(v, o) : formatCalendarDay(v)));
+// formatCalendarDay now takes `lang` (wave-next I18NWIRE). Its English must be
+// the pre-i18n body, byte for byte: '' for empty, the raw value when
+// unparseable, else toLocaleDateString('en-US', opts ?? the default).
+const legacyCalendarDay = (v: string | null | undefined, o?: Intl.DateTimeFormatOptions): string => {
+  if (!v) return '';
+  const d = parseCalendarDay(v);
+  if (!d) return v;
+  return d.toLocaleDateString('en-US', o ?? { month: 'short', day: 'numeric', year: 'numeric' });
+};
+eqAll(`formatCalendarDay(v, opts) (app in English) === the pre-i18n body`, calPairs, ([v, o]) => (o ? formatCalendarDay(v, o) : formatCalendarDay(v)), ([v, o]) => legacyCalendarDay(v, o));
+eqAll(`formatCalendarDay(v, opts, 'en') === the pre-i18n body`, calPairs, ([v, o]) => formatCalendarDay(v, o, 'en'), ([v, o]) => legacyCalendarDay(v, o));
+eqAll(`formatCalendarDay(v, opts, 'es') === formatCalendarDayL(v, opts, 'es') (the hook is the helper)`, calPairs, ([v, o]) => formatCalendarDay(v, o, 'es'), ([v, o]) => formatCalendarDayL(v, o, 'es'));
 
 const timeOpts: Intl.DateTimeFormatOptions[] = [
   { hour: 'numeric', minute: '2-digit' }, { hour: '2-digit', minute: '2-digit' },

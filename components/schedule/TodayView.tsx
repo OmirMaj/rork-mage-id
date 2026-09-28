@@ -572,7 +572,7 @@ function TodayView({
                 style={s.overdueResolveBtn}
                 onPress={() => onProgressUpdate(task, 100)}
               >
-                <Text style={s.overdueResolveBtnText}>Mark Done</Text>
+                <Text style={s.overdueResolveBtnText}>Mark done</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

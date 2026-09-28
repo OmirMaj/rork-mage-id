@@ -69,7 +69,7 @@
 // ATTENTION_DOCK_ID), opened from the sidebar's Action Required row on ANY
 // page, so the GC can work down it beside the page it sends him to. In the
 // dock it fills the panel (no fixed 300 width, no left rule — SidePanel draws
-// its own), SidePanel's header already says 'Action Required', so the list
+// its own), SidePanel's header already says 'Action required', so the list
 // leads with 'Needs you now', and every 'See all' closes the dock as it lands
 // on /attention — that page IS the list, it must not show twice. The rail
 // variant is unchanged.
@@ -316,7 +316,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
         <View style={styles.headerRow}>
           {variant === 'dock'
             ? <Text style={styles.dockLead}>Needs you now</Text>
-            : <Text style={styles.headerTitle}>Action Required</Text>}
+            : <Text style={styles.headerTitle}>Action required</Text>}
           {items.length > 0 ? (
             <View style={styles.countPill}>
               <Text style={styles.countPillText}>{items.length}</Text>
@@ -603,7 +603,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     letterSpacing: -0.1,
     flex: 1,
   },
-  // The dock's lead line under SidePanel's 'Action Required' header.
+  // The dock's lead line under SidePanel's 'Action required' header.
   dockLead: {
     ...Type.footnoteEmphasized,
     color: t.textSecondary,

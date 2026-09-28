@@ -19,8 +19,23 @@ export {
   genericRefusedCopy,
   offlineLegalReason,
   resolvePlan,
+  // Step 0 (MOMSTEP0, additive): the whole-sentence resolvers the primitives use.
+  offlineReasonLine,
+  legalQueuedLine,
 } from '@/utils/moments/commitResult';
-export type { CommitStatus, CommitResult, CommitWriteOptions, ResolvePlan } from '@/utils/moments/commitResult';
+export type { CommitStatus, CommitResult, CommitWriteOptions, ResolvePlan, CommitOutcomeCopy, OfflineLegalKind } from '@/utils/moments/commitResult';
+
+// utils/moments/commitAdapters.ts (pure; Step 0): a data-layer answer as one CommitResult.
+export { fromWriteOutcome, fromOnlineOutcome } from '@/utils/moments/commitAdapters';
+export type {
+  WriteOutcomeLike,
+  OnlineOutcome,
+  OnlineOutcomeWithCode,
+  OnlineRefusalCode,
+  ConfirmedCopy,
+  WriteOutcomeWords,
+  OnlineOutcomeWords,
+} from '@/utils/moments/commitAdapters';
 
 // utils/moments/motionSpec.ts (pure literals)
 export { MOMENT_SPRING, MOMENT_EASE, MOMENT_TIMING, CAPSULE_GEOMETRY, CAPSULE_RULES, dampingRatio } from '@/utils/moments/motionSpec';
@@ -45,7 +60,15 @@ export { momentColors } from '@/utils/moments/colors';
 export type { MomentColors, CapsuleTone } from '@/utils/moments/colors';
 
 // utils/moments/copy.ts (pure)
-export { lintMomentCopy, MOMENT_COPY } from '@/utils/moments/copy';
+export {
+  lintMomentCopy,
+  MOMENT_COPY,
+  // Step 0 (MOMSTEP0, additive)
+  LOCAL_ONLY_TITLE,
+  LOCAL_ONLY_NEXT,
+  EARLIER_CHANGE_PENDING_REASON,
+  EARLIER_CHANGE_UNSAVED_REASON,
+} from '@/utils/moments/copy';
 export type { MomentCopyDefaults } from '@/utils/moments/copy';
 
 // utils/moments/haptics.ts (RN + expo-haptics; web-safe)

@@ -192,7 +192,7 @@ export function resolveClockGate(args: {
   const { hasProject, stampedRole, ownTierAllows, live } = args;
   if (!hasProject) return { kind: 'ok' };
   const business: ClockGate = { kind: 'blocked', reason: 'Clocking in crew on your own projects is on the Business plan.' };
-  const viewer: ClockGate = { kind: 'blocked', reason: 'Clocking crew in on this job needs a field or editor seat. You have view access.' };
+  const viewer: ClockGate = { kind: 'blocked', reason: 'Clocking in crew needs Field or Editor access. You have view access.' };
   if (stampedRole == null || stampedRole === 'owner') return ownTierAllows ? { kind: 'ok' } : business;
   if (live.isLoading || live.isError) {
     if (stampedRole === 'field' || stampedRole === 'editor') return { kind: 'ok' };

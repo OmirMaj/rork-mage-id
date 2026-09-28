@@ -85,6 +85,11 @@ export const DEVICE_SCOPED_KEYS: readonly string[] = [
   // device; holds no tenant data. Wiping it would just re-flash the wrong theme
   // at the next person.
   'mageid_theme',
+  // App language (contexts/LanguageContext.tsx, docs/I18N.md §5). A display
+  // preference like mageid_theme; holds no tenant data. Keeping it means the
+  // sign-in screen stays in Spanish for a Spanish-speaking crew member on a
+  // shared phone after the previous person signs out.
+  'mageid_language',
   // Anonymous analytics id (utils/posthog.ts). Owned by resetAnalyticsUser(),
   // which ROTATES it to a fresh UUID on sign-out (app/_layout.tsx:357).
   // Rotation is what unlinks the two identities; deleting the key here would

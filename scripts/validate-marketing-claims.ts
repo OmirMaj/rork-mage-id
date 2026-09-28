@@ -136,7 +136,7 @@ const MARQUEE: { label: string; pattern: RegExp; key: keyof typeof REQUIRED_TIER
   { label: 'Cost X-Ray',     pattern: /Cost X-Ray/i,     key: 'cost_xray' },
   { label: 'Bid Advisor',    pattern: /Bid Advisor/i,    key: 'bid_scoring' },
   { label: 'Track Record',   pattern: /Track Record/i,   key: 'brain_accuracy' },
-  { label: 'Ask Your Plans', pattern: /Ask Your Plans/i, key: 'ask_your_plans' },
+  { label: 'Ask your plans', pattern: /Ask your plans/i, key: 'ask_your_plans' },
 ];
 for (const { label, pattern, key } of MARQUEE) {
   ok(`Business tier still sells "${label}"`, pattern.test(tiers.business ?? ''),

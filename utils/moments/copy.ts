@@ -53,3 +53,24 @@ export const MOMENT_COPY: MomentCopyDefaults = {
   srHint: 'Double-tap, then confirm',
   queued: 'Saved on this phone · sends when online',
 };
+
+// ── Step 0 (lane MOMSTEP0): whole sentences the adapters and the data layer
+// hand back. Each one is a complete sentence so the W3 Spanish lanes can
+// translate it as one key (docs/I18N.md §3.5). No developer words: never
+// "sync", "queue" or "payload".
+
+/** A write kept on this device only because no account is signed in (RecordWriteOutcome 'local'). Never a green tick. */
+export const LOCAL_ONLY_TITLE = 'Saved on this phone only';
+/** What unlocks it. */
+export const LOCAL_ONLY_NEXT = 'Sign in to send it to your account.';
+
+/**
+ * An online-only write (utils/offlineQueue supabaseWriteOnline) that would have
+ * overtaken an earlier change to the same record still waiting on this phone.
+ * Nothing was sent. The data layer answers 'refused' with the code
+ * 'earlier_change_pending'; a site's copy file may show this sentence.
+ */
+export const EARLIER_CHANGE_PENDING_REASON = "An earlier change to this record hasn't sent yet. Try again in a moment.";
+
+/** The same, when the earlier change is under Not saved (the server refused it): Retry goes first. */
+export const EARLIER_CHANGE_UNSAVED_REASON = 'An earlier change to this record is under Not saved. Retry it first.';

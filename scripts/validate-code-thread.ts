@@ -413,7 +413,7 @@ async function main() {
   ok("saved checks say 'until you sign out'", index.includes('until you sign out'));
   ok('the saved line carries its testID', index.includes('testID="codethread-saved"'));
   ok('the sent chip carries its testID and says what was sent',
-    index.includes('testID="codethread-sent"') && index.includes('Sent from this job: ${'));
+    index.includes('testID="codethread-sent"') && index.includes('Sent from this project: ${'));
   ok('the follow-up caption says each answer uses one of today\'s checks',
     index.includes("Each answer re-runs the check (uses 1 of today's ${dailyCap})."));
   ok('a NYC job whose record was not read says not checked, never no violations',

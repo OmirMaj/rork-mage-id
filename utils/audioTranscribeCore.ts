@@ -632,3 +632,96 @@ export function giveUpMessage(reason: GiveUpReason, task: AudioTranscribeTask): 
       return `A transcript of ${what} was never used and has expired.`;
   }
 }
+
+// ── Voice notes waiting (UX wave, A6) ───────────────────────────────────────
+//
+// The global mic (components/UniversalMicButton.tsx) records under an explicit
+// queue key naming the project it was filed to, so a clip parked with no signal
+// still knows its project when it comes back as text. utils/voiceNoteFiling.ts
+// files it; the sync pill counts it. voiceContextKey() slugs never contain a
+// colon, so this prefix cannot collide with a form's own key.
+
+/** Prefix of the global mic's queue key: `voice-note:<projectId>`. */
+export const VOICE_NOTE_CONTEXT_LEAD = 'voice-note:';
+
+/** The queue key the global mic records under for `projectId`. */
+export function voiceNoteQueueKey(projectId: string): string {
+  return `${VOICE_NOTE_CONTEXT_LEAD}${projectId}`;
+}
+
+/** The project a clip was recorded for, or null when it is not a voice note
+ *  from the global mic (a form's own dictation, or a malformed key). */
+export function voiceNoteProjectIdOf(contextKey: string | null | undefined): string | null {
+  if (typeof contextKey !== 'string' || !contextKey.startsWith(VOICE_NOTE_CONTEXT_LEAD)) return null;
+  const id = contextKey.slice(VOICE_NOTE_CONTEXT_LEAD.length).trim();
+  return id.length > 0 ? id : null;
+}
+
+/** When the words were spoken: the start of the recording. `queuedAt` is when
+ *  the upload failed, which is the END of the clip — a note begun at 11:59 pm
+ *  belongs to that day, not the next. */
+export function recordedAtMs(task: Pick<AudioTranscribeTask, 'queuedAt' | 'durationMs'>): number {
+  const end = Number.isFinite(task.queuedAt) ? task.queuedAt : 0;
+  const len = Number.isFinite(task.durationMs) && task.durationMs > 0 ? task.durationMs : 0;
+  return Math.max(0, end - len);
+}
+
+/**
+ * Where a parked clip stands, in the user's terms:
+ *   - `ready`   — transcribed; the text is waiting to be filed or used;
+ *   - `failed`  — the transcription service refused it at least once (a
+ *                 server fault — being offline never counts, see
+ *                 classifyTranscribeError). The queue keeps retrying within its
+ *                 budget; the user is told and can retry now;
+ *   - `waiting` — never tried with signal yet; it goes when signal returns.
+ * A clip the queue has given up on is not in the queue any more: that loss is
+ * announced once by the queue itself (giveUpMessage) and is not counted here.
+ */
+export type VoiceClipState = 'waiting' | 'ready' | 'failed';
+
+export function voiceClipState(task: Pick<AudioTranscribeTask, 'status' | 'retryCount'>): VoiceClipState {
+  if (task.status === 'ready') return 'ready';
+  return Number.isFinite(task.retryCount) && task.retryCount > 0 ? 'failed' : 'waiting';
+}
+
+export interface VoiceBacklog {
+  /** Recorded, not yet transcribed, never refused by the server. */
+  waiting: number;
+  /** Transcribed, not yet filed or used. */
+  ready: number;
+  /** Refused by the transcription service at least once, still held. */
+  failed: number;
+}
+
+/**
+ * Counts over the CALLER's own clips only. The persisted queue can hold a
+ * previous tenant's recordings until the tenant switch narrows it
+ * (retainAudioTranscribeQueueForUser); counting them would show this user
+ * someone else's words. No user → nothing is anyone's.
+ */
+export function voiceBacklog(tasks: readonly AudioTranscribeTask[], ownUserId: string | null | undefined): VoiceBacklog {
+  const out: VoiceBacklog = { waiting: 0, ready: 0, failed: 0 };
+  if (!ownUserId) return out;
+  for (const t of tasks) {
+    if (!t || t.userId !== ownUserId) continue;
+    if (t.status === 'ready' && !t.transcript) continue;
+    out[voiceClipState(t)]++;
+  }
+  return out;
+}
+
+/** The pill's waiting line, or '' when nothing is waiting. Waiting and ready
+ *  are one line ("not landed yet"); failed is its own line and never summed
+ *  into this one. */
+export function voiceWaitingLine(b: VoiceBacklog): string {
+  const n = Math.max(0, b.waiting) + Math.max(0, b.ready);
+  if (n === 0) return '';
+  return n === 1 ? '1 voice note waiting' : `${n} voice notes waiting`;
+}
+
+/** The pill's failed line, or '' when nothing failed. */
+export function voiceFailedLine(b: VoiceBacklog): string {
+  const n = Math.max(0, b.failed);
+  if (n === 0) return '';
+  return n === 1 ? "1 voice note couldn't be transcribed" : `${n} voice notes couldn't be transcribed`;
+}

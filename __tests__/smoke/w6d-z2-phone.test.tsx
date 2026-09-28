@@ -304,7 +304,7 @@ async function mountConstructionAi(tier: 'enterprise' | 'pro', roadmap = false) 
     await AsyncStorage.setItem('mageid_subscription_tier', tier);
   });
   if (roadmap) {
-    fireEvent.press(screen.getByText('Project Roadmap'));
+    fireEvent.press(screen.getByTestId('mode-toggle-roadmap'));
     await pump();
   }
   return tree;

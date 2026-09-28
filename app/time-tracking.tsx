@@ -24,6 +24,7 @@ import {
 } from '@/hooks/useTimeEntries';
 import { rateDraftBatch, reseedUntouchedDrafts, seedRateDrafts, type RateDrafts } from '@/utils/laborRateDraft';
 import { useLaborRates } from '@/hooks/useLaborRates';
+import { describeError } from '@/utils/errorCopy';
 import { deliverTextFile } from '@/utils/platformFile';
 import {
   liveNetHours, formatHoursMinutes, breakMinutesAt, isMissedClockOut, defaultMissedOutMs, outTimeProblem,
@@ -99,7 +100,7 @@ function LiveTimeCard({
   // dark-orange read at ~2.8:1 on the dark-theme soft chips.
   const statusColor = missed ? themeColors.dangerLabel : entry.status === 'clocked_in' ? themeColors.success : entry.status === 'break' ? themeColors.warningLabel : themeColors.textMuted;
   const statusBg = missed ? themeColors.dangerSoft : entry.status === 'clocked_in' ? themeColors.successSoft : entry.status === 'break' ? themeColors.warningSoft : themeColors.surfaceAlt;
-  const statusLabel = missed ? 'Missed clock-out' : entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On Break' : 'Clocked Out';
+  const statusLabel = missed ? 'Missed clock-out' : entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On break' : 'Clocked out';
   // Tick every 30s so the threshold pill flips at most ~30s after the
   // worker actually crosses the line — and while on break too, since the
   // net timer holds still then while the clock runs (#152).
@@ -172,8 +173,8 @@ function LiveTimeCard({
             <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
             <Text style={[styles.thresholdBannerText, { color: themeColors.dangerLabel }]}>
               {readOnly
-                ? 'Still on the clock from an earlier shift — whoever logged it has to enter when he left. Not counted On Site.'
-                : 'Still on the clock from an earlier shift — enter the time he actually left. Not counted On Site.'}
+                ? 'Still on the clock from an earlier shift — whoever logged it has to enter the time they left. Not counted as on site.'
+                : 'Still on the clock from an earlier shift — enter the time they left. Not counted as on site.'}
             </Text>
           </View>
         ) : entry.status !== 'clocked_out' && (overThreshold || approachingThreshold) && (
@@ -197,7 +198,7 @@ function LiveTimeCard({
           // #99: not his record and not his job — only whoever logged it (or
           // the job's owner) can end it. Said, not a dead button.
           <Text style={styles.loggedByTag} testID={`time-entry-readonly-${entry.id}`}>
-            On the clock on this job. Only the person who logged it, or the job&apos;s owner, can clock him out.
+            On the clock on this project. Only the person who logged it, or the project owner, can clock them out.
           </Text>
         ) : entry.status !== 'clocked_out' && (
           <View style={styles.liveCardActions}>
@@ -213,7 +214,7 @@ function LiveTimeCard({
                 testID={`time-entry-close-${entry.id}`}
               >
                 <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>{missed ? 'Enter out time' : 'Clock out for him'}</Text>
+                <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>{missed ? 'Enter out time' : 'Clock out'}</Text>
               </TouchableOpacity>
             ) : entry.status === 'clocked_in' ? (
               <>
@@ -231,7 +232,7 @@ function LiveTimeCard({
                   activeOpacity={0.7}
                 >
                   <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>Clock Out</Text>
+                  <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>Clock out</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -296,8 +297,8 @@ const NO_JOB_REASON = 'Create a project first \u2014 hours are filed against a j
  *  against the live role, clockGate). The reason is shown on a blocked row. */
 function clockableReason(p: Project, ownTier: boolean): string | null {
   if (p.myRole === 'field' || p.myRole === 'editor') return null;
-  if (p.myRole === 'viewer') return 'Clocking crew in on this job needs a field or editor seat. You have view access.';
-  return ownTier ? null : 'Clocking crew in on your own jobs needs Business.';
+  if (p.myRole === 'viewer') return 'Clocking in crew needs Field or Editor access. You have view access.';
+  return ownTier ? null : 'Clocking in crew on your own projects is on the Business plan.';
 }
 
 function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
@@ -591,7 +592,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       .map(m => {
         const hit = openShiftByWorker.get(m.id)!;
         const where = hit.entry.projectId !== selectedProject?.id && hit.entry.projectName ? ` on ${hit.entry.projectName}` : '';
-        return { ...m, reason: `On the clock${where} — ${hit.who ? `logged by ${hit.who}` : 'you clocked him in'}` };
+        return { ...m, reason: `On the clock${where} — ${hit.who ? `logged by ${hit.who}` : 'you clocked them in'}` };
       }),
     [roster, openShiftByWorker, selectedProject],
   );
@@ -872,7 +873,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Clock Out',
+            text: 'Clock out',
             style: 'destructive',
             onPress: () => {
               // The hook computes totalHours/overtimeHours and updates the row.
@@ -971,7 +972,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     const entry = correcting;
     showAlert(
       'Delete this entry?',
-      `${entry.workerName} · ${entry.totalHours.toFixed(1)}h on ${formatCalendarDay(timeEntryDay(entry))}. It comes out of the payroll export and out of the labor samples feeding your cost book. This cannot be undone.`,
+      `${entry.workerName} · ${entry.totalHours.toFixed(1)}h on ${formatCalendarDay(timeEntryDay(entry))}. It's removed from the payroll export and your cost history. This can't be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1042,10 +1043,10 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
     // open shift is paid twice in job cost and payroll.
     const already = openShiftByWorker.get(member.id);
     if (already) {
-      const who = already.who ? `logged by ${already.who}` : 'you clocked him in';
+      const who = already.who ? `logged by ${already.who}` : 'you clocked them in';
       showAlert(
         'Already on the clock',
-        `${member.name} is already on the clock${already.entry.projectName ? ` on ${already.entry.projectName}` : ''} (${who}, ${formatClockTime(Date.parse(already.entry.clockIn))}). Clocking him in again opens a second shift, and both are paid unless one is closed.`,
+        `${member.name} is already on the clock${already.entry.projectName ? ` on ${already.entry.projectName}` : ''} (${who}, ${formatClockTime(Date.parse(already.entry.clockIn))}). Clocking them in again opens a second shift, and both are paid unless one is closed.`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Clock in again', style: 'destructive', onPress: certCheck },
@@ -1290,7 +1291,8 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
       });
       setShowExport(false);
     } catch (err) {
-      showAlert('Export failed', `The payroll file couldn\u2019t be made: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn('[time-tracking] payroll export failed', err);
+      showAlert('Export failed', describeError(err, { action: 'export payroll' }).body);
     }
   }, [exportBlocked, exportSelection, overtimeRule, entries, teamEntries, exportPeriod, exportProjectName, exportOpenNote]);
 
@@ -1395,7 +1397,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
+      <Stack.Screen options={{ title: 'Time tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { ...NATIVE_HEADER_TITLE_FACE, color: themeColors.text } }} />
       <ScrollView
         {...fabScroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + BRAIN_FAB_CLEARANCE }}
@@ -1410,7 +1412,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               <Users size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.statValue}>{todayStats.liveCount}</Text>
-            <Text style={styles.statLabel}>On Site</Text>
+            <Text style={styles.statLabel}>On site</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.info + '14' }]}>
@@ -1419,7 +1421,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             <Text style={styles.statValue}>{todayStats.totalHours.toFixed(1)}</Text>
             {/* Finished shifts plus the net hours so far of shifts still on
                 the clock (#152) — it read 0.0 at noon with a crew working. */}
-            <Text style={styles.statLabel} accessibilityLabel="Hours today, including crew still on the clock">Hours Today</Text>
+            <Text style={styles.statLabel} accessibilityLabel="Hours today, including crew still on the clock">Hours today</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? themeColors.warningSoft : themeColors.successSoft }]}>
@@ -1447,7 +1449,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             testID="time-tracking-clock-in"
           >
             <Play size={18} color="#fff" strokeWidth={1.75} />
-            <Text style={styles.clockInButtonText}>Clock In Crew</Text>
+            <Text style={styles.clockInButtonText}>Clock in crew</Text>
           </TouchableOpacity>
           {/* Payroll CSV for one pay period — a real .csv file (#64, #68). */}
           <TouchableOpacity
@@ -1582,7 +1584,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
           <View style={[styles.thresholdBanner, { marginHorizontal: 16, marginBottom: 8, backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]} testID="time-tracking-double-clocked">
             <AlertTriangle size={13} color={themeColors.warningLabel} strokeWidth={1.75} />
             <Text style={[styles.thresholdBannerText, { color: themeColors.warningLabel }]}>
-              {doubleClocked.map(list => `${list[0].workerName} has ${list.length} open shifts`).join('; ')} — close the extra one so he isn&apos;t paid twice.
+              {doubleClocked.map(list => `${list[0].workerName} has ${list.length} open shifts`).join('; ')} — close the extra one so they aren&apos;t paid twice.
             </Text>
           </View>
         ) : null}
@@ -1612,7 +1614,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               <Clock size={32} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No active time cards</Text>
               <Text style={styles.emptyDesc}>
-                {clockInDisabledReason ?? 'Tap Clock In Crew above, pick a worker and project, and their hours start logging here in real time.'}
+                {clockInDisabledReason ?? 'Tap Clock in crew above, pick a worker and project, and their hours start logging here in real time.'}
               </Text>
             </View>
           ) : (
@@ -1665,7 +1667,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
         <View style={[styles.modalOverlay, fClockIn.overlay]}>
           <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }, fClockIn.card, fClockIn.cardMotion]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Clock In</Text>
+              <Text style={styles.modalTitle}>Clock in</Text>
               <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
@@ -1748,7 +1750,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             {clockGate.kind === 'loading' ? (
               <View style={styles.rosterEmpty} testID="clock-in-gate-loading">
                 <ActivityIndicator size="small" color={themeColors.accent} />
-                <Text style={styles.rosterEmptyBody}>Checking your access on this job…</Text>
+                <Text style={styles.rosterEmptyBody}>Checking your access on this project…</Text>
               </View>
             ) : clockGate.kind === 'error' ? (
               <View style={styles.rosterEmpty} testID="clock-in-gate-error">
@@ -1766,7 +1768,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
             ) : isSeat && projectCrew.isLoading ? (
               <View style={styles.rosterEmpty} testID="clock-in-crew-loading">
                 <ActivityIndicator size="small" color={themeColors.accent} />
-                <Text style={styles.rosterEmptyBody}>Loading the crew on this job…</Text>
+                <Text style={styles.rosterEmptyBody}>Loading the crew on this project…</Text>
               </View>
             ) : isSeat && projectCrew.crew.length === 0 && (projectCrew.isPaused || (projectCrew.isError && projectCrew.offline)) ? (
               // #100: offline with nothing saved yet. Never "No crew assigned"
@@ -1864,9 +1866,9 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                 // A seat cannot add crew to the GC's roster — say whose move it is.
                 <View style={styles.rosterEmpty} testID="clock-in-seat-no-crew">
                   <Users size={28} color={themeColors.textMuted} strokeWidth={1.75} />
-                  <Text style={styles.rosterEmptyTitle}>No crew assigned to this job</Text>
+                  <Text style={styles.rosterEmptyTitle}>No crew assigned to this project</Text>
                   <Text style={styles.rosterEmptyBody}>
-                    Your GC assigns crew to a job in his Crew screen. Once he does, they appear here to clock in.
+                    Your GC assigns crew to each project. Once they do, the crew shows here.
                   </Text>
                 </View>
               ) : roster.length === 0 ? (
@@ -1874,7 +1876,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
                   <Users size={28} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.rosterEmptyTitle}>No crew added yet</Text>
                   <Text style={styles.rosterEmptyBody}>
-                    Add your crew in the Crew screen — verify IDs, set trades — then clock them in here.
+                    Add your crew in the Crew screen (verify IDs, set trades), then clock them in here.
                   </Text>
                   <TouchableOpacity
                     style={styles.rosterEmptyBtn}
@@ -1992,7 +1994,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               </TouchableOpacity>
             </View>
             <Text style={{ paddingTop: 6, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 }}>
-              Loaded cost per hour — wages plus burden — for each trade you self-perform.
+              Loaded cost per hour for each trade you self-perform (wages plus burden).
               Clocked hours × these rates feed your cost book, so estimates price labor
               from your real numbers. Leave blank to keep a trade out.
             </Text>
@@ -2090,7 +2092,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               <Text style={styles.otHint}>
                 Overtime is every hour past 40 in a worker&apos;s payroll week
                 {otDailyDraft ? `, or past ${DAILY_OVERTIME_HOURS} in one day (never both for the same hour)` : ''}, across all
-                your jobs. The job he worked the late hours on carries the premium. This week&apos;s overtime is so far.
+                your projects. The project they worked the late hours on carries the premium.
               </Text>
               {!ratesFromAccount ? (
                 <Text style={styles.otHint} testID="labor-rates-device-only">
@@ -2237,7 +2239,7 @@ function TimeTrackingScreenInner({ ownTier }: { ownTier: boolean }) {
               <>
                 <Text style={styles.modalSubtitle}>
                   {outFor.entry.workerName} clocked in {formatClockTime(Date.parse(outFor.entry.clockIn))} on {formatCalendarDay(timeEntryDay(outFor.entry), { weekday: 'short', month: 'short', day: 'numeric' })}.
-                  {outFor.loggedBy ? ` ${outFor.loggedBy}.` : ''} When did he leave?
+                  {outFor.loggedBy ? ` ${outFor.loggedBy}.` : ''} When did they leave?
                 </Text>
                 <View style={styles.rateRow}>
                   <Text style={styles.rateTradeLabel}>Out at</Text>

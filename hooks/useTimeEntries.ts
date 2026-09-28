@@ -49,6 +49,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseWrite, getOfflineQueue, onQueueFlushed } from '@/utils/offlineQueue';
+// Step 0 (moments): the awaitable writes are read off the module namespace so a
+// validator that stubs '@/utils/offlineQueue' with only the three names above
+// (validate-time-clock-store) still links; they are called only by the
+// *Detailed mutators below.
+import * as offlineQueueWrites from '@/utils/offlineQueue';
+import type { WriteOutcome } from '@/utils/offlineQueue';
 import { unsavedWriteIds, onUnsavedDiscarded } from '@/utils/syncLedger';
 import { pendingIdsForTable } from '@/utils/projectContextPure';
 import {
@@ -276,6 +282,101 @@ function mergeById(base: TimeEntry[], winner: TimeEntry[]): TimeEntry[] {
   winner.forEach(e => byId.set(e.id, e));
   return Array.from(byId.values());
 }
+
+// ── Step 0 (moments, lane MOMSTEP0): the shift maths, shared ─────────────
+// clockOut / clockOutDetailed and closeTeamShift / closeTeamShiftDetailed run
+// the SAME plan: one place decides the out time, the break (#152), the hours
+// and the row the server gets. Pure (scripts/moments-checks/step0.ts runs it).
+
+/** What ending one of his own shifts would write. */
+export type ClockOutPlan =
+  | { kind: 'already' }
+  | { kind: 'invalid' }
+  | {
+    kind: 'ok';
+    outIso: string;
+    breakMinutes: number;
+    totalHours: number;
+    overtimeHours: number;
+    row: Record<string, unknown>;
+  };
+
+/**
+ * `already` = the shift is ended (#67: a stale second tap must never
+ * overwrite recorded hours); `invalid` = no such shift, or an out time before
+ * the clock-in or more than a minute in the future (#66).
+ */
+export function planClockOut(e: TimeEntry | undefined, outAt: string | undefined, nowMs: number): ClockOutPlan {
+  if (!e) return { kind: 'invalid' };
+  if (e.status === 'clocked_out' || e.clockOut) return { kind: 'already' };
+  const outMs = outAt ? Date.parse(outAt) : nowMs;
+  const inMs = Date.parse(e.clockIn);
+  if (!(Number.isFinite(outMs) && !(Number.isFinite(inMs) && outMs < inMs) && outMs <= nowMs + 60_000)) return { kind: 'invalid' };
+  const outIso = new Date(outMs).toISOString();
+  // A clock-out straight from 'break' takes the running break off too
+  // (#152) — it used to be paid as work.
+  const breakMinutes = breakMinutesAt(e, outMs);
+  const { totalHours, overtimeHours } = computeShiftHours(e.clockIn, outIso, breakMinutes);
+  return {
+    kind: 'ok',
+    outIso,
+    breakMinutes,
+    totalHours,
+    overtimeHours,
+    row: {
+      id: e.id,
+      status: 'clocked_out',
+      clock_out: outIso,
+      break_minutes: breakMinutes,
+      break_started_at: null,
+      total_hours: totalHours,
+      overtime_hours: overtimeHours,
+    },
+  };
+}
+
+/** What the owner's close of a team shift would write (#63). */
+export type TeamShiftClosePlan<T> =
+  | { kind: 'not_own' }
+  | { kind: 'invalid' }
+  | { kind: 'ok'; next: T; row: Record<string, unknown> };
+
+/** `not_own` = not a team row on a project he OWNS; `invalid` = no out time to record. */
+export function planTeamShiftClose<T extends TimeEntry & { onOwnedProject?: boolean }>(
+  t: T | undefined,
+  patch: { clockOut?: string; totalHours: number; breakMinutes: number },
+): TeamShiftClosePlan<T> {
+  if (!t || t.onOwnedProject !== true) return { kind: 'not_own' };
+  const next: T = {
+    ...t,
+    status: 'clocked_out',
+    clockOut: patch.clockOut ?? t.clockOut,
+    breakMinutes: patch.breakMinutes,
+    breakStartedAt: undefined,
+    totalHours: patch.totalHours,
+  };
+  if (!next.clockOut) return { kind: 'invalid' };
+  return {
+    kind: 'ok',
+    next,
+    row: {
+      id: t.id,
+      status: 'clocked_out',
+      clock_out: next.clockOut,
+      break_minutes: patch.breakMinutes,
+      break_started_at: null,
+      total_hours: patch.totalHours,
+      // The legacy per-shift column, kept filled for older builds (nothing
+      // here reads it — overtime is allocated at read time, #65).
+      overtime_hours: Math.round(Math.max(0, patch.totalHours - 8) * 100) / 100,
+    },
+  };
+}
+
+/** Where an awaited clock-out landed. 'already' = the shift was already ended; nothing written. */
+export type ClockOutOutcome = WriteOutcome | 'local' | 'already';
+/** Where an awaited team-shift close landed. 'not_own' = not a shift on a project he owns; nothing written. */
+export type CloseTeamShiftOutcome = WriteOutcome | 'local' | 'not_own';
 
 /** A shift someone else logged on one of this user's jobs, with its author.
  *  `onOwnedProject` is stamped at fetch time: true only when the job is one
@@ -1020,36 +1121,66 @@ export function useTimeEntriesStore() {
     const nowMs = Date.now();
     const e = entriesRef.current.find(x => x.id === entryId);
     let wrote = false;
-    if (e && e.status !== 'clocked_out' && !e.clockOut) {
-      const outMs = outAt ? Date.parse(outAt) : nowMs;
-      const inMs = Date.parse(e.clockIn);
-      if (Number.isFinite(outMs) && !(Number.isFinite(inMs) && outMs < inMs) && outMs <= nowMs + 60_000) {
-        const outIso = new Date(outMs).toISOString();
-        // A clock-out straight from 'break' takes the running break off too
-        // (#152) — it used to be paid as work.
-        const breakMinutes = breakMinutesAt(e, outMs);
-        const { totalHours, overtimeHours } = computeShiftHours(e.clockIn, outIso, breakMinutes);
-        setEntries(prev => prev.map(x => x.id === entryId
-          ? { ...x, status: 'clocked_out' as const, clockOut: outIso, breakMinutes, breakStartedAt: undefined, totalHours, overtimeHours }
-          : x));
-        if (userId && isSupabaseConfigured) {
-          void supabaseWrite('time_entries', 'update', {
-            id: e.id,
-            status: 'clocked_out',
-            clock_out: outIso,
-            break_minutes: breakMinutes,
-            break_started_at: null,
-            total_hours: totalHours,
-            overtime_hours: overtimeHours,
-          });
-        }
-        wrote = true;
+    const plan = planClockOut(e, outAt, nowMs);
+    if (e && plan.kind === 'ok') {
+      const { outIso, breakMinutes, totalHours, overtimeHours } = plan;
+      setEntries(prev => prev.map(x => x.id === entryId
+        ? { ...x, status: 'clocked_out' as const, clockOut: outIso, breakMinutes, breakStartedAt: undefined, totalHours, overtimeHours }
+        : x));
+      if (userId && isSupabaseConfigured) {
+        void supabaseWrite('time_entries', 'update', plan.row);
       }
+      wrote = true;
     }
     // Clocked out (now or earlier) — cancel any pending shift-end alert,
     // whichever mount or launch posted it.
     if (wrote || (e && e.status === 'clocked_out')) cancelShiftAlert(entryId);
     return wrote;
+  }, [userId, cancelShiftAlert]);
+
+  /**
+   * Step 0 (moments): clockOut, awaited and honest, for the slide-to-clock-out.
+   * The same plan (planClockOut), the change shown at once, the write through
+   * supabaseWriteDetailed with callerOwnsRefusal (the slide says what did not
+   * happen, so no toast and no Not-saved line), and on 'failed' the shift is
+   * back on the clock exactly as it was. 'queued' keeps it clocked out (it
+   * sends when online). 'local' = no signed-in account: this device only.
+   */
+  const clockOutDetailed = useCallback(async (entryId: string, outAt?: string): Promise<ClockOutOutcome> => {
+    const e = entriesRef.current.find(x => x.id === entryId);
+    const plan = planClockOut(e, outAt, Date.now());
+    if (plan.kind === 'already') {
+      if (e && e.status === 'clocked_out') cancelShiftAlert(entryId);
+      return 'already';
+    }
+    if (!e || plan.kind !== 'ok') return 'failed';
+    const prior = e;
+    const { outIso, breakMinutes, totalHours, overtimeHours } = plan;
+    setEntries(prev => prev.map(x => x.id === entryId
+      ? { ...x, status: 'clocked_out' as const, clockOut: outIso, breakMinutes, breakStartedAt: undefined, totalHours, overtimeHours }
+      : x));
+    if (!(userId && isSupabaseConfigured)) {
+      cancelShiftAlert(entryId);
+      return 'local';
+    }
+    const outcome: WriteOutcome = await offlineQueueWrites.supabaseWriteDetailed('time_entries', 'update', plan.row, { callerOwnsRefusal: true });
+    if (outcome === 'failed') {
+      // Nothing reached the server or the queue: put back exactly what this call changed.
+      setEntries(prev => prev.map(x => x.id === entryId
+        ? {
+          ...x,
+          status: prior.status,
+          clockOut: prior.clockOut,
+          breakMinutes: prior.breakMinutes,
+          breakStartedAt: prior.breakStartedAt,
+          totalHours: prior.totalHours,
+          overtimeHours: prior.overtimeHours,
+        }
+        : x));
+      return 'failed';
+    }
+    cancelShiftAlert(entryId);
+    return outcome;
   }, [userId, cancelShiftAlert]);
 
   /**
@@ -1069,32 +1200,40 @@ export function useTimeEntriesStore() {
     clockOut?: string; totalHours: number; breakMinutes: number;
   }): boolean => {
     const t = teamEntriesRef.current.find(x => x.id === entryId);
-    if (!t || t.onOwnedProject !== true) return false;
-    const next: TeamTimeEntry = {
-      ...t,
-      status: 'clocked_out',
-      clockOut: patch.clockOut ?? t.clockOut,
-      breakMinutes: patch.breakMinutes,
-      breakStartedAt: undefined,
-      totalHours: patch.totalHours,
-    };
-    if (!next.clockOut) return false;
+    const plan = planTeamShiftClose(t, patch);
+    if (plan.kind !== 'ok') return false;
+    const next = plan.next;
     setTeamEntries(prev => prev.map(x => (x.id === entryId ? next : x)));
     if (userId && isSupabaseConfigured) {
-      const dbPatch: Record<string, unknown> = {
-        id: entryId,
-        status: 'clocked_out',
-        clock_out: next.clockOut,
-        break_minutes: patch.breakMinutes,
-        break_started_at: null,
-        total_hours: patch.totalHours,
-        // The legacy per-shift column, kept filled for older builds (nothing
-        // here reads it — overtime is allocated at read time, #65).
-        overtime_hours: Math.round(Math.max(0, patch.totalHours - 8) * 100) / 100,
-      };
-      void supabaseWrite('time_entries', 'update', dbPatch);
+      void supabaseWrite('time_entries', 'update', plan.row);
     }
     return true;
+  }, [userId]);
+
+  /**
+   * Step 0 (moments): closeTeamShift, awaited and honest. The same plan
+   * (planTeamShiftClose); 'not_own' where closeTeamShift answers false for a
+   * shift not on his own project (nothing written); the write through
+   * supabaseWriteDetailed with callerOwnsRefusal; on 'failed' the team row is
+   * put back as it was.
+   */
+  const closeTeamShiftDetailed = useCallback(async (entryId: string, patch: {
+    clockOut?: string; totalHours: number; breakMinutes: number;
+  }): Promise<CloseTeamShiftOutcome> => {
+    const t = teamEntriesRef.current.find(x => x.id === entryId);
+    const plan = planTeamShiftClose(t, patch);
+    if (plan.kind === 'not_own') return 'not_own';
+    if (!t || plan.kind !== 'ok') return 'failed';
+    const prior = t;
+    const next = plan.next;
+    setTeamEntries(prev => prev.map(x => (x.id === entryId ? next : x)));
+    if (!(userId && isSupabaseConfigured)) return 'local';
+    const outcome: WriteOutcome = await offlineQueueWrites.supabaseWriteDetailed('time_entries', 'update', plan.row, { callerOwnsRefusal: true });
+    if (outcome === 'failed') {
+      setTeamEntries(prev => prev.map(x => (x.id === entryId ? prior : x)));
+      return 'failed';
+    }
+    return outcome;
   }, [userId]);
 
   const updateEntry = useCallback((entryId: string, patch: Partial<TimeEntry>) => {
@@ -1197,13 +1336,17 @@ export function useTimeEntriesStore() {
     resumeFromBreak,
     clockOut,
     closeTeamShift,
+    /** Step 0: awaited, honest clock-out (ClockOutOutcome). */
+    clockOutDetailed,
+    /** Step 0: awaited, honest team-shift close (CloseTeamShiftOutcome). */
+    closeTeamShiftDetailed,
     updateEntry,
     deleteEntry,
     shiftAlertHours,
     setShiftAlertHours,
   }), [
     entries, teamEntries, liveEntries, historyEntries, hydrated, refresh, pulling, pullFailed, clockIn, addManualEntry, startBreak,
-    resumeFromBreak, clockOut, closeTeamShift, updateEntry, deleteEntry, shiftAlertHours, setShiftAlertHours,
+    resumeFromBreak, clockOut, closeTeamShift, clockOutDetailed, closeTeamShiftDetailed, updateEntry, deleteEntry, shiftAlertHours, setShiftAlertHours,
   ]);
 }
 

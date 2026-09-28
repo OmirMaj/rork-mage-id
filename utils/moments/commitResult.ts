@@ -25,15 +25,46 @@ export type CommitResult =
   | { status: 'refused'; reason: string; next?: string; announce?: string }
   | { status: 'timeout'; message: string; announce?: string };
 
+/**
+ * Step 0 (lane MOMSTEP0): the outcome lines as WHOLE SENTENCES from the site's
+ * copy file (utils/moments/sites/*). Each one, when present, is used exactly
+ * as given; when absent the English frames below are the fallback
+ * (genericRefusedCopy(verb), timeoutCopy(subject), legalQueuedCopy(verb),
+ * transportCopy(verb, true), offlineLegalReason()). A sentence is never
+ * assembled from a translated verb or noun: Spanish past participles agree in
+ * gender ("No aprobado" / "No aprobada"), so every site passes its own
+ * sentences (docs/I18N.md §3.5; scripts/moments-checks/rules.ts enforces it).
+ */
+export interface CommitOutcomeCopy {
+  /** The generic refused line: a write that answered with no reason of its own, or threw a non-transport error. */
+  refused?: string;
+  /** The timeout line (no answer in time, or a transport drop on a write that cannot be repeated). */
+  timeout?: string;
+  /** Legal record answered 'queued' (it can never be): "Not certified. Certifying needs a connection, so nothing was certified." */
+  legalQueued?: string;
+  /** An idempotent write's transport drop: "Not recorded. The connection dropped, so nothing was saved." */
+  transport?: string;
+  /** The disabled reason for a legal control while offline (default offlineLegalReason()). */
+  offline?: string;
+}
+
 export interface CommitWriteOptions {
   /** Safe to repeat. Only an idempotent write may ever say "Nothing was saved" on an unknown outcome. */
   idempotent: boolean;
   /** Legal record (signature, certify, seal): never queued. A 'queued' answer becomes refused. */
   legal?: boolean;
-  /** The thing to check on a timeout: 'CO #4' -> "No answer yet. Check CO #4 before trying again." */
-  subject: string;
-  /** Past participle for refused copy: 'recorded' -> "Not recorded. ..." */
-  verb: string;
+  /**
+   * The thing to check on a timeout: 'CO #4' -> "No answer yet. Check CO #4 before trying again."
+   * English fallback only: a site that passes copy.timeout never needs it.
+   */
+  subject?: string;
+  /**
+   * Past participle for refused copy: 'recorded' -> "Not recorded. ..."
+   * English fallback only: a site that passes copy.refused (and copy.legalQueued) never needs it.
+   */
+  verb?: string;
+  /** Whole-sentence outcome lines (Step 0). Each overrides its English frame. */
+  copy?: CommitOutcomeCopy;
   /** Default 20000. */
   timeoutMs?: number;
   /** Default 500 (busy always reads; no fake delay beyond it). */
@@ -44,7 +75,7 @@ export const COMMIT_TIMEOUT_MS = 20000;
 export const COMMIT_MIN_BUSY_MS = 500;
 
 /** "No answer yet. Check CO #4 before trying again." */
-export function timeoutCopy(subject: string): string {
+export function timeoutCopy(subject: string = ''): string {
   const s = subject.trim();
   return s ? `No answer yet. Check ${s} before trying again.` : 'No answer yet. Check the record before trying again.';
 }
@@ -69,9 +100,45 @@ export function genericRefusedCopy(verb: string): string {
   return `Not ${verb}. Something went wrong on our side.`;
 }
 
-/** The disabled reason for a legal slide while offline. */
-export function offlineLegalReason(): string {
-  return "You're offline. Signing needs a connection.";
+/** Which legal act the offline reason names (Step 0). Whole sentences, never a noun passed into a frame. */
+export type OfflineLegalKind = 'signing' | 'certifying';
+
+const OFFLINE_LEGAL_REASON: Record<OfflineLegalKind, string> = {
+  signing: "You're offline. Signing needs a connection.",
+  certifying: "You're offline. Certifying needs a connection.",
+};
+
+/** The disabled reason for a legal slide while offline. Default 'signing' (byte-identical to the original). */
+export function offlineLegalReason(kind: OfflineLegalKind = 'signing'): string {
+  return OFFLINE_LEGAL_REASON[kind] ?? OFFLINE_LEGAL_REASON.signing;
+}
+
+/** The English fallback verb when a site passed none (it should pass copy.* instead). */
+const FALLBACK_VERB = 'saved';
+
+/** A site sentence counts only when it has words in it; a blank one falls back to the frame. */
+function given(s: string | undefined): string | undefined {
+  return typeof s === 'string' && s.trim() ? s : undefined;
+}
+
+/** The refused line a write resolves to: the site's sentence, else the English frame. */
+function refusedLine(opts: CommitWriteOptions): string {
+  return given(opts.copy?.refused) ?? genericRefusedCopy(opts.verb ?? FALLBACK_VERB);
+}
+
+/** The timeout line: the site's sentence, else the English frame. */
+function timeoutLine(opts: CommitWriteOptions): string {
+  return given(opts.copy?.timeout) ?? timeoutCopy(opts.subject ?? '');
+}
+
+/** The legal+queued refusal: the site's sentence, else the English frame. Exported for the capsule's uncommit. */
+export function legalQueuedLine(opts: CommitWriteOptions): string {
+  return given(opts.copy?.legalQueued) ?? legalQueuedCopy(opts.verb ?? FALLBACK_VERB);
+}
+
+/** The disabled reason a legal control shows while offline: the site's sentence, else offlineLegalReason(). */
+export function offlineReasonLine(opts: Pick<CommitWriteOptions, 'copy'>): string {
+  return given(opts.copy?.offline) ?? offlineLegalReason();
 }
 
 type RunOpts = CommitWriteOptions & {
@@ -83,8 +150,8 @@ type RunOpts = CommitWriteOptions & {
 
 function unknownOutcome(opts: RunOpts): CommitResult {
   return opts.idempotent
-    ? { status: 'refused', reason: transportCopy(opts.verb, true) }
-    : { status: 'timeout', message: timeoutCopy(opts.subject) };
+    ? { status: 'refused', reason: given(opts.copy?.transport) ?? transportCopy(opts.verb ?? FALLBACK_VERB, true) }
+    : { status: 'timeout', message: timeoutLine(opts) };
 }
 
 /** Whatever the write handed back, as exactly one well-formed CommitResult. */
@@ -99,15 +166,15 @@ function normalise(r: unknown, opts: RunOpts): CommitResult {
       return { status: 'confirmed', title, detail: str(o.detail), next: str(o.next), announce };
     }
     case 'queued':
-      if (opts.legal) return { status: 'refused', reason: legalQueuedCopy(opts.verb) };
+      if (opts.legal) return { status: 'refused', reason: legalQueuedLine(opts) };
       return { status: 'queued', title: str(o.title), next: str(o.next), announce };
     case 'refused':
-      return { status: 'refused', reason: str(o.reason) ?? genericRefusedCopy(opts.verb), next: str(o.next), announce };
+      return { status: 'refused', reason: str(o.reason) ?? refusedLine(opts), next: str(o.next), announce };
     case 'timeout':
       // As returned: the write itself says it does not know. Never "nothing was saved".
-      return { status: 'timeout', message: str(o.message) ?? timeoutCopy(opts.subject), announce };
+      return { status: 'timeout', message: str(o.message) ?? timeoutLine(opts), announce };
     default:
-      return { status: 'refused', reason: genericRefusedCopy(opts.verb) };
+      return { status: 'refused', reason: refusedLine(opts) };
   }
 }
 
@@ -150,9 +217,9 @@ export function runCommit(write: () => Promise<CommitResult>, opts: RunOpts): Pr
       (err) => {
         let n: CommitResult;
         try {
-          n = isTransport(err) ? unknownOutcome(opts) : { status: 'refused', reason: genericRefusedCopy(opts.verb) };
+          n = isTransport(err) ? unknownOutcome(opts) : { status: 'refused', reason: refusedLine(opts) };
         } catch {
-          n = { status: 'refused', reason: genericRefusedCopy(opts.verb) };
+          n = { status: 'refused', reason: refusedLine(opts) };
         }
         if (!settle(n)) late(n);
       },

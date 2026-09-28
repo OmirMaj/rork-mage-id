@@ -271,10 +271,10 @@ ok('mock star ratings and "Featured" badges are not rendered',
 const tools = code(read('app/(tabs)/discover/tools.tsx'));
 const toolsRow = tools.split('\n').find(l => /feature: 'marketplace'/.test(l)) ?? '';
 ok('the Tools card no longer promises "price history" and says it is a sample',
-  !!toolsRow && !/price history/i.test(toolsRow) && /Sample catalog/.test(toolsRow), toolsRow.trim());
+  !!toolsRow && !/price history/i.test(toolsRow) && /These suppliers are not real/.test(toolsRow), toolsRow.trim());
 const side = code(read('components/DesktopSidebar.tsx'));
 const sideRow = side.split('\n').find(l => /feature: 'marketplace'/.test(l)) ?? '';
-ok('the sidebar row is labelled a sample', /label: 'Suppliers \(sample\)'/.test(sideRow), sideRow.trim());
+ok('the sidebar row is labelled a demo', /label: 'Supplier catalog \(demo\)'/.test(sideRow), sideRow.trim());
 
 const companies = code(read('app/(tabs)/discover/companies.tsx'));
 ok('Companies no longer calls Google rows firms "publishing public profiles"',

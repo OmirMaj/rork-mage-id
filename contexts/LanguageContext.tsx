@@ -13,14 +13,20 @@
 // any component — including one rendered outside the provider (smoke tests,
 // the error fallback, early boot), where it simply reads English.
 //
-// Mount (handoff): just inside ThemeProvider and ABOVE AuthProvider, so the
-// sign-in and sign-up screens render in the chosen language.
+// Mount: app/_layout.tsx, just inside ThemeProvider and ABOVE AuthProvider,
+// so the sign-in and sign-up screens render in the chosen language.
 //
-// Not built yet (Phase 1, after the preferred_language migration):
-// LanguageProfileSync — server value wins on sign-in, a Settings change writes
-// local first then enqueues a single-column supabaseWrite. Until the column
-// exists, nothing here writes to the server (a write to a missing column would
-// sit in the offline queue forever).
+// The account copy (components/LanguageProfileSync.tsx, mounted under
+// AuthProvider; decisions in utils/languageSyncCore.ts):
+//   • on sign-in or a user change it reads profiles.preferred_language; a
+//     value there wins and arrives through applyAccountLanguage() — source
+//     'account', copied to mageid_language, never written back. NULL, a
+//     missing column (migration not applied) or a failed read change nothing.
+//   • an explicit choice through setLanguage() applies and persists locally
+//     here first, then notifies subscribeUserChoice() listeners; the Sync
+//     turns that into ONE single-column offline-queue write
+//     (profiles.preferred_language). Hydration, the account apply and the
+//     'xx' pseudo-locale never notify, so they are never written anywhere.
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
@@ -74,13 +80,18 @@ export interface LanguageContextValue {
   /** The user's language ('en' | 'es'). Unaffected by the pseudo toggle. */
   lang: Lang;
   displayLang: DisplayLang;
-  /** Where `lang` came from — 'default' until hydration finds something. */
-  source: LanguageSource | 'user';
+  /** Where `lang` came from — 'default' until hydration finds something,
+   *  'user' after a choice here, 'account' after the profile's value arrived. */
+  source: LanguageSource | 'user' | 'account';
   /** True once the stored choice has been read (English renders until then). */
   ready: boolean;
   pseudo: boolean;
-  /** Choose a language: applies instantly, persists on this device. */
+  /** Choose a language: applies instantly, persists on this device, and (via
+   *  LanguageProfileSync) saves it to the signed-in account. */
   setLanguage: (lang: Lang) => void;
+  /** The account's saved language (LanguageProfileSync only): applies and
+   *  persists on this device; never notifies subscribeUserChoice. */
+  applyAccountLanguage: (lang: Lang) => void;
   /** Dev-only 'xx' pseudo-locale. Never persisted. */
   setPseudo: (on: boolean) => void;
 }
@@ -96,6 +107,32 @@ function applyDocumentLang(lang: Lang): void {
   }
 }
 
+// ── Explicit choices ─────────────────────────────────────────────────────
+// Only setLanguage() (a person tapping a language) notifies these listeners.
+// LanguageProfileSync is the one subscriber: it writes the choice to the
+// account. A module-level set (not context) so the Sync never re-subscribes
+// when the context value changes.
+
+const userChoiceListeners = new Set<(lang: Lang) => void>();
+
+/** Subscribe to explicit language choices. Returns the unsubscribe. */
+export function subscribeUserChoice(fn: (lang: Lang) => void): () => void {
+  userChoiceListeners.add(fn);
+  return () => {
+    userChoiceListeners.delete(fn);
+  };
+}
+
+function notifyUserChoice(lang: Lang): void {
+  userChoiceListeners.forEach((fn) => {
+    try {
+      fn(lang);
+    } catch {
+      /* a broken listener must not stop the choice */
+    }
+  });
+}
+
 // A working default, so useLanguage() outside the provider still switches the
 // runtime language (it just cannot report hydration state).
 const fallbackValue: LanguageContextValue = {
@@ -105,6 +142,13 @@ const fallbackValue: LanguageContextValue = {
   ready: false,
   pseudo: false,
   setLanguage: (l) => {
+    if (l !== 'en' && l !== 'es') return;
+    setLang(l);
+    void writeStoredLanguage(l);
+    notifyUserChoice(l);
+  },
+  applyAccountLanguage: (l) => {
+    if (l !== 'en' && l !== 'es') return;
     setLang(l);
     void writeStoredLanguage(l);
   },
@@ -115,12 +159,15 @@ const LanguageContext = createContext<LanguageContextValue>(fallbackValue);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>('en');
-  const [source, setSource] = useState<LanguageSource | 'user'>('default');
+  const [source, setSource] = useState<LanguageSource | 'user' | 'account'>('default');
   const [ready, setReady] = useState(false);
   const [pseudo, setPseudoState] = useState(false);
   const displayLang = useDisplayLang();
-  // A choice made before hydration finishes must not be overwritten by it.
+  // A choice (the user's, or the account's) made before hydration finishes
+  // must not be overwritten by it.
   const userChose = useRef(false);
+  // Mirrors `pseudo` for the stable callbacks below (set where it changes).
+  const pseudoRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,14 +194,29 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     userChose.current = true;
     setLangState(next);
     setSource('user');
+    pseudoRef.current = false;
     setPseudoState(false);
     setLang(next);
+    applyDocumentLang(next);
+    void writeStoredLanguage(next);
+    // Local first (above), then the account (LanguageProfileSync).
+    notifyUserChoice(next);
+  }, []);
+
+  const applyAccountLanguage = useCallback((next: Lang) => {
+    if (next !== 'en' && next !== 'es') return;
+    userChose.current = true;
+    setLangState(next);
+    setSource('account');
+    // A dev reviewer's pseudo-locale stays on; it switches back to `next`.
+    setLang(pseudoRef.current ? 'xx' : next);
     applyDocumentLang(next);
     void writeStoredLanguage(next);
   }, []);
 
   const setPseudo = useCallback(
     (on: boolean) => {
+      pseudoRef.current = on;
       setPseudoState(on);
       setLang(on ? 'xx' : lang);
     },
@@ -162,8 +224,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<LanguageContextValue>(
-    () => ({ lang, displayLang, source, ready, pseudo, setLanguage, setPseudo }),
-    [lang, displayLang, source, ready, pseudo, setLanguage, setPseudo],
+    () => ({ lang, displayLang, source, ready, pseudo, setLanguage, applyAccountLanguage, setPseudo }),
+    [lang, displayLang, source, ready, pseudo, setLanguage, applyAccountLanguage, setPseudo],
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;

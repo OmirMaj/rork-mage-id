@@ -23,22 +23,21 @@
 import type { Lang } from './types';
 import { getLang } from './core';
 import { formatMoney, formatMoneyShort, formatNumber } from '../utils/formatters';
-import { formatCalendarDay, parseCalendarDay } from '../utils/calendarDate';
+import { formatCalendarDay } from '../utils/calendarDate';
+import {
+  DATE_STYLE_OPTIONS, ES_MONTHS_SHORT, esDate, esTime, zonedParts, type DateStyle,
+} from './dateEs';
 import { relativeTime } from '../utils/constructionNews';
 
 // ── Spanish tables (glossary §7: lowercase months and weekdays) ──────────
+// They live in i18n/dateEs.ts (utils/calendarDate.ts renders Spanish days
+// through it, and must not import this file — see there). Re-exported here so
+// the public surface is unchanged.
 
-export const ES_MONTHS = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-] as const;
-export const ES_MONTHS_SHORT = [
-  'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic',
-] as const;
-export const ES_WEEKDAYS = [
-  'domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado',
-] as const;
-export const ES_WEEKDAYS_SHORT = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'] as const;
+export {
+  ES_MONTHS, ES_MONTHS_SHORT, ES_WEEKDAYS, ES_WEEKDAYS_SHORT, DATE_STYLE_OPTIONS,
+} from './dateEs';
+export type { DateStyle } from './dateEs';
 
 const EN_MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -102,138 +101,10 @@ export function formatMoneyCentsL(
   return (neg ? '-$' : '$') + body;
 }
 
-// ── Date parts (respecting an optional timeZone, without formatToParts) ──
-
-interface DateParts {
-  year: number;
-  month: number; // 0-11
-  day: number;
-  weekday: number; // 0 = Sunday
-  hour: number; // 0-23
-  minute: number;
-  second: number;
-}
+// ── Dates ────────────────────────────────────────────────────────────────
 
 function toDate(v: Date | string | number): Date {
   return v instanceof Date ? v : new Date(v);
-}
-
-function localParts(d: Date): DateParts {
-  return {
-    year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), weekday: d.getDay(),
-    hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds(),
-  };
-}
-
-function utcParts(d: Date): DateParts {
-  return {
-    year: d.getUTCFullYear(), month: d.getUTCMonth(), day: d.getUTCDate(), weekday: d.getUTCDay(),
-    hour: d.getUTCHours(), minute: d.getUTCMinutes(), second: d.getUTCSeconds(),
-  };
-}
-
-/**
- * Wall-clock parts of `d` in `timeZone`. Reads them from en-US NUMERIC output
- * ('9/26/2026', '15:05:09'), which is stable on Hermes, V8 and Deno —
- * formatToParts is avoided (NumberFormat's throws on the Apple backend, so
- * the family is not trusted). Falls back to local parts if the zone is bad.
- */
-function zonedParts(d: Date, timeZone?: string): DateParts {
-  if (!timeZone) return localParts(d);
-  if (timeZone === 'UTC' || timeZone === 'Etc/UTC' || timeZone === 'GMT') return utcParts(d);
-  try {
-    const date = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' }).format(d);
-    const time = new Intl.DateTimeFormat('en-US', {
-      timeZone, hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: false,
-    }).format(d);
-    const dm = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(date);
-    const tm = /(\d{1,2}):(\d{2}):(\d{2})/.exec(time);
-    if (!dm || !tm) return localParts(d);
-    const year = Number(dm[3]);
-    const month = Number(dm[1]) - 1;
-    const day = Number(dm[2]);
-    return {
-      year, month, day,
-      weekday: new Date(Date.UTC(year, month, day)).getUTCDay(),
-      hour: Number(tm[1]) % 24, // some ICU builds print midnight as 24
-      minute: Number(tm[2]),
-      second: Number(tm[3]),
-    };
-  } catch {
-    return localParts(d);
-  }
-}
-
-// ── Dates ────────────────────────────────────────────────────────────────
-
-export type DateStyle = 'day' | 'dayYear' | 'weekdayDay' | 'long' | 'monthYear' | 'weekday';
-
-/** The en-US options each named style has always meant in this app. */
-export const DATE_STYLE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
-  day: { month: 'short', day: 'numeric' }, //                      Sep 27        | 27 sept
-  dayYear: { month: 'short', day: 'numeric', year: 'numeric' }, //   Sep 27, 2026  | 27 sept 2026
-  weekdayDay: { weekday: 'short', month: 'short', day: 'numeric' }, // Sun, Sep 27 | dom 27 sept
-  long: { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' },
-  //                                  Sunday, September 27, 2026 | domingo, 27 de septiembre de 2026
-  monthYear: { month: 'long', year: 'numeric' }, //                 September 2026 | septiembre de 2026
-  weekday: { weekday: 'long' }, //                                  Sunday | domingo
-};
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-function hasDateField(o: Intl.DateTimeFormatOptions): boolean {
-  return !!(o.weekday || o.year || o.month || o.day);
-}
-
-function hasTimeField(o: Intl.DateTimeFormatOptions): boolean {
-  return !!(o.hour || o.minute || o.second);
-}
-
-function esTime(p: DateParts, o: Intl.DateTimeFormatOptions): string {
-  const h24 = o.hour12 === false || o.hourCycle === 'h23' || o.hourCycle === 'h24';
-  const mm = pad2(p.minute);
-  const ss = o.second ? ':' + pad2(p.second) : '';
-  if (h24) {
-    const h = o.hour === '2-digit' ? pad2(p.hour) : String(p.hour);
-    return `${h}:${mm}${ss}`;
-  }
-  const h12 = p.hour % 12 === 0 ? 12 : p.hour % 12;
-  const h = o.hour === '2-digit' ? pad2(h12) : String(h12);
-  return `${h}:${mm}${ss} ${p.hour < 12 ? 'a.m.' : 'p.m.'}`;
-}
-
-/**
- * The Spanish rendering of a set of Intl date options, from our own tables.
- * `month: 'numeric' | '2-digit'` is rendered as the short month NAME — there
- * are no numeric dates in Spanish (glossary §6).
- */
-function esDate(p: DateParts, o: Intl.DateTimeFormatOptions): string {
-  const opts = hasDateField(o) || hasTimeField(o) ? o : DATE_STYLE_OPTIONS.dayYear;
-  const longMonth = opts.month === 'long';
-  const monthStr = opts.month ? (longMonth ? ES_MONTHS[p.month] : ES_MONTHS_SHORT[p.month]) : '';
-  const dayStr = opts.day ? (opts.day === '2-digit' ? pad2(p.day) : String(p.day)) : '';
-  const yearStr = opts.year ? (opts.year === '2-digit' ? pad2(p.year % 100) : String(p.year)) : '';
-
-  let core = '';
-  if (dayStr && monthStr) core = longMonth ? `${dayStr} de ${monthStr}` : `${dayStr} ${monthStr}`;
-  else if (monthStr) core = monthStr;
-  else if (dayStr) core = dayStr;
-
-  if (yearStr) {
-    if (monthStr) core = longMonth ? `${core} de ${yearStr}` : `${core} ${yearStr}`;
-    else core = core ? `${core} ${yearStr}` : yearStr;
-  }
-
-  if (opts.weekday) {
-    const wk = opts.weekday === 'long' ? ES_WEEKDAYS[p.weekday] : ES_WEEKDAYS_SHORT[p.weekday];
-    core = core ? (opts.weekday === 'long' ? `${wk}, ${core}` : `${wk} ${core}`) : wk;
-  }
-
-  if (hasTimeField(opts)) {
-    const time = esTime(p, opts);
-    core = core ? `${core}, ${time}` : time;
-  }
-  return core;
 }
 
 /**
@@ -257,21 +128,21 @@ export function formatDateL(value: Date | string | number, style: DateStyle = 'd
 }
 
 /**
- * utils/calendarDate formatCalendarDay in the given language — the body the
- * handoff patch routes `formatCalendarDay` through (161 importing files move
- * at once, no screen edits). en is exactly formatCalendarDay(value, options).
- * Same contract in es: '' for empty input, the raw value when unparseable.
+ * utils/calendarDate formatCalendarDay in the given language. formatCalendarDay
+ * itself now takes `lang` (default getLang()) and renders Spanish through
+ * i18n/dateEs.ts esCalendarDate — so its 161 importing files follow the app
+ * language with no screen edits. This is the same function with the language
+ * made explicit: en is exactly formatCalendarDay(value, options, 'en'); es has
+ * the same contract ('' for empty input, the raw value when unparseable).
+ * An omitted `options` reaches formatCalendarDay as undefined, so its own
+ * default ('Aug 30, 2026' / '30 ago 2026') applies.
  */
 export function formatCalendarDayL(
   value: string | null | undefined,
   options?: Intl.DateTimeFormatOptions,
   lang: Lang = getLang(),
 ): string {
-  if (lang === 'en') return options ? formatCalendarDay(value, options) : formatCalendarDay(value);
-  if (!value) return '';
-  const d = parseCalendarDay(value);
-  if (!d) return value;
-  return esDate(localParts(d), options ?? DATE_STYLE_OPTIONS.dayYear);
+  return formatCalendarDay(value, options, lang === 'es' ? 'es' : 'en');
 }
 
 /** Time of day. en is exactly `d.toLocaleTimeString('en-US', opts)` with the

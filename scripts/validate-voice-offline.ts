@@ -58,6 +58,8 @@ import {
   stagedFileName,
   takeReadyTranscript,
   voiceContextKey,
+  voiceBacklog,
+  voiceNoteQueueKey,
   type AudioTranscribeTask,
   type GiveUpReason,
 } from '../utils/audioTranscribeCore';
@@ -702,6 +704,52 @@ ok('enqueueing never throws at a caller mid-recording',
 ok('the opportunistic drain re-arms only on evidence, never on "still offline"',
   /if \(queuedSinceSnapshot \|\| \(res\.transcribed > 0 && res\.remaining > 0\)\) scheduleOpportunisticDrain\(\);/.test(shellCode),
   'a bare remaining > 0 never terminates offline');
+
+// ── UX wave A6: the change feed and the backlog count (NEW cases) ───────────
+// The sync pill counts the voice notes still on this phone, and the global mic
+// files a note the moment its transcript arrives. Both hear the queue move
+// through onAudioQueueChange. It is a notification only: none of the rules
+// above changed. Each emit sits AFTER the step it reports, so a listener that
+// re-reads the queue sees the new state.
+console.log('\nUX A6 — the queue says when it moved:');
+{
+  const feed = shellCode;
+  ok('onAudioQueueChange is exported and returns an unsubscribe',
+    /export function onAudioQueueChange\(listener: AudioQueueListener\): \(\) => void \{\s*audioQueueListeners\.add\(listener\);\s*return \(\) => \{ audioQueueListeners\.delete\(listener\); \};/.test(feed));
+  ok('a listener that throws never reaches the queue',
+    /for \(const l of \[\.\.\.audioQueueListeners\]\) \{\s*try \{ l\(\); \} catch/.test(feed));
+  ok('fires after a recording is saved (once it is on disk)',
+    /queuedSinceSnapshot = true;\s*scheduleOpportunisticDrain\(\);\s*emitAudioQueueChange\(\);\s*return \{ saved: true, task \};/.test(feed));
+  ok('fires after every drain pass, once the pass has settled',
+    /\.finally\(\(\) => \{ inFlight = null; emitAudioQueueChange\(\); \}\);/.test(feed));
+  ok('fires after a transcript is taken — and only when one was',
+    /if \(text !== null\) emitAudioQueueChange\(\);\s*return text;/.test(feed));
+  ok('fires after the tenant wipe and the per-user narrowing',
+    /for \(const t of cleared\) void discardRecording\(t\);\s*emitAudioQueueChange\(\);/.test(feed)
+      && /for \(const t of res\.gone\) void discardRecording\(t\);\s*emitAudioQueueChange\(\);/.test(feed));
+
+  const mk = (o: Partial<AudioTranscribeTask> & { id: string }): AudioTranscribeTask => ({
+    userId: 'u1', fileRef: 'a.wav', staged: true, uploadName: 'recording.wav', contentType: 'audio/wav',
+    contextKey: voiceNoteQueueKey('p1'), contextLabel: 'Voice dictation — Henderson', durationMs: 10_000,
+    queuedAt: 1_000_000, retryCount: 0, status: 'pending', ...o,
+  });
+  const q = [
+    mk({ id: 'w' }),
+    mk({ id: 'f', retryCount: 2 }),
+    mk({ id: 'r', status: 'ready', transcript: 'hi', fileRef: '' }),
+    mk({ id: 'other-w', userId: 'u2' }),
+    mk({ id: 'other-f', userId: 'u2', retryCount: 4 }),
+  ];
+  const own = voiceBacklog(q, 'u1');
+  ok('the backlog counts the caller\'s own clips only', own.waiting === 1 && own.failed === 1 && own.ready === 1, JSON.stringify(own));
+  const theirs = voiceBacklog(q, 'u2');
+  ok('…another user on the same phone sees only theirs', theirs.waiting === 1 && theirs.failed === 1 && theirs.ready === 0, JSON.stringify(theirs));
+  ok('…and no session sees nothing', voiceBacklog(q, null).waiting + voiceBacklog(q, '').failed === 0);
+  ok('offline never counts as failed (the budget is untouched while offline)',
+    applyTranscribeOutcome(mk({ id: 't' }), 'transient', '').task.retryCount === 0 && voiceBacklog([applyTranscribeOutcome(mk({ id: 't' }), 'transient', '').task], 'u1').failed === 0);
+  ok('a server refusal is counted as failed while it is still held',
+    voiceBacklog([applyTranscribeOutcome(mk({ id: 't' }), 'retryable', '').task], 'u1').failed === 1);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -186,11 +186,11 @@ const AI_LIMITS: AILimitRow[] = [
   { label: 'Cost X-Ray analyses /mo', free: '—', pro: '—', business: '50', enterprise: '150' },
   { label: 'Construction answers /mo', free: '—', pro: '—', business: '100', enterprise: '300' },
 ];
-// Photo Code Look has its own monthly meter (MONTHLY_CAPS code_look). A
+// Photo code check has its own monthly meter (MONTHLY_CAPS code_look). A
 // separate row rendered after both AI_LIMITS tables (testIDs 'codelook-…'),
 // so the tables above stay exactly as they were. scripts/validate-code-look.ts
 // pins these numbers to MONTHLY_CAPS.
-const CODE_LOOK_LIMIT: AILimitRow = { label: 'Photo code look /mo', free: '—', pro: '20', business: '60', enterprise: '150' };
+const CODE_LOOK_LIMIT: AILimitRow = { label: 'Photo code checks /mo', free: '—', pro: '20', business: '60', enterprise: '150' };
 
 function FeatureCheck({ available, note, colors }: { available: boolean; note?: string; colors: ThemeColors }) {
   // A note wins over the icon: "1" says more about a capped tier than a cross.

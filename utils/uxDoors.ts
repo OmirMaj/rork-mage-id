@@ -28,6 +28,7 @@
 import type { Project } from '@/types';
 import { isUsableEmail, isUsablePhone, seedClientEverywhere } from '@/utils/clientContact';
 import { countPill, type RowCount } from '@/utils/sidebarCounts';
+import { hrefToPath, tomorrowLineupHref } from '@/utils/uxRoutes';
 
 type JobLike = Pick<Project, 'id' | 'status' | 'updatedAt'>;
 
@@ -206,4 +207,64 @@ export function combineRowCounts(parts: readonly (RowCount | undefined)[], words
   });
   if (!(open > 0)) return undefined;
   return { open, alert, pill: countPill(open), label: bits.join('; ') };
+}
+
+// ── W1 UXDOORS: the Tools sheet's lineup row ────────────────────────────────
+
+/** A plan name as the paywall prints it ('pro' → 'Pro'). */
+export function planName(tier: string): string {
+  const t = (tier ?? '').trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : '';
+}
+
+export type LineupToolsDoor =
+  | { kind: 'open'; path: string }
+  | { kind: 'locked'; subtitle: string; title: string; message: string };
+
+/**
+ * Where the Summary tab's "Tomorrow's lineup" row goes (W1 UXDOORS, plan
+ * section 5: it stays the LAST row). Gated like its destination
+ * (app/tomorrow-lineup.tsx checks schedule_gantt_pdf): without the plan the
+ * row says which plan it is on and a tap explains it with a See plans path —
+ * never a dead end. With the plan it opens the lineup on his default job
+ * (pickDefaultProjectId: never a guess), else the bare screen, which asks.
+ */
+export function lineupToolsDoor(input: { projectId: string | null; canAccess: boolean; requiredTier: string }): LineupToolsDoor {
+  if (!input.canAccess) {
+    const line = `Tomorrow's lineup is on the ${planName(input.requiredTier)} plan`;
+    return {
+      kind: 'locked',
+      subtitle: line,
+      title: line,
+      message: 'It writes a ready-to-send text for each sub for the next work day.',
+    };
+  }
+  return { kind: 'open', path: input.projectId ? hrefToPath(tomorrowLineupHref(input.projectId)) : '/tomorrow-lineup' };
+}
+
+/**
+ * The job page's money chain from one contract read (W1 UXDOORS, D5).
+ * `loadActiveContract` says whether the read worked: only `ok` with no row
+ * means "no contract on file" (null). A failed read (offline, network,
+ * server) is `undefined`, which the next-step card and the deposit button
+ * treat as "not known" and stay quiet on — never "none on file".
+ */
+export function chainContractFromLoad<C>(load: { ok: true; contract: C | null } | { ok: false }): C | null | undefined {
+  return load.ok ? load.contract : undefined;
+}
+
+/**
+ * Who gets the money chain. project_contracts and change_orders are
+ * owner-only under RLS, so an editor, viewer or field seat reads "none" for a
+ * job that may well have a signed contract — and none of them can bill. Only
+ * the owner's page passes the contract and change orders; everyone else
+ * passes undefined, so the card never tells them "no contract has gone out".
+ */
+export function moneyChainForRole<C, O>(
+  role: string | null | undefined,
+  contract: C | null | undefined,
+  changeOrders: O[],
+): { contract: C | null | undefined; changeOrders: O[] | undefined } {
+  if (role !== 'owner') return { contract: undefined, changeOrders: undefined };
+  return { contract, changeOrders };
 }

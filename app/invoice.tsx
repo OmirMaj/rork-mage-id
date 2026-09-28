@@ -127,6 +127,9 @@ import { overdueCardLine } from '@/utils/nextBillableMilestone';
 import { Card } from '@/components/ui/Card';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '@/utils/alert';
+import { describeError, ownSentence } from '@/utils/errorCopy';
+import { humanizeEnum } from '@/utils/statusLabels';
+import { PAYMENT_METHOD_LABEL } from '@/utils/paymentsDesk';
 import { qboClosedFlagOf, qboClosedFlagAlertReason } from '@/utils/qboClosedFlag';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
 import { pdfFailureMessage } from '@/utils/platformFile';
@@ -160,7 +163,7 @@ const formatCurrency = (n: number): string => formatMoney(n, 2);
 type InvoiceBillTo = { billToEmail?: string; billToName?: string };
 
 const PAYMENT_TERMS_OPTIONS: { value: PaymentTerms; label: string }[] = [
-  { value: 'due_on_receipt', label: 'Due on Receipt' },
+  { value: 'due_on_receipt', label: 'Due on receipt' },
   { value: 'net_15', label: 'Net 15' },
   { value: 'net_30', label: 'Net 30' },
   { value: 'net_45', label: 'Net 45' },
@@ -278,7 +281,7 @@ const RETAINAGE_ASK_CHOICES: { value: number; label: string; meta: string; a11y:
 const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'check', label: 'Check' },
   { value: 'ach', label: 'ACH' },
-  { value: 'credit_card', label: 'Credit Card' },
+  { value: 'credit_card', label: 'Credit card' },
   { value: 'cash', label: 'Cash' },
 ];
 
@@ -1198,11 +1201,11 @@ function InvoiceInner() {
     if (sendingRef.current) return;
     if (!projectId) return;
     if (billingBlocked) {
-      showAlert('Only the job owner bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     if (lineItems.length === 0) {
-      showAlert('No Items', 'Please add at least one line item.');
+      showAlert('Add a line item', 'An invoice needs at least one line item.');
       return;
     }
     // While his cash-flow terms are still being read the picker says
@@ -1283,7 +1286,7 @@ function InvoiceInner() {
     // #34: the sheet must not reopen and queue a second send mid-flight.
     if (sendingRef.current) return;
     if (billingBlocked) {
-      showAlert('Only the job owner bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     // Same wait as handleSave: never open Send on terms still "Checking…".
@@ -1338,7 +1341,7 @@ function InvoiceInner() {
   // handleConfirmSend below.
   const runConfirmSend = useCallback(async (): Promise<'left' | void> => {
     if (billingBlocked) {
-      showAlert('Only the job owner bills', INVOICE_OWNER_ONLY_REASON);
+      showAlert('Only the project owner bills', INVOICE_OWNER_ONLY_REASON);
       return;
     }
     // Last line of the sample invariant: whatever the sheet shows, a sample's
@@ -1352,12 +1355,12 @@ function InvoiceInner() {
       return;
     }
     if (!sendRecipientEmail.trim()) {
-      showAlert('Email Required', 'Please enter a recipient email address.');
+      showAlert('Add an email', 'Enter the recipient email address.');
       return;
     }
     if (!projectId) return;
     if (lineItems.length === 0) {
-      showAlert('No Items', 'Please add at least one line item.');
+      showAlert('Add a line item', 'An invoice needs at least one line item.');
       return;
     }
     setShowSendRecipient(false);
@@ -1632,7 +1635,8 @@ function InvoiceInner() {
         );
         return;
       }
-      showAlert('Email Notice', `Invoice ${createdNew ? 'saved as draft' : 'saved'} but email could not be sent: ${result.error}`);
+      console.warn('[Invoice] email failed:', result.error);
+      showAlert('Email not sent', `Invoice ${createdNew ? 'saved as a draft' : 'saved'}, but the email wasn't sent. ${ownSentence(result.error ?? null) ?? 'Try sending it again.'}`);
       return;
     }
     console.log('[Invoice] Email sent successfully');
@@ -1739,7 +1743,7 @@ function InvoiceInner() {
     } else {
       // The nudge is once-ever; after it, a send with no Pay button still
       // says so in the toast rather than reading as a plain "sent" (#36).
-      nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}${stripeNotConnected && totalDue > 0 ? ' — no Pay button (Stripe not connected)' : ''}`);
+      nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}${stripeNotConnected && totalDue > 0 ? ' · No pay button (Stripe not connected)' : ''}`);
     }
     router.back();
     return 'left';
@@ -2053,10 +2057,10 @@ function InvoiceInner() {
       if (held) {
         showAlert(
           'Payment not sent',
-          `Not sent — an earlier change to this invoice is under Not saved on the sync badge, and this invoice's changes go to MAGE in order. Retry or discard it there first, then record the ${formatCurrency(amt)} payment. Nothing was recorded.`,
+          `An earlier change to this invoice hasn't reached MAGE yet, and this invoice's changes go to MAGE in order. Review unsent changes, retry or discard that one, then record the ${formatCurrency(amt)} payment. Nothing was recorded.`,
           [
             { text: 'OK', style: 'cancel' },
-            { text: 'Open Not saved', onPress: () => openNotSavedFromPaymentSheet(true) },
+            { text: 'Review unsent changes', onPress: () => openNotSavedFromPaymentSheet(true) },
           ],
         );
         return;
@@ -2137,10 +2141,10 @@ function InvoiceInner() {
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      outcome === 'queued' ? 'Payment saved on this phone' : 'Payment Recorded',
+      outcome === 'queued' ? 'Payment saved on this phone' : 'Payment recorded',
       outcome === 'queued'
-        ? `${formatCurrency(amt)} payment saved. It is waiting in this phone's sync queue (no signal, or behind an earlier change to this invoice that has not reached the server yet) and reaches your books once it goes through.${existingInvoice.payLinkUrl ? ' Send the invoice again then, so the Pay link matches the new balance.' : ''}`
-        : `${formatCurrency(amt)} payment recorded. Status: ${newStatus.replace('_', ' ')}`,
+        ? `${formatCurrency(amt)} payment saved on this phone. It reaches your books as soon as it goes through.${existingInvoice.payLinkUrl ? ' Send the invoice again then, so the Pay link matches the new balance.' : ''}`
+        : `${formatCurrency(amt)} payment recorded. Status: ${humanizeEnum(newStatus)}.`,
     );
     if (stillInFront) router.back();
   }, [paymentMethod, paymentReceivedDate, paymentReference, existingInvoice, amountPaid, totalDue, subtotal, retentionPctValue, retentionAmount, retentionReleased, recordInvoicePayment, mintPayLinkFor, router, openNotSavedFromPaymentSheet]);
@@ -2170,12 +2174,12 @@ function InvoiceInner() {
     const sameMoney = waiting.some((w) => Math.round(w * 100) === Math.round(amt * 100));
     const buttons = [
       { text: 'Cancel', style: 'cancel' as const },
-      { text: 'Open Not saved', onPress: () => openNotSavedFromPaymentSheet(!sameMoney) },
+      { text: 'Review unsent changes', onPress: () => openNotSavedFromPaymentSheet(!sameMoney) },
     ];
     if (waiting.length === 0) {
       showAlert(
         'An earlier change to this invoice is not saved',
-        `A change to this invoice is under Not saved on the sync badge — not on MAGE. This invoice's changes go to MAGE in order, so the ${formatCurrency(amt)} payment cannot be sent until that one is retried or discarded. Do that first, then record the payment.`,
+        `A change to this invoice hasn't reached MAGE yet. This invoice's changes go to MAGE in order, so the ${formatCurrency(amt)} payment can't be sent until that one is retried or discarded. Review unsent changes, then record the payment.`,
         buttons,
       );
       return;
@@ -2183,7 +2187,7 @@ function InvoiceInner() {
     const amounts = waiting.map((a) => formatCurrency(a)).join(', ');
     showAlert(
       'A payment on this invoice is not saved yet',
-      `${waiting.length === 1 ? `A ${amounts} payment` : `Payments of ${amounts}`} on this invoice ${waiting.length === 1 ? 'is' : 'are'} under Not saved on the sync badge — not recorded on MAGE. If this is the same money, retry it there instead: recording it here as well would count it twice. If it is a different payment, retry or discard the waiting one first — this invoice's changes go to MAGE in order — then record this one.`,
+      `${waiting.length === 1 ? `A ${amounts} payment` : `Payments of ${amounts}`} on this invoice ${waiting.length === 1 ? "hasn't" : "haven't"} reached MAGE yet. If this is the same money, retry it under unsent changes instead: recording it here as well would count it twice. If it is a different payment, retry or discard the waiting one first (this invoice's changes go to MAGE in order), then record this one.`,
       buttons,
     );
   }, [existingInvoice, commitPayment, openNotSavedFromPaymentSheet]);
@@ -2241,7 +2245,7 @@ function InvoiceInner() {
       return;
     }
     if (balanceDue <= 0) {
-      showAlert('Nothing Due', 'This invoice has no outstanding balance.');
+      showAlert('Nothing due', 'This invoice has no outstanding balance.');
       return;
     }
     // #83: Regenerate is a mint too.
@@ -2265,7 +2269,7 @@ function InvoiceInner() {
       if (user?.id) {
         const status = await fetchStripeConnectStatus(user.id);
         if (!status.success) {
-          showAlert('Connection Check Failed', status.error ?? 'Could not verify your payment setup.');
+          showAlert("Couldn't check your payment setup", ownSentence(status.error ?? null) ?? "MAGE couldn't verify your payment setup. Try again.");
           return;
         }
         if (!status.chargesEnabled) {
@@ -2309,7 +2313,8 @@ function InvoiceInner() {
           showAlert('Bank payment processing', `No new link: ${PAYMENT_PENDING_MINT_REASON}. If it fails you'll be told, and you can send a fresh link then.`);
           return;
         }
-        showAlert('Could Not Create Payment Link', res.error ?? 'Unknown error from Stripe.');
+        console.warn('[Invoice] payment link failed:', res.error);
+        showAlert("Couldn't create payment link", ownSentence(res.error ?? null) ?? describeError(res.error ?? null, { action: 'create the payment link' }).body);
         return;
       }
 
@@ -2336,7 +2341,8 @@ function InvoiceInner() {
       );
     } catch (err) {
       console.error('[Invoice] Generate pay link failed:', err);
-      showAlert('Error', 'Failed to generate payment link. Please try again.');
+      const copy = describeError(err, { action: 'create the payment link' });
+      showAlert("Couldn't create payment link", copy.body);
     } finally {
       setGeneratingPayLink(false);
     }
@@ -2490,10 +2496,10 @@ function InvoiceInner() {
     });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert(
-      'Saved Figure Updated',
+      'Saved figure updated',
       `This invoice now records ${formatCurrency(corrected)} held — ${storedPct}% of the work completed. `
       + `The ${formatCurrency(overheld)} that was recorded against sales tax was never being charged: `
-      + `this screen, the Retention screen, Payments, the client portal, the pay link and your `
+      + `this screen, the Retainage screen, Payments, the client portal, the pay link and your `
       + `exports were already using the corrected figure. The stored record now matches them.`,
     );
   }, [existingInvoice, legacyTaxBasisRetention, updateInvoice]);
@@ -2519,7 +2525,7 @@ function InvoiceInner() {
       return;
     }
     if (amt > retentionPending + 0.001) {
-      showAlert('Exceeds Pending', `Only ${formatCurrency(retentionPending)} of retention is pending. Reduce the amount.`);
+      showAlert('More than is pending', `Only ${formatCurrency(retentionPending)} of retainage is pending. Reduce the amount.`);
       return;
     }
     // MONEY-F7: ONE meaning — released = now collectible. The amount flows
@@ -2544,7 +2550,7 @@ function InvoiceInner() {
       },
     );
     if (!outcome) {
-      showAlert('Exceeds Pending', `Only ${formatCurrency(retentionPending)} of retention is pending. Reduce the amount.`);
+      showAlert('More than is pending', `Only ${formatCurrency(retentionPending)} of retainage is pending. Reduce the amount.`);
       return;
     }
     updateInvoice(existingInvoice.id, outcome.patch);
@@ -2570,7 +2576,7 @@ function InvoiceInner() {
     setRetentionReleaseAmount('');
     setRetentionReleaseNote('');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showAlert('Retention Released', `${formatCurrency(outcome.amount)} is now collectible. Regenerate the pay link or send the invoice to bill it; record the payment when it arrives.`);
+    showAlert('Retainage released', `${formatCurrency(outcome.amount)} is now collectible. Regenerate the pay link or send the invoice to bill it; record the payment when it arrives.`);
   }, [existingInvoice, retentionReleaseAmount, retentionReleaseNote, retentionPending, retentionReleased, totalDue, amountPaid, subtotal, retentionPctValue, retentionAmount, updateInvoice, mintPayLinkFor]);
 
   // Use the effective status so an unpaid-but-past-due invoice flips to "overdue"
@@ -2983,7 +2989,7 @@ function InvoiceInner() {
 
           {isProgressType && !isLocked && !anyPreScaledLine && (
             <View style={styles.progressSection}>
-              <Text style={styles.progressLabel}>Billing Percentage</Text>
+              <Text style={styles.progressLabel}>Billing percentage</Text>
               <TutorialTarget id="invoice.percent">
               <View style={styles.progressRow}>
                 <TextInput
@@ -3003,7 +3009,7 @@ function InvoiceInner() {
           )}
 
           <View style={styles.termsRow}>
-            <Text style={styles.fieldLabelInline}>Payment Terms</Text>
+            <Text style={styles.fieldLabelInline}>Payment terms</Text>
             {!isLocked ? (
               <TouchableOpacity
                 style={styles.termsSelector}
@@ -3070,7 +3076,7 @@ function InvoiceInner() {
           <View style={styles.termsRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Percent size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
-              <Text style={styles.fieldLabelInline}>Retention</Text>
+              <Text style={styles.fieldLabelInline}>Retainage</Text>
             </View>
             {!isLocked ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -3143,7 +3149,7 @@ function InvoiceInner() {
           )}
 
           <View style={styles.fieldSection}>
-            <Text style={styles.fieldLabel}>Line Items</Text>
+            <Text style={styles.fieldLabel}>Line items</Text>
             {isDesktop ? (
               <DataTable<InvoiceLineItem>
                 tableId="invoice-lines"
@@ -3262,7 +3268,7 @@ function InvoiceInner() {
                     retentionPending, which double-counted the release against
                     the "Retention Released" row below. */}
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: themeColors.accent }]}>Retention Held ({retentionPctValue}% of work completed)</Text>
+                  <Text style={[styles.totalLabel, { color: themeColors.accent }]}>Retainage held ({retentionPctValue}% of work completed)</Text>
                   <Text style={[styles.totalValue, { color: themeColors.accent }]}>-{formatCurrency(retentionAmount)}</Text>
                 </View>
                 {/* MISS-04: state the basis. Sitting directly under "Contract
@@ -3305,12 +3311,12 @@ function InvoiceInner() {
                 )}
                 {retentionReleased > 0 && (
                   <View style={styles.totalRow}>
-                    <Text style={[styles.totalLabel, { color: themeColors.success }]}>Retention Released</Text>
+                    <Text style={[styles.totalLabel, { color: themeColors.success }]}>Retainage released</Text>
                     <Text style={[styles.totalValue, { color: themeColors.success }]}>{formatCurrency(retentionReleased)}</Text>
                   </View>
                 )}
                 <View style={styles.totalRow}>
-                  <Text style={styles.grandLabel}>Net Payable Now</Text>
+                  <Text style={styles.grandLabel}>Net payable now</Text>
                   <TapeRollNumber
                     value={netPayable}
                     formatter={formatCurrency}
@@ -3324,11 +3330,11 @@ function InvoiceInner() {
               <>
                 <View style={styles.divider} />
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: themeColors.success }]}>Amount Paid</Text>
+                  <Text style={[styles.totalLabel, { color: themeColors.success }]}>Amount paid</Text>
                   <Text style={[styles.totalValue, { color: themeColors.success }]}>-{formatCurrency(amountPaid)}</Text>
                 </View>
                 <View style={styles.totalRow}>
-                  <Text style={styles.grandLabel}>Balance Due</Text>
+                  <Text style={styles.grandLabel}>Balance due</Text>
                   <Text style={[styles.grandValue, { color: balanceDue > 0 ? themeColors.danger : themeColors.success }]}>
                     {formatCurrency(balanceDue)}
                   </Text>
@@ -3350,7 +3356,7 @@ function InvoiceInner() {
               testID="mark-paid-btn"
             >
               <CreditCard size={16} color={themeColors.success} strokeWidth={1.75} />
-              <Text style={styles.markPaidBtnText}>Record Payment</Text>
+              <Text style={styles.markPaidBtnText}>Record payment</Text>
               <Text style={styles.recordPaymentBtnMeta}>{pendingBankPayment ? 'bank payment processing' : `${formatCurrency(balanceDue)} due`}</Text>
             </TouchableOpacity>
           )}
@@ -3363,20 +3369,20 @@ function InvoiceInner() {
               testID="release-retention-btn"
             >
               <Unlock size={16} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.releaseRetentionBtnText}>Release Retention</Text>
+              <Text style={styles.releaseRetentionBtnText}>Release retainage</Text>
               <Text style={styles.releaseRetentionBtnMeta}>{formatCurrency(retentionPending)} pending</Text>
             </TouchableOpacity>
           )}
 
           {existingInvoice && existingInvoice.retentionReleases && existingInvoice.retentionReleases.length > 0 && (
             <View style={styles.fieldSection}>
-              <Text style={styles.fieldLabel}>Retention Release History</Text>
+              <Text style={styles.fieldLabel}>Retainage release history</Text>
               {existingInvoice.retentionReleases.map((r) => (
                 <View key={r.id} style={styles.paymentRow}>
                   <View style={styles.paymentInfo}>
                     <Text style={styles.paymentDate}>{new Date(r.date).toLocaleDateString()}</Text>
                     <Text style={styles.paymentMethodText}>
-                      {(r.method ?? 'released').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      {PAYMENT_METHOD_LABEL[r.method ?? 'released'] ?? humanizeEnum(r.method ?? 'released')}
                       {r.note ? ` · ${r.note}` : ''}
                     </Text>
                   </View>
@@ -3532,7 +3538,7 @@ function InvoiceInner() {
                   <MageAIMark size={18} color={themeColors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.payLinkTitle}>Stripe Payment Link</Text>
+                  <Text style={styles.payLinkTitle}>Stripe payment link</Text>
                   <Text style={styles.payLinkSub}>
                     {payLinkMatchesBalance
                       ? invoicePayableInPortal(project.clientPortal, existingInvoice.portalState)
@@ -3613,7 +3619,7 @@ function InvoiceInner() {
                         icon={Banknote}
                         headline="Advances on unpaid invoices"
                         body="We are looking at a factoring partner that could advance part of an unpaid invoice. No partner is signed yet, so there are no rates or timelines to show."
-                        footer="Not available yet — tap to be told when it is"
+                        footer="Not available yet. Tap to be told when it is."
                         testID="invoice-factoring-cta"
                       />
                       {/* Client financing is bring-your-own-lender (fixq): the
@@ -3667,7 +3673,7 @@ function InvoiceInner() {
 
           {existingInvoice && existingInvoice.payments && existingInvoice.payments.length > 0 && (
             <View style={styles.fieldSection}>
-              <Text style={styles.fieldLabel}>Payment History</Text>
+              <Text style={styles.fieldLabel}>Payment history</Text>
               {existingInvoice.payments.map((p) => (
                 <View key={p.id} style={styles.paymentRow}>
                   <View style={styles.paymentInfo}>
@@ -3678,7 +3684,7 @@ function InvoiceInner() {
                       {formatCalendarDay(paymentReceivedDay(p as InvoicePayment & RecordedPaymentFields)) || '—'}
                     </Text>
                     <Text style={styles.paymentMethodText}>
-                      {p.method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      {PAYMENT_METHOD_LABEL[p.method] ?? humanizeEnum(p.method)}
                       {(p as InvoicePayment & RecordedPaymentFields).reference ? ` · ${(p as InvoicePayment & RecordedPaymentFields).reference}` : ''}
                     </Text>
                   </View>
@@ -3831,7 +3837,7 @@ function InvoiceInner() {
           <View style={[styles.modalOverlay, fPayment.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fPayment.card, fPayment.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Record Payment</Text>
+                <Text style={styles.modalTitle}>Record payment</Text>
                 <TouchableOpacity onPress={() => setShowPaymentModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3873,7 +3879,7 @@ function InvoiceInner() {
                 testID="record-payment-reference"
               />
 
-              <Text style={styles.modalFieldLabel}>Payment Method</Text>
+              <Text style={styles.modalFieldLabel}>Payment method</Text>
               <View style={styles.methodGrid}>
                 {PAYMENT_METHOD_OPTIONS.map(opt => (
                   <TouchableOpacity
@@ -3899,7 +3905,7 @@ function InvoiceInner() {
                 testID="record-payment-submit"
               >
                 <Check size={18} color={"#FFFFFF"} strokeWidth={1.75} />
-                <Text style={styles.modalSaveBtnText}>{recordingPayment ? 'Recording…' : 'Record Payment'}</Text>
+                <Text style={styles.modalSaveBtnText}>{recordingPayment ? 'Recording…' : 'Record payment'}</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -3930,7 +3936,7 @@ function InvoiceInner() {
           <View style={[styles.modalOverlay, fRetainage.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetainage.card, fRetainage.cardMotion]} testID="retainage-ask-modal">
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Retainage on this job</Text>
+                <Text style={styles.modalTitle}>Retainage on this project</Text>
                 <TouchableOpacity onPress={handleRetainageUnknown} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -3994,7 +4000,7 @@ function InvoiceInner() {
                 activeOpacity={0.85}
               >
                 <Percent size={18} color={"#FFFFFF"} strokeWidth={1.75} />
-                <Text style={styles.modalSaveBtnText}>Use this rate on this job</Text>
+                <Text style={styles.modalSaveBtnText}>Use this rate on this project</Text>
               </TouchableOpacity>
 
               {/* Storing nothing is a real answer, and the only honest one when
@@ -4021,7 +4027,7 @@ function InvoiceInner() {
           <View style={[styles.modalOverlay, fRetention.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fRetention.card, fRetention.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Release Retention</Text>
+                <Text style={styles.modalTitle}>Release retainage</Text>
                 <TouchableOpacity onPress={() => setShowRetentionModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -4032,7 +4038,7 @@ function InvoiceInner() {
                 {retentionReleased > 0 ? `  ·  Released: ${formatCurrency(retentionReleased)}` : ''}
               </Text>
 
-              <Text style={styles.modalFieldLabel}>Amount to Release</Text>
+              <Text style={styles.modalFieldLabel}>Amount to release</Text>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                 <TextInput
                   style={[styles.modalInput, { flex: 1 }]}
@@ -4080,7 +4086,7 @@ function InvoiceInner() {
           <View style={[styles.modalOverlay, fSend.overlay]}>
             <Animated.View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }, fSend.card, fSend.cardMotion]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Send Invoice To</Text>
+                <Text style={styles.modalTitle}>Send invoice to</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
@@ -4112,7 +4118,7 @@ function InvoiceInner() {
                 </View>
               ) : (
                 <>
-                  <Text style={styles.modalFieldLabel}>Recipient Name</Text>
+                  <Text style={styles.modalFieldLabel}>Recipient name</Text>
                   <TextInput
                     style={styles.recipientModalInput}
                     value={sendRecipientName}
@@ -4137,7 +4143,7 @@ function InvoiceInner() {
                       activeOpacity={0.7}
                     >
                       <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
-                      <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                      <Text style={styles.pickContactText}>Pick from contacts</Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -4199,7 +4205,7 @@ function InvoiceInner() {
         visible={showContactPicker}
         onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
         contacts={contacts}
-        title="Select Recipient"
+        title="Select recipient"
         onSelect={(contact) => {
           const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
           setSendRecipientName(name);

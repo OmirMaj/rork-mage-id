@@ -42,7 +42,7 @@ import {
   lienWaiverFormLabel, requestLienWaiverSignature,
 } from '@/utils/lienWaiverEngine';
 import { useProjectRoleState } from '@/hooks/useProjectRole';
-import { classifyError } from '@/utils/errorCopy';
+import { classifyError, describeError, ownSentence } from '@/utils/errorCopy';
 import { pdfFailureMessage } from '@/utils/platformFile';
 import { isStatutoryWaiverState, statutoryStateName } from '@/utils/lienWaiverForms';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -186,14 +186,14 @@ function LienWaiverGateView({ state, message, onRetry, onBack }: {
           <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Lien Waivers</Text>
+          <Text style={styles.title}>Lien waivers</Text>
         </View>
       </View>
       <View style={styles.emptyCard}>
         {state === 'loading' ? (
           <>
             <ActivityIndicator size="small" color={themeColors.accent} />
-            <Text style={styles.emptyBody}>Checking your access to this job…</Text>
+            <Text style={styles.emptyBody}>Checking your access to this project…</Text>
           </>
         ) : (
           <>
@@ -428,7 +428,8 @@ function LienWaiversScreenInner() {
       // is built on), so offline it cannot be saved yet — say that, not "failed".
       showAlert('You’re offline', 'The waiver was not saved — this phone has no signal. Your entries are still in the form; tap Create again once you’re back online.');
     } else {
-      showAlert('Save failed', `The waiver was not saved. ${res.error}`);
+      console.warn('[LienWaivers] create failed:', res.error);
+      showAlert("Couldn't save the waiver", `The waiver was not saved. ${ownSentence(res.error) ?? 'Try again.'}`);
     }
   }, [projectId, prefillSeed, refresh]);
 
@@ -634,7 +635,7 @@ function LienWaiversScreenInner() {
         return;
       }
       if (!res.waiver) {
-        showAlert(`Couldn’t ${verb}`, 'This waiver is no longer on the job — it may have been deleted on another device. The list has been refreshed.');
+        showAlert(`Couldn’t ${verb}`, 'This waiver is no longer on the project. It may have been deleted on another device. The list has been refreshed.');
         void refresh();
         return;
       }
@@ -659,7 +660,7 @@ function LienWaiversScreenInner() {
     const current = fresh.ok && fresh.waiver ? fresh.waiver : w;
     if (fresh.ok && fresh.waiver) setWaivers(prev => prev.map(x => x.id === w.id ? current : x));
     if (fresh.ok && !fresh.waiver) {
-      showAlert('This waiver is gone', 'It is no longer on the job — it may have been deleted on another device.');
+      showAlert('This waiver is gone', 'It is no longer on the project. It may have been deleted on another device.');
       void refresh();
       return;
     }
@@ -714,14 +715,16 @@ function LienWaiversScreenInner() {
           );
         } else {
           showAlert(
-            'Save failed',
+            "Couldn't record the waiver",
             isOfflineError(res.error)
               ? 'Not saved — this phone is offline. Check your signal and try again.'
               : 'Could not record this waiver. Check your signal and try again.',
           );
         }
       } catch (e) {
-        showAlert('Save failed', e instanceof Error ? e.message : 'Try again.');
+        console.warn('[LienWaivers] record failed:', e);
+        const copy = describeError(e, { action: 'record this waiver' });
+        showAlert(copy.title, copy.body);
       } finally {
         writeInFlight.current = false;
         setBusy(null);
@@ -819,13 +822,13 @@ function LienWaiversScreenInner() {
         <EmptyState
           icon={<ShieldCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="Lien waivers live inside a project"
-          message="A lien waiver is tied to a specific job's payments, so it lives inside a project. To generate one:"
+          message="A lien waiver is tied to a specific project's payments, so it lives inside a project. To generate one:"
           steps={[
             'Open or create a project from the Projects tab.',
-            'Tap Lien Waivers inside the project tile grid.',
+            'Tap Lien waivers inside the project tile grid.',
             'Pick the waiver type — we auto-fill the sub, paid amount, and through-date.',
           ]}
-          actionLabel="Open Projects"
+          actionLabel="Open projects"
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
@@ -841,7 +844,7 @@ function LienWaiversScreenInner() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Lien Waivers</Text>
+          <Text style={styles.title}>Lien waivers</Text>
         </View>
         <TouchableOpacity style={[styles.addBtn, isDesktop && desktopCta]} onPress={() => setAddModal(true)}>
           <Plus size={14} color="#FFF" strokeWidth={1.75} />
@@ -849,7 +852,7 @@ function LienWaiversScreenInner() {
         </TouchableOpacity>
       </View>
       <FeatureHeader
-        eyebrow="Lien Waivers"
+        eyebrow="Lien waivers"
         title="Sign-offs your bank wants"
         subtitle="A signed slip from each sub saying &ldquo;I&apos;ve been paid; I won&apos;t lien the job.&rdquo; Most lenders require these on every draw. We auto-fill from the invoice — you just pick the type."
         explainer={{
@@ -1316,7 +1319,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
             </>
           )}
 
-          <Text style={styles.modalLabel}>Subcontractor name *</Text>
+          <Text style={styles.modalLabel}>Sub name *</Text>
           <TextInput
             style={styles.modalInput}
             value={subName}
@@ -1326,12 +1329,12 @@ function NewWaiverModal({ visible, onClose, onCreate, seed, subOptions = [] }: {
             autoCapitalize="words"
           />
 
-          <Text style={styles.modalLabel}>Subcontractor email</Text>
+          <Text style={styles.modalLabel}>Sub email</Text>
           <TextInput
             style={styles.modalInput}
             value={subEmail}
             onChangeText={setSubEmail}
-            placeholder="where we send the signing link"
+            placeholder="Where the signing link goes"
             placeholderTextColor={themeColors.textMuted}
             keyboardType="email-address"
             autoCapitalize="none"

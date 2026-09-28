@@ -39,6 +39,7 @@ import {
   addCalendarMonths, addCalendarDays, calendarDayOf, calendarDayStart, dayOrInstantDate,
 } from '../utils/calendarDate';
 import { addWorkingDays } from '../utils/scheduleEngine';
+import { setLang, getLang } from '../i18n/core';
 import { buildPortalSnapshot } from '../utils/portalSnapshot';
 import type { ClientPortalSettings, DailyFieldReport, Project } from '../types';
 
@@ -345,6 +346,53 @@ function runtimeChecks() {
     eq('parse rejects day 45', parseCalendarDay('2026-01-45'), null);
   }
 
+  // Spanish (wave-next I18NWIRE, docs/I18N.md §6): formatCalendarDay takes
+  // `lang` (default getLang()). English is the unchanged en-US path; Spanish
+  // comes from our own tables and is NEVER numeric — `9/10` is 9 October to a
+  // Mexican foreman and 10 September to his owner.
+  console.log(`[TZ=${tz}] Spanish calendar days are month names, never numbers:`);
+  {
+    const NUMERIC_DATE = /\d{1,2}\s*[/.-]\s*\d{1,2}/;
+    const ES_MONTH = /\b(ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/;
+    const days = ['2026-09-10', '2026-01-01', '2028-02-29'];
+    const shapes: (Intl.DateTimeFormatOptions | undefined)[] = [
+      undefined,
+      { month: 'numeric', day: 'numeric', year: 'numeric' },
+      { month: '2-digit', day: '2-digit' },
+      { month: 'numeric', day: 'numeric' },
+      { weekday: 'short', month: 'short', day: 'numeric' },
+    ];
+    const outs = days.flatMap(d => shapes.map(o => formatCalendarDay(d, o, 'es')));
+    const numeric = outs.filter(x => NUMERIC_DATE.test(x) || !ES_MONTH.test(x));
+    ok(`es output for 3 dates × ${shapes.length} shapes is never numeric and always names the month (${outs.length})`,
+      numeric.length === 0, numeric.join(' | '));
+    eq("es default: '2026-09-10' → '10 sept 2026'", formatCalendarDay('2026-09-10', undefined, 'es'), '10 sept 2026');
+    eq("es month:'numeric' asked → the month NAME ('10 sept 2026')",
+      formatCalendarDay('2026-09-10', { month: 'numeric', day: 'numeric', year: 'numeric' }, 'es'), '10 sept 2026');
+    eq('es New Year\'s Day does not roll back a year', formatCalendarDay('2026-01-01', undefined, 'es'), '1 ene 2026');
+    eq('es leap day survives', formatCalendarDay('2028-02-29', undefined, 'es'), '29 feb 2028');
+    eq('es long weekday form', formatCalendarDay('2026-09-10', { weekday: 'long', month: 'long', day: 'numeric' }, 'es'), 'jueves, 10 de septiembre');
+    eq('es synced ISO row = bare row', formatCalendarDay('2026-08-30T23:59:59Z', undefined, 'es'), formatCalendarDay('2026-08-30', undefined, 'es'));
+    eq('es bad input is echoed back', formatCalendarDay('2026-13-01', undefined, 'es'), '2026-13-01');
+    eq('es empty yields empty', formatCalendarDay('', undefined, 'es'), '');
+    // English identity: an explicit 'en', and the default while the app is in English.
+    const enOpts: (Intl.DateTimeFormatOptions | undefined)[] = [undefined, { weekday: 'long', month: 'long', day: 'numeric' }, { month: 'numeric', day: 'numeric' }];
+    const enDiff = days.flatMap(d => enOpts.map(o => [d, o] as const)).filter(([d, o]) => {
+      const legacy = parseCalendarDay(d)!.toLocaleDateString('en-US', o ?? { month: 'short', day: 'numeric', year: 'numeric' });
+      return formatCalendarDay(d, o, 'en') !== legacy || formatCalendarDay(d, o) !== legacy;
+    });
+    ok('en (explicit, and the default in English) is exactly the en-US toLocaleDateString path', enDiff.length === 0 && getLang() === 'en',
+      enDiff.map(([d, o]) => `${d} ${JSON.stringify(o)}`).join(' | '));
+    // The default follows the app language (i18n/core getLang()).
+    setLang('es');
+    const followed = formatCalendarDay('2026-09-10');
+    setLang('en');
+    eq('the default lang follows the app language (es → Spanish)', followed, '10 sept 2026');
+    eq('…and back to English afterwards', formatCalendarDay('2026-09-10'), 'Sep 10, 2026');
+    // An unknown lang value (a callback's index/array argument) stays English.
+    eq('a non-language third argument renders English', formatCalendarDay('2026-09-10', undefined, [] as never), 'Sep 10, 2026');
+  }
+
   // DailyFieldReport.date holds an instant from every writer but a bare local
   // day from the voice report for a while (rows on devices and in a text
   // column). Its readers go through dayOrInstantDate; `new Date('2026-09-17')`
@@ -403,6 +451,19 @@ for (const tz of TIMEZONES) {
     childFails.join('\n       ') || out.slice(-400));
   const resolved = /\[TZ=([^\]]+)\]/.exec(out)?.[1];
   ok(`TZ=${tz}: the child actually ran in that zone`, resolved === tz, `child reported ${resolved}`);
+}
+
+// Spanish routing has no import cycle (wave-next I18NWIRE): i18n/format.ts
+// imports utils/calendarDate.ts, so calendarDate must reach the Spanish tables
+// through i18n/dateEs.ts, which imports nothing from utils/.
+{
+  // Side-effect imports (`import '…';`) count too.
+  const importsOf = (p: string) => [...read(p).matchAll(/^import\s+(?:[^;]*?from\s+)?'([^']+)'/gm)].map(m => m[1]);
+  const cal = importsOf('utils/calendarDate.ts');
+  ok('utils/calendarDate.ts never imports i18n/format (cycle)', !cal.some(m => /i18n\/format$/.test(m)), cal.join(', '));
+  ok('…it reaches Spanish through i18n/dateEs and the language through i18n/core', cal.includes('../i18n/dateEs') && cal.includes('../i18n/core'), cal.join(', '));
+  const es = importsOf('i18n/dateEs.ts');
+  ok('i18n/dateEs.ts imports nothing from utils/ or react-native', !es.some(m => /utils\/|react-native/.test(m)), es.join(', '));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

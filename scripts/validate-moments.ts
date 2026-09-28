@@ -15,9 +15,13 @@
 // The runner imports every module in that folder and hands it the shared
 // helpers below; check modules never import each other.
 //
-// Required modules: capsule, signline. A missing one FAILS, unless
-// MOMENTS_PARTIAL=1 (a lane's own run while the other lane is still
-// building); the orchestrator's gate runs without the flag.
+// Discovery: EVERY *.ts module directly in scripts/moments-checks/ is run
+// (W2/W3 lanes add signing-sites, money-sites, field-sites, portal: they are
+// picked up with no change here). Required modules: capsule, signline, and
+// Step 0's adapters, step0, rules. A missing one FAILS, unless
+// MOMENTS_PARTIAL=1 (a lane's own run while another lane is still building);
+// the orchestrator's gate runs without the flag. Helpers a module needs live
+// in a sub-folder (scripts/moments-checks/<name>/), which is never run.
 //
 // Text-only reads for anything that imports react-native (bun cannot load
 // it); the pure utils (utils/moments/*) are imported and executed for real.
@@ -28,7 +32,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(HERE, '..');
-const REQUIRED = ['capsule', 'signline'];
+const REQUIRED = ['capsule', 'signline', 'adapters', 'step0', 'rules'];
 
 export interface MomentsCtx {
   ok(name: string, cond: boolean, detail?: string): void;

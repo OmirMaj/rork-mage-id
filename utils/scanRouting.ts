@@ -4,6 +4,7 @@ import type {
 } from '@/types';
 import { parseCalendarDay, addCalendarMonths } from '@/utils/calendarDate';
 import { normalizeExtraction } from '@/utils/materialReceipt';
+import { humanizeEnum } from '@/utils/statusLabels';
 
 // Exhaustive: `satisfies` forces a compile error if a docType is missing.
 const ROUTING = {
@@ -38,7 +39,7 @@ export function defaultTitleFor(docType: ScanDocType, fields: Record<string, unk
     case 'warranty': return s('product') ? `Warranty — ${s('product')}` : 'Warranty';
     case 'equipment_nameplate': return [s('make'), s('model')].filter(Boolean).join(' ') || 'Equipment';
     case 'material_tag': return s('product') || s('sku') || 'Material';
-    default: return docType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    default: return humanizeEnum(docType);
   }
 }
 
@@ -163,11 +164,11 @@ export function scanOwnerOnlyGate(
     : recordKind === 'permit' ? 'permit'
     : recordKind === 'cost' ? 'cost entry'
     : 'COI';
-  if (role.isLoading) return { state: 'checking', reason: `Checking your role on this job before adding the ${noun}…` };
+  if (role.isLoading) return { state: 'checking', reason: `Checking your role on this project before adding the ${noun}…` };
   // A failed / offline / settled-null read is not ownership: never create
   // the record on a guess, and don't blame a role he may not have.
   if (role.isError || role.role == null) {
-    return { state: 'blocked', reason: `Couldn't confirm you own this job, so this scan files as an image only — the ${noun} isn't added.` };
+    return { state: 'blocked', reason: `Couldn't confirm you own this project, so this scan files as an image only. The ${noun} isn't added.` };
   }
   return {
     state: 'blocked',
@@ -195,9 +196,9 @@ export function materialReceiptOwnerGate(
   role: { role: string | null; isLoading: boolean; isError: boolean },
 ): ScanOwnerGate {
   if (!projectId || role.role === 'owner') return { state: 'open' };
-  if (role.isLoading) return { state: 'checking', reason: 'Checking your role on this job before saving the receipt…' };
+  if (role.isLoading) return { state: 'checking', reason: 'Checking your role on this project before saving the receipt…' };
   if (role.isError || role.role == null) {
-    return { state: 'blocked', reason: "Couldn't confirm you own this job, so this receipt can't be saved to its job costing." };
+    return { state: 'blocked', reason: "Couldn't confirm you own this project, so this receipt can't be saved to its job costing." };
   }
   return {
     state: 'blocked',

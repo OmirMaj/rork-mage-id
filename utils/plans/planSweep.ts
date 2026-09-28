@@ -32,11 +32,34 @@ import {
 } from '@/utils/codeAmendments';
 import type { ResolvedCodeJurisdiction } from '@/utils/codeJurisdiction';
 import type { PlanCodeFindingRaw } from '@/utils/planCodeReviewer';
+import { getLang } from '../../i18n/core';
+import type { Lang } from '../../i18n/types';
 
 // ── Words ──────────────────────────────────────────────────────────────────
 
-/** Words a sweep never shows or drafts: a finding is a question, never a verdict. */
-export const FORBIDDEN_WORDS = /\b(violat\w*|non-?compliant|fails? code|illegal|code violation)\b/i;
+/** English verdict words (the original list, unchanged). */
+const FORBIDDEN_EN = String.raw`\b(?:violat\w*|non-?compliant|fails? code|illegal|code violation)\b`;
+
+/**
+ * Spanish verdict words (docs/I18N.md §7.6 — a hard gate: the AI replies in
+ * Spanish once the app language is Spanish). JS `\b` and `\w` are ASCII-only,
+ * so `\bviolación\b` never matches (ó is a "non-word" character) and
+ * `viola\w*` stops at the accent. Boundaries are Unicode-aware lookarounds and
+ * the stems take any letters, under the `u` flag:
+ *   viola…      viola, violan, violación, violaciones, violado
+ *   incumpl…    incumple, incumplen, incumplimiento, incumplir
+ *   no cumple   no cumple, no cumplen
+ *   ilegal…     ilegal, ilegales, ilegalmente
+ *   infracción… infracción, infracciones (with or without the accent)
+ */
+const ES_L = String.raw`[\p{L}\p{N}_]`;
+const FORBIDDEN_ES = String.raw`(?<!${ES_L})(?:viola${ES_L}*|incumpl${ES_L}*|no\s+cumplen?|ilegal${ES_L}*|infracci[oó]n${ES_L}*)(?!${ES_L})`;
+
+/** Words a sweep never shows or drafts, in English or Spanish: a finding is a
+ *  question, never a verdict. No `g` flag — `.test` stays stateless. */
+export const FORBIDDEN_WORDS = new RegExp(`${FORBIDDEN_EN}|${FORBIDDEN_ES}`, 'iu');
+const FORBIDDEN_WORDS_EN = new RegExp(FORBIDDEN_EN, 'i');
+const FORBIDDEN_WORDS_ES = new RegExp(FORBIDDEN_ES, 'iu');
 
 /** The most plan reviews one sweep spends, whatever the allowance. */
 export const SWEEP_MAX_SHEETS = 6;
@@ -283,17 +306,92 @@ const NEUTRAL: readonly [RegExp, string][] = [
   [/\bviolat\w*/gi, 'possible conflict'],
 ];
 
+// Spanish (§7.6). Same idea: the verdict becomes a possibility. Longest
+// phrases first; the lookarounds are the Unicode-aware boundaries above.
+//
+// Grammar: violación / infracción are feminine and "conflicto" is masculine,
+// so a leading article (or "de la" / "a la") is rewritten with the noun —
+// "La violación del código" → "El posible conflicto con el código", never
+// "La posible conflicto". Plural subjects keep plural verbs (violan →
+// podrían), and a participle keeps its gender and number (violada →
+// posiblemente no respetada).
+//
+// This table runs ONLY when the app language is Spanish. The English noun
+// "viola" (the instrument, a street, a person: "Viola Ave", "Viola Chen") is
+// also the Spanish verb "viola" (violates); running the Spanish table on
+// English text would rewrite names. So the language decides, not a guess:
+// in English the output is byte-identical to the pre-Spanish neutraliser,
+// and in Spanish "viola" is always rewritten (the §7.6 hard gate).
+type EsRep = string | ((...groups: string[]) => string);
+const esWord = (body: string) => new RegExp(`(?<!${ES_L})(?:${body})(?!${ES_L})`, 'giu');
+const ES_NOUN = String.raw`(?:violaci[oó]n|infracci[oó]n)`;
+/** Feminine article → the masculine one "conflicto" takes. */
+const ES_ARTICLE: Record<string, string> = {
+  la: 'el', una: 'un', esta: 'este', esa: 'ese',
+  las: 'los', unas: 'unos', estas: 'estos', esas: 'esos',
+};
+const esArticle = (a: string) => ES_ARTICLE[a.toLowerCase()] ?? a;
+/** " de" / " del" after the noun → " con" / " con el" (null = nothing followed). */
+const esTail = (t: string | undefined) => (!t ? '' : /del$/i.test(t) ? ' con el' : ' con');
+const esConflict = (plural: string | undefined) => (plural ? 'posibles conflictos' : 'posible conflicto');
+const NEUTRAL_ES: readonly [RegExp, EsRep][] = [
+  // "de la violación" → "del posible conflicto"; "a las infracciones" → "a los posibles conflictos".
+  [esWord(String.raw`(de|a)\s+la\s+${ES_NOUN}(\s+del?)?`), (_m, prep, tail) =>
+    `${prep.toLowerCase() === 'de' ? 'del' : 'al'} posible conflicto${esTail(tail)}`],
+  [esWord(String.raw`(la|una|esta|esa|las|unas|estas|esas)\s+${ES_NOUN}(es)?(\s+del?)?`), (_m, art, plural, tail) =>
+    `${esArticle(art)} ${esConflict(plural)}${esTail(tail)}`],
+  [esWord(String.raw`violan\s+el`), 'podrían no ajustarse al'],
+  [esWord(String.raw`viola\s+el`), 'podría no ajustarse al'],
+  [esWord(String.raw`violar\s+el`), 'no ajustarse al'],
+  // A bare verb at the end of a clause takes no "a".
+  [esWord(String.raw`violan(?=\s*(?:[.,;:!?)»]|$))`), 'podrían no ajustarse'],
+  [esWord(String.raw`viola(?=\s*(?:[.,;:!?)»]|$))`), 'podría no ajustarse'],
+  [esWord(String.raw`violan`), 'podrían no ajustarse a'],
+  [esWord(String.raw`viola`), 'podría no ajustarse a'],
+  [esWord(String.raw`violar`), 'no ajustarse a'],
+  [esWord(String.raw`violad([oa]s?)`), (_m, end) => `posiblemente no respetad${end.toLowerCase()}`],
+  [esWord(String.raw`${ES_NOUN}(es)?\s+del|incumplimientos?\s+del`), 'posible conflicto con el'],
+  [esWord(String.raw`${ES_NOUN}(es)?\s+de|incumplimientos?\s+de`), 'posible conflicto con'],
+  [esWord(String.raw`${ES_NOUN}es|incumplimientos`), 'posibles conflictos'],
+  [esWord(String.raw`${ES_NOUN}|incumplimiento`), 'posible conflicto'],
+  [esWord(String.raw`no\s+cumplen|incumplen`), 'podrían no cumplir'],
+  [esWord(String.raw`no\s+cumple|incumple`), 'podría no cumplir'],
+  [esWord(String.raw`ilegales`), 'posiblemente no permitidos'],
+  [esWord(String.raw`ilegal`), 'posiblemente no permitido'],
+];
+
 /**
  * The model's words with every verdict word replaced by neutral wording: this
  * text is shown as a question for the architect and drafted into an RFI to
- * him. The output never matches FORBIDDEN_WORDS.
+ * him. Per language (the app's, by default):
+ *   'en' — the English table and belt only; the output never matches the
+ *          English verdict words, and is byte-identical to the pre-Spanish
+ *          neutraliser (a name like "Viola Ave" is left alone);
+ *   'es' — both tables and both belts; the output never matches
+ *          FORBIDDEN_WORDS (English or Spanish).
  */
-export function neutralizeModelText(s: string | null | undefined): string {
+export function neutralizeModelText(s: string | null | undefined, lang: Lang = getLang()): string {
   let out = String(s ?? '');
-  for (const [re, rep] of NEUTRAL) {
-    out = out.replace(re, (m: string) => (/^[A-Z]/.test(m) ? rep[0].toUpperCase() + rep.slice(1) : rep));
+  const keepCase = (rep: string) => (m: string) => (/^\p{Lu}/u.test(m) ? rep[0].toUpperCase() + rep.slice(1) : rep);
+  for (const [re, rep] of NEUTRAL) out = out.replace(re, keepCase(rep));
+  if (lang !== 'es') {
+    // Belt and braces: a spelling the table missed still never reaches him.
+    while (FORBIDDEN_WORDS_EN.test(out)) out = out.replace(FORBIDDEN_WORDS_EN, 'possible conflict');
+    return out.replace(/\s+/g, ' ').trim();
   }
-  // Belt and braces: a spelling the table missed still never reaches him.
+  for (const [re, rep] of NEUTRAL_ES) {
+    out = out.replace(re, (m: string, ...groups: unknown[]) => {
+      const text = typeof rep === 'string'
+        ? rep
+        : rep(m, ...groups.map((g) => (typeof g === 'string' ? g : (undefined as unknown as string))));
+      return keepCase(text)(m);
+    });
+  }
+  // Belt and braces: a spelling the tables missed still never reaches him.
+  while (FORBIDDEN_WORDS_EN.test(out)) out = out.replace(FORBIDDEN_WORDS_EN, 'possible conflict');
+  while (FORBIDDEN_WORDS_ES.test(out)) out = out.replace(FORBIDDEN_WORDS_ES, 'posible conflicto');
+  // The union is the contract (a replacement can never re-create a match —
+  // neither filler contains a verdict word — so this loop runs zero times).
   while (FORBIDDEN_WORDS.test(out)) out = out.replace(FORBIDDEN_WORDS, 'possible conflict');
   return out.replace(/\s+/g, ' ').trim();
 }

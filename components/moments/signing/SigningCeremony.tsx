@@ -36,7 +36,7 @@ import { Tokens } from '@/constants/designTokens';
 import { nativeDriver } from '@/components/ui/motion';
 import SignaturePad, { type SignaturePadHandle } from '@/components/SignaturePad';
 import { useCommitCapsule, type ConfirmedContext, type CapsuleValues } from '@/components/moments/core/contract';
-import { offlineLegalReason, type CommitResult, type CommitWriteOptions } from '@/utils/moments/commitResult';
+import { offlineReasonLine, type CommitResult, type CommitWriteOptions } from '@/utils/moments/commitResult';
 import { MOMENT_EASE, MOMENT_SPRING, type SpringCfg } from '@/utils/moments/motionSpec';
 import { momentColors } from '@/utils/moments/colors';
 import { momentHaptic, announce } from '@/utils/moments/haptics';
@@ -101,6 +101,7 @@ export interface SigningCeremonyProps {
   copy: { label: string; srLabel: string; srConfirm: string; sealedAnnounce: string; sentAnnounce?: string };
   /** Must resolve confirmed only on the real stored record. */
   write: () => Promise<CommitResult>;
+  /** legal is forced true. Outcome lines as whole sentences in writeOptions.copy (Step 0). */
   writeOptions: Omit<CommitWriteOptions, 'legal'>;
   recordFrom: (r: Confirmed) => { signedAtIso: string; timeSource: 'device' | 'server'; name: string };
   /**
@@ -114,6 +115,25 @@ export interface SigningCeremonyProps {
   onBinding?: () => void;
   onDone?: (r: CommitResult) => void;
   onResultAfterUnmount?: (r: CommitResult) => void;
+  /** Step 0: a late answer after the timeout already resolved the ceremony. */
+  onLateResult?: (r: CommitResult) => void;
+  /** Step 0: the commit started (the pad, name and `above` just locked). */
+  onCommitStart?: () => void;
+  /** Step 0: refused or timed out (the pad, name and `above` unlock; strokes kept). */
+  onUncommit?: (r: CommitResult) => void;
+  /**
+   * Step 0: a slot above the card (field ticket: the role chips and title
+   * field). Locked and dimmed with the name and pad from commit start until an
+   * un-commit, and for good once the record is stored.
+   */
+  above?: React.ReactNode;
+  /**
+   * Step 0: true for a confirmed answer that is NOT this signature (ceremony
+   * graft 4, "Already signed on the portal. Nothing was changed."). It
+   * renders the neutral resolve: no seal, no arcs, no check, no success
+   * haptic, a plain record line with the result's title.
+   */
+  isNeutral?: (r: Confirmed) => boolean;
   testID?: string;
 }
 
@@ -212,6 +232,8 @@ function CeremonyBody(props: SigningCeremonyProps) {
   // ── state ──────────────────────────────────────────────────────────────
   const [locked, setLocked] = useState(false);
   const [seal, setSeal] = useState<SealState | null>(null);
+  // Step 0: a confirmed answer the caller marked neutral (isNeutral): a plain line, never a seal.
+  const [neutral, setNeutral] = useState<string | null>(null);
   const [chip, setChip] = useState('Awaiting your signature');
   const padRef = useRef<SignaturePadHandle>(null);
   const hasInk = props.paths.length > 0;
@@ -238,7 +260,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
 
   const readiness = lineReadiness({
     offline: !!props.offline,
-    offlineReason: offlineLegalReason(),
+    offlineReason: offlineReasonLine(props.writeOptions),
     mode,
     paths: props.paths,
     name: shownName,
@@ -268,9 +290,25 @@ function CeremonyBody(props: SigningCeremonyProps) {
   propsRef.current = props;
 
   // ── the seal: runs ONLY for a confirmed write (the capsule's success plan) ──
-  const playConfirmed = async (ctx: ConfirmedContext) => {
+  const playConfirmed = async (ctx: ConfirmedContext): Promise<void | 'neutral'> => {
     const p = propsRef.current;
     const r = ctx.result;
+    // Step 0 neutral resolve: the record exists but this signature is not it
+    // ("Already signed on the portal"). No seal, no arcs, no check, no
+    // success haptic: the circle fades and one plain line says what happened.
+    let isNeutral = false;
+    try { isNeutral = !!p.isNeutral?.(r); } catch { isNeutral = false; }
+    if (isNeutral) {
+      tw(ctx.values.busy, 0, ST.busyOut);
+      tw(ctx.values.capsuleOpacity, 0, ST.busyOut);
+      tw(chipO, 0, ST.chipFade);
+      setNeutral(r.title);
+      tw(rec, 1, ctx.reduced ? ST.rmRecord : ST.recordIn);
+      announce(r.announce ?? r.title);
+      await ctx.wait(ctx.reduced ? ST.rmRecord : ST.recordIn);
+      // The capsule's own display takes the cap role, never 'success'.
+      return 'neutral';
+    }
     const Wc = WRef.current || ctx.geometry.W;
     let ringText: string;
     let record: SealState['record'];
@@ -448,15 +486,18 @@ function CeremonyBody(props: SigningCeremonyProps) {
     onCommitStart: () => {
       setLocked(true);
       tw(fieldsO, CT.fieldsDim, 200);
+      try { propsRef.current.onCommitStart?.(); } catch { /* the commit goes on */ }
     },
-    onUncommit: () => {
+    onUncommit: (r) => {
       // Refused or timed out: the strokes are KEPT; the pad unlocks.
       setLocked(false);
       tw(fieldsO, 1, 200);
+      try { propsRef.current.onUncommit?.(r); } catch { /* the pad must still unlock */ }
     },
     playConfirmed,
     onDone: props.onDone,
     onResultAfterUnmount: props.onResultAfterUnmount,
+    onLateResult: props.onLateResult,
     testID,
   });
 
@@ -470,7 +511,9 @@ function CeremonyBody(props: SigningCeremonyProps) {
   }, [warm]);
 
   const sealed = seal != null;
-  const showClear = mode === 'drawn' && hasInk && !locked && !sealed;
+  // Stored, one way or the other: the seal played, or the neutral line did.
+  const done = sealed || neutral != null;
+  const showClear = mode === 'drawn' && hasInk && !locked && !done;
   // Once sealed, the printed name is the STORED one, never the live field.
   const rowName = (seal && seal.name) || shownName.trim();
   const nameRowLeft = rowName ? `${rowName} · ${role}` : role;
@@ -503,7 +546,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
             initialPaths={props.paths}
             onChange={props.onPathsChange}
             onFirstPenDown={onFirstPenDown}
-            locked={locked || sealed}
+            locked={locked || done}
             noStartRects={noStart}
             width={W}
             height={padH}
@@ -534,6 +577,11 @@ function CeremonyBody(props: SigningCeremonyProps) {
           {seal?.day || today}
         </Text>
       </View>
+      {neutral != null && !seal ? (
+        <Animated.Text style={[st.record, { opacity: rec }]} numberOfLines={1} testID={testID ? `${testID}-neutral` : undefined}>
+          {neutral}
+        </Animated.Text>
+      ) : null}
       {seal ? (
         <Animated.Text style={[st.record, { opacity: rec }]} numberOfLines={1} testID={testID ? `${testID}-record` : undefined}>
           {seal.record.lead}
@@ -590,6 +638,15 @@ function CeremonyBody(props: SigningCeremonyProps) {
 
   return (
     <View testID={testID}>
+      {props.above != null && !folded ? (
+        <Animated.View
+          style={[st.above, { opacity: fieldsO }]}
+          pointerEvents={locked || done ? 'none' : 'auto'}
+          testID={testID ? `${testID}-above` : undefined}
+        >
+          {props.above}
+        </Animated.View>
+      ) : null}
       <Animated.View
         style={[st.card, { height: folded ? G.panel : G.card, transform: [{ translateY: cardY }] }]}
         onLayout={onCardLayout}
@@ -632,7 +689,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
         ) : null}
       </Animated.View>
       {!folded ? (
-        <Animated.View style={[st.fields, { opacity: fieldsO }]} pointerEvents={locked || sealed ? 'none' : 'auto'}>
+        <Animated.View style={[st.fields, { opacity: fieldsO }]} pointerEvents={locked || done ? 'none' : 'auto'}>
           <Text style={st.fieldLabel}>{name.label}</Text>
           {/* The card surface (a ViewStyle) and the text style stay in separate
               entries: merging cardSurface with a Type.* spread widens every
@@ -645,7 +702,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
             onBlur={() => setNameFocused(false)}
             placeholder={name.placeholder}
             placeholderTextColor={colors.textMuted}
-            editable={!locked && !sealed}
+            editable={!locked && !done}
             autoCorrect={false}
             autoComplete="off"
             accessibilityLabel={name.label}
@@ -667,7 +724,7 @@ function CeremonyBody(props: SigningCeremonyProps) {
               onOpenDisclosure={consent.onOpenDisclosure}
               checked={consent.checked}
               onChange={consent.onChange}
-              disabled={locked || sealed}
+              disabled={locked || done}
               testID={testID ? `${testID}-consent` : undefined}
             />
           ) : null}
@@ -685,6 +742,7 @@ const WEB_INPUT_NO_OUTLINE = { outlineStyle: 'none' } as unknown as TextStyle;
 const makeStyles = (t: ThemeColors) =>
   StyleSheet.create({
     card: { position: 'relative' },
+    above: { marginBottom: 14 },
     topPanel: {
       ...cardSurface(t, { radius: 'xl', pad: 18 }),
       position: 'absolute',

@@ -25,7 +25,7 @@ import { Animated, Pressable, StyleSheet, Text, View, type StyleProp, type ViewS
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { momentColors, type CapsuleTone } from '@/utils/moments/colors';
-import { offlineLegalReason, type CommitResult, type CommitWriteOptions } from '@/utils/moments/commitResult';
+import { offlineReasonLine, type CommitResult, type CommitWriteOptions } from '@/utils/moments/commitResult';
 import { CAPSULE_GEOMETRY } from '@/utils/moments/motionSpec';
 import { labelDriftTable, labelOpacityTable } from '@/utils/moments/capsuleMath';
 import { MOMENT_COPY } from '@/utils/moments/copy';
@@ -37,18 +37,24 @@ export interface SlideToConfirmProps {
   label: string; busyLabel: string; srLabel: string; srConfirm: string; srHint?: string;
   /** the write; the component wraps it in runCommit */
   onCommit: () => Promise<CommitResult>;
-  /** idempotent, legal, subject, verb (required: forces the author to decide) */
+  /**
+   * idempotent (required: forces the author to decide), legal, and the
+   * outcome sentences in writeOptions.copy (refused / timeout / legalQueued /
+   * transport / offline). subject and verb are the English fallback only.
+   */
   writeOptions: CommitWriteOptions;
   /** md = compact clock-out: 64% width (min 220), threshold .70 default, holdMs 600, settle false */
   size?: 'lg' | 'md';
   tone?: CapsuleTone; resultIcon?: CapsuleResultIcon; threshold?: number;
   disabledReason?: string | null;
-  /** with writeOptions.legal -> disabledReason = offlineLegalReason() */
+  /** with writeOptions.legal -> disabledReason = writeOptions.copy.offline ?? offlineLegalReason() */
   offline?: boolean;
   /** default "Saved on this phone · sends when online" */
   queuedLabel?: string;
   onDone?: (r: CommitResult) => void; onResolved?: (r: CommitResult) => void;
   onResultAfterUnmount?: (r: CommitResult) => void;
+  /** Step 0: a late answer after the timeout already resolved the slide (a late confirmed write refreshes the record). */
+  onLateResult?: (r: CommitResult) => void;
   style?: StyleProp<ViewStyle>; testID?: string;
 }
 
@@ -72,7 +78,7 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
   const D = geo.D;
   const legal = !!props.writeOptions.legal;
   // A legal record can never be queued, so offline disables it with the reason.
-  const disabledReason = legal && props.offline ? offlineLegalReason() : (props.disabledReason ?? null);
+  const disabledReason = legal && props.offline ? offlineReasonLine(props.writeOptions) : (props.disabledReason ?? null);
 
   const onCommitRef = useRef(props.onCommit);
   onCommitRef.current = props.onCommit;
@@ -97,6 +103,7 @@ export const SlideToConfirm = forwardRef<SlideToConfirmHandle, SlideToConfirmPro
     onDone: props.onDone,
     onResolved: props.onResolved,
     onResultAfterUnmount: props.onResultAfterUnmount,
+    onLateResult: props.onLateResult,
     testID: props.testID,
   });
 
