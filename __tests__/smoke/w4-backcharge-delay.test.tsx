@@ -21,7 +21,18 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import type { ChangeOrder, Project, Subcontractor, SubSubmittedInvoice } from '@/types';
 import { BACKCHARGES_KEY, planDeduction, parseBackcharges, formatCents, type Backcharge } from '@/utils/backcharges';
 
-// ── Real-clock fixture for the owner-delay half ────────────────────────────
+// ── Pinned-clock fixture for the owner-delay half ──────────────────────────
+// The delay engine reads today's date, so the fixture used to shift with the
+// real calendar: on some weekdays the framing task picked up a day of float and
+// the headline changed ('had 1 days of float' vs 'is on the critical path'),
+// failing CI on those days only. Only Date is faked — timers stay real, so
+// waitFor/act behave exactly as before.
+jest.useFakeTimers({
+  now: new Date('2026-09-23T15:00:00'),
+  doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate',
+    'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback',
+    'cancelIdleCallback', 'hrtime', 'performance'],
+});
 const DAY = 86_400_000;
 const localDay = (ms: number) => {
   const d = new Date(ms);

@@ -29,6 +29,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { showAlert } from '@/utils/alert';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 
 const TRACKED_BIDS_KEY = 'mageid_tracked_bids';
 
@@ -96,7 +97,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 
 function formatCurrency(amount: number | null | undefined): string {
   if (amount == null || amount === 0) return 'Not specified';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(roundHalfAwayFromZero(amount, 0));
 }
 
 function formatDate(dateStr: string | null | undefined): string {

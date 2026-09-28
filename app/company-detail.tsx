@@ -19,6 +19,7 @@ import type { BidCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { NATIVE_HEADER_TITLE_FACE } from '@/constants/navigation';
+import { roundHalfAwayFromZero } from '@/utils/formatters';
 
 const BID_CATEGORY_LABELS: Record<BidCategory, string> = {
   construction: 'Construction', it_services: 'IT Services', environmental: 'Environmental',
@@ -27,7 +28,7 @@ const BID_CATEGORY_LABELS: Record<BidCategory, string> = {
 };
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(roundHalfAwayFromZero(amount, 0));
 }
 
 export default function CompanyDetailScreen() {
